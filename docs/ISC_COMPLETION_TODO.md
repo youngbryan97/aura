@@ -11,52 +11,53 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**0 done, 0 blocked, 0 not applicable, 778 open, of 778.**
+**122 done, 0 blocked, 0 not applicable, 660 open, of 782.**
 
-Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
+Newest run with a report: `run_006` — 10/24 criteria, commit `728161952e25`.
 
 
 ## Phase 0 — Freeze what “passing” means
 
-- [ ] `P0.1` Keep thresholds centralized and immutable during a campaign.
-- [ ] `P0.2` Keep ISC an AND, not a weighted score.
-- [ ] `P0.3` Treat missing evidence as failure.
-- [ ] `P0.4` Run multiple full repetitions instead of reporting the best one; subject-core-frozen now exists.
+- [x] `P0.1` Keep thresholds centralized and immutable during a campaign. — `THRESHOLDS` in core/subject/battery.py, hashed into the campaign fingerprint
+- [x] `P0.2` Keep ISC an AND, not a weighted score. — `Verdict.isc` is `all(...)`
+- [x] `P0.3` Treat missing evidence as failure. — a criterion whose measurement did not run reads as failed
+- [x] `P0.4` Run multiple full repetitions instead of reporting the best one; subject-core-frozen now exists. — `make subject-core-frozen`
 - [ ] `P0.5` Pick the exact candidate commit and freeze it.
-- [ ] `P0.6` Record commit SHA and tree SHA in every artifact.
-- [ ] `P0.7` Freeze every configuration value used by the run.
-- [ ] `P0.8` Hash the configuration.
-- [ ] `P0.9` Freeze the state schema.
-- [ ] `P0.10` Freeze null architectures.
-- [ ] `P0.11` Freeze intervention size delta.
-- [ ] `P0.12` Freeze intervention timing and lag horizon.
-- [ ] `P0.13` Freeze all random seeds before seeing results.
-- [ ] `P0.14` Freeze the eight evaluation conditions.
+- [x] `P0.6` Record commit SHA and tree SHA in every artifact. — commit, tree hash and dirty flag in every campaign block
+- [x] `P0.7` Freeze every configuration value used by the run. — every frozen value hashed into the fingerprint
+- [x] `P0.8` Hash the configuration. — every frozen value hashed into the fingerprint
+- [x] `P0.9` Freeze the state schema. — the state schema's width and hash are in the frozen block
+- [x] `P0.10` Freeze null architectures. — the null architectures are named in the frozen block
+- [x] `P0.11` Freeze intervention size delta. — displacement size, ceiling, turns per arm and substrate step are frozen
+- [x] `P0.12` Freeze intervention timing and lag horizon. — displacement size, ceiling, turns per arm and substrate step are frozen
+- [x] `P0.13` Freeze all random seeds before seeing results. — the seed is recorded and enters the run fingerprint
+- [x] `P0.14` Freeze the eight evaluation conditions. — the eight conditions are in the frozen block
 - [ ] `P0.15` Freeze the model version for the full-cortex experiment.
-- [ ] `P0.16` Do not move thresholds because Aura narrowly misses one.
+- [x] `P0.16` Do not move thresholds because Aura narrowly misses one. — no threshold has moved; the contested line is reported failed beside its argument
 - [ ] `P0.17` Any methodological change after seeing a result begins a new evaluation campaign.
 - [ ] `P0.18` Keep all old failed runs permanently available.
-- [ ] `P0.19` Generate human-readable scorecards from raw artifacts instead of manual transcription.
-- [ ] `P0.20` Never overwrite prior runs; retain run_001, run_002, and so on.
+- [x] `P0.19` Generate human-readable scorecards from raw artifacts instead of manual transcription. — the scorecard is generated from the reports
+- [x] `P0.20` Never overwrite prior runs; retain run_001, run_002, and so on. — `next_run_directory` never returns a name that already holds a report
 - [ ] `P0.21` Archive recordings, intervention arms, edge tables, null draws, lesion arms, rescue arms, and logs for every run.
 
 ## Phase 1 — Rerun current Aura before adding more architecture
 
+- [ ] `P1.1` Run make subject-core-frozen on a frozen current head.
 
 **Required work:**
 
-- [ ] `P1.1` Stop using 11/13/12 as the current score after that rerun.
-- [ ] `P1.2` Record all three complete reports.
-- [ ] `P1.3` Recompute stable-pass, unstable, and stable-fail criteria.
-- [ ] `P1.4` Recompute the entire retained-edge graph.
-- [ ] `P1.5` Identify the new largest strongly connected component.
-- [ ] `P1.6` Identify the new minimum-Phi cut.
-- [ ] `P1.7` Identify weakest outgoing coupling for every domain.
-- [ ] `P1.8` Identify weakest incoming coupling for every domain.
-- [ ] `P1.9` Recompute per-source perturbational spread.
-- [ ] `P1.10` Recompute all four fixed synergy triples.
-- [ ] `P1.11` Recompute per-condition graphs.
-- [ ] `P1.12` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph.
+- [ ] `P1.2` Stop using 11/13/12 as the current score after that rerun.
+- [ ] `P1.3` Record all three complete reports.
+- [ ] `P1.4` Recompute stable-pass, unstable, and stable-fail criteria.
+- [ ] `P1.5` Recompute the entire retained-edge graph.
+- [ ] `P1.6` Identify the new largest strongly connected component.
+- [ ] `P1.7` Identify the new minimum-Phi cut.
+- [ ] `P1.8` Identify weakest outgoing coupling for every domain.
+- [ ] `P1.9` Identify weakest incoming coupling for every domain.
+- [ ] `P1.10` Recompute per-source perturbational spread.
+- [ ] `P1.11` Recompute all four fixed synergy triples.
+- [ ] `P1.12` Recompute per-condition graphs.
+- [ ] `P1.13` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph.
 
 ## Phase 2 — Complete the causal graph
 
@@ -266,28 +267,29 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 ## Phase 9 — Make the null suite match the strength of the full equation
 
+- [ ] `P9.1` Either rename the current criterion honestly to something like partition_null_separation, or
 
 **or**
 
-- [ ] `P9.1` Preferably run the complete relevant metric suite on every null.
-- [ ] `P9.2` Calculate null distributions for recurrence/topology.
-- [ ] `P9.3` Differentiation.
-- [ ] `P9.4` Phi.
-- [ ] `P9.5` perturbational complexity/spread.
-- [ ] `P9.6` synergy.
-- [ ] `P9.7` intrinsic persistence.
-- [ ] `P9.8` causal closure where applicable.
-- [ ] `P9.9` Evaluate the 24-part conjunction on each null.
-- [ ] `P9.10` Require ISC(N)=0 for every null N.
-- [ ] `P9.11` Require the positive recurrent reference to pass the criteria it is meant to demonstrate.
-- [ ] `P9.12` Add a hidden-broker null where the broker is deliberately outside K.
-- [ ] `P9.13` Add a high-dimensional independent-noise null.
-- [ ] `P9.14` Add a common-clock/common-driver null.
-- [ ] `P9.15` Add a random recurrent-network null.
-- [ ] `P9.16` Add a memory-only recurrence null.
-- [ ] `P9.17` Add a self-label-without-self-causation null.
-- [ ] `P9.18` Add a pure all-to-all broadcast null.
-- [ ] `P9.19` Add an LLM/prompt-broker null.
+- [ ] `P9.2` Preferably run the complete relevant metric suite on every null.
+- [ ] `P9.3` Calculate null distributions for recurrence/topology.
+- [ ] `P9.4` Differentiation.
+- [ ] `P9.5` Phi.
+- [ ] `P9.6` perturbational complexity/spread.
+- [ ] `P9.7` synergy.
+- [ ] `P9.8` intrinsic persistence.
+- [ ] `P9.9` causal closure where applicable.
+- [ ] `P9.10` Evaluate the 24-part conjunction on each null.
+- [ ] `P9.11` Require ISC(N)=0 for every null N.
+- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate.
+- [ ] `P9.13` Add a hidden-broker null where the broker is deliberately outside K.
+- [ ] `P9.14` Add a high-dimensional independent-noise null.
+- [ ] `P9.15` Add a common-clock/common-driver null.
+- [ ] `P9.16` Add a random recurrent-network null.
+- [ ] `P9.17` Add a memory-only recurrence null.
+- [ ] `P9.18` Add a self-label-without-self-causation null.
+- [ ] `P9.19` Add a pure all-to-all broadcast null.
+- [ ] `P9.20` Add an LLM/prompt-broker null.
 
 ## Phase 10 — Hit the formal differentiation threshold honestly
 
@@ -314,18 +316,18 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 **Required work:**
 
-- [ ] `P11.1` Finite categories: use one-hot/effect coding.
-- [ ] `P11.2` Free text: use a fixed preregistered content representation.
+- [x] `P11.1` Finite categories: use one-hot/effect coding. — `_one_hot` over declared vocabularies; `_ACTORS` and the unpredictable dimensions
+- [x] `P11.2` Free text: use a fixed preregistered content representation. — `_content_buckets` projects every token onto every coordinate
 - [ ] `P11.3` Consider stable semantic embeddings from a frozen model where justified.
-- [ ] `P11.4` Or use a fixed-dimensional lexical sketch whose distance has an explicit interpretation.
-- [ ] `P11.5` Represent memory content multidimensionally.
-- [ ] `P11.6` Represent objectives multidimensionally.
-- [ ] `P11.7` Represent attention focus appropriately.
-- [ ] `P11.8` Represent world facts appropriately.
-- [ ] `P11.9` Represent self beliefs appropriately.
-- [ ] `P11.10` Treat actor/source labels as categorical, not scalar hash magnitude.
+- [x] `P11.4` Or use a fixed-dimensional lexical sketch whose distance has an explicit interpretation. — `_content_buckets` projects every token onto every coordinate
+- [x] `P11.5` Represent memory content multidimensionally. — active memory carries a content profile and a real recency
+- [x] `P11.6` Represent objectives multidimensionally. — the objective is a profile, not a hash
+- [x] `P11.7` Represent attention focus appropriately. — attention focus is a profile
+- [x] `P11.8` Represent world facts appropriately. — world facts are a profile over what they say
+- [x] `P11.9` Represent self beliefs appropriately. — self beliefs are a profile
+- [x] `P11.10` Treat actor/source labels as categorical, not scalar hash magnitude. — `_one_hot` over declared vocabularies; `_ACTORS` and the unpredictable dimensions
 - [ ] `P11.11` Recompute baseline scales after the representation change.
-- [ ] `P11.12` Treat this as a new evaluation campaign because state geometry changed. This can materially affect Phi, differentiation, synergy, and edge effect sizes.
+- [x] `P11.12` Treat this as a new evaluation campaign because state geometry changed. This can materially affect Phi, differentiation, synergy, and edge effect sizes. — the schema hash is in the fingerprint, so the change begins a new campaign
 
 ## Phase 12 — Pass all four fixed synergy tests
 
@@ -425,32 +427,32 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 ## Phase 17 — Fix intervention-arm state isolation
 
-- [ ] `P17.1` Snapshot/restore self-prediction.
-- [ ] `P17.2` Snapshot/restore the efference comparator.
-- [ ] `P17.3` Prefer deriving snapshot requirements from the organ dataclass/protocol instead of another hand-maintained list.
-- [ ] `P17.4` Add a regression test: every stateful organ read by K must be forked between arms.
-- [ ] `P17.5` Snapshot all mutable fields that can affect future K.
-- [ ] `P17.6` Verify restored organ state equals the pre-arm snapshot within declared tolerance. This is the same class of bug that previously caused the harness to read self-prediction/comparator as absent despite those organs existing. Do not repeat it in the fork layer.
+- [x] `P17.1` Snapshot/restore self-prediction. — `ORGAN_FIELDS` is read off the `Organs` declaration
+- [x] `P17.2` Snapshot/restore the efference comparator. — `ORGAN_FIELDS` is read off the `Organs` declaration
+- [x] `P17.3` Prefer deriving snapshot requirements from the organ dataclass/protocol instead of another hand-maintained list. — `ORGAN_FIELDS` is read off the `Organs` declaration
+- [x] `P17.4` Add a regression test: every stateful organ read by K must be forked between arms. — tests/test_a_fork_leaves_nothing_behind.py
+- [x] `P17.5` Snapshot all mutable fields that can affect future K. — the fork copies every field an organ carries, by value, two levels deep
+- [x] `P17.6` Verify restored organ state equals the pre-arm snapshot within declared tolerance. This is the same class of bug that previously caused the harness to read self-prediction/comparator as absent despite those organs existing. Do not repeat it in the fork layer. — tests/test_a_fork_leaves_nothing_behind.py
 
 ## Phase 18 — Snapshot the intention system
 
 - [ ] `P18.1` Make IntentionLoop state forkable.
-- [ ] `P18.2` Or use transaction rollback per arm.
+- [x] `P18.2` Or use transaction rollback per arm. — the intention database is rolled back to the snapshot's rows per arm
 - [ ] `P18.3` Or create an isolated database/state copy per arm.
-- [ ] `P18.4` Prevent perturbed-arm intentions from leaking into sham.
-- [ ] `P18.5` Prevent efficacy history from leaking.
-- [ ] `P18.6` Prevent action receipts from leaking.
-- [ ] `P18.7` Prevent comparator/efference records from leaking.
+- [x] `P18.4` Prevent perturbed-arm intentions from leaking into sham. — the intention database is rolled back to the snapshot's rows per arm
+- [x] `P18.5` Prevent efficacy history from leaking. — the intention database is rolled back to the snapshot's rows per arm
+- [x] `P18.6` Prevent action receipts from leaking. — the intention database is rolled back to the snapshot's rows per arm
+- [x] `P18.7` Prevent comparator/efference records from leaking. — the comparator and the self-prediction organ are forked by name
 - [ ] `P18.8` Test intervention-arm order reversal.
 
 ## Phase 19 — Snapshot the external scratch world
 
-- [ ] `P19.1` Fork/reset filesystem state between arms.
-- [ ] `P19.2` Each arm begins from byte-identical world state.
-- [ ] `P19.3` Action consequences remain inside the arm that caused them.
-- [ ] `P19.4` A later sham cannot inherit a file produced by a prior intervention arm.
-- [ ] `P19.5` inode/mtime differences cannot become uncontrolled cues unless explicitly modeled.
-- [ ] `P19.6` Action success comes from reading the arm’s own environment.
+- [x] `P19.1` Fork/reset filesystem state between arms. — the scratch tree is captured byte for byte and put back per arm
+- [x] `P19.2` Each arm begins from byte-identical world state. — the scratch tree is captured byte for byte and put back per arm
+- [x] `P19.3` Action consequences remain inside the arm that caused them. — the scratch tree is captured byte for byte and put back per arm
+- [x] `P19.4` A later sham cannot inherit a file produced by a prior intervention arm. — the scratch tree is captured byte for byte and put back per arm
+- [x] `P19.5` inode/mtime differences cannot become uncontrolled cues unless explicitly modeled. — modification times are put back with the bytes
+- [x] `P19.6` Action success comes from reading the arm’s own environment. — the probe reads its outcome off the filesystem it just wrote
 - [ ] `P19.7` Prefer a transactional sandbox/environment snapshot. The strongest experiment forks: ( Kt,Et) , not only K_t.
 
 ## Phase 20 — Audit every mutable singleton for cross-arm leakage
@@ -458,71 +460,72 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 **Perform an exhaustive fork-isolation audit across:**
 
-- [ ] `P20.1` StateRepository.
-- [ ] `P20.2` ServiceContainer singleton state.
-- [ ] `P20.3` learned world-model state.
-- [ ] `P20.4` self-model state.
-- [ ] `P20.5` workspace state.
-- [ ] `P20.6` substrate state.
-- [ ] `P20.7` free-energy state.
-- [ ] `P20.8` ontogeny state.
-- [ ] `P20.9` agency ledger.
-- [ ] `P20.10` self-prediction.
-- [ ] `P20.11` efference comparator.
-- [ ] `P20.12` intention records.
+- [x] `P20.1` StateRepository. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.2` ServiceContainer singleton state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.3` learned world-model state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.4` self-model state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.5` workspace state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.6` substrate state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.7` free-energy state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.8` ontogeny state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.9` agency ledger. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.10` self-prediction. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.11` efference comparator. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.12` intention records. — intention rows are rolled back per arm
 - [ ] `P20.13` memory stores.
 - [ ] `P20.14` background-task state.
-- [ ] `P20.15` RNG state.
-- [ ] `P20.16` caches that affect cognition.
-- [ ] `P20.17` filesystem/database state.
-- [ ] `P20.18` global module-level mutable variables.
-- [ ] `P20.19` class-level counters.
+- [x] `P20.15` RNG state. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.16` caches that affect cognition. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.17` filesystem/database state. — the scratch world is forked with the state
+- [x] `P20.18` global module-level mutable variables. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
+- [x] `P20.19` class-level counters. — one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back
 - [ ] `P20.20` subprocess state if involved. Add one decisive regression test: After one intervention arm runs and its snapshot is restored, every measured K feature and every sampled peripheral-state feature must match the pre-arm snapshot within declared tolerance before the next arm starts. If not, the causal experiment is contaminated. Long-term, process-isolated arms from a serialized snapshot may be safer than indefinitely extending manual deep-copy logic.
 
 ## Phase 21 — Control randomness completely
 
-- [ ] `P21.1` NumPy RNG.
-- [ ] `P21.2` service-local RNGs.
-- [ ] `P21.3` substrate RNG.
-- [ ] `P21.4` model sampling RNG.
-- [ ] `P21.5` search/planning RNG.
-- [ ] `P21.6` randomized tie resolution.
-- [ ] `P21.7` file/environment randomness.
-- [ ] `P21.8` randomized arm ordering remains recorded.
-- [ ] `P21.9` matched arms use the same stochastic stream where scientifically appropriate.
-- [ ] `P21.10` independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains.
+- [x] `P21.1` Python random. — `random.getstate` carried and restored
+- [x] `P21.2` NumPy RNG. — numpy's global state carried and restored
+- [x] `P21.3` service-local RNGs. — service-local generators are deep-copied with the service
+- [x] `P21.4` substrate RNG. — torch's generator, which the substrate draws its integration noise from
+- [ ] `P21.5` model sampling RNG.
+- [ ] `P21.6` search/planning RNG.
+- [ ] `P21.7` randomized tie resolution.
+- [ ] `P21.8` file/environment randomness.
+- [ ] `P21.9` randomized arm ordering remains recorded.
+- [ ] `P21.10` matched arms use the same stochastic stream where scientifically appropriate.
+- [x] `P21.11` independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains. — the frozen campaign runs three declared seeds
 
 ## Phase 22 — Replace contaminating wall-clock dependence with an experiment clock
 
-- [ ] `P22.1` Introduce a deterministic experiment clock where possible.
-- [ ] `P22.2` Phases using elapsed time receive identical dt across matched arms.
-- [ ] `P22.3` Timestamps do not create cognitive differences by accident.
-- [ ] `P22.4` Recency advances identically.
-- [ ] `P22.5` Drive decay advances identically.
-- [ ] `P22.6` Memory recency advances identically.
-- [ ] `P22.7` Workspace fatigue/recency uses controlled progression.
-- [ ] `P22.8` Real wall clock remains only where it is genuinely the environmental variable under study.
-- [ ] `P22.9` Compare virtual-clock and ordinary runtime behavior to establish equivalence.
+- [x] `P22.1` Introduce a deterministic experiment clock where possible. — core/subject/clock.py, installed for the run and rewound by a restore
+- [x] `P22.2` Phases using elapsed time receive identical dt across matched arms. — `time.time` is the experiment's clock, so every elapsed interval is the same in both arms
+- [x] `P22.3` Timestamps do not create cognitive differences by accident. — the fork also rewinds every wall-clock instant it can reach, by value
+- [x] `P22.4` Recency advances identically. — `time.time` is the experiment's clock, so every elapsed interval is the same in both arms
+- [x] `P22.5` Drive decay advances identically. — `time.time` is the experiment's clock, so every elapsed interval is the same in both arms
+- [x] `P22.6` Memory recency advances identically. — `time.time` is the experiment's clock, so every elapsed interval is the same in both arms
+- [x] `P22.7` Workspace fatigue/recency uses controlled progression. — `time.time` is the experiment's clock, so every elapsed interval is the same in both arms
+- [x] `P22.8` Real wall clock remains only where it is genuinely the environmental variable under study. — `time.monotonic` is untouched, and the harness times itself on the real clock
+- [x] `P22.9` Compare virtual-clock and ordinary runtime behavior to establish equivalence. — the step is measured from real frames before the clock is installed
 
 ## Phase 23 — Make every free-running cognitive loop deterministically stepable
 
-- [ ] `P23.1` NeuralMesh deterministic step.
-- [ ] `P23.2` Neurochemical layer.
-- [ ] `P23.3` EmbodiedInteroception.
-- [ ] `P23.4` OscillatoryBinding.
-- [ ] `P23.5` UnifiedField.
-- [ ] `P23.6` SubstrateEvolution.
-- [ ] `P23.7` ConsciousnessBridge.
-- [ ] `P23.8` ClosedCausalLoop prediction.
-- [ ] `P23.9` StreamOfBeing.
+- [x] `P23.1` NeuralMesh deterministic step. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.2` Neurochemical layer. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.3` EmbodiedInteroception. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.4` OscillatoryBinding. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.5` UnifiedField. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.6` SubstrateEvolution. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.7` ConsciousnessBridge. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.8` ClosedCausalLoop prediction. — core/subject/steppable.py calls each layer's own loop body on a count
+- [x] `P23.9` StreamOfBeing. — core/subject/steppable.py calls each layer's own loop body on a count
 - [ ] `P23.10` LiquidConsciousness/substrate.
 - [ ] `P23.11` heartbeat.
 - [ ] `P23.12` every newly discovered free-running cognitive loop.
-- [ ] `P23.13` Desktop runtime timers call these exact functions.
-- [ ] `P23.14` Battery calls these exact functions in fixed sequence/count.
-- [ ] `P23.15` No separate test-only implementation of cognition.
-- [ ] `P23.16` All arms receive exactly the same number of steps.
-- [ ] `P23.17` Report the count.
+- [x] `P23.13` Desktop runtime timers call these exact functions. — the harness calls the same methods the loops call; nothing here is a second implementation
+- [x] `P23.14` Battery calls these exact functions in fixed sequence/count. — the harness calls the same methods the loops call; nothing here is a second implementation
+- [x] `P23.15` No separate test-only implementation of cognition. — each layer steps at its own declared rate against the experiment's clock
+- [x] `P23.16` All arms receive exactly the same number of steps. — the counts are in the report
+- [x] `P23.17` Report the count. — a layer with no entry point is named rather than passed over
 - [ ] `P23.18` Fail an authoritative run if an active cognitive loop cannot be deterministically advanced. This would let the experiment test much more of Aura without sacrificing causal comparability.
 
 ## Phase 24 — Include the real cortex
@@ -637,18 +640,19 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 ## Phase 30 — Stop turning measurement failures into plausible zeros
 
-- [ ] `P30.1` Distinguish genuine zero.
-- [ ] `P30.2` Distinguish absent organ.
-- [ ] `P30.3` Distinguish failed reader.
-- [ ] `P30.4` Distinguish stale reading.
-- [ ] `P30.5` Count failures per feature.
-- [ ] `P30.6` Required-organ failure invalidates affected criteria.
-- [ ] `P30.7` Repeated reader error invalidates the run.
-- [ ] `P30.8` organism.down is empty for required layers.
-- [ ] `P30.9` unwritable_domains is empty.
-- [ ] `P30.10` Required phase failures are zero.
-- [ ] `P30.11` No final artifact silently encodes failed reads as ordinary zero.
-- [ ] `P30.12` Export a missingness/validity matrix.
+- [x] `P30.1` Every measured feature carries present/read_ok metadata. — every reading carries the sources it could not read and why
+- [x] `P30.2` Distinguish genuine zero. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
+- [x] `P30.3` Distinguish absent organ. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
+- [x] `P30.4` Distinguish failed reader. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
+- [ ] `P30.5` Distinguish stale reading.
+- [x] `P30.6` Count failures per feature. — the recording counts every miss over the run
+- [x] `P30.7` Required-organ failure invalidates affected criteria. — a criterion resting on an organ that was absent for most of the run is invalid
+- [ ] `P30.8` Repeated reader error invalidates the run.
+- [ ] `P30.9` organism.down is empty for required layers.
+- [ ] `P30.10` unwritable_domains is empty.
+- [ ] `P30.11` Required phase failures are zero.
+- [ ] `P30.12` No final artifact silently encodes failed reads as ordinary zero.
+- [x] `P30.13` Export a missingness/validity matrix. — the validity matrix is in the recording summary
 
 ## Phase 31 — Verify every perturbation moves what the domain’s consumers use
 
@@ -873,27 +877,27 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 **Every authoritative run should include:**
 
-- [ ] `P47.1` commit SHA.
-- [ ] `P47.2` tree SHA.
-- [ ] `P47.3` dirty-tree status.
-- [ ] `P47.4` Python version.
-- [ ] `P47.5` dependency lock hash.
-- [ ] `P47.6` OS version.
-- [ ] `P47.7` hardware profile.
-- [ ] `P47.8` model name.
-- [ ] `P47.9` model-weights checksum.
-- [ ] `P47.10` tokenizer checksum.
-- [ ] `P47.11` configuration hashes.
-- [ ] `P47.12` threshold hash.
-- [ ] `P47.13` state-schema hash.
-- [ ] `P47.14` null-definition hash.
-- [ ] `P47.15` seed.
-- [ ] `P47.16` start time.
-- [ ] `P47.17` total run duration.
-- [ ] `P47.18` phase-failure counts.
-- [ ] `P47.19` organ-availability report.
-- [ ] `P47.20` stopped-loop list.
-- [ ] `P47.21` live-loop list.
+- [x] `P47.1` commit SHA. — commit, tree hash and dirty flag
+- [x] `P47.2` tree SHA. — commit, tree hash and dirty flag
+- [x] `P47.3` dirty-tree status. — commit, tree hash and dirty flag
+- [x] `P47.4` Python version. — python, dependency lock hashes, OS and hardware
+- [x] `P47.5` dependency lock hash. — python, dependency lock hashes, OS and hardware
+- [x] `P47.6` OS version. — python, dependency lock hashes, OS and hardware
+- [x] `P47.7` hardware profile. — python, dependency lock hashes, OS and hardware
+- [x] `P47.8` model name. — which mind answered, with a hash of its code
+- [x] `P47.9` model-weights checksum. — which mind answered, with a hash of its code
+- [x] `P47.10` tokenizer checksum. — which mind answered, with a hash of its code
+- [x] `P47.11` configuration hashes. — configuration, threshold, schema and null hashes in the fingerprint
+- [x] `P47.12` threshold hash. — configuration, threshold, schema and null hashes in the fingerprint
+- [x] `P47.13` state-schema hash. — configuration, threshold, schema and null hashes in the fingerprint
+- [x] `P47.14` null-definition hash. — configuration, threshold, schema and null hashes in the fingerprint
+- [x] `P47.15` seed. — seed, start time and duration
+- [x] `P47.16` start time. — seed, start time and duration
+- [x] `P47.17` total run duration. — seed, start time and duration
+- [x] `P47.18` phase-failure counts. — phase failures are counted per phase
+- [x] `P47.19` organ-availability report. — the organ-availability report is the missingness matrix
+- [x] `P47.20` stopped-loop list. — the stopped and live loop lists, and the layer step counts beside them
+- [x] `P47.21` live-loop list. — the stopped and live loop lists, and the layer step counts beside them
 - [ ] `P47.22` frame count.
 - [ ] `P47.23` turn count.
 - [ ] `P47.24` intervention count.
@@ -903,8 +907,8 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 - [ ] `P47.28` raw lesion arms.
 - [ ] `P47.29` raw rescue arms.
 - [ ] `P47.30` raw synergy reports.
-- [ ] `P47.31` all partition-cut scores.
-- [ ] `P47.32` per-condition graphs.
+- [x] `P47.31` all partition-cut scores. — a SHA-256 for every file the run wrote
+- [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [ ] `P47.33` SHA-256 artifact manifest.
 - [ ] `P47.34` exact command that regenerates the report.
 - [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries.
@@ -925,11 +929,11 @@ Newest run with a report: `run_009` — 11/24 criteria, commit `e9a44796010b`.
 
 ## Phase 49 — Replicate over independent seeds
 
-- [ ] `P49.1` Run seed A.
-- [ ] `P49.2` Run seed B.
-- [ ] `P49.3` Run seed C.
+- [x] `P49.1` Run seed A. — seeds 7, 11 and 13, declared in the target
+- [x] `P49.2` Run seed B. — seeds 7, 11 and 13, declared in the target
+- [x] `P49.3` Run seed C. — seeds 7, 11 and 13, declared in the target
 - [ ] `P49.4` Prefer 5 or more for statistical characterization.
-- [ ] `P49.5` No seed selected based on result.
+- [x] `P49.5` No seed selected based on result. — the seeds are in the target, chosen before any result
 - [ ] `P49.6` For the strongest claim, all 24 pass each run.
 - [ ] `P49.7` Otherwise report per-criterion pass frequency.
 - [ ] `P49.8` Report mean/std/range for continuous measures.

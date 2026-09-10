@@ -257,6 +257,12 @@ async def main() -> int:
     # loop ticking at whatever rate the machine allows makes them incomparable.
     stopped = await quiesce_organism(runtime)
     evidence["organism"] = runtime.organism.summary() if runtime.organism else evidence["organism"]
+    # What the free-running layers did, counted rather than timed. An empty
+    # `unsteppable` is the bar the specification asks for: a live cognitive
+    # loop that cannot be advanced by a count cannot be inside a paired
+    # measurement, so a run that has one says so in the report rather than
+    # reporting numbers taken while it was stopped.
+    evidence["notes"]["layers"] = runtime.layer_steps.summary()
     _log(f"stopped {len(stopped)} background loops for the paired arms")
     _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
     results = await run_interventions(

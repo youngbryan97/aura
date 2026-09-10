@@ -44,6 +44,7 @@ from typing import Any, ClassVar
 import numpy as np
 
 from core.subject.clock import real_time
+from core.subject.steppable import Steps, missing_entry_points, step_once
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
@@ -1008,6 +1009,10 @@ class Snapshot:
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
     intentions: list[tuple] | None = None
+    #: The harness's frame count. Which free-running layers step on a given
+    #: frame is a function of this number, so two arms that do not start from
+    #: the same one are not running the same organism.
+    frame_index: int = 0
     moments: dict[str, Any] | None = None
     last_reading: Any = None
     #: What the last step sensed, which is what the N domain reports as novelty
@@ -1123,6 +1128,15 @@ class SubjectRuntime:
     #: rather than by how long each one happened to take.
     heartbeat: Any = None
     organism: Any = None
+    #: How many times each free-running layer has been advanced, and any that
+    #: could not be. Counted rather than timed, so both arms of a trial run the
+    #: same layers the same number of times.
+    layer_steps: Steps = field(default_factory=Steps)
+    #: The harness's own frame count, which decides whose turn it is to step.
+    #: Carried in the snapshot and rewound by a restore, because otherwise the
+    #: second arm of a trial starts sixty-six frames further on and steps a
+    #: different set of layers from the first.
+    frame_index: int = 0
     #: The live intention loop, so the probe's action takes the path a real one
     #: takes rather than writing the outcome straight into the state.
     _intentions: Any = None
@@ -1312,6 +1326,7 @@ class SubjectRuntime:
             effort=_effort_state(),
             taken_at=time.time(),
             clock_at=None if self.clock is None else self.clock.now(),
+            frame_index=self.frame_index,
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
@@ -1346,6 +1361,7 @@ class SubjectRuntime:
         self._restore_phases(snapshot.phases)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
+        self.frame_index = snapshot.frame_index
         _restore_world(getattr(self, "_scratch", None), snapshot.world)
         _restore_intentions(self._intentions, snapshot.intentions)
         if self.clock is not None and snapshot.clock_at is not None:
@@ -1402,6 +1418,16 @@ class SubjectRuntime:
         async def capture(tag: str) -> None:
             if self.clock is not None:
                 self.clock.advance()
+            # The free-running layers, advanced by the harness's own count
+            # rather than by the machine's schedule. Both arms of a trial run
+            # them the same number of times, which is the only way a layer that
+            # runs on a timer can be inside a paired measurement at all — the
+            # alternative was stopping them, and then whatever they contribute
+            # to the coupling was absent from every number.
+            self.layer_steps = await step_once(
+                self.organism, self.frame_index, self.layer_steps
+            )
+            self.frame_index += 1
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:

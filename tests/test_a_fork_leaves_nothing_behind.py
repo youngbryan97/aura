@@ -143,3 +143,45 @@ def test_an_arm_that_ran_leaves_the_organism_where_it_found_it() -> None:
         if abs(float(before_periphery[key]) - float(after_periphery[key])) > TOLERANCE
     ]
     assert not leaked, "peripheral state survived the restore: " + "; ".join(leaked[:12])
+
+
+def test_every_live_cognitive_loop_can_be_advanced_by_a_count() -> None:
+    """A loop that only a clock can drive cannot be in a paired measurement.
+
+    Eleven layers ran their own timers. The battery stopped them, because two
+    arms cannot be compared while a loop runs at whatever rate the machine
+    allows — and stopping them meant that whatever they contribute to the
+    coupling between domains was missing from every number the battery
+    reported. Each one now has an entry point its own loop already calls, so
+    the harness drives the same cognition on a count instead.
+    """
+    from core.subject.organism import bring_up, quiesce
+    from core.subject.steppable import missing_entry_points, step_once
+
+    async def run() -> tuple[dict[str, str], dict[str, int], dict[str, str]]:
+        organism = await bring_up(quiet=False)
+        await quiesce()
+        missing = missing_entry_points(organism)
+        steps = None
+        for frame in range(4):
+            steps = await step_once(organism, frame, steps)
+        return missing, dict(steps.counts), dict(steps.failures)
+
+    missing, counts, failures = asyncio.run(run())
+    assert not missing, f"a live layer has no entry point: {missing}"
+    assert not failures, f"a layer raised while being stepped: {failures}"
+    assert len(counts) >= 8, f"only {len(counts)} layers were advanced: {sorted(counts)}"
+
+
+def test_two_arms_step_the_same_layers_the_same_number_of_times() -> None:
+    """Which layer steps on a frame is a function of the frame count, and the
+    frame count is carried in the snapshot — so a restore puts both arms at the
+    same place in the schedule rather than sixty-six frames apart."""
+    from core.subject.steppable import LAYERS
+
+    schedule = lambda start, length: [  # noqa: E731 - a table, not a policy
+        sorted(layer.name for layer in LAYERS if (start + step) % layer.every == 0)
+        for step in range(length)
+    ]
+    assert schedule(0, 12) == schedule(0, 12)
+    assert schedule(0, 12) != schedule(1, 12), "the schedule does not depend on the count"

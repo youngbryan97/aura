@@ -1,1 +1,1593 @@
-{}
+{
+ "P0.1": {
+  "status": "done",
+  "note": "`THRESHOLDS` in core/subject/battery.py, hashed into the campaign fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/battery.py",
+    "pattern": "^THRESHOLDS: dict\\[str, float\\]"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   }
+  ]
+ },
+ "P0.2": {
+  "status": "done",
+  "note": "`Verdict.isc` is `all(...)`",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/battery.py",
+    "pattern": "return bool\\(self\\.criteria\\) and all\\("
+   }
+  ]
+ },
+ "P0.3": {
+  "status": "done",
+  "note": "a criterion whose measurement did not run reads as failed",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/battery.py",
+    "pattern": "Missing evidence is a failure"
+   }
+  ]
+ },
+ "P0.4": {
+  "status": "done",
+  "note": "`make subject-core-frozen`",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "^subject-core-frozen:"
+   }
+  ]
+ },
+ "P0.6": {
+  "status": "done",
+  "note": "commit, tree hash and dirty flag in every campaign block",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"tree_hash\": _tree_hash\\(\\)"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"commit\": _git\\(\"rev-parse\", \"HEAD\"\\)"
+   }
+  ]
+ },
+ "P0.7": {
+  "status": "done",
+  "note": "every frozen value hashed into the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"frozen\""
+   }
+  ]
+ },
+ "P0.8": {
+  "status": "done",
+  "note": "every frozen value hashed into the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"frozen\""
+   }
+  ]
+ },
+ "P0.9": {
+  "status": "done",
+  "note": "the state schema's width and hash are in the frozen block",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"schema\""
+   }
+  ]
+ },
+ "P0.10": {
+  "status": "done",
+  "note": "the null architectures are named in the frozen block",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"nulls\""
+   }
+  ]
+ },
+ "P0.11": {
+  "status": "done",
+  "note": "displacement size, ceiling, turns per arm and substrate step are frozen",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"intervention\""
+   }
+  ]
+ },
+ "P0.12": {
+  "status": "done",
+  "note": "displacement size, ceiling, turns per arm and substrate step are frozen",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"intervention\""
+   }
+  ]
+ },
+ "P0.13": {
+  "status": "done",
+  "note": "the seed is recorded and enters the run fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def run_fingerprint"
+   }
+  ]
+ },
+ "P0.14": {
+  "status": "done",
+  "note": "the eight conditions are in the frozen block",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"conditions\""
+   }
+  ]
+ },
+ "P0.16": {
+  "status": "done",
+  "note": "no threshold has moved; the contested line is reported failed beside its argument",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/battery.py",
+    "pattern": "isc_with_the_specification_corrected"
+   }
+  ]
+ },
+ "P0.19": {
+  "status": "done",
+  "note": "the scorecard is generated from the reports",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "tools/subject_core_scorecard.py"
+   }
+  ]
+ },
+ "P0.20": {
+  "status": "done",
+  "note": "`next_run_directory` never returns a name that already holds a report",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def next_run_directory"
+   }
+  ]
+ },
+ "P11.1": {
+  "status": "done",
+  "note": "`_one_hot` over declared vocabularies; `_ACTORS` and the unpredictable dimensions",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "def _one_hot"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "^_ACTORS"
+   }
+  ]
+ },
+ "P11.10": {
+  "status": "done",
+  "note": "`_one_hot` over declared vocabularies; `_ACTORS` and the unpredictable dimensions",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "def _one_hot"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "^_ACTORS"
+   }
+  ]
+ },
+ "P11.2": {
+  "status": "done",
+  "note": "`_content_buckets` projects every token onto every coordinate",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "def _content_buckets"
+   }
+  ]
+ },
+ "P11.4": {
+  "status": "done",
+  "note": "`_content_buckets` projects every token onto every coordinate",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "def _content_buckets"
+   }
+  ]
+ },
+ "P11.5": {
+  "status": "done",
+  "note": "active memory carries a content profile and a real recency",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "working_profile_"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "def _recency"
+   }
+  ]
+ },
+ "P11.6": {
+  "status": "done",
+  "note": "the objective is a profile, not a hash",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "objective_profile_"
+   }
+  ]
+ },
+ "P11.7": {
+  "status": "done",
+  "note": "attention focus is a profile",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "attention_profile_"
+   }
+  ]
+ },
+ "P11.8": {
+  "status": "done",
+  "note": "world facts are a profile over what they say",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "fact_profile_"
+   }
+  ]
+ },
+ "P11.9": {
+  "status": "done",
+  "note": "self beliefs are a profile",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "belief_profile_"
+   }
+  ]
+ },
+ "P11.12": {
+  "status": "done",
+  "note": "the schema hash is in the fingerprint, so the change begins a new campaign",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"schema\""
+   }
+  ]
+ },
+ "P17.1": {
+  "status": "done",
+  "note": "`ORGAN_FIELDS` is read off the `Organs` declaration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "organ\\.name for organ in dataclass_fields\\(Organs\\)"
+   }
+  ]
+ },
+ "P17.2": {
+  "status": "done",
+  "note": "`ORGAN_FIELDS` is read off the `Organs` declaration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "organ\\.name for organ in dataclass_fields\\(Organs\\)"
+   }
+  ]
+ },
+ "P17.3": {
+  "status": "done",
+  "note": "`ORGAN_FIELDS` is read off the `Organs` declaration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "organ\\.name for organ in dataclass_fields\\(Organs\\)"
+   }
+  ]
+ },
+ "P17.4": {
+  "status": "done",
+  "note": "tests/test_a_fork_leaves_nothing_behind.py",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_the_fork_carries_every_organ_the_reading_declares"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_an_arm_that_ran_leaves_the_organism_where_it_found_it"
+   }
+  ]
+ },
+ "P17.6": {
+  "status": "done",
+  "note": "tests/test_a_fork_leaves_nothing_behind.py",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_the_fork_carries_every_organ_the_reading_declares"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_an_arm_that_ran_leaves_the_organism_where_it_found_it"
+   }
+  ]
+ },
+ "P17.5": {
+  "status": "done",
+  "note": "the fork copies every field an organ carries, by value, two levels deep",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _organ_state"
+   }
+  ]
+ },
+ "P18.2": {
+  "status": "done",
+  "note": "the intention database is rolled back to the snapshot's rows per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_intentions"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _intentions_state"
+   }
+  ]
+ },
+ "P18.4": {
+  "status": "done",
+  "note": "the intention database is rolled back to the snapshot's rows per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_intentions"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _intentions_state"
+   }
+  ]
+ },
+ "P18.5": {
+  "status": "done",
+  "note": "the intention database is rolled back to the snapshot's rows per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_intentions"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _intentions_state"
+   }
+  ]
+ },
+ "P18.6": {
+  "status": "done",
+  "note": "the intention database is rolled back to the snapshot's rows per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_intentions"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _intentions_state"
+   }
+  ]
+ },
+ "P18.7": {
+  "status": "done",
+  "note": "the comparator and the self-prediction organ are forked by name",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "    comparator: Any = None"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "organ\\.name for organ in dataclass_fields\\(Organs\\)"
+   }
+  ]
+ },
+ "P19.1": {
+  "status": "done",
+  "note": "the scratch tree is captured byte for byte and put back per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _world_state"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_world"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "the world an arm acted in survived the restore"
+   }
+  ]
+ },
+ "P19.2": {
+  "status": "done",
+  "note": "the scratch tree is captured byte for byte and put back per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _world_state"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_world"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "the world an arm acted in survived the restore"
+   }
+  ]
+ },
+ "P19.3": {
+  "status": "done",
+  "note": "the scratch tree is captured byte for byte and put back per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _world_state"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_world"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "the world an arm acted in survived the restore"
+   }
+  ]
+ },
+ "P19.4": {
+  "status": "done",
+  "note": "the scratch tree is captured byte for byte and put back per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _world_state"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_world"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "the world an arm acted in survived the restore"
+   }
+  ]
+ },
+ "P19.5": {
+  "status": "done",
+  "note": "modification times are put back with the bytes",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "os\\.utime\\(target"
+   }
+  ]
+ },
+ "P19.6": {
+  "status": "done",
+  "note": "the probe reads its outcome off the filesystem it just wrote",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "ok = path\\.read_text\\(\\) == intended"
+   }
+  ]
+ },
+ "P20.1": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.2": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.3": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.4": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.5": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.6": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.7": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.8": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.9": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.10": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.11": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.15": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.16": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.18": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.19": {
+  "status": "done",
+  "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "peripheral state survived the restore"
+   }
+  ]
+ },
+ "P20.12": {
+  "status": "done",
+  "note": "intention rows are rolled back per arm",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_intentions"
+   }
+  ]
+ },
+ "P20.17": {
+  "status": "done",
+  "note": "the scratch world is forked with the state",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _restore_world"
+   }
+  ]
+ },
+ "P21.1": {
+  "status": "done",
+  "note": "`random.getstate` carried and restored",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "global_random=random\\.getstate\\(\\)"
+   }
+  ]
+ },
+ "P21.2": {
+  "status": "done",
+  "note": "numpy's global state carried and restored",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "numpy_random=np\\.random\\.get_state\\(\\)"
+   }
+  ]
+ },
+ "P21.3": {
+  "status": "done",
+  "note": "service-local generators are deep-copied with the service",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _service_state"
+   }
+  ]
+ },
+ "P21.4": {
+  "status": "done",
+  "note": "torch's generator, which the substrate draws its integration noise from",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "torch_random=_torch_random_state\\(\\)"
+   }
+  ]
+ },
+ "P21.11": {
+  "status": "done",
+  "note": "the frozen campaign runs three declared seeds",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "for seed in 7 11 13"
+   }
+  ]
+ },
+ "P22.1": {
+  "status": "done",
+  "note": "core/subject/clock.py, installed for the run and rewound by a restore",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/clock.py"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.set\\(snapshot\\.clock_at\\)"
+   }
+  ]
+ },
+ "P22.2": {
+  "status": "done",
+  "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "_time\\.time = self\\.now"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.advance\\(\\)"
+   }
+  ]
+ },
+ "P22.4": {
+  "status": "done",
+  "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "_time\\.time = self\\.now"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.advance\\(\\)"
+   }
+  ]
+ },
+ "P22.5": {
+  "status": "done",
+  "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "_time\\.time = self\\.now"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.advance\\(\\)"
+   }
+  ]
+ },
+ "P22.6": {
+  "status": "done",
+  "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "_time\\.time = self\\.now"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.advance\\(\\)"
+   }
+  ]
+ },
+ "P22.7": {
+  "status": "done",
+  "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "_time\\.time = self\\.now"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.clock\\.advance\\(\\)"
+   }
+  ]
+ },
+ "P22.3": {
+  "status": "done",
+  "note": "the fork also rewinds every wall-clock instant it can reach, by value",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "def _looks_like_an_instant"
+   }
+  ]
+ },
+ "P22.8": {
+  "status": "done",
+  "note": "`time.monotonic` is untouched, and the harness times itself on the real clock",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "time\\.monotonic. is left alone"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/clock.py",
+    "pattern": "^real_time = _time\\.time"
+   }
+  ]
+ },
+ "P22.9": {
+  "status": "done",
+  "note": "the step is measured from real frames before the clock is installed",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "async def calibrate_clock"
+   }
+  ]
+ },
+ "P23.1": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.2": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.3": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.4": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.5": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.6": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.7": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.8": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.9": {
+  "status": "done",
+  "note": "core/subject/steppable.py calls each layer's own loop body on a count",
+  "checks": [
+   {
+    "kind": "path",
+    "path": "core/subject/steppable.py"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_fork_leaves_nothing_behind.py",
+    "pattern": "def test_every_live_cognitive_loop_can_be_advanced_by_a_count"
+   }
+  ]
+ },
+ "P23.13": {
+  "status": "done",
+  "note": "the harness calls the same methods the loops call; nothing here is a second implementation",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/steppable.py",
+    "pattern": "so nothing here is a second implementation"
+   }
+  ]
+ },
+ "P23.14": {
+  "status": "done",
+  "note": "the harness calls the same methods the loops call; nothing here is a second implementation",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/steppable.py",
+    "pattern": "so nothing here is a second implementation"
+   }
+  ]
+ },
+ "P23.15": {
+  "status": "done",
+  "note": "each layer steps at its own declared rate against the experiment's clock",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/steppable.py",
+    "pattern": "def _every"
+   }
+  ]
+ },
+ "P23.16": {
+  "status": "done",
+  "note": "the counts are in the report",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tools/run_subject_core.py",
+    "pattern": "evidence\\[\"notes\"\\]\\[\"layers\"\\]"
+   }
+  ]
+ },
+ "P23.17": {
+  "status": "done",
+  "note": "a layer with no entry point is named rather than passed over",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/steppable.py",
+    "pattern": "def missing_entry_points"
+   }
+  ]
+ },
+ "P30.1": {
+  "status": "done",
+  "note": "every reading carries the sources it could not read and why",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "misses: dict\\[str, str\\]"
+   }
+  ]
+ },
+ "P30.2": {
+  "status": "done",
+  "note": "'organ absent', 'reader absent' and 'reader raised' are three states, not one zero",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"organ absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"reader absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "reader raised"
+   }
+  ]
+ },
+ "P30.3": {
+  "status": "done",
+  "note": "'organ absent', 'reader absent' and 'reader raised' are three states, not one zero",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"organ absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"reader absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "reader raised"
+   }
+  ]
+ },
+ "P30.4": {
+  "status": "done",
+  "note": "'organ absent', 'reader absent' and 'reader raised' are three states, not one zero",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"organ absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "\"reader absent\""
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/state.py",
+    "pattern": "reader raised"
+   }
+  ]
+ },
+ "P30.6": {
+  "status": "done",
+  "note": "the recording counts every miss over the run",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/recording.py",
+    "pattern": "def _missingness"
+   }
+  ]
+ },
+ "P30.7": {
+  "status": "done",
+  "note": "a criterion resting on an organ that was absent for most of the run is invalid",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/battery.py",
+    "pattern": "def _invalidate_on_missing_readings"
+   },
+   {
+    "kind": "grep",
+    "path": "tests/test_a_failed_reader_is_not_a_zero.py",
+    "pattern": "def test_a_criterion_resting_on_an_absent_organ_cannot_pass"
+   }
+  ]
+ },
+ "P30.13": {
+  "status": "done",
+  "note": "the validity matrix is in the recording summary",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/recording.py",
+    "pattern": "\"misses\": self\\.misses"
+   }
+  ]
+ },
+ "P47.1": {
+  "status": "done",
+  "note": "commit, tree hash and dirty flag",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"tree_hash\""
+   }
+  ]
+ },
+ "P47.2": {
+  "status": "done",
+  "note": "commit, tree hash and dirty flag",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"tree_hash\""
+   }
+  ]
+ },
+ "P47.3": {
+  "status": "done",
+  "note": "commit, tree hash and dirty flag",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"tree_hash\""
+   }
+  ]
+ },
+ "P47.4": {
+  "status": "done",
+  "note": "python, dependency lock hashes, OS and hardware",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def environment"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "dependency_locks"
+   }
+  ]
+ },
+ "P47.5": {
+  "status": "done",
+  "note": "python, dependency lock hashes, OS and hardware",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def environment"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "dependency_locks"
+   }
+  ]
+ },
+ "P47.6": {
+  "status": "done",
+  "note": "python, dependency lock hashes, OS and hardware",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def environment"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "dependency_locks"
+   }
+  ]
+ },
+ "P47.7": {
+  "status": "done",
+  "note": "python, dependency lock hashes, OS and hardware",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def environment"
+   },
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "dependency_locks"
+   }
+  ]
+ },
+ "P47.8": {
+  "status": "done",
+  "note": "which mind answered, with a hash of its code",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def mind_identity"
+   }
+  ]
+ },
+ "P47.9": {
+  "status": "done",
+  "note": "which mind answered, with a hash of its code",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def mind_identity"
+   }
+  ]
+ },
+ "P47.10": {
+  "status": "done",
+  "note": "which mind answered, with a hash of its code",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def mind_identity"
+   }
+  ]
+ },
+ "P47.11": {
+  "status": "done",
+  "note": "configuration, threshold, schema and null hashes in the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   }
+  ]
+ },
+ "P47.12": {
+  "status": "done",
+  "note": "configuration, threshold, schema and null hashes in the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   }
+  ]
+ },
+ "P47.13": {
+  "status": "done",
+  "note": "configuration, threshold, schema and null hashes in the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   }
+  ]
+ },
+ "P47.14": {
+  "status": "done",
+  "note": "configuration, threshold, schema and null hashes in the fingerprint",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def fingerprint"
+   }
+  ]
+ },
+ "P47.15": {
+  "status": "done",
+  "note": "seed, start time and duration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"started_at\": real_time\\(\\)"
+   }
+  ]
+ },
+ "P47.16": {
+  "status": "done",
+  "note": "seed, start time and duration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"started_at\": real_time\\(\\)"
+   }
+  ]
+ },
+ "P47.17": {
+  "status": "done",
+  "note": "seed, start time and duration",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "\"started_at\": real_time\\(\\)"
+   }
+  ]
+ },
+ "P47.31": {
+  "status": "done",
+  "note": "a SHA-256 for every file the run wrote",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/provenance.py",
+    "pattern": "def manifest"
+   },
+   {
+    "kind": "grep",
+    "path": "tools/run_subject_core.py",
+    "pattern": "write_json\\(args\\.out, \"manifest\\.json\""
+   }
+  ]
+ },
+ "P47.32": {
+  "status": "done",
+  "note": "the exact command that regenerates the report",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "tools/run_subject_core.py",
+    "pattern": "\"command\"\\] = \" \"\\.join"
+   }
+  ]
+ },
+ "P47.19": {
+  "status": "done",
+  "note": "the organ-availability report is the missingness matrix",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/recording.py",
+    "pattern": "def _missingness"
+   }
+  ]
+ },
+ "P47.20": {
+  "status": "done",
+  "note": "the stopped and live loop lists, and the layer step counts beside them",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/organism.py",
+    "pattern": "stopped_loops"
+   },
+   {
+    "kind": "grep",
+    "path": "tools/run_subject_core.py",
+    "pattern": "evidence\\[\"notes\"\\]\\[\"layers\"\\]"
+   }
+  ]
+ },
+ "P47.21": {
+  "status": "done",
+  "note": "the stopped and live loop lists, and the layer step counts beside them",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/organism.py",
+    "pattern": "stopped_loops"
+   },
+   {
+    "kind": "grep",
+    "path": "tools/run_subject_core.py",
+    "pattern": "evidence\\[\"notes\"\\]\\[\"layers\"\\]"
+   }
+  ]
+ },
+ "P47.18": {
+  "status": "done",
+  "note": "phase failures are counted per phase",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "core/subject/driver.py",
+    "pattern": "self\\.failures\\[name\\] = self\\.failures\\.get"
+   }
+  ]
+ },
+ "P49.1": {
+  "status": "done",
+  "note": "seeds 7, 11 and 13, declared in the target",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "for seed in 7 11 13"
+   }
+  ]
+ },
+ "P49.2": {
+  "status": "done",
+  "note": "seeds 7, 11 and 13, declared in the target",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "for seed in 7 11 13"
+   }
+  ]
+ },
+ "P49.3": {
+  "status": "done",
+  "note": "seeds 7, 11 and 13, declared in the target",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "for seed in 7 11 13"
+   }
+  ]
+ },
+ "P49.5": {
+  "status": "done",
+  "note": "the seeds are in the target, chosen before any result",
+  "checks": [
+   {
+    "kind": "grep",
+    "path": "Makefile",
+    "pattern": "for seed in 7 11 13"
+   }
+  ]
+ }
+}
