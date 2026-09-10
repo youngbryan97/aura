@@ -190,11 +190,6 @@ STILL_CHOSEN: dict[str, str] = {
         "What CAN be checked is the branching ratio the noise produces, and the "
         "criticality regulator steers on that."
     ),
-    "lateral_inhibition_strength": (
-        "A pooled inhibitory drive per column, where cortex has individual "
-        "inhibitory cells with their own connection probabilities. The pooled "
-        "form has no measured counterpart; what it approximates does."
-    ),
     "feedforward_strength": (
         "A weight scale on a unit with no membrane. The DENSITY of the pathway "
         "is derived below; its strength is not."
@@ -296,6 +291,12 @@ def derived_mesh_constants() -> dict[str, Any]:
                 pairs_between += 1
     intra = within / max(1, pairs_within)
     inter = between / max(1, pairs_between)
+
+    # The pooled lateral inhibition this file used to list as a choice is
+    # gone from the mesh — default 0.0. It was a stand-in for inhibition the
+    # mesh was not doing, because Dale's law was applied to the wrong axis.
+    # With the axis corrected and g below, the inhibitory cells carry it
+    # themselves at a strength that came from a paper.
 
     # Vogels' depression constant. Every presynaptic spike at an inhibitory
     # synapse depresses it by alpha, and the value that makes the rule settle

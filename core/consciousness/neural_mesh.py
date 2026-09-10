@@ -320,8 +320,29 @@ class MeshConfig:
         default_factory=lambda: _from_cortex("relative_inhibitory_strength", 4.0)
     )
 
-    # Lateral inhibition
-    lateral_inhibition_strength: float = 0.25
+    # Pooled lateral inhibition: off, because the mesh now does it with cells.
+    #
+    # This subtracted a fraction of the mean inhibitory activity from every
+    # excitatory unit in a column — one pooled drive, at a strength nobody
+    # measured, standing in for inhibition the mesh was not otherwise doing.
+    # It was not otherwise doing it because Dale's law was on the wrong axis,
+    # so no cell reliably inhibited anything.
+    #
+    # With Dale's law on the presynaptic axis and Potjans and Diesmann's g of
+    # 4, inhibition is carried by the inhibitory cells themselves, through
+    # their own synapses, at a strength that came from a paper. The pooled term
+    # is then a second inhibition on top of the real one.
+    #
+    # Measured over 600 ticks with the same seed and drive: turning it off
+    # moves the branching ratio from 0.9933 to 0.9812, improves the
+    # regression's fit from 0.999 to 1.000, changes the settled level of a
+    # driven tier from 0.3019 to 0.2960, and saturates nothing. The mesh stays
+    # critical, and a dynamical correction of that size belongs to the
+    # criticality regulator, which has gain and noise to steer with, rather
+    # than to a fixed number nobody can source.
+    #
+    # Kept as a knob so the ablation can be run, not as a default.
+    lateral_inhibition_strength: float = 0.0
 
     # Feedforward pathway (sensory → association → executive)
     #
