@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 import core.brain.llm.chat_format as chat_format
 from core.brain.llm.chat_format import (
     render_chat_continuation_template,
@@ -212,6 +214,37 @@ def test_continuation_template_trims_a_legacy_closing_suffix():
 
     assert rendered.endswith(partial)
     assert "<end>" not in rendered
+
+
+@pytest.mark.parametrize("whitespace", [" ", "\n", "\n\n", "\t "])
+def test_continuation_restores_only_trailing_whitespace_trimmed_by_tokenizer(whitespace):
+    class _TrimmingTokenizer:
+        chat_template = "plain"
+
+        def apply_chat_template(self, messages, **kwargs):
+            return "native-assistant:" + messages[-1]["content"].rstrip()
+
+    partial = "The next statement begins here" + whitespace
+    rendered = render_chat_continuation_template(
+        _TrimmingTokenizer(),
+        [{"role": "assistant", "content": partial}],
+    )
+
+    assert rendered == "native-assistant:" + partial
+
+
+def test_continuation_does_not_accept_changed_content_as_whitespace_loss():
+    class _ChangingTokenizer:
+        chat_template = "plain"
+
+        def apply_chat_template(self, messages, **kwargs):
+            return "native-assistant:A different answer"
+
+    with pytest.raises(ValueError, match="closed or transformed"):
+        render_chat_continuation_template(
+            _ChangingTokenizer(),
+            [{"role": "assistant", "content": "The actual answer\n"}],
+        )
 
 
 def test_probe_runs_once_per_template():

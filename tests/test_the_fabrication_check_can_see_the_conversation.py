@@ -113,9 +113,27 @@ def test_the_two_halves_meet_at_the_worker() -> None:
     assert not has_fabricated_shared_history(correct, _RECALL, _recent_user_turns(job))
 
 
-@pytest.mark.parametrize("depth", [1, 5, 20])
-def test_the_window_is_bounded(depth: int) -> None:
-    from core.brain.llm.mlx_worker import _RECENT_TURNS_FOR_GROUNDING
+@pytest.mark.parametrize("depth", [1, 5, 20, 40])
+def test_the_checker_uses_the_whole_admitted_transcript(depth: int) -> None:
+    turns = [
+        turn
+        for index in range(depth)
+        for turn in (("user", f"question {index}"), ("assistant", f"answer {index}"))
+    ]
+    job = _job(*turns, ("user", "What did we discuss?"))
+    assert _recent_user_turns(job) == [f"question {index}" for index in range(depth)]
+    assert _recent_assistant_turns(job) == [f"answer {index}" for index in range(depth)]
 
-    job = _job(*[("user", f"turn {index}") for index in range(depth)])
-    assert len(_recent_user_turns(job)) <= _RECENT_TURNS_FOR_GROUNDING
+
+def test_identical_earlier_reply_is_still_history_during_continuation() -> None:
+    partial = "The database replays committed transactions."
+    job = {
+        **_job(
+            ("user", "How does crash recovery work?"),
+            ("assistant", partial),
+            ("user", "Explain that again."),
+            ("assistant", partial),
+        ),
+        "user_surface_continuation_partial": partial,
+    }
+    assert _recent_assistant_turns(job) == [partial]

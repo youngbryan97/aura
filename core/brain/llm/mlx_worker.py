@@ -1415,12 +1415,6 @@ def _surface_quality_gate_enabled(job: dict[str, Any]) -> bool:
     )
 
 
-#: How much conversation the fabrication check is entitled to look back at.
-#: The question it answers is whether a claim about a shared past appears
-#: anywhere in what was said, and a window is what keeps that cheap.
-_RECENT_TURNS_FOR_GROUNDING = 12
-
-
 def _recent_user_turns(job: dict[str, Any]) -> list[str]:
     """What the person has said, from the transcript the model was given.
 
@@ -1461,7 +1455,9 @@ def _recent_user_turns(job: dict[str, Any]) -> list[str]:
             said.append(content)
     # The last one is the turn being answered; the check gets that separately
     # as the prompt, and passing it twice narrows nothing.
-    return said[-_RECENT_TURNS_FOR_GROUNDING - 1 : -1] if len(said) > 1 else []
+    # Input admission already bounds this transcript. A second, shorter
+    # window would reject a recollection the model was allowed to read.
+    return said[:-1]
 
 
 def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
@@ -1479,7 +1475,6 @@ def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
         ),
         len(messages),
     )
-    current_partial = str(job.get("user_surface_continuation_partial") or "").strip()
     said: list[str] = []
     for index, message in enumerate(messages):
         if not isinstance(message, dict):
@@ -1489,9 +1484,9 @@ def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
         if str(message.get("role") or "").strip().lower() != "assistant":
             continue
         content = str(message.get("content") or "").strip()
-        if content and content != current_partial:
+        if content:
             said.append(content)
-    return said[-_RECENT_TURNS_FOR_GROUNDING:]
+    return said
 
 
 def _surface_quality_failure_reasons(

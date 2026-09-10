@@ -180,18 +180,33 @@ def test_worker_admits_shared_history_only_with_bound_grounding_evidence():
 
 def test_worker_admits_prior_assistant_speech_from_delivered_transcript():
     prompt = "What topic were we discussing before I asked how you knew?"
-    reply = "We were discussing Solaris, and I had said Stanislaw Lem wrote it."
+    reply = "We were discussing Solaris by Stanislaw Lem."
     job = {
         **_job_for(prompt),
         "messages": [
-            {"role": "user", "content": "Who wrote Solaris?"},
+            {"role": "user", "content": "Name a science fiction novel and its author."},
             {"role": "assistant", "content": "Solaris was written by Stanislaw Lem."},
+            *[
+                message
+                for index in range(20)
+                for message in (
+                    {"role": "user", "content": f"Another question {index}."},
+                    {"role": "assistant", "content": f"Another answer {index}."},
+                )
+            ],
             {"role": "user", "content": "How did you know that?"},
             {"role": "assistant", "content": "I recognized it from learned knowledge."},
             {"role": "user", "content": prompt},
         ],
     }
 
+    without_assistant_evidence = {
+        **job,
+        "messages": [m for m in job["messages"] if m["role"] != "assistant"],
+    }
+    assert "fabricated_shared_history" in _surface_quality_failure_reasons(
+        without_assistant_evidence, reply
+    )
     assert "fabricated_shared_history" not in _surface_quality_failure_reasons(
         job, reply
     )

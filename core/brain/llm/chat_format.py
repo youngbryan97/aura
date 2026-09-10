@@ -915,6 +915,17 @@ def render_chat_continuation_template(
             ) from exc
         rendered = rendered[: prefix_end + len(partial)]
 
+    # Some native templates trim their final-message marker, causing the
+    # tokenizer's continuation implementation to rstrip the prefix as well.
+    # Restore only those exact trailing bytes, never transformed content.
+    stripped_partial = partial.rstrip()
+    if (
+        not rendered.endswith(partial)
+        and stripped_partial
+        and len(stripped_partial) < len(partial)
+        and rendered.endswith(stripped_partial)
+    ):
+        rendered += partial[len(stripped_partial):]
     if not rendered.endswith(partial):
         raise ValueError("chat continuation template closed or transformed the assistant prefix")
     return rendered
