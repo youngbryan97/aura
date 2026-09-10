@@ -532,12 +532,20 @@ class SupervisionTree:
                 self._shutting_down = True
             self._is_running = False
 
-    async def wait_forever(self) -> None:
-        """Wait for the managed monitor to stop without starting a second loop."""
+    async def wait_forever(self, *, until: asyncio.Event | None = None) -> None:
+        """Wait for an owner's lifetime or, for legacy callers, this monitor."""
         await self.start()
         task = self._monitor_task
         try:
-            if task is not None:
+            if until is not None:
+                # A managed monitor may be replaced by the control plane.
+                # Its cancellation must not become the desktop's lifetime.
+                while not until.is_set() and not _shutdown_requested():
+                    try:
+                        await asyncio.wait_for(until.wait(), timeout=0.5)
+                    except TimeoutError:
+                        continue
+            elif task is not None:
                 await task
         except asyncio.CancelledError:
             raise

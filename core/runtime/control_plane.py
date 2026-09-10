@@ -1244,6 +1244,7 @@ class ServiceObservation:
     generation: int = 0
     last_transition_at: float = field(default_factory=time.time)
     last_probe_at: float = 0.0
+    probe_available: bool | None = None
     restart_times: list[float] = field(default_factory=list)
     next_retry_at: float = 0.0
     last_error: str = ""
@@ -1435,13 +1436,14 @@ class RuntimeControlPlane:
             conditions = observation.condition_set()
             value = getattr(state, "value", str(state))
 
+            unobserved = observation.probe_available is False and value == "degraded"
             alive = value in {"running", "degraded", "starting", "stopping"}
             ready = value in {"running", "degraded"}
             terminating = value == "stopping"
 
             conditions.set(
                 ConditionType.ALIVE,
-                ConditionStatus.TRUE if alive else (
+                ConditionStatus.UNKNOWN if unobserved else ConditionStatus.TRUE if alive else (
                     ConditionStatus.UNKNOWN if value == "unknown"
                     else ConditionStatus.FALSE
                 ),
@@ -1450,7 +1452,7 @@ class RuntimeControlPlane:
             )
             conditions.set(
                 ConditionType.READY,
-                ConditionStatus.TRUE if ready else (
+                ConditionStatus.UNKNOWN if unobserved else ConditionStatus.TRUE if ready else (
                     ConditionStatus.UNKNOWN if value == "unknown"
                     else ConditionStatus.FALSE
                 ),
@@ -1494,6 +1496,7 @@ class RuntimeControlPlane:
     async def _probe(self, binding: _ServiceBinding) -> bool:
         binding.observation.last_probe_at = time.time()
         result = await self._call(binding.probe, max(0.1, binding.spec.start_timeout_s))
+        binding.observation.probe_available = True
         return self._probe_ok(result)
 
     def _restart_budget_available(self, binding: _ServiceBinding, now: float) -> bool:
@@ -1689,6 +1692,22 @@ class RuntimeControlPlane:
                 ]
                 if blockers:
                     blocked_reason = "dependency_blocked:" + ",".join(sorted(blockers))
+                    unobserved = all(
+                        dependency in bindings
+                        and bindings[dependency].observation.probe_available is False
+                        and bindings[dependency].observation.observed_state == ObservedServiceState.DEGRADED
+                        for dependency in blockers
+                    )
+                    if unobserved and observation.observed_state in {
+                        ObservedServiceState.READY,
+                        ObservedServiceState.DEGRADED,
+                    }:
+                        observation.probe_available = False
+                        self._transition(
+                            observation, ObservedServiceState.DEGRADED,
+                            "dependency_probe_unavailable", error=blocked_reason,
+                        )
+                        continue
                     if observation.observed_state in {
                         ObservedServiceState.READY,
                         ObservedServiceState.DEGRADED,
@@ -1706,8 +1725,14 @@ class RuntimeControlPlane:
                     try:
                         healthy = await self._probe(binding)
                     except (OSError, RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
-                        healthy = False
-                        observation.last_error = str(exc)
+                        # An observer that could not run has not found a dead
+                        # service. Keep custody, report unknown, and re-observe.
+                        observation.probe_available = False
+                        self._transition(
+                            observation, ObservedServiceState.DEGRADED,
+                            "probe_unavailable", error=f"{type(exc).__name__}: {exc}",
+                        )
+                        continue
                     if healthy:
                         self._transition(observation, ObservedServiceState.READY, "probe_passed")
                         continue
