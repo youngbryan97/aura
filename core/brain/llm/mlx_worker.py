@@ -1464,6 +1464,36 @@ def _recent_user_turns(job: dict[str, Any]) -> list[str]:
     return said[-_RECENT_TURNS_FOR_GROUNDING - 1 : -1] if len(said) > 1 else []
 
 
+def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
+    """Prior Aura speech in the exact transcript supplied to this worker."""
+
+    messages = job.get("messages")
+    if not isinstance(messages, (list, tuple)):
+        return []
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], dict)
+            and str(messages[index].get("role") or "").strip().lower() == "user"
+        ),
+        len(messages),
+    )
+    current_partial = str(job.get("user_surface_continuation_partial") or "").strip()
+    said: list[str] = []
+    for index, message in enumerate(messages):
+        if not isinstance(message, dict):
+            continue
+        if index >= latest_user_index:
+            continue
+        if str(message.get("role") or "").strip().lower() != "assistant":
+            continue
+        content = str(message.get("content") or "").strip()
+        if content and content != current_partial:
+            said.append(content)
+    return said[-_RECENT_TURNS_FOR_GROUNDING:]
+
+
 def _surface_quality_failure_reasons(
     job: dict[str, Any],
     response_text: Any,
@@ -1479,10 +1509,14 @@ def _surface_quality_failure_reasons(
         return []
     recent_messages = _recent_user_turns(job)
     grounding_raw = job.get("user_surface_grounding_evidence")
-    grounding = (
+    transported_grounding = (
         [str(item or "") for item in grounding_raw]
         if isinstance(grounding_raw, (list, tuple))
         else []
+    )
+    grounding = list(_recent_assistant_turns(job))
+    grounding.extend(
+        item for item in transported_grounding if item and item not in grounding
     )
     try:
         from core.conversation.response_reliability import assess_user_facing_reply

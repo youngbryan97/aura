@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.brain.llm.mlx_worker import _recent_user_turns
+from core.brain.llm.mlx_worker import _recent_assistant_turns, _recent_user_turns
 from core.dialogue.shared_history import has_fabricated_shared_history
 
 
@@ -41,6 +41,9 @@ def test_the_worker_reads_the_conversation_off_the_transcript() -> None:
         ("user", "What did I just ask you?"),
     )
     assert _recent_user_turns(job) == ["Hey. What are you actually made of?"]
+    assert _recent_assistant_turns(job) == [
+        "A layered architecture across three lanes."
+    ]
 
 
 def test_the_turn_being_answered_is_not_counted_twice() -> None:
@@ -48,6 +51,17 @@ def test_the_turn_being_answered_is_not_counted_twice() -> None:
 
     job = _job(("user", "only this one"))
     assert _recent_user_turns(job) == []
+
+
+def test_current_continuation_is_not_prior_assistant_grounding() -> None:
+    partial = "You previously told me an unsupported personal fact."
+    job = {
+        **_job(("user", "Continue your answer."), ("assistant", partial)),
+        "user_surface_continuation_contract": True,
+        "user_surface_continuation_partial": partial,
+    }
+
+    assert _recent_assistant_turns(job) == []
 
 
 def test_a_caller_that_states_the_history_is_believed() -> None:

@@ -3523,19 +3523,24 @@ def _bounded_surface_grounding_evidence(value: Any = None) -> list[str]:
             surface_grounding = turn_grounding_evidence()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             surface_grounding = ()
-    bounded: list[str] = []
+    bounded_reversed: list[str] = []
     total_chars = 0
     if not isinstance(surface_grounding, (list, tuple)):
-        return bounded
-    for item in surface_grounding[:16]:
+        return bounded_reversed
+    # Custody is append-only within a turn. Current recall/tool evidence is
+    # recorded after the older transcript, so retain the newest admissible
+    # evidence when the IPC envelope has to choose.
+    for item in reversed(surface_grounding):
+        if len(bounded_reversed) >= 16:
+            break
         evidence_text = str(item or "").strip()[:3_200]
-        if not evidence_text or evidence_text in bounded:
+        if not evidence_text or evidence_text in bounded_reversed:
             continue
         if total_chars + len(evidence_text) > 24_000:
-            break
-        bounded.append(evidence_text)
+            continue
+        bounded_reversed.append(evidence_text)
         total_chars += len(evidence_text)
-    return bounded
+    return list(reversed(bounded_reversed))
 
 
 def _bounded_surface_sensory_evidence(value: Any = None) -> dict[str, Any]:

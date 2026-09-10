@@ -178,6 +178,42 @@ def test_worker_admits_shared_history_only_with_bound_grounding_evidence():
     )
 
 
+def test_worker_admits_prior_assistant_speech_from_delivered_transcript():
+    prompt = "What topic were we discussing before I asked how you knew?"
+    reply = "We were discussing Solaris, and I had said Stanislaw Lem wrote it."
+    job = {
+        **_job_for(prompt),
+        "messages": [
+            {"role": "user", "content": "Who wrote Solaris?"},
+            {"role": "assistant", "content": "Solaris was written by Stanislaw Lem."},
+            {"role": "user", "content": "How did you know that?"},
+            {"role": "assistant", "content": "I recognized it from learned knowledge."},
+            {"role": "user", "content": prompt},
+        ],
+    }
+
+    assert "fabricated_shared_history" not in _surface_quality_failure_reasons(
+        job, reply
+    )
+
+
+def test_worker_still_rejects_history_absent_from_both_sides_of_transcript():
+    prompt = "What topic were we discussing before I asked how you knew?"
+    reply = "We were discussing a house move to Paris and your new landlord."
+    job = {
+        **_job_for(prompt),
+        "messages": [
+            {"role": "user", "content": "Who wrote Solaris?"},
+            {"role": "assistant", "content": "Solaris was written by Stanislaw Lem."},
+            {"role": "user", "content": prompt},
+        ],
+    }
+
+    assert "fabricated_shared_history" in _surface_quality_failure_reasons(
+        job, reply
+    )
+
+
 def test_worker_admits_execution_claim_only_with_exact_turn_receipt():
     prompt = "Search the web for the latest Mistral model release."
     reply = "I ran the search and found Mistral 3 on Mistral AI's release page."

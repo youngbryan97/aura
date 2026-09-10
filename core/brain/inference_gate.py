@@ -11940,6 +11940,20 @@ class InferenceGate:
         """
         if context is None:
             context = {}
+        if "user_surface_grounding_evidence" not in context:
+            try:
+                from core.conversation.turn_evidence_custody import (
+                    turn_grounding_evidence,
+                )
+
+                turn_grounding = turn_grounding_evidence()
+                if turn_grounding:
+                    # Snapshot process-local custody before routing can cross
+                    # task, thread, or worker boundaries. The worker receives
+                    # evidence, never authority to read ambient conversation.
+                    context["user_surface_grounding_evidence"] = list(turn_grounding)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+                pass
         self._clear_last_generation_metadata()
         initial_messages = context.get("messages")
         if not isinstance(initial_messages, list):
@@ -12874,6 +12888,7 @@ class InferenceGate:
             "user_surface_continuation_resume_handle",
             "user_surface_conversation_resume_handle",
             "user_surface_prompt_binding",
+            "user_surface_grounding_evidence",
             "clean_user_surface_steering_alpha",
             "clean_user_surface_recurrent_loops",
             "live_mind_controls_bound",

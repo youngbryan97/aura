@@ -314,6 +314,33 @@ def test_generation_request_drops_malformed_continuation_resume_handle():
     assert request["user_surface_conversation_resume_handle"] == ""
 
 
+def test_generation_request_keeps_the_newest_turn_grounding_when_bounded():
+    from core.brain.llm.mlx_client import _build_the_generation_request
+
+    evidence = [f"old-{index}" for index in range(20)] + ["current recall evidence"]
+    request = _build_the_generation_request(
+        _bridge_get=lambda _name, fallback: fallback,
+        adaptive_suggested_max_tokens=256,
+        contract_generation_floor=0,
+        generation_max_tokens=256,
+        hard_output_token_ceiling=None,
+        kwargs={"user_surface_grounding_evidence": evidence},
+        prompt="question",
+        req_id="request-grounding",
+        requested_output_contract={},
+        self=SimpleNamespace(
+            _job_seq_counter=9,
+            temp=0.7,
+            top_p=0.9,
+            max_tokens=512,
+        ),
+    )
+
+    assert len(request["user_surface_grounding_evidence"]) == 16
+    assert "old-0" not in request["user_surface_grounding_evidence"]
+    assert request["user_surface_grounding_evidence"][-1] == "current recall evidence"
+
+
 def test_mlx_surface_receipt_reports_contract_tokens_and_repair():
     from core.brain.llm.mlx_client import MLXLocalClient
     from core.brain.llm.mlx_worker import _surface_generation_control_receipt

@@ -3534,6 +3534,40 @@ async def test_inference_gate_exposes_local_surface_control_receipt():
 
 
 @pytest.mark.asyncio
+async def test_inference_gate_snapshots_turn_grounding_before_worker_routing():
+    from core.conversation.turn_evidence_custody import (
+        bind_turn_evidence_custody,
+        record_turn_grounding,
+    )
+
+    gate = InferenceGate()
+    client = _ReceiptRecordingClient("We were discussing Solaris.")
+    gate._mlx_client = client
+
+    with bind_turn_evidence_custody(session_id="session", turn_id="turn"):
+        assert record_turn_grounding("Solaris was written by Stanislaw Lem.")
+        result = await gate.generate(
+            "What were we discussing?",
+            context={
+                "origin": "desktop_quick_user",
+                "prefer_tier": "primary",
+                "foreground_request": True,
+                "protected_foreground_lane": True,
+                "allow_mesh_cognition": False,
+                "clean_user_surface_contract": True,
+                "user_surface_validation_prompt": "What were we discussing?",
+                "max_tokens": 160,
+            },
+            timeout=20.0,
+        )
+
+    assert result == "We were discussing Solaris."
+    assert client.kwargs[0]["user_surface_grounding_evidence"] == [
+        "Solaris was written by Stanislaw Lem."
+    ]
+
+
+@pytest.mark.asyncio
 async def test_inference_gate_forwards_typed_no_tools_to_direct_tool_boundary():
     gate = InferenceGate()
     client = _ReceiptRecordingClient(
