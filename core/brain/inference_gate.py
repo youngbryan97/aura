@@ -11646,12 +11646,17 @@ class InferenceGate:
                 message_profile = "contract"
             else:
                 message_profile = profile
-            content = self._compact_prebuilt_message_content(
-                role,
-                content_source,
-                budget_profile=message_profile,
-                visible_request_chars=visible_request_chars,
-            )
+            if role in {"user", "assistant"} and message_position != latest_user_position:
+                # Retained dialogue is source evidence. Allocate whole turns
+                # below instead of truncating code or deleting answer tails.
+                content = str(content_source or "").strip()
+            else:
+                content = self._compact_prebuilt_message_content(
+                    role,
+                    content_source,
+                    budget_profile=message_profile,
+                    visible_request_chars=visible_request_chars,
+                )
             if not content:
                 continue
             normalized = {
@@ -11673,7 +11678,12 @@ class InferenceGate:
         compact: list[dict[str, str]] = []
         if system_message is not None:
             compact.append(system_message)
-        compact.extend(convo[-max(1, int(history_limit)) :])
+        history_start = max(0, len(convo) - max(1, int(history_limit)))
+        # A count window may land inside an exchange. Include its initiating
+        # question; the total character budget still bounds the final window.
+        while history_start > 0 and convo[history_start]["role"] == "assistant":
+            history_start -= 1
+        compact.extend(convo[history_start:])
         if not deep_probe and preserved_system_messages:
             # Grounding (LIVE MIND CONTEXT, phenomenal/body state, tool and skill
             # results) is rebuilt every turn. Placed AHEAD of the history it made
@@ -11736,25 +11746,22 @@ class InferenceGate:
                 ),
                 None,
             )
+            dialogue_indices = [
+                idx for idx, msg in enumerate(compact)
+                if msg.get("role") in {"user", "assistant"}
+                and (latest_user_index is None or idx < latest_user_index)
+            ]
+            if dialogue_indices:
+                first = dialogue_indices[0]
+                following_user = next(
+                    (idx for idx in dialogue_indices[1:] if compact[idx]["role"] == "user"),
+                    latest_user_index if latest_user_index is not None else len(compact),
+                )
+                for idx in reversed(dialogue_indices):
+                    if first <= idx < following_user:
+                        compact.pop(idx)
+                continue
             removable_index = None
-            for idx, msg in enumerate(compact):
-                if idx == 0 and msg.get("role") == "system":
-                    continue
-                if idx == latest_user_index:
-                    continue
-                if msg.get("role") == "assistant":
-                    removable_index = idx
-                    break
-            if removable_index is None:
-                for idx, msg in enumerate(compact):
-                    if idx == 0 and msg.get("role") == "system":
-                        continue
-                    if idx == latest_user_index:
-                        continue
-                    if msg.get("role") != "user":
-                        continue
-                    removable_index = idx
-                    break
             if removable_index is None:
                 for idx, msg in enumerate(compact):
                     if idx == 0 and msg.get("role") == "system":

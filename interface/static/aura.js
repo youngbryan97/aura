@@ -1464,6 +1464,7 @@ function renderStatusFlags(flags) {
 // perfectly plausible.
 function withEntryTimestamp(metadata, entry) {
     const merged = Object.assign({}, metadata || {});
+    if (entry && entry.id) merged.historyTurnId = String(entry.id);
     if (merged.timestamp === undefined || merged.timestamp === null || merged.timestamp === '') {
         const stamp = entry && (entry.timestamp ?? entry.created_at ?? entry.time);
         if (stamp !== undefined && stamp !== null && stamp !== '') {
@@ -1530,12 +1531,33 @@ function updateLanePlaceholder() {
 function hydrateRecentConversation(entries) {
     const messages = DOM.messages || $('messages');
     if (!messages || !Array.isArray(entries) || !entries.length) return;
-    // Only ever hydrate into an empty transcript. Hydrating over a populated
-    // one duplicated and reordered turns.
-    if (!transcriptIsEmpty(messages)) return;
-
     const restored = conversationEntriesToMessages(entries.slice(-12));
     if (!restored.length) return;
+
+    if (!transcriptIsEmpty(messages)) {
+        // An active delivery owns its bubbles. Passive windows reconcile only
+        // known durable exchanges, without replacing or replaying the pane.
+        if (state.isSubmitting || state.activeChatRequest || state.chatSendQueue.length) return;
+        for (const item of restored) {
+            const id = item.metadata.historyTurnId;
+            if (item.role !== 'aura' || !id) continue;
+            const children = Array.from(messages.children);
+            if (children.some(node => node.dataset.historyTurnId === id
+                && node.dataset.historyRole === 'aura')) continue;
+            const at = children.findIndex(node => node.dataset.historyTurnId === id
+                && node.dataset.historyRole === 'user');
+            if (at < 0) continue;
+            const successor = children[at + 1] || null;
+            // An unbound live bubble belongs to another delivery path. Do not
+            // duplicate it while its identity has not reached this snapshot.
+            if (successor && !successor.dataset.historyTurnId) continue;
+            appendMsg(item.role, item.text, false, item.metadata);
+            const added = messages.children[messages.children.length - 1];
+            messages.insertBefore(added, successor);
+        }
+        updateLanePlaceholder();
+        return;
+    }
 
     messages.innerHTML = '';
     for (const item of restored) {
@@ -2132,8 +2154,8 @@ function applyBootstrapPayload(payload, { hydrateConversationHistory = false } =
 // Defaults to restoring the transcript. It used to default to false, so the
 // 30s bootstrap poll — the one thing that runs after the pane has been
 // cleared — was the one caller that could never put the conversation back.
-// hydrateRecentConversation only writes into an empty or placeholder pane, so
-// asking for it always is idempotent and never clobbers a live conversation.
+// Reconciliation also completes known pending exchanges in passive windows;
+// it never replaces the transcript or takes ownership from active delivery.
 async function hydrateBootstrap({ hydrateConversationHistory = true, quiet = true } = {}) {
     try {
         const res = await fetch('/api/ui/bootstrap', { cache: 'no-store' });
@@ -2300,7 +2322,7 @@ function connect() {
         }
         setConnectionVisual('reconnecting', 'Checking on Aura');
         pollHealth();
-        hydrateBootstrap({ hydrateConversationHistory: !state.bootstrapLoaded, quiet: true });
+        hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
 
         // ZENITH: Flush pending messages
         if (state.pendingOutboundMessages.length > 0) {
@@ -2362,7 +2384,7 @@ function reconnectLiveSurface(reason = 'resume') {
     state.lastSurfaceResumeAt = Date.now();
     showConnToast('resuming');
     setConnectionVisual('reconnecting', 'Waking this window');
-    hydrateBootstrap({ hydrateConversationHistory: !state.bootstrapLoaded, quiet: true });
+    hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
     if (!state.healthPollInFlight) scheduleHealthPoll(0);
 
     if (state.reconnectTimer) {
@@ -6088,6 +6110,10 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
+    if (metadata.historyTurnId) {
+        div.dataset.historyTurnId = String(metadata.historyTurnId);
+        div.dataset.historyRole = role;
+    }
     const isAura = role === 'aura';
     const badgeHtml = isAura ? messageBadgeHtml(metadata) : '';
 

@@ -18,6 +18,8 @@ in that window wiped it and hydrated over the top.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -100,11 +102,13 @@ class TestEmptinessIsCountedNotRead:
             "test makes a populated pane look empty mid-animation"
         )
 
-    def test_hydration_only_fills_an_empty_transcript(self, js):
-        body = js[js.index("function hydrateRecentConversation"):][:900]
-        assert "if (!transcriptIsEmpty(messages)) return;" in body, (
-            "hydrating over a populated transcript duplicated and reordered turns"
+    @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+    def test_hydration_reconciles_known_exchanges_without_replaying_the_pane(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(PROJECT_ROOT / "tests/js/restored_pending_exchange.mjs"), str(AURA_JS)],
+            capture_output=True, text=True, timeout=15,
         )
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 class TestTheOverlayIsStyled:
