@@ -134,14 +134,9 @@ def unpack_governance_result(result: Any) -> tuple[bool, str, Any | None]:
 
 
 def _tool_result_is_deferred(result: Any) -> bool:
-    if isinstance(result, dict):
-        status = str(result.get("status", "") or "").strip().lower()
-        error = str(result.get("error", "") or "").strip().lower()
-        reason = str(result.get("reason", "") or "").strip().lower()
-        return status == "deferred" or any(
-            value.startswith("background_deferred:") for value in (error, reason)
-        )
-    return "background_deferred:" in str(result or "").lower()
+    from core.runtime.tool_result_contracts import tool_result_is_deferred
+
+    return tool_result_is_deferred(result)
 
 
 # How long after start the constitution may run with degraded approval

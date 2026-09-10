@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 from collections.abc import Callable, Sequence
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pathlib import Path
 from core.memory.session_pin_cipher import (
@@ -1931,15 +1931,21 @@ async def _load_durable_conversation_exchanges(
     session_id: str = "",
     allow_cross_session: bool = True,
 ) -> list[dict[str, Any]]:
+    from core.runtime.executors import run_durable_receipt_io
+
+    # Reconnection reads share the foreground receipt lane. Boot work can
+    # occupy the default executor; the caller's principal must cross the
+    # reserved executor boundary just as it does with asyncio.to_thread.
+    context = copy_context()
     try:
-        return await asyncio.wait_for(
-            asyncio.to_thread(
-                _load_durable_conversation_exchanges_sync,
-                limit=max(1, int(limit)),
-                session_id=str(session_id or "")[:64],
-                allow_cross_session=allow_cross_session,
-            ),
-            timeout=_DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S,
+        return await run_durable_receipt_io(
+            context.run,
+            _load_durable_conversation_exchanges_sync,
+            limit=max(1, int(limit)),
+            session_id=str(session_id or "")[:64],
+            allow_cross_session=allow_cross_session,
+            timeout_s=_DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S,
+            label="conversation_history_read",
         )
     except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
         record_degradation("chat.conversation_persistence", exc)

@@ -348,6 +348,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-09, 19:17: fresh-window history restored after the supported
+  reboot, but startup executor contention delayed it. The reader now shares
+  the foreground durable-receipt lane; 27 focused tests pass, deployment
+  pending. The exact database follow-up now reaches cognition; a subsequent
+  source question picked an older Solaris antecedent and remains open. The
+  same live pass traced R08's false scan failure to admission deferral and
+  repaired dependent-step handling. See
+  [history admission and deferrals](evidence/R09_HISTORY_ADMISSION_AND_R08_DEFERRALS_2026-09-09.md).
   UPDATE 2026-09-09, provenance: lexical source hints now retrieve typed
   evidence instead of taking ownership of a reply. Both compact and full
   cognition receive the bound record with the original question unchanged.

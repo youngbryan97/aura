@@ -15,6 +15,7 @@ from core.runtime.service_access import (
     resolve_orchestrator,
     resolve_state_repository,
 )
+from core.runtime.tool_result_contracts import tool_result_is_deferred
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Initiative")
@@ -934,6 +935,8 @@ class AutonomousInitiativeLoop:
             {"path": ".", "run_tests": False},
             context=scan_context,
         )
+        if self._self_development_deferred(scan_result, stage="Codebase scan"):
+            return
         if not scan_result.get("ok"):
             error_text = str(scan_result.get("error") or "unknown error")
             self._emit_feed(
@@ -984,6 +987,8 @@ class AutonomousInitiativeLoop:
                 "brain": getattr(self.orchestrator, "cognitive_engine", None),
             },
         )
+        if self._self_development_deferred(test_result, stage="Sandbox tests"):
+            return
         if test_result.get("ok"):
             self._emit_feed(
                 "Self-Development",
@@ -1024,6 +1029,8 @@ class AutonomousInitiativeLoop:
             },
             context=proposal_context,
         )
+        if self._self_development_deferred(proposal_result, stage="Improvement proposal"):
+            return
         if proposal_result.get("ok"):
             proposal_path = str(proposal_result.get("proposal_path") or "").strip()
             location = f" Saved to {proposal_path}." if proposal_path else ""
@@ -1045,6 +1052,19 @@ class AutonomousInitiativeLoop:
         self._queue_visible_update(
             f"I pushed on a self-improvement pass around {file_name}, but the planning step hit friction."
         )
+
+    def _self_development_deferred(self, result: dict[str, Any], *, stage: str) -> bool:
+        if not tool_result_is_deferred(result):
+            return False
+        reason = str(result.get("reason") or result.get("error") or result.get("status") or "admission deferred")
+        # The periodic owner retries admission. Dependent work cannot consume
+        # a deferred step as if it had produced findings or sandbox failures.
+        self._emit_feed(
+            "Self-Development",
+            f"{stage} deferred: {reason[:220]}. Waiting for the next eligible improvement pass.",
+            category="SelfDev",
+        )
+        return True
 
     async def _discovery_loop(self):
         """Live frontier-discovery lane: during idle windows run one bounded
