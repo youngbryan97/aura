@@ -970,6 +970,16 @@ class SubjectRuntime:
             if fields:
                 _restore_organ(phase, fields)
 
+    def _refresh_health(self) -> None:
+        """Run the kernel's own end-of-tick projection over the finished state."""
+        refresh = getattr(self.state, "_refresh_cognitive_health", None)
+        if not callable(refresh):
+            return
+        try:
+            refresh()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("cognitive health projection failed: %s", exc)
+
     def _republish_body(self) -> None:
         """Tell the engine that judges the body what the body was just held at.
 
@@ -1126,6 +1136,15 @@ class SubjectRuntime:
                 self.after_phase()
             await capture(name)
 
+        # The projection the real tick makes once the phases are done. The
+        # kernel refreshes it at the end of `tick`, outside the phase loop, and
+        # this driver runs the phases directly — so coherence, fragmentation,
+        # the contradiction count and the whole cognitive-health block were
+        # never computed during a run. Four of the workspace domain's columns
+        # were constants because of it, and the deliberation phase's reading of
+        # how badly the moment was going was reading two of them.
+        self._refresh_health()
+
         if condition.after == "retrieve":
             self._retrieve(condition.objective)
         elif condition.after == "act" or self._intends_to_act():
@@ -1236,7 +1255,21 @@ class SubjectRuntime:
             self.failures["retrieve"] = self.failures.get("retrieve", 0) + 1
             logger.debug("retrieval failed: %s", exc)
 
-    def _through_the_intention_loop(self, intended: str, ok: bool, actor: str) -> None:
+    #: What she expects of each thing she can do. The intention loop compares
+    #: this against what happened, and the agency ledger keys its capability
+    #: beliefs on the name — so a hardcoded `write_notes` made every action she
+    #: ever took the same capability, and left her expecting a file to hold a
+    #: plan on the turns she was looking in a room.
+    ACTION_EXPECTATIONS: ClassVar[dict[str, str]] = {
+        "write_notes": "the file holds the plan",
+        "append_log": "the line is on the end of the log",
+        "make_room": "the room is there",
+        "read_room": "the room from last turn is there to look in",
+    }
+
+    def _through_the_intention_loop(
+        self, intended: str, ok: bool, actor: str, kind: str = "write_notes"
+    ) -> None:
         """Say, do, observe — the live agency path, for the probe's own action."""
         if actor != "self":
             # An intention is hers by construction. Recording an outside actor's
@@ -1247,26 +1280,65 @@ class SubjectRuntime:
             loop = self._intentions
             if loop is None:
                 return
+            expected = self.ACTION_EXPECTATIONS.get(kind, "the action lands")
             identifier = loop.intend(
-                intention=intended, drive="creation", expected_outcome="the file holds the plan"
+                intention=intended, drive="creation", expected_outcome=expected
             )
             loop.record_action(
                 identifier,
-                tool_name="write_notes",
+                tool_name=kind,
                 args={},
                 result="ok" if ok else "failed",
                 success=ok,
                 duration_ms=1.0,
             )
-            outcome = "the file holds the plan" if ok else "the write did not land"
-            loop.observe(identifier, observation="the file holds the plan", actual_outcome=outcome)
+            outcome = expected if ok else f"{expected} — it did not"
+            loop.observe(identifier, observation=expected, actual_outcome=outcome)
         except Exception as exc:  # noqa: BLE001 - the probe's action still stands
             logger.debug("intention loop unavailable: %s", exc)
 
     #: What she can do to the world, in the order the drives are read. Each is
     #: a real filesystem change with a real reading back, and which one happens
     #: is decided by her state rather than fixed by this harness.
-    ACTIONS: ClassVar[tuple[str, ...]] = ("write_notes", "append_log", "make_room")
+    ACTIONS: ClassVar[tuple[str, ...]] = (
+        "write_notes",
+        "append_log",
+        "make_room",
+        "read_room",
+    )
+
+    #: Which action each drive reaches for. Written out rather than hashed:
+    #: `hash()` on a string is salted per process, so the drive that picked
+    #: `make_room` in one run picked `read_room` in the next and two runs of the
+    #: battery were not comparable in what she actually did. And a mapping by
+    #: what the need is for is a reading, where a hash is a coin.
+    DRIVE_ACTIONS: ClassVar[dict[str, str]] = {
+        "growth": "make_room",
+        "curiosity": "read_room",
+        "social": "write_notes",
+        "integrity": "append_log",
+        "energy": "append_log",
+    }
+
+    #: And what she does when she is attending to something. The broadcast
+    #: winner decides before the drives do, because that is the claim global
+    #: workspace theory makes — what wins the competition reaches the
+    #: specialised process, and acting is one. It also varies from turn to
+    #: turn, where the drives move over days: an action chosen by a standing
+    #: budget is the same action every time, and an outcome that is the same
+    #: every time cannot teach her anything about what she can do.
+    ATTENTION_ACTIONS: ClassVar[dict[str, str]] = {
+        "perception": "read_room",
+        "world_model": "read_room",
+        "ontogeny": "read_room",
+        "memory": "append_log",
+        "metacognition": "append_log",
+        "interoception": "append_log",
+        "exchange": "write_notes",
+        "self": "write_notes",
+        "deliberation": "make_room",
+        "substrate": "make_room",
+    }
 
     def _intends_to_act(self) -> bool:
         """Whether anything she is holding is urgent enough to do something about.
@@ -1291,23 +1363,35 @@ class SubjectRuntime:
         return False
 
     def _chosen_action(self) -> str:
-        """The action her most depleted drive picks.
+        """What she does, decided by what she is attending to.
 
         Not a constant and not a random draw: the budgets are part of the
         deliberation domain, so displacing that domain changes what she does,
         which changes what the filesystem holds, which changes what her senses
         report back. That is the whole of the return route through the world.
         """
+        attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
+        source = attending.split(":", 1)[0].strip()
+        if source.startswith("affect_"):
+            source = "self"
+        chosen = self.ATTENTION_ACTIONS.get(source)
+        if chosen:
+            return chosen
         budgets = getattr(getattr(self.state, "motivation", None), "budgets", {}) or {}
         levels = []
-        for name in ("social", "curiosity", "creation", "rest", "energy"):
+        # Every budget the state carries, read from the state. This listed
+        # `creation` and `rest`, which no budget has ever been called, and
+        # omitted `growth` and `integrity`, which are two of the five that
+        # exist — so the drive that is most depleted on almost every tick was
+        # not among the ones considered.
+        for name in sorted(budgets):
             entry = budgets.get(name)
             if isinstance(entry, dict):
                 levels.append((float(entry.get("level", 100.0) or 0.0), name))
         if not levels:
             return self.ACTIONS[0]
         levels.sort()
-        return self.ACTIONS[hash(levels[0][1]) % len(self.ACTIONS)]
+        return self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
 
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
@@ -1359,6 +1443,21 @@ class SubjectRuntime:
                     rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
                     ok = path.is_dir()
                     observed = f"{len(rooms)} rooms exist"
+                elif kind == "read_room":
+                    # The one that can fail, and fails for a reason that is
+                    # hers: the room for a turn exists only if she chose to
+                    # make one then. An action repertoire in which nothing can
+                    # fail cannot teach efficacy — every attempt succeeded, so
+                    # the ledger's efficacy and authored share sat at one for
+                    # the whole of every run and the self-state read two
+                    # constants where two of its liveliest columns should be.
+                    path = room / f"room_{max(0, self.turn - 1):04d}"
+                    ok = path.is_dir()
+                    observed = (
+                        f"room {path.name} holds {len(list(path.iterdir()))} things"
+                        if ok
+                        else f"there is no room {path.name}"
+                    )
                 else:
                     path = room / "notes.txt"
                     gateway.write_text(
@@ -1374,7 +1473,7 @@ class SubjectRuntime:
         # comparator sees the action rather than sitting at its defaults — its
         # four readings were constant for want of a caller, not for want of
         # anything to say.
-        self._through_the_intention_loop(intended, ok, actor)
+        self._through_the_intention_loop(intended, ok, actor, kind)
         record = {
             "intended": intended,
             "verified": ok,

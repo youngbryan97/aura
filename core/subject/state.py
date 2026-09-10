@@ -251,7 +251,7 @@ _SCHEMAS: dict[str, Schema] = {
             ("percept_load", "world.recent_percepts"),
             ("percept_claim", "world.recent_percepts[*].salience"),
             ("percept_sources", "world.recent_percepts[*].type"),
-            ("percept_novelty", "world.recent_percepts[*].content"),
+            ("percept_unfelt", "world.recent_percepts[*].consumed_by"),
             ("percept_strength", "world.recent_percepts[*].intensity"),
             ("spatial_present", "world.spatial_context"),
             ("entity_load", "world.known_entities"),
@@ -612,6 +612,15 @@ def _content_buckets(text: Any, buckets: int = CONTENT_BUCKETS) -> list[float]:
     return [value / total for value in counts]
 
 
+def _unfelt_share(percepts: Any) -> float:
+    """The share of the stream that affect has not taken yet."""
+    if not isinstance(percepts, list) or not percepts:
+        return 0.0
+    from core.state.percepts import fresh_for
+
+    return len(fresh_for(percepts, "affect")) / float(len(percepts))
+
+
 def _percept_novelty(percepts: Any) -> float:
     if not isinstance(percepts, list) or not percepts:
         return 0.0
@@ -640,10 +649,18 @@ def _read_P(state: Any, now: float) -> np.ndarray:
     objective = _dig(state, "cognition.current_objective", "") or ""
     return np.array(
         [
-            _sat(percepts, 16.0),
+            # Saturating at four, not sixteen. A percept lives one turn, so a
+            # count scaled against sixteen reads a busy turn and a quiet one as
+            # the same near-zero.
+            _sat(percepts, 4.0),
             claim,
             _sat(sources, 4.0),
-            _percept_novelty(percepts),
+            # How much of what arrived has not yet been felt. Novelty over a
+            # window that holds one item is one by construction, and that
+            # column was a constant for the whole of every run. This one moves
+            # within the turn — full before affect has run, empty after — which
+            # is the perceptual dynamics the one-turn lifetime actually creates.
+            _unfelt_share(percepts),
             strength,
             1.0 if _dig(state, "world.spatial_context") else 0.0,
             _sat(_dig(state, "world.known_entities", {}) or {}, 8.0),
@@ -858,6 +875,21 @@ def _read_M(state: Any) -> np.ndarray:
     )
 
 
+def _surprise_ratio(current: Any, typical: Any) -> float:
+    """Surprise against its own running mean, in [0, 1). Half is unremarkable.
+
+    Scale-free on purpose: what matters about a prediction error is whether it
+    is larger than this model's errors usually are, and that reading stays
+    sensitive wherever the model's absolute error happens to sit.
+    """
+    now = max(0.0, _f(current))
+    usual = max(0.0, _f(typical))
+    total = now + usual
+    if total <= 1e-9:
+        return 0.0
+    return now / total
+
+
 def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
     status = _call(organs.world_model, "status", {}) or {}
@@ -874,7 +906,14 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _hash_unit(",".join(sorted(str(k) for k in facts)[:32])),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _hash_unit(_dig(state, "cognition.user_emotional_trend", "neutral")),
-            math.tanh(_f(surprise)) if surprise is not None else 0.0,
+            # How surprising this moment is relative to how surprising things
+            # usually are, rather than the raw error squashed. Prediction error
+            # is unbounded above and `tanh` is flat past about two and a half,
+            # so a model whose ordinary error sits at three read 0.995 on every
+            # turn and the column was a constant — which is why displacing the
+            # world model moved the world model by two hundredths of a standard
+            # deviation while reaching three other domains.
+            _surprise_ratio(surprise, learned.get("mean_surprise")),
             # In the schema's order. Nine of these seventeen were one place out
             # from `model_hidden_norm` onward: the values were all real and all
             # attached to the wrong names, so every reading of this domain
@@ -908,7 +947,10 @@ def _read_D(state: Any) -> np.ndarray:
     head = [
         _sat(goals, 8.0),
         _sat(_dig(state, "cognition.pending_initiatives", []) or [], 4.0),
-        *_content_buckets(" ".join(str(goal) for goal in goals[:3])),
+        # The newest, not the oldest. `goals[:3]` takes the first three, which
+        # stop changing the moment there are three — so this domain's whole
+        # content profile was a constant after the third turn of every run.
+        *_content_buckets(" ".join(str(goal) for goal in goals[-3:])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
         _hash_unit(_dig(state, "cognition.last_action_source", "")),
     ]

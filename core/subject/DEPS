@@ -13,6 +13,7 @@
 description = "core.subject: may read and restore measured organism state, including effort; the organism may not read it."
 
 include_rules = [
+    "+core.motivation",
     "+core.subject",
 
     # What it reads to build K and to drive a life.

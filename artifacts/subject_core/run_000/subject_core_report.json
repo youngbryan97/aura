@@ -1,7 +1,7 @@
 {
   "notes": {
     "unwritable_domains": [],
-    "intervention_seconds": 951.5,
+    "intervention_seconds": 836.2,
     "intervention_power": {
       "pairs_tested": 90,
       "paired_trials_per_pair": 48,
@@ -9,58 +9,58 @@
       "underpowered": false
     },
     "attenuation": {
-      "G": {
-        "self_effect": 2.0161,
-        "largest_outgoing": 0.7647,
-        "attenuation": 2.64
-      },
-      "N": {
-        "self_effect": 3.3041,
-        "largest_outgoing": 0.0541,
-        "attenuation": 61.08
-      },
-      "W": {
-        "self_effect": 5.0296,
-        "largest_outgoing": 2.0817,
-        "attenuation": 2.42
-      },
-      "S": {
-        "self_effect": 2.4996,
-        "largest_outgoing": 2.0435,
-        "attenuation": 1.22
-      },
-      "D": {
-        "self_effect": 5.7898,
-        "largest_outgoing": 0.3022,
-        "attenuation": 19.16
+      "C": {
+        "self_effect": 2.6043,
+        "largest_outgoing": 0.0816,
+        "attenuation": 31.91
       },
       "P": {
-        "self_effect": 1.595,
-        "largest_outgoing": 0.3719,
-        "attenuation": 4.29
+        "self_effect": 1.4744,
+        "largest_outgoing": 0.0179,
+        "attenuation": 82.43
+      },
+      "W": {
+        "self_effect": 4.7168,
+        "largest_outgoing": 1.8386,
+        "attenuation": 2.57
+      },
+      "G": {
+        "self_effect": 1.9227,
+        "largest_outgoing": 0.9918,
+        "attenuation": 1.94
       },
       "I": {
-        "self_effect": 3.263,
-        "largest_outgoing": 0.1225,
-        "attenuation": 26.64
+        "self_effect": 3.2608,
+        "largest_outgoing": 0.1005,
+        "attenuation": 32.45
       },
-      "C": {
-        "self_effect": 2.8496,
-        "largest_outgoing": 0.0813,
-        "attenuation": 35.04
-      },
-      "A": {
-        "self_effect": 0.3492,
-        "largest_outgoing": 0.3015,
-        "attenuation": 1.16
+      "S": {
+        "self_effect": 1.6756,
+        "largest_outgoing": 1.7761,
+        "attenuation": 0.94
       },
       "M": {
-        "self_effect": 0.9815,
-        "largest_outgoing": 0.6255,
-        "attenuation": 1.57
+        "self_effect": 2.8464,
+        "largest_outgoing": 0.1011,
+        "attenuation": 28.17
+      },
+      "D": {
+        "self_effect": 4.111,
+        "largest_outgoing": 0.2739,
+        "attenuation": 15.01
+      },
+      "A": {
+        "self_effect": 0.3208,
+        "largest_outgoing": 0.1281,
+        "attenuation": 2.5
+      },
+      "N": {
+        "self_effect": 2.7278,
+        "largest_outgoing": 0.0397,
+        "attenuation": 68.7
       }
     },
-    "seconds": 2069.0
+    "seconds": 2568.0
   },
   "organism": {
     "up": [
@@ -87,23 +87,12 @@
       "UnifiedField"
     ],
     "still_running": [
-      "ClosedCausalLoop.prediction",
-      "ConsciousnessBridge",
-      "EmbodiedInteroception",
-      "LiquidConsciousness",
-      "NeuralMesh",
-      "Neurochemical",
-      "OscillatoryBinding",
-      "StreamOfBeing.existence",
-      "SubstrateEvolution",
-      "Task-14",
-      "UnifiedField",
       "state_registry.notification_dispatcher"
     ]
   },
   "recording": {
     "frames": 31680,
-    "width": 164,
+    "width": 166,
     "conditions": {
       "conversation": 3960,
       "problem_solving": 3960,
@@ -126,23 +115,23 @@
       "D",
       "N"
     ],
-    "flat_columns": 59,
+    "flat_columns": 49,
     "one_way_columns": [
       "I.token_velocity",
       "G.fragmentation",
       "G.branch_load",
       "G.tick",
       "G.broadcasts",
-      "C.loop_cycle",
       "C.substrate_revision",
       "S.bonding_level",
       "S.belief_version",
       "S.snapshot_count",
       "S.agency_acted",
+      "S.agency_traces",
       "M.evolution_log_load",
+      "W.model_mean_surprise",
       "W.causal_edges",
       "D.drive_social",
-      "D.drive_curiosity",
       "N.steps"
     ],
     "flat_column_names": [
@@ -157,7 +146,6 @@
       "G.coherence",
       "G.contradictions",
       "G.discourse_depth",
-      "G.tie_impasses",
       "G.inhibited",
       "G.modifier_depth",
       "G.modifier_focus",
@@ -176,18 +164,10 @@
       "S.trait_extraversion",
       "S.trait_agreeableness",
       "S.trait_neuroticism",
-      "S.pending_updates",
-      "S.prediction_error",
       "S.prediction_surprises",
       "S.valence_error",
       "S.drive_error",
-      "S.focus_error",
-      "S.least_predictable",
-      "S.prediction_confidence",
-      "S.agency_score",
-      "S.agency_traces",
       "S.agency_pending",
-      "S.agency_attribution",
       "M.summary_len",
       "M.ledger_load",
       "M.thread_present",
@@ -198,10 +178,9 @@
       "W.concept_load",
       "W.user_trend",
       "W.model_hidden_norm",
-      "W.model_mean_surprise",
       "W.causal_confirmed",
       "W.model_facets",
-      "W.model_observations",
+      "W.model_train_steps",
       "D.drive_rest",
       "D.drive_creation",
       "N.era"
@@ -230,13 +209,13 @@
     }
   },
   "phi": {
-    "phi_do": -0.077679,
+    "phi_do": -0.093828,
     "best_cut": [
-      "CSW",
-      "PIAGMDN"
+      "GSW",
+      "PIACMDN"
     ],
-    "loss_full": 0.285172,
-    "loss_cut": 0.264617,
+    "loss_full": 0.420861,
+    "loss_cut": 0.38476,
     "domains": [
       "P",
       "I",
@@ -252,85 +231,85 @@
     "pairs": 959,
     "cheapest_cuts": [
       {
-        "cut": "CSW|PIAGMDN",
-        "phi": -0.077679
+        "cut": "GSW|PIACMDN",
+        "phi": -0.093828
       },
       {
-        "cut": "W|PIAGCSMDN",
-        "phi": -0.076256
+        "cut": "GCSW|PIAMDN",
+        "phi": -0.089289
       },
       {
-        "cut": "SW|PIAGCMDN",
-        "phi": -0.073988
+        "cut": "GW|PIACSMDN",
+        "phi": -0.083519
       },
       {
-        "cut": "ACSW|PIGMDN",
-        "phi": -0.063887
+        "cut": "ACSD|PIGMWN",
+        "phi": -0.081995
       },
       {
-        "cut": "CSMW|PIAGDN",
-        "phi": -0.062672
+        "cut": "IACMD|PGSWN",
+        "phi": -0.072962
       },
       {
-        "cut": "IAD|PGCSMWN",
-        "phi": -0.05843
+        "cut": "GCSWD|PIAMN",
+        "phi": -0.072481
       },
       {
-        "cut": "ACSMW|PIGDN",
-        "phi": -0.054903
+        "cut": "ACMD|PIGSWN",
+        "phi": -0.072467
       },
       {
-        "cut": "AW|PIGCSMDN",
-        "phi": -0.054723
+        "cut": "IAMDN|PGCSW",
+        "phi": -0.07232
       }
     ],
     "dearest_cuts": [
       {
-        "cut": "GCN|PIASMWD",
-        "phi": 0.077067
+        "cut": "PIAG|CSMWDN",
+        "phi": 0.064676
       },
       {
-        "cut": "PG|IACSMWDN",
-        "phi": 0.077198
+        "cut": "PIAGC|SMWDN",
+        "phi": 0.073985
       },
       {
-        "cut": "AGC|PISMWDN",
-        "phi": 0.077397
+        "cut": "MN|PIAGCSWD",
+        "phi": 0.076378
       },
       {
-        "cut": "PAC|IGSMWDN",
-        "phi": 0.078445
+        "cut": "CMN|PIAGSWD",
+        "phi": 0.080447
       }
     ],
     "degenerate": false,
     "note": ""
   },
   "differentiation": {
-    "d_eff": 11.1274,
-    "d_eff_normalised": 0.106,
-    "live_width": 105,
-    "largest_component_share": 0.2309,
+    "d_eff": 10.8666,
+    "d_eff_normalised": 0.0929,
+    "live_width": 117,
+    "largest_component_share": 0.2345,
     "spectrum_head": [
-      0.2309,
-      0.1246,
-      0.0646,
-      0.0603,
-      0.0541,
-      0.0473,
-      0.042,
-      0.034,
-      0.0318,
+      0.2345,
+      0.1428,
+      0.0619,
+      0.0496,
+      0.0426,
+      0.0397,
+      0.0352,
+      0.0284,
       0.0263,
-      0.0239,
-      0.0234
+      0.0261,
+      0.023,
+      0.0209
     ]
   },
   "intrinsic": {
-    "loss_environment_only": 0.696754,
-    "loss_environment_and_state": 0.272659,
-    "loss_shuffled_state": 0.696916,
-    "delta_intrinsic": 0.608673,
-    "delta_over_shuffled_state": 0.608764,
+    "loss_environment_only": 0.662942,
+    "loss_environment_and_state": 0.3368,
+    "loss_shuffled_state": 0.664309,
+    "delta_intrinsic": 0.491961,
+    "delta_over_shuffled_state": 0.493007,
     "pairs": 959,
     "env_width": 6,
     "passes": true,
@@ -339,10 +318,10 @@
   "metastability": {
     "regimes": 2,
     "dwell_mean": 96.0,
-    "dwell_max": 697.0,
-    "transition_entropy": 0.074,
+    "dwell_max": 616.0,
+    "transition_entropy": 0.0755,
     "entropy_ceiling": 1.0,
-    "largest_regime_share": 0.7417,
+    "largest_regime_share": 0.6531,
     "passes": true
   },
   "synergy": [
@@ -352,18 +331,18 @@
         "S"
       ],
       "target": "G",
-      "joint_information": 2.2156,
-      "redundancy": 0.8376,
+      "joint_information": 2.195,
+      "redundancy": 0.9585,
       "unique": [
         0.0,
-        1.1235
+        1.1131
       ],
-      "synergy": 0.2544,
-      "synergy_fraction": 0.1148,
-      "null_q99_fraction": 0.0876,
-      "interaction_gain": 0.0104,
+      "synergy": 0.1234,
+      "synergy_fraction": 0.0562,
+      "null_q99_fraction": 0.2035,
+      "interaction_gain": -0.0229,
       "rows": 959,
-      "passes": true
+      "passes": false
     },
     {
       "sources": [
@@ -371,16 +350,16 @@
         "M"
       ],
       "target": "W",
-      "joint_information": 1.9717,
-      "redundancy": 0.0032,
+      "joint_information": 1.2535,
+      "redundancy": 0.0013,
       "unique": [
         0.0,
-        1.8794
+        1.2055
       ],
-      "synergy": 0.089,
-      "synergy_fraction": 0.0451,
-      "null_q99_fraction": 0.1107,
-      "interaction_gain": 0.0846,
+      "synergy": 0.0467,
+      "synergy_fraction": 0.0373,
+      "null_q99_fraction": 0.163,
+      "interaction_gain": 0.0041,
       "rows": 959,
       "passes": false
     },
@@ -390,18 +369,18 @@
         "A"
       ],
       "target": "D",
-      "joint_information": 2.7917,
-      "redundancy": 0.4849,
+      "joint_information": 3.1174,
+      "redundancy": 1.0208,
       "unique": [
-        1.9184,
+        1.817,
         0.0
       ],
-      "synergy": 0.3884,
-      "synergy_fraction": 0.1391,
-      "null_q99_fraction": 0.0754,
-      "interaction_gain": 0.1546,
+      "synergy": 0.2796,
+      "synergy_fraction": 0.0897,
+      "null_q99_fraction": 0.0887,
+      "interaction_gain": 0.0378,
       "rows": 959,
-      "passes": true
+      "passes": false
     },
     {
       "sources": [
@@ -409,27 +388,27 @@
         "D"
       ],
       "target": "C",
-      "joint_information": 1.5068,
-      "redundancy": 0.9179,
+      "joint_information": 1.0285,
+      "redundancy": 0.9042,
       "unique": [
-        0.3669,
-        0.0
+        0.0,
+        0.0767
       ],
-      "synergy": 0.222,
-      "synergy_fraction": 0.1473,
-      "null_q99_fraction": 0.1915,
-      "interaction_gain": 0.0153,
+      "synergy": 0.0475,
+      "synergy_fraction": 0.0462,
+      "null_q99_fraction": 0.2175,
+      "interaction_gain": 0.0064,
       "rows": 959,
       "passes": false
     }
   ],
   "closure": {
-    "loss_core_only": 0.107162,
-    "loss_core_and_periphery": 0.112027,
-    "loss_shuffled_periphery": 0.107143,
-    "leak": -0.045401,
-    "shuffled_leak": 0.000172,
-    "leak_over_shuffled": -0.045581,
+    "loss_core_only": 0.109674,
+    "loss_core_and_periphery": 0.110228,
+    "loss_shuffled_periphery": 0.110372,
+    "leak": -0.005058,
+    "shuffled_leak": -0.006371,
+    "leak_over_shuffled": 0.001304,
     "periphery_width": 2,
     "closed": true,
     "largest_leaks": []
@@ -438,9 +417,9 @@
     {
       "source": "A",
       "target": "C",
-      "effect": 0.0595,
-      "p": 0.000855,
-      "q": 0.00513,
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -448,9 +427,9 @@
     {
       "source": "A",
       "target": "D",
-      "effect": 0.0012,
-      "p": 0.008165,
-      "q": 0.043226,
+      "effect": 0.0058,
+      "p": 0.028925,
+      "q": 0.153132,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -458,19 +437,19 @@
     {
       "source": "A",
       "target": "G",
-      "effect": 0.0415,
-      "p": 0.000655,
-      "q": 0.004211,
-      "replication": 0,
+      "effect": 0.0498,
+      "p": 0.067455,
+      "q": 0.263953,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
       "source": "A",
       "target": "I",
-      "effect": 0.1,
-      "p": 0.03581,
-      "q": 0.153471,
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -478,9 +457,9 @@
     {
       "source": "A",
       "target": "M",
-      "effect": 0.0156,
-      "p": 0.391203,
-      "q": 0.693507,
+      "effect": -0.0012,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -488,19 +467,19 @@
     {
       "source": "A",
       "target": "N",
-      "effect": 0.3015,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 3,
+      "effect": 0.1281,
+      "p": 7.5e-05,
+      "q": 0.000519,
+      "replication": 1,
       "trials": 48,
-      "kept": true
+      "kept": false
     },
     {
       "source": "A",
       "target": "P",
-      "effect": 0.0012,
-      "p": 0.334198,
-      "q": 0.653866,
+      "effect": 0.0013,
+      "p": 0.379963,
+      "q": 0.660817,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -508,9 +487,9 @@
     {
       "source": "A",
       "target": "S",
-      "effect": 0.0105,
-      "p": 0.414503,
-      "q": 0.703873,
+      "effect": 0.0368,
+      "p": 0.157404,
+      "q": 0.461146,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -518,9 +497,9 @@
     {
       "source": "A",
       "target": "W",
-      "effect": 0.045,
-      "p": 0.384613,
-      "q": 0.693507,
+      "effect": 0.0434,
+      "p": 0.057085,
+      "q": 0.233528,
       "replication": 1,
       "trials": 48,
       "kept": false
@@ -528,19 +507,19 @@
     {
       "source": "C",
       "target": "A",
-      "effect": 0.0574,
-      "p": 0.260564,
-      "q": 0.624188,
-      "replication": 2,
+      "effect": 0.0104,
+      "p": 0.433943,
+      "q": 0.723238,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "C",
       "target": "D",
-      "effect": 0.0001,
-      "p": 0.400693,
-      "q": 0.693507,
+      "effect": 0.0027,
+      "p": 0.209444,
+      "q": 0.525865,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -548,9 +527,9 @@
     {
       "source": "C",
       "target": "G",
-      "effect": 0.0113,
-      "p": 0.205839,
-      "q": 0.61191,
+      "effect": -0.0349,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -568,9 +547,9 @@
     {
       "source": "C",
       "target": "M",
-      "effect": -0.0064,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0342,
+      "p": 0.125359,
+      "q": 0.433936,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -578,9 +557,9 @@
     {
       "source": "C",
       "target": "N",
-      "effect": -0.012,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0006,
+      "p": 0.495088,
+      "q": 0.774819,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -588,9 +567,9 @@
     {
       "source": "C",
       "target": "P",
-      "effect": -0.0013,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0039,
+      "p": 0.323503,
+      "q": 0.660817,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -598,39 +577,39 @@
     {
       "source": "C",
       "target": "S",
-      "effect": 0.0813,
-      "p": 0.01998,
-      "q": 0.094642,
-      "replication": 1,
+      "effect": -0.0161,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "C",
       "target": "W",
-      "effect": -0.0131,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
+      "effect": 0.0816,
+      "p": 0.02016,
+      "q": 0.113399,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
       "source": "D",
       "target": "A",
-      "effect": -0.0083,
+      "effect": -0.0508,
       "p": 1.0,
       "q": 1.0,
-      "replication": 0,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
       "source": "D",
       "target": "C",
-      "effect": 0.0119,
-      "p": 0.114989,
-      "q": 0.449959,
+      "effect": -0.0153,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -638,9 +617,9 @@
     {
       "source": "D",
       "target": "G",
-      "effect": 0.0041,
-      "p": 0.443833,
-      "q": 0.7114,
+      "effect": 0.0242,
+      "p": 0.274454,
+      "q": 0.602459,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -648,9 +627,9 @@
     {
       "source": "D",
       "target": "I",
-      "effect": 0.0006,
-      "p": 0.500577,
-      "q": 0.738557,
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -658,9 +637,9 @@
     {
       "source": "D",
       "target": "M",
-      "effect": -0.0358,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0236,
+      "p": 0.243494,
+      "q": 0.561909,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -668,19 +647,19 @@
     {
       "source": "D",
       "target": "N",
-      "effect": 0.3022,
-      "p": 7.5e-05,
-      "q": 0.000519,
-      "replication": 4,
+      "effect": 0.2739,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 3,
       "trials": 48,
-      "kept": true
+      "kept": false
     },
     {
       "source": "D",
       "target": "P",
-      "effect": -0.0036,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0001,
+      "p": 0.463973,
+      "q": 0.759228,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -688,9 +667,9 @@
     {
       "source": "D",
       "target": "S",
-      "effect": 0.0069,
-      "p": 0.433583,
-      "q": 0.7114,
+      "effect": -0.0335,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -698,9 +677,9 @@
     {
       "source": "D",
       "target": "W",
-      "effect": -0.0043,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0368,
+      "p": 0.361738,
+      "q": 0.660817,
       "replication": 1,
       "trials": 48,
       "kept": false
@@ -708,19 +687,19 @@
     {
       "source": "G",
       "target": "A",
-      "effect": -0.0077,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
+      "effect": 0.0767,
+      "p": 0.158839,
+      "q": 0.461146,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
       "source": "G",
       "target": "C",
-      "effect": -0.0055,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0249,
+      "p": 0.135324,
+      "q": 0.440355,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -728,9 +707,9 @@
     {
       "source": "G",
       "target": "D",
-      "effect": 0.0006,
-      "p": 0.145269,
-      "q": 0.515767,
+      "effect": 0.0032,
+      "p": 0.193084,
+      "q": 0.525865,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -738,9 +717,9 @@
     {
       "source": "G",
       "target": "I",
-      "effect": 0.05,
-      "p": 0.125274,
-      "q": 0.469779,
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -748,17 +727,7 @@
     {
       "source": "G",
       "target": "M",
-      "effect": 0.0044,
-      "p": 0.468578,
-      "q": 0.714779,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "G",
-      "target": "N",
-      "effect": 0.7647,
+      "effect": 0.9918,
       "p": 5e-06,
       "q": 4.1e-05,
       "replication": 8,
@@ -767,10 +736,20 @@
     },
     {
       "source": "G",
+      "target": "N",
+      "effect": 0.6085,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 7,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
       "target": "P",
-      "effect": 0.0026,
-      "p": 0.236694,
-      "q": 0.618914,
+      "effect": 0.0142,
+      "p": 0.038635,
+      "q": 0.173857,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -778,39 +757,39 @@
     {
       "source": "G",
       "target": "S",
-      "effect": 0.1591,
-      "p": 0.00269,
-      "q": 0.015131,
-      "replication": 1,
+      "effect": 0.3983,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 5,
       "trials": 48,
-      "kept": false
+      "kept": true
     },
     {
       "source": "G",
       "target": "W",
-      "effect": 0.0052,
-      "p": 0.393913,
-      "q": 0.693507,
-      "replication": 0,
+      "effect": 0.1041,
+      "p": 0.155119,
+      "q": 0.461146,
+      "replication": 2,
       "trials": 48,
       "kept": false
     },
     {
       "source": "I",
       "target": "A",
-      "effect": 0.0395,
-      "p": 0.293369,
-      "q": 0.624188,
-      "replication": 1,
+      "effect": 0.1005,
+      "p": 0.121309,
+      "q": 0.433936,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "I",
       "target": "C",
-      "effect": -0.0037,
-      "p": 1.0,
-      "q": 1.0,
+      "effect": 0.0023,
+      "p": 0.369028,
+      "q": 0.660817,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -818,9 +797,9 @@
     {
       "source": "I",
       "target": "D",
-      "effect": 0.0002,
-      "p": 0.326538,
-      "q": 0.653077,
+      "effect": 0.0018,
+      "p": 0.265844,
+      "q": 0.598148,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -828,9 +807,9 @@
     {
       "source": "I",
       "target": "G",
-      "effect": 0.0229,
-      "p": 0.305158,
-      "q": 0.624188,
+      "effect": 0.0364,
+      "p": 0.04716,
+      "q": 0.202113,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -838,7 +817,7 @@
     {
       "source": "I",
       "target": "M",
-      "effect": -0.0171,
+      "effect": -0.0076,
       "p": 1.0,
       "q": 1.0,
       "replication": 0,
@@ -848,19 +827,19 @@
     {
       "source": "I",
       "target": "N",
-      "effect": 0.1225,
-      "p": 0.022765,
-      "q": 0.102442,
-      "replication": 1,
+      "effect": 0.0784,
+      "p": 0.036625,
+      "q": 0.173857,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "I",
       "target": "P",
-      "effect": 0.0035,
-      "p": 0.297539,
-      "q": 0.624188,
+      "effect": 0.0,
+      "p": 0.496918,
+      "q": 0.774819,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -868,9 +847,9 @@
     {
       "source": "I",
       "target": "S",
-      "effect": 0.0414,
-      "p": 0.176939,
-      "q": 0.568733,
+      "effect": 0.0394,
+      "p": 0.207659,
+      "q": 0.525865,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -878,17 +857,27 @@
     {
       "source": "I",
       "target": "W",
-      "effect": 0.013,
-      "p": 0.226914,
-      "q": 0.618856,
-      "replication": 0,
+      "effect": 0.0844,
+      "p": 0.00431,
+      "q": 0.02586,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
       "source": "M",
       "target": "A",
-      "effect": -0.0209,
+      "effect": 0.0209,
+      "p": 0.385723,
+      "q": 0.660817,
+      "replication": 2,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "C",
+      "effect": -0.0009,
       "p": 1.0,
       "q": 1.0,
       "replication": 0,
@@ -897,17 +886,47 @@
     },
     {
       "source": "M",
-      "target": "C",
-      "effect": 0.0022,
-      "p": 0.382793,
-      "q": 0.693507,
+      "target": "D",
+      "effect": -0.0017,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "M",
-      "target": "D",
+      "target": "G",
+      "effect": 0.0099,
+      "p": 0.369703,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "N",
+      "effect": -0.1005,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "P",
       "effect": -0.0003,
       "p": 1.0,
       "q": 1.0,
@@ -917,80 +936,40 @@
     },
     {
       "source": "M",
-      "target": "G",
-      "effect": 0.6255,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 7,
-      "trials": 48,
-      "kept": true
-    },
-    {
-      "source": "M",
-      "target": "I",
-      "effect": 0.0,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "M",
-      "target": "N",
-      "effect": -0.1384,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 1,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "M",
-      "target": "P",
-      "effect": -0.0005,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "M",
       "target": "S",
-      "effect": 0.2448,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 3,
+      "effect": 0.0123,
+      "p": 0.374213,
+      "q": 0.660817,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "M",
       "target": "W",
-      "effect": 0.1488,
-      "p": 1.5e-05,
-      "q": 0.000112,
-      "replication": 1,
+      "effect": 0.1011,
+      "p": 0.180139,
+      "q": 0.506641,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "N",
       "target": "A",
-      "effect": 0.0541,
-      "p": 0.210769,
-      "q": 0.61191,
-      "replication": 2,
+      "effect": 0.0227,
+      "p": 0.384523,
+      "q": 0.660817,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "N",
       "target": "C",
-      "effect": 0.0024,
-      "p": 0.445408,
-      "q": 0.7114,
+      "effect": 0.0107,
+      "p": 0.110634,
+      "q": 0.414879,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -998,7 +977,7 @@
     {
       "source": "N",
       "target": "D",
-      "effect": -0.0004,
+      "effect": -0.0036,
       "p": 1.0,
       "q": 1.0,
       "replication": 0,
@@ -1008,9 +987,9 @@
     {
       "source": "N",
       "target": "G",
-      "effect": 0.04,
-      "p": 0.148999,
-      "q": 0.515767,
+      "effect": 0.0296,
+      "p": 0.03769,
+      "q": 0.173857,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -1018,216 +997,6 @@
     {
       "source": "N",
       "target": "I",
-      "effect": 0.0,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "N",
-      "target": "M",
-      "effect": 0.022,
-      "p": 0.217684,
-      "q": 0.612236,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "N",
-      "target": "P",
-      "effect": -0.0,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "N",
-      "target": "S",
-      "effect": -0.0101,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "N",
-      "target": "W",
-      "effect": -0.0125,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "A",
-      "effect": -0.1097,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "C",
-      "effect": 0.0081,
-      "p": 0.111649,
-      "q": 0.449959,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "D",
-      "effect": 0.0,
-      "p": 0.458458,
-      "q": 0.7114,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "G",
-      "effect": 0.046,
-      "p": 0.240689,
-      "q": 0.618914,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "I",
-      "effect": 0.0,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "M",
-      "effect": 0.0155,
-      "p": 0.265309,
-      "q": 0.624188,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "N",
-      "effect": 0.3719,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 6,
-      "trials": 48,
-      "kept": true
-    },
-    {
-      "source": "P",
-      "target": "S",
-      "effect": 0.0242,
-      "p": 0.303248,
-      "q": 0.624188,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "P",
-      "target": "W",
-      "effect": -0.0422,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "S",
-      "target": "A",
-      "effect": 0.0105,
-      "p": 0.453528,
-      "q": 0.7114,
-      "replication": 1,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "S",
-      "target": "C",
-      "effect": 0.4981,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 8,
-      "trials": 48,
-      "kept": true
-    },
-    {
-      "source": "S",
-      "target": "D",
-      "effect": 0.0003,
-      "p": 0.302923,
-      "q": 0.624188,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "S",
-      "target": "G",
-      "effect": 0.588,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 7,
-      "trials": 48,
-      "kept": true
-    },
-    {
-      "source": "S",
-      "target": "I",
-      "effect": 0.0167,
-      "p": 0.498793,
-      "q": 0.738557,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "S",
-      "target": "M",
-      "effect": -0.0014,
-      "p": 1.0,
-      "q": 1.0,
-      "replication": 0,
-      "trials": 48,
-      "kept": false
-    },
-    {
-      "source": "S",
-      "target": "N",
-      "effect": 2.0435,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 8,
-      "trials": 48,
-      "kept": true
-    },
-    {
-      "source": "S",
-      "target": "P",
       "effect": -0.0006,
       "p": 1.0,
       "q": 1.0,
@@ -1236,57 +1005,87 @@
       "kept": false
     },
     {
-      "source": "S",
+      "source": "N",
+      "target": "M",
+      "effect": 0.0391,
+      "p": 0.295169,
+      "q": 0.629233,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "P",
+      "effect": -0.005,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "S",
+      "effect": 0.0397,
+      "p": 0.136999,
+      "q": 0.440355,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
       "target": "W",
-      "effect": 0.6784,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 7,
+      "effect": 0.0148,
+      "p": 0.216189,
+      "q": 0.525865,
+      "replication": 0,
       "trials": 48,
-      "kept": true
+      "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "A",
-      "effect": 0.0486,
-      "p": 0.295599,
-      "q": 0.624188,
-      "replication": 0,
+      "effect": -0.0889,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
       "trials": 48,
       "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "C",
-      "effect": 0.0028,
-      "p": 0.377323,
-      "q": 0.693507,
+      "effect": 0.0179,
+      "p": 0.300633,
+      "q": 0.629233,
       "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "D",
-      "effect": 0.0005,
-      "p": 0.193484,
-      "q": 0.600468,
+      "effect": -0.0001,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "G",
-      "effect": 0.2834,
-      "p": 5e-06,
-      "q": 4.1e-05,
-      "replication": 4,
+      "effect": -0.0128,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "I",
       "effect": 0.0,
       "p": 1.0,
@@ -1296,19 +1095,199 @@
       "kept": false
     },
     {
-      "source": "W",
+      "source": "P",
       "target": "M",
-      "effect": 0.024,
-      "p": 0.249179,
-      "q": 0.622947,
+      "effect": -0.0374,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "N",
+      "effect": -0.0175,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "S",
+      "effect": -0.0086,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "W",
+      "effect": -0.0425,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "A",
+      "effect": 0.0293,
+      "p": 0.370353,
+      "q": 0.660817,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "C",
+      "effect": 0.3801,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "D",
+      "effect": 0.0026,
+      "p": 0.227909,
+      "q": 0.539784,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "G",
+      "effect": 0.4327,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 7,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "M",
+      "effect": 0.2774,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 3,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "N",
+      "effect": 1.7761,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "P",
+      "effect": 0.0006,
+      "p": 0.389148,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "W",
+      "effect": 0.69,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 6,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "A",
+      "effect": -0.0219,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
     },
     {
       "source": "W",
+      "target": "C",
+      "effect": -0.0026,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "D",
+      "effect": 0.0025,
+      "p": 0.213414,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "G",
+      "effect": 0.3284,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 6,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "I",
+      "effect": 0.0006,
+      "p": 0.499328,
+      "q": 0.774819,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "M",
+      "effect": 0.1247,
+      "p": 0.00271,
+      "q": 0.017421,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
       "target": "N",
-      "effect": 2.0817,
+      "effect": 1.8386,
       "p": 5e-06,
       "q": 4.1e-05,
       "replication": 8,
@@ -1318,9 +1297,9 @@
     {
       "source": "W",
       "target": "P",
-      "effect": 0.0049,
-      "p": 0.160989,
-      "q": 0.536631,
+      "effect": -0.0046,
+      "p": 1.0,
+      "q": 1.0,
       "replication": 0,
       "trials": 48,
       "kept": false
@@ -1328,10 +1307,10 @@
     {
       "source": "W",
       "target": "S",
-      "effect": 0.115,
-      "p": 0.01389,
-      "q": 0.06945,
-      "replication": 1,
+      "effect": 0.1293,
+      "p": 7e-05,
+      "q": 0.000519,
+      "replication": 0,
       "trials": 48,
       "kept": false
     }
@@ -1350,19 +1329,23 @@
       "N"
     ],
     "edges": [
-      "A->N",
-      "D->N",
+      "G->M",
       "G->N",
-      "M->G",
-      "P->N",
+      "G->S",
       "S->C",
       "S->G",
       "S->N",
       "S->W",
+      "W->G",
       "W->N"
     ],
-    "edge_count": 10,
+    "edge_count": 9,
     "components": [
+      [
+        "G",
+        "S",
+        "W"
+      ],
       [
         "A"
       ],
@@ -1371,9 +1354,6 @@
       ],
       [
         "D"
-      ],
-      [
-        "G"
       ],
       [
         "I"
@@ -1386,26 +1366,20 @@
       ],
       [
         "P"
-      ],
-      [
-        "S"
-      ],
-      [
-        "W"
       ]
     ],
     "one_strongly_connected_component": false,
     "vertex_connectivity": 0,
-    "cycle_count": 0,
+    "cycle_count": 2,
     "cycles_per_node": {
       "P": 0,
       "I": 0,
       "A": 0,
-      "G": 0,
+      "G": 2,
       "C": 0,
-      "S": 0,
+      "S": 2,
       "M": 0,
-      "W": 0,
+      "W": 1,
       "D": 0,
       "N": 0
     },
@@ -1413,27 +1387,30 @@
       "P": 0,
       "I": 0,
       "A": 0,
-      "G": 0,
+      "G": 3,
       "C": 0,
-      "S": 0,
+      "S": 3,
       "M": 0,
-      "W": 0,
+      "W": 3,
       "D": 0,
       "N": 0
     },
     "every_node_on_two_cycles": false,
     "every_node_reenters_through_two_others": false,
-    "shortest_cycles": []
+    "shortest_cycles": [
+      "G->S",
+      "G->S->W"
+    ]
   },
   "per_condition": {
     "per_condition": {
       "conversation": {
-        "edges": 8,
+        "edges": 7,
         "one_component": false,
         "vertex_connectivity": 0
       },
       "problem_solving": {
-        "edges": 10,
+        "edges": 8,
         "one_component": false,
         "vertex_connectivity": 0
       },
@@ -1448,12 +1425,12 @@
         "vertex_connectivity": 0
       },
       "salience": {
-        "edges": 9,
+        "edges": 8,
         "one_component": false,
         "vertex_connectivity": 0
       },
       "stress": {
-        "edges": 7,
+        "edges": 8,
         "one_component": false,
         "vertex_connectivity": 0
       },
@@ -1471,33 +1448,33 @@
     "conditions_with_scc": 0
   },
   "perturbation": {
-    "mean_spread": 0.1,
-    "mean_pci": 0.17733462142205797,
+    "mean_spread": 0.10000000000000002,
+    "mean_pci": 0.1270921702165705,
     "null_q99": 0.0,
     "beats_null": true,
     "mean_null_spread": 0.0,
     "spread_by_source": {
-      "P": 0.1,
+      "P": 0.0,
       "I": 0.0,
-      "A": 0.1,
-      "G": 0.1,
+      "A": 0.0,
+      "G": 0.2,
       "C": 0.0,
       "S": 0.4,
       "M": 0.1,
       "W": 0.2,
-      "D": 0.0,
+      "D": 0.1,
       "N": 0.0
     },
     "pci_by_source": {
-      "P": 0.185,
+      "P": 0.0,
       "I": 0.0,
-      "A": 0.672,
-      "G": 0.185,
+      "A": 0.0,
+      "G": 0.262,
       "C": 0.0,
-      "S": 0.249,
-      "M": 0.192,
+      "S": 0.318,
+      "M": 0.215,
       "W": 0.291,
-      "D": 0.0,
+      "D": 0.185,
       "N": 0.0
     },
     "null_pci_by_source": {
@@ -1515,12 +1492,10 @@
     "matrices": {
       "P": {
         "source": "P",
-        "spread": 0.1,
-        "depth": 0.3788,
-        "reached": [
-          "N"
-        ],
-        "pci": 0.1848,
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
@@ -1531,7 +1506,7 @@
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000000000000000000000000000000000001111111111111111111111111"
+          "000000000000000000000000000000000000000000000000000000000000000000"
         ]
       },
       "I": {
@@ -1555,18 +1530,16 @@
       },
       "A": {
         "source": "A",
-        "spread": 0.1,
-        "depth": 0.1061,
-        "reached": [
-          "C"
-        ],
-        "pci": 0.6715,
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000000000000001111111000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
@@ -1576,12 +1549,13 @@
       },
       "G": {
         "source": "G",
-        "spread": 0.1,
+        "spread": 0.2,
         "depth": 0.3788,
         "reached": [
+          "M",
           "N"
         ],
-        "pci": 0.1848,
+        "pci": 0.2624,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
@@ -1589,7 +1563,7 @@
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000111111",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000001111111111111111111111111"
@@ -1617,20 +1591,20 @@
       "S": {
         "source": "S",
         "spread": 0.4,
-        "depth": 0.7576,
+        "depth": 0.7424,
         "reached": [
           "G",
           "C",
           "W",
           "N"
         ],
-        "pci": 0.2494,
+        "pci": 0.3179,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000111000000000000000000011111111111111111111111111111111111",
+          "000000000111000000000000000000000000000000000000000000000000111111",
           "000000000000000001111100000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000111111111111111000000000000000000000000000000000000000000",
@@ -1641,20 +1615,20 @@
       "M": {
         "source": "M",
         "spread": 0.1,
-        "depth": 0.5303,
+        "depth": 0.4545,
         "reached": [
-          "G"
+          "W"
         ],
-        "pci": 0.192,
+        "pci": 0.215,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000000000000000000000000011111111111111111111111111111111111",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000111111111111111111111111111111000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000"
         ]
@@ -1683,10 +1657,12 @@
       },
       "D": {
         "source": "D",
-        "spread": 0.0,
-        "depth": 0.0,
-        "reached": [],
-        "pci": 0.0,
+        "spread": 0.1,
+        "depth": 0.3788,
+        "reached": [
+          "N"
+        ],
+        "pci": 0.1848,
         "lags": 66,
         "rows": [
           "000000000000000000000000000000000000000000000000000000000000000000",
@@ -1697,7 +1673,7 @@
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
           "000000000000000000000000000000000000000000000000000000000000000000",
-          "000000000000000000000000000000000000000000000000000000000000000000"
+          "000000000000000000000000000000000000000001111111111111111111111111"
         ]
       },
       "N": {
@@ -1722,34 +1698,37 @@
     }
   },
   "global_access": {
-    "consumers": 1,
+    "consumers": 3,
     "consumer_list": [
-      "N"
+      "M",
+      "N",
+      "S"
     ],
-    "returns": false,
-    "return_paths": []
+    "returns": true,
+    "return_paths": [
+      "G->S->W"
+    ]
   },
   "timescale": {
     "fast_to_slow": true,
     "fast_to_slow_edges": [
-      "A->N",
-      "D->N",
+      "G->M",
       "G->N",
-      "P->N"
+      "G->S"
     ],
     "slow_to_fast": true,
     "slow_to_fast_edges": [
-      "M->G",
       "S->C",
-      "S->G"
+      "S->G",
+      "W->G"
     ]
   },
   "agency": {
-    "self_to_action": 1.0118,
-    "self_to_action_floor": 0.5402,
+    "self_to_action": 1.6435,
+    "self_to_action_floor": 0.8888,
     "self_drives_action": true,
-    "ownership_divergence": 41.0644,
-    "ownership_floor": 32.8484,
+    "ownership_divergence": 31.2567,
+    "ownership_floor": 25.1167,
     "outcome_updates_self": true,
     "action_text_changed_under_self_perturbation": false,
     "trials": 5,
@@ -1757,42 +1736,42 @@
   },
   "lesion": {
     "cut": [
-      "C",
+      "G",
       "S",
       "W"
     ],
     "intact": {
-      "phi_do": -0.04965,
+      "phi_do": -0.07036,
       "spread": 0.26667,
-      "synergy": 0.16978
+      "synergy": 0.17692
     },
     "lesioned": {
-      "phi_do": -0.0841,
-      "spread": 0.23333,
-      "synergy": 0.13288
+      "phi_do": -0.11921,
+      "spread": 0.1,
+      "synergy": 0.23878
     },
     "rescued": {
-      "phi_do": -0.0451,
-      "spread": 0.23333,
-      "synergy": 0.21985
+      "phi_do": -0.16985,
+      "spread": 0.16667,
+      "synergy": 0.10316
     },
     "deltas": {
-      "phi_do": 0.03445,
-      "spread": 0.03333,
-      "synergy": 0.0369
+      "phi_do": 0.04885,
+      "spread": 0.16667,
+      "synergy": -0.06187
     },
     "rescue": {
-      "phi_do": 0.039,
-      "spread": -0.0,
-      "synergy": 0.08697
+      "phi_do": -0.05064,
+      "spread": 0.06667,
+      "synergy": -0.13562
     },
-    "deficit": true,
+    "deficit": false,
     "rescued_ok": false
   },
   "nulls": {
     "phi_table": {
-      "replay": -0.84717,
-      "time_shuffle": -0.01099,
+      "replay": -0.1494,
+      "time_shuffle": -0.01058,
       "recurrent": 0.26392,
       "star": 0.00558,
       "hub": 0.01121,
@@ -1802,20 +1781,20 @@
     },
     "detail": {
       "replay": {
-        "phi_do": -0.84717,
+        "phi_do": -0.1494,
         "draws": [
-          -0.84717,
-          -9.19562,
-          -889.36445
+          -0.1494,
+          -5.06411,
+          -2.76145
         ],
         "kind": "surrogate"
       },
       "time_shuffle": {
-        "phi_do": -0.01099,
+        "phi_do": -0.01058,
         "draws": [
-          -0.0144,
-          -0.01099,
-          -0.01448
+          -0.05242,
+          -0.01058,
+          -0.01355
         ],
         "kind": "surrogate"
       },
@@ -1862,8 +1841,8 @@
         "reentry": false
       }
     },
-    "surrogate_floor": -0.01099,
-    "phi_above_floor": -0.06669,
+    "surrogate_floor": -0.01058,
+    "phi_above_floor": -0.08325,
     "phi_beats_all": false,
     "all_nulls_fail": true,
     "nulls_fail_the_bar": true,
@@ -1876,7 +1855,7 @@
   },
   "verdict": {
     "isc": false,
-    "passed": 11,
+    "passed": 12,
     "total": 24,
     "failed": [
       "causal_closure_scc",
@@ -1888,9 +1867,8 @@
       "differentiation",
       "perturbational_spread",
       "synergy",
-      "global_access",
-      "recurrent_global_access",
       "natural_runtime_replication",
+      "lesion_deficit",
       "rescue"
     ],
     "criteria": [
@@ -1901,6 +1879,11 @@
         "passed": false,
         "value": [
           [
+            "G",
+            "S",
+            "W"
+          ],
+          [
             "A"
           ],
           [
@@ -1908,9 +1891,6 @@
           ],
           [
             "D"
-          ],
-          [
-            "G"
           ],
           [
             "I"
@@ -1923,17 +1903,11 @@
           ],
           [
             "P"
-          ],
-          [
-            "S"
-          ],
-          [
-            "W"
           ]
         ],
         "bar": "one component covering all domains",
         "detail": {
-          "edge_count": 10
+          "edge_count": 9
         }
       },
       {
@@ -1954,11 +1928,11 @@
           "P": 0,
           "I": 0,
           "A": 0,
-          "G": 0,
+          "G": 2,
           "C": 0,
-          "S": 0,
+          "S": 2,
           "M": 0,
-          "W": 0,
+          "W": 1,
           "D": 0,
           "N": 0
         },
@@ -1974,11 +1948,11 @@
           "P": 0,
           "I": 0,
           "A": 0,
-          "G": 0,
+          "G": 3,
           "C": 0,
-          "S": 0,
+          "S": 3,
           "M": 0,
-          "W": 0,
+          "W": 3,
           "D": 0,
           "N": 0
         },
@@ -1990,33 +1964,33 @@
         "section": "11",
         "requires": "the cheapest bipartition still costs held-out prediction",
         "passed": false,
-        "value": -0.0777,
+        "value": -0.0938,
         "bar": "> 0.05",
         "detail": {
           "cheapest_cut": [
-            "CSW",
-            "PIAGMDN"
+            "GSW",
+            "PIACMDN"
           ],
           "dearest_cuts": [
             {
-              "cut": "GCN|PIASMWD",
-              "phi": 0.077067
+              "cut": "PIAG|CSMWDN",
+              "phi": 0.064676
             },
             {
-              "cut": "PG|IACSMWDN",
-              "phi": 0.077198
+              "cut": "PIAGC|SMWDN",
+              "phi": 0.073985
             },
             {
-              "cut": "AGC|PISMWDN",
-              "phi": 0.077397
+              "cut": "MN|PIAGCSWD",
+              "phi": 0.076378
             },
             {
-              "cut": "PAC|IGSMWDN",
-              "phi": 0.078445
+              "cut": "CMN|PIAGSWD",
+              "phi": 0.080447
             }
           ],
-          "surrogate_floor": -0.01099,
-          "above_surrogate_floor": -0.06669
+          "surrogate_floor": -0.01058,
+          "above_surrogate_floor": -0.08325
         }
       },
       {
@@ -2025,8 +1999,8 @@
         "requires": "irreducibility exceeds every null architecture and matched surrogate",
         "passed": false,
         "value": {
-          "replay": -0.84717,
-          "time_shuffle": -0.01099,
+          "replay": -0.1494,
+          "time_shuffle": -0.01058,
           "recurrent": 0.26392,
           "star": 0.00558,
           "hub": 0.01121,
@@ -2036,8 +2010,8 @@
         },
         "bar": "above all nulls",
         "detail": {
-          "surrogate_floor": -0.01099,
-          "margin_over_floor": -0.06669
+          "surrogate_floor": -0.01058,
+          "margin_over_floor": -0.08325
         }
       },
       {
@@ -2045,11 +2019,11 @@
         "section": "18",
         "requires": "the integrated state is not one dimension wearing many names",
         "passed": false,
-        "value": 0.106,
+        "value": 0.0929,
         "bar": ">= 0.4",
         "detail": {
-          "d_eff": 11.1274,
-          "largest_component_share": 0.2309
+          "d_eff": 10.8666,
+          "largest_component_share": 0.2345
         }
       },
       {
@@ -2058,8 +2032,8 @@
         "requires": "effective dimension is far above the one-dimensional floor",
         "passed": true,
         "value": {
-          "d_eff": 11.1274,
-          "top_share": 0.2309
+          "d_eff": 10.8666,
+          "top_share": 0.2345
         },
         "bar": "d_eff >= 3 and no component above half the variance",
         "detail": {}
@@ -2069,10 +2043,10 @@
         "section": "19",
         "requires": "the previous internal state predicts the next beyond the environment",
         "passed": true,
-        "value": 0.6087,
+        "value": 0.492,
         "bar": "> 0, and above the shuffled-state control",
         "detail": {
-          "over_shuffle": 0.608764
+          "over_shuffle": 0.493007
         }
       },
       {
@@ -2080,7 +2054,7 @@
         "section": "3",
         "requires": "no variable outside K predicts K's future better than K does",
         "passed": true,
-        "value": -0.0454,
+        "value": -0.0051,
         "bar": "no improvement on K beyond what a shuffled periphery gives",
         "detail": {
           "largest_leaks": []
@@ -2095,15 +2069,15 @@
         "bar": ">= 0.6",
         "detail": {
           "per_source": {
-            "P": 0.1,
+            "P": 0.0,
             "I": 0.0,
-            "A": 0.1,
-            "G": 0.1,
+            "A": 0.0,
+            "G": 0.2,
             "C": 0.0,
             "S": 0.4,
             "M": 0.1,
             "W": 0.2,
-            "D": 0.0,
+            "D": 0.1,
             "N": 0.0
           }
         }
@@ -2113,17 +2087,16 @@
         "section": "26",
         "requires": "the response is structured, not local and not a broadcast",
         "passed": true,
-        "value": 0.1773,
+        "value": 0.1271,
         "bar": "a response that reached somewhere, above the 99th percentile of matched nulls",
         "detail": {
           "null": 0.0,
           "sources_that_reached_anything": [
-            "P",
-            "A",
             "G",
             "S",
             "M",
-            "W"
+            "W",
+            "D"
           ]
         }
       },
@@ -2133,10 +2106,10 @@
         "requires": "domains carry information jointly that neither carries alone",
         "passed": false,
         "value": [
-          0.1148,
-          0.0451,
-          0.1391,
-          0.1473
+          0.0562,
+          0.0373,
+          0.0897,
+          0.0462
         ],
         "bar": ">= 0.1 and above its shifted null",
         "detail": {
@@ -2171,7 +2144,7 @@
         "passed": true,
         "value": {
           "regimes": 2,
-          "entropy": 0.074
+          "entropy": 0.0755
         },
         "bar": "more than one regime, entropy strictly between zero and its ceiling",
         "detail": {}
@@ -2180,9 +2153,11 @@
         "criterion": "global_access",
         "section": "30",
         "requires": "workspace content reaches at least three heterogeneous consumers",
-        "passed": false,
+        "passed": true,
         "value": [
-          "N"
+          "M",
+          "N",
+          "S"
         ],
         "bar": ">= 3",
         "detail": {}
@@ -2191,8 +2166,10 @@
         "criterion": "recurrent_global_access",
         "section": "31",
         "requires": "a consumer of the workspace later changes the workspace again",
-        "passed": false,
-        "value": [],
+        "passed": true,
+        "value": [
+          "G->S->W"
+        ],
         "bar": "at least one G -> X -> G path",
         "detail": {}
       },
@@ -2201,10 +2178,10 @@
         "section": "33",
         "requires": "changing the self-model changes deliberation or behaviour",
         "passed": true,
-        "value": 1.0118,
+        "value": 1.6435,
         "bar": "above the same-arm floor",
         "detail": {
-          "floor": 0.5402
+          "floor": 0.8888
         }
       },
       {
@@ -2212,10 +2189,10 @@
         "section": "34",
         "requires": "the same world state updates the self differently when she caused it",
         "passed": true,
-        "value": 41.0644,
+        "value": 31.2567,
         "bar": "above the same-arm floor",
         "detail": {
-          "floor": 32.8484
+          "floor": 25.1167
         }
       },
       {
@@ -2224,10 +2201,9 @@
         "requires": "fast cognition changes the slow developmental state",
         "passed": true,
         "value": [
-          "A->N",
-          "D->N",
+          "G->M",
           "G->N",
-          "P->N"
+          "G->S"
         ],
         "bar": "at least one edge from a fast domain into a slow one",
         "detail": {}
@@ -2238,9 +2214,9 @@
         "requires": "the slow developmental state changes later fast cognition",
         "passed": true,
         "value": [
-          "M->G",
           "S->C",
-          "S->G"
+          "S->G",
+          "W->G"
         ],
         "bar": "at least one edge from a slow domain into a fast one",
         "detail": {}
@@ -2252,12 +2228,12 @@
         "passed": false,
         "value": {
           "conversation": {
-            "edges": 8,
+            "edges": 7,
             "one_component": false,
             "vertex_connectivity": 0
           },
           "problem_solving": {
-            "edges": 10,
+            "edges": 8,
             "one_component": false,
             "vertex_connectivity": 0
           },
@@ -2272,12 +2248,12 @@
             "vertex_connectivity": 0
           },
           "salience": {
-            "edges": 9,
+            "edges": 8,
             "one_component": false,
             "vertex_connectivity": 0
           },
           "stress": {
-            "edges": 7,
+            "edges": 8,
             "one_component": false,
             "vertex_connectivity": 0
           },
@@ -2299,11 +2275,11 @@
         "criterion": "lesion_deficit",
         "section": "39",
         "requires": "cutting the cheapest partition degrades the measures it should",
-        "passed": true,
+        "passed": false,
         "value": {
-          "phi_do": 0.03445,
-          "spread": 0.03333,
-          "synergy": 0.0369
+          "phi_do": 0.04885,
+          "spread": 0.16667,
+          "synergy": -0.06187
         },
         "bar": "irreducibility, complexity and synergy all fall",
         "detail": {}
@@ -2314,9 +2290,9 @@
         "requires": "restoring the cut restores them",
         "passed": false,
         "value": {
-          "phi_do": 0.039,
-          "spread": -0.0,
-          "synergy": 0.08697
+          "phi_do": -0.05064,
+          "spread": 0.06667,
+          "synergy": -0.13562
         },
         "bar": "a deficit first, then the measures return towards the intact values",
         "detail": {}
@@ -2336,7 +2312,7 @@
     ],
     "notes": {
       "unwritable_domains": [],
-      "intervention_seconds": 951.5,
+      "intervention_seconds": 836.2,
       "intervention_power": {
         "pairs_tested": 90,
         "paired_trials_per_pair": 48,
@@ -2344,58 +2320,58 @@
         "underpowered": false
       },
       "attenuation": {
-        "G": {
-          "self_effect": 2.0161,
-          "largest_outgoing": 0.7647,
-          "attenuation": 2.64
-        },
-        "N": {
-          "self_effect": 3.3041,
-          "largest_outgoing": 0.0541,
-          "attenuation": 61.08
-        },
-        "W": {
-          "self_effect": 5.0296,
-          "largest_outgoing": 2.0817,
-          "attenuation": 2.42
-        },
-        "S": {
-          "self_effect": 2.4996,
-          "largest_outgoing": 2.0435,
-          "attenuation": 1.22
-        },
-        "D": {
-          "self_effect": 5.7898,
-          "largest_outgoing": 0.3022,
-          "attenuation": 19.16
+        "C": {
+          "self_effect": 2.6043,
+          "largest_outgoing": 0.0816,
+          "attenuation": 31.91
         },
         "P": {
-          "self_effect": 1.595,
-          "largest_outgoing": 0.3719,
-          "attenuation": 4.29
+          "self_effect": 1.4744,
+          "largest_outgoing": 0.0179,
+          "attenuation": 82.43
+        },
+        "W": {
+          "self_effect": 4.7168,
+          "largest_outgoing": 1.8386,
+          "attenuation": 2.57
+        },
+        "G": {
+          "self_effect": 1.9227,
+          "largest_outgoing": 0.9918,
+          "attenuation": 1.94
         },
         "I": {
-          "self_effect": 3.263,
-          "largest_outgoing": 0.1225,
-          "attenuation": 26.64
+          "self_effect": 3.2608,
+          "largest_outgoing": 0.1005,
+          "attenuation": 32.45
         },
-        "C": {
-          "self_effect": 2.8496,
-          "largest_outgoing": 0.0813,
-          "attenuation": 35.04
-        },
-        "A": {
-          "self_effect": 0.3492,
-          "largest_outgoing": 0.3015,
-          "attenuation": 1.16
+        "S": {
+          "self_effect": 1.6756,
+          "largest_outgoing": 1.7761,
+          "attenuation": 0.94
         },
         "M": {
-          "self_effect": 0.9815,
-          "largest_outgoing": 0.6255,
-          "attenuation": 1.57
+          "self_effect": 2.8464,
+          "largest_outgoing": 0.1011,
+          "attenuation": 28.17
+        },
+        "D": {
+          "self_effect": 4.111,
+          "largest_outgoing": 0.2739,
+          "attenuation": 15.01
+        },
+        "A": {
+          "self_effect": 0.3208,
+          "largest_outgoing": 0.1281,
+          "attenuation": 2.5
+        },
+        "N": {
+          "self_effect": 2.7278,
+          "largest_outgoing": 0.0397,
+          "attenuation": 68.7
         }
       },
-      "seconds": 2069.0
+      "seconds": 2568.0
     }
   }
 }

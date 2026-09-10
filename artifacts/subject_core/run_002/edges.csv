@@ -1,0 +1,91 @@
+source,target,effect,p,q,replication,trials,kept,conditions
+A,C,0.0778,0.009685,0.032283,0,48,0,
+A,D,0.0005,0.025670,0.082510,0,48,0,
+A,G,0.8467,0.000005,0.000028,6,48,1,autonomy idle memory salience stress tool_use
+A,I,0.0014,0.062780,0.156949,0,48,0,
+A,M,0.5235,0.000025,0.000125,5,48,1,memory problem_solving salience stress tool_use
+A,N,0.1303,0.050060,0.132511,4,48,0,autonomy idle stress tool_use
+A,P,-0.0160,1.000000,1.000000,0,48,0,
+A,S,0.3672,0.045750,0.124772,4,48,0,autonomy idle salience stress
+A,W,0.1231,0.159524,0.333888,1,48,0,idle
+C,A,0.3534,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+C,D,0.0003,0.168924,0.345527,0,48,0,
+C,G,-0.0118,1.000000,1.000000,0,48,0,
+C,I,-0.0004,1.000000,1.000000,0,48,0,
+C,M,-0.0925,1.000000,1.000000,0,48,0,
+C,N,0.0753,0.323053,0.514462,2,48,0,salience tool_use
+C,P,0.0469,0.075650,0.184013,0,48,0,
+C,S,-0.1220,1.000000,1.000000,3,48,0,problem_solving stress tool_use
+C,W,-0.1019,1.000000,1.000000,0,48,0,
+D,A,0.0174,0.222794,0.426627,0,48,0,
+D,C,-0.0092,1.000000,1.000000,0,48,0,
+D,G,0.2040,0.002540,0.010391,3,48,0,autonomy memory problem_solving
+D,I,0.0004,0.498868,0.703501,0,48,0,
+D,M,0.1773,0.031650,0.092961,2,48,0,idle salience
+D,N,0.7090,0.004210,0.015787,7,48,0,conversation idle memory problem_solving salience stress tool_use
+D,P,-0.0180,1.000000,1.000000,0,48,0,
+D,S,0.2896,0.032020,0.092961,5,48,0,idle problem_solving salience stress tool_use
+D,W,0.0850,0.332803,0.514462,3,48,0,autonomy idle tool_use
+G,A,0.4703,0.000005,0.000028,5,48,1,autonomy conversation idle salience stress
+G,C,0.0174,0.308108,0.514022,0,48,0,
+G,D,0.0002,0.260869,0.474694,0,48,0,
+G,I,0.0007,0.248674,0.466263,0,48,0,
+G,M,2.9159,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+G,N,1.4627,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+G,P,0.0008,0.488888,0.703501,0,48,0,
+G,S,0.8525,0.000030,0.000142,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+G,W,0.0560,0.337258,0.514462,1,48,0,problem_solving
+I,A,0.1792,0.000095,0.000427,1,48,0,stress
+I,C,0.1245,0.002905,0.011367,1,48,0,stress
+I,D,0.0001,0.291229,0.513933,0,48,0,
+I,G,0.0987,0.053780,0.138291,1,48,0,stress
+I,M,0.1171,0.007715,0.026706,1,48,0,tool_use
+I,N,0.6289,0.000005,0.000028,7,48,1,autonomy conversation memory problem_solving salience stress tool_use
+I,P,0.0072,0.308413,0.514022,0,48,0,
+I,S,-0.0844,1.000000,1.000000,1,48,0,stress
+I,W,-0.0217,1.000000,1.000000,2,48,0,autonomy idle
+M,A,-0.0215,1.000000,1.000000,0,48,0,
+M,C,-0.0458,1.000000,1.000000,0,48,0,
+M,D,0.0001,0.326693,0.514462,0,48,0,
+M,G,0.0861,0.027145,0.084243,1,48,0,conversation
+M,I,0.0004,0.500267,0.703501,0,48,0,
+M,N,-0.4613,1.000000,1.000000,2,48,0,idle stress
+M,P,0.0082,0.409628,0.614442,0,48,0,
+M,S,-0.1130,1.000000,1.000000,1,48,0,tool_use
+M,W,0.0091,0.473798,0.699046,1,48,0,autonomy
+N,A,0.1979,0.000005,0.000028,1,48,0,problem_solving
+N,C,-0.0391,1.000000,1.000000,0,48,0,
+N,D,0.0003,0.117429,0.268559,0,48,0,
+N,G,0.1349,0.151849,0.325391,3,48,0,problem_solving salience tool_use
+N,I,-0.0004,1.000000,1.000000,0,48,0,
+N,M,-0.0338,1.000000,1.000000,1,48,0,problem_solving
+N,P,-0.0299,1.000000,1.000000,0,48,0,
+N,S,0.0782,0.305928,0.514022,3,48,0,autonomy conversation tool_use
+N,W,-0.0833,1.000000,1.000000,1,48,0,idle
+P,A,9.7171,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+P,C,-0.0178,1.000000,1.000000,0,48,0,
+P,D,0.0004,0.188774,0.369341,0,48,0,
+P,G,0.1094,0.335433,0.514462,4,48,0,autonomy memory salience tool_use
+P,I,-0.0004,1.000000,1.000000,0,48,0,
+P,M,0.1063,0.103129,0.244254,1,48,0,salience
+P,N,0.2399,0.179589,0.359178,5,48,0,autonomy memory problem_solving salience tool_use
+P,S,-0.0539,1.000000,1.000000,2,48,0,autonomy tool_use
+P,W,0.2074,0.041085,0.115551,4,48,0,conversation memory salience tool_use
+S,A,0.7085,0.000005,0.000028,7,48,1,autonomy conversation idle memory salience stress tool_use
+S,C,0.8923,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+S,D,0.0003,0.119359,0.268559,0,48,0,
+S,G,1.4913,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+S,I,0.0011,0.124754,0.273851,0,48,0,
+S,M,0.7685,0.000005,0.000028,6,48,1,autonomy conversation idle memory problem_solving stress
+S,N,3.4163,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+S,P,-0.0885,1.000000,1.000000,0,48,0,
+S,W,0.7897,0.000005,0.000028,6,48,1,conversation idle memory problem_solving salience tool_use
+W,A,0.7700,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+W,C,0.0268,0.263719,0.474694,0,48,0,
+W,D,-0.0001,1.000000,1.000000,0,48,0,
+W,G,0.9455,0.000015,0.000079,7,48,1,autonomy conversation idle memory salience stress tool_use
+W,I,-0.0004,1.000000,1.000000,0,48,0,
+W,M,0.3343,0.007510,0.026706,3,48,0,conversation idle memory
+W,N,2.5937,0.000005,0.000028,8,48,1,autonomy conversation idle memory problem_solving salience stress tool_use
+W,P,-0.0593,1.000000,1.000000,0,48,0,
+W,S,0.5071,0.001640,0.007029,6,48,1,autonomy idle memory salience stress tool_use

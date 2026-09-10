@@ -27,6 +27,7 @@ import math
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.soma.effort import note_effort
 from core.state.percepts import read_percept
 
 __all__ = ["build_candidates", "feed_workspace"]
@@ -51,6 +52,31 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, out))
 
 
+def _surprise_ratio(model: Any, surprise: Any) -> float:
+    """How surprising this moment is against how surprising they usually are."""
+    typical = 0.0
+    try:
+        status = model.status() if hasattr(model, "status") else {}
+        detail = ((status or {}).get("facets", {}).get("learned", {}) or {}).get("detail", {}) or {}
+        typical = max(0.0, float(detail.get("mean_surprise", 0.0) or 0.0))
+    except (AttributeError, TypeError, ValueError):
+        typical = 0.0
+    now = max(0.0, float(surprise or 0.0))
+    total = now + typical
+    return 0.0 if total <= 1e-9 else now / total
+
+
+def _intention_text(item: Any) -> str:
+    """What this goal or initiative is, however the producer spelled it."""
+    if not isinstance(item, dict):
+        return str(item or "").strip()
+    for key in ("goal", "description", "objective", "name", "content"):
+        text = item.get(key)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    return ""
+
+
 def _is_open_goal(goal: Any) -> bool:
     """Whether this is an intention at all.
 
@@ -64,24 +90,33 @@ def _is_open_goal(goal: Any) -> bool:
         return bool(str(goal).strip())
     if str(goal.get("status", "")) in _FINISHED:
         return False
-    text = goal.get("goal") or goal.get("description") or goal.get("objective") or goal.get("name")
-    return bool(str(text or "").strip())
+    return bool(_intention_text(goal))
 
 
 def _goal_priority(goal: Any) -> float:
-    """What a goal's claim on attention is, however the producer stated it."""
+    """What an intention is asking to be thought about, if it has said.
+
+    `urgency` only. A goal also carries a `priority`, and the two are not the
+    same thing: priority is how important the work is once it has been chosen,
+    urgency is how much it is asking to be thought about now. Read as a claim
+    on attention, priority arrived as a flat one from the goal engine's own
+    projection and won every competition in the workspace — deliberation
+    beating perception, memory, affect and the body on every single turn, not
+    because anything was pressing but because a default had been read as a
+    demand.
+
+    An intention that states no urgency has made no claim, so it enters at
+    neutral and the competition decides.
+    """
     if not isinstance(goal, dict):
         return 0.5
-    for key in ("urgency", "priority", "importance"):
-        if key in goal and goal[key] is not None:
-            value = goal[key]
-            if isinstance(value, str):
-                named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
-                if value.strip().lower() in named:
-                    return named[value.strip().lower()]
-                continue
-            return _clamp(value)
-    return 0.5
+    stated = goal.get("urgency")
+    if stated is None:
+        return 0.5
+    if isinstance(stated, str):
+        named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
+        return named.get(stated.strip().lower(), 0.5)
+    return _clamp(stated, 0.5)
 
 
 def build_candidates(state: Any) -> list[Any]:
@@ -185,6 +220,10 @@ def build_candidates(state: Any) -> list[Any]:
         for goal in (list(getattr(cognition, "active_goals", []) or []) if cognition else [])
         if _is_open_goal(goal)
     ]
+    # One bid per intention, however many lists it appears in. The same
+    # intention is projected into both `active_goals` and
+    # `pending_initiatives`, and bid twice it competes with itself.
+    spoken: set[str] = set()
     for goal in goals[-2:]:
         # `priority` is what the goal engine writes; `urgency` is what this bid
         # read, and no producer in the tree has ever written it. So every real
@@ -192,10 +231,12 @@ def build_candidates(state: Any) -> list[Any]:
         # goal that is active and carries no stated priority still has a claim
         # — it is on the list — so the fallback is neutral rather than silence.
         urgency = _goal_priority(goal)
-        if urgency > FLOOR:
+        text = _intention_text(goal)
+        if urgency > FLOOR and text not in spoken:
+            spoken.add(text)
             bids.append(
                 CognitiveCandidate(
-                    content=str(goal.get("goal", goal))[:240] if isinstance(goal, dict) else str(goal)[:240],
+                    content=text[:240],
                     source="deliberation",
                     priority=urgency,
                     content_type=ContentType.INTENTIONAL,
@@ -209,13 +250,25 @@ def build_candidates(state: Any) -> list[Any]:
     # turn never reached the workspace at all.
     initiatives = list(getattr(cognition, "pending_initiatives", []) or []) if cognition else []
     for initiative in initiatives[:2]:
-        urgency = _goal_priority(initiative)
+        # An initiative's claim on attention is its `urgency` — what the
+        # intention itself asks for. Several producers also carry a `priority`,
+        # which is how important the work is once chosen, not how much it is
+        # asking to be thought about; read as a claim it arrived as a flat
+        # maximum and won every competition. A record that states no urgency
+        # has not made a claim, so it enters at neutral.
+        text = _intention_text(initiative)
+        if not text or text in spoken:
+            continue
+        spoken.add(text)
+        urgency = (
+            _clamp(initiative.get("urgency"), 0.5)
+            if isinstance(initiative, dict) and initiative.get("urgency") is not None
+            else 0.5
+        )
         if urgency > FLOOR:
             bids.append(
                 CognitiveCandidate(
-                    content=str(initiative.get("goal", initiative))[:240]
-                    if isinstance(initiative, dict)
-                    else str(initiative)[:240],
+                    content=text[:240],
                     source="deliberation",
                     priority=urgency,
                     content_type=ContentType.INTENTIONAL,
@@ -289,11 +342,14 @@ def build_candidates(state: Any) -> list[Any]:
         model = ServiceContainer.get("unified_world_model", default=None)
         surprise = model.surprise() if model is not None else None
         if surprise is not None:
-            # Squashed, not clipped. Prediction error is unbounded above and a
-            # clip turns every surprise past one into the same maximum — so
-            # this bid sat at its ceiling on every turn and stopped being a
-            # reading of anything. The state schema already reads it this way.
-            level = _clamp(math.tanh(max(0.0, float(surprise))))
+            # Against the model's own running mean, not squashed and not
+            # clipped. Prediction error is unbounded above, so a clip turned
+            # every surprise past one into the same maximum and a squash went
+            # flat not far after that — either way this bid sat at its ceiling
+            # on every turn and stopped being a reading of anything. What
+            # matters is whether the moment is more surprising than this
+            # model's moments usually are.
+            level = _clamp(_surprise_ratio(model, surprise))
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(
@@ -386,9 +442,22 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
         return
     line = f"[broadcast: {winner.source}] {str(winner.content)[:180]}"
     context = list(getattr(cognition, "long_term_memory", []) or [])
-    context = [item for item in context if not str(item).startswith("[broadcast: ")]
+    scores = list(getattr(cognition, "memory_scores", []) or [])
+    # The two lists are read side by side — the workspace prices its memory bid
+    # from the score at the same index — so anything that writes one has to
+    # write the other or the pairing silently comes apart. What is in mind
+    # because it won the competition is in mind at the strength it won with.
+    if len(scores) != len(context):
+        scores = scores[: len(context)] + [0.5] * max(0, len(context) - len(scores))
+    keep = [
+        index for index, item in enumerate(context) if not str(item).startswith("[broadcast: ")
+    ]
+    context = [context[index] for index in keep]
+    scores = [scores[index] for index in keep]
     context.append(line)
+    scores.append(_clamp(getattr(winner, "effective_priority", 0.5), 0.5))
     cognition.long_term_memory = context[-CONTEXT_LIMIT:]
+    cognition.memory_scores = scores[-CONTEXT_LIMIT:]
 
 
 #: Ticks the workspace may go without competing before the caller runs the
@@ -452,6 +521,12 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
     # or the heartbeat did. A broadcast the cycle cannot see has not been
     # broadcast to the part of her that answers.
     try:
+        # Weighing them costs something, and what it costs varies with how
+        # much the rest of her had to say. Without a reporter here the body's
+        # sense of its own exertion moved only with recall, which finds nothing
+        # offline — so the one channel an experiment can leave free was a
+        # constant.
+        note_effort("candidates", len(bids))
         _remember_broadcast(state, winner, bool(getattr(workspace, "ignited", False)))
     except (AttributeError, TypeError, ValueError) as exc:
         record_degradation(

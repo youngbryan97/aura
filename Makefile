@@ -328,6 +328,9 @@ subject-core-frozen:
 	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
 		--json artifacts/subject_core/scorecard.json \
 		--markdown artifacts/subject_core/SCORECARD.md
+	@echo "🧭 Which edges are missing, and what stopped each one..."
+	@$(PYTHON) tools/subject_core_gaps.py artifacts/subject_core \
+		--json artifacts/subject_core/gaps.json
 
 connectome-zapbench:
 	@echo "🧠 Forecasting whole-mind activity..."

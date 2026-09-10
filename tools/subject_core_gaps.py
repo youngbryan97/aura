@@ -90,6 +90,32 @@ def _reason(source: str, target: str, arms: list[dict[str, Any]], record: dict[s
     return f"{gap:.2f}, all three bars met"
 
 
+def _nearest(table: dict[tuple[str, str], dict[str, Any]], keep: Any) -> dict[str, Any] | None:
+    """The strongest pair matching a filter, kept or not."""
+    rows = [row for row in table.values() if keep(row)]
+    if not rows:
+        return None
+    kept_rows = [row for row in rows if row.get("kept")]
+    pool = kept_rows or rows
+    return max(pool, key=lambda row: float(row.get("effect", 0.0)))
+
+
+def _describe(row: dict[str, Any] | None) -> str:
+    if row is None:
+        return "none tested"
+    pair = f"{row['source']}->{row['target']}"
+    if row.get("kept"):
+        return f"{pair} kept at {float(row['effect']):.2f}"
+    reasons = []
+    if float(row.get("effect", 0.0)) < 0.30:
+        reasons.append("effect")
+    if int(row.get("replication", 0)) < 3:
+        reasons.append("replication")
+    if float(row.get("q", 1.0)) >= 0.01:
+        reasons.append("q")
+    return f"{pair} at {float(row['effect']):.2f}, short on {'+'.join(reasons) or 'nothing'}"
+
+
 def report(run: Path) -> dict[str, Any]:
     edges = json.loads((run / "subject_core_report.json").read_text())["edges"]
     table = {(row["source"], row["target"]): row for row in edges}
@@ -116,6 +142,19 @@ def report(run: Path) -> dict[str, Any]:
     for source, target in missing:
         lines.append(f"  {source}->{target}: {_reason(source, target, arms, table.get((source, target)))}")
 
+    # The weakest coupling in each direction, per domain. The completion
+    # specification asks for both, because "no edge" and "an edge that missed
+    # on one bar" are different findings and a degree count cannot tell them
+    # apart.
+    lines.append("")
+    lines.append("the nearest pair in each direction, per domain")
+    for key in DOMAINS:
+        out_best = _nearest(table, lambda r: r["source"] == key)
+        in_best = _nearest(table, lambda r: r["target"] == key)
+        lines.append(
+            f"  {key}: out {_describe(out_best)}   in {_describe(in_best)}"
+        )
+
     extra = sorted(kept - wanted)
     if extra:
         lines.append("")
@@ -138,12 +177,18 @@ def main() -> int:
     parser.add_argument("--json", type=Path, default=None)
     args = parser.parse_args()
 
+    # The newest run under the directory, when there are runs. A report left
+    # at the root of the artifacts directory is from before runs were numbered,
+    # and reading it because it happens to be there reports on a campaign that
+    # ended weeks ago.
     run = args.run
-    if not (run / "subject_core_report.json").exists():
-        runs = sorted(run.glob("run_*"))
-        if not runs:
-            raise SystemExit(f"no report in {run}")
-        run = runs[-1]
+    numbered = sorted(
+        path for path in run.glob("run_*") if (path / "subject_core_report.json").exists()
+    )
+    if numbered:
+        run = numbered[-1]
+    elif not (run / "subject_core_report.json").exists():
+        raise SystemExit(f"no report in {run}")
     summary = report(run)
     if args.json:
         args.json.write_text(json.dumps(summary, indent=2))

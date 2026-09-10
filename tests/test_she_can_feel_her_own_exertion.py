@@ -92,3 +92,30 @@ def test_working_hard_is_felt_as_pressure() -> None:
         Path(__file__).resolve().parents[1] / "core" / "phases" / "proprioceptive_loop.py"
     ).read_text()
     assert 'getattr(soma, "exertion", 0.0)' in source, "her own work no longer counts as strain"
+
+
+def test_the_things_that_vary_per_turn_report_what_they_cost() -> None:
+    """Recall finds nothing offline, and the substrate steps once per turn.
+
+    With only those two reporting, exertion was a constant — and it is the one
+    somatic channel an experiment that freezes the host can leave free. Weighing
+    the competition and producing an answer both vary with what the rest of her
+    had to say, and both are work she causes.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    feed = (root / "core" / "consciousness" / "workspace_feed.py").read_text()
+    assert 'note_effort("candidates"' in feed
+    reply = (root / "core" / "phases" / "response_generation_unitary.py").read_text()
+    assert 'note_effort("response_chars"' in reply
+    assert "candidates" in UNIT_COST and "response_chars" in UNIT_COST
+
+
+def test_a_busier_cycle_costs_more() -> None:
+    note_effort("candidates", 3)
+    quiet = EffortLedger.exertion(get_effort_ledger().drain())
+    note_effort("candidates", 11)
+    note_effort("response_chars", 800)
+    busy = EffortLedger.exertion(get_effort_ledger().drain())
+    assert busy > quiet > 0.0
