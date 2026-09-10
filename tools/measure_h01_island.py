@@ -59,8 +59,14 @@ def _run(islands: int, ticks: int, seed: int, *, tiered: bool = True) -> dict[st
     drive = np.random.default_rng(seed + 1)
     activity: list[float] = []
     for _ in range(ticks):
+        # The full sensory input width. Sixteen values reached sixteen of the
+        # 1,024 unit inputs and left the rest at zero, so the mesh was being
+        # measured almost undriven.
         mesh.inject_sensory(
-            drive.standard_normal(config.sensory_end).astype(np.float32) * 0.1
+            drive.standard_normal(
+                config.sensory_end * config.neurons_per_column
+            ).astype(np.float32)
+            * 0.1
         )
         mesh._tick_inner()
         activity.append(float(np.mean(np.abs(mesh.column_activations))))

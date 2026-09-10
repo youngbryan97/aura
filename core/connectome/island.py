@@ -260,9 +260,15 @@ def wire_island(
     `density` decides which pairs are connected at all — H01 says nothing about
     that, and pretending otherwise would be the borrowing this module exists to
     avoid. What it decides is the strength of the pairs that are connected: a
-    count drawn from the measured law, signed at random because H01 counts
-    contacts and does not read their sign, scaled so that a single contact is
-    worth `contact_strength`.
+    count drawn from the measured law, scaled so that a single contact is worth
+    `contact_strength`.
+
+    Magnitudes only, all positive. Whether a connection excites or inhibits is
+    a fact about the cell sending it and not about how many times it touches
+    what it sends to, so the sign belongs to whatever applies Dale's law. An
+    earlier version signed each connection with a coin flip here, which put
+    both signs in one cell's output and left the caller with nothing to apply
+    Dale's law to.
 
     The visible difference from the mesh's own wiring is the tail. A Gaussian
     gives a connection thirty times the median about never; this gives it to
@@ -280,6 +286,5 @@ def wire_island(
     count = int(connected.sum())
     if count:
         contacts = contacts_per_pair(law, count, rng).astype(np.float32)
-        signs = np.where(rng.random(count) < 0.5, -1.0, 1.0).astype(np.float32)
-        weights[connected] = contacts * signs * float(contact_strength)
+        weights[connected] = contacts * float(contact_strength)
     return weights

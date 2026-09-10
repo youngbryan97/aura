@@ -24,6 +24,9 @@ Four sources, all already cited elsewhere in this package:
   the asymmetry between potentiation and depression.
 * Markram et al. (2004), Nat Rev Neurosci 5(10):793-807 — interneuron
   diversity, for the ratio of inhibitory to excitatory membrane time constants.
+* Vogels, Sprekeler, Zenke, Clopath & Gerstner (2011), Science 334:1569-73 —
+  inhibitory spike-timing plasticity: a symmetric window and a depression term
+  that holds the postsynaptic cell near a target rate.
 
 What each derivation does NOT claim is stated with it. A membrane time constant
 measured in millivolts across a real membrane is not the leak of a tanh unit;
@@ -113,6 +116,27 @@ MEASUREMENTS: tuple[CorticalMeasurement, ...] = (
         unit="ms",
         source="Bi & Poo 1998, Figure 7",
         what_it_is="the time constant of the weakening half of the STDP window",
+    ),
+    CorticalMeasurement(
+        name="relative_inhibitory_synaptic_strength",
+        value=4.0,
+        unit="ratio",
+        source="Potjans & Diesmann 2014, Table 4 (g)",
+        what_it_is="how much stronger one inhibitory synapse is than one excitatory synapse",
+    ),
+    CorticalMeasurement(
+        name="inhibitory_stdp_window_ms",
+        value=20.0,
+        unit="ms",
+        source="Vogels et al. 2011, Science 334:1569",
+        what_it_is="the time constant of the symmetric inhibitory plasticity window",
+    ),
+    CorticalMeasurement(
+        name="inhibitory_stdp_target_rate_hz",
+        value=5.0,
+        unit="Hz",
+        source="Vogels et al. 2011, Science 334:1569",
+        what_it_is="the postsynaptic firing rate inhibitory plasticity holds a cell near",
     ),
     CorticalMeasurement(
         name="h01_single_contact_fraction",
@@ -273,6 +297,21 @@ def derived_mesh_constants() -> dict[str, Any]:
     intra = within / max(1, pairs_within)
     inter = between / max(1, pairs_between)
 
+    # Vogels' depression constant. Every presynaptic spike at an inhibitory
+    # synapse depresses it by alpha, and the value that makes the rule settle
+    # with the postsynaptic cell at rate rho is alpha = 2 * rho * tau. It is a
+    # derivation from the paper's own two numbers, not a third number.
+    inhibitory_window = measurement("inhibitory_stdp_window_ms")
+    target_rate = measurement("inhibitory_stdp_target_rate_hz")
+    inhibitory_depression = 2.0 * target_rate * (inhibitory_window / 1000.0)
+
+    # Why cortex does not blow up. One cell in five is inhibitory and each of
+    # its synapses is four times as strong, so 0.80 of unit excitation meets
+    # 0.199 * 4 = 0.794 of inhibition and the network sits near balance. The
+    # two numbers are not independent choices; g is what makes that fraction
+    # work.
+    relative_inhibition = measurement("relative_inhibitory_synaptic_strength")
+
     excitatory = sum(CORTICAL_SIZES[index] for index in (0, 2, 4, 6))
     inhibitory = sum(CORTICAL_SIZES[index] for index in (1, 3, 5, 7))
 
@@ -290,6 +329,36 @@ def derived_mesh_constants() -> dict[str, Any]:
             "from": "membrane_time_constant_ms and the step above",
             "arithmetic": f"{dt_ms} ms / {tau_m} ms",
             "what_it_is": "how much of its state a unit loses each step",
+        },
+        "relative_inhibitory_strength": {
+            "value": round(relative_inhibition, 6),
+            "unit": "ratio",
+            "from": "relative_inhibitory_synaptic_strength",
+            "arithmetic": f"{relative_inhibition}, as published",
+            "what_it_is": (
+                "how much stronger an inhibitory synapse is; with one cell in five "
+                "inhibitory it is what keeps the network off its ceiling"
+            ),
+        },
+        "inhibitory_stdp_window": {
+            "value": round(inhibitory_window / 1000.0, 6),
+            "unit": "seconds",
+            "from": "inhibitory_stdp_window_ms",
+            "arithmetic": f"{inhibitory_window} ms, in seconds",
+            "what_it_is": (
+                "the symmetric window inhibitory synapses learn over, where the "
+                "excitatory one is asymmetric"
+            ),
+        },
+        "inhibitory_stdp_depression": {
+            "value": round(inhibitory_depression, 6),
+            "unit": "per presynaptic spike",
+            "from": "inhibitory_stdp_target_rate_hz and the window above",
+            "arithmetic": f"2 * {target_rate} Hz * {inhibitory_window / 1000.0} s",
+            "what_it_is": (
+                "how much a presynaptic spike weakens an inhibitory synapse, which "
+                "is what holds the cell it targets near five spikes a second"
+            ),
         },
         "intra_column_density": {
             "value": round(intra, 6),

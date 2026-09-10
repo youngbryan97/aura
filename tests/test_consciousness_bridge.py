@@ -66,12 +66,21 @@ class TestNeuralMesh:
         assert not np.allclose(col.x, initial, atol=1e-6)
 
     def test_dales_law(self):
-        """Inhibitory neurons should have non-positive outgoing weights."""
+        """A cell sends one sign, and its output is its COLUMN.
+
+        `recurrent = W @ x` makes W[i, j] the weight from j into i, so row i is
+        what a cell RECEIVES. This read the row while saying "outgoing", so it
+        passed against a mesh that negated a cell's input and left its output
+        mixed — the same defect the mesh had, asserted.
+        """
         mesh = self._make_mesh()
         for col in mesh.columns:
             if np.any(col.inh_mask):
-                inh_weights = col.W[col.inh_mask, :]
-                assert np.all(inh_weights <= 0), "Inhibitory neurons should have ≤0 outgoing weights"
+                sent = col.W[:, col.inh_mask]
+                assert np.all(sent <= 0), "an inhibitory cell sent a positive weight"
+            if np.any(~col.inh_mask):
+                sent = col.W[:, ~col.inh_mask]
+                assert np.all(sent >= 0), "an excitatory cell sent a negative weight"
 
     def test_tick_updates_stats(self):
         mesh = self._make_mesh()
