@@ -194,3 +194,65 @@ def test_the_intake_attaches_without_anybody_remembering_to():
 
     source = inspect.getsource(record._remember_what_she_had)
     assert "hear_from_every_subsystem" in source
+
+
+# ── and the ones it can judge on are not flooded out by the ones it cannot ──
+
+def test_a_degradation_flood_does_not_evict_the_episodes_with_cases():
+    """Two kinds of episode share one ring and only one kind can be judged on.
+
+    Every degradation in the process writes an episode with no cases, and a
+    busy runtime writes hundreds. Dropping the oldest first meant those pushed
+    out the handful that carry the cases a developmental change is weighed on.
+    Measured on the live record on 2026-09-09: 512 episodes, 107 families,
+    none carrying. The gate had nothing to weigh, so it refused a change that
+    helps and one that does nothing alike.
+    """
+    from core.cognition.the_record_of_her_own_work import (
+        HOW_MANY_EPISODES_ARE_KEPT,
+        Episode,
+        Record,
+    )
+
+    record = Record()
+    for index in range(10):
+        record.note(
+            Episode(
+                family=f"induction {index}",
+                route="an answer",
+                walked=1,
+                about=((1, 2), (2, 3)),
+            )
+        )
+    for _ in range(HOW_MANY_EPISODES_ARE_KEPT + 200):
+        record.note(
+            Episode(family="hypervisor", route=None, walked=0, tried="unhealthy")
+        )
+
+    assert len(record.kept) == HOW_MANY_EPISODES_ARE_KEPT
+    carrying = [one for one in record.kept if one.about]
+    assert len(carrying) == 10, "the judgable episodes were flooded out"
+    assert len({one.family for one in carrying}) == 10
+
+
+def test_the_ring_still_ends_at_its_cap_when_everything_carries_cases():
+    """A case-carrying episode goes when there is nothing else left to drop."""
+    from core.cognition.the_record_of_her_own_work import (
+        HOW_MANY_EPISODES_ARE_KEPT,
+        Episode,
+        Record,
+    )
+
+    record = Record()
+    for index in range(HOW_MANY_EPISODES_ARE_KEPT + 50):
+        record.note(
+            Episode(
+                family=f"induction {index}",
+                route="an answer",
+                walked=1,
+                about=((1, 2),),
+            )
+        )
+    assert len(record.kept) == HOW_MANY_EPISODES_ARE_KEPT
+    # The newest survive; the oldest are the ones that went.
+    assert record.kept[-1].family == f"induction {HOW_MANY_EPISODES_ARE_KEPT + 49}"

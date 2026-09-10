@@ -201,7 +201,41 @@ class Record:
             # The instance goes, the counts stay. That is what finite memory
             # forces, and it is why the counts are kept beside the ring rather
             # than computed from it.
-            del self.kept[: len(self.kept) - HOW_MANY_EPISODES_ARE_KEPT]
+            #
+            # WHICH instance goes is the part that matters, and dropping the
+            # oldest was wrong. Two kinds of episode share this ring. One
+            # carries the cases a developmental change is judged on; the other
+            # is a degradation from some subsystem, which has no cases and
+            # never will. Every degradation in the process writes one, so a
+            # busy runtime fills five hundred entries with episodes the gate
+            # cannot use and pushes out the handful it can.
+            #
+            # Measured on the live record on 2026-09-09: 512 episodes, 107
+            # families, and NOT ONE carrying its cases. The gate that decides
+            # whether a change to her language pays had nothing to weigh, so
+            # it refused a change that helps and a change that does nothing
+            # alike — a mechanism that cannot fire, kept from firing by the
+            # noisiest part of the system.
+            #
+            # So the case-less go first, oldest among them, and a case-carrying
+            # episode is dropped only when there is nothing else left to drop.
+            # One pass to choose and one to rebuild: the nested scan this loop
+            # used to do turned a ten-second test file into a quarter of an
+            # hour, and that lesson is not being undone here.
+            over = len(self.kept) - HOW_MANY_EPISODES_ARE_KEPT
+            leaving: set[int] = set()
+            for place, one in enumerate(self.kept):
+                if len(leaving) >= over:
+                    break
+                if not one.about:
+                    leaving.add(place)
+            for place in range(len(self.kept)):
+                if len(leaving) >= over:
+                    break
+                leaving.add(place)
+            self.kept = [
+                one for place, one in enumerate(self.kept) if place not in leaving
+            ]
 
 
 _RECORD = Record()
