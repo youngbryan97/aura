@@ -675,7 +675,13 @@ class TestSeals:
     def test_world_touching_actions_exceed_the_exploration_ceiling(self):
         from core.ontogeny.reservation import DEFAULT_STAKES_CEILING
 
-        for action in ("tool_call", "emit_message", "update_belief", "mutate_state"):
+        for action in (
+            "tool_call",
+            "emit_message",
+            "write_memory",
+            "update_belief",
+            "mutate_state",
+        ):
             assert admission_stakes(action_type=action, priority=0.1, blocking=False) > \
                    DEFAULT_STAKES_CEILING
 

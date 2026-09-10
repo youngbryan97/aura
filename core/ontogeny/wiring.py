@@ -70,7 +70,9 @@ SEALED_SOURCES: frozenset[str] = frozenset({"user"})
 #: Stakes floor for anything that touches the outside world or Aura's own
 #: state. These never fall inside the exploration ceiling, so they are never
 #: reserved for a probe or a random action.
-_HIGH_STAKES_ACTIONS = frozenset({"tool_call", "emit_message", "update_belief", "mutate_state"})
+_HIGH_STAKES_ACTIONS = frozenset(
+    {"tool_call", "emit_message", "write_memory", "update_belief", "mutate_state"}
+)
 
 
 def is_sealed(reason: str, source: str = "") -> bool:
