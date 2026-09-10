@@ -38,6 +38,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -84,7 +85,18 @@ WHAT_EACH_ARM_REMOVES: dict[str, tuple[str, ...]] = {
     # measuring it needs the faculty booted, not merely imported, and
     # pretending otherwise is how three deltas of exactly 0.000 got reported
     # as a result the first time this ran.
-    NO_ENDOGENOUS: ("affect.circumplex_sampling",),
+    # Four channels, not one. The circumplex sets the temperature the decode
+    # starts at; the spiking, imagination and bicameral advisories each hand
+    # back a sampling bias that moves it. All four are internal dynamics
+    # reaching the sampler, which is what this arm removes — and until the
+    # advisories were run here, three of them were declared and unreachable,
+    # so the arm was one channel wide over a faculty that has four.
+    NO_ENDOGENOUS: (
+        "affect.circumplex_sampling",
+        "spiking.sampling_bias",
+        "imagination.sampling_bias",
+        "bicameral.sampling_bias",
+    ),
     NO_DEVELOPMENTAL: (),  # removed by emptying registries, not by a channel
 }
 
@@ -105,7 +117,6 @@ def _wake_the_faculties() -> tuple[str, ...]:
     import core.being.affective_valence  # noqa: F401
     import core.brain.cognitive_engine  # noqa: F401
     import core.consciousness.qualia_synthesizer  # noqa: F401
-
     from core.verify.lesion_registry import get_lesion_registry
 
     return tuple(sorted(get_lesion_registry().channels()))
@@ -123,7 +134,71 @@ def _load():
 NEUTRAL_TEMPERATURE = 0.5
 
 
-def _temperature_under(arm: str) -> float:
+def _what_the_faculties_say(objective: str) -> dict[str, Any]:
+    """Run the advisory passes, so their channels have something to carry.
+
+    The three sampling biases are declared channels that this harness could
+    not move, and the reason was not the lesion: it was that nothing here had
+    produced the frames they gate. Each pass is a plain function over an
+    ``AuraState`` and a prompt — no runtime, no second model — so the frames
+    are made the same way a turn makes them, and the channels then have a
+    value to be lesioned out of.
+
+    Returns the frames by the key the engine reads them under, so the reads
+    below are the reads the engine performs.
+    """
+    from core.brain.advisory_passes import (
+        apply_bicameral_advisory,
+        apply_imagination_workspace,
+        apply_spiking_active_inference,
+    )
+    from core.state.aura_state import AuraState
+
+    state = AuraState()
+    context: dict[str, Any] = {}
+    for step in (
+        apply_spiking_active_inference,
+        apply_imagination_workspace,
+        apply_bicameral_advisory,
+    ):
+        try:
+            context = step(
+                state, objective, "matched_substrate", context, is_background=False
+            ) or context
+        except (AttributeError, ImportError, KeyError, RuntimeError, TypeError, ValueError):
+            # One advisory that will not run is one channel this arm cannot
+            # move, and the reading below says so by counting what it read.
+            continue
+    return context
+
+
+def _biases_under(arm: str, frames: dict[str, Any]) -> list[dict[str, Any] | None]:
+    """Each sampling bias, read through its own channel.
+
+    ``neutral=None`` because the lesion for these is omission: a neutral bias
+    is still a bias somebody chose, and the fold below skips anything that is
+    not a dict. So a lesioned arm folds nothing, which is what the engine's
+    own guard does when the channel is cut.
+    """
+    from core.verify import influence_channels
+    from core.verify.lesion_registry import apply_channel
+
+    read: list[dict[str, Any] | None] = []
+    for channel, key in (
+        (influence_channels.SPIKING_SAMPLING_BIAS, "spiking_active_inference"),
+        (influence_channels.IMAGINATION_SAMPLING_BIAS, "imagination_workspace"),
+        (influence_channels.BICAMERAL_SAMPLING_BIAS, "bicameral_advisory"),
+    ):
+        frame = frames.get(key)
+        bias = frame.get("sampling_bias") if isinstance(frame, dict) else None
+        read.append(apply_channel(channel, bias, neutral=None))
+    _BIASES_READ.setdefault(arm, []).append(
+        sum(1 for one in read if isinstance(one, dict) and one)
+    )
+    return read
+
+
+def _temperature_under(arm: str, frames: dict[str, Any] | None = None) -> float:
     """What this arm samples at, read through the channel that sets it.
 
     The affect circumplex is the largest direct actuation in the system — it
@@ -149,10 +224,28 @@ def _temperature_under(arm: str) -> float:
             neutral=NEUTRAL_TEMPERATURE,
         )
     except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-        return NEUTRAL_TEMPERATURE
-    if said is None:
-        return NEUTRAL_TEMPERATURE
-    return float(said)
+        said = None
+    base = NEUTRAL_TEMPERATURE if said is None else float(said)
+    if frames is None:
+        return base
+    # Folded by the production classmethod, not by arithmetic written here.
+    # Reimplementing the clamp would make the harness agree with the engine
+    # only until one of them changed, which is the defect this whole protocol
+    # exists to catch in other people's code.
+    try:
+        from core.phases.response_generation import ResponseGenerationPhase
+
+        temperature, _tokens = ResponseGenerationPhase._apply_generation_sampling_bias(
+            base_temperature=base,
+            token_budget=MAX_TOKENS,
+            biases=_biases_under(arm, frames),
+        )
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+        return base
+    # The token budget the fold returns is thrown away on purpose. Tokens are
+    # a budget dimension and parity across arms is the point; temperature is
+    # not, which is why it may move.
+    return float(temperature)
 
 
 def _say(model, tok, prompt: str, *, temperature: float = NEUTRAL_TEMPERATURE) -> str:
@@ -271,7 +364,8 @@ def _run_one(model, tok, arm: str, task: AblationTask) -> float:
             removed.enter_context(_nothing_she_has_learned())
         # Read inside the lesion scope: an arm holding the affect lesion gets
         # the neutral, and that is the whole difference between the arms.
-        temperature = _temperature_under(arm)
+        frames = _what_the_faculties_say(task.turns[-1])
+        temperature = _temperature_under(arm, frames)
         _TEMPERATURE_ASKED.setdefault(arm, []).append(temperature)
         prompt = _prompt_for(arm, task, history)
         _PROMPT_LENGTH.setdefault(arm, []).append(len(prompt))
@@ -283,6 +377,11 @@ def _run_one(model, tok, arm: str, task: AblationTask) -> float:
 #: faculty delta is only a measurement if the faculty reached the generation,
 #: and two arms that asked for the same temperature did not differ.
 _TEMPERATURE_ASKED: dict[str, list[float]] = {}
+
+#: How many of the three sampling biases carried a value on each generation.
+#: A channel that is declared, lesionable and empty moves nothing, and an arm
+#: reporting a delta of zero over one of those has measured the emptiness.
+_BIASES_READ: dict[str, list[int]] = {}
 
 #: How long each arm's prompt was. The second way a faculty can reach the
 #: generation here: what she has learned goes into the context, so emptying
@@ -349,8 +448,9 @@ def _why_it_could_not_be_measured(arm: str) -> str:
     return (
         f"{arm} sampled as {INTACT} did and was given the same context, so "
         "whatever it removes was not in the path that produced the answer: "
-        "the channels act inside the cognitive engine and this protocol "
-        "generates by calling the model directly"
+        "the four channels this protocol wires to the sampler are the affect "
+        "circumplex and the three advisory sampling biases, and the rest act "
+        "inside a decoder that loops or downstream of the reply"
     )
 
 
@@ -369,10 +469,12 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
     """
     # Whether this arm's faculty was in the path that produced the answer.
     #
-    # The only channel this protocol wires to generation is the affect
-    # circumplex, which sets sampling temperature. An arm that removes it
-    # samples at the neutral; an arm that removes anything else samples
-    # exactly as intact does and cannot be measured here.
+    # Four channels reach the sampler here: the circumplex sets the
+    # temperature the decode starts at, and the spiking, imagination and
+    # bicameral advisories each hand back a bias that moves it. An arm that
+    # removes all four samples at the neutral and carries no bias; an arm that
+    # removes something else samples exactly as intact does and cannot be
+    # measured here.
     #
     # Compared against the neutral rather than against intact's mean. The
     # circumplex drifts between reads — intact 0.6812 against an arm's 0.6811
@@ -412,6 +514,17 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
                 "removes was in the path that produced the answer"
             ),
         }
+    # The second reading of the same removal, and an independent one. The
+    # temperature is one number that several channels move, so it can land on
+    # the neutral by arithmetic; how many biases carried a value cannot. An
+    # arm holding all four lesions reads none where intact reads three.
+    carried = _BIASES_READ.get(arm) or []
+    intact_carried = _BIASES_READ.get(INTACT) or []
+    biases_here = round(sum(carried) / len(carried), 3) if carried else None
+    biases_intact = (
+        round(sum(intact_carried) / len(intact_carried), 3) if intact_carried else None
+    )
+
     if sampled_at_the_neutral and intact_did_not:
         return {
             "outcome": "MEASURED",
@@ -419,6 +532,8 @@ def _faculty_reading(measured: dict, arm: str) -> dict:
             "separated": measured["separated"],
             "sampled_at": at,
             "intact_sampled_at": intact_at,
+            "sampling_biases_carrying": biases_here,
+            "intact_sampling_biases_carrying": biases_intact,
             "why_it_counts": (
                 "this arm sampled at the neutral and intact did not, so the "
                 "faculty was in the path that produced the answer and the "

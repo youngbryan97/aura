@@ -166,11 +166,37 @@ def what_a_direct_call_can_bite(repo: str = ".") -> tuple[str, ...]:
 
 
 def how_the_lesions_are_reachable(repo: str = ".") -> dict[str, Any]:
-    """For the health report: declared, applied, and reachable by what."""
+    """For the health report: declared, applied, reachable by what, consumable how.
+
+    Where a channel is applied is half of whether an arm can move it. The
+    other half is what the channel hands over: a harness standing in the right
+    place still cannot measure a value it has no way to consume, and the
+    matched protocol reported one measurable faculty of ten for exactly that
+    reason. Both halves are answered here so a protocol reads one block rather
+    than inferring the second from the first.
+    """
+    from core.verify.what_a_channel_hands_over import (
+        what_a_direct_harness_can_move,
+        what_each_channel_hands_over,
+    )
+
     every = where_each_channel_acts(repo)
     inert = [one.channel for one in every if not one.applied_in]
+    handed = {one.channel: one for one in what_each_channel_hands_over()}
+    movable = set(what_a_direct_harness_can_move())
+
+    def _with_handover(one: AChannelSite) -> dict[str, Any]:
+        said = one.to_dict()
+        handover = handed.get(one.channel)
+        if handover is not None:
+            said["hands_over"] = list(handover.kinds)
+            said["a_plain_call_can_move_it"] = handover.a_plain_call_can_move_it
+            if handover.why_not:
+                said["why_a_plain_call_cannot"] = handover.why_not
+        return said
+
     return {
-        "schema": "aura.lesions.reachability.v1",
+        "schema": "aura.lesions.reachability.v2",
         "declared": len(every),
         "applied_somewhere": sum(1 for one in every if one.applied_in),
         # Declared and never lesioned: an arm that removes one of these is
@@ -182,5 +208,9 @@ def how_the_lesions_are_reachable(repo: str = ".") -> dict[str, Any]:
             )
             for harness in WHAT_A_HARNESS_REACHES
         },
-        "each": [one.to_dict() for one in every],
+        # What a harness that sets sampler parameters and writes a prompt can
+        # vary, whatever else it boots. The number an ablation protocol is
+        # entitled to claim before it runs.
+        "a_plain_call_can_move": sorted(movable),
+        "each": [_with_handover(one) for one in every],
     }

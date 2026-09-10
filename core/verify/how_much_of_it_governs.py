@@ -25,7 +25,6 @@ is the one worth watching.
 """
 from __future__ import annotations
 
-import ast
 import functools
 import logging
 import pathlib
@@ -105,35 +104,17 @@ def _every_module(root: str = "") -> tuple[str, ...]:
     return tuple(found)
 
 
-@functools.lru_cache(maxsize=4)
 def _named_in_a_string(root: str = "") -> frozenset[str]:
     """Module paths that appear as a string constant in production code.
 
     ``importlib.import_module("core.self_improvement.program_dna")`` is an
     edge in the call graph that no import statement carries, and a census that
-    cannot see it reports a live module as dead.
+    cannot see it reports a live module as dead. Read off the same walk that
+    builds the import map, because both questions are about the same bytes.
     """
-    base = pathlib.Path(root or ROOT)
-    found: set[str] = set()
-    for top in THE_PRODUCTION_ROOTS:
-        where = base / top
-        if not where.exists():
-            continue
-        for path in where.rglob("*.py"):
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
-            except (OSError, SyntaxError, ValueError):
-                continue
-            me = str(path.relative_to(base).with_suffix("")).replace("/", ".")
-            for node in ast.walk(tree):
-                if not isinstance(node, ast.Constant):
-                    continue
-                value = node.value
-                if not isinstance(value, str) or " " in value or "." not in value:
-                    continue
-                if value.split(".")[0] in THE_PRODUCTION_ROOTS and value != me:
-                    found.add(value)
-    return frozenset(found)
+    from core.verify.does_this_govern_anything import named_by_a_string
+
+    return named_by_a_string(root)
 
 
 @functools.lru_cache(maxsize=4)

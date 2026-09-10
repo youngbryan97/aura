@@ -157,6 +157,8 @@ def test_everything_the_maturity_pass_built_is_askable_from_here() -> None:
         "core.cognition.where_the_growing_is_starved": "language_growth",
         "core.verify.which_lesions_a_direct_call_can_bite": "lesion_reachability",
         "core.runtime.what_the_environment_is_asked": "environment_settings",
+        "core.verify.how_much_of_it_governs": "how_much_governs",
+        "core.skill_management.what_the_probes_were_held_to": "forge_target",
     }
     missing = sorted(name for name, section in wanted.items() if section not in THE_SECTIONS)
     assert missing == [], f"no section reads {missing}"
@@ -168,6 +170,9 @@ def test_everything_the_maturity_pass_built_is_askable_from_here() -> None:
         "core.verify.is_this_async_code_correct",
         # This one is read by the search that reports its own reach.
         "core.cognition.how_far_the_search_reaches",
+        # And this one is read inside the lesion reachability block: where a
+        # channel acts and what it hands over are two halves of one answer.
+        "core.verify.what_a_channel_hands_over",
     })
     assert unasked == [], f"{unasked} were built and are not askable"
 
