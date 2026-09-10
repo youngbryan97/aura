@@ -85,8 +85,34 @@ def test_utterance_pattern_is_the_thing_being_matched() -> None:
     assert not _UTTERANCE_RECALL_RE.search("what is the capital of France")
 
 
-def test_declared_window_is_larger_than_the_desktop_default() -> None:
-    """Documents why the classifier matters: the default is a third of policy."""
-    from interface.routes.chat import _RECENT_CONVERSATION_CONTEXT_EXCHANGES
+def test_the_classifier_decides_between_the_whole_transcript_and_none() -> None:
+    """Documents why the classifier matters, on the window that exists now.
 
-    assert _RECENT_CONVERSATION_CONTEXT_EXCHANGES == 12
+    It used to choose between four exchanges and a declared twelve. The two
+    constants were replaced by one visible window, read whole when the turn
+    needs the transcript and not at all when it does not, so a turn this
+    classifier misses now gets no transcript rather than a short one.
+    """
+    import ast
+    from pathlib import Path
+
+    from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
+
+    assert VISIBLE_CONVERSATION_EXCHANGES >= 12
+
+    # The window is read whole or not at all. Asserted structurally, because a
+    # literal source match goes stale the first time the file is reformatted
+    # and then reports green forever.
+    tree = ast.parse(Path("interface/routes/chat.py").read_text(encoding="utf-8"))
+    branches = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.IfExp)
+        and isinstance(node.body, ast.Name)
+        and node.body.id == "VISIBLE_CONVERSATION_EXCHANGES"
+    ]
+    assert branches, "the visible window is no longer chosen for the turn"
+    assert any(
+        isinstance(branch.orelse, ast.Constant) and branch.orelse.value == 0
+        for branch in branches
+    ), "a turn the classifier misses no longer falls to zero"

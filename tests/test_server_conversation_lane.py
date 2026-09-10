@@ -14471,9 +14471,12 @@ async def test_recent_desktop_context_preserves_source_with_bounded_window_and_r
                 }
             )
 
+    # The window the route itself reads. It was a constant in this module and
+    # is now the visible-transcript one, so the test asks for the same twelve
+    # it always did rather than a number that moved underneath it.
     exchanges = await chat_routes._recent_completed_conversation_exchanges(
         current_user_message="continue",
-        limit=chat_routes._RECENT_CONVERSATION_CONTEXT_EXCHANGES,
+        limit=12,
     )
     rendered = chat_routes._format_recent_conversation_context(exchanges)
 
