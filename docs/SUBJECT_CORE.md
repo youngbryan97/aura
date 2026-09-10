@@ -219,8 +219,10 @@ ISC(K) = 1 is an and, not an average. Read across three consecutive runs of the
 same code on the same organism, not from one: the single-run totals were 11, 13
 and 12, eleven criteria hold on all three, eleven fail on all three, and two sit
 in between. Each run is 960 turns, 31,680 frames, 164 state columns, 90 domain
-pairs and 1,440 paired arms; the latest is in
-`artifacts/subject_core/subject_core_report.json`.
+pairs and 1,440 paired arms. Runs are kept one directory each and never
+overwritten, so the report of a given run is in that run's directory — the
+latest with one is `artifacts/subject_core/run_009/subject_core_report.json`,
+and `artifacts/subject_core/README.md` says what else each directory holds.
 
 The two that come and go are `global_access` (2 runs of 3) and `lesion_deficit`
 (1 of 3). A criterion that changes answer between identical runs is not

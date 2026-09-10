@@ -878,7 +878,7 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 143 modules in `core/consciousness/` (160 total including subpackages
+There are 146 modules in `core/consciousness/` (163 total including subpackages
 `caa/`, `inner_light/`, and `mhaf/`). The ones that do most of the
 load-bearing work:
 
