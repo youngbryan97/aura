@@ -4502,6 +4502,12 @@ async def _run_cognitive_engine_chat_turn(
         ),
         "",
     )
+    # Outer delivery gates run after this helper returns. Bind the authenticated
+    # transcript to turn custody so each gate judges against the same evidence.
+    from core.conversation.turn_evidence_custody import record_turn_grounding
+
+    for transcript_evidence in route_assessment_grounding:
+        record_turn_grounding(transcript_evidence)
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
@@ -6325,6 +6331,8 @@ async def _run_cognitive_engine_chat_turn(
             )
             if text and text not in route_assessment_grounding
         )
+        for retained_evidence in route_assessment_grounding:
+            record_turn_grounding(retained_evidence)
         assessment_text = (
             _ground_runtime_fact_status_reply(
                 visible,

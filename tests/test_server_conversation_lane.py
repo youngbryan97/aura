@@ -15551,6 +15551,7 @@ async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypat
 @pytest.mark.asyncio
 async def test_route_assessment_hears_the_assistant_history_given_to_the_model(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
     from interface.routes import chat as chat_routes
 
     answer = (
@@ -15611,22 +15612,29 @@ async def test_route_assessment_hears_the_assistant_history_given_to_the_model(m
 
     trace = {}
     question = "What topic were we discussing before I asked where that came from?"
-    reply = await chat_routes._run_cognitive_engine_chat_turn(
-        question,
-        visible_user_message=question,
-        origin="user",
-        timeout_s=120.0,
-        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
-        source="desktop_ui",
-        require_engine=True,
-        turn_trace=trace,
-    )
+    with bind_turn_evidence_custody(session_id="route-assessment", turn_id="turn-1"):
+        reply = await chat_routes._run_cognitive_engine_chat_turn(
+            question,
+            visible_user_message=question,
+            origin="user",
+            timeout_s=120.0,
+            lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+            source="desktop_ui",
+            require_engine=True,
+            turn_trace=trace,
+        )
+        # The HTTP delivery stabilizer runs after the engine helper returns.
+        # Its independent reliability pass must still see the assistant-side
+        # transcript that licensed this recollection.
+        delivery_quality = await chat_routes._measure_reply_quality_candidate(question, reply)
 
     assert reply == answer
     assert len(calls) == 1
     assert calls[0]["context"]["recent_completed_exchanges"] == [preceding]
     assert trace["cognitive_engine_reply_accepted"] is True
     assert trace["response_path"] == "cognitive_engine"
+    assert delivery_quality.reply_assessment.ok is True
+    assert "fabricated_shared_history" not in delivery_quality.reply_assessment.reasons
 
 
 @pytest.mark.asyncio
