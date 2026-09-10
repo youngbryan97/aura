@@ -1304,6 +1304,35 @@ class MemoryFacade:
         for item in await self._search_gateway_records(query, limit=backend_limit):
             _append(item)
 
+        # Direct episodic recall also serves quick chat through this facade.
+        # Pass it through the same principal filter and verification as every
+        # other backend; historical revisions must not reappear as current.
+        recall = getattr(self.episodic, "recall_similar_async", None)
+        if callable(recall):
+            try:
+                episodes = await self._call_maybe_async(recall, query, limit=backend_limit)
+                for episode in episodes or []:
+                    if not getattr(episode, "source_authoritative", True) or getattr(episode, "superseded_at", 0):
+                        continue
+                    metadata = self._safe_metadata(getattr(episode, "source_metadata", {}))
+                    metadata.update({
+                        "source": "episodic_memory",
+                        "memory_type": "episode",
+                        "timestamp": getattr(episode, "timestamp", None),
+                        "session_id": getattr(episode, "source_session_id", ""),
+                        "exchange_id": getattr(episode, "source_exchange_id", ""),
+                        "source_ref": getattr(episode, "source_ref", ""),
+                    })
+                    if str(getattr(episode, "action", "")).startswith("conversation"):
+                        metadata["conversation_lane"] = True
+                    _append({
+                        "id": getattr(episode, "episode_id", ""),
+                        "content": getattr(episode, "full_description", ""),
+                        "metadata": metadata,
+                    })
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("memory_facade", exc, action="searched other stores without episodic recall")
+
         verified_results: list[dict[str, Any]] = []
         for order, item in enumerate(results):
             try:

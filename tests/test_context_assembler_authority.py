@@ -106,6 +106,20 @@ def test_assistant_prefill_rejects_control_tokens():
     assert ContextAssembler._sanitize_assistant_prefill("corrupt�decode") == ""
 
 
+def test_delivered_chat_reaches_capacity_owner_without_secondary_pruning(monkeypatch):
+    state = AuraState.default()
+    state.response_modifiers["black_box_steering"] = True
+    monkeypatch.setattr(ContextAssembler, "build_system_prompt", staticmethod(lambda *_a, **_kw: "SYS"))
+    history = [
+        {"role": role, "content": (f"{role} {index}: " + "original words " * 40).strip()}
+        for index in range(20) for role in ("user", "assistant")
+    ]
+    messages = ContextAssembler.build_messages(state, "Compare the proposals", max_tokens=2048, conversation_history=history)
+    assert [message for message in messages if message["role"] in {"user", "assistant"}] == history + [
+        {"role": "user", "content": "Compare the proposals"},
+    ]
+
+
 def test_assistant_prefill_accepts_and_bounds_plain_text():
     assert ContextAssembler._sanitize_assistant_prefill("Let me think about that.") == (
         "Let me think about that."

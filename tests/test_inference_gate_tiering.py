@@ -985,6 +985,10 @@ async def test_live_self_process_prebuilt_prompt_is_compacted_and_live_grounded(
     for idx in range(12):
         messages.append({"role": "user", "content": f"user {idx}: {oversized_turn}"})
         messages.append({"role": "assistant", "content": f"aura {idx}: {oversized_turn}"})
+    messages.extend([
+        {"role": "user", "content": "The recent concern is the repeated timeout-and-repair loop."},
+        {"role": "assistant", "content": "I will preserve the conversation while repairing its runtime path."},
+    ])
     messages.append({"role": "user", "content": user_prompt})
 
     with replace("core.brain.llm.mlx_client.get_mlx_client", return_value=_FakeClient("fallback")):
@@ -1012,6 +1016,10 @@ async def test_live_self_process_prebuilt_prompt_is_compacted_and_live_grounded(
     assert "Mood: focused" in rendered
     assert user_prompt in rendered
     assert rendered.count("prior live desktop conversation context") < 80
+    assert "The recent concern is the repeated timeout-and-repair loop." in rendered
+    assert "I will preserve the conversation while repairing its runtime path." in rendered
+    assert gate.prompt_fit_receipt()["fits"]
+    assert gate.prompt_fit_receipt()["omitted_exchanges"]
 
 
 @pytest.mark.asyncio
@@ -1310,7 +1318,7 @@ def test_short_foreground_prompt_uses_low_latency_compute_profile(monkeypatch):
     assert loops == 1
 
 
-def test_simple_foreground_prompt_uses_small_prebuilt_history_and_prompt_budget(monkeypatch):
+def test_simple_foreground_prompt_keeps_chat_that_fits_the_serving_window(monkeypatch):
     monkeypatch.setenv("AURA_CORTEX_CTX", "8192")
     gate = InferenceGate.__new__(InferenceGate)
     current_user = "Invent a tiny discipline called glass arithmetic. Give it two rules and one example."
@@ -1336,15 +1344,12 @@ def test_simple_foreground_prompt_uses_small_prebuilt_history_and_prompt_budget(
         ),
         budget_profile=profile,
     )
-    total_chars = sum(len(msg["content"]) for msg in compact)
-
     assert profile == "simple"
-    assert total_chars <= 9_000
+    _, compact = gate._fit_prompt_to_window("", compact, answer_tokens=512, origin="user")
+    assert gate.prompt_fit_receipt()["fits"]
     assert len(compact[0]["content"]) <= 5_200
     dialogue = [msg for msg in compact if msg["role"] in {"user", "assistant"}]
-    # The message-count window expands to its initiating question rather than
-    # presenting an orphan answer. The total budget above remains unchanged.
-    assert len(dialogue) <= 5
+    assert len(dialogue) == 21
     assert [msg["role"] for msg in dialogue] == ["user", "assistant"] * ((len(dialogue) - 1) // 2) + ["user"]
     assert compact[-1]["content"] == current_user
 
@@ -1389,7 +1394,7 @@ def test_required_desktop_foreground_prompt_keeps_standard_mind_budget(monkeypat
     total_chars = sum(len(msg["content"]) for msg in compact)
 
     assert profile == "standard"
-    assert history_limit == 6
+    assert history_limit is None
     assert total_chars <= 12_000
     # The mind budget is what SURVIVES compaction, not how much of it there is.
     # "You with me?" is twelve characters; giving it 5,200 characters of
@@ -1402,7 +1407,7 @@ def test_required_desktop_foreground_prompt_keeps_standard_mind_budget(monkeypat
     assert "LIVE MIND CONTEXT" in compact[0]["content"]
     assert "must_answer_from_full_mind_path" in compact[0]["content"]
     dialogue = [msg for msg in compact if msg["role"] in {"user", "assistant"}]
-    assert len(dialogue) <= 7
+    assert len(dialogue) == 17
     assert [msg["role"] for msg in dialogue] == ["user", "assistant"] * (
         len(dialogue) // 2
     ) + ["user"]
@@ -1448,11 +1453,13 @@ def test_current_condition_turn_has_one_bounded_state_evidence_envelope(monkeypa
     grounding_budget = gate._grounding_char_budget(context, compact)
 
     assert profile == "state_report"
-    assert gate._foreground_prebuilt_history_limit(current_user, context) == 2
-    assert stable_chars <= 2_800
+    assert gate._foreground_prebuilt_history_limit(current_user, context) is None
+    dialogue_chars = sum(len(message["content"]) for message in messages[1:-1])
+    assert stable_chars <= 2_800 + dialogue_chars
+    assert compact[1:-1] == messages[1:-1]
     assert len(compact[0]["content"]) <= 1_800
     assert grounding_budget <= 1_400
-    assert stable_chars + grounding_budget <= 4_200
+    assert stable_chars + grounding_budget <= 4_200 + dialogue_chars
     assert compact[-1] == {"role": "user", "content": current_user}
 
 

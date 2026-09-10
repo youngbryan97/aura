@@ -123,6 +123,33 @@ async def test_memory_facade_search_supports_sync_vector_and_graph():
 
 
 @pytest.mark.asyncio
+async def test_facade_search_includes_scoped_current_episodes(monkeypatch):
+    from core.memory.episodic_memory import Episode
+
+    facade = MemoryFacade()
+    facade._vector = None
+    facade._graph = None
+    episodes = [Episode(
+        episode_id=key, timestamp=time.time(), context="earlier proposal", action="conversation_reply",
+        outcome="Use the narrow bridge", source_exchange_id=key,
+        source_metadata={"principal_id": principal, "principal_surface": "paired_device"},
+        source_authoritative=current,
+    ) for key, principal, current in [
+        ("own", "paired-device:a", True),
+        ("foreign", "paired-device:b", True),
+        ("superseded", "paired-device:a", False),
+    ]]
+    facade._episodic = SimpleNamespace(recall_similar_async=AsyncCallFixture(episodes))
+    async def no_gateway(*_args, **_kwargs):
+        return []
+    monkeypatch.setattr(facade, "_search_gateway_records", no_gateway)
+    results = await facade.search("earlier proposal", principal_id="paired-device:a", principal_surface="paired_device")
+    assert [item["id"] for item in results] == ["own"]
+    assert results[0]["metadata"]["exchange_id"] == "own"
+    assert results[0]["content"] == "User: earlier proposal\nAura: Use the narrow bridge"
+
+
+@pytest.mark.asyncio
 async def test_memory_facade_scopes_personal_recall_but_keeps_general_knowledge():
     facade = MemoryFacade()
     facade._vector = SimpleNamespace(

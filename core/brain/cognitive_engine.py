@@ -1250,7 +1250,7 @@ def _note_unattested_exchange(entry: Any) -> None:
 def _desktop_history_messages_from_context(
     context: dict[str, Any],
     *,
-    max_pairs: int = 4,
+    max_pairs: int | None = None,
 ) -> list[dict[str, str]]:
     from core.conversation.delivered_history import delivered_exchange_messages
 
@@ -4597,11 +4597,7 @@ class CognitiveEngine:
         )
         visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
         recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
-        history_messages = (
-            []
-            if memory_state_contract or runtime_fact_status_contract
-            else _desktop_history_messages_from_context(context)
-        )
+        history_messages = _desktop_history_messages_from_context(context)
         discourse_repair_contract = context.get("discourse_repair_contract")
         if isinstance(discourse_repair_contract, dict):
             from core.utils.injected_blocks import is_stamped_runtime_payload
@@ -4623,15 +4619,6 @@ class CognitiveEngine:
                 )
             else:
                 discourse_repair_contract = {}
-        if self_condition_contract:
-            # Current self-state supersedes old self-descriptions. Preserve
-            # prior user context, but do not few-shot the model with assistant
-            # answers from earlier samples or rejected drafts.
-            history_messages = [
-                message
-                for message in history_messages
-                if str(message.get("role") or "").lower() == "user"
-            ]
         live_speech_frame = context.get("live_speech_grounding_frame")
         live_mind_context = context.get("live_mind_context")
         live_mind_required = bool(context.get("live_mind_context_required", False))

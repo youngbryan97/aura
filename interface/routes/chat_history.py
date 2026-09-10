@@ -4,12 +4,15 @@ from typing import Any
 
 from fastapi import Request
 
+from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
 from interface.auth import paired_device_session_id, request_access_profile
 from interface.routes import chat_delivery, chat_memory_state
 from interface.routes.chat_common import _CHAT_REQUEST_PRINCIPAL, _CHAT_REQUEST_SURFACE
 
 
-async def recent_ui_conversation(request: Request | None, *, limit: int = 40) -> list[dict[str, Any]]:
+async def recent_ui_conversation(
+    request: Request | None, *, limit: int = VISIBLE_CONVERSATION_EXCHANGES,
+) -> list[dict[str, Any]]:
     profile = request_access_profile(request)
     surface = str(profile.get("surface") or "internal").strip().casefold()
     paired = bool(profile.get("conversation_only"))
@@ -21,7 +24,7 @@ async def recent_ui_conversation(request: Request | None, *, limit: int = 40) ->
         chat_delivery._authenticated_chat_principal(request),
         chat_delivery._chat_turn_session_key(request, None),
     )
-    limit = max(1, min(40, int(limit)))
+    limit = max(1, min(VISIBLE_CONVERSATION_EXCHANGES, int(limit)))
 
     async def live_snapshot() -> list[dict[str, Any]]:
         async with chat_memory_state._get_convo_lock():

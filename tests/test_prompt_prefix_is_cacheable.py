@@ -19,6 +19,8 @@ message, so it still conditions the answer with maximum recency, while
 """
 from __future__ import annotations
 
+import pytest
+
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm.chat_format import (
     conversation_append_messages,
@@ -45,6 +47,57 @@ def _turn(grounding: str, history: list[tuple[str, str]]) -> list[dict[str, str]
 
 def _serialize(compacted: list[dict[str, str]]) -> str:
     return "\n".join(f"{m['role']}:{m['content']}" for m in compacted)
+
+
+@pytest.mark.parametrize("profile", ["state_report", "contract", "simple"])
+def test_soft_compaction_budget_cannot_erase_delivered_conversation(profile):
+    question = "How does recovery avoid applying a log record twice?"
+    answer = "Compare the page position against the log record position. " * 180
+    current = "Where did that explanation come from?"
+    messages = _turn("coherence=0.9", [
+        ("user", "Older question"), ("assistant", "Older answer " * 600),
+        ("user", question), ("assistant", answer), ("user", current),
+    ])
+    output = _gate()._compact_prebuilt_messages(
+        messages, budget_profile=profile, current_user_content=current,
+    )
+    assert {"role": "user", "content": question} in output
+    assert {"role": "assistant", "content": answer.strip()} in output
+    assert any(row["content"].startswith("Older answer") for row in output)
+    assert output[-1] == {"role": "user", "content": current}
+    assert any(row["role"] == "runtime_evidence" for row in output)
+
+
+@pytest.mark.parametrize("profile", ["state_report", "contract", "simple", "standard"])
+def test_all_chat_exchanges_survive_when_the_serving_window_has_room(monkeypatch, profile):
+    gate = _gate()
+    monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 32768)
+    history = []
+    for index in range(20):
+        history.extend([("user", f"question {index}"), ("assistant", f"answer {index}")])
+    history.append(("user", "Compare the first proposal with the last one."))
+    compact = gate._compact_prebuilt_messages(_turn("current state", history), budget_profile=profile)
+    _, output = gate._fit_prompt_to_window("", compact, answer_tokens=4096, origin="user")
+    assert [(row["role"], row["content"]) for row in output if row["role"] in {"user", "assistant"}] == history
+    assert gate.prompt_fit_receipt()["omitted_exchanges"] == []
+
+
+def test_capacity_eviction_keeps_complete_ordered_exchanges_and_records_loss(monkeypatch):
+    gate = _gate()
+    monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 1500)
+    history = []
+    for index in range(12):
+        history.extend([("user", f"question {index} " * 20), ("assistant", f"answer {index} " * 20)])
+    history.append(("user", "What did you just explain?"))
+    _, output = gate._fit_prompt_to_window("", _turn("state", history), answer_tokens=512, origin="user")
+    dialogue = [(row["role"], row["content"]) for row in output if row["role"] in {"user", "assistant"}]
+    assert dialogue == history[-len(dialogue):]
+    assert dialogue[0][0] == "user"
+    assert len(dialogue) >= 3
+    receipt = gate.prompt_fit_receipt()
+    assert receipt["fits"]
+    assert receipt["omitted_exchanges"]
+    assert all(row["messages"] == 2 for row in receipt["omitted_exchanges"])
 
 
 def test_grounding_lands_after_history_and_before_the_newest_user_message() -> None:

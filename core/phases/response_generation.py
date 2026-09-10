@@ -2006,7 +2006,6 @@ class ResponseGenerationPhase(BasePhase):
 
                     delivered_history = delivered_exchange_messages(
                         runtime_context.get("recent_completed_exchanges"),
-                        max_pairs=4,
                     )
                 if delivered_history is None:
                     messages = ContextAssembler.build_messages(state, objective)

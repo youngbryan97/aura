@@ -9806,7 +9806,7 @@ async def test_cognitive_engine_quick_reply_places_self_condition_evidence_in_mo
 
 
 @pytest.mark.asyncio
-async def test_self_condition_prompt_has_one_projection_and_no_stale_assistant_drafts(
+async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_projection(
     monkeypatch,
 ):
     from core.brain import cognitive_engine as ce_module
@@ -9883,7 +9883,7 @@ async def test_self_condition_prompt_has_one_projection_and_no_stale_assistant_d
     joined = "\n".join(str(message["content"]) for message in messages)
     assert joined.count(evidence) == 1
     assert "condition=" not in joined
-    assert "Draft one" not in joined
+    assert any(message["role"] == "assistant" and "Draft one" in message["content"] for message in messages)
     assert messages[-1] == {"role": "user", "content": prompt}
     assert messages[-2]["role"] == "runtime_evidence"
     assert evidence in messages[-2]["content"]
@@ -10936,6 +10936,10 @@ async def test_desktop_required_chat_gets_default_recent_context_window(monkeypa
 
     async with chat_routes._get_convo_lock():
         chat_routes._conversation_log.clear()
+        chat_routes._conversation_log.extend([
+            {"id": f"earlier-{i}", "user": f"Earlier topic {i}", "aura": f"Earlier answer {i}", "status": "complete"}
+            for i in range(19)
+        ])
         chat_routes._conversation_log.extend(
             [
                 {
@@ -10970,13 +10974,14 @@ async def test_desktop_required_chat_gets_default_recent_context_window(monkeypa
 
     assert reply
     assert calls[0]["context"]["recent_context_needed"] is False
-    assert calls[0]["context"]["recent_completed_exchanges"]
+    assert len(calls[0]["context"]["recent_completed_exchanges"]) == 20
+    assert calls[0]["context"]["recent_completed_exchanges"][0]["user"] == "Earlier topic 0"
     assert "assistant mode" in calls[0]["context"]["recent_conversation_context"]
     assert calls[0]["context"]["live_runtime_payload_required"] is True
 
 
 @pytest.mark.asyncio
-async def test_typed_action_episode_owns_followup_context_without_history_replay(monkeypatch):
+async def test_typed_action_episode_grounds_followup_without_erasing_chat(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
 
@@ -11043,8 +11048,8 @@ async def test_typed_action_episode_owns_followup_context_without_history_replay
     assert reply
     assert calls[0]["objective"] == "Do you know why that broke?"
     assert calls[0]["context"]["action_episode_evidence"] == episode
-    assert calls[0]["context"]["recent_completed_exchanges"] == []
-    assert calls[0]["context"]["recent_conversation_context"] == ""
+    assert calls[0]["context"]["recent_completed_exchanges"][-1]["aura"] == "The application was not found."
+    assert "The application was not found." in calls[0]["context"]["recent_conversation_context"]
 
 
 @pytest.mark.asyncio
@@ -11408,7 +11413,7 @@ async def test_deep_desktop_followup_keeps_hard_live_token_envelope(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_desktop_required_memory_state_turn_uses_canonical_evidence_without_stale_history(
+async def test_desktop_required_memory_state_turn_keeps_history_beside_canonical_evidence(
     monkeypatch,
 ):
     from core.providers import engine_connection_pool as pool_module
@@ -11492,8 +11497,8 @@ async def test_desktop_required_memory_state_turn_uses_canonical_evidence_withou
     assert "silver lantern" in reply
     assert calls[0]["context"]["memory_state_contract"] is True
     assert "silver lantern" in calls[0]["context"]["canonical_memory_state_evidence"]
-    assert calls[0]["context"]["recent_completed_exchanges"] == []
-    assert calls[0]["context"]["recent_conversation_context"] == ""
+    assert calls[0]["context"]["recent_completed_exchanges"][-1]["aura"] == "A stale pitch answer that must not steer this turn."
+    assert calls[0]["context"]["recent_conversation_context"]
     assert calls[0]["context"]["desktop_quick_reply_contract"] is True
 
 

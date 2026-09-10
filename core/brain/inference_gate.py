@@ -8143,22 +8143,10 @@ class InferenceGate:
         context: dict[str, Any] | None = None,
         *,
         deep_probe: bool = False,
-    ) -> int:
+    ) -> int | None:
         if deep_probe:
             return 2
-        profile = cls._foreground_prompt_profile(prompt, context)
-        if bool((context or {}).get("live_runtime_payload_required", False)) and (
-            is_live_self_reflection_turn(prompt)
-            or is_self_process_question(prompt)
-        ):
-            return 2
-        if profile == "state_report":
-            return 2
-        if profile == "simple":
-            return 4
-        if profile == "standard":
-            return 6
-        return 10
+        return None
 
     @staticmethod
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
@@ -11381,6 +11369,42 @@ class InferenceGate:
 
         total = _total()
         receipt["tokens_before"] = total
+        receipt["history_messages_before"] = sum(
+            message.get("role") in {"user", "assistant"} for message in messages
+        )
+        receipt["omitted_exchanges"] = []
+        # A complete contiguous suffix preserves dialogue references. Apply
+        # this once, at serving capacity, rather than at each profile's soft
+        # latency budget. Keep the latest exchange for scaffold fitting below.
+        while allowed > 0 and total > allowed:
+            user_indices = [
+                index for index, message in enumerate(messages)
+                if message.get("role") == "user"
+            ]
+            if len(user_indices) < 3:
+                break
+            start, end = user_indices[:2]
+            indices = [
+                index for index in range(start, end)
+                if messages[index].get("role") in {"user", "assistant"}
+            ]
+            receipt["omitted_exchanges"].append({
+                "messages": len(indices),
+                "estimated_tokens": sum(_cost(messages[index].get("content")) for index in indices),
+                "reason": "serving_context_capacity",
+            })
+            messages = [message for index, message in enumerate(messages) if index not in indices]
+            total = _total()
+        receipt["history_messages_after"] = sum(
+            message.get("role") in {"user", "assistant"} for message in messages
+        )
+        if receipt["omitted_exchanges"]:
+            logger.info(
+                "Conversation allocation: retained %d of %d dialogue messages; "
+                "omitted %d complete exchanges for serving capacity (%d estimated input tokens).",
+                receipt["history_messages_after"], receipt["history_messages_before"],
+                len(receipt["omitted_exchanges"]), allowed,
+            )
         if allowed <= 0 or total <= allowed:
             receipt["tokens_after"] = total
             receipt["fits"] = total <= allowed
@@ -11534,17 +11558,15 @@ class InferenceGate:
         self,
         messages: list[dict[str, Any]],
         *,
-        history_limit: int = 12,
+        history_limit: int | None = None,
         deep_probe: bool = False,
         budget_profile: str = "standard",
         current_user_content: str | None = None,
     ) -> list[dict[str, str]]:
-        """Trim oversized prebuilt chat payloads for the live 32B lane.
+        """Compact scaffolding without applying a second dialogue budget.
 
-        Many callers already assemble messages upstream. For fast foreground turns,
-        we keep the latest system prompt plus only the most recent compact dialogue
-        snippets so first-turn Cortex doesn't spend tens of seconds re-reading old
-        transcripts or giant contract blocks.
+        Foreground history is allocated by `_fit_prompt_to_window`, with the
+        output reserve known. Background callers may request a count window.
         """
         if not isinstance(messages, list):
             return []
@@ -11678,7 +11700,10 @@ class InferenceGate:
         compact: list[dict[str, str]] = []
         if system_message is not None:
             compact.append(system_message)
-        history_start = max(0, len(convo) - max(1, int(history_limit)))
+        history_start = (
+            0 if history_limit is None
+            else max(0, len(convo) - max(1, int(history_limit)))
+        )
         # A count window may land inside an exchange. Include its initiating
         # question; the total character budget still bounds the final window.
         while history_start > 0 and convo[history_start]["role"] == "assistant":
@@ -11733,6 +11758,9 @@ class InferenceGate:
             total_budget_chars = max(12000, int(max(4096, context_window - 1536) * 1.05))
         if deep_probe:
             total_budget_chars = min(total_budget_chars, 9000)
+
+        if history_limit is None:
+            return compact
 
         while (
             compact

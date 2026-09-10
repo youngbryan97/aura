@@ -956,7 +956,6 @@ def _benchmark_reply_contract_unmet(prompt: str, reply: str) -> str | None:
 # ── Session & Conversation Log ────────────────────────────────
 
 _conversation_log_lock = _chat_memory_state._get_convo_lock()
-_RECENT_CONVERSATION_CONTEXT_EXCHANGES = 12
 _RECENT_CONVERSATION_RENDERED_CHARS = 6000
 _CHAT_LIVE_MIND_COLLECTION_TIMEOUT_S = 2.5
 _CHAT_EXPORT_SECTION_TIMEOUT_S = 3.0
@@ -4440,22 +4439,6 @@ async def _run_cognitive_engine_chat_turn(
     recent_context_needed = bool(
         not state_native_output_owner and _desktop_turn_needs_recent_context(visible)
     )
-    # A multi-part task that happens to say "you" is still a task. Asking her to
-    # compare two locking strategies, choose one, justify it and verify it with a
-    # failure scenario is not a question about her condition — but it contains
-    # "which one you would use", so the self-condition contract claimed it and
-    # handed the turn a stale exchange it had explicitly been denied.
-    #
-    # This is the general shape behind the reported misroutes: a contract
-    # recognises a phrase, wins the turn, and answers its own question instead of
-    # the one asked. Structure beats phrasing — an explicit multi-part request
-    # keeps its own shape.
-    self_contained_compound = bool(require_engine) and (
-        bool(getattr(shape, "requires_single_reply_coverage", False))
-        or bool(getattr(shape, "prefers_extended_answer", False))
-        or int(getattr(shape, "question_parts", 0) or 0) >= 2
-        or int(getattr(shape, "imperative_parts", 0) or 0) >= 2
-    )
     # Several clauses can belong to one state report (for example, condition
     # plus known-versus-inferred evidence). Question count alone cannot decide
     # whether the state contract covers the turn. Competing operational or
@@ -4472,62 +4455,24 @@ async def _run_cognitive_engine_chat_turn(
             or private_cognitive_model_contract
         )
     )
-    if action_episode_evidence:
-        # The typed episode is the authoritative reduction of the action's
-        # receipts. Replaying the exchange that produced it gives the model a
-        # second, prose-shaped account of the same event and makes a short
-        # explanation turn pay for both. Other continuity remains available on
-        # ordinary turns; this one has already resolved its referent exactly.
-        recent_context_limit = 0
-    elif self_condition_contract and not self_contained_compound:
-        # One prior exchange is enough to preserve a natural "though?" follow-up
-        # without letting an older task replace the current condition question.
-        recent_context_limit = 1 if recent_context_needed else 0
-    elif memory_state_contract and not recent_context_needed:
-        # Canonical memory/state turns already carry the authoritative state
-        # evidence for the current question. Replaying older chat here makes the
-        # live model prone to answering stale topics instead of the requested
-        # pin/recall/state fact. But when the turn asks about THIS conversation
-        # (recall/follow-up), the transcript IS the authoritative evidence —
-        # dropping it forced the model to confabulate from durable-memory noise
-        # (observed live: "4523" for a code planted as 7213 two turns prior).
-        recent_context_limit = 0
-    elif (
-        capability_inventory_contract
-        and compact_desktop_chat_contract
-        and not recent_context_needed
-    ):
-        # Compact live desktop turns must remain genuinely compact. Pulling four
-        # prior exchanges into a one-turn capability/status/social question was
-        # enough to turn the "compact" route into an 11K-char prompt and trip the
-        # foreground watchdog before Aura could answer.
-        recent_context_limit = 0
-    elif recent_context_needed:
-        recent_context_limit = _RECENT_CONVERSATION_CONTEXT_EXCHANGES
-    elif require_engine:
-        # The live desktop CognitiveEngine path must not depend on a classifier
-        # before it can see the local thread. A small default window prevents
-        # fluent but contextless replies while keeping compact chat bounded.
-        # Clause count does not establish independence from preceding turns.
-        recent_context_limit = min(4, _RECENT_CONVERSATION_CONTEXT_EXCHANGES)
-    else:
-        recent_context_limit = 0
+    from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
+
+    # Question classification controls current evidence, not access to the
+    # transcript. Read the same bounded history surface restored by the UI;
+    # the inference owner allocates it against the serving context capacity.
+    recent_context_limit = (
+        VISIBLE_CONVERSATION_EXCHANGES
+        if require_engine or recent_context_needed
+        else 0
+    )
     if state_native_output_owner:
-        recent_exchanges = []
-    elif memory_state_contract:
-        # Canonical memory-state evidence already answers this turn exactly.
-        # Recent history alongside it is not extra context, it is a competing
-        # account: the live failure was a stale pitch answer riding in next to
-        # the canonical evidence and steering the reply away from it. When the
-        # exact record exists, an approximate one is noise that outranks
-        # nothing and can only pull.
         recent_exchanges = []
     elif recent_context_limit > 0:
         recent_exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
             current_user_message=visible,
             session_id=session_id,
             limit=recent_context_limit,
-            allow_cross_session=not self_condition_contract,
+            allow_cross_session=True,
         )
     else:
         recent_exchanges = []

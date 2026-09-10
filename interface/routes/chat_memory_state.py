@@ -1612,7 +1612,6 @@ async def _recent_completed_conversation_exchanges(
     limit: int = 6,
     allow_cross_session: bool = True,
 ) -> list[dict[str, Any]]:
-    current = str(current_user_message or "").strip()
     safe_session_id = str(session_id or "")[:64]
     principal_id, principal_surface = _chat_memory_identity()
     async with _get_convo_lock():
@@ -1632,8 +1631,6 @@ async def _recent_completed_conversation_exchanges(
     for entry in reversed(completed):
         user_text = str(entry.get("user") or "").strip()
         aura_text = str(entry.get("aura") or "").strip()
-        if current and user_text == current:
-            continue
         if not user_text and not aura_text:
             continue
         action_episode = None
@@ -1691,8 +1688,6 @@ async def _recent_completed_conversation_exchanges(
         user_text = str(entry.get("user") or "").strip()
         aura_text = str(entry.get("aura") or "").strip()
         key = (user_text, aura_text)
-        if current and user_text == current:
-            continue
         if not user_text and not aura_text:
             continue
         if exchange_id:

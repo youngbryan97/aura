@@ -2823,6 +2823,13 @@ class ContextAssembler:
         elif len(working_memory) > num_recent:
             dropped_messages_count = len(working_memory) - num_recent
 
+        if conversation_history is not None:
+            # The authenticated delivered transcript is allocated once by the
+            # inference owner, where the actual output reserve is known.
+            retained_history = list(conversation_history)
+            history_chars = sum(_estimate_chars(msg.get("content", "")) for msg in retained_history)
+            dropped_messages_count = 0
+
         # 6. Memory Summarization Hook
         if dropped_messages_count > 0:
             summary_notice = f"[SYSTEM: {dropped_messages_count} older conversational messages were omitted from this context window due to cognitive load limits. If the user refers to past context, be aware it may have scrolled out of immediate memory.]"
@@ -2870,7 +2877,8 @@ class ContextAssembler:
         messages.append({"role": "user", "content": safe_input})
 
         # Microcompact: strip stale tool noise before hitting the LLM
-        messages = cls.microcompact(messages, keep_recent=4)
+        if conversation_history is None:
+            messages = cls.microcompact(messages, keep_recent=4)
 
         # Final check for assistant prefill (Stream of Being).
         # The opening becomes an assistant prefill the model CONTINUES, so it
@@ -2905,7 +2913,7 @@ class ContextAssembler:
         try:
             from core.container import ServiceContainer
             _gate = ServiceContainer.get("attention_gate", default=None)
-            if _gate is not None:
+            if _gate is not None and conversation_history is None:
                 gated = _gate.gate_context(messages)
                 # Validate the gate's output before adopting it. A gate that
                 # returns None/[]/a non-list would otherwise replace the whole

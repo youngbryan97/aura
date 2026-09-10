@@ -159,7 +159,8 @@ async def test_durable_recall_reply_survives_process_memory_clear(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_recent_context_deduplicates_durable_and_in_memory_exchange(monkeypatch):
+@pytest.mark.parametrize("current", ["Continue.", "Keep this one copy."])
+async def test_recent_context_deduplicates_durable_and_in_memory_exchange(monkeypatch, current):
     persistence = _PersistenceFixture()
     persistence.record_turn("user", "Keep this one copy.", origin="desktop_ui")
     persistence.record_turn("aura", "One copy retained.", origin="desktop_ui")
@@ -184,7 +185,7 @@ async def test_recent_context_deduplicates_durable_and_in_memory_exchange(monkey
         )
 
     exchanges = await chat_routes._recent_completed_conversation_exchanges(
-        current_user_message="Continue.",
+        current_user_message=current,
         limit=6,
     )
 

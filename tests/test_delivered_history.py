@@ -29,6 +29,14 @@ def test_empty_delivered_ledger_explicitly_means_no_dialogue_history():
     assert delivered_exchange_messages([]) == []
 
 
+def test_translation_does_not_apply_another_four_exchange_window():
+    entries = [stamp_runtime_payload({"user": f"question {i}", "aura": f"answer {i}"}) for i in range(40)]
+    messages = delivered_exchange_messages(entries)
+    assert len(messages) == 80
+    assert messages[0]["content"] == "question 0"
+    assert messages[-1]["content"] == "answer 39"
+
+
 def test_delivered_history_preserves_long_answers_and_code_structure():
     question = "Compare the following cases:\n" + "case\n" * 200
     answer = "1. Start here.\n" + "Detailed evidence.\n" * 100

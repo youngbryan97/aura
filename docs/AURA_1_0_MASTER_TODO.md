@@ -348,6 +348,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-09, conversation capacity: removed independent foreground
+  history-count cuts, retained complete repeated exchanges, and connected
+  episodic recall through the memory facade. Focused route checks pass;
+  release gates and source-matched live replay remain required. See
+  [conversation capacity and episodic recall](evidence/R09_CONVERSATION_CAPACITY_AND_EPISODIC_RECALL_2026-09-09.md).
   UPDATE 2026-09-09, 19:17: fresh-window history restored after the supported
   reboot, but startup executor contention delayed it. The reader now shares
   the foreground durable-receipt lane; 27 focused tests pass, deployment

@@ -7,11 +7,13 @@ from typing import Any
 
 from core.utils.injected_blocks import is_stamped_runtime_payload
 
+VISIBLE_CONVERSATION_EXCHANGES = 40
+
 
 def delivered_exchange_messages(
     exchanges: Any,
     *,
-    max_pairs: int = 4,
+    max_pairs: int | None = None,
     on_unattested: Callable[[Any], None] | None = None,
 ) -> list[dict[str, str]]:
     """Return only runtime-attested user/assistant pairs already delivered."""
@@ -19,7 +21,10 @@ def delivered_exchange_messages(
     if not isinstance(exchanges, Sequence) or isinstance(exchanges, (str, bytes)):
         return []
     messages: list[dict[str, str]] = []
-    for entry in list(exchanges)[-max(1, int(max_pairs)) :]:
+    candidates = list(exchanges)
+    if max_pairs is not None:
+        candidates = candidates[-max(1, int(max_pairs)) :]
+    for entry in candidates:
         if not isinstance(entry, dict):
             continue
         if not is_stamped_runtime_payload(entry):
@@ -37,4 +42,4 @@ def delivered_exchange_messages(
     return messages
 
 
-__all__ = ["delivered_exchange_messages"]
+__all__ = ["VISIBLE_CONVERSATION_EXCHANGES", "delivered_exchange_messages"]
