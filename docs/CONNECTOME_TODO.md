@@ -51,19 +51,44 @@ Working list. Deleted when every line is done and green.
       as well. Two chosen ceilings, both binding, and neither has a
       measurement behind it. That is the next lever
 
-- [ ] the full offline suite green. Everything found so far is fixed except two
-      pre-existing failures that were already failing at this session's first
-      commit and sit in territory another agent is editing:
-      * `test_a_god_object_only_shrinks` — the tree is 32,690 lines over its
-        size budget, dominated by `mlx_client`, `mlx_worker` and
-        `inference_gate`. Refreshing the baseline would launder it; closing it
-        means a repo-wide extraction. `neural_mesh` took its own 213 off.
-      * `test_being_stuck_is_a_choice_not_a_state` — two tests end
-        `out_of_time` after 3 of the 6 cycles they need, because a cycle
-        spends about four seconds inside the STEP (`seconds_in_steps` 8.4
-        against `seconds_deciding` 0.5) waiting on kqueue with every I/O
-        stubbed. That is a live latency problem, not a test problem, and the
-        wait needs naming before the budget is touched
+- [ ] the full offline suite green. Nineteen of forty chunks have run and 56
+      distinct failures have surfaced. Every one traced so far is either fixed
+      or pre-existing, and the pre-existing ones cluster in files another agent
+      is editing while this runs — checked by re-running them at this session's
+      own commits, where they fail too.
+
+      Fixed here: a common noun claiming an application, a browser run with no
+      anchor, an ambient percept that lost its provenance, a silent handler
+      with no sentence, a belief update attributed to the person because the
+      chat logger wrote it, a stale consent assertion, a maker that could not
+      be named, three outcomes that returned the same None, a lane module
+      missing from the list, an estimator that stopped being a method, five
+      files that now say what they measure, the offline suite scrolling the
+      machine it ran on, a refused scroll costing six settles, six model loads
+      with no lane, nine resource readers with no observer, an image read as a
+      wallpaper, a module count and a moved report, six handlers that caught
+      everything, two personal paths in test data, and an eval on an
+      arithmetic tree.
+
+      Open, all pre-existing and none of them this session's:
+      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` — the tree
+        is 32,690 lines over its size budget, dominated by `mlx_client`,
+        `mlx_worker` and `inference_gate`. Refreshing the baseline launders it;
+        closing it is a repo-wide extraction. `neural_mesh` took its own 213
+        off by moving its wiring out.
+      * `test_effect_ownership_tiers` — 1,903 against a ceiling of 1,840.
+      * `test_cognition_discipline`, `test_complexity_and_replication`,
+        `test_every_bias_channel_has_a_reader` — failing at this session's
+        first commit.
+      * `test_holding_a_frame_means_not_deriving_it_again`,
+        `test_general_os_control`, `test_fix_persistence`,
+        `test_gap_atlas_campaigns`, `test_inherited_*` and the rest of the
+        later chunks — in the perception and desktop work another agent has in
+        flight.
+      * `test_subject_core_findings` — flaky about half the time under random
+        order, at HEAD and before it: domain W goes missing because the world
+        model organ is not there on some orderings.
+
 - [ ] a certificate for the resident 27B. The mechanism is proven end to end on
       the reflex 1.5B through the worker's own code path — alpha 0.0 before,
       the probe runs, alpha 0.2 after, and a second call skips a checkpoint
