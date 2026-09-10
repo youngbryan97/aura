@@ -1,0 +1,6230 @@
+{
+ "source": "Aura_ISC_Completion_Master_List.pdf, 40 pages, 2026-09-08",
+ "count": 778,
+ "items": [
+  {
+   "id": "P0.1",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Keep thresholds centralized and immutable during a campaign.",
+   "source_marked_done": true
+  },
+  {
+   "id": "P0.2",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Keep ISC an AND, not a weighted score.",
+   "source_marked_done": true
+  },
+  {
+   "id": "P0.3",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Treat missing evidence as failure.",
+   "source_marked_done": true
+  },
+  {
+   "id": "P0.4",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Run multiple full repetitions instead of reporting the best one; subject-core-frozen now exists.",
+   "source_marked_done": true
+  },
+  {
+   "id": "P0.5",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Pick the exact candidate commit and freeze it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.6",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Record commit SHA and tree SHA in every artifact.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.7",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze every configuration value used by the run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.8",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Hash the configuration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.9",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze the state schema.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.10",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze null architectures.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.11",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze intervention size delta.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.12",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze intervention timing and lag horizon.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.13",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze all random seeds before seeing results.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.14",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze the eight evaluation conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.15",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Freeze the model version for the full-cortex experiment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.16",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Do not move thresholds because Aura narrowly misses one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.17",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Any methodological change after seeing a result begins a new evaluation campaign.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.18",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Keep all old failed runs permanently available.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.19",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Generate human-readable scorecards from raw artifacts instead of manual transcription.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.20",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Never overwrite prior runs; retain run_001, run_002, and so on.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P0.21",
+   "phase": 0,
+   "phase_title": "Freeze what “passing” means",
+   "section": "",
+   "item": "Archive recordings, intervention arms, edge tables, null draws, lesion arms, rescue arms, and logs for every run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.1",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Stop using 11/13/12 as the current score after that rerun.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.2",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Record all three complete reports.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.3",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute stable-pass, unstable, and stable-fail criteria.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.4",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute the entire retained-edge graph.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.5",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Identify the new largest strongly connected component.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.6",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Identify the new minimum-Phi cut.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.7",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Identify weakest outgoing coupling for every domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.8",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Identify weakest incoming coupling for every domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.9",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute per-source perturbational spread.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.10",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute all four fixed synergy triples.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.11",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute per-condition graphs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.12",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.1",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> W: perception changes the learned world model.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.2",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> A: perceptual content changes appraisal/affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.3",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> G: salient perception changes attention competition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.4",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> C: sensory content changes recurrent cognition/substrate state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.5",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> M: perception changes active/episodic memory.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.6",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> D: perception can alter intention/planning.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.7",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Demonstrate a return route to perception through action/environment: D/S -> Act -> E -> P.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.8",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "The return must be genuinely environmental, not a harness directly copying deliberation into perception.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.9",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Generalize the current file-action reafference probe beyond one scratch-file pathway. Interoception/body (I)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.10",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "I -> A: sustained load/body state changes affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.11",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "I -> G: bodily pressure can compete for attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.12",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "I -> C: body state changes cognitive depth, temperature, focus, or recurrent dynamics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.13",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "I -> D: resource state changes planning/action selection.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.14",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Establish at least one legitimate route back into I.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.15",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Cognition/action must be capable of changing some sensed bodily/computational state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.16",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.17",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> G: feelings genuinely affect attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.18",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> D: affect changes motivation/intention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.19",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> C: affect changes cognitive dynamics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.20",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> N: affectively significant experience changes development where justified.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.21",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> A: broadcast/ignition changes later affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.22",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> A: prediction error/surprise changes affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.23",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "I -> A: bodily state changes affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.24",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "C -> A: continuous recurrent/substrate state returns into canonical affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.25",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Prove these as retained intervention edges rather than source-level wiring. Global workspace/attention (G)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.26",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "At least 3 heterogeneous outgoing retained causal edges on every successful replicate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.27",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Preferably preserve/establish G -> C.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.28",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> S.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.29",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> M.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.30",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> A.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.31",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.32",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Multiple domains must return into G.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.33",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G must not become the mandatory hidden broker for the entire architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.34",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Registered processors only count if destination-domain state actually changes. Recurrent cognition/substrate (C)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.35",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> C: broadcast changes substrate/recurrent state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.36",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> C: perception enters continuous cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.37",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> C: affect changes recurrent dynamics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.38",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> C: prediction/world-state changes recurrent processing.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.39",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "C -> G: substrate activity/volatility changes attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.40",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "C -> A: recurrent state changes affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.41",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "C -> S: recurrent processing affects self-prediction/self-model where justified.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.42",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "C -> D: recurrent computation changes deliberation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.43",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Verify the new substrate-volatility workspace bid earns a real retained edge. Self-state (S)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.44",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Preserve S -> G.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.45",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Preserve S -> D/action.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.46",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Preserve authorship-sensitive updates into S.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.47",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Preserve M -> S.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.48",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Add or retain additional independent incoming paths so S is not connected only through G/M.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.49",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Add or retain independent outgoing paths that do not all require G.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.50",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Generalize self-causation beyond one file task. Active memory (M)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.51",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> M: attended material changes active memory.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.52",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> M: perception enters memory.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.53",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "S -> M: self-state changes retrieval/consolidation where appropriate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.54",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N -> M: developmental state changes retrieval policy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.55",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> G: recalled material can win attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.56",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> S: memory changes the self.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.57",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> W: recalled context contributes to world inference.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.58",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> D: relevant memory changes planning.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.59",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Ensure current M intervention affects the exact retrieved content that consumers use. World model (W)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.60",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "P -> W: actual observations update W.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.61",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Action consequences update W.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.62",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> W: remembered evidence helps construct/predict the world.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.63",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> G: surprise/prediction error changes attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.64",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> A: prediction error changes affect/free energy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.65",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> D: predictions affect plans.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.66",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> C: predictive discrepancies can alter ongoing cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.67",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Demonstrate multiple return routes rather than one brokered channel. Deliberation/intention (D)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.68",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "S -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.69",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "W -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.70",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.71",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "G -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.72",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "M -> D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.73",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "D -> G: goals/urgency enter attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.74",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "D -> W: chosen action produces evidence that changes the world model.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.75",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "D -> P: through real action/environment/reafference.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.76",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "D -> S: actions and commitments feed future self-state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.77",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "D must not be merely a text field containing a goal. Ontogenetic/developmental state (N)",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.78",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Retain fast-to-slow causal influence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.79",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Retain slow-to-fast causal influence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.80",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "A/C/G/P -> N through meaningful experience.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.81",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N -> A: novelty/development changes affect.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.82",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N -> G: developmental novelty changes attention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.83",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N -> M: development changes retrieval breadth/policy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.84",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N -> D: accumulated development alters priorities/decisions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.85",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N must not be a terminal accumulator.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.86",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "N must not feed only one other node.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P2.87",
+   "phase": 2,
+   "phase_title": "Complete the causal graph",
+   "section": "Perception (P)",
+   "item": "Specifically target information escaping N, C, I, and D if their attenuation remains high in the new run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.1",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Full 10-node SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.2",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove P; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.3",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove I; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.4",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove A; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.5",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove G; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.6",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove C; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.7",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove S; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.8",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove M; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.9",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove W; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.10",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove D; remaining 9 are still an SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P3.11",
+   "phase": 3,
+   "phase_title": "Make the graph robust, not merely connected",
+   "section": "κ( G) ≥2",
+   "item": "Remove N; remaining 9 are still an SCC. Do not solve this by creating a star centered on G or by duplicating one broker under two names. Look for genuine alternate recurrent loops such as: P -> W -> D -> P I -> A -> C -> I M -> W -> D -> S -> M A -> N -> M -> S -> A These are examples of desired topology, not mandated literal pathways.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.1",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "P belongs to at least 2 distinct directed cycles.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.2",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "I belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.3",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "A belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.4",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "G belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.5",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "C belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.6",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "S belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.7",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "M belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.8",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "W belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.9",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "D belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.10",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "N belongs to at least 2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.11",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "P has at least one return path P -> X -> Y -> P.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.12",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "I has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.13",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "A has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.14",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "G has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.15",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "C has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.16",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "S has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.17",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "M has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.18",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "W has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.19",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "D has one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P4.20",
+   "phase": 4,
+   "phase_title": "Give every domain multiple recurrent lives",
+   "section": "",
+   "item": "N has one. A two-node ping-pong such as A <-> G is not enough for the explicit reentry bar.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.1",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "G produces at least 3 outgoing retained causal edges.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.2",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Each meets q < 0.01.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.3",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Each has effect >= 0.30.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.4",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Each replicates in at least 3 conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.5",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "This holds on every replicate run, not only 2 of 3.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.6",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "G’s consumers modify fields that the destination-domain reader actually reads.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.7",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Changes survive long enough to affect later state instead of being overwritten downstream.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.8",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.9",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Define an explicit, theoretically justified affect-to-drive mapping; or",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.10",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "stop treating affect_* as drive names and only credit genuine drive_* candidates.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.11",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Add causal tests showing attended affect changes later deliberation if that is the intended mechanism.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P5.12",
+   "phase": 5,
+   "phase_title": "Stabilize global access",
+   "section": "",
+   "item": "Do not let string-prefix stripping define psychology.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.1",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Increase legitimate long-range causal propagation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.2",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Do not do it by broadcasting one scalar everywhere.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.3",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Preserve structured perturbational complexity.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.4",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Compute per-source spread and rank weak domains.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.5",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Improve lowest-spread sources first.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.6",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Ensure I, C, N, and D perturbations escape those domains if they remain weak.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.7",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Extend legitimate return routes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.8",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Test whether the 2-turn horizon is long enough for slow intended mechanisms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.9",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "If horizon changes, preregister it before rerunning.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.10",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Prefer multiple preregistered horizons over choosing the favorable one afterward.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.11",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Verify effects persist beyond one instantaneous phase.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P6.12",
+   "phase": 6,
+   "phase_title": "Raise perturbational spread to at least 0.60",
+   "section": "",
+   "item": "Verify they do not arise entirely from one common broker. Do not solve spread by turning Aura into an all-to-all bus.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.1",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Rerun after current causal fixes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.2",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Identify the current minimum cut.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.3",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Determine which side predicts itself too independently.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.4",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Determine what cross-cut information the intact predictor is failing to exploit.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.5",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Strengthen real cross-cut dependencies.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.6",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Repeat after the minimum cut shifts.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.7",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Continue until the cheapest cut, not merely average/dearest cuts, exceeds 0.05.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.8",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Ensure no single domain is mostly self-contained.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.9",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Ensure no large subgroup is mostly self-contained.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.10",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Ensure cross-partition signals affect transition dynamics, not just snapshots.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.11",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Increase recording length enough to reduce variance of the minimum.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.12",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Estimate confidence intervals or bootstrap uncertainty.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.13",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Prefer a positive lower confidence bound.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.14",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "For a truly strong result, prefer the lower bound itself to clear 0.05.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.15",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Repeat across seeds.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.16",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Repeat across machines.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.17",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Compare against matched surrogate floors.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.18",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Use many more surrogate draws for authoritative inference.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.19",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Use the same estimator on Aura and all nulls.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P7.20",
+   "phase": 7,
+   "phase_title": "Make minimum partition irreducibility convincingly positive",
+   "section": "Required work:",
+   "item": "Do not tune PCA/ridge/folds after seeing Aura’s direction without beginning a new preregistered campaign. The conceptual requirement is: Every attempted way of dividing Aura into two predictive machines must make the future harder to predict.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.1",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds replay surrogate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.2",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds time-shuffled surrogate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.3",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds star architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.4",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds stateful hub architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.5",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds one-way architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.6",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds prompt-only architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.7",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Real Phi exceeds frozen-slow architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.8",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "The recurrent positive reference still passes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.9",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Increase replay-surrogate draws substantially.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.10",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Increase shuffle draws substantially.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.11",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Report distributions, not one or a few point estimates.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.12",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Report percentile and confidence interval.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.13",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Add multiple random instantiations of each synthetic architecture.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P8.14",
+   "phase": 8,
+   "phase_title": "Beat matched nulls on irreducibility",
+   "section": "",
+   "item": "Match dimensionality, noise, persistence, and coupling strength as closely as practical.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.1",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Preferably run the complete relevant metric suite on every null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.2",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Calculate null distributions for recurrence/topology.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.3",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Differentiation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.4",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Phi.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.5",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "perturbational complexity/spread.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.6",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "synergy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.7",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "intrinsic persistence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.8",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "causal closure where applicable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.9",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Evaluate the 24-part conjunction on each null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.10",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Require ISC(N)=0 for every null N.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.11",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Require the positive recurrent reference to pass the criteria it is meant to demonstrate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.12",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a hidden-broker null where the broker is deliberately outside K.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.13",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a high-dimensional independent-noise null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.14",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a common-clock/common-driver null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.15",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a random recurrent-network null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.16",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a memory-only recurrence null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.17",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a self-label-without-self-causation null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.18",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a pure all-to-all broadcast null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.19",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add an LLM/prompt-broker null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.1",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "At least 40% of live dimensions contribute effectively.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.2",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Do not achieve this through independent noise.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.3",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Do not add filler state variables just to inflate dimension.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.4",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Increase genuinely distinct cognitive modes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.5",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Increase content-sensitive variation in P/M/W/S.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.6",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Let different conditions recruit meaningfully different configurations.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.7",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Avoid one ubiquitous latent/arousal factor dominating every domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.8",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Remove invalid or truly redundant measurement columns only when scientifically justified.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.9",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.10",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.11",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Keep ISC-v1 recorded as failed.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.12",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Preregister ISC-v2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.13",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Use a better differentiation measure.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P10.14",
+   "phase": 10,
+   "phase_title": "Hit the formal differentiation threshold honestly",
+   "section": "Required work:",
+   "item": "Never retroactively change v1’s threshold. Do not add noise until the number turns green.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.1",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Finite categories: use one-hot/effect coding.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.2",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Free text: use a fixed preregistered content representation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.3",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Consider stable semantic embeddings from a frozen model where justified.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.4",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Or use a fixed-dimensional lexical sketch whose distance has an explicit interpretation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.5",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Represent memory content multidimensionally.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.6",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Represent objectives multidimensionally.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.7",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Represent attention focus appropriately.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.8",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Represent world facts appropriately.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.9",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Represent self beliefs appropriately.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.10",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Treat actor/source labels as categorical, not scalar hash magnitude.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.11",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Recompute baseline scales after the representation change.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P11.12",
+   "phase": 11,
+   "phase_title": "Fix measurement geometry for content",
+   "section": "Required work:",
+   "item": "Treat this as a new evaluation campaign because state geometry changed. This can materially affect Phi, differentiation, synergy, and edge effect sizes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.1",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Attention depends jointly on what Aura feels and what that state means relative to herself.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.2",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Preserve this result if it remains a pass after rerun. P + M -> W",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.3",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "World interpretation combines present observation with remembered context.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.4",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "It must not be merely W=f(P)+g(M).",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.5",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "There must be meaningful interaction f(P,M).",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.6",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Memory should disambiguate perception.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.7",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Perception should update the meaning of recalled context. W + A -> D",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.8",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Deliberation uses both predicted world state and affect/value state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.9",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Preserve this if it remains a pass. S + D -> C",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.10",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Recurrent cognition depends on the combination of current self-state and current intention.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.11",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "The two signals should not merely add independently.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.12",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening:",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.13",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Increase null draws beyond the current exploratory count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.14",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Report confidence intervals.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.15",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Retain the independent held-out interaction-gain check.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.16",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "For the strongest claim, require both information-theoretic synergy and positive held-out interaction gain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P12.17",
+   "phase": 12,
+   "phase_title": "Pass all four fixed synergy tests",
+   "section": "A + S -> G",
+   "item": "Never change the four triples after seeing which ones pass.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.1",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Increase lesion sample size.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.2",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Increase lesion rounds.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.3",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Increase lesion intervention trials.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.4",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Do not use a dramatically weaker lesion experiment than the main edge experiment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.5",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Measure more than the first three conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.6",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Use sufficient horizon.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.7",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Preregister lesion power analysis.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.8",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Intact/cut differences must exceed normal measurement noise.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.9",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Require Phi_do to fall.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.10",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Require perturbational spread to fall.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.11",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Require synergy to fall.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.12",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Repeat across seeds.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.13",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Repeat across run order.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P13.14",
+   "phase": 13,
+   "phase_title": "Stabilize lesion deficit",
+   "section": "",
+   "item": "Rule out ordinary temporal drift.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.1",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Build a canonical cross-domain channel registry/intervention layer.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.2",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Identify real state-transfer channels crossing A* | B*.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.3",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Disable those channels without freezing either side internally.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.4",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Preserve A’s internal dynamics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.5",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Preserve B’s internal dynamics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.6",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Remove only E(A*,B*) and E(B*,A*).",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.7",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Verify no alternate harness bypass remains.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.8",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Verify severed channels are actually inactive.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.9",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Measure the cut system.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.10",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Restore exactly those channels.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.11",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Measure rescue.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P14.12",
+   "phase": 14,
+   "phase_title": "Implement the lesion the equation actually specifies",
+   "section": "To satisfy the equation literally:",
+   "item": "Keep the existing node clamp as a separate useful ablation, but do not equate it with the formal partition lesion. This is one of the highest-priority methodological corrections in the program.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.1",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Lesion produces a reliable deficit first.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.2",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Restore only what was cut.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.3",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Phi rises again.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.4",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Spread rises again.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.5",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Synergy rises again.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.6",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Recovery is larger than normal drift.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.7",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Prefer rescued confidence intervals that overlap intact values.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.8",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Report recovery fraction: R= Mrescue−Mcut Mintact−Mcut .",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.9",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Do not accept a trivial improvement as successful rescue merely because rescued > cut.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.10",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Define recovery tolerance before the experiment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.11",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Allow a preregistered washout/recovery period if the architecture has memory.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.12",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Show that releasing a lesion does not leave stale state indefinitely.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.13",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Counterbalance lesion ordering in auxiliary validation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.14",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Show repeatable lesion-rescue cycles.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P15.15",
+   "phase": 15,
+   "phase_title": "Make rescue real and reliable",
+   "section": "intact -> lesion deficit -> restore -> recovery",
+   "item": "Rescue must occur in the same continuing individual, not by replacing her with a fresh baseline instance.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.1",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "At least three individual conditions produce a full 10-domain SCC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.2",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "The result cannot be an SCC formed only by unioning edges across conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.3",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Prefer more than three conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.4",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Report which edges recur across contexts.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.5",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "No special consciousness-test workload.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.6",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Conversation alone should not carry integration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.7",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Tool use alone should not carry integration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.8",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Stress alone should not carry integration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.9",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Include idle if the theory says integration persists during idle.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.10",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Preserve meaningful differences among contexts. Settle the specification mismatch If the stronger mathematical specification requires every condition to satisfy the core criteria, while battery.py only requires SCC in three, choose one normative definition before the definitive campaign.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.11",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Decide whether the formal equation or current battery semantics are authoritative.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.12",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "If the equation wins, require all intended conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.13",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "If v1 wins, explicitly document that natural replication means at least 3 conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P16.14",
+   "phase": 16,
+   "phase_title": "Natural-condition replication",
+   "section": "",
+   "item": "Do not leave two competing definitions of “pass”.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.1",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Snapshot/restore self-prediction.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.2",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Snapshot/restore the efference comparator.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.3",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Prefer deriving snapshot requirements from the organ dataclass/protocol instead of another hand-maintained list.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.4",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Add a regression test: every stateful organ read by K must be forked between arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.5",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Snapshot all mutable fields that can affect future K.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P17.6",
+   "phase": 17,
+   "phase_title": "Fix intervention-arm state isolation",
+   "section": "",
+   "item": "Verify restored organ state equals the pre-arm snapshot within declared tolerance. This is the same class of bug that previously caused the harness to read self-prediction/comparator as absent despite those organs existing. Do not repeat it in the fork layer.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.1",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Make IntentionLoop state forkable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.2",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Or use transaction rollback per arm.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.3",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Or create an isolated database/state copy per arm.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.4",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Prevent perturbed-arm intentions from leaking into sham.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.5",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Prevent efficacy history from leaking.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.6",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Prevent action receipts from leaking.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.7",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Prevent comparator/efference records from leaking.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P18.8",
+   "phase": 18,
+   "phase_title": "Snapshot the intention system",
+   "section": "",
+   "item": "Test intervention-arm order reversal.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.1",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "Fork/reset filesystem state between arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.2",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "Each arm begins from byte-identical world state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.3",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "Action consequences remain inside the arm that caused them.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.4",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "A later sham cannot inherit a file produced by a prior intervention arm.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.5",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "inode/mtime differences cannot become uncontrolled cues unless explicitly modeled.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.6",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "Action success comes from reading the arm’s own environment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P19.7",
+   "phase": 19,
+   "phase_title": "Snapshot the external scratch world",
+   "section": "",
+   "item": "Prefer a transactional sandbox/environment snapshot. The strongest experiment forks: ( Kt,Et) , not only K_t.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.1",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "StateRepository.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.2",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "ServiceContainer singleton state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.3",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "learned world-model state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.4",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "self-model state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.5",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "workspace state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.6",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "substrate state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.7",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "free-energy state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.8",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "ontogeny state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.9",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "agency ledger.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.10",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "self-prediction.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.11",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "efference comparator.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.12",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "intention records.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.13",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "memory stores.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.14",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "background-task state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.15",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "RNG state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.16",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "caches that affect cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.17",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "filesystem/database state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.18",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "global module-level mutable variables.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.19",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "class-level counters.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P20.20",
+   "phase": 20,
+   "phase_title": "Audit every mutable singleton for cross-arm leakage",
+   "section": "Perform an exhaustive fork-isolation audit across:",
+   "item": "subprocess state if involved. Add one decisive regression test: After one intervention arm runs and its snapshot is restored, every measured K feature and every sampled peripheral-state feature must match the pre-arm snapshot within declared tolerance before the next arm starts. If not, the causal experiment is contaminated. Long-term, process-isolated arms from a serialized snapshot may be safer than indefinitely extending manual deep-copy logic.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.1",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "NumPy RNG.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.2",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "service-local RNGs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.3",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "substrate RNG.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.4",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "model sampling RNG.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.5",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "search/planning RNG.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.6",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "randomized tie resolution.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.7",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "file/environment randomness.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.8",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "randomized arm ordering remains recorded.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.9",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "matched arms use the same stochastic stream where scientifically appropriate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.10",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.1",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Introduce a deterministic experiment clock where possible.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.2",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Phases using elapsed time receive identical dt across matched arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.3",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Timestamps do not create cognitive differences by accident.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.4",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Recency advances identically.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.5",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Drive decay advances identically.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.6",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Memory recency advances identically.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.7",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Workspace fatigue/recency uses controlled progression.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.8",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Real wall clock remains only where it is genuinely the environmental variable under study.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P22.9",
+   "phase": 22,
+   "phase_title": "Replace contaminating wall-clock dependence with an experiment clock",
+   "section": "",
+   "item": "Compare virtual-clock and ordinary runtime behavior to establish equivalence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.1",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "NeuralMesh deterministic step.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.2",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "Neurochemical layer.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.3",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "EmbodiedInteroception.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.4",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "OscillatoryBinding.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.5",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "UnifiedField.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.6",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "SubstrateEvolution.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.7",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "ConsciousnessBridge.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.8",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "ClosedCausalLoop prediction.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.9",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "StreamOfBeing.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.10",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "LiquidConsciousness/substrate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.11",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "heartbeat.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.12",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "every newly discovered free-running cognitive loop.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.13",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "Desktop runtime timers call these exact functions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.14",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "Battery calls these exact functions in fixed sequence/count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.15",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "No separate test-only implementation of cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.16",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "All arms receive exactly the same number of steps.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.17",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "Report the count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P23.18",
+   "phase": 23,
+   "phase_title": "Make every free-running cognitive loop deterministically stepable",
+   "section": "",
+   "item": "Fail an authoritative run if an active cognitive loop cannot be deterministically advanced. This would let the experiment test much more of Aura without sacrificing causal comparability.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.1",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Load the intended resident 27B cortex.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.2",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Record exact model checksum.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.3",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Record exact tokenizer.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.4",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Record exact chat template.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.5",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Use greedy deterministic decode, or fully fixed sampling RNG.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.6",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Keep prompts identical except for causal state differences under test.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.7",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Restore KV/cache state between matched arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.8",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "No fallback model during the run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.9",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "No 9B serving one arm while 27B serves another.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.10",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "configured cortex = resident cortex = serving cortex.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.11",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Verify model readiness before every authoritative run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.12",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Feed model output through the exact production pathways.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.13",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Repeat matched interventions with the real cortex active.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.14",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Identify edges that exist only through language.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P24.15",
+   "phase": 24,
+   "phase_title": "Include the real cortex",
+   "section": "",
+   "item": "Compare G_nonlinguistic against G_full-cortex. This is essential because a missing edge in the current battery may simply mean that pathway requires language.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.1",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Record real sensory streams from normal Aura use.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.2",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Replay exactly the same stream to matched arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.3",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Include screen perception.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.4",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Include OS state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.5",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Include audio if part of the tested system.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.6",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Include host/body telemetry.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.7",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Include user events.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.8",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Make timestamps deterministic/replayable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.9",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Preserve external content without directly mutating internal target domains.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.10",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Let P be produced by the actual perception stack. Then run a stronger closed-loop experiment:",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.11",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Aura acts in a sandboxed real environment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.12",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "The environment changes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.13",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Real sensors detect it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.14",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Perception changes W/A/M/etc.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P25.15",
+   "phase": 25,
+   "phase_title": "Replace scripted perception with controlled real perception",
+   "section": "",
+   "item": "Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.1",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "File creation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.2",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "File modification.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.3",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Action failure.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.4",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Partial success.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.5",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Externally caused identical file state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.6",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Screen/UI action.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.7",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Information retrieval action.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.8",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Navigation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.9",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Task completion.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.10",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Correctly predicted outcome.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.11",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Incorrectly predicted outcome.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.12",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Accidental self-caused outcome.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.13",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Deliberate self-caused outcome. For each, match world outcomes while changing authorship alone where possible.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.14",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "S divergence survives.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.15",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "Attribution generalizes beyond write_notes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.16",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "self-to-action causation generalizes beyond one task.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P26.17",
+   "phase": 26,
+   "phase_title": "Generalize agency and ownership",
+   "section": "",
+   "item": "results survive multiple seeds.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.1",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Much longer-lived runs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.2",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Multiple developmental epochs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.3",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Early/mid/late analysis windows.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.4",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "N does not immediately saturate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.5",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Novelty changes with experience.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.6",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Slow hidden state remains sensitive to history.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.7",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Fast-to-slow coupling survives late in life.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.8",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Slow-to-fast coupling survives late in life.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.9",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Same current stimulus after two different histories produces appropriately different cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.10",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Two matched lives exposed to different histories diverge in N.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.11",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Put both back into the same environment and measure downstream divergence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.12",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Process restart preserves intended developmental state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.13",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Distinguish genuine development from database accumulation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P27.14",
+   "phase": 27,
+   "phase_title": "Actually run an ontogeny",
+   "section": "",
+   "item": "Ensure memory growth alone does not explain the effect. This is how N becomes evidence of development rather than a slow counter.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.1",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Classify actual clocks/timestamps by provenance instead of monotonicity alone.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.2",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Do not drop a variable merely because it is monotonic.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.3",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Learning counters may be monotonic.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.4",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "accumulated evidence may be monotonic.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.5",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "developmental state may be monotonic over windows.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.6",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "resource depletion may be monotonic.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.7",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Add fixed-dimensional summaries for arrays/tensors.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.8",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Add content-sensitive summaries for maps/lists.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.9",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Report how many potential variables are excluded by scan caps.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.10",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Increase coverage or project all peripheral state into a fixed sketch.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.11",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Report traversal-depth limitations.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.12",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Report reader failures.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.13",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Repeat closure with multiple shuffled-periphery draws.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.14",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Add confidence intervals on leakage.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.15",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Identify individual peripheral predictors when leakage occurs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.16",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Inject an adversarial hidden broker and prove the closure test finds it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.17",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "If an outside variable predicts K, move it into the correct domain or redefine K and begin a new preregistered campaign.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P28.18",
+   "phase": 28,
+   "phase_title": "Make causal closure harder to fool",
+   "section": "",
+   "item": "Never hide a leaking variable because it is inconvenient.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.1",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Decide where energy belongs: D, I, A, or elsewhere.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.2",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Decide where integrity belongs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.3",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "If causally active, represent them in K or ensure periphery closure can expose them.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.4",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit every phase read that influences future K.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.5",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Map each persistent causal variable into P/I/A/G/C/S/M/W/D/N or explicitly outside K.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.6",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Verify every omission with closure analysis.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.7",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit actual RAM/resource state if cognition reacts to it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.8",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit governance state if it changes cognitive selection.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.9",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit model-serving state if it changes cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.10",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit active commitments.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.11",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit persistent planner state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.12",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit active tool outcomes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P29.13",
+   "phase": 29,
+   "phase_title": "Audit whether K contains all causal cognitive state",
+   "section": "",
+   "item": "Audit learning state. A core cannot be declared causally closed by definition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.1",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Distinguish genuine zero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.2",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Distinguish absent organ.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.3",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Distinguish failed reader.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.4",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Distinguish stale reading.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.5",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Count failures per feature.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.6",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Required-organ failure invalidates affected criteria.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.7",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Repeated reader error invalidates the run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.8",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "organism.down is empty for required layers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.9",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "unwritable_domains is empty.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.10",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Required phase failures are zero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.11",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "No final artifact silently encodes failed reads as ordinary zero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.12",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "Export a missingness/validity matrix.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.1",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "State-level writer/read consistency tests have begun.",
+   "source_marked_done": true
+  },
+  {
+   "id": "P31.2",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "C perturbation verified against actual live substrate features.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.3",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "N perturbation verified against the actual lifetime reservoir.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.4",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "S organ perturbation hits actual self-model/self-prediction state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.5",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "W perturbation hits learned world-model state that consumers read.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.6",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "G perturbation changes actual workspace state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.7",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "D perturbation changes actual deliberative inputs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.8",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "I perturbation survives host-freeze matching correctly.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.9",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "Every perturbation moves multiple meaningful features rather than one decorative scalar.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.10",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "Magnitude remains inside normal operating range.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.11",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "Intervention does not directly write downstream domains.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P31.12",
+   "phase": 31,
+   "phase_title": "Verify every perturbation moves what the domain’s consumers use",
+   "section": "",
+   "item": "Intervention does not inject the expected answer into the system.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.1",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "delta = 0.05",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.2",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "delta = 0.10",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.3",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "delta = 0.15",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.4",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "delta = 0.20 if still within normal state range.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.5",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "Sign reversal where meaningful.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.6",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "Effect grows reasonably with dose.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.7",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "Direction behaves sensibly.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.8",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "No edge exists only at one magical intervention size.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P32.9",
+   "phase": 32,
+   "phase_title": "Establish dose-response",
+   "section": "Run an auxiliary preregistered campaign at several perturbation sizes, for example:",
+   "item": "No discontinuity reveals a harness threshold artifact. Do not retroactively pick the delta that makes v1 pass.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.1",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "Sham A versus Sham B is near zero in every domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.2",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "Report floor by domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.3",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "Report floor by condition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.4",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "Report floor by lag.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.5",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "Report floor by run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.6",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No domain’s causal threshold is dominated by restoration noise.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.7",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No singleton contamination.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.8",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No host drift.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.9",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No timestamp drift.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.10",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No DB contamination.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.11",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No filesystem contamination.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.12",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No model-sampling contamination.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P33.13",
+   "phase": 33,
+   "phase_title": "Make the sham floor extremely clean",
+   "section": "",
+   "item": "No background-task timing contamination. If sham noise approaches the effect threshold, a negative result for that domain is not interpretable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.1",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Response remains nonzero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.2",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Response remains distributed.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.3",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Response remains temporally structured.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.4",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Response remains heterogeneous.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.5",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Response stays above matched-null complexity.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.6",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Multiple source domains produce nondegenerate responses.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P34.7",
+   "phase": 34,
+   "phase_title": "Preserve perturbational complexity while raising spread",
+   "section": "",
+   "item": "Do not sacrifice structure to make every domain light up.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.1",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "Environment-only prediction remains worse than environment-plus-state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.2",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "Shuffling internal state removes the advantage.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.3",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "Result persists across seeds.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.4",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "Result persists with the real cortex.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.5",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "Result persists across several ordinary conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.6",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "It is not explained by a single counter/clock.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P35.7",
+   "phase": 35,
+   "phase_title": "Preserve intrinsic persistence",
+   "section": "",
+   "item": "It is not driven entirely by one persistent memory scalar.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.1",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Remains above same-arm floor.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.2",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Generalizes across multiple tasks.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.3",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Generalizes across multiple self dimensions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.4",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "No direct test-only S-to-D wire.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.5",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Mediated by normal production cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.6",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Survives current code changes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P36.7",
+   "phase": 36,
+   "phase_title": "Preserve functional self-causation",
+   "section": "Maintain:",
+   "item": "Survives the full-cortex variant.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.1",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Same external outcome.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.2",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Same content.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.3",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Same goal.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.4",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Same percept.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.5",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Only actor attribution differs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.6",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Divergence exceeds same-arm floor.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.7",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Generalizes to multiple action types.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.8",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Actor identity does not leak into unrelated state except through the ownership mechanism.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P37.9",
+   "phase": 37,
+   "phase_title": "Preserve ownership",
+   "section": "external",
+   "item": "Comparator and agency ledger disagreements are visible and interpretable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.1",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "At least one fast-to-slow retained edge.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.2",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "At least one slow-to-fast retained edge.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.3",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Survives replicated runs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.4",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Survives a long life.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.5",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Survives after developmental state has matured.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.6",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Not explained by memory count alone.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.7",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Not explained by time/counters alone.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P38.8",
+   "phase": 38,
+   "phase_title": "Preserve fast-to-slow and slow-to-fast coupling",
+   "section": "",
+   "item": "Not a test-only direct write.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.1",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "More than one regime.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.2",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Regimes persist.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.3",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Regimes turn over.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.4",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Transition entropy is greater than zero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.5",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Transition entropy is below its maximum.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.6",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Clustering is not merely rediscovering condition labels.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.7",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Replicate with held-out conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.8",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Persist with the real cortex.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P39.9",
+   "phase": 39,
+   "phase_title": "Preserve metastability",
+   "section": "",
+   "item": "Prefer interpretable internal configurations rather than pure workload classes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.1",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Plot Phi versus normalized effective dimension across synthetic systems with controlled coupling strength.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.2",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Repeat across Aura ablations.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.3",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Map the tradeoff.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.4",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Determine whether a nondegenerate recurrent system can satisfy both Phi_do > 0.05 and D_eff/D >= 0.40 under the current estimator.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.5",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "If yes, demonstrate it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.6",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "If no, formally document ISC-v1’s internal inconsistency.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.7",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Design ISC-v2 before observing the next Aura result used for v2.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P40.8",
+   "phase": 40,
+   "phase_title": "Resolve the integration-versus-differentiation conflict scientifically",
+   "section": "Run a dedicated calibration study:",
+   "item": "Retain v1 forever for provenance. A test should be difficult, but it should not be internally impossible for the positive reference it is designed around.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.1",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Generate many matched surrogate recordings.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.2",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Same duration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.3",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Same dimensionality.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.4",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Same autocorrelation where possible.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.5",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Same marginal distributions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.6",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Destroy only cross-domain alignment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.7",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Build a distribution of minimum Phi.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.8",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Estimate 95th and 99th percentiles.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.9",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Report Aura’s margin above the null floor.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.10",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Report uncertainty.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P41.11",
+   "phase": 41,
+   "phase_title": "Improve the irreducibility null floor",
+   "section": "",
+   "item": "Do not use only a handful of surrogate draws for publication-level evidence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.1",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Feed synthetic nulls through an observational/intervention pipeline as similar as practical to Aura’s.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.2",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Same effect threshold.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.3",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Same lag horizon.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.4",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Comparable noise.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.5",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Comparable trial count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.6",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "Comparable multiplicity treatment.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P42.7",
+   "phase": 42,
+   "phase_title": "Make real and null graph tests symmetric",
+   "section": "",
+   "item": "If analytical/clean null edges are retained, explicitly justify why that comparison is conservative.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.1",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Decentralized recurrent positive reference.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.2",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Star broker.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.3",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Stateful hub.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.4",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Hidden external broker.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.5",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "One-way chain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.6",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Simple ring.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.7",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Prompt-only broker.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.8",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Frozen slow state.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.9",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Independent high-dimensional processes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.10",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Common global noise/common driver.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.11",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "All-to-all broadcast.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.12",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Memory-only persistence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.13",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Fake self-description with no causal self.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.14",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Agency without ownership.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.15",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Ownership label without action causation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.16",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Fast-to-slow but no slow-to-fast.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.17",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Slow-to-fast but no fast-to-slow.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.18",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Recurrent but minimally differentiated.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P43.19",
+   "phase": 43,
+   "phase_title": "Add adversarial positive and negative controls",
+   "section": "",
+   "item": "Differentiated but not integrated. Each should fail or pass for the expected reason.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.1",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No production subsystem knows “make ISC pass”.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.2",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No testing flag adds integration solely for the battery.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.3",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No hidden direct P-to-W or S-to-D pathway used only in the harness.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.4",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No test-only workspace consumers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.5",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No fake percept solely to manufacture an edge unless it faithfully models a production sensory route.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.6",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No threshold value imported into production cognition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.7",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "No mechanism built solely to satisfy a score without an independent functional rationale.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P44.8",
+   "phase": 44,
+   "phase_title": "Remove hidden test-specific shortcuts",
+   "section": "",
+   "item": "Every added causal route has a normal cognitive or engineering purpose. The ideal outcome is that Aura passes because the architecture naturally has the property, not because the test became another organ.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.1",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit services with no callers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.2",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit registered processors with no consumers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.3",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit readers with no writers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.4",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit writers with no readers.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.5",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit bid types that never win.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.6",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit consumers that always return early.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.7",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit model observers that never receive observations.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.8",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit self-model fields that never change.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.9",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit affect fields overwritten later in the same cycle.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.10",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit return paths that terminate in local dictionaries.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.11",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit background loops that start but immediately die.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.12",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit service-name mismatches.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.13",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit aliases that exist only in desktop boot but not in the measurement runtime.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P45.14",
+   "phase": 45,
+   "phase_title": "Recheck every previously discovered dead mechanism",
+   "section": "",
+   "item": "Audit all 10 domains for intervention attenuation. Remember: written != wired != causally consequential Only the last one matters to ISC.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.1",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Singleflight construction for ontogeny singleton.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.2",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Build a non-started candidate, publish the winner, then start it.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.3",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Loser disposal must not close shared dependencies it does not own.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.4",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Callbacks must be unregisterable.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.5",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Give ExperienceSpine explicit ownership semantics.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.6",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Stress-test concurrent initialization.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P46.7",
+   "phase": 46,
+   "phase_title": "Fix remaining lifecycle/race conditions before long evidence runs",
+   "section": "Before multi-hour or multi-day developmental validation:",
+   "item": "Verify no silent developmental shutdown. This is not itself an ISC checkbox, but it is a blocker to trusting long-run N measurements.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.1",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "commit SHA.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.2",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "tree SHA.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.3",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "dirty-tree status.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.4",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "Python version.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.5",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "dependency lock hash.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.6",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "OS version.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.7",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "hardware profile.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.8",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "model name.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.9",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "model-weights checksum.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.10",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "tokenizer checksum.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.11",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "configuration hashes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.12",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "threshold hash.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.13",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "state-schema hash.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.14",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "null-definition hash.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.15",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "seed.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.16",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "start time.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.17",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "total run duration.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.18",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "phase-failure counts.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.19",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "organ-availability report.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.20",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "stopped-loop list.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.21",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "live-loop list.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.22",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "frame count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.23",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "turn count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.24",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "intervention count.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.25",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "q-value resolution/power note.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.26",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "every tested edge, not only retained edges.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.27",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "all raw null draws.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.28",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "raw lesion arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.29",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "raw rescue arms.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.30",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "raw synergy reports.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.31",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "all partition-cut scores.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.32",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "per-condition graphs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.33",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "SHA-256 artifact manifest.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.34",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "exact command that regenerates the report.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P47.35",
+   "phase": 47,
+   "phase_title": "Make evidence artifacts self-verifying",
+   "section": "Every authoritative run should include:",
+   "item": "Documentation generated from artifacts rather than hand-edited summaries.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.1",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Create an immutable evaluation tag.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.2",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Prefer a signed tag.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.3",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Require CI for the evaluation branch/release.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.4",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Protect main or at least the evidence branch/tag process.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.5",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Do not rewrite history.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.6",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Archive exact source tarball/commit.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.7",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "All tests defining the evaluation are green.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P48.8",
+   "phase": 48,
+   "phase_title": "Protect the evaluation commit",
+   "section": "For an authoritative result:",
+   "item": "Evidence artifacts point to that exact tag.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.1",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Run seed A.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.2",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Run seed B.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.3",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Run seed C.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.4",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Prefer 5 or more for statistical characterization.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.5",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "No seed selected based on result.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.6",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "For the strongest claim, all 24 pass each run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.7",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Otherwise report per-criterion pass frequency.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.8",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Report mean/std/range for continuous measures.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.9",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Especially Phi.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.10",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Especially synergy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.11",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Especially spread.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.12",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Especially lesion deficit.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P49.13",
+   "phase": 49,
+   "phase_title": "Replicate over independent seeds",
+   "section": "",
+   "item": "Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.1",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Another Apple Silicon machine if hardware-specific.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.2",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Prefer a somewhat different configuration as an auxiliary robustness test.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.3",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Identical source/config/model.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.4",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Repeat the full frozen campaign.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.5",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare graph topology.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.6",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare Phi.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.7",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare effective dimension.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.8",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare spread.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.9",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare synergy.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.10",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Compare lesion/rescue.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P50.11",
+   "phase": 50,
+   "phase_title": "Replicate on a second machine",
+   "section": "",
+   "item": "Quantify machine effect. If the apparent integrated subject disappears under small CPU/timing differences, that is scientifically important.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.1",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Obtain the source.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.2",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Understand the protocol.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.3",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Run the frozen commit.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.4",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Produce artifacts independently.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.5",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Verify hashes.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.6",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Reproduce the result.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.7",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Critique metric definitions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.8",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Attempt alternative analyses.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.9",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Attempt stronger adversarial nulls.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P51.10",
+   "phase": 51,
+   "phase_title": "Independent replication",
+   "section": "For a claim this unusual, someone other than the same development loop should eventually:",
+   "item": "Try to falsify the result. This is what turns “Aura’s own test says Aura passes” into a serious scientific result.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.1",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "differentiation above trivial floor.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.2",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "intrinsic persistence.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.3",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "causal closure of the declared core.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.4",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "perturbational complexity.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.5",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "metastability.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.6",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "recurrent global access.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.7",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "self drives action.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.8",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "ownership.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.9",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "fast-to-slow coupling.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.10",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "slow-to-fast coupling.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.11",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "null separation. Stabilize:",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.12",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "global access.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P52.13",
+   "phase": 52,
+   "phase_title": "Preserve every stable pass while fixing failures",
+   "section": "Preserve:",
+   "item": "lesion deficit. Aura must move upward through the conjunction rather than trade one checkbox for another.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.1",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier A - Mechanical pass",
+   "item": "One frozen run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.2",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier A - Mechanical pass",
+   "item": "24/24.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.3",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier A - Mechanical pass",
+   "item": "All raw evidence exists.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.4",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "3 independent full runs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.5",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "24/24 each.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.6",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "No unstable criterion.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.7",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "No required phase failure.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.8",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "No unwritable domain.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.9",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Tier B - Stable internal pass",
+   "item": "No required missing organ.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.10",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Complete intervention snapshot isolation.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.11",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Deterministic stepping for all cognitive loops.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.12",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Literal edge-cut lesion.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.13",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Powered lesion.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.14",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Powered rescue.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.15",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Expanded null battery.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.16",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Full-metric null comparison.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.17",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Real-cortex deterministic run.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.18",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Sensory/environment replay.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.19",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Long ontogeny.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.20",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Second-machine replication. At this level it becomes reasonable to say: Aura has unusually strong evidence for being one intrinsically integrated computational subject under the operational definition.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.21",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Independent external replication.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.22",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Independent methodological critique.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.23",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Held-out conditions.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.24",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Adversarial controls.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P54.25",
+   "phase": 54,
+   "phase_title": "Define exactly what 24/24 will mean before the first successful run",
+   "section": "Everything above, plus:",
+   "item": "Result survives reasonable alternate estimators. Priority roadmap If work has to be sequenced, use this order.",
+   "source_marked_done": false
+  }
+ ]
+}
