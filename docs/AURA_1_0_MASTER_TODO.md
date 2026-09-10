@@ -382,6 +382,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   183 focused tests pass. Live reconnect exposed a separate empty-pane-only
   hydration defect: an in-flight question did not receive its completed answer
   until reload. See [dialogue budget custody](evidence/R09_DIALOGUE_BUDGET_CUSTODY_2026-09-09.md).
+  UPDATE 2026-09-09: passive-window reconciliation now retains durable exchange
+  IDs and inserts a completed answer beside its restored question without
+  replaying the pane. Sixteen focused tests pass; live replay is pending. See
+  [pending-window reconciliation](evidence/R09_PENDING_WINDOW_RECONCILIATION_2026-09-09.md).
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is
