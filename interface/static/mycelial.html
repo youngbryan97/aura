@@ -295,7 +295,9 @@
 <body>
     <div class="overlay">
         <div class="title">AURA: INFINITY</div>
-        <div class="zenith-tag">Aura Zenith v2026.4.20-Zenith</div>
+        <!-- The app is Aura; "Zenith" is the release label, and saying it in the
+             name as well as the version said it twice. -->
+        <div class="zenith-tag">Aura v2026.4.20-Zenith</div>
         
         <div class="telemetry-block">
             <div class="telemetry-row"><span class="telemetry-label">AGENCY</span><span class="telemetry-value telemetry-highlight" id="hud-agency">0%</span></div>
@@ -307,17 +309,17 @@
         </div>
     </div>
 
-    <div id="loading" class="loading">SYNCING NEURAL CONNECTOME...</div>
+    <div id="loading" class="loading">READING HER NETWORK...</div>
 
     <div class="stats-hud">
-        <div class="stat-row"><span class="stat-label">NODES</span><span id="stat-nodes" class="stat-value">0</span></div>
-        <div class="stat-row"><span class="stat-label">HYPHAE</span><span id="stat-edges" class="stat-value">0</span></div>
-        <div class="stat-row"><span class="stat-label">PATHWAYS</span><span id="stat-pathways" class="stat-value">0</span></div>
-        <div class="stat-row"><span class="stat-label">COHESION</span><span id="stat-cohesion" class="stat-value">0.00</span></div>
-        <div class="stat-row"><span class="stat-label">LATENCY</span><span id="stat-latency" class="stat-value">0ms</span></div>
+        <div class="stat-row" title="Everything in the network: the parts of her, and the direct routes between a phrase and a tool."><span class="stat-label">THINGS IN HERE</span><span id="stat-nodes" class="stat-value">0</span></div>
+        <div class="stat-row" title="Connections between them. The first number is how many are drawn; the second is how many exist."><span class="stat-label">CONNECTIONS</span><span id="stat-edges" class="stat-value">0</span></div>
+        <div class="stat-row" title="Shortcuts: a phrase that goes straight to a tool without being classified first."><span class="stat-label">DIRECT ROUTES</span><span id="stat-pathways" class="stat-value">0</span></div>
+        <div class="stat-row" title="Of the connections that exist, how many are still as strong as when they formed. 1.00 means none have weakened."><span class="stat-label">STILL STRONG</span><span id="stat-cohesion" class="stat-value">0.00</span></div>
+        <div class="stat-row" title="How long this picture took to assemble."><span class="stat-label">TOOK</span><span id="stat-latency" class="stat-value">0ms</span></div>
     </div>
 
-    <div class="graph-controls" aria-label="Soul map controls">
+    <div class="graph-controls" aria-label="Map controls">
         <button class="graph-control" id="soul-zoom-in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
         <button class="graph-control" id="soul-zoom-out" type="button" title="Zoom out" aria-label="Zoom out">−</button>
         <button class="graph-control" id="soul-fit" type="button" title="Fit graph" aria-label="Fit graph">⤢</button>
@@ -494,9 +496,9 @@
                 </div>
                 <p class="hover-desc">${escapeHtml(node.description || 'No neural profile available for this node.')}</p>
                 <div class="hover-meta">
-                    <div><span>Degree</span><strong>${escapeHtml(node.degree ?? 0)}</strong></div>
-                    <div><span>Centrality</span><strong>${escapeHtml(node.centrality ?? 0)}</strong></div>
-                    <div><span>Confidence</span><strong>${Math.round(clamp(Number(node.confidence ?? 0), 0, 1) * 100)}%</strong></div>
+                    <div><span>Connected to</span><strong>${escapeHtml(node.degree ?? 0)}</strong></div>
+                    <div><span>Traffic through it</span><strong>${escapeHtml(node.centrality ?? 0)}</strong></div>
+                    <div><span>How sure of it</span><strong>${Math.round(clamp(Number(node.confidence ?? 0), 0, 1) * 100)}%</strong></div>
                 </div>`;
             hoverCard.classList.add('visible');
             hoverCard.setAttribute('aria-hidden', 'false');
@@ -825,7 +827,7 @@
                     }
                     document.getElementById('loading').style.display = 'none';
                 } else {
-                    document.getElementById('loading').textContent = 'SOUL STATE: TRANSCENDENTAL (IDLE)';
+                    document.getElementById('loading').textContent = 'NOTHING CONNECTED YET';
                     document.getElementById('loading').style.display = 'block';
                 }
             } catch (err) {

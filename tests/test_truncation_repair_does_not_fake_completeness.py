@@ -86,13 +86,9 @@ class TestNoFabricatedCompleteness:
         last_word = repaired.rstrip(".").split()[-1].lower()
         assert last_word not in _DANGLING_TAIL_WORDS, repaired
 
-    def test_a_fragment_with_no_boundary_still_terminates(self):
-        """A single unterminated sentence has no earlier boundary to fall
-        back to; a period is then the least-bad option, not a disguise."""
-        repaired = complete_truncated_tail(
-            "This is a single sentence that never got its terminator",
-        )
-        assert repaired.endswith(".")
+    def test_absent_punctuation_alone_does_not_authorize_rewriting_short_prose(self):
+        text = "This is a single sentence that never got its terminator"
+        assert complete_truncated_tail(text) == text
 
 
 class TestWholeRepliesAreUntouched:

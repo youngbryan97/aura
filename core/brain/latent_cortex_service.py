@@ -1034,7 +1034,7 @@ class LatentCortexService:
         allocation_profile = "general_full_stack_v1"
         if foreground_request and model_parameter_count >= 20_000_000_000:
             # Interactive resident-scale profile: every production mechanism
-            # remains causal, but the 32B lane receives a bounded amount of
+            # remains causal, but the cortex lane receives a bounded amount of
             # virtual width and optimizer work instead of a small-model lab
             # schedule that cannot meet the desktop deadline.
             allocation_profile = "resident_32b_interactive_full_stack_v2"
@@ -4055,7 +4055,12 @@ class LatentCortexService:
                     value if isinstance(value, (int, float, bool)) or value is None
                     else str(value)[:400]
                 )
-        return {"ok": False, "reason": self._last_refusal, "refusal_receipt": receipt}
+        return {
+            "ok": False,
+            "reason": self._last_refusal,
+            "receipt": receipt,
+            "refusal_receipt": receipt,
+        }
 
     def foreground_admission(self) -> dict[str, Any]:
         """Return whether the unchanged general foreground path can succeed.
@@ -5355,6 +5360,16 @@ class LatentCortexService:
                     )
                     if samples > 0 and measured_s > 0.0:
                         required_wall_clock_s = float(measured_s)
+                    else:
+                        from core.brain.llm.generation_allowance import resident_generation_seconds
+
+                        live_seconds = resident_generation_seconds(
+                            messages or [{"role": "user", "content": question}],
+                            target_decode_tokens,
+                            private_tokens_included=True,
+                        )
+                        if live_seconds > 0.0:
+                            required_wall_clock_s = live_seconds
                     self._last_allocation[
                         "answer_surface_wall_clock_samples"
                     ] = int(samples)
@@ -5396,7 +5411,13 @@ class LatentCortexService:
                     self._last_allocation["config"] = dict(config)
                     self._last_allocation["budget"] = dict(budget)
                     return self._record_failure(
-                        "answer_surface_unaffordable_before_execution"
+                        "answer_surface_unaffordable_before_execution",
+                        stage="answer_surface_admission",
+                        evidence={
+                            key: value
+                            for key, value in self._last_allocation.items()
+                            if key.startswith("answer_surface_")
+                        },
                     )
         if require_full_stack:
             config["latent_opt"] = True

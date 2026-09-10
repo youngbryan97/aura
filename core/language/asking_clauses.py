@@ -64,7 +64,17 @@ _PRODUCING = re.compile(
     r"^\s*(?:please\s+)?(?:put\s+together|write|make|build|draft|prepare|"
     r"produce|create|assemble|knock\s+up|throw\s+together|sketch|outline|"
     r"summari[sz]e|sum|count|compare|work\s+out|figure\s+out|look\s+up|"
-    r"find|check|fix|diagnose|run|open|send)\b",
+    # "Present the numbers" asks for something to be made as much as "write"
+    # does. Its absence is what let the live defect through: a deck came back
+    # titled "Present you funding panel minutes six" — the request's own words
+    # in the order the model found them — and the title extractor asked this
+    # floor whether that read as an ask, and it said no.
+    r"present|find|check|fix|diagnose|run|open|send)"
+    # A space after the verb, not a word boundary. `\b` matches before a
+    # hyphen, so "Make-or-Buy Analysis" and "Write-Down Policy" opened with an
+    # imperative as far as this was concerned. They are compound nouns and the
+    # hyphen is what says so. End-of-string still counts: "Compare." is an ask.
+    r"(?=\s|$)",
     re.IGNORECASE,
 )
 
@@ -138,6 +148,9 @@ def _clause_asks(piece: str, *, settled: bool) -> bool:
         try:
             surface.observe(piece, holds=True)
         except (RuntimeError, TypeError, ValueError):
+            # Teaching the surface is a side effect of answering, never the
+            # answer. The floor already decided this clause asks, and it is
+            # right whether or not the learned surface could record it.
             pass
         return True
     try:

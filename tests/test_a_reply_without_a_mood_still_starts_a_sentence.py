@@ -33,6 +33,13 @@ def test_nothing_to_say_says_nothing():
 
 def test_every_degraded_reply_goes_through_it():
     """Seven of them, all written as continuations."""
+    # Where the block lives now, not where it was written.
+    #
+    # This read `interface.routes.chat`, and the mood prefix moved to
+    # `chat_lane_bookkeeping` when that module was split out — so the test
+    # failed with `ValueError: substring not found`, which says nothing about
+    # moods and sends the reader to the wrong file. The owning module is asked
+    # of the function itself, so the next split does not break this again.
     import importlib
 
     from interface.routes import chat

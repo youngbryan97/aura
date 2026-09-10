@@ -1022,7 +1022,8 @@ def test_identity_service_save_uses_internal_governance(monkeypatch, tmp_path):
     assert payload["values"] == ["test value"]
 
 
-def test_phenomenological_experiencer_persistence_uses_internal_governance(monkeypatch, tmp_path):
+@pytest.mark.asyncio
+async def test_phenomenological_experiencer_persistence_uses_internal_governance(monkeypatch, tmp_path):
     from core.consciousness.phenomenological_experiencer import PhenomenologicalExperiencer
 
     monkeypatch.setenv("AURA_GOVERNANCE_MODE", "strict")
@@ -1047,8 +1048,8 @@ def test_phenomenological_experiencer_persistence_uses_internal_governance(monke
         },
     )
 
-    experiencer._persist_phenomenal_moment("governed archive write")
-    experiencer._save_phenomenal_memory()
+    await experiencer._persist_phenomenal_moment("governed archive write")
+    await asyncio.to_thread(experiencer._save_phenomenal_memory)
 
     archive = (tmp_path / "phenomenal_archive.jsonl").read_text(encoding="utf-8")
     memory = json.loads((tmp_path / "phenomenal_memory.json").read_text(encoding="utf-8"))

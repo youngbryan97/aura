@@ -21,7 +21,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-__all__ = ["named_paths", "first_existing_path", "trim_sentence_punctuation"]
+__all__ = [
+    "first_existing_path",
+    "named_paths",
+    "points_at_a_file",
+    "trim_sentence_punctuation",
+]
 
 #: A path-looking span. Deliberately generous: what it captures is trimmed and
 #: then tested against the disk, so a false capture costs a stat call.
@@ -70,3 +75,52 @@ def first_existing_path(text: object) -> Path | None:
         except (OSError, ValueError):
             continue
     return None
+
+
+#: A file being pointed AT, rather than the word for one appearing.
+#:
+#: The role is what makes it a reference: an article or a possessive in front
+#: of the noun, a preposition placing something in it, or a verb that acts on
+#: one. "the file", "my config", "in the log", "read the document".
+#:
+#: Without the role it is just a word. `core/conversation/filesystem_check.py`
+#: matched the bare noun, so "what file format do you use?" and "my source of
+#: truth" both said an unresolved dotted token nearby was a filename. That is
+#: the failure this repository has recorded a hundred and thirteen times and
+#: formed into a constraint: a token is not a decision.
+_A_FILE_NOUN = (
+    r"file|path|document|spreadsheet|workbook|script|source|readme|"
+    r"configuration|config|log"
+)
+_POINTS_AT_ONE = re.compile(
+    r"(?:"
+    # Determined or possessed, with room for an adjective or two.
+    r"\b(?:the|a|an|this|that|these|those|my|your|our|its|his|her|their)\s+"
+    r"(?:[\w-]+\s+){0,2}"
+    # Or placed somewhere.
+    r"|\b(?:in|at|from|into|inside|within)\s+(?:the\s+|a\s+|an\s+|my\s+|your\s+)?"
+    r"(?:[\w-]+\s+){0,1}"
+    # Or acted on.
+    r"|\b(?:read|open|write|edit|check|show|load|save|delete|create|find|"
+    r"list|inspect|parse)\s+(?:the\s+|a\s+|an\s+|my\s+|your\s+)?"
+    r"(?:[\w-]+\s+){0,1}"
+    r")"
+    rf"(?:{_A_FILE_NOUN})s?\b",
+    re.IGNORECASE,
+)
+
+
+def points_at_a_file(text: object) -> bool:
+    """Whether this message points at a file, by a path or by role.
+
+    True when it names an actual path, and true when it refers to one the way
+    people do — "the file", "my config", "read the document". False when a
+    file word merely occurs, which is what "what file format do you use?" is.
+    """
+
+    body = str(text or "")
+    if not body.strip():
+        return False
+    if named_paths(body):
+        return True
+    return bool(_POINTS_AT_ONE.search(body))

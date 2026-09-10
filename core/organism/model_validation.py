@@ -48,6 +48,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Validation")
 
@@ -553,7 +554,7 @@ class Claim:
 
 class ValidationSuite:
     def __init__(self) -> None:
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.organism.model_validation._lock", reentrant=True)
         self._tests: dict[str, ValidationTest] = {}
         self._claims: dict[str, Claim] = {}
         self._models: dict[str, Model] = {}

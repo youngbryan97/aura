@@ -7,6 +7,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any, NamedTuple
 
+from core.brain.llm.context_budget import split_on_volatility
+
 logger = logging.getLogger("Aura.ChatFormat")
 
 _ROLE_ALIASES = {
@@ -295,6 +297,72 @@ def normalize_runtime_evidence_for_template(
     return normalized
 
 
+#: What a chat template is entitled to see. Anything else is Aura's own
+#: vocabulary and has to be mapped before it reaches one.
+_WIRE_ROLES = frozenset({"system", "user", "assistant", "tool"})
+
+
+def _wire_roles(messages: object) -> object:
+    """Aura's role names, as the four a chat template understands.
+
+    ``_ROLE_ALIASES`` has held this mapping for a long time and only
+    ``_normalize_role`` read it, which is the ChatML assembler rather than the
+    render path — so "developer" and "model" reached templates that raise on
+    them. The typed evidence role passes through untouched; the adapter after
+    this one decides its wire role from what the template proves it can
+    distinguish.
+    """
+
+    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
+
+    if not isinstance(messages, (list, tuple)) or not messages:
+        return messages
+    prepared = list(messages)
+    changed = False
+    for index, message in enumerate(messages):
+        if not isinstance(message, Mapping):
+            continue
+        role = str(message.get("role") or "user").strip().lower()
+        if role in _WIRE_ROLES or role == RUNTIME_EVIDENCE_ROLE:
+            continue
+        converted = dict(message)
+        converted["role"] = _normalize_role(role)
+        prepared[index] = converted
+        changed = True
+    return prepared if changed else messages
+
+
+def for_this_template(tokenizer: object, messages: object) -> object:
+    """Aura's transcript in the roles this template has proved it accepts.
+
+    Three adaptations have to happen before a transcript reaches a chat
+    template, and every one of them exists because a template raised rather
+    than coped: one system block at the front, the typed evidence role mapped
+    to a wire role the template distinguishes, and tool arguments in the shape
+    the template iterates. They were written out together at four call sites
+    in this module and at none of the render sites outside it.
+
+    LIVE, 2026-09-07: the latent-cortex engine called ``system_first`` and then
+    rendered the result directly. ``system_first`` is where a second system
+    message BECOMES a ``runtime_evidence`` message, and the resident 27B's
+    template raises "Unexpected message role" on that role — so the one call
+    that prepared the transcript was also the one that made it unrenderable.
+    Warmup failed on every boot with ``warmup_readiness_no_text``, classified
+    foreground_blocking.
+
+    Call this instead of composing the three by hand.
+    ``tests/test_one_way_to_render_a_transcript.py`` fails when a render site
+    passes anything else.
+    """
+
+    return normalize_tool_transcript_for_template(
+        tokenizer,
+        normalize_runtime_evidence_for_template(
+            tokenizer, system_first(_wire_roles(messages))
+        ),
+    )
+
+
 def template_supports_thinking(tokenizer: object) -> bool:
     """Whether ``enable_thinking`` DEMONSTRABLY changes this template's output.
 
@@ -398,6 +466,19 @@ def _record_inert_thinking_flag(template: str) -> None:
 
 
 
+def _raw_role(message: object) -> str:
+    """The role as written, before any mapping onto a template's vocabulary.
+
+    `_message_role` answers "what will the template call this", which folds
+    "tool" into "user". Anything asking which message is the PERSON's needs
+    the role as written.
+    """
+
+    if isinstance(message, dict):
+        return str(message.get("role") or "").strip().lower()
+    return str(getattr(message, "role", "") or "").strip().lower()
+
+
 def _message_role(message: object) -> str:
     if isinstance(message, dict):
         return _normalize_role(message.get("role"))
@@ -454,7 +535,11 @@ def system_first(messages: object) -> object:
     """
     if not isinstance(messages, (list, tuple)) or not messages:
         return messages
-    from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, is_stamped_grounding
+    from core.utils.injected_blocks import (
+        RUNTIME_EVIDENCE_ROLE,
+        is_stamped_grounding,
+        stamp_grounding,
+    )
 
     prepared = list(messages)
     first_system_seen = False
@@ -497,13 +582,70 @@ def system_first(messages: object) -> object:
     first = system[0]
     canonical = dict(first) if isinstance(first, dict) else {}
     canonical["role"] = "system"
-    canonical["content"] = _merged_system_content(system)
+    merged = _merged_system_content(system)
+    canonical["content"] = merged
+
+    # Merging every authority message into one is what the chat templates
+    # require. Merging a PER-TURN section into it is what made the merged
+    # message a different token sequence on every turn, so a conversation
+    # could never reuse its own KV prefix. Measured live 2026-09-07: a stable
+    # head plus `## LIVE TONE` — mood and tone, new each turn — still gave
+    # `matched 0` of 1,866 tokens and 12.2s of prefill on a 16s turn.
+    #
+    # The volatility of each section is already declared. What governs this
+    # turn travels with this turn, immediately before the person's message,
+    # where it is still read and no longer costs the prefix.
+    tail = ""
+    if isinstance(merged, str):
+        head, tail = split_on_volatility(merged)
+        if tail:
+            canonical["content"] = head
     logger.info(
-        "Canonicalized %d authority message(s) at the front of a %d-message conversation.",
+        "Canonicalized %d authority message(s) at the front of a %d-message "
+        "conversation%s.",
         len(system),
         len(source),
+        f"; {len(tail)} chars of per-turn sections moved beside the turn" if tail else "",
     )
-    return [canonical, *rest]
+    if not tail:
+        return [canonical, *rest]
+
+    turn_state = stamp_grounding({
+        "role": "system",
+        "content": tail,
+        "metadata": {"type": "turn_state", "volatility": "per_turn"},
+    })
+    turn_state["role"] = RUNTIME_EVIDENCE_ROLE
+    insert_at = len(rest)
+    for index in range(len(rest) - 1, -1, -1):
+        # The RAW role, not the wire role. `_message_role` maps "tool" onto
+        # "user", which is right for a template that has no tool role and
+        # wrong for finding the person's turn: in a tool loop it found the
+        # last TOOL RESULT and anchored the per-turn block in front of it,
+        # between an assistant's call and the result of that call.
+        if _raw_role(rest[index]) == "user":
+            insert_at = index
+            break
+    # Before the person's message when that is the last thing said, and after
+    # everything when it is not.
+    #
+    # A tool loop appends an assistant call and a tool result per step, all of
+    # them AFTER the user's turn. Anchoring the per-turn block before that turn
+    # therefore puts a block that changes every step in front of everything the
+    # loop appends, so no step can reuse the step before it — on a model whose
+    # cache cannot be trimmed, that is a full re-prefill each time.
+    #
+    # LIVE, 2026-09-07: five steps reading one file, prefilling 3,735 then
+    # 5,166 then 6,611 then 8,056 then 9,502 tokens, 40s to 83s to first
+    # token, and the turn's 178.8-second budget gone.
+    #
+    # Last is still "immediately before the answer", which is what the
+    # placement is for. The plain case is unchanged: with nothing after the
+    # user's message, before it and at the end are the same place.
+    something_follows_the_turn = insert_at < len(rest) - 1
+    if something_follows_the_turn:
+        return [canonical, *rest, turn_state]
+    return [canonical, *rest[:insert_at], turn_state, *rest[insert_at:]]
 
 
 def render_chat_template(
@@ -530,13 +672,7 @@ def render_chat_template(
         kwargs["enable_thinking"] = bool(enable_thinking)
     return str(
         apply(
-            normalize_tool_transcript_for_template(
-                tokenizer,
-                normalize_runtime_evidence_for_template(
-                    tokenizer,
-                    system_first(messages),
-                ),
-            ),
+            for_this_template(tokenizer, messages),
             **kwargs,
         )
     )
@@ -670,10 +806,7 @@ def render_chat_append_template(
         shared_kwargs["enable_thinking"] = bool(enable_thinking)
 
     def _wire(value: object) -> object:
-        return normalize_tool_transcript_for_template(
-            tokenizer,
-            normalize_runtime_evidence_for_template(tokenizer, value),
-        )
+        return for_this_template(tokenizer, value)
 
     rendered_anchor = str(
         apply(
@@ -754,13 +887,7 @@ def render_chat_continuation_template(
     try:
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(
-                    tokenizer,
-                    normalize_runtime_evidence_for_template(
-                        tokenizer,
-                        system_first(messages),
-                    ),
-                ),
+                for_this_template(tokenizer, messages),
                 **kwargs,
             )
         )
@@ -774,13 +901,7 @@ def render_chat_continuation_template(
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
         rendered = str(
             apply(
-                normalize_tool_transcript_for_template(
-                    tokenizer,
-                    normalize_runtime_evidence_for_template(
-                        tokenizer,
-                        system_first(messages),
-                    ),
-                ),
+                for_this_template(tokenizer, messages),
                 **fallback_kwargs,
             )
         )
@@ -931,6 +1052,23 @@ def thinking_enabled_for_generation(
         model_name,
         cognitive_mode=cognitive_mode,
     )
+    if answer_is_derived_here and resolved is not True:
+        # The mode says how deep to think. It does not say WHERE.
+        #
+        # `fast` resolves to False, and on a turn whose answer is worked out
+        # in this call that does not buy a shorter turn — it moves the search
+        # out of the private channel and into the reply. LIVE, 2026-09-08:
+        # "Native thinking False (surface=True floor=1024 mode=fast)", and the
+        # visible draft began "We need answer user's question. Need", was
+        # rejected as an internal prompt leak, and the person was told the
+        # runtime could not get to an answer.
+        #
+        # Affordable to open because the channel is bounded now: it takes half
+        # of the same budget the answer is written from and the decoder closes
+        # it there (core/brain/llm/a_bounded_private_channel.py). Before that
+        # bound this branch would have been a way to spend a whole turn
+        # thinking, which is why it waited for one.
+        return True
     if answer_is_derived_here and resolved is None:
         # None means "whatever the artifact ships with", and every consumer
         # downstream reads ``native_thinking is True``. So an unresolved
@@ -969,27 +1107,40 @@ def answer_is_derived_for_generation(
     """
 
     try:
-        from core.brain.llm.thinking_reserve import (
-            proved_insufficient,
-            seconds_to_decode,
-        )
+        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         floor = int(completion_floor or 0)
         budget = int(budget_tokens or 0)
         remaining = float(seconds_remaining or 0.0)
-        proved = int(proved_insufficient(str(model_name or "")))
     except (ImportError, TypeError, ValueError):
         return False
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    if 0 < budget <= proved:
-        return False
-    if remaining > 0.0 and budget > 0:
-        needed = float(seconds_to_decode(budget, str(model_name or "")))
-        if 0.0 < remaining < needed:
-            return False
-    return True
+    # The same question the bound asks, asked by its one owner.
+    #
+    # These two decisions have to agree or the worst case happens: thinking
+    # switched on and no budget to bound it with. What the channel may take is
+    # the tokens the clock can decode in the time this turn has, less the room
+    # the answer needs — and zero is a real answer, meaning this turn cannot
+    # afford to think privately and nothing should open the channel.
+    #
+    # Two earlier versions of this question were unanswerable. It first
+    # compared the budget against the largest budget any generation had ever
+    # run out of while thinking — a number that only ever rose, standing at
+    # 6,322 for the 27B against turns budgeted at 512 to 1,345. Comparing
+    # against the measured cost instead was a deadlock: the answer clock added
+    # the reserve only once this returned True, and this returned False
+    # because the budget held no reserve.
+    return (
+        the_channel_budget_for(
+            max_tokens=budget,
+            seconds_left=remaining,
+            answer_floor=floor,
+            model=str(model_name or ""),
+        )
+        > 0
+    )
 
 
 class NativeThinkingChannels(NamedTuple):

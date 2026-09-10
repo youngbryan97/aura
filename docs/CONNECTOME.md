@@ -1,8 +1,42 @@
 # The connectome
 
-Aura has a map of her own nervous system. It is built from her source, it is
-recorded while she runs, and every number in it is compared against a published
-measurement from a real brain.
+## What this is, exactly
+
+**Aura's connectome is not a second neural network.** It is nothing you could
+run a forward pass through, and it holds no weights.
+
+`core/connectome/volume.py` reconstructs the computational anatomy of her source
+code. The mapping is:
+
+| in tissue | here |
+| --- | --- |
+| cell | a function or method |
+| neuropil | a module |
+| region | a package |
+| synaptic contact | one call site |
+| connection strength | how many call sites join the pair |
+| gating anatomy | the guards a call has to pass |
+
+Where a method call cannot be resolved to one definition, the edge is left out
+rather than guessed, and the count of what was left out is published beside
+everything else.
+
+So its first role is **software connectomics**: measuring the organism the code
+actually forms. That is worth having because an architecture document tells you
+what the people writing it intended, and this recovers what reaches what.
+
+Its second role is that some of it reaches runtime behaviour. Warming is driven
+by it. Decision bounds in draft selection are set from laminar and
+neuromodulatory measurements taken through it. The criticality regulator steers
+on a branching ratio it computes. Gates and telemetry are registered. And since
+[the anatomical law](#the-shape-of-the-system-refuses), a change that leaves the
+system worse built past what its blast radius allows is refused rather than
+recorded — which is the difference between a diagnosis and a constitution.
+
+What it is compared against is real brains: H01 human cortex, the fly central
+nervous system, MICrONS, the cortical microcircuit, and a meta-analysis of 163
+human reading studies. Those comparisons are of shape and proportion. Nothing
+here claims her modules are cortex.
 
 This document says what the map is, what it found, and how to rebuild it.
 
@@ -26,7 +60,32 @@ A published measurement to compare against. H01 reconstructed a cubic millimetre
 of human temporal cortex — 57,000 cells, 150 million synapses, 1.4 petabytes —
 and the numbers that came out of it are numbers Aura can be held to.
 
-## The three layers
+## A call count is not a weight
+
+Two components can be causally coupled without ever calling each other, and one
+function can call another ten thousand times while using nothing it returns. The
+reconstruction counts call sites, which is the right weight for control and the
+wrong one for information, so the same edges carry a second weight: what happens
+to what comes back.
+
+Six outcomes, worked out by a def-use walk inside each function. Over 420,178
+call sites:
+
+| what became of the value | share |
+| --- | --- |
+| used locally | 42.3% |
+| decided the caller's control flow | 23.7% |
+| returned onward | 15.9% |
+| discarded | 11.8% |
+| logged and stopped | 4.6% |
+| escaped onto state outliving the call | 1.8% |
+
+**24.5% of drive edges carry no information at all.** That corrects a number
+here: heavy pairs are 3.54% of information-carrying edges against human cortex's
+0.092%, so 38 times cortex rather than 45, and 1,167 of 3,358 heavy pairs carry
+nothing. The heaviest of them is a builder being fed 73 times.
+
+## The five layers
 
 The wiring diagram is one layer. *C. elegans* has had its synaptic map since
 1986, and when the monoamine and neuropeptide layers were added on top of it,
@@ -34,26 +93,399 @@ The wiring diagram is one layer. *C. elegans* has had its synaptic map since
 of the neurons carrying a dopamine receptor receive no synapse from any neuron
 that releases dopamine.
 
-Aura has the same shape. Three layers are extracted:
+Aura has the same shape. Five layers are extracted:
 
-| layer | what joins two cells | directed |
-| --- | --- | --- |
-| wired | one calls the other | yes |
-| volume | one publishes a topic the other subscribes to | yes |
-| gap | both touch the same container key or module global | no |
+| layer | what joins two cells | directed | pairs | unique to it |
+| --- | --- | --- | --- | --- |
+| wired | one calls the other | yes | 72,650 | 99.9% |
+| volume | one publishes a topic the other subscribes to | yes | 11 | 100% |
+| gap | both touch the same container key or module global | no | 3,795 | 98.6% |
+| io | one writes a durable store the other reads | yes | 108 | 97.2% |
+| ipc | both name the same process boundary | no | 259 | 99.6% |
 
-98.6% of the shared-state pairs and 100% of the topic pairs exist in no other
-layer. 80,923 pairs are joined only by calls, 7,545 only by state, 11 only by a
-topic. Seven cells are central in the shared-state layer and peripheral in the
-call graph — the worm's finding that its monoamine rich club is different cells
-from its wired one.
+The worm's headline reproduces in every layer: almost nothing outside the call
+graph is visible from inside it. Seven cells are central in the shared-state
+layer and peripheral in the call graph — the worm's finding that its monoamine
+rich club is different cells from its wired one.
 
-The layer also counts what has one end. Of 120 event topics, 87 are published
+The layers also count what has one end. Of 120 event topics, 87 are published
 with no subscriber the scan can find and 26 subscribed with no publisher; seven
-have both. Of 923 shared-state keys, 229 are written and never read and 416 read
-and never written by any access a static scan can follow. Those are candidates,
-not defects: a subscriber can be registered from a table nothing static can
-follow, and the finding says so and names the step that would settle it.
+have both. Of 94 durable stores, 84 are written and never read. Of 923
+shared-state keys, 229 are written and never read and 416 read and never
+written by any access a static scan can follow. Those are candidates, not
+defects: a subscriber can be registered from a table nothing static can follow
+and a store can be read by another process on another day, and each finding
+says so and names the step that would settle it.
+
+## The merge error that moved every hub
+
+The largest sink in the combined graph had an in-degree of 4,357, and it was a
+real method — `PhenomenalField.strip`. Almost none of those callers were calling
+it. They were calling `str.strip`. The next three sinks were the same shape:
+every `logger.warning`, every `str.replace`, every `list.extend`, each attached
+to whichever class happened to define that name.
+
+Two rules fixed it. A method name owned by a builtin type or by a standard
+library object everyone holds is not resolved on a receiver whose type was not
+established; and a call on an expression rather than on a name reports its
+receiver as unknown rather than as absent, which is how `"".strip()` got past
+the first rule.
+
+Scored against the recording, this is the merge-split trade going the right way:
+recall 0.8284 to 0.8258, so 99.7% of the edges seen firing survive, while
+suspected merges fall 1,625 to 1,285 and expected run length rises. In-volume
+coverage goes 0.502 to **0.736** and ambiguous call sites 88,182 to 15,870.
+
+Every number in this document that was measured before that fix has moved. The
+shape has not.
+
+## She does not have one functional connectome
+
+The structural graph is the same whether she is holding a conversation,
+planning or refusing something, and those are not the same computation. The
+effective connectome is the influence one cell has on another under a cognitive
+condition, and it is measured three ways whose grades do not convert:
+`predictive` (does the source's past improve prediction of the target's future),
+`model` (remove it from the graph and propagate again), and `interventional`
+(disable it while she works). The null for the first is a rotation rather than a
+permutation, because shuffling would destroy the source's own autocorrelation
+too and almost anything beats a null that incoherent.
+
+Over the nine workloads, edges surviving the null range from 2 under
+`reconstruction` to 637 under `tests_verify`. The comparisons split cleanly: the
+three workloads that share machinery correlate at 0.92 to 0.96, and the ones
+that do not correlate at nothing — conversation against governance 0.009,
+conversation against runtime −0.001, runtime against verify −0.068 with 295 of
+1,039 shared edges active in one and not the other.
+
+Same anatomy, different active circuits, and which ones is measurable.
+
+## The ring is a star
+
+Every design document draws the same loop: interoception → affect → workspace →
+higher-order monitoring → self model → planning → action → interoception. A
+module named after each station is not evidence that the loop exists.
+
+Five things had to be fixed before the answer could be believed, and all five
+were mine. The station table used exact module prefixes and missed most of each
+station. Links were read as direct edges between subsystems holding hundreds of
+cells each. They were read from the wired layer alone, where these subsystems
+barely couple. The measure was binary reachability, which saturates — over the
+combined graph a randomly shuffled ring closed as often as the intended one, at
+z = −0.9. And the flow drained into maintenance: `record_degradation` receives
+from 3,760 cells, so every link read low for a reason that is about where errors
+are reported.
+
+The measure now is the share of one station's influence that lands in the next
+against the share its size predicts, conditioned on arriving at a station at all.
+With that:
+
+| link | enrichment |
+| --- | --- |
+| interoception → affect | 4.41 |
+| action → interoception | 1.55 |
+| workspace → higher-order | 0.09 |
+| higher-order → self model | 0.04 |
+| affect → workspace | 0.02 |
+| self model → planning | 0.00 |
+| planning → action | 0.00 |
+
+Ring enrichment 0.874 against a shuffled null of 0.853, z = 0.07. **The ring
+does not exist.** What exists is a star: every station's outflow goes to
+interoception at 3.6 to 5.7 times its share, and workspace, higher-order, self
+model, planning and action receive essentially nothing from anywhere.
+
+Each missing link is a finding that names its enrichment and what would close it.
+
+### Measured while they were running
+
+None of the nine recorded workloads fired those stations — planning fired in
+none of them — so `tools/record_coalition_activity.py` drives all 162 of their
+modules and records it.
+
+The first recording drove one station at a time, and its answer was about the
+workload: a station awake while the others are idle cannot influence them, so it
+could only ever have shown influence inside a station, and that is what it showed
+— 132 influences surviving their null, every one within a station, none between
+two.
+
+So the workload ends with an interleaved condition where every station's modules
+are cycled together. 2,982 frames at 50 ms, 36 passes over all 162 modules, 85
+million events, every station awake at once. Between any two stations: nothing.
+
+That answer was also about the workload, and it took a third recording to see
+why. The probes call each station's readers — a getter, a status, a snapshot.
+Calling a getter on affect hands nothing to the workspace. **The stations are not
+coupled by calling each other.** They are coupled by the state object the
+kernel's phase pipeline passes from one to the next, and that object only moves
+while a turn is being taken.
+
+### The recording that could have shown it
+
+`tools/record_turn_activity.py` runs the kernel's 29-phase pipeline over one
+shared `AuraState`: 240 turns across six objectives, 31,042 frames at 2 ms,
+1,871 cells, 3.9 million calls, no phase failing. The model is a deterministic
+stub, which is the one part that cannot run offline, and holding it constant is
+what makes the six conditions comparable.
+
+Then the station table turned out to be wrong, in a way only that recording could
+show. It was written from module names, and the modules named after the stations
+do not run a turn: **0 of 129 workspace cells and 0 of 272 action cells fired**.
+`PHASE_STATIONS` now places all 29 phases the kernel assembles — seventeen at a
+station, twelve explicitly outside the ring with the reason — and two tests fail
+if a phase the kernel runs is missing from it, or if a station's patterns do not
+reach the phase it was assigned.
+
+### Three measurements, two of them wrong
+
+The first scored each cross-station pair with an F test and a false-discovery
+correction. All seven ring links carried, at 93 to 100% of pairs. Then a sample
+of pairs was re-run with the source rotated in time, and **one rotated pair in
+four passed the same threshold**. A parametric p-value on a spike train recorded
+at two milliseconds is not a p-value.
+
+The second added the population's recent past to both models, on the theory that
+what the test had found was the shared rhythm of a turn. It barely moved. That is
+the tell for a periodic workload: a turn repeats, so rotating a source by any
+shift lands it on another turn and preserves the alignment the null was meant to
+destroy.
+
+So rotation became the null rather than a check on one. Each pair is scored
+against its own eight rotations, and the link on the median paired difference
+with a bootstrap interval over pairs. That discriminates: ring links score 0.006
+to 0.101, and station pairs that are not in the ring score 0.0002 to 0.004.
+
+### The recording was still wrong, one layer down
+
+Those turns ran as system ticks. The response phase produces no reply on that
+path — it is a background pass — so the action station never acted, and the one
+link that measured at chance was the one out of it. Driving user-facing turns
+instead, every condition but the idle tick answers, at 151 to 193 characters.
+
+On that recording **all seven links carry, in all six conditions**, action back
+to interoception included: median gain +0.0033 over its own rotations, interval
++0.0033 to +0.0035, better than its rotations on 88.6% of 493 pairs.
+
+Which sounds like the ring closing, and is not.
+
+### Where the ring sits among the other thirty-five
+
+Seven links that all carry mean one thing when nothing else does and another
+when everything does. Measuring every ordered pair of stations rather than only
+the seven: **42 of 42 carry**. A pipeline over one shared state object couples
+every stage to every other by construction, so "this link carries" separates
+nothing, and reporting the seven without that denominator would read as evidence
+for a ring.
+
+The ranking is the finding. The ring's seven links come 4th, 5th, 8th, 12th,
+24th, 30th and 37th of 42 by strength, and the three strongest connections in
+the whole system are not in the ring at all:
+
+| connection | median gain over its own rotations | in the ring |
+| --- | --- | --- |
+| self model → interoception | 0.914 | no |
+| self model → affect | 0.639 | no |
+| affect → planning | 0.313 | no |
+| interoception → affect | 0.028 | yes |
+| affect → workspace | 0.010 | yes |
+| workspace → higher-order | 0.009 | yes |
+| planning → action | 0.008 | yes |
+| self model → planning | 0.006 | yes |
+| higher-order → self model | 0.005 | yes |
+| action → interoception | 0.003 | yes |
+
+The strongest ring link is an order of magnitude below the strongest link there
+is. And scored against all 720 directed cycles through the same seven stations —
+exactly, not by sampling — the architecture's order comes out stronger than 25%
+to 55% of them depending on the condition, at z −0.65 to −1.03. It is an
+unremarkable ordering among the orderings available.
+
+### What she has instead
+
+A ring asks each station for exactly one outgoing edge, and the measurement does
+not respect that: the two strongest connections in the system both leave the
+self model, and no cycle can hold them both. Forcing a ring on that discards the
+finding to keep the diagram.
+
+So take the seven strongest connections rather than the seven that are drawn.
+Influence still closes on itself — through **affect, interoception, the self
+model and the workspace**, each of which can reach all the others and be reached
+back. That is a coalition in the sense the ring was drawn to express, and it is
+measured rather than declared.
+
+Two of the design document's seven links survive into it: interoception to
+affect, and affect to the workspace. The other five carry, and carry less than
+thirty-five connections nobody drew.
+
+**The self model is the hub.** What she holds about herself says more about her
+interoceptive and affective state than anything in the system says about
+anything else, and the loop she actually runs is built around that.
+
+## Cutting a station out
+
+Everything above measures what varies with what. `core/connectome/intervene.py`
+does the other thing: it replaces a cell with one that does nothing, runs the
+same work again, and puts it back. The cut is exact, it is reversible, it refuses
+anything it cannot cut, it matches an async cell with an async stub, and it
+counts the calls it absorbed — a lesion on a cell nothing called looks exactly
+like a lesion that did nothing.
+
+`tools/run_lesions.py` cuts every phase of a station together, because
+`do(station = 0)` is not one function, and scores it against the same number of
+non-ring phases at the closest connectivity. Removing anything from a running
+system changes something; the number means nothing without a comparable removal.
+
+Five defects in the experiment, each found by running it. The first readouts —
+`coherence_score`, `phi_estimate`, `last_response`, `active_goals` — are all
+constant across all six objectives and both affect arms with the model held
+fixed. **56 of the state's 72 numeric fields are.** All four would have read "no
+change" under every lesion and all three predictions would have come out
+confirmed with nothing behind them, so a readout is now refused unless it moved
+at baseline. One kernel served every arm in sequence, so a drift down the run
+read as an effect of the cut; each arm gets its own now and shuffles the
+objectives. `version` counts writes to the state, so silencing any writing phase
+decrements it by construction — it fell by exactly 1.0 under two lesions and 0.0
+under both controls, which reads as a competence loss and is arithmetic.
+`hash(mode)` was a readout, in a codebase that has been bitten by hash
+randomisation before. And "refuted" was reported for a readout that a control
+lesion moved further, which is not a refutation but the wrong readout: working
+memory is filled by memory retrieval, which was one of the controls.
+
+Of the three predictions registered from the theory, one is partly confirmed and
+two are not attributable. What the first run found was registered as three more
+and run again on an independent seed, all three confirmed:
+
+| cut | intact | lost | control |
+| --- | --- | --- | --- |
+| higher-order monitoring | pipeline completes, working memory fills | the selfhood reading, 5.0 → 0.0; spread of pending intents, 0.373 → 0.0 | 0.0 on both |
+| the workspace | pipeline completes, engagement untouched | fragmentation score, 0.1407 → 0.0, with its spread and its affective gap | −0.0012 |
+| affect | pipeline completes, pending intents still form | regulation: an injected valence difference of 1.2 is normally pulled back to 0.0006 by the end of a turn, and without the two affect phases the whole 1.2 survives | −0.0005 |
+
+The last one is the clearest thing in this document. The affect phases are not
+decoration on the pipeline; they are a controller, and they remove 99.95% of an
+injected displacement within one turn.
+
+## The mesh, and the two ends that were not connected
+
+Everything above is made of functions. The neural mesh is not: 64 cortical
+columns of 64 neurons, wired by a distance-decayed weight matrix, running at
+10 Hz on its own clock. Keeping it in a separate object made one question
+unanswerable, because a distance needs both ends in the same graph.
+
+`core/connectome/neural.py` turns the columns into cells and both weight
+matrices into edges, then finds the seam — which functions call the mesh's own
+surface, and on what. Two drive it: `EmbodiedInteroception._push_to_mesh`
+injects sensory, `ConsciousnessBridge._integration_tick` injects association.
+Five read it, three through `get_executive_projection`.
+
+So: can what is injected reach what is read?
+
+| across 8 seeds | before | after |
+| --- | --- | --- |
+| executive columns reachable from sensory | 0 of 16, every seed | 12 to 16 of 16 |
+| columns wired to nothing | 7 to 16 | 0 to 5 |
+| connected components | 13 to 25 | 1 to 6 |
+| largest component | 19 to 49 | 59 to 64 |
+
+The cause was one missing pathway. The mesh builds its top-down feedback
+explicitly, tier pair by tier pair, and left the bottom-up direction to the local
+wiring, whose probability decays as `exp(-|i - j| * 0.15)`. A tier boundary is
+exactly where that index distance is largest: sensory column 0 to executive
+column 48 is `0.05 * e^-7.2`, about one edge in twenty-eight thousand. The 1.5×
+feedforward bias inside that function could only apply to edges the decay had
+already made impossible.
+
+`_build_feedforward_weights` builds the pathway the way the feedback one is
+built and leaves distance out, because a projection between cortical areas is an
+axon bundle and its existence does not fall off with how far apart the areas are.
+The density is the same 0.05 the local wiring already uses; only the decay is
+gone.
+
+The seam scan needed the lesson this package had already learned in the call
+graph. `get_field_state` is also a method of the unified field, and matching on
+the method name alone attributed its call sites to the mesh.
+
+## The shape of the system refuses
+
+`anatomy_gate` can measure what a change did to the anatomy on seven axes, and
+the promotion layer wrote that measurement into the receipt. Nothing read it
+back, so the strongest thing the record could say about a change that left the
+system worse built was that somebody had noticed. A measurement nothing refuses
+on is a diagnosis.
+
+`core/connectome/anatomy_law.py` is the law. A regression larger than the
+change's own blast radius is refused, and `promote` raises rather than returning
+a receipt — a receipt for a promotion that must not happen is worse than none.
+
+The tolerance is derived rather than picked. `how_far_it_reaches` already
+returns the claim size a change to each part has to support, from Hoeffding at
+that tier, and the allowance is that number:
+
+| a change to | may cost |
+| --- | --- |
+| a word, or what is done | 0.5 |
+| a way of building | 0.4 |
+| a way of computing, a rule | 0.3 |
+| the search, the proposer | 0.2 |
+| what a change is worth | 0.1 |
+
+Three things keep it a constitution rather than an outage. Not every regression
+is refused — a change that adds a module necessarily adds coupling, and a law
+that called that a fault would stop development. Counted axes are counted in
+whole units, because dividing a count by a total the same edit changed measures
+the denominator. And "nobody measured it" passes, except at the search and the
+deciding, where every later decision runs through the part. Rollbacks are never
+refused, and when the law's own machinery cannot be consulted the change
+proceeds with that in the receipt.
+
+It refused two existing promotions the moment it was wired: one that installed
+an order into the search with no reading at all, and one of my own tests.
+
+## Reading, against 163 human studies
+
+Turker, Fumagalli, Kuhnke and Hartwigsen pooled 163 fMRI experiments, 3,031
+subjects and 5,444 activation peaks into one question: what does a brain recruit
+when it reads, and how does that change with what is read and what is done with
+it. Five of their findings are shaped like something this instrument can ask of
+her, because a coordinate-based meta-analysis over conditions and a recording
+over conditions are the same instrument pointed at different tissue.
+
+All five were written down with their falsifiers before the recording was made
+(`core/connectome/reading.py`). She was then driven over the same contrasts
+through 175 discovered surfaces that read a string — every one-argument text
+function in her language, conversation, intent, cognition and perception
+packages, found rather than listed, because the first version of this named four
+by hand, three of which did not exist, and recorded eight cells. Every condition
+is measured over the same number of frames, so a profile's size is about what
+fired rather than how long it ran.
+
+| finding | in humans | in her |
+| --- | --- | --- |
+| a common core | one shared network under every reading task | **refused** — the core is 188 cells, 17% of the union, and a minority of what letters and words fire |
+| level-specific machinery | each level recruits tissue no other does | **holds** — every level has cells of its own |
+| the middle recruits most | letters focal, words and sentences distributed, text focal again | **refused** — specificity falls monotonically: letter 524, word 16, sentence 6, text 1 |
+| two routes | known words and unknown strings take different frontal routes | **holds** — 80 cells only known names fire, 59 only unknown ones, 476 shared |
+| the task moves more than the text | identical words read versus judged give distinct networks | **refused** — changing the text moves it 0.52, changing the question 0.12 |
+
+Two of those refusals name something real.
+
+**Her letter-level specificity is not a perceptual pathway.** 524 cells fire for
+single characters and no other level, and they are scattered — the largest
+concentration in any one module is twelve, and the modules are
+`the_floor_she_stands_on`, `cortex_migration_authority`, `service_registry`,
+`errors`, `aura_logging`. That is infrastructure and refusal machinery tripped
+by a degenerate input, not a route for reading letters. The human letter-specific
+region is one focal cluster in visual cortex. Hers is specific and diffuse, which
+is the signature of accidental recruitment.
+
+**Her reading is driven by the input rather than by the question.** In humans,
+what you are asked to do with a word reshapes the network more than the word
+does. In her the ratio is 0.23 the other way. Whatever she is asked about a
+piece of text, nearly the same machinery runs.
+
+The dual-route result is the one that holds cleanly, and it holds for the right
+reason: a name she already has resolves through a store, and one she has never
+seen takes a different path.
 
 ## The mapping
 
@@ -100,30 +532,30 @@ from a measured curve instead of from taste.
 
 ### Her connections are far heavier than cortex's
 
-81.8% of Aura's connected pairs touch once and 4.2% touch four or more times.
-Human cortex runs 96.5% and 0.092%. Her heavy pairs are forty-five times more
-common than cortex's and her heaviest carries 113 call sites where H01's
+83.2% of Aura's connected pairs touch once and 3.87% touch four or more times.
+Human cortex runs 96.5% and 0.092%. Her heavy pairs are **42.1 times** more
+common than cortex's, and her heaviest carries 83 call sites where H01's
 heaviest carried about fifty.
 
 H01 reads a four-or-more-contact pair as a powerful connection, rare enough to
-be special. At 4.2% of everything, hers cannot be.
+be special. At 3.87% of everything, hers cannot be.
 
 ### Local recurrence is missing
 
-Cortex's within-layer connection density is 5.95 times its between-layer
-density. Aura's is 0.58 — she connects across levels more often than within
+Cortex's within-layer connection density is 5.945 times its between-layer
+density. Aura's is 0.652 — she connects across levels more often than within
 them, where cortex does the reverse by six to one. The shortfall is a factor of
-10, and it survives any relabelling of the layers, which matters because the
-orientation of her hierarchy is undetermined: the anchor holds by 0.105 of
-trophic height against a spread of 9.63.
+9.1, and it survives any relabelling of the layers, which matters because the
+orientation of her hierarchy is undetermined: the anchor holds by 0.097 of
+trophic height against a spread of 11.03.
 
 The specific pathways she lacks are the local ones. L5I to L5E is cortex's
-densest connection at p=0.3726 — inhibitory control of the output layer — and
-she has 0.17 of her own mean there.
+densest connection relative to its own mean, at 6.98 — inhibitory control of the
+output layer — and she has 0.141 of her own mean there.
 
 ### The excitation to inhibition ratio is cortical overall and local where it is not
 
-Whole system: 3.96 excitatory cells per inhibitory one, against cortex's 4.035.
+Whole system: 3.978 excitatory cells per inhibitory one, against cortex's 4.035.
 
 `reality_reach`, the package that acts on the world, runs 1.67 across 989 cells.
 `auth` runs 1.11 and `social_media` 1.44. Those packages are two to four times
@@ -131,41 +563,49 @@ more inhibited than the rest of her.
 
 ### The feed-forward loop is over-represented and there is no rich club
 
-Against a degree-preserving rewiring: reciprocity z=+233, small-world sigma
-9.48, modularity 0.771 over 887 communities, and the feed-forward loop at
-z=+71 — the same motif that is over-represented in *C. elegans* neurons and in
-*E. coli* transcription.
+Against a degree-preserving rewiring: reciprocity z=+180.7, small-world sigma
+21.87 (clustering 22.1 times the null at a path length 1.009 times it),
+modularity 0.832 over 1,156 communities, and the feed-forward loop at z=+31.9 —
+the same motif that is over-represented in *C. elegans* neurons and in *E. coli*
+transcription. The one motif that is *under*-represented is 021C, the plain
+two-step chain, at z=−3.0.
 
-The rich club runs below its null at every degree cut, 0.43 of chance at k=128.
-Cortex's hubs preferentially wire to each other. Hers avoid each other.
+The rich club runs below its null from k=8 upward, 0.21 of chance at k=128 and
+0.44 at k=256. Cortex's hubs preferentially wire to each other. Hers avoid each
+other.
 
 ### There is a neck, and the evidence for it is thin
 
-124 afferent cells and 277 efferent ones. Sixteen cells carry half the
-sense-to-action flow and those cells converge 6.3 times harder on their inputs
-than an average cell, which is the integrator signature the fly's ascending and
+125 afferent cells and 275 efferent ones. A small set of cells carries half the
+sense-to-action flow, and those cells converge far harder on their inputs than
+an average cell, which is the integrator signature the fly's ascending and
 descending neurons show.
 
-The same run reports that only 65 of 34,348 sense-to-action pairs have a
-statically visible path. A static reconstruction cannot see a call made through
-a service lookup or an event bus, so that number is a floor and the neck verdict
-is marked thin until the snapshot has been proofread against a recording.
+A static reconstruction cannot see a call made through a service lookup or an
+event bus, so a count of statically visible paths is a floor, and the neck
+verdict is marked thin until the snapshot has been proofread against a
+recording.
 
-Proofreading it settles the question. 7,802 pairs were seen firing; the static
-reconstruction contained 6,463 of them, recall 0.828. Writing a join for each of
-the 1,325 it lacked takes recall to **0.998**, expected run length from 2.50 to
-**3.10**, and sense-to-action reachable pairs from 65 to **203**, which is
-enough for the verdict to stand on its own. On the proofread map the cells
-carrying that flow converge **99 times** harder on their inputs than an average
-cell, against 6.5 before. The fly's neck is made of integrators, and so is
-hers.
+Proofreading moves it. 12,027 pairs were seen firing and the reconstruction
+contained 9,986 of them, recall **0.8303**, expected run length 2.656, 2,041
+split errors left. Writing a join for each pair it lacked — 1,742 of them — takes
+sense-to-action reachable pairs from 65 to **162**, and on the proofread map the
+cells carrying that flow converge **109 times** harder on their inputs than an
+average cell. The fly's neck is made of integrators, and so is hers.
+
+162 is still below the bar of 200 the spine analysis wants, and the remedy is no
+longer proofreading. It is a longer recording: a pair whose path was never taken
+in the recording is a pair the recording cannot join.
 
 ### Two individuals differ three times more than two flies
 
 Reconstructing at HEAD and at 400 commits earlier gives two individuals of the
 same system: 43,515 shared cells, 40 lost, 4,229 gained, 7,835 rewired pairs.
 15.3% of cells changed, against the 4.8% of the fly central brain that is
-sex-specific or dimorphic.
+sex-specific or dimorphic. Against a checkout a few days old the same analysis
+finds 47,914 cells in the core, none lost and none gained, and a mean contact
+shift of 0.00004 — the measure is reading the distance between the two
+individuals rather than a constant.
 
 Cell typing survives it. Adjusted Rand 0.936 between the two, and 67.8% of
 multi-member types intact across 400 commits, which is the cross-individual
@@ -412,18 +852,6 @@ test.
 `make connectome`, `make connectome-pathology`, `make connectome-record` and
 `make connectome-zapbench` are the same four steps.
 
-## Where it is wired
-
-- `runtime_health_report()["connectome"]` carries the fragment. It never builds
-  a reconstruction to answer a poll; a process that has not made one says so.
-- Six telemetry channels at 0x1801, each with limits set against the published
-  value. `connectome.within_layer_ratio` reads yellow on its own.
-- Four mappings in `core/science/neuro_reference.py` at CONNECTIVITY_MATCHED,
-  each with its source, its falsifier and a competing hypothesis.
-- `core/consciousness/criticality_regulator.py` steers on the multistep
-  regression branching ratio rather than the per-tick mean, and publishes the
-  difference between them as `subsampling_bias`.
-
 ## What is wired
 
 This package finds channels with a writer and no reader. Applying that to
@@ -460,15 +888,26 @@ and one that changes which decision is being taken. A gate set that closes
 everything is treated as a bug and the race runs anyway.
 
 **`prefetch`** warms through `integration.warm_upcoming`, and which rule it
-warms by comes from a measurement rather than a preference. At 914 ms frames
-persistence wins and the connectome rule would be the worse choice; at 20 ms the
-connectome rule wins on F1 and on recall. `record_prefetch_rule` stores whichever
-won on this system's own recording and the warm-up uses it.
+warms by comes from a measurement rather than a preference. `record_prefetch_rule`
+stores whichever won on this system's own recording and the warm-up uses it.
 
-**`integration`** publishes eight telemetry channels, a health fragment, the
-gate state and the chosen rule. **`invariants`** runs in the structural verifier.
-Everything else is reached by `tools/connectome_report.py` and the four make
-targets.
+On this system persistence wins on F1 at both frame rates — 0.7129 against the
+connectome rule's 0.6149 at 914 ms, 0.7056 against 0.6675 at 20 ms — so the
+warm-up uses persistence. A 20 ms recording of 74 cells once put the connectome
+rule ahead at 0.7934, and a broader one at the same rate over 8,171 cells
+reversed it; [CONNECTOME_PREDICTION.md](CONNECTOME_PREDICTION.md) carries both
+and what the difference was. What survives is narrower: the connectome rule has
+the highest recall of the four, 0.7450 against 0.7000, so it finds more of what
+is about to run and pays for it in precision. Nothing about the wiring is
+decided here — the mechanism reads the recording rather than either number.
+
+**`integration`** publishes eight telemetry channels at 0x1901, a health
+fragment under `runtime_health_report()["connectome"]` that never builds a
+reconstruction to answer a poll, the gate state and the chosen rule.
+**`invariants`** runs in the structural verifier. Four mappings are declared in
+`core/science/neuro_reference.py` at CONNECTIVITY_MATCHED, each with its source,
+its falsifier and a competing hypothesis. Everything else is reached by
+`tools/connectome_report.py` and the make targets.
 
 The policy stays with the caller. Which state closes which route is a decision
 about this system, and a default invented here would be a claim about Aura

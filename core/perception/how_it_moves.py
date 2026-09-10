@@ -426,7 +426,13 @@ class HowItMoves:
             _looks_to_expect_an_empty(self.fullness(), among=after.places()),
         )
         was = {(cell.row, cell.column): cell.says for cell in before.cells}
+        # Both halves. "A place nothing has ever been" has to mean nothing in
+        # any reading: gathering it from the after-arrangement alone made a
+        # column occupied only before a move look never-held, so the crop
+        # differed between the two sides of one comparison and every pair came
+        # back unreadable.
         self._ever_held.update(now)
+        self._ever_held.update(was)
         for place in now:
             if place in self._a_place:
                 continue

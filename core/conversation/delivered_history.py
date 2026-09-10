@@ -26,12 +26,14 @@ def delivered_exchange_messages(
             if on_unattested is not None:
                 on_unattested(entry)
             continue
-        user_text = " ".join(str(entry.get("user") or "").strip().split())[:420]
-        aura_text = " ".join(str(entry.get("aura") or "").strip().split())[:520]
-        if user_text:
-            messages.append({"role": "user", "content": user_text})
-        if aura_text and aura_text != "...":
-            messages.append({"role": "assistant", "content": aura_text})
+        # Preserve delivered evidence, including code and list structure. The
+        # context assembler owns allocation against the model's input budget.
+        user_text = str(entry.get("user") or "").strip()
+        aura_text = str(entry.get("aura") or "").strip()
+        if not user_text or not aura_text or aura_text == "...":
+            continue
+        messages.append({"role": "user", "content": user_text})
+        messages.append({"role": "assistant", "content": aura_text})
     return messages
 
 

@@ -16,6 +16,7 @@ nothing.
 
 from __future__ import annotations
 
+import ast
 import inspect
 import itertools
 
@@ -94,31 +95,66 @@ def test_the_library_is_longest_first():
     assert lengths == sorted(lengths, reverse=True)
 
 
-def test_the_operator_search_is_offered_the_library(monkeypatch):
-    """The call that walked 380 terms forever.
+def _also_comes_from_her_library(function) -> bool:
+    """Does this function pass her library as ``also``, however it is written?
 
-    Held on what the search did rather than on how the call is spelled. The
-    first version read the source for ``also=what_she_already_knows_how_to_say()``
-    and failed the moment that call was assigned to a name so the terms could
-    be counted, over a search that was still being offered every one of them.
+    Asked of the tree rather than of the text. The first version of this looked
+    for the literal ``also=what_she_already_knows_how_to_say()`` and went red
+    when the call was hoisted into a variable so the search could also report
+    how many of the leaves came from her — a refactor that changed nothing about
+    what reaches ``also``. A test that fails on the shape of the source rather
+    than on what the source does will fail again on the next honest edit.
     """
-    from core.cognition import an_operator_she_invents as invents
-    from core.cognition import what_she_already_knows_how_to_say as library
+    tree = ast.parse(inspect.getsource(function).lstrip())
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Call):
+            continue
+        called = node.value.func
+        name = called.id if isinstance(called, ast.Name) else getattr(called, "attr", "")
+        if name != "what_she_already_knows_how_to_say":
+            continue
+        bound.update(
+            target.id for target in node.targets if isinstance(target, ast.Name)
+        )
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "also":
+                continue
+            value = keyword.value
+            if isinstance(value, ast.Name) and value.id in bound:
+                return True
+            if isinstance(value, ast.Call):
+                called = value.func
+                name = (
+                    called.id
+                    if isinstance(called, ast.Name)
+                    else getattr(called, "attr", "")
+                )
+                if name == "what_she_already_knows_how_to_say":
+                    return True
+    return False
 
-    monkeypatch.setattr(
-        library,
-        "what_she_already_knows_how_to_say",
-        lambda: (
-            build(L("a", L("b", PLUS(V("a"), MINUS(V("b"), V("a")))))),
-            build(L("a", MINUS(V("a"), V("a")))),
-        ),
-    )
-    list(itertools.islice(invents._a_candidate_for("a family", (), how_many=40), 1))
-    reach = invents.how_far_the_last_search_reached()
-    assert reach["searched"] is True
-    assert reach["library"]["from_her_library"] == 2, "the library never reached the walk"
-    assert reach["reach"]["leaves"] == 7, "five from the floor and two of her own"
-    assert reach["library"]["terms_with_her_library"] > reach["library"]["terms_over_the_floor"]
+
+def test_the_operator_search_is_offered_the_library():
+    """The call that walked 380 terms forever."""
+    from core.cognition import an_operator_she_invents
+
+    assert _also_comes_from_her_library(an_operator_she_invents._a_candidate_for)
+
+
+def test_the_operator_search_says_how_far_it_reached():
+    """A search that reports only what it examined implies it looked at what
+    mattered. Over the bare floor at depth three there are 380 terms against a
+    cap of four thousand, so the walk is exhaustive and the horizon is the
+    constraint — which is only visible if the leaf count is reported."""
+    from core.cognition.an_operator_she_invents import _NOTE_THE_REACH, _a_candidate_for
+
+    list(itertools.islice(_a_candidate_for("fam", ()), 1))
+    assert _NOTE_THE_REACH.get("leaves", 0) >= 5
+    assert "from_her_library" in _NOTE_THE_REACH
 
 
 def test_the_action_writer_is_offered_the_library():

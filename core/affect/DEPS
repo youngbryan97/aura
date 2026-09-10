@@ -15,12 +15,12 @@ include_rules = [
 
     # What this package reaches for today.
     "+core.adaptation",
-    "+core.affect",
     "+core.autonomic",
     "+core.canonical",
     "+core.config",
     "+core.consciousness",
     "+core.container",
+    "+core.conversation",
     "+core.health",
     "+core.interiority",
     "+core.memory",

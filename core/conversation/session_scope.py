@@ -119,6 +119,8 @@ def set_user_question(text: object) -> None:
     # mistaken for evidence in hand now.
     _TURN_EVIDENCE.set(set())
     _TURN_SOLVED.clear()
+    global _TURN_SOLVED_FOR
+    _TURN_SOLVED_FOR = conversation_turn_var.get() or ""
 
 
 #: An exact answer worked out before the model was asked. A dict for the same
@@ -131,6 +133,20 @@ def set_user_question(text: object) -> None:
 #: separate mechanisms today — the deferral registry, the gathered search
 #: pages, and this. The turn boundary below is what scopes it.
 _TURN_SOLVED: dict[str, str] = {}
+
+#: Which turn the answers above belong to.
+#:
+#: Clearing on `set_user_question` is right and is not enough: a turn that
+#: never sets one inherits whatever the last turn worked out. In a live runtime
+#: that means a stale exact answer can be served on a later question, and
+#: across the test suite it means one file's recording is served in another
+#: file's turn — `test_a_record_outranks_a_proven_reply` passes alone and fails
+#: in a batch, because `test_a_repository_is_diagnosed_by_running_it` records
+#: "I ran pytest: 1 failed" and nothing between them clears it.
+#:
+#: Stamping the turn makes the reader answer the question it is actually being
+#: asked: are these THIS turn's answers. Nobody has to remember to clear.
+_TURN_SOLVED_FOR: str = ""
 
 
 def record_solved_answer(name: object, answer: object) -> None:
@@ -146,11 +162,24 @@ def record_solved_answer(name: object, answer: object) -> None:
     body = str(answer or "").strip()
     if not label or not body:
         return
+    global _TURN_SOLVED_FOR
+    here = conversation_turn_var.get() or ""
+    if here != _TURN_SOLVED_FOR:
+        # A different turn from the one these answers were for. Nobody cleared,
+        # so clear here rather than pile this turn's answer on the last one's.
+        _TURN_SOLVED.clear()
+        _TURN_SOLVED_FOR = here
     _TURN_SOLVED[label] = body
 
 
 def solved_answers() -> dict[str, str]:
-    """Everything worked out exactly this turn, newest last."""
+    """Everything worked out exactly THIS turn, newest last.
+
+    Empty when the answers on hand belong to another turn, which is what
+    "this turn" has to mean for the caller that serves them.
+    """
+    if (conversation_turn_var.get() or "") != _TURN_SOLVED_FOR:
+        return {}
     return dict(_TURN_SOLVED)
 
 

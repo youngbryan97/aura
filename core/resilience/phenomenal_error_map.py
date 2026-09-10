@@ -23,6 +23,9 @@ become a raw traceback / WebSocket error / dead frontend button. The decorator
 of the original exception. The HTTP middleware in ``interface/server.py``
 maps the envelope to a structured non-2xx response so the UI can recover
 gracefully without pretending the failed request was healthy.
+
+Operationally: this measures which subsystem a degradation came from and maps it to a term the phenomenal surface can report. It is a lookup table over recorded errors.
+
 """
 from __future__ import annotations
 import inspect

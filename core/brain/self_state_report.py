@@ -161,7 +161,7 @@ def _memory_lines() -> list[str]:
 
     # RSS is close to a lie about her. The weights live in unified GPU memory
     # and never appear in it — the live process reports ~2GB resident while
-    # holding a 32B model. Saying only "the real total is larger" turns the
+    # holding a cortex-sized model. Saying only "the real total is larger" turns the
     # honest answer into a hedge, and the accelerator knows the number.
     try:
         from core.runtime.resource_observation import get_resource_observer

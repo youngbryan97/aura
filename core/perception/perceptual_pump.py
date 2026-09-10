@@ -594,6 +594,11 @@ class PerceptualPump:
 
     # Substrate injection rate (can be lower than perception rate)
     SUBSTRATE_INJECT_EVERY_N = 2  # every 200ms
+    #: How many transactions in a row may miss the budget before it stops
+    #: being backpressure. One the next transaction recovers from costs this
+    #: frame's freshness; a run means the substrate is not keeping up and the
+    #: freshness gates downstream begin reading stale.
+    SUBSTRATE_OVERRUNS_BEFORE_A_WARNING = 3
 
     def __init__(self) -> None:
         self.running = False
@@ -1213,10 +1218,20 @@ class PerceptualPump:
             if elapsed_ms > budget_ms:
                 self._substrate_injection_overruns += 1
                 self._substrate_injection_overrun_streak += 1
-                if (
-                    self._substrate_injection_overrun_streak == 1
-                    or self._substrate_injection_overruns % 50 == 0
-                ):
+                # A single overrun the next transaction recovers from is
+                # backpressure: it costs this frame's freshness and nothing
+                # else, because this runs off the pump thread. Warning on the
+                # FIRST of every streak means an intermittently slow host
+                # warns continuously — measured live 2026-09-07, repeatedly,
+                # each one "(overruns=N, streak=1)".
+                #
+                # A run is different. That is a substrate not keeping up, and
+                # the freshness gates downstream begin reading stale.
+                persistent = (
+                    self._substrate_injection_overrun_streak
+                    >= self.SUBSTRATE_OVERRUNS_BEFORE_A_WARNING
+                )
+                if persistent or self._substrate_injection_overruns % 50 == 0:
                     logger.warning(
                         "Perceptual substrate transaction exceeded budget: %.1fms > %.1fms "
                         "(overruns=%d, streak=%d)",
@@ -1224,6 +1239,14 @@ class PerceptualPump:
                         budget_ms,
                         self._substrate_injection_overruns,
                         self._substrate_injection_overrun_streak,
+                    )
+                elif self._substrate_injection_overrun_streak == 1:
+                    logger.info(
+                        "Perceptual substrate transaction exceeded budget once: "
+                        "%.1fms > %.1fms (overruns=%d)",
+                        elapsed_ms,
+                        budget_ms,
+                        self._substrate_injection_overruns,
                     )
             else:
                 self._substrate_injection_overrun_streak = 0

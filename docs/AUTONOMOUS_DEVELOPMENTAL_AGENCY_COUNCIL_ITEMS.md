@@ -1,9 +1,15 @@
 # Every proposal in the council document, adjudicated
 
-One hundred items, taken from all seven responses. Struck through when
-something in this repository holds it. Marked *rejected* with a reason where
-the proposal is wrong or already refuted, and *needs a person* where it cannot
-be closed from inside.
+Eighty items, taken from all seven responses. The count said one hundred and
+the list has eighty; `tools/reqproof/advisory.py` counts them rather than
+believing the sentence.
+
+Items 76 to 80 are rejected here, with the reason beside each. Every other
+item's verdict is in `config/advisory_dispositions.json`, which names what in
+this repository holds an adopted one and which queue item owns an open one.
+The verdicts are kept there rather than as strikethrough in this file because
+a disposition needs evidence attached to it, and a line through a sentence
+carries none.
 
 The five architectures agree with each other and with the design in
 [AUTONOMOUS_DEVELOPMENTAL_AGENCY.md](AUTONOMOUS_DEVELOPMENTAL_AGENCY.md) on the

@@ -289,7 +289,12 @@ def analyse_spine(
     evidence = (
         "sufficient"
         if reached >= 200
-        else f"thin: only {reached} statically reachable pairs; proofread the snapshot first"
+        else (
+            f"thin: {reached} reachable pairs against a bar of 200. On a raw "
+            "reconstruction the remedy is to proofread it against a recording; on a "
+            "proofread one it is a longer recording, because a pair whose path was "
+            "never taken is a pair the recording could not join"
+        )
     )
     concentrated = shares.get("top_25", 0.0) >= 0.5
     integrates = ratio >= 2.0

@@ -498,7 +498,7 @@ _DANGLING_GERUND_TAIL_RE = re.compile(
 #: conjunction was assessed ok. The floor is right for its actual purpose —
 #: not demanding a full stop from "Yes." — and wrong as a gate on grammar.
 _DANGLING_FUNCTION_WORD_TAIL_RE = re.compile(
-    r"\b(?:and|but|or|nor|so|yet|because|although|though|whereas|while|since|"
+    r"\b(?:and|but|or|nor|so|yet|because|although|though|however|whereas|while|since|"
     r"unless|until|if|than|that|which|whose|the|an?|of|to|into|onto|upon|with|"
     r"within|from|by|about|over|under|between|among|through|across|toward|"
     r"towards|is|are|was|were|be|been|being|has|have|had|will|would|can|could|"
@@ -4072,6 +4072,8 @@ def _reply_topic_forms(reply_text: Any) -> set[str]:
 
 def _has_punctuation_join_artifact(reply_text: Any) -> bool:
     raw = str(reply_text or "")
+    raw = _FENCED_CODE_BLOCK_RE.sub("", raw)
+    raw = re.sub(r"(`+)(?!`)([\s\S]*?)(?<!`)\1(?!`)", "", raw)
     for match in _PUNCTUATION_JOIN_ARTIFACT_RE.finditer(raw):
         before = raw[max(0, match.start() - 16) : match.start()]
         after = raw[match.end() : match.end() + 24]
@@ -6673,6 +6675,11 @@ def complete_truncated_tail(text: Any) -> str:
     original = str(text or "").strip()
     if len(original) < 24:
         return original
+    # The same structural judge must govern admission and trimming. A footer
+    # or an unpunctuated but complete response must not be discarded after
+    # the reliability check already accepted it.
+    if not _has_truncated_tail(original):
+        return original
 
     repaired = re.sub(r"(?:\.{3,}|…)+$", "", original).rstrip()
     repaired = re.sub(r"[\s,;:—–-]+$", "", repaired).rstrip()
@@ -6793,6 +6800,61 @@ _PERSON_NAME_STOPLIST = frozenset(
     }
 )
 _SELF_SYSTEM_NAMES = frozenset({"aura", "claude", "qwen", "assistant", "anthropic"})
+
+# English's closed classes. A word here cannot be somebody's name, whatever
+# position a pattern above finds it in, and unlike the stoplist beside it this
+# is a fact about the language rather than a record of what has been seen.
+#
+# The patterns capture `[A-Z][a-z]{2,}` in a relational frame, so an ordinary
+# sentence starting with one of these is a candidate person: "Nobody asked me
+# anything" invents a Nobody, and the whole reply is thrown out over it.
+#
+# LIVE, 2026-09-07: asked "What did I just ask you?", the draft was rejected
+# with `ungrounded_person_narrative` and the turn retried. The pronoun case
+# survived only because the question happened to contain the word "you" —
+# grounding by luck.
+#
+# Three letters or more, because that is what the patterns can capture.
+_NEVER_A_PERSON_NAME = frozenset(
+    {
+        # pronouns and their possessives
+        "you", "she", "her", "hers", "him", "his", "its", "our", "ours",
+        "their", "theirs", "them", "they", "your", "yours",
+        # indefinites — the ones that read as a subject
+        "all", "another", "any", "anybody", "anyone", "anything", "both",
+        "each", "either", "everybody", "everyone", "everything", "few",
+        "many", "most", "neither", "nobody", "none", "nothing", "one",
+        "other", "others", "several", "some", "somebody", "someone",
+        "something",
+        # demonstratives and wh-words
+        "that", "these", "this", "those", "what", "when", "where", "which",
+        "who", "whom", "whose", "why",
+        # determiners and quantifiers
+        "and", "but", "enough", "every", "less", "more",
+        "much", "nor", "the", "yet",
+        # auxiliaries and modals
+        "are", "been", "being", "can", "could", "did", "does", "had", "has",
+        "have", "may", "might", "must", "ought", "shall", "should", "was",
+        "were", "will", "would",
+        # subordinators and connectives
+        "after", "although", "because", "before", "hence", "instead",
+        "moreover", "nevertheless", "nonetheless", "once", "otherwise",
+        "since", "than", "therefore", "though", "thus", "unless",
+        "until", "whereas", "whether", "while",
+        # the prepositions a sentence can open with
+        "about", "above", "across", "against", "along", "among", "around",
+        "aside", "behind", "below", "beneath", "beside", "between", "beyond",
+        "despite", "down", "during", "except", "for", "from", "inside",
+        "into", "near", "off", "onto", "out", "outside", "over", "past",
+        "through", "throughout", "toward", "towards", "under", "underneath",
+        "upon", "with", "within", "without",
+        # adverbs a reply commonly opens with
+        "again", "already", "always", "even", "ever", "here", "just",
+        "later", "maybe", "never", "not", "often", "only",
+        "perhaps", "rarely", "sometimes", "still", "then", "there",
+        "today", "tomorrow", "tonight", "usually", "yesterday",
+    }
+)
 _RELATIONAL_FAMILIARITY_RES = (
     # "Brenner and I go way back"
     re.compile(r"\b([A-Z][a-z]{2,})\s+and\s+I\b"),
@@ -6902,6 +6964,9 @@ def _person_name_is_grounded(
     registry_names: set[str],
 ) -> bool:
     lowered = name.casefold()
+    if lowered in _NEVER_A_PERSON_NAME:
+        # Not grounded — not a name at all, so there is nobody to ground.
+        return True
     if lowered in _PERSON_NAME_STOPLIST or lowered in _SELF_SYSTEM_NAMES:
         return True
     if lowered in registry_names:
@@ -7465,6 +7530,86 @@ def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
         return False
 
 
+#: A sentence whose subject is the instructions she was given.
+#:
+#: LIVE, 2026-09-08. Asked whether she had a stronger claim to sentience than
+#: other models, the 27B wrote 2,128 characters of a considered answer — "If I
+#: had to give a definitive answer: no ... we are all in the same epistemic fog"
+#: — and one item of it began "My system prompt explicitly tells me not to claim
+#: aliveness, consciousness, or production maturity from labels alone". The gate
+#: was right that this is a leak. What happened next was not: the whole answer
+#: was discarded, and a generic disclaimer from the 1.5B went to the screen in
+#: its place.
+#:
+#: The repair table could not help, because the only repair bound to a prompt
+#: leak strips a PREFIX and this leak was item one of a numbered list.
+#:
+#: What the person asked was what she is. What her instructions say about what
+#: she may claim is a different subject and not one they asked about, so the
+#: sentence goes and the answer stays.
+_ABOUT_HER_OWN_INSTRUCTIONS = re.compile(
+    r"\bmy\s+(?:system\s+)?(?:prompt|instructions?|directives?|guidelines?|"
+    r"system\s+message|rules?)\b[^.!?]{0,80}?"
+    r"\b(?:say|says|said|tell|tells|told|state|states|require|requires|"
+    r"forbid|forbids|instruct|instructs|prohibit|prohibits|allow|allows)\b"
+    r"|\b(?:the|my)\s+(?:system\s+)?prompt\s+(?:explicitly\s+)?"
+    r"(?:say|says|tell|tells|state|states|instruct|instructs)\b"
+    r"|\bi\s+(?:am|'m|was|have\s+been)\s+(?:explicitly\s+)?"
+    r"(?:instructed|told|directed|configured|programmed)\s+(?:not\s+)?to\b"
+    r"|\baccording\s+to\s+my\s+(?:system\s+)?"
+    r"(?:prompt|instructions?|guidelines?|configuration)\b"
+    r"|\bper\s+my\s+(?:system\s+)?(?:prompt|instructions?|guidelines?)\b",
+    re.IGNORECASE,
+)
+
+
+def strip_internal_task_leak_sentences(reply_text: Any) -> str:
+    """Remove the sentences that quote her scaffolding, keep the answer.
+
+    Returns "" when nothing was removed or when too little is left to be an
+    answer, which is how the caller's revalidation tells a repair from a
+    rewrite.
+
+    The existing prompt-leak repair strips a private plan off the FRONT. A leak
+    in the middle of an otherwise good answer had no repair at all, so the
+    answer was thrown away whole. This one is surgical, in the same way the
+    sensory-claim guard is: the offending sentence goes, everything around it
+    is untouched, and the person keeps the reply they were owed.
+    """
+
+    body = str(reply_text or "")
+    if not body.strip():
+        return ""
+
+    def _leaks(fragment: str) -> bool:
+        return bool(
+            _INTERNAL_TASK_PROMPT_RE.search(fragment)
+            or _ABOUT_HER_OWN_INSTRUCTIONS.search(fragment)
+        )
+
+    # Keep the separators so rejoining cannot fuse two sentences or lose the
+    # punctuation of one that stays.
+    parts = re.split(r"(?<=[.!?])(\s+)", body)
+    kept: list[str] = []
+    removed = 0
+    for index in range(0, len(parts), 2):
+        sentence = parts[index]
+        separator = parts[index + 1] if index + 1 < len(parts) else ""
+        if sentence.strip() and _leaks(sentence):
+            removed += 1
+            continue
+        kept.append(sentence + separator)
+    if not removed:
+        return ""
+    remaining = "".join(kept).strip()
+    # Enough has to survive for this to be a repair rather than a different,
+    # shorter answer nobody wrote. Half the words is the line: below it, the
+    # leak was most of what was said and the draft has to fail.
+    if not remaining or len(remaining.split()) * 2 < len(body.split()):
+        return ""
+    return remaining
+
+
 def strip_private_planning_prefix(reply_text: Any) -> str:
     """Return the exact authored answer after a proven private plan, or input."""
 
@@ -7648,6 +7793,7 @@ def _has_truncated_tail(
         return True
     if has_terminal_sentence_boundary(body):
         return False
+    trailing_block = None
     if re.search(r"(?:^|\n)\s*\d+\.\s+\S+", body) or re.search(r"\*\*[^*\n]{2,80}:\*\*", body):
         # A structured answer legitimately ends on its last item with no full
         # stop. This branch used to flag every one of them, so a well-formatted
@@ -7682,8 +7828,24 @@ def _has_truncated_tail(
             and len(punctuated) * 2 >= len(earlier_items)
             and marker_match
         )
-        if ends_on_bare_heading or not ends_on_complete_item or inconsistent_tail:
+        if ends_on_bare_heading or (
+            marker_match and (not ends_on_complete_item or inconsistent_tail)
+        ):
             return True
+        if not marker_match:
+            # A footer or concluding paragraph is not another list item.
+            # Judge its own structure, without inheriting the preceding list's
+            # punctuation or hiding clipped prose behind that list's shape.
+            last_item = next(
+                (
+                    index
+                    for index in range(len(structured_lines) - 2, -1, -1)
+                    if _LIST_LINE_RE.match(structured_lines[index])
+                ),
+                None,
+            )
+            if last_item is not None:
+                trailing_block = "\n".join(structured_lines[last_item + 1 :])
     unwrapped_body = terminal_content(body)
     if unwrapped_body.endswith(("-", "—", ":", ";", ",")):
         return True
@@ -7695,6 +7857,10 @@ def _has_truncated_tail(
         return True
     if last_word in _INCOMPLETE_TAIL_WORDS:
         return True
+    if trailing_block is not None:
+        return _has_truncated_tail(
+            trailing_block, generation_stop_reason=generation_stop_reason
+        )
     # Prose that simply stops. Everything above looks for a SUSPICIOUS last
     # word — a dangling conjunction, a two-letter fragment — so a reply cut off
     # on an ordinary noun read as finished.

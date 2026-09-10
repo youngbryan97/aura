@@ -154,6 +154,8 @@ artifacts/learning-demo-*/
 artifacts/front_door/
 aura_codebase_ai_audit*.txt
 /aura_codebase_*.txt
+# The sidecar the same export writes beside it.
+/aura_codebase_*.manifest.json
 /aura_clean_source_code_and_tests*.txt
 artifacts/agi/dnu_proof/
 artifacts/agi/live_harness_proof/
@@ -190,4 +192,24 @@ artifacts/lora_consolidation/adapter/
 artifacts/lora_consolidation/dataset/
 artifacts/lora_consolidation/merge/
 artifacts/reliability/runs/
+
+# RLC sweep intermediates. The convention in this tree is that a run commits
+# its small JSON reports — arithmetic_lesions.json, leave_family_out_report.json,
+# model.json — and leaves the bulk on disk. Forty-two run directories are
+# tracked under that rule and none of them carries a features/ tree; the
+# untracked ones held 12GB across 11,246 files, which is what these two lines
+# are for. Nothing that has ever been tracked matches either pattern.
+artifacts/**/features/
+artifacts/**/*.npz
 tools/appcheck/node_modules/
+
+# Subject-core runs: the reports, edge tables, campaign blocks, null draws and
+# lesion arms are the evidence and are kept. The recordings and the per-trial
+# intervention arms are five megabytes a run and are kept on disk beside them —
+# a campaign keeps its failures, and a repository is not where five hundred
+# megabytes of raw arms belong.
+artifacts/subject_core/**/intervention_arms.jsonl
+artifacts/subject_core/**/core_state.npz
+artifacts/subject_core/**/runtime/
+artifacts/subject_core/**/logs/
+artifacts/subject_core/logs/

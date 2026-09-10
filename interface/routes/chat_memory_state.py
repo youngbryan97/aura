@@ -1650,14 +1650,8 @@ async def _recent_completed_conversation_exchanges(
             stamp_runtime_payload(
                 {
                     "exchange_id": str(entry.get("id") or ""),
-                    "user": _clip_conversation_text(
-                        user_text,
-                        limit=_RECENT_CONVERSATION_USER_CHARS,
-                    ),
-                    "aura": _clip_conversation_text(
-                        aura_text,
-                        limit=_RECENT_CONVERSATION_AURA_CHARS,
-                    ),
+                    "user": user_text,
+                    "aura": aura_text,
                     "timestamp": str(entry.get("completed_at") or entry.get("timestamp") or ""),
                     "session_id": str(entry.get("session_id") or "")[:64],
                     "action_episode": action_episode,
@@ -1694,14 +1688,8 @@ async def _recent_completed_conversation_exchanges(
     seen_legacy_keys: set[tuple[str, str]] = set()
     for entry in durable:
         exchange_id = str(entry.get("exchange_id") or "").strip()
-        user_text = _clip_conversation_text(
-            entry.get("user"),
-            limit=_RECENT_CONVERSATION_USER_CHARS,
-        )
-        aura_text = _clip_conversation_text(
-            entry.get("aura"),
-            limit=_RECENT_CONVERSATION_AURA_CHARS,
-        )
+        user_text = str(entry.get("user") or "").strip()
+        aura_text = str(entry.get("aura") or "").strip()
         key = (user_text, aura_text)
         if current and user_text == current:
             continue
@@ -1889,14 +1877,8 @@ def _load_durable_conversation_exchanges_sync(
                 (
                     position,
                     {
-                        "user": _clip_conversation_text(
-                            user_row.get("content"),
-                            limit=_RECENT_CONVERSATION_USER_CHARS,
-                        ),
-                        "aura": _clip_conversation_text(
-                            content,
-                            limit=_RECENT_CONVERSATION_AURA_CHARS,
-                        ),
+                        "user": str(user_row.get("content") or "").strip(),
+                        "aura": content,
                         "timestamp": str(row.get("created_at") or user_row.get("created_at") or ""),
                         "session_id": row_session_id,
                     },
@@ -1915,14 +1897,8 @@ def _load_durable_conversation_exchanges_sync(
                 int(state.get("position") or 0),
                 {
                     "exchange_id": str(state.get("exchange_id") or ""),
-                    "user": _clip_conversation_text(
-                        user_row.get("content"),
-                        limit=_RECENT_CONVERSATION_USER_CHARS,
-                    ),
-                    "aura": _clip_conversation_text(
-                        aura_row.get("content"),
-                        limit=_RECENT_CONVERSATION_AURA_CHARS,
-                    ),
+                    "user": str(user_row.get("content") or "").strip(),
+                    "aura": str(aura_row.get("content") or "").strip(),
                     "timestamp": str(
                         aura_row.get("created_at") or user_row.get("created_at") or ""
                     ),
@@ -2169,6 +2145,26 @@ def _is_non_answer_surface(text: str) -> bool:
     return any(stripped.startswith(opener) for opener in _NON_ANSWER_OPENERS)
 
 
+def _the_recall_is_the_whole_question(user_message: str) -> bool:
+    """True when the person asked one thing, and that thing is the recall.
+
+    Answering a compound turn from one of its clauses is not answering it.
+    Which clauses ask is already a learned language-surface decision, so this
+    consults it rather than counting question marks.
+    """
+
+    try:
+        from core.language.asking_clauses import asking_clauses
+
+        clauses = asking_clauses(str(user_message or ""))
+        # Exactly one. None means nothing was recognised as asking, and that is
+        # not a reason to answer from here either.
+        return len(clauses) == 1
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # Unknown means do not short-circuit: the model still has the turn.
+        return False
+
+
 async def _build_conversation_recall_reply(
     user_message: str,
     *,
@@ -2185,16 +2181,60 @@ async def _build_conversation_recall_reply(
         _position = detect_positional_recall(user_message)
     except (ImportError, AttributeError, ValueError):
         _position = None
-    if _position == "first":
+    if _position in {"first", "last"}:
+        # THIS conversation, and no other.
+        #
+        # The reach into recent sessions exists so a restart does not erase
+        # yesterday, and it is right for "what were we talking about". It is
+        # wrong for a question that names this conversation: LIVE 2026-09-07,
+        # asked in a fresh session what the first thing said was, she quoted a
+        # turn from a different session entirely — accurately, and about
+        # somebody else's conversation.
+        # Only where there is a session to scope BY. With none supplied, the
+        # durable rows arrive through the same cross-session scan, so refusing
+        # it removes recall altogether rather than narrowing it — which is the
+        # regression `test_durable_recall_reply_survives_process_memory_clear`
+        # caught: "can you remind me what I said earlier" answered "you haven't
+        # said anything to me in this conversation yet" over a persistence
+        # layer that was holding the turn.
+        scoped = bool(str(session_id or "").strip())
         all_exchanges = await _recent_completed_conversation_exchanges(
             current_user_message=user_message,
             session_id=session_id,
             limit=80,
+            allow_cross_session=not scoped,
         )
-        if all_exchanges:
+        if _position == "first" and all_exchanges:
             first_user = _clip_conversation_text(all_exchanges[0].get("user"), limit=520)
             if first_user:
                 return f'The first thing you asked me in this conversation was: "{first_user}"'
+        # And only claim the conversation is empty when it was possible to
+        # look at THIS conversation. Without a session that is a guess.
+        if not all_exchanges and scoped and _the_recall_is_the_whole_question(user_message):
+            # An empty transcript is the ANSWER, not a reason to ask the model.
+            #
+            # LIVE 2026-09-07: asked in a fresh session what the first thing
+            # said was, this returned None, the turn went to the cortex, which
+            # had no history to answer from and emitted seven tokens twice.
+            # Both were refused by the text-integrity check, the desktop
+            # contract then refused a lower-lane fallback, and the person got
+            # "I couldn't get my full attention onto that one" — for a question
+            # the runtime could answer exactly, from a transcript it held.
+            #
+            # Only the empty case. Where there ARE exchanges, "what did I just
+            # ask" is answered by the content classifier below, which
+            # summarises rather than quoting one turn, and taking that over
+            # made a summary into a single quotation.
+            # And only when the recall IS the question. A turn that asks two
+            # things — "what did I just ask you to do, and what cognition path
+            # are you using?" — is not answered by replying to one of them.
+            return (
+                "Nothing yet — this is the first thing you've said to me in "
+                "this conversation."
+                if _position == "first"
+                else "You haven't said anything to me in this conversation "
+                "yet; this is the first thing."
+            )
 
     recall_kind = _classify_conversation_recall_request(user_message)
     if not recall_kind:

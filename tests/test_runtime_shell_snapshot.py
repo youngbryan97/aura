@@ -13,6 +13,7 @@ from core.runtime.launch_provenance import (
 from core.runtime.runtime_shell_snapshot import (
     clear_runtime_shell_snapshots,
     publish_runtime_shell_snapshot,
+    runtime_shell_revision,
     runtime_shell_snapshot_asset,
     runtime_shell_snapshot_known,
 )
@@ -107,6 +108,29 @@ def test_snapshot_publication_rejects_tampered_bytes(tmp_path: Path):
             shell_assets_sha256=digest,
             assets=assets,
         )
+
+
+def test_shell_address_survives_backend_revisions_but_not_asset_changes(tmp_path):
+    _write_shell(tmp_path)
+    digest, assets = capture_runtime_shell_assets(tmp_path)
+    shell_revision = runtime_shell_revision("a" * 64, digest)
+    for generation in range(10):
+        publish_runtime_shell_snapshot(
+            revision_token=f"{generation:064x}", shell_assets_sha256=digest, assets=assets,
+        )
+        publish_runtime_shell_snapshot(
+            revision_token=shell_revision, shell_assets_sha256=digest, assets=assets,
+        )
+        assert runtime_shell_snapshot_asset(shell_revision, "/static/aura.js") == assets["interface/static/aura.js"]
+    assert runtime_shell_revision("b" * 64, digest) != shell_revision
+    (tmp_path / "interface/static/aura.js").write_bytes(b"new shell")
+    changed, _ = capture_runtime_shell_assets(tmp_path)
+    assert runtime_shell_revision("a" * 64, changed) != shell_revision
+
+
+def test_shell_identity_rejects_missing_digest():
+    with pytest.raises(ValueError):
+        runtime_shell_revision("", "a" * 64)
 
 
 def test_capture_rejects_symlinked_parent_directory(

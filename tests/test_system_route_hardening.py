@@ -5,8 +5,9 @@ import time
 from types import SimpleNamespace
 
 import pytest
-import interface.routes.chat_preflight as _chat_preflight
+
 from tests.chat_lane_support import patch_chat_lane
+from tests.health_transport_support import publish_boot_scenario, publish_probe_scenario
 
 
 @pytest.fixture(autouse=True)
@@ -219,7 +220,6 @@ async def test_ui_shell_error_route_logs_and_broadcasts_recovered_render_fault(m
 def test_websocket_runtime_heartbeat_requires_conversation_lane(monkeypatch):
     from core.runtime.health_contract import REQUIRED_HEALTH_PROBE_GROUPS
     from interface import websocket_manager
-    from interface.routes import chat as chat_routes
 
     required_probes = {
         group: {"ok": True, "components": {key: True for key in keys}}
@@ -256,6 +256,7 @@ def test_websocket_runtime_heartbeat_requires_conversation_lane(monkeypatch):
     )
     patch_chat_lane(monkeypatch, "_conversation_lane_is_standby", lambda _lane: False)
 
+    publish_probe_scenario(monkeypatch)
     payload = websocket_manager.runtime_heartbeat_payload("heartbeat")
 
     assert payload["healthy"] is False
@@ -269,7 +270,6 @@ def test_websocket_runtime_heartbeat_requires_conversation_lane(monkeypatch):
 def test_websocket_runtime_heartbeat_treats_active_generation_as_working_not_healthy(monkeypatch):
     from core.runtime.health_contract import REQUIRED_HEALTH_PROBE_GROUPS
     from interface import websocket_manager
-    from interface.routes import chat as chat_routes
 
     required_probes = {
         group: {"ok": True, "components": {key: True for key in keys}}
@@ -306,6 +306,7 @@ def test_websocket_runtime_heartbeat_treats_active_generation_as_working_not_hea
         },
     )
 
+    publish_probe_scenario(monkeypatch)
     payload = websocket_manager.runtime_heartbeat_payload("heartbeat")
 
     assert payload["healthy"] is False
@@ -348,6 +349,7 @@ async def test_runtime_heartbeat_fails_closed_when_required_probes_fail(monkeypa
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -390,6 +392,7 @@ async def test_runtime_heartbeat_refuses_success_code_when_probe_group_missing(m
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -442,6 +445,7 @@ async def test_runtime_heartbeat_refuses_partial_probe_components(monkeypatch):
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -484,6 +488,7 @@ async def test_runtime_heartbeat_refuses_boot_blockers_even_when_required_probes
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -529,6 +534,7 @@ async def test_runtime_heartbeat_drops_stale_conversation_blocker_when_lane_is_r
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 
@@ -580,6 +586,7 @@ async def test_runtime_heartbeat_treats_active_generation_as_working_not_healthy
         ),
     )
 
+    publish_boot_scenario(monkeypatch, system_routes)
     response = await system_routes.api_heartbeat()
     payload = json.loads(response.body)
 

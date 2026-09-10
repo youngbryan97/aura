@@ -12,9 +12,12 @@
     <meta property="og:type" content="website">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌌</text></svg>">
+    <!-- The drawn mark, not an emoji rendered as text. A tab icon that is a
+         galaxy pictograph is whatever the reader's font decides, and it is a
+         different visual language from the monoline glyphs everywhere else. -->
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
-    <title>Aura Luna</title>
+    <title>Aura</title>
     <style id="aura-critical-boot-style">
         html, body {
             margin: 0;
@@ -407,7 +410,15 @@
     <header>
         <div class="brand">
             <div class="brand-icon"></div>
-            <span class="brand-title">Aura Luna</span>
+            <!-- The app is called Aura. Her full name lives in PRODUCT_NAME
+                 (core/runtime/version.py) and in the version strings built from
+                 it; the wordmark at the top of the window is the app. -->
+            <!-- The wordmark is the page's heading, so it is one. A document
+                 with no h1 has no title in the accessibility tree, and a
+                 screen reader landing here was told the name of the browser
+                 tab and nothing about the page. The class carries every bit of
+                 the styling, so nothing moves. -->
+            <h1 class="brand-title">Aura</h1>
             <span class="brand-ver" id="ui-ver"></span>
             <div class="brand-status" aria-live="polite">
                 <span class="brand-status-dot" id="brand-status-dot"></span>
@@ -494,6 +505,7 @@
                     <textarea id="chat-input" placeholder="Talk to Aura..." autocomplete="off" rows="1" aria-label="Message input"></textarea>
                     <div class="input-actions">
                         <button type="button" class="input-btn regen-btn" id="regen-btn" title="Regenerate last response (⌘+Shift+R)" aria-label="Regenerate response" style="display:none;">↻</button>
+                        <button type="button" class="input-btn" id="chat-stop-btn" title="Stop this turn" aria-label="Stop response" style="display:none;">■</button>
                         <button type="submit" class="input-btn send-btn" aria-label="Send message">SEND</button>
                         <!-- The voice affordance was an unlabelled purple orb
                              beside SEND. It reads as decoration, so the whole
@@ -884,7 +896,7 @@
                      canvas. -->
                 <div id="pane-imagine" class="tab-pane">
                     <div class="imagine-toolbar">
-                        <div class="section-label imagine-toolbar-label">IMAGINATION WORKSPACE
+                        <div class="section-label imagine-toolbar-label">WHAT SHE IS IMAGINING
                             <div class="live-dot" id="imagine-dot"></div>
                         </div>
                         <span id="imagine-state" class="imagine-state">—</span>
@@ -904,7 +916,7 @@
                              starts on its own. The prompt rendered is the one Aura
                              wrote for herself in mental_canvas.image_prompt. -->
                         <div class="panel-section">
-                            <div class="section-label">WHAT SHE'S PICTURING</div>
+                            <div class="section-label" title="The scene she wrote for herself. Rendering it turns that description into a picture.">THE SCENE SHE DESCRIBED</div>
                             <div class="imagine-render-bar">
                                 <button id="imagine-render-btn" class="imagine-render-btn" type="button">◉ RENDER THIS</button>
                                 <label class="imagine-auto">
@@ -920,7 +932,7 @@
                         </div>
 
                         <div class="panel-section">
-                            <div class="section-label">MENTAL CANVAS</div>
+                            <div class="section-label" title="The things in the scene and how they relate to each other.">WHAT IS IN IT</div>
                             <div class="imagine-canvas-wrap">
                                 <svg id="imagine-canvas" class="imagine-canvas" viewBox="0 0 320 190"
                                     role="img" aria-label="Objects and relations in Aura's current imagination frame"></svg>
@@ -929,13 +941,13 @@
                         </div>
 
                         <div class="panel-section">
-                            <div class="section-label">ATTRACTOR COMPETITION</div>
+                            <div class="section-label" title="Ways of imagining she could have used, and how strongly each pulled. The one that won is the mode this frame is in.">WAYS SHE COULD HAVE GONE</div>
                             <div id="imagine-attractors" class="imagine-attractors"></div>
                             <div class="imagine-attractor-meta" id="imagine-attractor-meta"></div>
                         </div>
 
                         <div class="panel-section">
-                            <div class="section-label">PRESSURES</div>
+                            <div class="section-label" title="What pushed this frame into being: how new the subject is, how curious she is, how much it mattered, what memory offered, and how much of it needs checking.">WHAT PUSHED HER HERE</div>
                             <div id="imagine-pressures" class="imagine-pressures"></div>
                         </div>
 
@@ -1206,6 +1218,18 @@
                                 <span class="settings-view-name">Mission control</span>
                                 <span class="settings-view-desc">Operator overview</span>
                             </a>
+                            <a class="settings-view" href="/static/schematics.html" target="_blank" rel="noopener">
+                                <span class="settings-view-name">Drawings</span>
+                                <span class="settings-view-desc">What she designed, and the numbers behind it</span>
+                            </a>
+                            <a class="settings-view" href="/static/first_run.html" target="_blank" rel="noopener">
+                                <span class="settings-view-name">First-run setup</span>
+                                <span class="settings-view-desc">Model, memory, permissions, safety</span>
+                            </a>
+                            <a class="settings-view" href="/static/devtools.html" target="_blank" rel="noopener">
+                                <span class="settings-view-name">DevTools</span>
+                                <span class="settings-view-desc">Diagnostics for when something is wrong</span>
+                            </a>
                         </div>
                     </div>
 
@@ -1301,19 +1325,19 @@
             </div>
             <div class="modal-body">
                 <div class="onboard-step active" data-step="1">
-                    <h3>🧠 Cognitive Engine</h3>
+                    <h3>Cognitive Engine</h3>
                     <p>Aura thinks before she speaks. She uses multi-step reasoning, memory retrieval, and belief revision to form thoughtful responses.</p>
                 </div>
                 <div class="onboard-step" data-step="2">
-                    <h3>🎙️ Voice & Vision</h3>
+                    <h3>Voice & Vision</h3>
                     <p>Talk to Aura using your microphone. She can also see your screen when you ask her to. Toggle these in the header controls.</p>
                 </div>
                 <div class="onboard-step" data-step="3">
-                    <h3>📊 Neural Dashboard</h3>
+                    <h3>Neural Dashboard</h3>
                     <p>Use the sidebar tabs to view Aura's neural activity, telemetry gauges, memories, skills, and settings in real-time.</p>
                 </div>
                 <div class="onboard-step" data-step="4">
-                    <h3>⚙️ Make It Yours</h3>
+                    <h3>Make It Yours</h3>
                     <p>Visit Settings to customize themes, voice, external-action confirmations, and more. Aura learns your preferences over time.</p>
                 </div>
             </div>
@@ -1349,6 +1373,10 @@
     <script src="/static/error_banner.js"></script>
     <script src="/static/sound_design.js"></script>
     <script src="/static/perf_collector.js"></script>
+    <!-- Read-only. Exposes auraAccessibilityAudit() so the interface can be
+         measured against WCAG on the page a person actually sees, rather than
+         on a copy of it that may have drifted. -->
+    <script src="/static/a11y_audit.js"></script>
     <script src="/static/aura.js"></script>
     <script src="/static/voice_mode.js"></script>
 </body>

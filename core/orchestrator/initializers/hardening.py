@@ -47,6 +47,15 @@ def _component_is_alive(component: Any) -> bool:
     return running
 
 
+def _component_is_running(component: Any) -> bool:
+    # A monitor's health can be false precisely because its sampling task is
+    # working. Restart only the task, not the evidence it is collecting.
+    running = getattr(component, "is_running", None)
+    if callable(running):
+        return bool(running())
+    return _component_is_alive(component)
+
+
 async def _stop_failed_component(component: Any) -> None:
     stop = getattr(component, "stop", None)
     if not callable(stop):
@@ -348,21 +357,11 @@ async def init_hardening_layer(orchestrator: Any):
                 probe = component.is_ready
                 critical = False
                 restart_on_unhealthy = False
-            elif component_name == "event_loop_monitor":
-                start = component.start
-                stop = component.stop
-                # Lifecycle convergence and runtime health are separate. A
-                # hard-lag sample makes is_alive() false by design, but the
-                # sampling task is still running and must remain online long
-                # enough to prove recovery.
-                probe = component.is_running
-                critical = True
-                restart_on_unhealthy = True
             else:
                 start = getattr(component, "start", _noop_service_callback)
                 stop = getattr(component, "stop", _noop_service_callback)
-                probe = partial(_component_is_alive, component)
-                critical = False
+                probe = partial(_component_is_running, component)
+                critical = component_name == "event_loop_monitor"
                 restart_on_unhealthy = True
             control_plane.register_service(
                 DesiredServiceSpec(

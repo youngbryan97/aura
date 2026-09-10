@@ -12,6 +12,7 @@ from threading import RLock
 from typing import Any
 
 from core.config import config
+from core.conversation.word_markers import names_any
 from core.runtime.turn_analysis import TurnAnalysis, analyze_turn, canonical_turn_text
 from core.utils.file_utils import atomic_write_json
 
@@ -110,9 +111,9 @@ def _is_probably_coding_text(text: str, analysis: TurnAnalysis | None = None) ->
     lowered = normalized.lower()
     if current_analysis.semantic_mode == "technical":
         return True
-    if current_analysis.intent_type == "TASK" and any(marker in lowered for marker in _CODING_MARKERS):
+    if current_analysis.intent_type == "TASK" and names_any(lowered, _CODING_MARKERS):
         return True
-    return any(marker in lowered for marker in _CODING_MARKERS)
+    return names_any(lowered, _CODING_MARKERS)
 
 
 def _extract_file_candidates(value: Any) -> list[str]:
@@ -159,14 +160,14 @@ def _extract_file_candidates(value: Any) -> list[str]:
 
 def _looks_like_test_command(command: str) -> bool:
     lowered = str(command or "").lower()
-    return any(marker in lowered for marker in _TEST_MARKERS)
+    return names_any(lowered, _TEST_MARKERS)
 
 
 def _looks_like_continuation_text(text: str) -> bool:
     lowered = str(text or "").lower()
     if not lowered:
         return False
-    return any(marker in lowered for marker in _CONTINUATION_MARKERS)
+    return names_any(lowered, _CONTINUATION_MARKERS)
 
 
 @dataclass

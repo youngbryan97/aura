@@ -3,6 +3,23 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_already_allocated_private_tokens_are_not_charged_twice(monkeypatch):
+    from core.brain.llm import mlx_client, thinking_reserve
+    from core.brain.llm.generation_allowance import resident_generation_seconds
+
+    monkeypatch.setattr(mlx_client, "get_mlx_client", lambda: SimpleNamespace(
+        get_worker_identity_snapshot=lambda: {"worker_model_path": "/model"},
+        least_time_to_read=lambda chars: 10.0,
+    ))
+    monkeypatch.setattr(thinking_reserve, "reserve_tokens", lambda _: pytest.fail("already allocated"))
+    monkeypatch.setattr(thinking_reserve, "seconds_to_read", lambda _: 5.0)
+    monkeypatch.setattr(thinking_reserve, "seconds_to_decode", lambda tokens, _: tokens / 10)
+    assert resident_generation_seconds(
+        [{"role": "user", "content": "question"}], 1000,
+        private_tokens_included=True,
+    ) == 126.0
+
+
 @pytest.mark.parametrize(
     "decode_rate,worker_read,private,expected",
     [(10.0, 160.0, 200, 296.0), (10.0, 200.0, 200, 336.0),

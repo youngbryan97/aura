@@ -129,6 +129,32 @@ class Section:
         return len(self.text)
 
 
+#: A bracketed header carries its own value — `[Affect: Current Mood: TIRED
+#: (substrate energy: 0.14)]` — so the header line changes whenever the block
+#: does. Keyed on the whole line, every turn invents a new section that has
+#: never been seen before, the block that changes most looks perfectly stable,
+#: and nothing is ever ranked volatile.
+#:
+#: LIVE, 2026-09-08: `section_volatility.json` held zero watched sections after
+#: months of running, and the affect block — the most volatile text in the
+#: prompt — sat inside the stable head on every turn.
+#:
+#: The label is the identity. What follows the first colon is the reading.
+_A_BRACKETED_LABEL = re.compile(r"^\[([A-Za-z][\w \-/]*)\s*:")
+
+
+def identity_of(header: str) -> str:
+    """What to file a section under, when its header carries a measurement."""
+
+    line = str(header or "").strip()
+    if not line:
+        return ""
+    labelled = _A_BRACKETED_LABEL.match(line)
+    if labelled:
+        return f"[{labelled.group(1).strip()}]"
+    return line
+
+
 def sections_of(prompt: str) -> list[Section]:
     """The prompt split at its headers, the head kept as its own section.
 
@@ -152,7 +178,9 @@ def sections_of(prompt: str) -> list[Section]:
         end = marks[index + 1][0] if index + 1 < len(marks) else len(body)
         text = body[start:end].strip()
         if text:
-            found.append(Section(header=header.strip(), text=text, order=len(found)))
+            found.append(
+                Section(header=identity_of(header), text=text, order=len(found))
+            )
     return found
 
 
@@ -400,6 +428,7 @@ def observe_sections(prompt: str) -> None:
 
     _take_back_what_earlier_runs_measured()
     for section in sections_of(prompt):
+        # Already the identity: `sections_of` files it under the label.
         header = section.header or "<identity>"
             # A digest rather than the text, and a stable one: the built-in
         # hash is salted per process, which is invisible while nothing
@@ -512,7 +541,10 @@ def volatility_of(section: str) -> float:
     """
 
     text = str(section or "")
-    header = text.split("\n", 1)[0].strip() or "<identity>"
+    # The identity, not the line. `observe_sections` files a bracketed block
+    # under its label because the line carries the reading; looking it up by
+    # the line would never find what was recorded.
+    header = identity_of(text.split("\n", 1)[0]) or "<identity>"
     seen = measured_volatility(header)
     if seen is not None:
         return seen
@@ -616,3 +648,46 @@ def load_volatility() -> int:
         ):
             _CHANGED[str(header)] = [counts[0], counts[1]]
     return len(_CHANGED)
+
+
+#: A section that changes at least this often must not sit inside the authority
+#: head every turn shares. `volatility_of` returns 0.0 for the sections the
+#: prior calls stable, 1/3 for the slow ones, 2/3 for the per-turn ones, the
+#: measured rate once there is one, and 1.0 for a section nobody has watched.
+#: Half is the line between "usually the same" and "usually not".
+VOLATILE_AT_OR_ABOVE = 0.5
+
+
+def split_on_volatility(content: str) -> tuple[str, str]:
+    """Split assembled prompt text into (stable head, per-turn tail).
+
+    The authority head is the only part of a prompt a KV cache can reuse, and
+    one per-turn section inside it makes the whole message a different token
+    sequence. Measured live 2026-09-07: the head was stable and `## LIVE TONE`
+    — mood and tone, new each turn — was merged into the same message, so the
+    cache still matched 0 tokens of 1,866 and prefill was 12.2s of a 16s turn.
+
+    What decides is `volatility_of`, so a section that has actually been
+    watched is ranked on what it did rather than on the authored prior, and a
+    section nobody has watched moves out — where being wrong costs a slightly
+    later position rather than a lost prefix.
+
+    Section order is preserved within each half. Nothing is dropped or
+    reworded.
+    """
+
+    _take_back_what_earlier_runs_measured()
+    if not content:
+        return content, ""
+    matches = list(_HEADER.finditer(content))
+    if not matches:
+        return content, ""
+    preamble = content[: matches[0].start()]
+    stable: list[str] = []
+    volatile: list[str] = []
+    for index, match in enumerate(matches):
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        section = content[match.start() : end]
+        target = volatile if volatility_of(section) >= VOLATILE_AT_OR_ABOVE else stable
+        target.append(section)
+    return (preamble + "".join(stable)).rstrip(), "".join(volatile).strip()

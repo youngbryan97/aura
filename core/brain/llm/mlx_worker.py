@@ -14,7 +14,6 @@ import sys
 import threading
 import time
 import uuid
-from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -517,6 +516,21 @@ def _surface_generation_contract_enabled(job: dict[str, Any]) -> bool:
     return True
 
 
+_PROMPT_CACHE_BYPASS_FLAGS = (
+    "health_probe",
+    "strict_answer_contract",
+    "strict_value_contract",
+    "proof_evaluation_contract",
+    "operator_evidence_contract",
+)
+
+
+def _prompt_cache_bypass_reasons(job: dict[str, Any]) -> list[str]:
+    """WHICH contract bypassed the cache. A bypass with no name is unfixable."""
+
+    return [flag for flag in _PROMPT_CACHE_BYPASS_FLAGS if job.get(flag, False)]
+
+
 def _job_requires_prompt_cache_bypass(job: dict[str, Any]) -> bool:
     """Return True for jobs that must neither read nor write the prompt cache.
 
@@ -562,6 +576,19 @@ def _job_requires_exact_continuation_cache(job: dict[str, Any]) -> bool:
     )
 
 
+def _prompt_cache_model_key(model_path: Any) -> str:
+    """What to file this model's cached prefixes under.
+
+    The checkpoint's own name. Two workers holding the same weights should
+    share nothing — they are separate processes with separate caches — but
+    within one worker the same weights must resolve to the same key on every
+    turn, and an object address does not.
+    """
+
+    name = str(model_path or "").strip()
+    return os.path.basename(name.rstrip("/")) or name or "<unnamed model>"
+
+
 def _prompt_cache_scope_for_job(job: dict[str, Any]) -> str:
     """Partition the prompt cache so lanes cannot cross-contaminate.
 
@@ -584,14 +611,45 @@ def _expected_empty_warmup_precompile(job: dict[str, Any]) -> bool:
     )
 
 
+#: The descriptor digest of the checkpoint this worker loaded, set at steering
+#: attach. The fusion certificate is per-checkpoint — evidence earned by one set
+#: of weights says nothing about another — so the lookup needs the identity of
+#: the model actually in memory, not its name.
+_FUSION_MODEL_IDENTITY = ""
+
+
+def _surface_alpha_from_certificate() -> float:
+    """How much residual steering this checkpoint has earned on a person's turn.
+
+    Zero until measured. For a long time this was zero unconditionally, and the
+    reason given was an A/B whose steered and baseline samples came out
+    byte-identical while the statistic still passed. That A/B was void: alpha
+    was an absolute number of units added to a residual stream whose magnitude
+    grows with width and depth, so the shipped 3.0 sat under the threshold at
+    which either model changes its output. Alpha became a fraction of the stream
+    and the gate stayed shut, which left her substrate reaching the model as
+    text in a prompt and never as part of the computation.
+
+    The comment that closed it asked for a model-specific no-regression
+    certificate. `core/consciousness/fusion_certificate.py` is that certificate
+    and `tools/measure_fusion_channel.py` earns one. Absent, unreadable and
+    failing certificates all return zero, so the failure direction is still
+    shut.
+    """
+    identity = _FUSION_MODEL_IDENTITY
+    if not identity:
+        return 0.0
+    try:
+        from core.consciousness.fusion_certificate import certified_alpha
+
+        return certified_alpha(identity)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Fusion certificate lookup unavailable: %s", exc)
+        return 0.0
+
+
 def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
-    # The only resident-32B live-alpha A/B is explicitly VOID: its steered and
-    # baseline samples were byte-identical while the statistic still passed.
-    # Residual steering therefore has no authority to perturb user-visible
-    # tokens by default. Affect remains causal through attention, sampling,
-    # action value, memory and voice; a future model-specific no-regression
-    # certificate may request a non-zero alpha explicitly.
-    default_alpha = "0.0"
+    default_alpha = str(_surface_alpha_from_certificate())
     configured = job.get(
         "clean_user_surface_steering_alpha",
         os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA", default_alpha),
@@ -729,6 +787,35 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") ->
         )
 
         record_budget_that_ran_out_thinking(budget_tokens=budget_tokens, model=model)
+    except (ImportError, TypeError, ValueError):
+        return
+
+
+def _the_private_channel_budget(job: dict[str, Any] | None, max_tokens: Any) -> int:
+    """How many tokens the private channel may spend, from its one owner."""
+
+    try:
+        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+    except ImportError:
+        return 0
+    return the_channel_budget_for(
+        max_tokens=max_tokens,
+        seconds_left=_seconds_left_on(job or {}),
+        answer_floor=(job or {}).get("user_surface_completion_floor"),
+        model=os.path.basename(str((job or {}).get("model_path") or (job or {}).get("model") or "")),
+        asked_for=(job or {}).get("private_channel_budget"),
+    )
+
+
+def _record_budget_that_finished_thinking(budget_tokens: int, model: str = "") -> None:
+    """Tell the reserve this budget was in fact enough for the channel."""
+
+    try:
+        from core.brain.llm.thinking_reserve import (
+            record_budget_that_finished_thinking,
+        )
+
+        record_budget_that_finished_thinking(budget_tokens=budget_tokens, model=model)
     except (ImportError, TypeError, ValueError):
         return
 
@@ -1328,6 +1415,55 @@ def _surface_quality_gate_enabled(job: dict[str, Any]) -> bool:
     )
 
 
+#: How much conversation the fabrication check is entitled to look back at.
+#: The question it answers is whether a claim about a shared past appears
+#: anywhere in what was said, and a window is what keeps that cheap.
+_RECENT_TURNS_FOR_GROUNDING = 12
+
+
+def _recent_user_turns(job: dict[str, Any]) -> list[str]:
+    """What the person has said, from the transcript the model was given.
+
+    The check this feeds asks whether a reply invents a shared past, and it
+    decides that by looking for content appearing nowhere in what was said. An
+    empty history makes everything novel, so the check answers "fabricated"
+    for a perfectly correct recall.
+
+    It read `user_surface_recent_messages` off the job. Nothing in the tree
+    ever put that key in a job — the client builds the payload field by field
+    and this one is not among them — so the check has been running against an
+    empty conversation since it was written.
+
+    LIVE, 2026-09-07: "What did I just ask you?" had its draft rejected as
+    `fabricated_shared_history`, which also disables the prompt cache on the
+    repair pass, so a recall question costs a full re-prefill as well as the
+    answer.
+
+    Reading it off `messages` is the fix rather than filling the key in: the
+    transcript is what the model saw, so the grounding cannot drift out of
+    step with what it was answering from.
+    """
+
+    stated = job.get("user_surface_recent_messages")
+    if isinstance(stated, (list, tuple)) and stated:
+        return [str(message or "") for message in stated]
+    messages = job.get("messages")
+    if not isinstance(messages, (list, tuple)):
+        return []
+    said: list[str] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if str(message.get("role") or "").strip().lower() != "user":
+            continue
+        content = str(message.get("content") or "").strip()
+        if content:
+            said.append(content)
+    # The last one is the turn being answered; the check gets that separately
+    # as the prompt, and passing it twice narrows nothing.
+    return said[-_RECENT_TURNS_FOR_GROUNDING - 1 : -1] if len(said) > 1 else []
+
+
 def _surface_quality_failure_reasons(
     job: dict[str, Any],
     response_text: Any,
@@ -1341,12 +1477,7 @@ def _surface_quality_failure_reasons(
     prompt = prompt_resolution.prompt
     if not prompt:
         return []
-    recent_raw = job.get("user_surface_recent_messages")
-    recent_messages = (
-        [str(message or "") for message in recent_raw]
-        if isinstance(recent_raw, (list, tuple))
-        else []
-    )
+    recent_messages = _recent_user_turns(job)
     grounding_raw = job.get("user_surface_grounding_evidence")
     grounding = (
         [str(item or "") for item in grounding_raw]
@@ -2065,10 +2196,10 @@ def _shrink_scaffold_to_context_window(
 
     def _render(candidate_messages: list[Any]) -> tuple[str, list[int]] | None:
         try:
-            from core.brain.llm.chat_format import system_first
+            from core.brain.llm.chat_format import for_this_template
 
             rendered = tokenizer.apply_chat_template(
-                system_first(candidate_messages),
+                for_this_template(tokenizer, candidate_messages),
                 tools=tools,
                 add_generation_prompt=True,
                 tokenize=False,
@@ -4339,12 +4470,95 @@ def _generation_stream_with_activity(
                 close()
 
 
+def _a_prefix_worth_keeping(
+    prompt_cache_lru: Any,
+    model_key: Any,
+    tokens: Any,
+    already_reused: int,
+    cache: Any,
+    step_size: int,
+) -> tuple[int, Any]:
+    """Where to snapshot this prefill, and the call that does it.
+
+    `(0, None)` when there is nothing worth keeping: no cache, no measured
+    divergence yet, or a divergence so early that the prefix would be shorter
+    than one chunk and save less than it costs to hold.
+
+    The offset returned is in the coordinates the progress callback speaks —
+    tokens of THIS prefill — while the trie is keyed on the whole prompt, so
+    the two are converted here and nowhere else.
+    """
+
+    if prompt_cache_lru is None or cache is None or not tokens:
+        return 0, None
+    try:
+        diverged = int(prompt_cache_lru.where_it_last_diverged(model_key))
+    except (AttributeError, TypeError, ValueError):
+        return 0, None
+    # Just short of where it ran out, rounded down to a chunk boundary, since
+    # the callback only ever reports at one.
+    chunk = max(1, int(step_size or 1))
+    keep_to = (diverged // chunk) * chunk
+    if keep_to <= already_reused or keep_to <= chunk:
+        return 0, None
+    if keep_to >= len(tokens):
+        return 0, None
+
+    def keep(processed_here: int) -> None:
+        import copy
+
+        absolute = already_reused + int(processed_here)
+        if absolute <= 0 or absolute >= len(tokens):
+            return
+        kept = prompt_cache_lru.snapshot_prefix(
+            model_key,
+            list(tokens[:absolute]),
+            cache,
+            deep_copy=copy.deepcopy,
+        )
+        if kept:
+            logger.info(
+                "🧊 [PROMPT CACHE] kept a %d-token prefix mid-prefill; the next "
+                "turn can reuse it without a trim.",
+                absolute,
+            )
+
+    return max(0, keep_to - already_reused), keep
+
+
+class _PrefillCancelledError(InterruptedError):
+    """Unwind model/cache contexts before acknowledging an interrupted prefill."""
+
+    def __init__(self, request_id: str, action: str, processed: int, total: int):
+        super().__init__("soft_cancelled_during_prefill")
+        self.request_id = request_id
+        self.action = action
+        self.processed = processed
+        self.total = total
+
+    def terminal_frame(self) -> dict[str, Any]:
+        return {
+            "id": self.request_id,
+            "action": "stream_done" if self.action == "stream" else self.action,
+            "status": "ok",
+            "text": "",
+            "soft_cancelled": True,
+            "generation_stop_reason": "soft_cancelled",
+            "tokens_used": 0,
+            "prompt_tokens_processed": self.processed,
+            "prompt_tokens_total": self.total,
+        }
+
+
 def _build_prefill_progress_callback(
     watchdog: Any,
     writer: Any,
     *,
     request_id: str,
     action: str,
+    snapshot_at: int = 0,
+    keep_prefix: Any = None,
+    cancel_check: Callable[[], bool] | None = None,
 ):
     """Return an ``mlx_lm`` callback with causal worker/parent liveness.
 
@@ -4354,9 +4568,37 @@ def _build_prefill_progress_callback(
     """
     normalized_request_id = str(request_id or "")
     normalized_action = str(action or "generate")
+    taken = {"snapshot": False}
 
     def report(processed: int, total: int) -> None:
         watchdog.activity()
+        # mlx_lm calls here before work and after each materialized chunk.
+        # Waiting for its first yielded token leaves the whole prompt uncancellable.
+        if cancel_check is not None and cancel_check():
+            raise _PrefillCancelledError(normalized_request_id, normalized_action, processed, total)
+        # Keep a strict prefix on the way past it.
+        #
+        # On this model only a strict prefix can be reused — `ArraysCache
+        # .is_trimmable` is a bare `return False` — and the entry the previous
+        # turn stored is always LONGER than the match, because it holds that
+        # turn's volatile block and its reply. So the trie has the tokens and
+        # cannot give them back: `matched 598 (92.7%) ... the entry holding
+        # them refuses to trim`.
+        #
+        # The prefill happening right now is the one moment the KV for a
+        # shorter prefix exists. Taken once, just past where the last search
+        # ran out of trie, so what is kept is the part that actually recurs.
+        if (
+            snapshot_at > 0
+            and keep_prefix is not None
+            and not taken["snapshot"]
+            and processed >= snapshot_at
+        ):
+            taken["snapshot"] = True
+            try:
+                keep_prefix(processed)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Prompt-cache prefix snapshot skipped: %s", exc)
         writer.put(
             {
                 "id": normalized_request_id,
@@ -5906,622 +6148,17 @@ def _load_effective_context_window(model_path: str) -> int:
     if limits is not None:
         return min(_ASSUMED_CONTEXT_WINDOW, int(limits.served_context_tokens))
     return _ASSUMED_CONTEXT_WINDOW
-
-
-@dataclass
-class _PromptCacheEntry:
-    prompt_cache: list[Any]
-    count: int
-
-
-@dataclass
-class _PromptCacheSearchResult:
-    exact: list[int] | None
-    shorter: list[int] | None
-    longer: list[int] | None
-    common_prefix: int
-
-
-@dataclass(frozen=True)
-class _ArraysCacheMemberRollback:
-    index: int
-    state: tuple[Any, ...]
-    left_padding: Any
-    lengths: Any
-
-    @property
-    def nbytes(self) -> int:
-        total = 0
-        for value in (*self.state, self.left_padding, self.lengths):
-            if value is not None:
-                total += max(0, int(getattr(value, "nbytes", 0) or 0))
-        return total
-
-
-@dataclass(frozen=True)
-class _PromptCacheOneTokenRollback:
-    members: tuple[_ArraysCacheMemberRollback, ...]
-
-    @property
-    def nbytes(self) -> int:
-        return sum(member.nbytes for member in self.members)
-
-
-def _capture_prompt_cache_one_token_rollback(
-    prompt_cache: list[Any] | None,
-) -> _PromptCacheOneTokenRollback | None:
-    """Retain the fixed-size state needed to rewind a hybrid cache one token.
-
-    ``mlx_lm`` can trim KV caches, but Qwen3.5 combines those with
-    ``ArraysCache`` recurrent states that intentionally have no inverse. The
-    recurrent arrays are replaced on each model call rather than mutated in
-    place, so retaining their immediately preceding array references is an
-    exact, fixed-size rollback image. Unknown non-trimmable cache kinds are
-    refused instead of being guessed compatible.
-    """
-
-    if not prompt_cache:
-        return None
-    try:
-        from mlx_lm.models.cache import ArraysCache
-    except ImportError:
-        return None
-
-    members: list[_ArraysCacheMemberRollback] = []
-    for index, cache_member in enumerate(prompt_cache):
-        try:
-            if bool(cache_member.is_trimmable()):
-                continue
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return None
-        if not isinstance(cache_member, ArraysCache):
-            return None
-        state = cache_member.state
-        if not isinstance(state, list):
-            return None
-        members.append(
-            _ArraysCacheMemberRollback(
-                index=index,
-                state=tuple(state),
-                left_padding=getattr(cache_member, "left_padding", None),
-                lengths=getattr(cache_member, "lengths", None),
-            )
-        )
-    if not members:
-        return None
-    return _PromptCacheOneTokenRollback(tuple(members))
-
-
-def _rewind_hybrid_prompt_cache_one_token(
-    prompt_cache: list[Any],
-    rollback: _PromptCacheOneTokenRollback | None,
-) -> tuple[bool, str]:
-    """Rewind mixed KV/recurrent cache state without reconstructing the prompt."""
-
-    if rollback is None:
-        return False, "hybrid_rollback_unavailable"
-    try:
-        from mlx_lm.models.cache import ArraysCache
-    except ImportError:
-        return False, "mlx_cache_types_unavailable"
-
-    snapshots = {member.index: member for member in rollback.members}
-    nontrimmable_indexes: set[int] = set()
-    trimmable_members: list[Any] = []
-    for index, cache_member in enumerate(prompt_cache):
-        try:
-            trimmable = bool(cache_member.is_trimmable())
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return False, "cache_trim_contract_unavailable"
-        if trimmable:
-            try:
-                if int(cache_member.size()) < 1:
-                    return False, "trimmable_cache_empty"
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                return False, "trimmable_cache_size_unavailable"
-            trimmable_members.append(cache_member)
-            continue
-        nontrimmable_indexes.add(index)
-        if not isinstance(cache_member, ArraysCache) or index not in snapshots:
-            return False, "nontrimmable_cache_not_snapshotted"
-
-    if nontrimmable_indexes != set(snapshots):
-        return False, "hybrid_cache_layout_changed"
-
-    # Validation above completes before the first mutation. From this point all
-    # operations are the declared one-token inverse for their cache kind.
-    for cache_member in trimmable_members:
-        if int(cache_member.trim(1)) != 1:
-            return False, "trimmable_cache_rewind_failed"
-    for index, snapshot in snapshots.items():
-        cache_member = prompt_cache[index]
-        cache_member.state = list(snapshot.state)
-        cache_member.left_padding = snapshot.left_padding
-        cache_member.lengths = snapshot.lengths
-    return True, ""
-
-
-@dataclass(frozen=True)
-class _PromptCacheResumeBinding:
-    model_key: Any
-    tokens: tuple[int, ...]
-    prompt_cache: list[Any]
-    one_token_rollback: _PromptCacheOneTokenRollback | None
-    context_digest: str
-    created_at: float
-
-
-class _PromptCacheLRU:
-    def __init__(
-        self,
-        max_size: int = 12,
-        max_entry_tokens: int = 0,
-        max_total_tokens: int = 0,
-        kv_bytes_per_token: int = 0,
-        fixed_bytes_per_entry: int = 0,
-        max_total_bytes: int = 0,
-    ):
-        self.max_size = max_size
-        # 0 = uncapped. A positive cap refuses to RETAIN prompts longer than
-        # this many tokens, bounding per-entry KV RAM on heavy models while
-        # leaving generation itself untouched.
-        self.max_entry_tokens = max_entry_tokens
-        # An entry COUNT is not a memory bound. Twelve entries of unbounded
-        # length is unbounded memory: once insertion actually worked, a
-        # 31,718-token prompt was measured live and managed RSS grew
-        # 73,963MB/h toward the 49GB ceiling. This bounds the total.
-        self.max_total_tokens = max_total_tokens
-        self.kv_bytes_per_token = kv_bytes_per_token
-        self.fixed_bytes_per_entry = max(0, int(fixed_bytes_per_entry))
-        self.max_total_bytes = max(0, int(max_total_bytes))
-        self._cache: dict[Any, dict[Any, Any]] = {}
-        # One eviction queue PER LANE, not one globally. A single global queue
-        # meant Aura's internal lanes (loop ticks, enrichment, dreaming,
-        # health probes — dozens of generations per minute) evicted the user
-        # conversation's entry within seconds of it being written, so the one
-        # entry whose reuse decides whether a conversation survives was always
-        # the first one thrown away. Lane budgets still sum to max_size, so
-        # per-entry KV RAM is bounded exactly as before.
-        self._lru: dict[str, deque] = {}
-        # A continuation capability names exact worker-owned KV state without
-        # copying that state through IPC or reconstructing it from visible text.
-        self._resume_bindings: dict[str, _PromptCacheResumeBinding] = {}
-        self._resume_ttl_s = 300.0
-        self._resume_binding_limit = max(2, min(8, max_size))
-
-    # ── introspection: what is actually retained right now ───────────────
-    def retained_tokens(self) -> int:
-        """Total cached tokens across every lane. The real memory driver."""
-        reusable = sum(
-            len(tokens) for queue in self._lru.values() for (_model_key, tokens) in queue
-        )
-        resumable = sum(len(binding.tokens) for binding in self._resume_bindings.values())
-        return reusable + resumable
-
-    def retained_entries(self) -> int:
-        return sum(len(queue) for queue in self._lru.values()) + len(self._resume_bindings)
-
-    def retained_bytes(self) -> int:
-        """Approximate KV bytes held. Reported to the OOM ladder, not guessed."""
-        token_bytes = (
-            self.retained_tokens() * self.kv_bytes_per_token if self.kv_bytes_per_token > 0 else 0
-        )
-        rollback_bytes = sum(
-            binding.one_token_rollback.nbytes
-            for binding in self._resume_bindings.values()
-            if binding.one_token_rollback is not None
-        )
-        fixed_bytes = self.retained_entries() * self.fixed_bytes_per_entry
-        return token_bytes + fixed_bytes + rollback_bytes
-
-    def shed(self) -> int:
-        """Release everything and report the bytes freed.
-
-        This is the OOM ladder's rung. The ladder had none — the verifier said
-        so on every boot ("no organ exposes a shed hook, so the OOM ladder has
-        no rungs: the only available response to memory pressure is a
-        restart") — while this cache was the largest trivially-droppable
-        allocation in the process.
-        """
-        freed = self.retained_bytes()
-        self.clear()
-        return freed
-
-    def _enforce_total_token_budget(self) -> None:
-        """Evict oldest entries until total retained tokens fit the budget.
-
-        Per-lane entry budgets bound how many prefixes stay reusable; this
-        bounds the MEMORY. The user-surface lane is drained last so a
-        conversation keeps its prefix while internal lanes give theirs up.
-        """
-        if self.max_total_tokens <= 0:
-            return
-        lanes_by_drain_order = sorted(
-            self._lru.keys(), key=lambda lane: (lane == "user_surface", lane)
-        )
-        byte_budget = self.max_total_bytes
-        if byte_budget <= 0 and self.max_total_tokens > 0 and self.kv_bytes_per_token > 0:
-            byte_budget = self.max_total_tokens * self.kv_bytes_per_token
-        while self.retained_tokens() > self.max_total_tokens or (
-            byte_budget > 0 and self.retained_bytes() > byte_budget
-        ):
-            evicted = False
-            for lane in lanes_by_drain_order:
-                queue = self._lru.get(lane)
-                if queue:
-                    evict_model_key, evict_tokens = queue.popleft()
-                    self._delete(evict_model_key, list(evict_tokens))
-                    evicted = True
-                    break
-            if evicted:
-                continue
-            oldest_resume = next(iter(self._resume_bindings), None)
-            if oldest_resume is not None:
-                self._resume_bindings.pop(oldest_resume, None)
-            else:
-                return
-
-    def _lane_of(self, model_key: Any) -> str:
-        # A single-entry budget cannot be split without overspending it, so
-        # every lane shares one queue and eviction stays global.
-        if self.max_size <= 1:
-            return "shared"
-        if isinstance(model_key, tuple) and len(model_key) >= 2:
-            return str(model_key[1])
-        return "default"
-
-    def _lane_budget(self, lane: str) -> int:
-        if self.max_size <= 1 or lane == "shared":
-            return self.max_size
-        # Asymmetric on purpose. The conversation is already protected by having
-        # its OWN queue, and only its newest entry is ever reused — turn N+1
-        # extends turn N, so older conversation entries are dead weight holding
-        # the largest KV in the cache. The internal lane is the opposite: it
-        # carries many DISTINCT prompt families (the reflective persona, the
-        # pre-linguistic decision narrator, enrichment, dreaming), and with a
-        # 50/50 split they evicted each other on every tick. Measured live,
-        # repeatedly: "trimmed hit — reused 3/792 tokens", the same two families
-        # taking turns destroying each other's prefix.
-        reserved = max(1, min(3, self.max_size - 1))
-        return reserved if lane == "user_surface" else self.max_size - reserved
-
-    def _queue_for(self, lane: str) -> deque:
-        queue_for_lane = self._lru.get(lane)
-        if queue_for_lane is None:
-            queue_for_lane = deque()
-            self._lru[lane] = queue_for_lane
-        return queue_for_lane
-
-    def _forget_key(self, cache_key: tuple) -> None:
-        queue_for_lane = self._lru.get(self._lane_of(cache_key[0]))
-        if queue_for_lane is None:
-            return
-        try:
-            queue_for_lane.remove(cache_key)
-        except ValueError as exc:
-            logger.debug("Prompt cache LRU entry already absent: %s", exc)
-
-    def clear(self) -> None:
-        self._cache.clear()
-        self._lru.clear()
-        self._resume_bindings.clear()
-
-    def clear_model_key(self, model_key: Any) -> None:
-        """Discard one model/scope without erasing unrelated prompt state.
-
-        Generation retries need a clean cache for the request that failed. They
-        do not establish that every other lane is corrupt. In particular, a
-        default-lane repair must not erase the user-surface prefix that keeps a
-        live conversation warm. Weight changes and memory-pressure shedding
-        still use ``clear()`` because those events invalidate every entry.
-        """
-
-        lane = self._lane_of(model_key)
-        queue_for_lane = self._lru.get(lane)
-        if queue_for_lane is not None:
-            retained: deque = deque()
-            for cache_key in list(queue_for_lane):
-                cached_model_key, cached_tokens = cache_key
-                if cached_model_key == model_key:
-                    self._delete(cached_model_key, list(cached_tokens))
-                else:
-                    retained.append(cache_key)
-            if retained:
-                self._lru[lane] = retained
-            else:
-                self._lru.pop(lane, None)
-        for handle, binding in list(self._resume_bindings.items()):
-            if binding.model_key == model_key:
-                self._resume_bindings.pop(handle, None)
-
-    def _prune_resume_bindings(self, *, now: float | None = None) -> None:
-        observed_at = time.monotonic() if now is None else float(now)
-        expired = [
-            handle
-            for handle, binding in self._resume_bindings.items()
-            if observed_at - binding.created_at > self._resume_ttl_s
-        ]
-        for handle in expired:
-            self._resume_bindings.pop(handle, None)
-        while len(self._resume_bindings) > self._resume_binding_limit:
-            oldest = next(iter(self._resume_bindings), None)
-            if oldest is None:
-                break
-            self._resume_bindings.pop(oldest, None)
-
-    def bind_resume(
-        self,
-        model_key: Any,
-        tokens: list[int],
-        *,
-        prompt_cache: list[Any] | None = None,
-        one_token_rollback: _PromptCacheOneTokenRollback | None = None,
-        context_digest: str = "",
-    ) -> str:
-        """Move exact final KV state into a short-lived continuation capability.
-
-        A resumable generation is a transaction boundary, not an ordinary cache
-        hint.  The capability therefore owns the actual final cache object.  A
-        later trie lookup allowed eviction or insertion-policy differences to
-        turn a valid continuation into a silent full re-prefill.
-        """
-
-        if len(tokens) < 2:
-            return ""
-        if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:
-            return ""
-        exact = self._search(model_key, tokens).exact
-        if exact is not None:
-            owned_cache = self._extract(model_key, exact).prompt_cache
-        elif prompt_cache is not None:
-            owned_cache = prompt_cache
-        else:
-            return ""
-        self._prune_resume_bindings()
-        handle = uuid.uuid4().hex
-        self._resume_bindings[handle] = _PromptCacheResumeBinding(
-            model_key=model_key,
-            tokens=tuple(int(token) for token in tokens),
-            prompt_cache=owned_cache,
-            one_token_rollback=one_token_rollback,
-            context_digest=str(context_digest or ""),
-            created_at=time.monotonic(),
-        )
-        self._prune_resume_bindings()
-        self._enforce_total_token_budget()
-        return handle if handle in self._resume_bindings else ""
-
-    def fetch_resume(
-        self,
-        handle: str,
-        model_key: Any,
-        *,
-        can_trim_prompt_cache: Any,
-        trim_prompt_cache: Any,
-        append_tokens: list[int] | None = None,
-        context_digest: str = "",
-    ) -> tuple[list[Any] | None, list[int], list[int], str]:
-        """Consume exact worker state, replay its last token, then append a turn."""
-
-        normalized = str(handle or "").strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{32}", normalized):
-            return None, [], [], "invalid_handle"
-        self._prune_resume_bindings()
-        binding = self._resume_bindings.pop(normalized, None)
-        if binding is None:
-            return None, [], [], "unknown_or_expired_handle"
-        if binding.model_key != model_key:
-            # A capability presented on the wrong lane must not disclose KV,
-            # but it also must not let another lane destroy the rightful
-            # continuation. Return ownership to the scoped general cache.
-            self.insert_cache(
-                binding.model_key,
-                list(binding.tokens),
-                binding.prompt_cache,
-            )
-            return None, [], [], "model_or_lane_mismatch"
-        expected_digest = str(binding.context_digest or "")
-        presented_digest = str(context_digest or "")
-        if expected_digest and presented_digest != expected_digest:
-            self.insert_cache(
-                binding.model_key,
-                list(binding.tokens),
-                binding.prompt_cache,
-            )
-            return None, [], [], "context_mismatch"
-        tokens = list(binding.tokens)
-        prompt_cache = binding.prompt_cache
-        if not can_trim_prompt_cache(prompt_cache):
-            rewound, rewind_failure = _rewind_hybrid_prompt_cache_one_token(
-                prompt_cache,
-                binding.one_token_rollback,
-            )
-            if not rewound:
-                self.insert_cache(model_key, tokens, prompt_cache)
-                return None, [], [], rewind_failure
-            resume_kind = "hybrid recurrent/KV"
-        else:
-            trim_prompt_cache(prompt_cache, 1)
-            resume_kind = "KV"
-        appended = [int(token) for token in (append_tokens or [])]
-        if append_tokens is not None:
-            if not appended:
-                self.insert_cache(model_key, tokens, prompt_cache)
-                return None, [], [], "append_boundary_empty"
-            if appended[0] != tokens[-1]:
-                self.insert_cache(model_key, tokens, prompt_cache)
-                return None, [], [], "append_boundary_final_token_mismatch"
-            # The boundary renderer includes the assistant end token so it can
-            # prove it is the same token the cache ended on. ``tokens`` already
-            # owns it; after the one-token rewind it is replayed exactly once.
-            appended = appended[1:]
-        logical_tokens = [*tokens, *appended]
-        replay_tokens = [tokens[-1], *appended]
-        logger.info(
-            "🎯 [PROMPT CACHE] %s exact resume — reused %d/%d tokens, %d to prefill.",
-            resume_kind,
-            len(tokens) - 1,
-            len(logical_tokens),
-            len(replay_tokens),
-        )
-        return prompt_cache, replay_tokens, logical_tokens, ""
-
-    def _search(self, model_key: Any, tokens: list[int]) -> _PromptCacheSearchResult:
-        if model_key not in self._cache:
-            return _PromptCacheSearchResult(None, None, None, 0)
-
-        current = self._cache[model_key]
-        last_cache_index = -1
-        index = 0
-
-        while index < len(tokens) and tokens[index] in current:
-            current = current[tokens[index]]
-            if "cache" in current:
-                last_cache_index = index
-            index += 1
-
-        if last_cache_index == len(tokens) - 1:
-            return _PromptCacheSearchResult(tokens, None, None, 0)
-
-        # Index 0 is a valid one-token cached prefix; the old > 0 test threw
-        # it away and forced an avoidable full prefill.
-        shorter = tokens[: last_cache_index + 1] if last_cache_index >= 0 else None
-        longer = None
-        common_prefix = index
-        if index > 0 and last_cache_index < 0:
-            best = None
-            stack = [(current, [])]
-            while stack:
-                node, extra = stack.pop()
-                if "cache" in node:
-                    if best is None or len(extra) < len(best):
-                        best = extra
-                else:
-                    for tok in node:
-                        stack.append((node[tok], extra + [tok]))
-            if best is not None:
-                longer = tokens[:index] + best
-
-        return _PromptCacheSearchResult(None, shorter, longer, common_prefix)
-
-    def _get(self, model_key: int, tokens: list[int]) -> _PromptCacheEntry:
-        current = self._cache[model_key]
-        for tok in tokens:
-            current = current[tok]
-        return current["cache"]
-
-    def _delete(self, model_key: int, tokens: list[int]) -> None:
-        path = [self._cache[model_key]]
-        for tok in tokens:
-            path.append(path[-1][tok])
-        del path[-1]["cache"]
-        for index in reversed(range(len(tokens))):
-            prev_node, node, tok = path[index], path[index + 1], tokens[index]
-            if len(node) > 0:
-                break
-            del prev_node[tok]
-
-    def _extract(self, model_key: int, tokens: list[int]) -> _PromptCacheEntry:
-        cache_entry = self._get(model_key, tokens)
-        if cache_entry.count == 1:
-            self._delete(model_key, tokens)
-            self._forget_key((model_key, tuple(tokens)))
-            return cache_entry
-
-        cache_entry.count -= 1
-        return _PromptCacheEntry(copy.deepcopy(cache_entry.prompt_cache), 1)
-
-    def fetch_nearest_cache(
-        self,
-        model_key: Any,
-        tokens: list[int],
-        *,
-        can_trim_prompt_cache: Any,
-        trim_prompt_cache: Any,
-    ) -> tuple[list[Any] | None, list[int]]:
-        result = self._search(model_key, tokens)
-        # Whether prefix reuse actually happens decides whether a conversation
-        # survives: every turn that misses re-prefills the entire history, and
-        # time-to-first-token climbs until it crosses the turn budget. Measured
-        # live 2026-07-26, turns 5-7 of one conversation died that way with the
-        # budget shrinking 81.1s -> 73.2s -> 55.8s against a first token that
-        # kept taking 58-82s. None of that was visible: there was no hit/miss
-        # signal anywhere, so reuse could only be inferred from latency.
-        if result.exact is not None and len(tokens) > 1:
-            # Never hand back an EMPTY remainder: mlx_lm has to be given at
-            # least one token to run a decode step, so an exact hit reuses
-            # everything but the final token and replays that one.
-            cache_entry = self._extract(model_key, result.exact)
-            if can_trim_prompt_cache(cache_entry.prompt_cache):
-                trim_prompt_cache(cache_entry.prompt_cache, 1)
-                logger.info(
-                    "🎯 [PROMPT CACHE] exact hit — reused %d/%d tokens, 1 to prefill.",
-                    len(tokens) - 1,
-                    len(tokens),
-                )
-                return cache_entry.prompt_cache, tokens[-1:]
-            # Untrimmable cache: putting it back keeps it available for the
-            # prefix path instead of silently dropping a live entry.
-            self.insert_cache(model_key, list(result.exact), cache_entry.prompt_cache)
-
-        if result.shorter is not None:
-            cache_entry = self._extract(model_key, result.shorter)
-            prefix_len = len(result.shorter)
-            logger.info(
-                "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",
-                prefix_len,
-                len(tokens),
-                len(tokens) - prefix_len,
-            )
-            return cache_entry.prompt_cache, tokens[prefix_len:]
-
-        if result.longer is not None:
-            cache_entry = self._get(model_key, result.longer)
-            if can_trim_prompt_cache(cache_entry.prompt_cache):
-                prefix = min(len(tokens) - 1, result.common_prefix)
-                num_to_trim = len(result.longer) - prefix
-                # _extract already copies when the entry is shared and hands
-                # over the live object when it is not. Deep-copying here
-                # unconditionally cost a second full KV allocation — ~1.5GB on
-                # the 32B geometry — on the hot path of every diverging turn.
-                trimmed = self._extract(model_key, result.longer)
-                trim_prompt_cache(trimmed.prompt_cache, num_to_trim)
-                logger.info(
-                    "🎯 [PROMPT CACHE] trimmed hit — reused %d/%d tokens, %d to prefill.",
-                    prefix,
-                    len(tokens),
-                    len(tokens) - prefix,
-                )
-                return trimmed.prompt_cache, tokens[prefix:]
-
-        logger.info("🧊 [PROMPT CACHE] miss — prefilling all %d tokens.", len(tokens))
-        return None, tokens
-
-    def insert_cache(self, model_key: Any, tokens: list[int], prompt_cache: list[Any]) -> None:
-        if self.max_entry_tokens > 0 and len(tokens) > self.max_entry_tokens:
-            return
-        if model_key not in self._cache:
-            self._cache[model_key] = {}
-        current = self._cache[model_key]
-        for tok in tokens:
-            if tok not in current:
-                current[tok] = {}
-            current = current[tok]
-
-        cache_key = (model_key, tuple(tokens))
-        if "cache" in current:
-            current["cache"].count += 1
-            self._forget_key(cache_key)
-        else:
-            current["cache"] = _PromptCacheEntry(prompt_cache, 1)
-
-        lane = self._lane_of(model_key)
-        queue_for_lane = self._queue_for(lane)
-        queue_for_lane.append(cache_key)
-        while len(queue_for_lane) > self._lane_budget(lane):
-            evict_model_key, evict_tokens = queue_for_lane.popleft()
-            self._delete(evict_model_key, list(evict_tokens))
-        self._enforce_total_token_budget()
+# The prompt KV cache lives in its own module: a prefix trie, an LRU with a
+# byte envelope and resume capabilities is a subsystem, not part of the worker
+# loop. The two names anything still refers to are imported under their old
+# private spelling, so existing references — including a test that reads this
+# file as text — keep resolving.
+from core.brain.llm.prompt_cache import (  # noqa: E402
+    PromptCacheLRU as _PromptCacheLRU,
+)
+from core.brain.llm.prompt_cache import (  # noqa: E402
+    capture_prompt_cache_one_token_rollback as _capture_prompt_cache_one_token_rollback,
+)
 
 
 class JobWatchdog(threading.Thread):
@@ -7022,6 +6659,138 @@ class AffectiveSteeringAttachment:
     disposition: str
 
 
+def _remember_fusion_identity(descriptor: Any) -> None:
+    """Note which checkpoint is in memory, so its certificate can be found."""
+    global _FUSION_MODEL_IDENTITY
+
+    digest = ""
+    if isinstance(descriptor, dict):
+        digest = str(descriptor.get("descriptor_sha256") or "")
+    _FUSION_MODEL_IDENTITY = digest
+    if not digest:
+        return
+    try:
+        from core.consciousness.fusion_certificate import certificate_for
+
+        certificate = certificate_for(digest)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return
+    if certificate is None:
+        logger.info(
+            "Fusion channel shut for %s: no certificate yet. The worker will measure "
+            "one when it has been idle long enough to do it without delaying a turn.",
+            digest[:16],
+        )
+    elif certificate.holds:
+        logger.info(
+            "🔗 Fusion channel open for %s at alpha %.3f: answers change on %d of %d "
+            "probes, opposing states separate by %.2f.",
+            digest[:16],
+            certificate.alpha,
+            certificate.prompts_that_change,
+            certificate.prompts,
+            certificate.state_separation,
+        )
+    else:
+        logger.info("Fusion channel shut for %s: %s", digest[:16], certificate.why_not())
+
+
+#: How long the worker must have had nothing to do before it spends the GPU on
+#: certifying its own steering channel. Twelve empty five-second waits: long
+#: enough that nobody is mid-conversation, short enough that it happens the
+#: first time the user steps away rather than never.
+FUSION_IDLE_TICKS_BEFORE_SELF_CERTIFY = 12
+
+#: The probe is smaller in the worker than on the command line. The full sweep
+#: is a research instrument; this one has to fit in an idle gap on a 27B, so it
+#: measures the shipped alpha only and takes fewer, shorter probes.
+FUSION_SELF_CERTIFY_ALPHAS = (0.1, 0.2)
+FUSION_SELF_CERTIFY_STEPS = 12
+
+
+def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
+    """Measure this checkpoint's steering channel and write what came back.
+
+    Runs on the worker's own loop thread while the request queue is empty, so it
+    cannot overlap a generation. It has to be that thread: the probe moves the
+    engine's alpha and overrides the composite, and doing either underneath a
+    turn in flight would steer somebody's answer with a control vector.
+
+    The alternative was to certify at load, and a fresh checkpoint would then
+    cost minutes of boot before the first token. The alternative to that was to
+    leave the channel shut forever unless somebody remembered to run a tool.
+    """
+    global _FUSION_MODEL_IDENTITY
+
+    identity = _FUSION_MODEL_IDENTITY
+    hooks = list(getattr(engine, "_hooks", None) or [])
+    if not identity or not hooks or model is None or tokenizer is None:
+        return False
+    try:
+        from core.consciousness.fusion_certificate import certificate_for, write_certificate
+        from core.consciousness.fusion_probe import measure_fusion
+    except ImportError as exc:
+        logger.debug("Fusion probe unavailable: %s", exc)
+        return False
+    if certificate_for(identity) is not None:
+        return False
+
+    restore_alpha = float(getattr(engine, "_alpha", 0.0) or 0.0)
+    logger.info(
+        "Measuring the fusion channel for %s on an idle worker; this holds the GPU "
+        "for a minute and happens once per checkpoint.",
+        identity[:16],
+    )
+    try:
+        certificates = measure_fusion(
+            model,
+            tokenizer,
+            hooks,
+            engine.set_alpha,
+            model_identity=identity,
+            model_name=str((getattr(engine, "_model_info", None) or {}).get("model_path", "")),
+            alphas=FUSION_SELF_CERTIFY_ALPHAS,
+            steps=FUSION_SELF_CERTIFY_STEPS,
+            runner="core/brain/llm/mlx_worker._self_certify_fusion",
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _record_mlx_degradation(
+            exc,
+            action="left the fusion channel shut after the self-certification probe failed",
+            severity="warning",
+        )
+        return False
+    finally:
+        try:
+            engine.set_alpha(restore_alpha)
+        except (AttributeError, TypeError, ValueError):
+            pass
+
+    if not certificates:
+        return False
+    holding = [certificate for certificate in certificates if certificate.holds]
+    chosen = (
+        min(holding, key=lambda item: item.alpha)
+        if holding
+        else min(certificates, key=lambda item: item.alpha)
+    )
+    write_certificate(chosen)
+    if chosen.holds:
+        logger.info(
+            "🔗 Fusion channel earned alpha %.3f for %s: answers change on %d of %d probes, "
+            "opposing states separate by %.2f, accuracy moved %+.3f.",
+            chosen.alpha,
+            identity[:16],
+            chosen.prompts_that_change,
+            chosen.prompts,
+            chosen.state_separation,
+            chosen.quality_delta,
+        )
+    else:
+        logger.info("Fusion channel stays shut for %s: %s", identity[:16], chosen.why_not())
+    return True
+
+
 def _affective_attachment_available(engine: Any) -> bool:
     return bool(
         getattr(engine, "_model_attached", False) and (getattr(engine, "_hooks", None) or [])
@@ -7110,6 +6879,7 @@ def _attach_affective_steering(
             )
         else:
             engine.attach(model, tokenizer)
+        _remember_fusion_identity(cortex_resolution.descriptor)
         active = _finish_affective_attachment(
             engine,
             substrate_mem=substrate_mem,
@@ -7618,6 +7388,11 @@ def _mlx_worker_loop(
         engine = steering_attachment.engine
         _steering_active = steering_attachment.active
         _affect_expected = steering_attachment.affect_expected
+        # Why the flag is what it is. The worker already decides this and logs
+        # it at info — "expected states stay visible and stay quiet" — and
+        # then sent the parent only the boolean, so the parent warned about a
+        # deliberate, signed detachment on every call.
+        _steering_disposition = str(steering_attachment.disposition or "")
         if engine is not None and getattr(engine, "_model_attached", False):
             latent_bridge = _attach_latent_bridge(model, latent_readout_mem)
 
@@ -7788,6 +7563,7 @@ def _mlx_worker_loop(
                 "action": "init",
                 "device": device,
                 "steering_active": bool(_steering_active),
+                "steering_disposition": _steering_disposition,
                 "recurrent_depth": recurrent_depth_status,
                 "recurrent_adapter_activation": dict(recurrent_adapter_activation),
                 "recurrent_adapter_activation_receipt": (
@@ -7880,6 +7656,12 @@ def _mlx_worker_loop(
     # exactly what this worker wrapped.
     expert_adapter_state: dict[str, Any] = {"path": "", "wrapped": []}
 
+    # Idle bookkeeping for the fusion self-certification. It runs on this
+    # thread and only when the queue has been empty for a while, so it can never
+    # overlap a turn.
+    idle_ticks = 0
+    fusion_certified = False
+
     worker_active = True
     while worker_active:
         try:
@@ -7897,6 +7679,13 @@ def _mlx_worker_loop(
                 # check above runs even when the request queue is idle.
                 job = request_queue.get(timeout=5.0)
             except queue.Empty:
+                idle_ticks += 1
+                if not fusion_certified and idle_ticks >= FUSION_IDLE_TICKS_BEFORE_SELF_CERTIFY:
+                    # Nobody has asked for anything in a minute, so the GPU is
+                    # free for the one measurement that decides whether her
+                    # substrate may touch the residual stream on a real turn.
+                    fusion_certified = _self_certify_fusion(model, tokenizer, engine)
+                    idle_ticks = 0
                 continue
             except KeyboardInterrupt:
                 logger.info("🛑 [WORKER] Shutdown signal received while idle; exiting quietly.")
@@ -7904,6 +7693,7 @@ def _mlx_worker_loop(
             except (EOFError, BrokenPipeError, OSError) as queue_exc:
                 logger.info("🛑 [WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
                 break
+            idle_ticks = 0
             if job is None:
                 worker_active = False
                 continue
@@ -8006,9 +7796,30 @@ def _mlx_worker_loop(
                 # reuse it — silently reinstating the full-history re-prefill
                 # this cache exists to prevent. Bypass jobs simply never read
                 # or write; only an explicit request clears.
+                # `clear_prompt_cache` means "do not reuse anything for MY
+                # request", and that is `disable_prompt_cache`, which is set
+                # beside it at every one of the callers that asks for it.
+                #
+                # It used to wipe the whole model+scope trie. That is a
+                # different act, nobody asked for it, and everybody paid: the
+                # scope is `user_surface`, so one contract lane — or the
+                # readiness probe, which runs BETWEEN user turns — threw away
+                # the conversation's cached prefix a moment before the next
+                # turn asked for it.
+                #
+                # LIVE, 2026-09-08: `Verifying conversation readiness ... with
+                # a visible probe`, then `cleared everything under
+                # key=(5026061904, 'user_surface')`, then three consecutive
+                # turns each `matched 0 (0.0%)` against 663 tokens retained
+                # from the turn before.
+                #
+                # Reuse is KV for a byte-identical token prefix, so a hit is
+                # correct by construction and keeping entries longer cannot
+                # make an answer wrong. What it costs is memory, and that is
+                # bounded by the LRU's own caps.
                 clear_prompt_cache = bool(job.get("clear_prompt_cache", False))
-                if clear_prompt_cache and prompt_cache_lru is not None:
-                    prompt_cache_lru.clear_model_key((id(model), _prompt_cache_scope_for_job(job)))
+                if clear_prompt_cache:
+                    disable_prompt_cache = True
 
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""
@@ -8318,7 +8129,7 @@ def _mlx_worker_loop(
                 #    suppresses low-information mode-collapse filler.
                 #  • AURA_CONTRASTIVE_DECODING + AURA_CONTRASTIVE_AMATEUR_MODEL —
                 #    real dual-model contrastive decoding against a small same-family
-                #    amateur (e.g. Qwen2.5-1.5B vs the 32B cortex), subtracting the
+                #    amateur (e.g. Qwen2.5-1.5B vs the cortex), subtracting the
                 #    amateur's lazy preferences within the cortex's plausible set.
                 _steer_on = _FLAG_REASONING_STEERING.value().strip().lower() in {
                     "1",
@@ -8472,6 +8283,38 @@ def _mlx_worker_loop(
                         logits_processors.append(_np_proc)
                 except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                     logger.debug("Foreground non-parametric memory unavailable: %s", e)
+
+                # The private channel, bounded by the decoder rather than by
+                # hope. Nothing had ended it, so what it COST could only be
+                # estimated from the generations that ran away with it, the
+                # estimate priced it out of every ordinary turn, and the model
+                # did its searching where the answer goes.
+                if native_thinking is True:
+                    try:
+                        from core.brain.llm.a_bounded_private_channel import (
+                            close_the_channel_after,
+                        )
+
+                        _bound = close_the_channel_after(
+                            tokenizer, _the_private_channel_budget(job, max_tokens)
+                        )
+                        if _bound is not None:
+                            logits_processors.append(_bound)
+                            logger.info(
+                                "🧠 [WORKER] Private channel bounded at %d tokens.",
+                                getattr(_bound, "budget_tokens", 0),
+                            )
+                        else:
+                            logger.info(
+                                "🧠 [WORKER] Private channel NOT bounded; this "
+                                "tokenizer has no single closing token."
+                            )
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without a bounded private channel",
+                            severity="warning",
+                        )
 
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
@@ -8752,8 +8595,30 @@ def _mlx_worker_loop(
                                     # turns only ever see user-surface
                                     # entries, so internal lanes cannot leak
                                     # KV into the conversation or vice versa.
+                                    # The model, named. Not its address.
+                                    #
+                                    # `id(model)` is a memory address: it
+                                    # changes whenever the object it points at
+                                    # is rebuilt, and CPython reuses it after a
+                                    # collection, so it is neither stable
+                                    # enough to find an entry again nor unique
+                                    # enough to be sure the entry is this
+                                    # model's.
+                                    #
+                                    # LIVE, 2026-09-08: two keys in one process
+                                    # for one resident model —
+                                    # `key=(5090059008, 'default')` and
+                                    # `key=(5091808816, 'user_surface')` — and
+                                    # every user turn searching a trie that had
+                                    # just been written under a different
+                                    # number. The miss line said `matched 0
+                                    # (0.0%)` with 489 tokens retained a moment
+                                    # earlier, and the diagnosis for the key it
+                                    # actually searched was `<0 branch(es),
+                                    # none walkable>`: nothing was there,
+                                    # because nothing had ever been put there.
                                     model_key = (
-                                        id(model),
+                                        _prompt_cache_model_key(model_path),
                                         _prompt_cache_scope_for_job(job),
                                     )
                                     cache = None
@@ -8964,6 +8829,7 @@ def _mlx_worker_loop(
                                                 tokens,
                                                 can_trim_prompt_cache=_can_trim,
                                                 trim_prompt_cache=_do_trim,
+                                                describe=getattr(tokenizer, "decode", None),
                                             )
                                         )
                                         if cache is None:
@@ -9127,12 +8993,23 @@ def _mlx_worker_loop(
                                     )
                                     prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
+                                    _snapshot_at, _keep_prefix = _a_prefix_worth_keeping(
+                                        prompt_cache_lru,
+                                        model_key,
+                                        tokens,
+                                        len(tokens) - len(remaining_tokens),
+                                        cache,
+                                        prefill_step_size,
+                                    )
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(
                                             watchdog,
                                             ipc_writer,
                                             request_id=str(job.get("id") or ""),
                                             action="generate",
+                                            snapshot_at=_snapshot_at,
+                                            keep_prefix=_keep_prefix,
+                                            cancel_check=lambda seq=job_seq: soft_cancel_requested(cancel_seq, seq),
                                         )
                                     )
 
@@ -9559,6 +9436,34 @@ def _mlx_worker_loop(
                                         prompt_cache_lru.insert_cache(
                                             model_key, list(tokens), final_prompt_cache
                                         )
+                                        logger.info(
+                                            "🧊 [PROMPT CACHE] retained %d tokens "
+                                            "scope=%s key=%s (cache %x)",
+                                            len(tokens),
+                                            _prompt_cache_scope_for_job(job),
+                                            model_key,
+                                            id(prompt_cache_lru),
+                                        )
+                                    elif prompt_cache_lru is not None:
+                                        # A turn that retains nothing makes the
+                                        # NEXT turn pay a full prefill, and the
+                                        # miss line on that turn cannot say why.
+                                        # Name the condition here, where it is
+                                        # still known.
+                                        logger.info(
+                                            "🧊 [PROMPT CACHE] retained nothing: "
+                                            "disabled=%s no_cache_object=%s no_tokens=%s "
+                                            "sentinel_aborted=%s scope=%s purpose=%s origin=%s",
+                                            ",".join(
+                                                _prompt_cache_bypass_reasons(job)
+                                            ) or bool(job.get("disable_prompt_cache")),
+                                            final_prompt_cache is None,
+                                            not tokens,
+                                            sentinel_aborted,
+                                            _prompt_cache_scope_for_job(job),
+                                            job.get("purpose") or "-",
+                                            job.get("origin") or "-",
+                                        )
 
                                     # Interoception: distil this attempt's measurements.
                                     # Later attempts overwrite, so the shipped payload always
@@ -9656,6 +9561,22 @@ def _mlx_worker_loop(
                                             native_channels.reasoning[-220:],
                                         )
                                         _record_budget_that_ran_out_thinking(max_tokens, model_path)
+                                    elif (
+                                        native_thinking is True
+                                        and native_channels.boundary_closed
+                                        and token_count < max_tokens
+                                        and (current_response or "").strip()
+                                    ):
+                                        # The other half of that proof, and it
+                                        # was missing. This generation opened
+                                        # the channel, closed it, wrote an
+                                        # answer, and stopped on its own with
+                                        # budget left — so this budget was
+                                        # enough, and the largest one known to
+                                        # be too small is smaller than it.
+                                        _record_budget_that_finished_thinking(
+                                            max_tokens, model_path
+                                        )
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
@@ -9701,12 +9622,38 @@ def _mlx_worker_loop(
                                     # the same kind of fact and was never
                                     # written down anywhere a deadline could
                                     # read it.
+                                    #
+                                    # MLX's measured prompt time, not the time
+                                    # to the first token. They differ by
+                                    # everything that happens before reading
+                                    # starts — weights paged in, the cache
+                                    # built, the sampler made, the queue —
+                                    # and on a cold worker that is most of it.
+                                    #
+                                    # LIVE, 2026-09-08: the read rates learned
+                                    # from first-token latency stood at about
+                                    # 14 characters a second, so the answer
+                                    # clock said a 9,558-character prompt would
+                                    # take 690 seconds to read and sized the
+                                    # turn at 893. The worker read it at 410
+                                    # to 990 tokens a second. A person watching
+                                    # that turn sees a runtime that has stopped.
+                                    _read_s = 0.0
                                     try:
-                                        _first_token_s = float(first_token_latency_s or 0.0)
-                                    except (TypeError, ValueError):
-                                        _first_token_s = 0.0
-                                    if _first_token_s > 0.0:
-                                        _record_read_rate(_prompt_chars_for_rate, _first_token_s)
+                                        _read_s = float(
+                                            generation_performance.get("prefill_seconds") or 0.0
+                                        )
+                                    except (AttributeError, TypeError, ValueError):
+                                        _read_s = 0.0
+                                    # Nothing when MLX did not time it. This
+                                    # module's own discipline: an unmeasured
+                                    # rate extends no deadline. Substituting
+                                    # first-token latency here is what put the
+                                    # 14 chars/s readings in the window in the
+                                    # first place, and they outlive the turn
+                                    # that produced them.
+                                    if _read_s > 0.0:
+                                        _record_read_rate(_prompt_chars_for_rate, _read_s)
                                     if token_count > 0 and _elapsed_decode_s > 0.0:
                                         surface_control_state["decode_tokens_per_second"] = (
                                             token_count / _elapsed_decode_s
@@ -10263,6 +10210,20 @@ def _mlx_worker_loop(
                                                     "strip_private_planning_prefix",
                                                     "separate_private_plan_and_revalidate_public_suffix",
                                                 ),
+                                                # A leak in the MIDDLE. The
+                                                # prefix repair above cannot
+                                                # reach one, and until this
+                                                # existed a 2,128-character
+                                                # answer was discarded over
+                                                # item one of its own list.
+                                                "internal_task_prompt_leak_sentences": (
+                                                    "strip_internal_task_leak_sentences",
+                                                    "remove_scaffolding_sentences_and_revalidate",
+                                                ),
+                                                "prompt_echo_contamination": (
+                                                    "strip_internal_task_leak_sentences",
+                                                    "remove_scaffolding_sentences_and_revalidate",
+                                                ),
                                                 "prompt_artifact": (
                                                     "strip_prompt_artifacts",
                                                     "cut_transcript_continuation_and_revalidate",
@@ -10280,7 +10241,16 @@ def _mlx_worker_loop(
                                                 _repair_name,
                                                 _method,
                                             ) in repairs.items():
-                                                if _reason not in rejection_reasons:
+                                                # The sentence-level leak
+                                                # repair is keyed under its own
+                                                # name so it runs AFTER the
+                                                # prefix one on the same
+                                                # rejection, rather than
+                                                # instead of it.
+                                                _applies = _reason.removesuffix(
+                                                    "_sentences"
+                                                )
+                                                if _applies not in rejection_reasons:
                                                     continue
                                                 try:
                                                     import core.conversation.response_reliability as _rr
@@ -11293,6 +11263,38 @@ def _mlx_worker_loop(
                         severity="warning",
                     )
 
+                # The private channel, bounded by the decoder rather than by
+                # hope. Nothing had ended it, so what it COST could only be
+                # estimated from the generations that ran away with it, the
+                # estimate priced it out of every ordinary turn, and the model
+                # did its searching where the answer goes.
+                if native_thinking is True:
+                    try:
+                        from core.brain.llm.a_bounded_private_channel import (
+                            close_the_channel_after,
+                        )
+
+                        _bound = close_the_channel_after(
+                            tokenizer, _the_private_channel_budget(job, max_tokens)
+                        )
+                        if _bound is not None:
+                            logits_processors.append(_bound)
+                            logger.info(
+                                "🧠 [WORKER] Private channel bounded at %d tokens.",
+                                getattr(_bound, "budget_tokens", 0),
+                            )
+                        else:
+                            logger.info(
+                                "🧠 [WORKER] Private channel NOT bounded; this "
+                                "tokenizer has no single closing token."
+                            )
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without a bounded private channel",
+                            severity="warning",
+                        )
+
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
 
@@ -11375,6 +11377,7 @@ def _mlx_worker_loop(
                                 _stream_prompt_text = str(prompt or "")
                                 _stream_prompt_tokens = len(tokenizer.encode(_stream_prompt_text))
                                 _stream_prefill_step_size = _runtime_prefill_step_size(model_path)
+                                _stream_job_seq = _safe_int(job.get("seq"), 0)
                                 clean_kwargs["prefill_step_size"] = _stream_prefill_step_size
                                 clean_kwargs["prompt_progress_callback"] = (
                                     _build_prefill_progress_callback(
@@ -11382,6 +11385,9 @@ def _mlx_worker_loop(
                                         ipc_writer,
                                         request_id=str(job.get("id") or ""),
                                         action="stream",
+                                        cancel_check=lambda seq=_stream_job_seq: soft_cancel_requested(
+                                            cancel_seq, seq
+                                        ),
                                     )
                                 )
                                 if _speculative_eligible(
@@ -12302,15 +12308,23 @@ def _mlx_worker_loop(
                         severity="critical",
                     )
                     response.update(_state_application_quarantine_response(quarantine_exc))
-                except (
-                    ImportError,
-                    RuntimeError,
-                    AttributeError,
-                    TypeError,
-                    ValueError,
-                    KeyError,
-                    OSError,
-                ) as latent_exc:
+                except Exception as latent_exc:  # noqa: BLE001 — see below
+                    # Every consumed job gets a terminal answer, whatever went
+                    # wrong. This used to name seven exception types, and the
+                    # parent's future is resolved by the reply this block
+                    # writes — so an eighth type does not fail the request, it
+                    # abandons it, and the person waits until something else
+                    # gives up.
+                    #
+                    # LIVE, 2026-09-07: jinja2.TemplateError("Unexpected
+                    # message role.") is not one of the seven. A file-read
+                    # request went to the worker at 15:44:48 and had no
+                    # answer thirteen minutes later; the client had given up
+                    # at five. The same escape was found in this file on
+                    # 2026-08-19 and fixed at one site.
+                    #
+                    # tests/test_every_consumed_job_gets_an_answer.py fails if
+                    # this guard narrows again.
                     _record_mlx_degradation(
                         latent_exc,
                         action="reported latent_reason failure to parent IPC",
@@ -12347,10 +12361,25 @@ def _mlx_worker_loop(
                     }
                 )
 
+        except _PrefillCancelledError as cancelled:
+            # All per-generation contexts have unwound, including steering
+            # restoration and stream closure. A borrowed KV entry can now be
+            # longer than its trie key, so retire that lane before its receipt.
+            if cancelled.action == "generate" and prompt_cache_lru is not None:
+                prompt_cache_lru.clear_model_key(model_key)
+            logger.info(
+                "Worker stopped %s during prefill at %d/%d tokens (job seq=%s).",
+                cancelled.action, cancelled.processed, cancelled.total, job.get("seq"),
+            )
+            ipc_writer.put(cancelled.terminal_frame())
         except KeyboardInterrupt:
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break
-        except (RuntimeError, TypeError, ValueError, OSError, AttributeError) as e:
+        except Exception as e:  # noqa: BLE001 — a job without an answer is worse
+            # The last guard before a job disappears. KeyboardInterrupt and
+            # SystemExit are BaseException and are handled above, so shutdown
+            # still shuts down; everything else becomes the typed error the
+            # parent is waiting for.
             _record_mlx_degradation(
                 e,
                 action="reported worker action error to parent IPC and continued request loop",

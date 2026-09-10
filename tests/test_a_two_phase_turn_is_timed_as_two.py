@@ -22,28 +22,32 @@ _GATE = Path("core/brain/inference_gate.py")
 
 
 def _the_clock_gate() -> ast.If:
-    """The `if` that opens the clock, found by what it tests.
+    """The `if` that decides whether the deadline is extended for decoding.
 
-    Held on the condition rather than on its text. The condition has since
-    been widened to cover any user-facing turn, which is a superset of both
-    entitlements, and a test pinning the old spelling failed over the change
-    that made the clock run more often.
+    Found in the tree rather than by matching source text. The first version of
+    this looked for the literal
+    ``if 0 < _answer_floor_final or _generations > 1:`` and went red when a
+    third entitlement was added in front of it — a change that widened the gate,
+    which is the direction this file exists to protect.
     """
     tree = ast.parse(_GATE.read_text())
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
             continue
-        named = {
+        names = {
             inner.id for inner in ast.walk(node.test) if isinstance(inner, ast.Name)
         }
-        if {"_answer_floor_final", "_generations"} <= named:
+        if {"_answer_floor_final", "_generations"} <= names:
             return node
-    raise AssertionError("nothing gates the clock on the floor and the phase count")
+    raise AssertionError("no gate tests both the completion floor and the phase count")
 
 
 def test_the_clock_runs_for_either_entitlement() -> None:
     gate = _the_clock_gate()
+    # Either, not both: an `or` at the top, so one entitlement is enough.
     assert isinstance(gate.test, ast.BoolOp) and isinstance(gate.test.op, ast.Or)
+    # And each one is a disjunct in its own right. Naming them somewhere under
+    # the `or` is not the same as either of them opening the gate alone.
     said = {ast.unparse(one) for one in gate.test.values}
     assert "0 < _answer_floor_final" in said
     assert "_generations > 1" in said
@@ -63,10 +67,11 @@ def test_the_phase_count_is_decided_before_the_clock_is_gated() -> None:
 def test_the_extension_is_still_measured_rather_than_invented() -> None:
     """An unmeasured decode rate must extend nothing, as before."""
 
-    inside = "\n".join(ast.unparse(one) for one in _the_clock_gate().body)
-    # Not `_seconds_to_decode(max_tokens)`: the worker adds the reasoning
-    # reserve on the far side of this, so the clock was sized for the tokens
-    # asked for while up to twice that many were decoded against it.
-    assert "_decode_s = _seconds_to_decode(_tokens_to_pay_for)" in inside
-    assert "_tokens_to_pay_for = max_tokens + _reserve_the_worker_adds" in inside
-    assert "if _decode_s > 0.0:" in inside
+    gate = _the_clock_gate()
+    inside = ast.unparse(ast.Module(body=gate.body, type_ignores=[]))
+    # What is decoded is measured, not assumed. The argument is no longer
+    # max_tokens — a thinking model adds a reasoning reserve on the far side of
+    # this calculation, so the clock has to pay for more than the gate asked
+    # for — and what this test is about is that a rate is measured at all.
+    assert "_seconds_to_decode(" in inside
+    assert "_decode_s > 0.0" in inside, "an unmeasured rate must extend nothing"

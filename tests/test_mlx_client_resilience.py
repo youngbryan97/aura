@@ -1134,7 +1134,8 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
             raise asyncio.CancelledError
 
         reboot_probe = AsyncCallProbe()
-        with ReplaceAttr(client, "_ensure_worker_alive", AsyncCallProbe(return_value=True)):
+        with ReplaceAttr(client, "_ensure_worker_alive", AsyncCallProbe(return_value=True)), \
+             ReplaceAttr(client, "_soft_cancel_acknowledged", AsyncCallProbe(return_value=True)):
             with ReplaceAttr(client, "_wait_for_generation_result", AsyncCallProbe(side_effect=_cancelled)):
                 with ReplaceAttr(client, "reboot_worker", reboot_probe):
                     with replace_dotted("time.time", lambda: 10_001.0):
@@ -1143,6 +1144,50 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         reboot_probe.assert_not_awaited()
         self.assertEqual(len(cancelled_calls), 1)
+        self.assertGreater(client._cancel_seq.value, 0)
+        self.assertEqual(client._soft_cancel_target["reason"], "generation_caller_cancelled")
+
+    async def test_owner_stop_reaches_worker_without_recording_an_unexpected_failure(self):
+        await self._assert_owner_stop(acknowledged=True)
+
+    async def test_owner_stop_without_worker_acknowledgement_requests_recovery(self):
+        await self._assert_owner_stop(acknowledged=False)
+
+    async def _assert_owner_stop(self, *, acknowledged):
+        from core.runtime.what_stops_it import stopping_with
+
+        client = MLXLocalClient(model_path=TEST_MODEL)
+        client._process = ProcessProbe(alive=True)
+        client._init_done = True
+        self._attach_local_ipc_queues(client)
+        client._set_lane_state("ready")
+        degraded = SyncCallProbe()
+
+        with stopping_with("test-owned-request") as execution:
+            async def cancelled(*args, **kwargs):
+                execution.stopping.stop("explicit owner stop")
+                raise asyncio.CancelledError
+
+            async def acknowledge():
+                self.assertTrue(client._current_request_id)
+                self.assertGreater(client._active_generations, 0)
+                return acknowledged
+
+            with ReplaceAttr(client, "_ensure_worker_alive", AsyncCallProbe(return_value=True)), \
+                 ReplaceAttr(client, "_wait_for_generation_result", AsyncCallProbe(side_effect=cancelled)), \
+                 ReplaceAttr(client, "_worker_unhealthy", lambda *args, **kwargs: False), \
+                 ReplaceAttr(client, "_soft_cancel_acknowledged", acknowledge), \
+                 ReplaceAttr(client, "_record_degraded_event", degraded):
+                with self.assertRaises(asyncio.CancelledError):
+                    await client._generate_inner("hello", foreground_request=True)
+
+        if acknowledged:
+            degraded.assert_not_called()
+        else:
+            self.assertEqual(client._deferred_reboot_reason, "cancelled_worker_not_acknowledged")
+            self.assertEqual(len(degraded.call_args_list), 1)
+            self.assertEqual(degraded.call_args.args[0], "generation_cancel_not_acknowledged")
+        self.assertGreater(client._cancel_seq.value, 0)
 
     async def test_expected_cancelled_generation_does_not_mark_worker_unhealthy(self):
         client = MLXLocalClient(model_path=TEST_MODEL)
@@ -1812,7 +1857,11 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         readiness_kwargs = probe.await_args_list[1].kwargs
         self.assertTrue(readiness_kwargs["health_probe"])
         self.assertTrue(readiness_kwargs["disable_prompt_cache"])
-        self.assertTrue(readiness_kwargs["clear_prompt_cache"])
+        # And NOT clear_prompt_cache: this probe runs between user turns and
+        # that flag wiped the whole `user_surface` scope, so every readiness
+        # check threw away the conversation's cached prefix a moment before
+        # the next turn asked for it.
+        self.assertNotIn("clear_prompt_cache", readiness_kwargs)
         self.assertEqual(readiness_kwargs["max_tokens"], 16)
 
     async def test_resident_primary_readiness_probe_bypasses_only_headroom_reservation(self):

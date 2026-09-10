@@ -56,8 +56,10 @@ def render_recurrent_training_prompt_text(
     content = answer_contract_instruction(task) + "\n\n" + task.prompt
     if include_chain_of_thought:
         content = RECURRENT_TRAINING_COT_PREAMBLE + "\n\n" + content
+    from core.brain.llm.chat_format import for_this_template
+
     rendered = tokenizer.apply_chat_template(
-        [{"role": "user", "content": content}],
+        for_this_template(tokenizer, [{"role": "user", "content": content}]),
         add_generation_prompt=True,
         tokenize=False,
     )

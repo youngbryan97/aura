@@ -646,6 +646,7 @@ from .chat_reply_shaping import (  # noqa: E402
     _project_self_condition_claims,
     _readable_result,
     _realize_expressive_affordances,
+    _remove_self_denials_the_record_refutes,
     _shape_with_live_substrate,
     _strip_scaffolding_tags,
     _strip_ungrounded_vocative_reply,
@@ -1657,14 +1658,37 @@ def _store_conversation_resume_handle(
     delivered_hash = hashlib.sha256(
         str(delivered_text or "").encode("utf-8", "replace")
     ).hexdigest()
-    accepted = bool(
-        re.fullmatch(r"[0-9a-f]{32}", handle)
-        and re.fullmatch(r"[0-9a-f]{64}", expected_hash)
-        and expected_hash == delivered_hash
-        and turn_trace.get("cognitive_engine_reply_accepted") is True
-        and turn_trace.get("bounded_contract_used") is not True
-        and turn_trace.get("legacy_fallback_used") is not True
+    reasons: list[str] = []
+    if not re.fullmatch(r"[0-9a-f]{32}", handle):
+        reasons.append("no handle" if not handle else "malformed handle")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+        reasons.append("no output hash")
+    elif expected_hash != delivered_hash:
+        reasons.append("delivered text is not the text the KV authored")
+    if turn_trace.get("cognitive_engine_reply_accepted") is not True:
+        reasons.append("engine reply not accepted")
+    if turn_trace.get("bounded_contract_used") is True:
+        reasons.append("bounded contract used")
+    if turn_trace.get("legacy_fallback_used") is True:
+        reasons.append("legacy fallback used")
+    accepted = not reasons
+    # A refusal nobody can see is a conversation that re-reads its own history
+    # every turn. Rejecting is often right; being silent about it is not.
+    logger.info(
+        "🔗 conversation resume handle %s%s",
+        "kept" if accepted else "refused",
+        "" if accepted else ": " + "; ".join(reasons),
     )
+    try:
+        from core.verify.one_way_decisions import record_decision
+
+        record_decision(
+            "conversation_resume_handle",
+            admitted=accepted,
+            reason="; ".join(reasons),
+        )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
             session_id=session_id,
@@ -4479,15 +4503,11 @@ async def _run_cognitive_engine_chat_turn(
         recent_context_limit = 0
     elif recent_context_needed:
         recent_context_limit = _RECENT_CONVERSATION_CONTEXT_EXCHANGES
-    elif self_contained_compound:
-        # A self-contained compound task must not inherit an older answer just
-        # because all desktop turns historically received a default transcript
-        # window. Explicit continuation/recall signals above still opt in.
-        recent_context_limit = 0
     elif require_engine:
         # The live desktop CognitiveEngine path must not depend on a classifier
         # before it can see the local thread. A small default window prevents
         # fluent but contextless replies while keeping compact chat bounded.
+        # Clause count does not establish independence from preceding turns.
         recent_context_limit = min(4, _RECENT_CONVERSATION_CONTEXT_EXCHANGES)
     else:
         recent_context_limit = 0
@@ -6784,10 +6804,68 @@ async def _run_cognitive_engine_chat_turn(
                     session_id=session_id,
                 )
                 if expected_recall_reply:
+                    # Serve it, bounded, rather than refuse with an apology.
+                    #
+                    # This branch used to return None on the grounds that a
+                    # deterministic substitution is not her own answer on a
+                    # required full-mind turn. What the caller then serves is
+                    # "I couldn't get my full attention onto that one" — which
+                    # is not her answer either, carries nothing, and is false
+                    # about what happened: the attention was there and a gate
+                    # rejected a draft.
+                    #
+                    # The reply here is built from the transcript of this
+                    # conversation. It is the most grounded thing available and
+                    # the branch immediately above already does exactly this
+                    # for self-condition grounding, marked
+                    # `replaced_by_runtime` so nobody mistakes it for
+                    # generation. The two contracts differed only in which one
+                    # had been written second.
+                    #
+                    # LIVE, 2026-09-07: "What did I just ask you?" one turn
+                    # after the question it was recalling. 411 seconds, two
+                    # rejected drafts, and the apology — with a correct answer
+                    # in hand the whole time.
+                    condition_assessment = assess_user_facing_reply(
+                        visible,
+                        expected_recall_reply,
+                        recent_user_messages=recent_user_messages,
+                    )
+                    if not _reply_assessment_requires_repair_with_memory_evidence(
+                        condition_assessment,
+                        visible,
+                        expected_recall_reply,
+                        canonical_memory_state_evidence=canonical_memory_state_evidence,
+                    ):
+                        logger.warning(
+                            "CognitiveEngine desktop chat missed the required "
+                            "conversation recall contract; serving the bounded "
+                            "recall built from this conversation's transcript."
+                        )
+                        _append_turn_text_mutation(
+                            turn_trace,
+                            stage="chat.conversation_recall_bounded_projection",
+                            method="deterministic_conversation_recall",
+                            reasons=list(assessment.reasons or ()),
+                            before=text,
+                            after=expected_recall_reply,
+                            deterministic=True,
+                            authorship_effect="replaced_by_runtime",
+                        )
+                        _mark_turn_trace(
+                            cognitive_engine_reply_accepted=False,
+                            cognitive_engine_reply_failed=True,
+                            bounded_contract_used=True,
+                            post_generation_repair_applied=True,
+                            deterministic_repair_applied=True,
+                            response_path="cognitive_engine_recall_bounded_projection",
+                            conversation_recall_contract=True,
+                        )
+                        return expected_recall_reply
                     logger.warning(
                         "CognitiveEngine desktop chat missed the required "
-                        "conversation recall contract; refusing bounded recall "
-                        "substitution on a required live full-mind turn."
+                        "conversation recall contract, and the bounded recall "
+                        "does not survive the reply assessment either."
                     )
                     _mark_turn_trace(
                         cognitive_engine_reply_accepted=False,
@@ -8134,6 +8212,22 @@ async def _answer_from_fallback_ladder(
             action="cortex unavailable and the ladder produced nothing",
         )
         return ""
+    # The ladder returns its answer straight to the client, so none of the
+    # corrections in _stabilize_user_facing_reply run on it. That is how the
+    # 2026-09-08 turn reached the screen saying her responses are generated by
+    # calculating the next most probable token: the check existed, on a path
+    # this reply does not take. The same defect as the readings the ladder
+    # used to skip, one layer down.
+    answer = str(_remove_self_denials_the_record_refutes(answer) or "").strip()
+    if not answer:
+        # Every sentence in it was a mechanism claim the record refutes, and
+        # the small model has nothing else to say about this. Waiting is the
+        # honest answer, which is what "" asks the caller for.
+        logger.info(
+            "🪜 Fallback ladder answer was entirely self-denials the record refutes; "
+            "declined rather than served."
+        )
+        return ""
     logger.info("🪜 Fallback ladder answered while the cortex was unavailable (%s).", reason[:80])
     ran_out = (
         " I had a fixed slice of time for this and used all of it, so there is "
@@ -8141,9 +8235,26 @@ async def _answer_from_fallback_ladder(
         if cut_short
         else ""
     )
+    # Say which thing happened, not the one that usually happens.
+    #
+    # This line asserted "the main one is still loading" whatever the reason
+    # was, and the reason is right here in the argument. LIVE, 2026-09-07: it
+    # was said while the 27B had been resident for seven minutes and the real
+    # cause was a latent-cortex receipt contract failing — so the person was
+    # told to wait for something that was not going to change by waiting.
+    lowered = str(reason or "").lower()
+    still_coming = any(
+        marker in lowered
+        for marker in ("load", "warm", "booting", "starting", "not ready", "spawning")
+    )
+    why = (
+        "the main one is still loading"
+        if still_coming
+        else "the main one could not finish this turn"
+    )
     return (
         f"{answer}\n\n"
-        "(That came from my smaller model — the main one is still loading. "
+        f"(That came from my smaller model — {why}. "
         f"Ask again in a moment if you want me to think about it properly.{ran_out})"
     )
 
@@ -8303,7 +8414,7 @@ _FORCE_PRIMARY_PHRASES = (
 
 
 def _user_requested_primary_only(text: str) -> bool:
-    """Honor explicit user directives to stay on the 32B cortex."""
+    """Honor explicit user directives to stay on the cortex."""
     lower = (text or "").lower()
     return any(phrase in lower for phrase in _FORCE_PRIMARY_PHRASES)
 
@@ -9333,6 +9444,28 @@ async def _measure_reply_quality_candidate(
     return snapshot
 
 
+#: An ellipsis is not an answer; it is the shape of one.
+#:
+#: Four places wrote `or "…"` where a reply might be empty, and each of them
+#: turned "there is no answer here" into something every downstream `if not
+#: reply` guard reads as an answer. LIVE 2026-08-17: "what's on my screen right
+#: now?" served as a bare ellipsis over a 172-character reply. LIVE 2026-09-07:
+#: "does the file X exist, and what is in it?" served as a bare ellipsis over
+#: 1,155 characters that quality had scored confidence=high.
+#:
+#: A caller that genuinely needs a placeholder — a receipt, a log line — can
+#: still write one. What no path may do is put one in front of a person and
+#: call the turn answered.
+_THE_SHAPE_OF_AN_ANSWER = {"…", "...", "…\n", ""}
+
+
+def _never_an_ellipsis(text: Any) -> str:
+    """The text, or empty where all that is left is the shape of an answer."""
+
+    candidate = str(text or "").strip()
+    return "" if candidate in _THE_SHAPE_OF_AN_ANSWER else candidate
+
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -9365,6 +9498,10 @@ async def _stabilize_user_facing_reply(
     # typed absence into the prompt was not enough: evidence informs, it does
     # not enforce.
     reply_text = _append_sensory_claim_correction(user_message, reply_text)
+    # A claim about her own machinery, checked against the machinery. Same
+    # shape as the sense check above and for the same reason: carrying the
+    # record into the prompt is not enough.
+    reply_text = _remove_self_denials_the_record_refutes(reply_text)
     reply_text = _correct_unsourced_self_metrics(reply_text)
     reply_text = _flag_unstable_choice_commitment(user_message, reply_text)
     reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
@@ -9388,10 +9525,37 @@ async def _stabilize_user_facing_reply(
         user_message
     )
     text = _apply_aura_voice_shaping_compat(
-        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…"),
+        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or ""),
         user_message,
     )
-    text = _strip_user_visible_context_leaks(text) or "…"
+    stripped = _strip_user_visible_context_leaks(text)
+    if text and not stripped:
+        # An ellipsis is not an answer; it is the shape of one.
+        #
+        # The salvage inside the stripper has already tried and failed by the
+        # time this is reached, so the choice here is between an empty reply
+        # and something that LOOKS like one. `or "…"` chose the second, and it
+        # defeats every `if not reply` guard downstream — the turn then looks
+        # answered to everything that asks.
+        #
+        # LIVE 2026-09-07: "does the file X exist, and what is in it?" was
+        # served as a bare "…". The cortex had produced 1,155 characters and
+        # quality had scored them confidence=high, off_topic=False. The same
+        # shape is recorded in this file for 2026-08-17 at a different call
+        # site, where the fix was the salvage rather than the substitution.
+        logger.warning(
+            "Context-leak strip emptied a %d-char reply and no salvage held; "
+            "returning empty so the recovery paths run instead of serving an "
+            "ellipsis.",
+            len(text),
+        )
+        record_degradation(
+            "chat.context_leak_strip",
+            RuntimeError("stripping context leaks emptied a shaped reply"),
+            severity="warning",
+            action="returned empty rather than an ellipsis",
+        )
+    text = stripped
     repair_override = _chat_conversation_repair._maybe_build_conversation_repair_override(
         user_message, text
     )
@@ -11656,6 +11820,41 @@ async def api_chat_delivery_status(
     return response
 
 
+@router.post("/chat/delivery/{idempotency_key}/cancel")
+async def api_chat_delivery_cancel(
+    idempotency_key: str,
+    request: Request,
+    session_id: str | None = None,
+    _: None = Depends(_require_internal),
+    __: None = Depends(_check_rate_limit),
+):
+    """Request cancellation without making transport loss cancel a turn."""
+    body = ChatRequest(message="", session_id=session_id)
+    try:
+        session_key = _chat_delivery._chat_turn_session_key(request, body)
+        principal = _chat_delivery._authenticated_chat_principal(request)
+        identity = DeliveryIdentity.create(
+            principal=_chat_delivery._chat_delivery_principal(request, principal, session_key),
+            session_id=session_key,
+            idempotency_key=idempotency_key,
+        )
+        journal = await asyncio.to_thread(get_chat_delivery_journal)
+        record = await journal.get(identity)
+    except ValueError as exc:
+        return JSONResponse({"status": "invalid_chat_delivery_identity", "detail": str(exc)}, status_code=400)
+    except (ChatDeliveryJournalCorruption, ChatDeliveryJournalUnavailable) as exc:
+        logger.error("Chat cancellation journal unavailable: %s", exc)
+        return JSONResponse({"status": "chat_delivery_journal_unavailable"}, status_code=503)
+    if record is None:
+        return JSONResponse({"status": "chat_delivery_not_found"}, status_code=404)
+    disposition = _chat_delivery.request_delivery_cancellation(record)
+    return JSONResponse(
+        {**record.public_status(include_result=True), "cancellation_status": disposition},
+        status_code=200 if record.terminal else 202,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 async def _apply_regenerated_reply(
     *,
     exchange_id: str,
@@ -11668,7 +11867,9 @@ async def _apply_regenerated_reply(
 
     safe_exchange_id = str(exchange_id or "")[:64]
     safe_session_id = str(session_id or "")[:64]
-    replacement_text = str(reply_text or "…")
+    # A stored replacement that is only an ellipsis is a turn recorded as
+    # answered when it was not.
+    replacement_text = _never_an_ellipsis(reply_text)
     replacement_sha256 = hashlib.sha256(replacement_text.encode("utf-8")).hexdigest()
     reservation_token = uuid.uuid4().hex
     async with _chat_memory_state._get_convo_lock():
@@ -12055,7 +12256,10 @@ async def api_chat_regenerate(
             user_message=user_msg,
             reply_text=str(reply_text or ""),
         )
-        response_data = {"response": reply_text or "…", "regenerated": True}
+        response_data = {
+            "response": _never_an_ellipsis(reply_text),
+            "regenerated": True,
+        }
         if desktop_requires_cognitive_engine:
             final_regen_contract = _regen_live_turn_contract(
                 response_confidence="high",
@@ -12622,6 +12826,11 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         )
         if served_from_record:
             data["response"] = recorded
+            if recorded != reply:
+                _chat_delivery._invalidate_answer_proof_after_delivery_mutation(
+                    data, original_text=reply, reason="recorded_answer_replacement",
+                )
+                contract = data.get("live_turn_contract")
             data["response_confidence"] = "computed"
             if isinstance(contract, dict):
                 contract["response_confidence"] = "computed"
@@ -12695,6 +12904,9 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         if corrected == reply:
             return response
         data["response"] = corrected
+        _chat_delivery._invalidate_answer_proof_after_delivery_mutation(
+            data, original_text=reply, reason="terminal_answer_correction",
+        )
         # A served record is not the draft's confidence.
         #
         # Live 2026-08-19 the verbatim conversation history — five turns with
@@ -13121,8 +13333,9 @@ async def _protected_foreground_reply(
     )
     semantic_completion_expected = True
     try:
-        direct_reply = await asyncio.wait_for(
-            gate.generate(
+        # The resident client owns progress-aware completion and cancellation.
+        # An outer copy of the initial estimate cancels its revised allowance.
+        direct_reply = await gate.generate(
                 body.message,
                 context={
                     "origin": chat_origin,
@@ -13152,8 +13365,6 @@ async def _protected_foreground_reply(
                     ),
                 },
                 timeout=direct_budget,
-            ),
-            timeout=direct_budget,
         )
     except _CHAT_RECOVERABLE_ERRORS as direct_exc:
         record_degradation("chat", direct_exc)
@@ -13760,6 +13971,74 @@ async def _refuse_an_empty_canonical_reply(
     return _seam_early_response, lane, pending_exchange_id
 
 
+#: Proofs that say the ANSWER is unfinished, as opposed to the bookkeeping.
+#:
+#: `chat_turn_contract` makes this distinction in a comment and nothing acted
+#: on it: "one of them is not a statement about the answer at all". A draft cut
+#: off mid-clause or judged semantically short is a reason to withhold what she
+#: wrote. A retry counter reaching its limit, or a receipt nobody bound, is a
+#: reason to say so — not to replace her answer with an apology.
+_THE_ANSWER_ITSELF_IS_UNFINISHED = (
+    "authored_answer_incomplete:generation_cut_off",
+    "authored_answer_incomplete:semantically_short",
+    "authored_answer_incomplete:semantic_contract_unmet",
+    "authored_answer_incomplete",
+    "final_output_contract_unsatisfied",
+    "latent_cortex_output_quality_unproven",
+    # Her mind did not answer, or its answer was refused. Whatever text is in
+    # hand did not come from the turn this contract is about.
+    "engine_think_not_invoked",
+    "engine_reply_not_accepted",
+    "engine_reply_failed",
+)
+
+#: Proofs about a RECEIPT — who owned the generation, whether a snapshot was
+#: bound, whether anybody checked. None of them is a statement that the text is
+#: wrong, so none is a reason to replace what she wrote with an apology.
+#:
+#: Prefixes, because three of these names carry a suffix naming which of
+#: several conditions failed, and the set they were matched against held the
+#: bare form. `live_mind_controls_unbound:not_applied` never matched
+#: `live_mind_controls_unbound`, so it fell through to "withhold" — and
+#: `live_mind_snapshot_unbound` was listed here while the contract emits
+#: `live_mind_snapshot_not_ready`, so that entry had never matched anything at
+#: all.
+_A_PROOF_ABOUT_THE_BOOKKEEPING = (
+    "authored_answer_incomplete:retry_exhausted",
+    "authored_answer_incomplete:nobody_checked",
+    "live_mind_controls_unbound",
+    "architecture_context_unbound",
+    "live_mind_snapshot_not_ready",
+    # LIVE, 2026-09-08: this is the one that fired. A 2,826-character answer,
+    # on topic, high confidence, `assessment=ok`, was replaced by "I couldn't
+    # get my full attention onto that one" because nothing had recorded WHICH
+    # lane owned the generation. That is a receipt about provenance and says
+    # nothing about the text.
+    "foreground_model_generation_ownership_unproven",
+    "latent_cortex_path_unproven",
+    "qualified_recurrent_path_unproven",
+    "final_output_contract_not_evaluated",
+)
+
+
+def _a_proof_that_says_the_answer_is_unfinished(missing: tuple[str, ...]) -> bool:
+    """True when something in `missing` is about the text rather than a receipt.
+
+    Unrecognised proofs count as being about the answer. A new proof nobody has
+    classified must not silently become a reason to serve something —  and
+    `tests/test_every_proof_is_classified.py` makes that a failing test rather
+    than a silent apology, because three names had drifted out of this list
+    without anything noticing.
+    """
+
+    for item in missing:
+        if item in _THE_ANSWER_ITSELF_IS_UNFINISHED:
+            return True
+        if not item.startswith(_A_PROOF_ABOUT_THE_BOOKKEEPING):
+            return True
+    return bool(not missing)
+
+
 def _fail_closed_on_an_unproven_full_mind_contract(
     *,
     _final_reply: Any,
@@ -13781,6 +14060,53 @@ def _fail_closed_on_an_unproven_full_mind_contract(
     def _block() -> Any:
         nonlocal final_live_turn_contract
         if _full_mind_unproven:
+            missing = tuple(
+                str(item)
+                for item in (
+                    final_live_turn_contract.get("full_mind_missing_proofs") or ()
+                )
+            )
+            written = str(_final_reply or "").strip()
+            if written and not _a_proof_that_says_the_answer_is_unfinished(missing):
+                # Missing bookkeeping is not evidence the answer is wrong.
+                #
+                # `chat_turn_contract` already separates the proofs that say the
+                # TEXT is unfinished — cut off mid-clause, semantically short —
+                # from the ones that say a receipt was never bound. Only the
+                # first kind is a reason to withhold what she wrote. LIVE
+                # 2026-09-07: an on-topic, high-confidence, 175-character answer
+                # to "what was the first thing I said" was replaced by "I
+                # couldn't get my full attention onto that one" under
+                # `retry_exhausted`, which is a fact about the retry counter.
+                logger.warning(
+                    "⚠️ Full-mind contract unproven on bookkeeping alone "
+                    "(missing=%s); serving the answer she wrote, disclosed as "
+                    "bounded rather than replaced.",
+                    ",".join(missing) or "unrecorded",
+                )
+                _live_turn_trace.update(
+                    {
+                        "cognitive_engine_reply_accepted": True,
+                        "response_path": "full_mind_contract_unproven_served",
+                    }
+                )
+                final_live_turn_contract = _live_turn_contract(
+                    lane_status=lane_status,
+                    response_confidence="bounded",
+                    status="full_mind_contract_unproven_served",
+                    reply_source="full_mind_contract_unproven_served",
+                )
+                return JSONResponse(
+                    {
+                        "response": written,
+                        "status": "full_mind_contract_unproven_served",
+                        "reason": "full_mind_contract_unproven_on_bookkeeping",
+                        "conversation_lane": lane_status,
+                        "response_confidence": "bounded",
+                        "live_turn_contract": final_live_turn_contract,
+                    },
+                    status_code=503 if is_benchmark else 200,
+                )
             logger.warning(
                 "⚠️ Required desktop full-mind contract was not proven; failing "
                 "closed instead of serving partial/raw speech (path=%s, missing=%s).",
@@ -15414,7 +15740,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             assertion_response: Any = None,
         ):
             nonlocal pending_exchange_id
-            final_text = str(reply_text or "…").strip() or "…"
+            final_text = _never_an_ellipsis(reply_text)
             try:
                 from core.reasoning.symbolic_bridge import SymbolicBridge
 
@@ -18119,7 +18445,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _final_reply = (
             _qualified_exact_reply
             if _qualified_exact_delivery
-            else (_strip_user_visible_context_leaks(reply_text) or "…")
+            # The reply that is actually served. An ellipsis here is a turn
+            # that looks answered to everything downstream and says nothing to
+            # the person.
+            else _never_an_ellipsis(_strip_user_visible_context_leaks(reply_text))
         )
         # The recorded answer is applied HERE, after every repair, regeneration
         # and shaping pass, because everywhere earlier it was discarded.
@@ -18149,6 +18478,73 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             deterministic=True,
             authorship_effect="preserved",
         )
+        # The sums this answer does on its own numbers, recomputed.
+        #
+        # Appended, never substituted. Bryan, 2026-09-08: "shouldnt reject the
+        # whole response ever. just wondering if math is ever checked
+        # anywhere." It was checked in one place only — the arithmetic a
+        # PERSON asks for, which `arithmetic_check` recomputes and serves —
+        # and never for the arithmetic she performs inside a worked answer.
+        # Live that afternoon, one run of the daylight question computed
+        # 926 - 720 and announced 105.
+        _pre_arithmetic_note_reply = _final_reply
+        try:
+            from core.conversation.the_arithmetic_in_an_answer import (
+                a_note_about_the_arithmetic,
+            )
+
+            _arithmetic_note = a_note_about_the_arithmetic(_final_reply)
+        except (ImportError, TypeError, ValueError) as _exc:
+            logger.debug("Answer-arithmetic check unavailable: %s", _exc)
+            _arithmetic_note = ""
+        if _arithmetic_note:
+            _final_reply = f"{str(_final_reply).rstrip()}\n\n{_arithmetic_note}"
+            logger.warning("🔢 %s", _arithmetic_note)
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.the_arithmetic_in_the_answer",
+                method="append_a_note_naming_the_step",
+                reasons=["a_stated_sum_does_not_hold"],
+                before=_pre_arithmetic_note_reply,
+                after=_final_reply,
+                deterministic=True,
+                authorship_effect="preserved",
+            )
+
+        # A reply that withdrew its own opening and delivered it anyway.
+        #
+        # Here rather than in the phase, for the reason written above this
+        # block: the continuation that carries the correction is joined after
+        # the phase is done, so the contradiction does not exist yet where the
+        # phase could see it.
+        _pre_self_correction_reply = _final_reply
+        try:
+            from core.conversation.a_reply_that_corrects_itself import (
+                the_reply_corrects_its_own_headline,
+            )
+
+            _withdrawn = the_reply_corrects_its_own_headline(_final_reply)
+        except (ImportError, TypeError, ValueError) as _exc:
+            logger.debug("Self-correction check unavailable: %s", _exc)
+            _withdrawn = None
+        if _withdrawn is not None:
+            _final_reply = _withdrawn.text
+            logger.info(
+                "The reply withdrew %s and gave %s; the opening it withdrew is "
+                "marked as withdrawn rather than served as the answer.",
+                _withdrawn.superseded,
+                _withdrawn.corrected,
+            )
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.the_reply_corrected_itself",
+                method="strike_the_withdrawn_opening",
+                reasons=[_withdrawn.reason],
+                before=_pre_self_correction_reply,
+                after=_final_reply,
+                deterministic=True,
+                authorship_effect="preserved",
+            )
         _final_status = reply_source or "ok"
         if not _qualified_exact_delivery:
             _pre_objective_chokepoint_reply = _final_reply
@@ -18459,6 +18855,30 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             "Foreground delivery timing complete: %s",
             {key: round(value, 2) for key, value in _delivery_timing.items()},
         )
+        # Measured, so the next turn's answer budget can leave room for it
+        # instead of sizing an answer that fills the clock exactly and then
+        # having nowhere to put it.
+        try:
+            from core.brain.llm.thinking_reserve import record_delivery_cost
+
+            record_delivery_cost(
+                sum(
+                    float(_delivery_timing.get(stage, 0.0) or 0.0)
+                    for stage in (
+                        "engine_to_stabilizer_ms",
+                        "stabilizer_ms",
+                        "runtime_reconcile_ms",
+                        "quality_classification_ms",
+                        "lane_status_ms",
+                        "terminal_shaping_ms",
+                        "persistence_ms",
+                        "receipt_ms",
+                    )
+                )
+                / 1000.0
+            )
+        except (ImportError, AttributeError, TypeError, ValueError) as _cost_exc:
+            logger.debug("Delivery cost not recorded: %s", _cost_exc)
 
         return JSONResponse(response_data)
     except TimeoutError:
@@ -18603,7 +19023,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # Don't ask the user to re-send. If we got cancelled while a newer
         # message was already inbound, the user has already moved on; if
         # the client just disconnected, the reply is never seen anyway.
+        user_cancelled = _chat_delivery.USER_CANCEL_REASON in {str(value) for value in cancel_exc.args}
         cancel_reply = (
+            "Stopped this turn. Actions already completed were not undone."
+            if user_cancelled else
             "I'm here. My response was cut short — I'll pick up with whatever you say next."
         )
         if pending_exchange_id:

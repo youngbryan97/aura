@@ -177,10 +177,10 @@
       "survives_lesion_pct": 0.0
     }
   },
-  "preregistration_digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "preregistration_digest": "51cb31b3cf9ade2ea1ec53a80478e7247ca9073f6ba25e34ac7858a3398eed6f",
   "protocols_attempted": 3,
   "protocols_declared": 13,
-  "published_digest": "2b856bf3efe73da8627adda2936c10a6f636cd83b47e8ea6206dc81d321ca4aa",
+  "published_digest": "51cb31b3cf9ade2ea1ec53a80478e7247ca9073f6ba25e34ac7858a3398eed6f",
   "replication_of": "",
   "schema": "aura.phenomenology.gauntlet.v1",
   "source_commit": ""

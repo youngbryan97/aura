@@ -18,25 +18,53 @@ import inspect
 from core.brain.llm import thinking_reserve
 
 
-def test_the_parent_writes_the_read_rate_where_the_clock_reads_it():
-    from core.brain.llm import mlx_client
+def test_the_read_rate_is_written_from_the_time_mlx_spent_reading():
+    """The one clock that measures reading, and it is not the one that runs
+    until the first token.
 
-    source = inspect.getsource(mlx_client.MLXLocalClient._mark_token_progress)
-    at = source.index("self._current_first_token_at = now")
-    nearby = source[at : at + 1800]
-    assert "record_read_rate(" in nearby
-    assert "prompt_chars=self._current_prompt_chars" in nearby
+    LIVE, 2026-09-08: the stored window had settled at about 14 characters a
+    second, because a read rate was being recorded from first-token latency —
+    which contains the reading and also the queue, the cache build, the sampler
+    and the weights coming off disk. The answer clock believed a 9,558-character
+    prompt would take 690 seconds to read and sized the turn at 893. The worker
+    read it at 410 to 990 tokens a second and the answer came back in 64.
+    """
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker)
+    at = source.index("_record_read_rate(_prompt_chars_for_rate, _read_s)")
+    nearby = source[max(0, at - 2000) : at + 200]
+    assert 'generation_performance.get("prefill_seconds")' in nearby
+    assert "_record_read_rate(_prompt_chars_for_rate, _read_s)" in source
 
 
-def test_it_is_not_written_from_the_request_that_loads_the_weights():
-    """Everything before the first token of a worker's life is the weights
-    coming off disk as well as the prompt, which is a different fact."""
-    from core.brain.llm import mlx_client
+def test_no_read_rate_is_written_when_mlx_did_not_time_the_prompt():
+    """An unmeasured rate extends no deadline — this module's own discipline.
 
-    source = inspect.getsource(mlx_client.MLXLocalClient._mark_token_progress)
-    at = source.index("record_read_rate(")
-    before = source[:at]
-    assert '_tokens_since_spawn", 0) or 0) > 0' in before
+    Substituting first-token latency for a missing measurement is what put the
+    wrong readings in the window, and a stored reading outlives the turn that
+    produced it.
+    """
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker)
+    at = source.index("_record_read_rate(_prompt_chars_for_rate, _read_s)")
+    before = source[max(0, at - 1200) : at]
+    assert "if _read_s > 0.0:" in before
+    assert "first_token_latency_s" not in before.split("_read_s = 0.0")[-1]
+
+
+def test_the_stored_readings_are_read_back_through_one_named_key():
+    """Both ends of the file name the same key, so a rename cannot retire the
+    window by accident — which is what nearly happened when the wrong reader
+    was blamed for a 630-second estimate."""
+    from core.brain.llm import thinking_reserve as reserve
+
+    source = inspect.getsource(reserve)
+    assert source.count("_READ_RATE_KEY") >= 4
+    assert '"read_rates"' in source
+    assert 'stored.get("read_rates")' not in source
+    assert 'raw.get("read_rates")' not in source
 
 
 def test_a_recorded_rate_makes_reading_cost_something():

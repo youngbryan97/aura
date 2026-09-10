@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,3 +51,37 @@ def test_public_cross_generation_claim_matches_frozen_adjudications() -> None:
         assert "0/60" in text, page
         assert "8.67 × 10⁻¹⁹" in text, page
         assert "not" in text.lower() and "frontier" in text.lower(), page
+
+
+def test_public_pages_keep_failed_replication_separate_from_development() -> None:
+    baseline = json.loads(
+        (ROOT / "docs/evidence/G01_RLC_BASELINE_2026-09-08.json").read_text()
+    )
+    measurements = baseline["measurements"]
+    failed = measurements["v16_natural"]
+    development = measurements["v19_development"]
+    assert failed["verdict"] == "FAIL_ABSOLUTE_CAPABILITY_FLOOR"
+    assert development["fresh_replication"] is False
+    for page in PUBLIC_PAGES:
+        text = page.read_text(encoding="utf-8")
+        assert f"{failed['answer_exact']}/{failed['total']}" in text, page
+        assert f"{failed['minimum_answer_exact']}/{failed['total']}" in text, page
+        assert f"{development['answer_exact']}/{development['total']}" in text, page
+        links = re.findall(r"\]\(([^)]+G01_RLC_BASELINE_2026-09-08\.md)\)", text)
+        assert links, page
+        assert all((page.parent / link).resolve().is_file() for link in links), page
+
+
+def test_public_pages_do_not_attribute_cp566_to_backbone_depth() -> None:
+    # These were the specific false attributions corrected by G13.
+    retired_claims = (
+        "That is where the gain came from.",
+        "The dividend did come from training the checkpoint to use recurrence",
+        "That prediction held. Recurrence-native training is where the dividend came",
+        "A different mechanism: the answer's own token stream re-enters the middle block",
+        "It runs in the live serving path today.",
+    )
+    for page in PUBLIC_PAGES:
+        text = page.read_text(encoding="utf-8")
+        for claim in retired_claims:
+            assert claim not in text, (page, claim)

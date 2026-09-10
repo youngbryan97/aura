@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 11 outbound edges when this was generated.
+# 10 outbound edges when this was generated.
 
 description = "core.morphogenesis: may import only what it already imports; every new edge is an edit here."
 
@@ -21,7 +21,6 @@ include_rules = [
     "+core.fsw",
     "+core.governance_context",
     "+core.memory",
-    "+core.morphogenesis",
     "+core.resilience",
     "+core.runtime",
     "+core.verify",

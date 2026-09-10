@@ -1,0 +1,4119 @@
+{
+  "recording": {
+    "path": "artifacts/connectome/turn_user",
+    "frames": 32768,
+    "cells": 875,
+    "frame_seconds": 0.002,
+    "conditions": [
+      "greeting",
+      "idle",
+      "inference",
+      "recall",
+      "self_report",
+      "task"
+    ]
+  },
+  "proofreading": {
+    "joins_written": 209
+  },
+  "stations": {
+    "interoception": 403,
+    "affect": 481,
+    "workspace": 227,
+    "higher_order": 427,
+    "self_model": 113,
+    "planning": 892,
+    "action": 507
+  },
+  "conditions": {
+    "greeting": {
+      "effective": {
+        "condition": "greeting",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5151,
+        "edges_measured": 253,
+        "edges_surviving_null": 95,
+        "surviving_share": 0.3755,
+        "mean_weight_surviving": 0.55748,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "greeting",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.668,
+        "null_spread": 0.559,
+        "z": 0.594,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "greeting",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "greeting",
+            "pairs_tested": 408,
+            "median_gain": 0.061142,
+            "ci_low": 0.026922,
+            "ci_high": 0.097358,
+            "share_above_null": 0.9706,
+            "mean_weight": 0.35898,
+            "mean_null_weight": 0.00249,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "cbe8bce762079127",
+                "gain": 0.99754
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "cbe8bce762079127",
+                "gain": 0.99754
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "96c62623977846c9",
+                "gain": 0.99754
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "96c62623977846c9",
+                "gain": 0.99754
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "e476935182222aa0",
+                "gain": 0.99753
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "e476935182222aa0",
+                "gain": 0.99753
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "96c62623977846c9",
+                "gain": 0.99294
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "cbe8bce762079127",
+                "gain": 0.99294
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "e476935182222aa0",
+                "gain": 0.99293
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "96c62623977846c9",
+                "gain": 0.99036
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "greeting",
+            "pairs_tested": 984,
+            "median_gain": 0.012592,
+            "ci_low": 0.012383,
+            "ci_high": 0.013714,
+            "share_above_null": 0.9898,
+            "mean_weight": 0.22385,
+            "mean_null_weight": 0.0021,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "b1bf4f23a46840e2",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "bd97de881658ab57",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "db26e2e89d277ad4",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "fe71a03854e530d1",
+                "post": "95159d83b7695a28",
+                "gain": 0.99724
+              },
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99724
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99724
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99724
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "greeting",
+            "pairs_tested": 1722,
+            "median_gain": 0.011521,
+            "ci_low": 0.011492,
+            "ci_high": 0.011602,
+            "share_above_null": 0.9117,
+            "mean_weight": 0.16689,
+            "mean_null_weight": 0.00227,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "531f2cc3bddfc675",
+                "gain": 0.99002
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "a21ccc05b551d25c",
+                "gain": 0.99002
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "531f2cc3bddfc675",
+                "gain": 0.98726
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "a21ccc05b551d25c",
+                "gain": 0.98726
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "4c4f59fc47119f5e",
+                "gain": 0.98358
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "59df0bad5e78ec2b",
+                "gain": 0.98358
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "09e7950b2e109638",
+                "gain": 0.9752
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "2f649c570e5f76b2",
+                "gain": 0.9752
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "515bb1e99d885143",
+                "gain": 0.9752
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "727c3c070e57ccc3",
+                "gain": 0.9752
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "greeting",
+            "pairs_tested": 714,
+            "median_gain": 0.00609,
+            "ci_low": 0.00609,
+            "ci_high": 0.00609,
+            "share_above_null": 0.8081,
+            "mean_weight": 0.0827,
+            "mean_null_weight": 0.00164,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "6901b861f075c739",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "d2ee9546319773cc",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "ebbaf686bbe0eb78",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "f32bf7c8fa0cbf51",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "988fdf61e15a35b0",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              },
+              {
+                "pre": "b620b3c1cce2de79",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99737
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "greeting",
+            "pairs_tested": 1122,
+            "median_gain": 0.006681,
+            "ci_low": 0.006528,
+            "ci_high": 0.006796,
+            "share_above_null": 0.9242,
+            "mean_weight": 0.3552,
+            "mean_null_weight": 0.00305,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97637
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "e82e28e3dae67077",
+                "gain": 0.97637
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "8055c79d892b1026",
+                "gain": 0.97637
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97635
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "e82e28e3dae67077",
+                "gain": 0.97635
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "8055c79d892b1026",
+                "gain": 0.97635
+              },
+              {
+                "pre": "0c91eebfe6522045",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97635
+              },
+              {
+                "pre": "21799998b26037c5",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97635
+              },
+              {
+                "pre": "29b566d3f083c4c8",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97635
+              },
+              {
+                "pre": "3cc5f9ce66ab12aa",
+                "post": "db1f5e7134c86265",
+                "gain": 0.97635
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "greeting",
+            "pairs_tested": 1848,
+            "median_gain": 0.010224,
+            "ci_low": 0.009709,
+            "ci_high": 0.010585,
+            "share_above_null": 0.9919,
+            "mean_weight": 0.37437,
+            "mean_null_weight": 0.00295,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "a267498a93f52acc",
+                "gain": 0.99765
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "a267498a93f52acc",
+                "gain": 0.99765
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "003c51931bc78529",
+                "gain": 0.99719
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "003c51931bc78529",
+                "gain": 0.99719
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "38a9161852b73087",
+                "gain": 0.99719
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "38a9161852b73087",
+                "gain": 0.99719
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "456e0eee7ed4ceb0",
+                "gain": 0.99719
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "456e0eee7ed4ceb0",
+                "gain": 0.99719
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "492a24f715c30383",
+                "gain": 0.99719
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "492a24f715c30383",
+                "gain": 0.99719
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "greeting",
+            "pairs_tested": 476,
+            "median_gain": 0.005536,
+            "ci_low": 0.005536,
+            "ci_high": 0.005615,
+            "share_above_null": 1.0,
+            "mean_weight": 0.14173,
+            "mean_null_weight": 0.00159,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "dfcc5bc50d374fd3",
+                "gain": 0.99601
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "e7bd65d79f06c5aa",
+                "gain": 0.99601
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.99138
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "5b3aeec0bf8a8e19",
+                "gain": 0.98879
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "7372ed1bad75d09c",
+                "gain": 0.98879
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "b807729cf972fc30",
+                "gain": 0.98879
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "f05d1e964d4495f1",
+                "gain": 0.98879
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "3ed2777541047df0",
+                "gain": 0.98167
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "07efaf250bc2ea17",
+                "gain": 0.97461
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "d271ea32acecc4ea",
+                "gain": 0.97458
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.016255,
+        "null_mean": 0.068649,
+        "null_spread": 0.073221,
+        "z": -0.716,
+        "percentile": 0.5389,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          9,
+          10,
+          15,
+          24,
+          30,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.96591,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.77133,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.75873,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06114,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.03645,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01811,
+            "in_ring": false
+          },
+          {
+            "link": "planning -> workspace",
+            "gain": 0.01335,
+            "in_ring": false
+          },
+          {
+            "link": "higher_order -> workspace",
+            "gain": 0.01327,
+            "in_ring": false
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 9, 10, 15, 24, 30, 37 of 42 by strength, and the architecture's order is stronger than 53.9% of the 720 cycles through the same stations"
+      },
+      "seconds": 78.2
+    },
+    "idle": {
+      "effective": {
+        "condition": "idle",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 4217,
+        "edges_measured": 199,
+        "edges_surviving_null": 75,
+        "surviving_share": 0.3769,
+        "mean_weight_surviving": 0.56155,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "idle",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.809,
+        "null_spread": 0.579,
+        "z": 0.33,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "idle",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "idle",
+            "pairs_tested": 289,
+            "median_gain": 0.02538,
+            "ci_low": 0.01895,
+            "ci_high": 0.537816,
+            "share_above_null": 1.0,
+            "mean_weight": 0.42832,
+            "mean_null_weight": 0.00588,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99202
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99202
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "4f68c7d9d1375ea7",
+                "gain": 0.99202
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "4f68c7d9d1375ea7",
+                "gain": 0.99202
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "cbe8bce762079127",
+                "gain": 0.99202
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "cbe8bce762079127",
+                "gain": 0.99202
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "fe71a03854e530d1",
+                "gain": 0.99202
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "fe71a03854e530d1",
+                "gain": 0.99202
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "96c62623977846c9",
+                "gain": 0.99202
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "96c62623977846c9",
+                "gain": 0.99202
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "idle",
+            "pairs_tested": 697,
+            "median_gain": 0.023706,
+            "ci_low": 0.023633,
+            "ci_high": 0.023793,
+            "share_above_null": 0.9713,
+            "mean_weight": 0.2718,
+            "mean_null_weight": 0.00467,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "95159d83b7695a28",
+                "gain": 0.9921
+              },
+              {
+                "pre": "4f68c7d9d1375ea7",
+                "post": "95159d83b7695a28",
+                "gain": 0.9921
+              },
+              {
+                "pre": "cbe8bce762079127",
+                "post": "95159d83b7695a28",
+                "gain": 0.9921
+              },
+              {
+                "pre": "fe71a03854e530d1",
+                "post": "95159d83b7695a28",
+                "gain": 0.9921
+              },
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.9921
+              },
+              {
+                "pre": "4f68c7d9d1375ea7",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.9921
+              },
+              {
+                "pre": "cbe8bce762079127",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.9921
+              },
+              {
+                "pre": "fe71a03854e530d1",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.9921
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "95159d83b7695a28",
+                "gain": 0.99209
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99209
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "idle",
+            "pairs_tested": 1066,
+            "median_gain": 0.019165,
+            "ci_low": 0.017955,
+            "ci_high": 0.020494,
+            "share_above_null": 0.9418,
+            "mean_weight": 0.16543,
+            "mean_null_weight": 0.00479,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "86742da85f782f48",
+                "gain": 0.99233
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "262c2180c3aed2f8",
+                "gain": 0.99162
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "3b1fd7220ba77040",
+                "gain": 0.99162
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "51cddcc4c413810a",
+                "gain": 0.99162
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "63aee58918cba36d",
+                "gain": 0.99162
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "a5b997d8bb52c6cc",
+                "gain": 0.99162
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "531f2cc3bddfc675",
+                "gain": 0.9912
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "a21ccc05b551d25c",
+                "gain": 0.9912
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "2673f9e1843d6483",
+                "gain": 0.98899
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "3359328f3439d00e",
+                "gain": 0.98899
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "idle",
+            "pairs_tested": 442,
+            "median_gain": 0.014385,
+            "ci_low": 0.014354,
+            "ci_high": 0.015221,
+            "share_above_null": 0.6629,
+            "mean_weight": 0.1272,
+            "mean_null_weight": 0.00478,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99076
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99076
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99076
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99076
+              },
+              {
+                "pre": "531f2cc3bddfc675",
+                "post": "2c09d02f67176b35",
+                "gain": 0.98853
+              },
+              {
+                "pre": "a21ccc05b551d25c",
+                "post": "2c09d02f67176b35",
+                "gain": 0.98853
+              },
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "5494434564d2aa6c",
+                "gain": 0.98278
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "5494434564d2aa6c",
+                "gain": 0.98278
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "5494434564d2aa6c",
+                "gain": 0.98278
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "5494434564d2aa6c",
+                "gain": 0.98278
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "idle",
+            "pairs_tested": 1105,
+            "median_gain": 0.01089,
+            "ci_low": 0.00803,
+            "ci_high": 0.011211,
+            "share_above_null": 0.9475,
+            "mean_weight": 0.37345,
+            "mean_null_weight": 0.00801,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "0adb31987b2ba7ff",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "26b2bccac81a4676",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "2b96b52acb28fb10",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "3b2e9964e5fe1953",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "3e36978e2e604a4a",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "449961963766dca2",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "4b308c6fd138d799",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "5836b2b7cd40638e",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "62c061cb69216f38",
+                "gain": 0.98902
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "6c02e88f85452e06",
+                "gain": 0.98902
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "idle",
+            "pairs_tested": 195,
+            "median_gain": 0.014568,
+            "ci_low": 0.008516,
+            "ci_high": 0.014568,
+            "share_above_null": 0.9897,
+            "mean_weight": 0.19604,
+            "mean_null_weight": 0.00576,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "86ba40a65fa29034",
+                "post": "a267498a93f52acc",
+                "gain": 0.9781
+              },
+              {
+                "pre": "87f880a8ca51db79",
+                "post": "a267498a93f52acc",
+                "gain": 0.9781
+              },
+              {
+                "pre": "a8dc595220e0a7d6",
+                "post": "a267498a93f52acc",
+                "gain": 0.97802
+              },
+              {
+                "pre": "a1fac2f287e8a10f",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "8fdb3174bdac513d",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "3fd2388617db73f3",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "4f5d063f61320ec1",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "8055c79d892b1026",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "0adb31987b2ba7ff",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              },
+              {
+                "pre": "26b2bccac81a4676",
+                "post": "a267498a93f52acc",
+                "gain": 0.97487
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "idle",
+            "pairs_tested": 51,
+            "median_gain": 0.029133,
+            "ci_low": 0.006026,
+            "ci_high": 0.029145,
+            "share_above_null": 1.0,
+            "mean_weight": 0.09945,
+            "mean_null_weight": 0.00573,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "a267498a93f52acc",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.98577
+              },
+              {
+                "pre": "a267498a93f52acc",
+                "post": "418cdabda59ce4c5",
+                "gain": 0.98577
+              },
+              {
+                "pre": "a267498a93f52acc",
+                "post": "592557c0aea92fd6",
+                "gain": 0.98577
+              },
+              {
+                "pre": "a267498a93f52acc",
+                "post": "c2a69ecfc7b69be9",
+                "gain": 0.98577
+              },
+              {
+                "pre": "39978211712f1c06",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.02915
+              },
+              {
+                "pre": "586962bd42caea8b",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.02915
+              },
+              {
+                "pre": "39978211712f1c06",
+                "post": "07efaf250bc2ea17",
+                "gain": 0.02914
+              },
+              {
+                "pre": "586962bd42caea8b",
+                "post": "07efaf250bc2ea17",
+                "gain": 0.02914
+              },
+              {
+                "pre": "39978211712f1c06",
+                "post": "3ed2777541047df0",
+                "gain": 0.02914
+              },
+              {
+                "pre": "586962bd42caea8b",
+                "post": "3ed2777541047df0",
+                "gain": 0.02914
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.019604,
+        "null_mean": 0.116053,
+        "null_spread": 0.093672,
+        "z": -1.03,
+        "percentile": 0.2514,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          9,
+          10,
+          12,
+          17,
+          23,
+          24,
+          30
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.98493,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.93841,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.93535,
+            "in_ring": false
+          },
+          {
+            "link": "action -> self_model",
+            "gain": 0.75168,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> higher_order",
+            "gain": 0.60818,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> higher_order",
+            "gain": 0.09927,
+            "in_ring": false
+          },
+          {
+            "link": "higher_order -> planning",
+            "gain": 0.06415,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> action",
+            "gain": 0.03123,
+            "in_ring": false
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 9, 10, 12, 17, 23, 24, 30 of 42 by strength, and the architecture's order is stronger than 25.1% of the 720 cycles through the same stations"
+      },
+      "seconds": 43.5
+    },
+    "inference": {
+      "effective": {
+        "condition": "inference",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 6078,
+        "edges_measured": 259,
+        "edges_surviving_null": 119,
+        "surviving_share": 0.4595,
+        "mean_weight_surviving": 0.54999,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "inference",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.824,
+        "null_spread": 0.613,
+        "z": 0.287,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "inference",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "inference",
+            "pairs_tested": 442,
+            "median_gain": 0.063293,
+            "ci_low": 0.019442,
+            "ci_high": 0.083299,
+            "share_above_null": 0.9186,
+            "mean_weight": 0.34021,
+            "mean_null_weight": 0.00273,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "7372ed1bad75d09c",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "b807729cf972fc30",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "f05d1e964d4495f1",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.99622
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "2d10d7300e09234c",
+                "gain": 0.99622
+              },
+              {
+                "pre": "7372ed1bad75d09c",
+                "post": "2d10d7300e09234c",
+                "gain": 0.99622
+              },
+              {
+                "pre": "b807729cf972fc30",
+                "post": "2d10d7300e09234c",
+                "gain": 0.99622
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "2d10d7300e09234c",
+                "gain": 0.99622
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "inference",
+            "pairs_tested": 1066,
+            "median_gain": 0.008726,
+            "ci_low": 0.007898,
+            "ci_high": 0.010326,
+            "share_above_null": 0.9737,
+            "mean_weight": 0.18529,
+            "mean_null_weight": 0.00319,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "e476935182222aa0",
+                "post": "95159d83b7695a28",
+                "gain": 0.99597
+              },
+              {
+                "pre": "e476935182222aa0",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99597
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "95159d83b7695a28",
+                "gain": 0.99587
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99587
+              },
+              {
+                "pre": "4f68c7d9d1375ea7",
+                "post": "95159d83b7695a28",
+                "gain": 0.99587
+              },
+              {
+                "pre": "695cbc35de21b828",
+                "post": "95159d83b7695a28",
+                "gain": 0.99587
+              },
+              {
+                "pre": "4f68c7d9d1375ea7",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99587
+              },
+              {
+                "pre": "695cbc35de21b828",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99587
+              },
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "95159d83b7695a28",
+                "gain": 0.99587
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "95159d83b7695a28",
+                "gain": 0.99587
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "inference",
+            "pairs_tested": 1722,
+            "median_gain": 0.009008,
+            "ci_low": 0.008991,
+            "ci_high": 0.009239,
+            "share_above_null": 0.8763,
+            "mean_weight": 0.1416,
+            "mean_null_weight": 0.00285,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "39952f5ab581f9e8",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "3c797f27df09a945",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "7124177f64926a78",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "7bf981f2dc99a04e",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "9ca931ac34c0d250",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "c4337582e44e3894",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "ffed147e9e058244",
+                "post": "515bb1e99d885143",
+                "gain": 0.99154
+              },
+              {
+                "pre": "39952f5ab581f9e8",
+                "post": "7f02258767391b0a",
+                "gain": 0.99154
+              },
+              {
+                "pre": "3c797f27df09a945",
+                "post": "7f02258767391b0a",
+                "gain": 0.99154
+              },
+              {
+                "pre": "7124177f64926a78",
+                "post": "7f02258767391b0a",
+                "gain": 0.99154
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "inference",
+            "pairs_tested": 714,
+            "median_gain": 0.001887,
+            "ci_low": 0.001883,
+            "ci_high": 0.001924,
+            "share_above_null": 0.8011,
+            "mean_weight": 0.07815,
+            "mean_null_weight": 0.0022,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "228a24e64eb4c6a6",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99252
+              },
+              {
+                "pre": "988fdf61e15a35b0",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "b620b3c1cce2de79",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "ef3849f5c76d17db",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "6901b861f075c739",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              },
+              {
+                "pre": "d2ee9546319773cc",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99251
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "inference",
+            "pairs_tested": 1156,
+            "median_gain": 0.003898,
+            "ci_low": 0.003898,
+            "ci_high": 0.004668,
+            "share_above_null": 0.9394,
+            "mean_weight": 0.35991,
+            "mean_null_weight": 0.0054,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "112fb40ffbe1023f",
+                "gain": 0.99601
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "e79496e3f7925ad2",
+                "gain": 0.99601
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "c3e85c93855024e2",
+                "gain": 0.99407
+              },
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "7a95ebf302af445e",
+                "gain": 0.99231
+              },
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "2365098d3567c5d3",
+                "gain": 0.99231
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "7a95ebf302af445e",
+                "gain": 0.99047
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "2365098d3567c5d3",
+                "gain": 0.99047
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "57e01eb2d215e1a2",
+                "gain": 0.98826
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "4b308c6fd138d799",
+                "gain": 0.98112
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "b0fdad84decb8bcd",
+                "gain": 0.98112
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "inference",
+            "pairs_tested": 2176,
+            "median_gain": 0.005707,
+            "ci_low": 0.005364,
+            "ci_high": 0.00586,
+            "share_above_null": 0.9311,
+            "mean_weight": 0.1381,
+            "mean_null_weight": 0.00422,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "003c51931bc78529",
+                "gain": 0.99593
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "456e0eee7ed4ceb0",
+                "gain": 0.99593
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "6dd8eeceb796f561",
+                "gain": 0.99593
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "aa59402ce13dd77d",
+                "gain": 0.99593
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "003c51931bc78529",
+                "gain": 0.99593
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "456e0eee7ed4ceb0",
+                "gain": 0.99593
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "6dd8eeceb796f561",
+                "gain": 0.99593
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "aa59402ce13dd77d",
+                "gain": 0.99593
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "52fb1d3255886906",
+                "gain": 0.99274
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "52fb1d3255886906",
+                "gain": 0.99274
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "inference",
+            "pairs_tested": 544,
+            "median_gain": 0.001569,
+            "ci_low": 0.001453,
+            "ci_high": 0.002421,
+            "share_above_null": 0.7739,
+            "mean_weight": 0.07837,
+            "mean_null_weight": 0.00296,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "5b3aeec0bf8a8e19",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "7372ed1bad75d09c",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "b807729cf972fc30",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "dfcc5bc50d374fd3",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "e7bd65d79f06c5aa",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "f05d1e964d4495f1",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.9965
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "d6195447bc5fd99b",
+                "gain": 0.98116
+              },
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.97484
+              },
+              {
+                "pre": "76e11bd8a4b55061",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.97484
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.013441,
+        "null_mean": 0.0491,
+        "null_spread": 0.054655,
+        "z": -0.652,
+        "percentile": 0.5014,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          7,
+          10,
+          24,
+          28,
+          37,
+          39
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.89512,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.62927,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.25689,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06329,
+            "in_ring": true
+          },
+          {
+            "link": "interoception -> planning",
+            "gain": 0.02557,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> higher_order",
+            "gain": 0.01132,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.00901,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> planning",
+            "gain": 0.00899,
+            "in_ring": false
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 7, 10, 24, 28, 37, 39 of 42 by strength, and the architecture's order is stronger than 50.1% of the 720 cycles through the same stations"
+      },
+      "seconds": 95.4
+    },
+    "recall": {
+      "effective": {
+        "condition": "recall",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5559,
+        "edges_measured": 258,
+        "edges_surviving_null": 111,
+        "surviving_share": 0.4302,
+        "mean_weight_surviving": 0.51672,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "recall",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.824,
+        "null_spread": 0.613,
+        "z": 0.287,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "recall",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "recall",
+            "pairs_tested": 425,
+            "median_gain": 0.060782,
+            "ci_low": 0.021002,
+            "ci_high": 0.104475,
+            "share_above_null": 0.9624,
+            "mean_weight": 0.35177,
+            "mean_null_weight": 0.0029,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "cbe8bce762079127",
+                "gain": 0.99588
+              },
+              {
+                "pre": "f05d1e964d4495f1",
+                "post": "cbe8bce762079127",
+                "gain": 0.99588
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "96c62623977846c9",
+                "gain": 0.99588
+              },
+              {
+                "pre": "f05d1e964d4495f1",
+                "post": "96c62623977846c9",
+                "gain": 0.99588
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "96c62623977846c9",
+                "gain": 0.99532
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "cbe8bce762079127",
+                "gain": 0.99532
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "e476935182222aa0",
+                "gain": 0.99523
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "e476935182222aa0",
+                "gain": 0.99516
+              },
+              {
+                "pre": "f05d1e964d4495f1",
+                "post": "e476935182222aa0",
+                "gain": 0.99516
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "e476935182222aa0",
+                "gain": 0.99118
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "recall",
+            "pairs_tested": 1025,
+            "median_gain": 0.009725,
+            "ci_low": 0.007688,
+            "ci_high": 0.01044,
+            "share_above_null": 0.9883,
+            "mean_weight": 0.19395,
+            "mean_null_weight": 0.00272,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "e476935182222aa0",
+                "post": "95159d83b7695a28",
+                "gain": 0.99097
+              },
+              {
+                "pre": "e476935182222aa0",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99097
+              },
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "b1bf4f23a46840e2",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "bd97de881658ab57",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "db26e2e89d277ad4",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "fe71a03854e530d1",
+                "post": "95159d83b7695a28",
+                "gain": 0.98861
+              },
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.98861
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "recall",
+            "pairs_tested": 1722,
+            "median_gain": 0.009258,
+            "ci_low": 0.008683,
+            "ci_high": 0.010404,
+            "share_above_null": 0.9117,
+            "mean_weight": 0.1571,
+            "mean_null_weight": 0.00242,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "531f2cc3bddfc675",
+                "gain": 0.97973
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "a21ccc05b551d25c",
+                "gain": 0.97973
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "4c4f59fc47119f5e",
+                "gain": 0.97509
+              },
+              {
+                "pre": "2fb0eb4dae3ad87d",
+                "post": "59df0bad5e78ec2b",
+                "gain": 0.97509
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "09e7950b2e109638",
+                "gain": 0.9736
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "2f649c570e5f76b2",
+                "gain": 0.9736
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "515bb1e99d885143",
+                "gain": 0.9736
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "727c3c070e57ccc3",
+                "gain": 0.9736
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "7f02258767391b0a",
+                "gain": 0.9736
+              },
+              {
+                "pre": "70414d292a2962a3",
+                "post": "be7963d65e8c74de",
+                "gain": 0.9736
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "recall",
+            "pairs_tested": 714,
+            "median_gain": 0.005179,
+            "ci_low": 0.005179,
+            "ci_high": 0.005179,
+            "share_above_null": 0.9132,
+            "mean_weight": 0.08014,
+            "mean_null_weight": 0.00217,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "6901b861f075c739",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "d2ee9546319773cc",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "ebbaf686bbe0eb78",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "f32bf7c8fa0cbf51",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "988fdf61e15a35b0",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              },
+              {
+                "pre": "b620b3c1cce2de79",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99499
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "recall",
+            "pairs_tested": 1156,
+            "median_gain": 0.005698,
+            "ci_low": 0.0054,
+            "ci_high": 0.005745,
+            "share_above_null": 0.9247,
+            "mean_weight": 0.34362,
+            "mean_null_weight": 0.00323,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "7a95ebf302af445e",
+                "gain": 0.99537
+              },
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "2365098d3567c5d3",
+                "gain": 0.99537
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "2365098d3567c5d3",
+                "gain": 0.97807
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "7a95ebf302af445e",
+                "gain": 0.97807
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "0adb31987b2ba7ff",
+                "gain": 0.96437
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "3b2e9964e5fe1953",
+                "gain": 0.96437
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "4b308c6fd138d799",
+                "gain": 0.96437
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "5836b2b7cd40638e",
+                "gain": 0.96437
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "6c02e88f85452e06",
+                "gain": 0.96437
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "76df170f937fee14",
+                "gain": 0.96437
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "recall",
+            "pairs_tested": 2176,
+            "median_gain": 0.007429,
+            "ci_low": 0.006467,
+            "ci_high": 0.007576,
+            "share_above_null": 0.9922,
+            "mean_weight": 0.25763,
+            "mean_null_weight": 0.00328,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "38a9161852b73087",
+                "gain": 0.99613
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "492a24f715c30383",
+                "gain": 0.99613
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "a0eaa08bf44be82e",
+                "gain": 0.99613
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "38a9161852b73087",
+                "gain": 0.99613
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "492a24f715c30383",
+                "gain": 0.99613
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "a0eaa08bf44be82e",
+                "gain": 0.99613
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "38a9161852b73087",
+                "gain": 0.99542
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "38a9161852b73087",
+                "gain": 0.99542
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "492a24f715c30383",
+                "gain": 0.99542
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "492a24f715c30383",
+                "gain": 0.99542
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "recall",
+            "pairs_tested": 544,
+            "median_gain": 0.003765,
+            "ci_low": 0.003698,
+            "ci_high": 0.003833,
+            "share_above_null": 1.0,
+            "mean_weight": 0.08462,
+            "mean_null_weight": 0.00246,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "dfcc5bc50d374fd3",
+                "gain": 0.98924
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "e7bd65d79f06c5aa",
+                "gain": 0.98924
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.98436
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "5b3aeec0bf8a8e19",
+                "gain": 0.98209
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "f05d1e964d4495f1",
+                "gain": 0.98209
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "7372ed1bad75d09c",
+                "gain": 0.97499
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "b807729cf972fc30",
+                "gain": 0.97499
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "d6195447bc5fd99b",
+                "gain": 0.95414
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "3ed2777541047df0",
+                "gain": 0.93398
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "d271ea32acecc4ea",
+                "gain": 0.90158
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.014548,
+        "null_mean": 0.059453,
+        "null_spread": 0.064856,
+        "z": -0.692,
+        "percentile": 0.5528,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          8,
+          9,
+          15,
+          24,
+          26,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.90002,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.65518,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.6468,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.06078,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.01366,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01194,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.01047,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> workspace",
+            "gain": 0.00973,
+            "in_ring": true
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 8, 9, 15, 24, 26, 37 of 42 by strength, and the architecture's order is stronger than 55.3% of the 720 cycles through the same stations"
+      },
+      "seconds": 86.9
+    },
+    "self_report": {
+      "effective": {
+        "condition": "self_report",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 5655,
+        "edges_measured": 255,
+        "edges_surviving_null": 106,
+        "surviving_share": 0.4157,
+        "mean_weight_surviving": 0.59236,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "self_report",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.824,
+        "null_spread": 0.613,
+        "z": 0.287,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "self_report",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "self_report",
+            "pairs_tested": 408,
+            "median_gain": 0.076575,
+            "ci_low": 0.031529,
+            "ci_high": 0.183192,
+            "share_above_null": 0.9706,
+            "mean_weight": 0.37122,
+            "mean_null_weight": 0.00357,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "cbe8bce762079127",
+                "gain": 0.99476
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "cbe8bce762079127",
+                "gain": 0.99476
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "96c62623977846c9",
+                "gain": 0.99476
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "96c62623977846c9",
+                "gain": 0.99476
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "e476935182222aa0",
+                "gain": 0.99475
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "e476935182222aa0",
+                "gain": 0.99475
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "96c62623977846c9",
+                "gain": 0.98985
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "cbe8bce762079127",
+                "gain": 0.98985
+              },
+              {
+                "pre": "6f7eca62ef8814f4",
+                "post": "e476935182222aa0",
+                "gain": 0.98984
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "96c62623977846c9",
+                "gain": 0.98755
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "self_report",
+            "pairs_tested": 984,
+            "median_gain": 0.009172,
+            "ci_low": 0.008952,
+            "ci_high": 0.009505,
+            "share_above_null": 0.9695,
+            "mean_weight": 0.20149,
+            "mean_null_weight": 0.00357,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "0a5928b71cb0f16e",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "b1bf4f23a46840e2",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "bd97de881658ab57",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "db26e2e89d277ad4",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "fe71a03854e530d1",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99446
+              },
+              {
+                "pre": "4f68c7d9d1375ea7",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99445
+              },
+              {
+                "pre": "695cbc35de21b828",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99445
+              },
+              {
+                "pre": "e476935182222aa0",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.98787
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "self_report",
+            "pairs_tested": 1722,
+            "median_gain": 0.011526,
+            "ci_low": 0.008681,
+            "ci_high": 0.01252,
+            "share_above_null": 0.9117,
+            "mean_weight": 0.15947,
+            "mean_null_weight": 0.00282,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "e19adadfe3b47449",
+                "gain": 0.99476
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "262c2180c3aed2f8",
+                "gain": 0.99451
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "3b1fd7220ba77040",
+                "gain": 0.99451
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "51cddcc4c413810a",
+                "gain": 0.99451
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "63aee58918cba36d",
+                "gain": 0.99451
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "a5b997d8bb52c6cc",
+                "gain": 0.99451
+              },
+              {
+                "pre": "b673cc86f4dc2947",
+                "post": "86742da85f782f48",
+                "gain": 0.99451
+              },
+              {
+                "pre": "39952f5ab581f9e8",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.98596
+              },
+              {
+                "pre": "3c797f27df09a945",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.98596
+              },
+              {
+                "pre": "6d0a5684cb357135",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.98596
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "self_report",
+            "pairs_tested": 714,
+            "median_gain": 0.00224,
+            "ci_low": 0.00224,
+            "ci_high": 0.00225,
+            "share_above_null": 0.8964,
+            "mean_weight": 0.08067,
+            "mean_null_weight": 0.00286,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "6901b861f075c739",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "d2ee9546319773cc",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "ebbaf686bbe0eb78",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "f32bf7c8fa0cbf51",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "988fdf61e15a35b0",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              },
+              {
+                "pre": "b620b3c1cce2de79",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99399
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "self_report",
+            "pairs_tested": 1156,
+            "median_gain": 0.003831,
+            "ci_low": 0.003698,
+            "ci_high": 0.004038,
+            "share_above_null": 0.9247,
+            "mean_weight": 0.33542,
+            "mean_null_weight": 0.00456,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "7a95ebf302af445e",
+                "gain": 0.99397
+              },
+              {
+                "pre": "5494434564d2aa6c",
+                "post": "2365098d3567c5d3",
+                "gain": 0.99397
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "2365098d3567c5d3",
+                "gain": 0.98538
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "7a95ebf302af445e",
+                "gain": 0.98538
+              },
+              {
+                "pre": "2c09d02f67176b35",
+                "post": "cd8d554380e91657",
+                "gain": 0.95692
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "0adb31987b2ba7ff",
+                "gain": 0.93128
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "26b2bccac81a4676",
+                "gain": 0.93128
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "2b96b52acb28fb10",
+                "gain": 0.93128
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "3b2e9964e5fe1953",
+                "gain": 0.93128
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "3e36978e2e604a4a",
+                "gain": 0.93128
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "self_report",
+            "pairs_tested": 2040,
+            "median_gain": 0.00639,
+            "ci_low": 0.006218,
+            "ci_high": 0.00651,
+            "share_above_null": 0.9912,
+            "mean_weight": 0.25364,
+            "mean_null_weight": 0.00415,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "a267498a93f52acc",
+                "gain": 0.99489
+              },
+              {
+                "pre": "e79496e3f7925ad2",
+                "post": "a267498a93f52acc",
+                "gain": 0.99489
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "003c51931bc78529",
+                "gain": 0.99453
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "5b803e0a5c08bf52",
+                "gain": 0.99453
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "a0eaa08bf44be82e",
+                "gain": 0.99453
+              },
+              {
+                "pre": "7a95ebf302af445e",
+                "post": "aa59402ce13dd77d",
+                "gain": 0.99453
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "003c51931bc78529",
+                "gain": 0.99453
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "5b803e0a5c08bf52",
+                "gain": 0.99453
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "a0eaa08bf44be82e",
+                "gain": 0.99453
+              },
+              {
+                "pre": "2365098d3567c5d3",
+                "post": "aa59402ce13dd77d",
+                "gain": 0.99453
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "self_report",
+            "pairs_tested": 510,
+            "median_gain": 0.003142,
+            "ci_low": 0.003113,
+            "ci_high": 0.003157,
+            "share_above_null": 0.8843,
+            "mean_weight": 0.09139,
+            "mean_null_weight": 0.00349,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.99451
+              },
+              {
+                "pre": "76e11bd8a4b55061",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.99451
+              },
+              {
+                "pre": "ca2c6f7e83192e5d",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.99451
+              },
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "418cdabda59ce4c5",
+                "gain": 0.99451
+              },
+              {
+                "pre": "76e11bd8a4b55061",
+                "post": "418cdabda59ce4c5",
+                "gain": 0.99451
+              },
+              {
+                "pre": "ca2c6f7e83192e5d",
+                "post": "418cdabda59ce4c5",
+                "gain": 0.99451
+              },
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "592557c0aea92fd6",
+                "gain": 0.99451
+              },
+              {
+                "pre": "76e11bd8a4b55061",
+                "post": "592557c0aea92fd6",
+                "gain": 0.99451
+              },
+              {
+                "pre": "ca2c6f7e83192e5d",
+                "post": "592557c0aea92fd6",
+                "gain": 0.99451
+              },
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "c2a69ecfc7b69be9",
+                "gain": 0.99451
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.016125,
+        "null_mean": 0.061425,
+        "null_spread": 0.066767,
+        "z": -0.678,
+        "percentile": 0.5028,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          8,
+          9,
+          19,
+          36,
+          37,
+          39
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.9133,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.67745,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.67664,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.07657,
+            "in_ring": true
+          },
+          {
+            "link": "interoception -> workspace",
+            "gain": 0.01586,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.01564,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.01155,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.01153,
+            "in_ring": true
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 8, 9, 19, 36, 37, 39 of 42 by strength, and the architecture's order is stronger than 50.3% of the 720 cycles through the same stations"
+      },
+      "seconds": 85.8
+    },
+    "task": {
+      "effective": {
+        "condition": "task",
+        "grade": "predictive",
+        "licenses": "that one cell's past helps predict another's future",
+        "frames": 6108,
+        "edges_measured": 264,
+        "edges_surviving_null": 107,
+        "surviving_share": 0.4053,
+        "mean_weight_surviving": 0.5843,
+        "skipped": ""
+      },
+      "closure": {
+        "condition": "task",
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "mode": "effective",
+            "structural_edges": 14,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "affect -> workspace",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "mode": "effective",
+            "structural_edges": 9,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "higher_order -> self_model",
+            "mode": "effective",
+            "structural_edges": 8,
+            "hops": 0,
+            "effective_edges": 2,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": true
+          },
+          {
+            "link": "self_model -> planning",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "planning -> action",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          },
+          {
+            "link": "action -> interoception",
+            "mode": "effective",
+            "structural_edges": 1,
+            "hops": 0,
+            "effective_edges": 0,
+            "share": 0.0,
+            "expected": 0.0,
+            "enrichment": 0.0,
+            "present": false
+          }
+        ],
+        "links_present": 1,
+        "links_total": 7,
+        "closed": false,
+        "ring_enrichment": 0.0,
+        "null_enrichment": 0.0,
+        "enrichment_z": 0.0,
+        "null_mean_links_present": 0.824,
+        "null_spread": 0.613,
+        "z": 0.287,
+        "nulls": 199,
+        "skipped": "",
+        "verdict": "6 of 7 links carry nothing; the ring is no better than a random one (enrichment z 0.00)"
+      },
+      "ring": {
+        "condition": "task",
+        "order": [
+          "interoception",
+          "affect",
+          "workspace",
+          "higher_order",
+          "self_model",
+          "planning",
+          "action"
+        ],
+        "stations": {
+          "interoception": 403,
+          "affect": 481,
+          "workspace": 227,
+          "higher_order": 427,
+          "self_model": 113,
+          "planning": 892,
+          "action": 507
+        },
+        "links": [
+          {
+            "link": "interoception -> affect",
+            "condition": "task",
+            "pairs_tested": 442,
+            "median_gain": 0.028063,
+            "ci_low": 0.026026,
+            "ci_high": 0.073594,
+            "share_above_null": 0.8281,
+            "mean_weight": 0.34816,
+            "mean_null_weight": 0.0026,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "7372ed1bad75d09c",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "b807729cf972fc30",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "e7bd65d79f06c5aa",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "f05d1e964d4495f1",
+                "post": "0a5928b71cb0f16e",
+                "gain": 0.9956
+              },
+              {
+                "pre": "5b3aeec0bf8a8e19",
+                "post": "bd97de881658ab57",
+                "gain": 0.9956
+              },
+              {
+                "pre": "7372ed1bad75d09c",
+                "post": "bd97de881658ab57",
+                "gain": 0.9956
+              },
+              {
+                "pre": "b807729cf972fc30",
+                "post": "bd97de881658ab57",
+                "gain": 0.9956
+              },
+              {
+                "pre": "dfcc5bc50d374fd3",
+                "post": "bd97de881658ab57",
+                "gain": 0.9956
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "affect -> workspace",
+            "condition": "task",
+            "pairs_tested": 1066,
+            "median_gain": 0.009966,
+            "ci_low": 0.009423,
+            "ci_high": 0.012065,
+            "share_above_null": 0.9803,
+            "mean_weight": 0.1888,
+            "mean_null_weight": 0.00186,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "95159d83b7695a28",
+                "gain": 0.99518
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "95159d83b7695a28",
+                "gain": 0.99518
+              },
+              {
+                "pre": "b1bf4f23a46840e2",
+                "post": "95159d83b7695a28",
+                "gain": 0.99518
+              },
+              {
+                "pre": "2d10d7300e09234c",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99518
+              },
+              {
+                "pre": "a2d4fa82ffff1fed",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99518
+              },
+              {
+                "pre": "b1bf4f23a46840e2",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.99518
+              },
+              {
+                "pre": "e476935182222aa0",
+                "post": "95159d83b7695a28",
+                "gain": 0.9882
+              },
+              {
+                "pre": "e476935182222aa0",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.9882
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "95159d83b7695a28",
+                "gain": 0.98811
+              },
+              {
+                "pre": "96c62623977846c9",
+                "post": "bc70d9f2def61d19",
+                "gain": 0.98811
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "workspace -> higher_order",
+            "condition": "task",
+            "pairs_tested": 1722,
+            "median_gain": 0.009432,
+            "ci_low": 0.007296,
+            "ci_high": 0.010602,
+            "share_above_null": 0.9001,
+            "mean_weight": 0.16009,
+            "mean_null_weight": 0.00187,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "531f2cc3bddfc675",
+                "gain": 0.98094
+              },
+              {
+                "pre": "c9d2dd511edd6c8d",
+                "post": "a21ccc05b551d25c",
+                "gain": 0.98094
+              },
+              {
+                "pre": "39952f5ab581f9e8",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "3c797f27df09a945",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "6d0a5684cb357135",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "7124177f64926a78",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "7bf981f2dc99a04e",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "9ca931ac34c0d250",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "c4337582e44e3894",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              },
+              {
+                "pre": "ffed147e9e058244",
+                "post": "53d22cf3b2c3f673",
+                "gain": 0.97984
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "higher_order -> self_model",
+            "condition": "task",
+            "pairs_tested": 714,
+            "median_gain": 0.004557,
+            "ci_low": 0.004546,
+            "ci_high": 0.004557,
+            "share_above_null": 0.7969,
+            "mean_weight": 0.07968,
+            "mean_null_weight": 0.00168,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "228a24e64eb4c6a6",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "988fdf61e15a35b0",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "b620b3c1cce2de79",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "ef3849f5c76d17db",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "2673f9e1843d6483",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "3359328f3439d00e",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "611f89f6b90b0692",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "6901b861f075c739",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "9509bec2f3659ce5",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              },
+              {
+                "pre": "d2ee9546319773cc",
+                "post": "2c09d02f67176b35",
+                "gain": 0.99619
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "self_model -> planning",
+            "condition": "task",
+            "pairs_tested": 1241,
+            "median_gain": 0.005803,
+            "ci_low": 0.005715,
+            "ci_high": 0.006138,
+            "share_above_null": 0.9323,
+            "mean_weight": 0.32075,
+            "mean_null_weight": 0.00286,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96446
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "e82e28e3dae67077",
+                "gain": 0.96446
+              },
+              {
+                "pre": "a871ab5556ca6d57",
+                "post": "8055c79d892b1026",
+                "gain": 0.96446
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96445
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "e82e28e3dae67077",
+                "gain": 0.96445
+              },
+              {
+                "pre": "b7e79ace9c9b9f64",
+                "post": "8055c79d892b1026",
+                "gain": 0.96445
+              },
+              {
+                "pre": "0c91eebfe6522045",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96445
+              },
+              {
+                "pre": "21799998b26037c5",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96445
+              },
+              {
+                "pre": "29b566d3f083c4c8",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96445
+              },
+              {
+                "pre": "3cc5f9ce66ab12aa",
+                "post": "db1f5e7134c86265",
+                "gain": 0.96445
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "planning -> action",
+            "condition": "task",
+            "pairs_tested": 2117,
+            "median_gain": 0.007982,
+            "ci_low": 0.007832,
+            "ci_high": 0.008854,
+            "share_above_null": 0.9962,
+            "mean_weight": 0.23973,
+            "mean_null_weight": 0.0026,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "dfb2256afe325742",
+                "gain": 0.99631
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "9d50124a301bbae7",
+                "gain": 0.99631
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "a267498a93f52acc",
+                "gain": 0.99567
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "003c51931bc78529",
+                "gain": 0.9953
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "456e0eee7ed4ceb0",
+                "gain": 0.9953
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "5b803e0a5c08bf52",
+                "gain": 0.9953
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "6dd8eeceb796f561",
+                "gain": 0.9953
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "aa59402ce13dd77d",
+                "gain": 0.9953
+              },
+              {
+                "pre": "112fb40ffbe1023f",
+                "post": "52fb1d3255886906",
+                "gain": 0.99498
+              },
+              {
+                "pre": "ad944ee874bc22bc",
+                "post": "a267498a93f52acc",
+                "gain": 0.99096
+              }
+            ],
+            "skipped": ""
+          },
+          {
+            "link": "action -> interoception",
+            "condition": "task",
+            "pairs_tested": 493,
+            "median_gain": 0.003329,
+            "ci_low": 0.003327,
+            "ci_high": 0.00345,
+            "share_above_null": 0.8864,
+            "mean_weight": 0.07415,
+            "mean_null_weight": 0.00183,
+            "rotations": 8,
+            "draws": 400,
+            "carries": true,
+            "strongest": [
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "6f7eca62ef8814f4",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "5b3aeec0bf8a8e19",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "7372ed1bad75d09c",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "b807729cf972fc30",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "dfcc5bc50d374fd3",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "e7bd65d79f06c5aa",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "f05d1e964d4495f1",
+                "gain": 0.98849
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "d6195447bc5fd99b",
+                "gain": 0.9544
+              },
+              {
+                "pre": "27859ae85da4ec0a",
+                "post": "3ed2777541047df0",
+                "gain": 0.95377
+              },
+              {
+                "pre": "0c42ff42c441ffee",
+                "post": "0ccd4cb4ce3c4ffd",
+                "gain": 0.94483
+              }
+            ],
+            "skipped": ""
+          }
+        ],
+        "links_carrying": 7,
+        "links_total": 7,
+        "closed": true,
+        "ring_gain": 0.009876,
+        "null_mean": 0.050357,
+        "null_spread": 0.056685,
+        "z": -0.714,
+        "percentile": 0.5542,
+        "cycles": 720,
+        "pairs_measured": 42,
+        "pairs_carrying": 42,
+        "ring_ranks_by_gain": [
+          4,
+          5,
+          8,
+          12,
+          24,
+          30,
+          37
+        ],
+        "strongest_pairs": [
+          {
+            "link": "self_model -> interoception",
+            "gain": 0.914,
+            "in_ring": false
+          },
+          {
+            "link": "self_model -> affect",
+            "gain": 0.63931,
+            "in_ring": false
+          },
+          {
+            "link": "affect -> planning",
+            "gain": 0.3127,
+            "in_ring": false
+          },
+          {
+            "link": "interoception -> affect",
+            "gain": 0.02806,
+            "in_ring": true
+          },
+          {
+            "link": "affect -> workspace",
+            "gain": 0.00997,
+            "in_ring": true
+          },
+          {
+            "link": "workspace -> action",
+            "gain": 0.00956,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> self_model",
+            "gain": 0.00955,
+            "in_ring": false
+          },
+          {
+            "link": "workspace -> higher_order",
+            "gain": 0.00943,
+            "in_ring": true
+          }
+        ],
+        "skipped": "",
+        "verdict": "all 42 ordered pairs of stations carry, so a link carrying separates nothing. The ring's seven rank 4, 5, 8, 12, 24, 30, 37 of 42 by strength, and the architecture's order is stronger than 55.4% of the 720 cycles through the same stations"
+      },
+      "seconds": 96.5
+    }
+  },
+  "reproducibility_direct_edges": {
+    "conditions": 6,
+    "closed_in": 0,
+    "link_recurrence": {
+      "action -> interoception": 0.0,
+      "affect -> workspace": 0.0,
+      "higher_order -> self_model": 1.0,
+      "interoception -> affect": 0.0,
+      "planning -> action": 0.0,
+      "self_model -> planning": 0.0,
+      "workspace -> higher_order": 0.0
+    },
+    "links_in_every_condition": [
+      "higher_order -> self_model"
+    ],
+    "links_in_none": [
+      "interoception -> affect",
+      "affect -> workspace",
+      "workspace -> higher_order",
+      "self_model -> planning",
+      "planning -> action",
+      "action -> interoception"
+    ],
+    "mean_z": 0.345,
+    "verdict": "1 of 7 links carry in every condition"
+  },
+  "reproducibility_rotation": {
+    "conditions": 6,
+    "links_in_every_condition": [
+      "action -> interoception",
+      "affect -> workspace",
+      "higher_order -> self_model",
+      "interoception -> affect",
+      "planning -> action",
+      "self_model -> planning",
+      "workspace -> higher_order"
+    ],
+    "links_in_none": [],
+    "link_recurrence": {
+      "action -> interoception": 1.0,
+      "affect -> workspace": 1.0,
+      "higher_order -> self_model": 1.0,
+      "interoception -> affect": 1.0,
+      "planning -> action": 1.0,
+      "self_model -> planning": 1.0,
+      "workspace -> higher_order": 1.0
+    },
+    "mean_percentile_among_cycles": 0.4836,
+    "verdict": "7 of 7 links carry in every condition, and the ring's order is stronger than 48% of the 720 cycles through the same stations"
+  },
+  "seconds": 513.4
+}

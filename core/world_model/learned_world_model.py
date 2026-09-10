@@ -43,6 +43,8 @@ import numpy as np
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
+from core.soma.effort import note_effort
+
 logger = logging.getLogger("Aura.LearnedWorldModel")
 
 _DATA_DIR = state_root() / "data" / "world_model"
@@ -558,6 +560,7 @@ class LearnedWorldModel:
         self._adam_step({name: g * scale * clip for name, g in grads.items()})
         self._last_loss = loss / len(caches)
         self._train_steps += 1
+        note_effort("train_steps", 1.0)
         return self._last_loss
 
     # ── the training lane ────────────────────────────────────────────────
@@ -582,8 +585,20 @@ class LearnedWorldModel:
         self._trainer_thread.start()
         logger.info("World model training lane started (every %.1fs)", self._train_interval)
 
-    def stop_training(self) -> None:
+    def stop_training(self, *, timeout_s: float = 5.0) -> None:
+        """Stop the lane and wait for it, so a caller can rely on it being still.
+
+        Setting the flag is a request. A measurement that has to hold the
+        weights fixed needs the thread to have actually left its loop, and a
+        later `start_training` needs the handle cleared or it returns having
+        started nothing.
+        """
         self._trainer_stop.set()
+        thread = self._trainer_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout_s)
+        self._trainer_thread = None
+        self._trainer_stop.clear()
 
     def _train_loop(self) -> None:
         while not self._trainer_stop.wait(self._train_interval):

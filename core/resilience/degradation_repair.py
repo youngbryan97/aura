@@ -115,7 +115,7 @@ class DegradationRepairRouter:
             severity=str(getattr(record, "severity", "degraded")),
             incident_id=str(getattr(incident, "incident_id", "") or ""),
         )
-        self._route_to_resilience(record, action)
+        self._route_to_resilience(record, error, action)
         self._route_to_adaptive_immunity(record, error, incident, extra, action)
         self._route_to_self_modification(record, error, incident, extra, action)
         return action
@@ -127,7 +127,9 @@ class DegradationRepairRouter:
             logger.debug("Service lookup failed for %s: %s", name, exc)
             return None
 
-    def _route_to_resilience(self, record: Any, action: DegradationRepairAction) -> None:
+    def _route_to_resilience(
+        self, record: Any, error: BaseException, action: DegradationRepairAction
+    ) -> None:
         resilience = self._get_service("resilience_engine") or self._get_service("soma")
         if resilience is None or not hasattr(resilience, "record_failure"):
             action.notes.append("resilience_engine_unavailable")
@@ -137,11 +139,31 @@ class DegradationRepairRouter:
         signal = 0.95 if severity == "critical" else 0.55
         stakes = 0.9 if severity == "critical" else 0.6
         try:
-            state = resilience.record_failure(
-                domain=f"degradation:{getattr(record, 'subsystem', 'unknown')}",
-                severity=signal,
-                stakes=stakes,
-            )
+            # Name WHICH degradation this is, so the same one recurring is
+            # one standing fact rather than a world getting steadily worse.
+            subsystem = getattr(record, "subsystem", "unknown")
+            reason = str(
+                getattr(record, "reason", None)
+                or getattr(record, "detail", None)
+                or type(error).__name__
+            )[:120]
+            try:
+                state = resilience.record_failure(
+                    domain=f"degradation:{subsystem}",
+                    severity=signal,
+                    stakes=stakes,
+                    signature=f"degradation:{subsystem}:{reason}",
+                )
+            except TypeError:
+                # An engine that predates the signature must still receive the
+                # failure. Losing the record entirely because it could not be
+                # named is worse than recording it unnamed.
+                action.notes.append("resilience_signature_unsupported")
+                state = resilience.record_failure(
+                    domain=f"degradation:{subsystem}",
+                    severity=signal,
+                    stakes=stakes,
+                )
             action.resilience_state = str(getattr(state, "value", state))
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             action.notes.append(f"resilience_route_failed:{type(exc).__name__}")

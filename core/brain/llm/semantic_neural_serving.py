@@ -35,7 +35,8 @@ LEGACY_ACTIVATION_PATH: Final = (
 )
 DEFAULT_ACTIVATION_PATH: Final = (
     REPO_ROOT
-    / "artifacts/migration/27b/recovery/cp1041-source-continuity/activation.json"
+    / "artifacts/migration/27b/recovery/requalification-20260906-objective-identity"
+    / "activation.json"
 )
 ACTIVE_ACTIVATION_PATH: Final = (
     REPO_ROOT / "training/fused-model/semantic-neural-active.json"

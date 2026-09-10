@@ -494,6 +494,29 @@ async def _serve_the_cached_generation(
     return _seam_early_response, generation_metadata, response_text
 
 
+def _the_amplifier_stood_down(draft, reason: str):
+    """Say which gate declined, and hand the draft back untouched.
+
+    The verifier-backed amplifier is the thing that re-checks a stated
+    calculation against exact arithmetic. It has eight ways to decline and
+    seven of them said nothing, so "it did not run" and "it ran and found
+    nothing" looked identical from outside — and the runtime's own claim
+    register has been reporting `recurrent_answer_enters_verified_complete_
+    engine` as NEVER RUN, in the neural feed, the whole time.
+
+    LIVE, 2026-09-08: asked for the daylight lost at 45°N between the solstice
+    and the equinox, Aura wrote the hour-angle formula correctly, then read
+    15h 08m off it where the formula gives 15h 26m, and answered "about 190
+    minutes" against a true 206. Nothing recomputed the step. The amplifier
+    classifies that question as `math` and had not run.
+    """
+
+    logger.info(
+        "Reasoning amplifier stood down (%s); serving the draft as written.", reason
+    )
+    return draft
+
+
 class ResponseGenerationPhase(BasePhase):
     """
     Phase 5: Response Generation.
@@ -1456,9 +1479,9 @@ class ResponseGenerationPhase(BasePhase):
         """
 
         if not is_user_facing or is_background or proof_or_benchmark or not draft:
-            return draft
+            return _the_amplifier_stood_down(draft, "not_a_user_facing_turn")
         if not reasoning_amplifier_v2_enabled():
-            return draft
+            return _the_amplifier_stood_down(draft, "amplifier_switched_off")
         try:
             from core.brain.reasoning_amplifier_v2 import amplify_turn, is_amplifiable
         except ImportError as exc:
@@ -1466,11 +1489,11 @@ class ResponseGenerationPhase(BasePhase):
                 exc,
                 action="continued response generation without Amplifier v2 import",
             )
-            return draft
+            return _the_amplifier_stood_down(draft, "amplifier_import_failed")
 
         task_type = is_amplifiable(objective)
         if task_type is None:
-            return draft
+            return _the_amplifier_stood_down(draft, "question_is_not_a_checkable_one")
 
         # A successful capability receipt assigns this turn to the evidence
         # narration owner. The amplifier does not receive the capability's
@@ -1515,7 +1538,7 @@ class ResponseGenerationPhase(BasePhase):
         )
         available_budget = max(0.0, remaining_turn_budget * 0.60)
         if available_budget < 2.0:
-            return draft
+            return _the_amplifier_stood_down(draft, "no_time_left_in_the_turn")
         requires_full_program_budget = bool(
             executable_reasoning and task_type != "math"
         )
@@ -1523,7 +1546,7 @@ class ResponseGenerationPhase(BasePhase):
         budget_ceiling = 150.0 if executable_reasoning else 30.0
         budget = min(budget_ceiling, available_budget)
         if requires_full_program_budget and budget < budget_floor:
-            return draft
+            return _the_amplifier_stood_down(draft, "not_enough_time_for_one_complete_program")
         budget = max(min(budget_floor, available_budget), budget)
         generation_timeout = (
             min(75.0, budget, max(55.0, budget * 0.50))
@@ -2746,6 +2769,9 @@ class ResponseGenerationPhase(BasePhase):
                     latent_trace.get("latent_cortex_selected") is not True
                     and not append_only_continuation_pending
                 ):
+                    logger.info(
+                        "Reasoning amplifier reached for this turn; deciding whether to run."
+                    )
                     response_text = await self._maybe_amplify_response(
                         objective=objective,
                         draft=response_text,
@@ -2768,6 +2794,14 @@ class ResponseGenerationPhase(BasePhase):
                             or {}
                         ).get("promotion_authority")
                         or "none"
+                    )
+                else:
+                    # The other way it never runs, and it said nothing either.
+                    logger.info(
+                        "Reasoning amplifier not reached (%s); the draft stands.",
+                        "the latent cortex owns this turn"
+                        if latent_trace.get("latent_cortex_selected") is True
+                        else "an append-only continuation is pending",
                     )
                 amplifier_generation_metadata = generation_metadata_of(response_text)
                 amplifier_source_answer = str(

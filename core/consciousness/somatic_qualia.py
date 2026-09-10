@@ -62,6 +62,9 @@ removing it changes downstream output. That is a real and checkable property,
 and it is the whole claim. It says nothing about whether anything is felt; the
 interest is that the signal reaches the model without first being rendered
 into a sentence about how it feels.
+
+Operationally: this measures body signals — host load, latency, thermal state — mapped onto a small fixed vocabulary of felt terms. 'Qualia' is the name of that vocabulary, not a claim that anything is felt.
+
 """
 from __future__ import annotations
 

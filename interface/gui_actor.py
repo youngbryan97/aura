@@ -256,8 +256,12 @@ def gui_actor_entry(port: int, token: str = None):
             logger.warning(f"⚠️ API Server (Kernel) NOT detected on port {port} after 60s. Attempting window creation anyway...")
         
         # No URL in create_window to prevent race conditions during startup
+        # The app is called Aura. "Zenith" is the release label — see LABEL in
+        # core/runtime/version.py — and it belongs in the version chip, which
+        # already shows "2026.4.20-Zenith". The bundle has said "Aura" since
+        # signing; only this window disagreed.
         window = webview.create_window(
-            "Aura Zenith", 
+            "Aura", 
             width=1280, height=820, min_size=(800, 600)
         )
         _set_macos_accessory_activation_policy("post_window_create")

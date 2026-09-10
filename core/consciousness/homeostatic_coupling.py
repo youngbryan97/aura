@@ -57,6 +57,17 @@ _RECOVERABLE_HOMEOSTATIC_ERRORS = (
 # Data structures
 # ---------------------------------------------------------------------------
 
+#: How much of felt state the continuous substrate accounts for. Named here
+#: because two places blend it now — the cognitive modifiers computed below,
+#: and the affect state itself — and two copies of a number like this drift.
+SUBSTRATE_SHARE: float = 0.3
+
+#: Distinguishes "not looked up yet" from "looked up and there is none". A
+#: caller that assigns None means the second, and re-resolving on the next read
+#: would quietly undo them.
+_UNRESOLVED: Any = object()
+
+
 @dataclass
 class CognitiveModifiers:
     """The output of homeostatic coupling — a set of multipliers and flags
@@ -111,18 +122,41 @@ class HomeostaticCoupling:
         self._mem_stress = 0.0
         self._stress_timestamp = 0.0
         
-        # v7.2: Liquid Substrate link
-        self.substrate = None
-        try:
-            self.substrate = ServiceContainer.get("liquid_substrate", default=None)
-        except _RECOVERABLE_HOMEOSTATIC_ERRORS as e:
-            record_degradation('homeostatic_coupling', e)
-            logger.debug("Substrate link unavailable: %s", e)
-            
+        # v7.2: Liquid Substrate link, resolved on first use rather than here.
+        # Fetching it in the constructor made the link depend on boot order:
+        # the consciousness system builds this object before anything registers
+        # the substrate under the name this looked for, so `self.substrate` was
+        # None for the life of the process and the substrate's contribution to
+        # affect — a third of it, by the blend below — silently did not happen.
+        self._substrate = _UNRESOLVED
+
         # v1.1: Mycelial Network link
         self._mycelium = None
-            
-        logger.info("HomeostaticCoupling initialized (Substrate Link: %s).", "OK" if self.substrate else "MISSING")
+
+        logger.info("HomeostaticCoupling initialized (substrate link resolved on first use).")
+
+    @property
+    def substrate(self):
+        """The liquid substrate, under whichever name it was registered.
+
+        Two names are in use for one object: `liquid_substrate` from the
+        desktop boot and `conscious_substrate` from the consciousness system.
+        Asking for both is what makes this work in either.
+        """
+        if self._substrate is _UNRESOLVED:
+            try:
+                self._substrate = ServiceContainer.get(
+                    "liquid_substrate", default=None
+                ) or ServiceContainer.get("conscious_substrate", default=None)
+            except _RECOVERABLE_HOMEOSTATIC_ERRORS as e:
+                record_degradation('homeostatic_coupling', e)
+                logger.debug("Substrate link unavailable: %s", e)
+                self._substrate = None
+        return self._substrate
+
+    @substrate.setter
+    def substrate(self, value):
+        self._substrate = value
 
     def _get_mycelium(self):
         """Lazy-resolve Mycelial Network."""
@@ -165,8 +199,9 @@ class HomeostaticCoupling:
                 try:
                     substrate_state = await self.substrate.get_state_summary()
                     # Substrate provides the base emotional tone; discrete affect events modulate it
-                    affect['valence'] = (affect.get('valence', 0.0) * 0.7) + (substrate_state['valence'] * 0.3)
-                    affect['arousal'] = (affect.get('arousal', 0.0) * 0.7) + (substrate_state['arousal'] * 0.3)
+                    keep = 1.0 - SUBSTRATE_SHARE
+                    affect['valence'] = (affect.get('valence', 0.0) * keep) + (substrate_state['valence'] * SUBSTRATE_SHARE)
+                    affect['arousal'] = (affect.get('arousal', 0.0) * keep) + (substrate_state['arousal'] * SUBSTRATE_SHARE)
                     # Also blend volatility and phi into cognitive parameters
                     volatility = substrate_state.get('volatility', 0.0)
                     phi = substrate_state.get('phi', 0.0)

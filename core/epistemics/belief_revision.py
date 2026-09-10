@@ -639,9 +639,21 @@ class BeliefRevisionEngine:
             from core.knowledge.atomspace import get_atomspace
 
             space = get_atomspace()
-            space.tick()
-            _learn_when_things_happen(space)
-            derived = space.forward_chain(max_derivations=8, focus_only=True)
+            # Off the loop. The economy tick walks every record in the space
+            # under one lock, and this runs inside an `async def`: measured
+            # live on 2026-09-07 it held
+            # `core.knowledge.atomspace.AtomSpace` for 52ms on the event loop
+            # while a person was waiting, alongside a 6.0s hard lag and an
+            # exhausted tick_duration_p95 budget.
+            #
+            # The lock is a `checked_lock` and the structure is thread-safe, so
+            # the work moves rather than changes. Forward chaining and the
+            # temporal pass walk the same records and go with it.
+            await asyncio.to_thread(space.tick)
+            await asyncio.to_thread(_learn_when_things_happen, space)
+            derived = await asyncio.to_thread(
+                space.forward_chain, max_derivations=8, focus_only=True
+            )
             derived_count = len(derived)
             if derived:
                 try:
@@ -650,14 +662,20 @@ class BeliefRevisionEngine:
 
                     # Backward-chained provenance: every derivation ships with
                     # its best supporting chain, so consumers see *why*.
-                    explained = []
-                    for atom in derived:
-                        entry: dict = {"implication": str(atom)}
-                        if isinstance(atom, Link) and atom.atype == IMPLICATION:
-                            chains = space.explain(atom, max_depth=3, max_paths=2)
-                            if chains:
-                                entry["support"] = chains[0]
-                        explained.append(entry)
+                    def _explain_each() -> list[dict]:
+                        # Backward chaining takes the same lock and walks the
+                        # same records; it belongs off the loop with the rest.
+                        rows: list[dict] = []
+                        for atom in derived:
+                            entry: dict = {"implication": str(atom)}
+                            if isinstance(atom, Link) and atom.atype == IMPLICATION:
+                                chains = space.explain(atom, max_depth=3, max_paths=2)
+                                if chains:
+                                    entry["support"] = chains[0]
+                            rows.append(entry)
+                        return rows
+
+                    explained = await asyncio.to_thread(_explain_each)
                     bus = get_event_bus()
                     await bus.publish(
                         "atomspace.derived",

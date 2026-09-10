@@ -26,9 +26,11 @@ import uuid
 from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.executive.bounded_sandbox_policy import validate_idle_sandbox_probe_arguments
 from core.executive.executive_ledger import ExecutiveLedger
 from core.goals.goal_text import (
@@ -147,13 +149,78 @@ def _is_transient_conversation_memory_objective(text: str) -> bool:
     normalized = _normalize_goal_text(text).lower()
     if not normalized.startswith("remember this "):
         return False
-    if not any(token in normalized for token in ("note", "phrase", "word", "token", "codeword", "detail")):
+    if not names_any(normalized, ("note", "phrase", "word", "token", "codeword", "detail")):
         return False
     return "later in this conversation" in normalized or ":" in normalized
 
 
-def _coerce_intent_source(source: str) -> IntentSource:
+@lru_cache(maxsize=1)
+def _autonomous_lane_names() -> frozenset[str]:
+    """The word each of Aura's own loops names itself by.
+
+    Derived from the origins the standing-authority layer already grants
+    autonomous authority to, rather than typed out again here: a loop names
+    its entry points after itself, so "curiosity_web_research" and
+    "curiosity_daemon" both start with the word "curiosity", and the leading
+    word is what identifies the loop.
+    """
+
+    try:
+        from core.executive.standing_authority import AUTONOMOUS_AUTHORITY_ORIGINS
+    except ImportError:
+        return frozenset()
+    return frozenset(
+        {name.split("_", 1)[0] for name in AUTONOMOUS_AUTHORITY_ORIGINS if name}
+        | {source.value for source in _SELF_DIRECTED_INTENT_SOURCES}
+    )
+
+
+def _names_an_autonomous_lane(normalized: str) -> bool:
+    """Whether this origin names a loop Aura runs for herself.
+
+    Only the leading word counts, and only after every check that can
+    recognise a person. This decides one thing: whether an origin nothing else
+    recognised may be read as the person's because their turn is open. Work
+    Aura started for herself does not become theirs by running while they
+    wait.
+    """
+
+    if not normalized:
+        return False
+    lane = normalized.replace(":", "_").replace(".", "_").split("_", 1)[0]
+    return bool(lane) and lane in _autonomous_lane_names()
+
+
+def _coerce_intent_source(
+    source: str, *, person_is_waiting: bool | None = None
+) -> IntentSource:
+    """Which kind of intent this is, from the source that raised it.
+
+    The list below was the thirteenth place in the tree deciding whether a
+    person is waiting, and it disagreed with the twelfth. The capability
+    engine had already read "response_generation_user" as user-facing and
+    passed it down as the execution source; this list did not contain that
+    spelling, so the same string meant a person to one layer and a background
+    errand to the next. Rule 5 then deferred a person's tool call behind
+    Aura's own unfinished research.
+
+    LIVE, 2026-09-07: "Find out who wrote the novel Solaris and reply with
+    just the author's name" produced
+    ``Execution deferred: temporal_obligation_active`` on a file_operation
+    dispatched from origin=response_generation_user.
+
+    So the answer comes from the shared predicate, and from the turn. A phase
+    name cannot be parsed into an answer — core/runtime/turn_origin.py says so
+    and declines to guess — but the turn bound to this context knows what it
+    started as, and a tool call raised inside a person's open turn is that
+    person's tool call. An origin that names an autonomous lane is still that
+    lane's, open turn or not: work Aura started for herself does not become
+    the person's work by running while they wait.
+    """
+
     normalized = _normalize_intent_source_label(source)
+    if person_is_waiting is True:
+        return IntentSource.USER
     user_aliases = {
         "api",
         "api.skill.execute",
@@ -192,6 +259,17 @@ def _coerce_intent_source(source: str) -> IntentSource:
     for candidate in IntentSource:
         if candidate.value == normalized:
             return candidate
+    from core.runtime.turn_origin import (
+        a_person_is_waiting,
+        the_open_turn_is_a_persons_turn,
+    )
+
+    if a_person_is_waiting(normalized):
+        return IntentSource.USER
+    if person_is_waiting is False or _names_an_autonomous_lane(normalized):
+        return IntentSource.AUTONOMOUS
+    if the_open_turn_is_a_persons_turn():
+        return IntentSource.USER
     return IntentSource.AUTONOMOUS
 
 
@@ -213,6 +291,20 @@ class IntentSource(str, Enum):
     AUTONOMOUS_RESEARCH = "autonomous_research"
     SYSTEM = "system"
     BACKGROUND = "background"
+
+
+#: The kinds of intent Aura raises for herself. Rule 5 and Rule 6 both hold
+#: these back while an obligation or an internal state is open, and neither
+#: rule reaches a person's turn because a person's turn is none of these.
+_SELF_DIRECTED_INTENT_SOURCES: frozenset[IntentSource] = frozenset(
+    {
+        IntentSource.AUTONOMOUS,
+        IntentSource.BACKGROUND,
+        IntentSource.SOCIAL,
+        IntentSource.DRIVE,
+        IntentSource.REFLECTION,
+    }
+)
 
 
 class ActionType(str, Enum):
@@ -392,10 +484,19 @@ class ExecutiveCore:
         tool_name: str,
         args: Dict[str, Any],
         source: str = "unknown",
+        *,
+        person_is_waiting: bool | None = None,
     ) -> Tuple[Intent, DecisionRecord]:
-        """Build and evaluate a tool-call intent while preserving the intent id."""
+        """Build and evaluate a tool-call intent while preserving the intent id.
+
+        ``person_is_waiting`` is the caller's own answer where it has one; the
+        source name is the fallback.
+        """
+        resolved_source = _coerce_intent_source(
+            source, person_is_waiting=person_is_waiting
+        )
         intent = Intent(
-            source=_coerce_intent_source(source),
+            source=resolved_source,
             goal=f"execute_tool:{tool_name}",
             action_type=ActionType.TOOL_CALL,
             payload={"tool_name": tool_name, "args": args},
@@ -403,8 +504,7 @@ class ExecutiveCore:
         )
 
         # User-initiated tools always approved
-        if _coerce_intent_source(source) == IntentSource.USER:
-            intent.source = IntentSource.USER
+        if resolved_source == IntentSource.USER:
             intent.priority = 0.9
 
         record = await self.request_approval(intent)

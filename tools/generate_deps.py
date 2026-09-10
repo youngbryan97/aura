@@ -57,6 +57,14 @@ CORE = ROOT / "core"
 HANDWRITTEN = {
     "conation", "engineering", "fsw", "health", "learning", "observability",
     "persistence", "runtime", "utils", "verify",
+    # The measurer must not become part of what it measures. core/subject
+    # reads the running organism to take a reading, and the rule is one-way:
+    # nothing in the runtime may import subject, because a measurement the
+    # measured thing can read is partly about itself. A generated list would
+    # say only "what it imports today" and would widen in the direction the
+    # rule exists to hold. It was generated once, on 2026-09-07, and the
+    # written rule survived by one command.
+    "subject",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a
@@ -180,13 +188,17 @@ def render(package: str, allowed: set[str]) -> str:
 
     lines = [HEADER.format(
         package=package,
-        counted=len(allowed),
+        counted=len({a for a in allowed if a != f"core.{package}"}),
         description=(
             f"core.{package}: may import only what it already imports; "
             "every new edge is an edit here."
         ),
     )]
     lines.append(f'    "+core.{package}",\n')
+    # The package's own name is already the line above. A submodule importing a
+    # sibling puts it in the graph as an outbound edge, and emitting it again
+    # here writes a duplicate rule and an outbound count one too high.
+    inside = [name for name in inside if name != f"core.{package}"]
     if inside:
         lines.append("\n    # What this package reaches for today.\n")
         for name in inside:

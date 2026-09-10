@@ -1,0 +1,2377 @@
+{
+  "notes": {
+    "unwritable_domains": [],
+    "intervention_seconds": 836.2,
+    "intervention_power": {
+      "pairs_tested": 90,
+      "paired_trials_per_pair": 48,
+      "smallest_reachable_q": 0.00045,
+      "underpowered": false
+    },
+    "attenuation": {
+      "C": {
+        "self_effect": 2.6043,
+        "largest_outgoing": 0.0816,
+        "attenuation": 31.91
+      },
+      "P": {
+        "self_effect": 1.4744,
+        "largest_outgoing": 0.0179,
+        "attenuation": 82.43
+      },
+      "W": {
+        "self_effect": 4.7168,
+        "largest_outgoing": 1.8386,
+        "attenuation": 2.57
+      },
+      "G": {
+        "self_effect": 1.9227,
+        "largest_outgoing": 0.9918,
+        "attenuation": 1.94
+      },
+      "I": {
+        "self_effect": 3.2608,
+        "largest_outgoing": 0.1005,
+        "attenuation": 32.45
+      },
+      "S": {
+        "self_effect": 1.6756,
+        "largest_outgoing": 1.7761,
+        "attenuation": 0.94
+      },
+      "M": {
+        "self_effect": 2.8464,
+        "largest_outgoing": 0.1011,
+        "attenuation": 28.17
+      },
+      "D": {
+        "self_effect": 4.111,
+        "largest_outgoing": 0.2739,
+        "attenuation": 15.01
+      },
+      "A": {
+        "self_effect": 0.3208,
+        "largest_outgoing": 0.1281,
+        "attenuation": 2.5
+      },
+      "N": {
+        "self_effect": 2.7278,
+        "largest_outgoing": 0.0397,
+        "attenuation": 68.7
+      }
+    },
+    "seconds": 2568.0
+  },
+  "organism": {
+    "up": [
+      "bridge_loop",
+      "consciousness_bridge",
+      "consciousness_layers",
+      "consciousness_system",
+      "container",
+      "heartbeat_loop",
+      "liquid_substrate_alias",
+      "protocol_listener_stopped",
+      "substrate_loop_stopped"
+    ],
+    "down": {},
+    "stopped_loops": [
+      "ClosedCausalLoop.prediction",
+      "ConsciousnessBridge",
+      "EmbodiedInteroception",
+      "NeuralMesh",
+      "Neurochemical",
+      "OscillatoryBinding",
+      "StreamOfBeing.existence",
+      "SubstrateEvolution",
+      "UnifiedField"
+    ],
+    "still_running": [
+      "state_registry.notification_dispatcher"
+    ]
+  },
+  "recording": {
+    "frames": 31680,
+    "width": 166,
+    "conditions": {
+      "conversation": 3960,
+      "problem_solving": 3960,
+      "autonomy": 3960,
+      "idle": 3960,
+      "salience": 3960,
+      "stress": 3960,
+      "memory": 3960,
+      "tool_use": 3960
+    },
+    "live_domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "flat_columns": 49,
+    "one_way_columns": [
+      "I.token_velocity",
+      "G.fragmentation",
+      "G.branch_load",
+      "G.tick",
+      "G.broadcasts",
+      "C.substrate_revision",
+      "S.bonding_level",
+      "S.belief_version",
+      "S.snapshot_count",
+      "S.agency_acted",
+      "S.agency_traces",
+      "M.evolution_log_load",
+      "W.model_mean_surprise",
+      "W.causal_edges",
+      "D.drive_social",
+      "N.steps"
+    ],
+    "flat_column_names": [
+      "P.spatial_present",
+      "P.entity_load",
+      "I.mycelium_density",
+      "I.sensor_load",
+      "A.social_hunger",
+      "A.cortisol",
+      "A.adrenaline",
+      "A.momentum",
+      "G.coherence",
+      "G.contradictions",
+      "G.discourse_depth",
+      "G.inhibited",
+      "G.modifier_depth",
+      "G.modifier_focus",
+      "G.modifier_urgency",
+      "C.mode_dreaming",
+      "C.mode_dormant",
+      "C.phi_estimate",
+      "C.phenomenal_coherence",
+      "S.evolution_score",
+      "S.narrative_version",
+      "S.narrative_len",
+      "S.value_load",
+      "S.preference_load",
+      "S.trait_openness",
+      "S.trait_conscientiousness",
+      "S.trait_extraversion",
+      "S.trait_agreeableness",
+      "S.trait_neuroticism",
+      "S.prediction_surprises",
+      "S.valence_error",
+      "S.drive_error",
+      "S.agency_pending",
+      "M.summary_len",
+      "M.ledger_load",
+      "M.thread_present",
+      "M.cold_memory_load",
+      "W.entity_load",
+      "W.relationship_load",
+      "W.preference_load",
+      "W.concept_load",
+      "W.user_trend",
+      "W.model_hidden_norm",
+      "W.causal_confirmed",
+      "W.model_facets",
+      "W.model_train_steps",
+      "D.drive_rest",
+      "D.drive_creation",
+      "N.era"
+    ],
+    "env_names": [
+      "condition_id",
+      "host_load",
+      "host_thermal",
+      "objective_len",
+      "percept_arrived",
+      "turn"
+    ],
+    "notes": {
+      "rounds": 120,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ],
+      "phase_failures": {}
+    }
+  },
+  "phi": {
+    "phi_do": -0.093828,
+    "best_cut": [
+      "GSW",
+      "PIACMDN"
+    ],
+    "loss_full": 0.420861,
+    "loss_cut": 0.38476,
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "pairs": 959,
+    "cheapest_cuts": [
+      {
+        "cut": "GSW|PIACMDN",
+        "phi": -0.093828
+      },
+      {
+        "cut": "GCSW|PIAMDN",
+        "phi": -0.089289
+      },
+      {
+        "cut": "GW|PIACSMDN",
+        "phi": -0.083519
+      },
+      {
+        "cut": "ACSD|PIGMWN",
+        "phi": -0.081995
+      },
+      {
+        "cut": "IACMD|PGSWN",
+        "phi": -0.072962
+      },
+      {
+        "cut": "GCSWD|PIAMN",
+        "phi": -0.072481
+      },
+      {
+        "cut": "ACMD|PIGSWN",
+        "phi": -0.072467
+      },
+      {
+        "cut": "IAMDN|PGCSW",
+        "phi": -0.07232
+      }
+    ],
+    "dearest_cuts": [
+      {
+        "cut": "PIAG|CSMWDN",
+        "phi": 0.064676
+      },
+      {
+        "cut": "PIAGC|SMWDN",
+        "phi": 0.073985
+      },
+      {
+        "cut": "MN|PIAGCSWD",
+        "phi": 0.076378
+      },
+      {
+        "cut": "CMN|PIAGSWD",
+        "phi": 0.080447
+      }
+    ],
+    "degenerate": false,
+    "note": ""
+  },
+  "differentiation": {
+    "d_eff": 10.8666,
+    "d_eff_normalised": 0.0929,
+    "live_width": 117,
+    "largest_component_share": 0.2345,
+    "spectrum_head": [
+      0.2345,
+      0.1428,
+      0.0619,
+      0.0496,
+      0.0426,
+      0.0397,
+      0.0352,
+      0.0284,
+      0.0263,
+      0.0261,
+      0.023,
+      0.0209
+    ]
+  },
+  "intrinsic": {
+    "loss_environment_only": 0.662942,
+    "loss_environment_and_state": 0.3368,
+    "loss_shuffled_state": 0.664309,
+    "delta_intrinsic": 0.491961,
+    "delta_over_shuffled_state": 0.493007,
+    "pairs": 959,
+    "env_width": 6,
+    "passes": true,
+    "note": ""
+  },
+  "metastability": {
+    "regimes": 2,
+    "dwell_mean": 96.0,
+    "dwell_max": 616.0,
+    "transition_entropy": 0.0755,
+    "entropy_ceiling": 1.0,
+    "largest_regime_share": 0.6531,
+    "passes": true
+  },
+  "synergy": [
+    {
+      "sources": [
+        "A",
+        "S"
+      ],
+      "target": "G",
+      "joint_information": 2.195,
+      "redundancy": 0.9585,
+      "unique": [
+        0.0,
+        1.1131
+      ],
+      "synergy": 0.1234,
+      "synergy_fraction": 0.0562,
+      "null_q99_fraction": 0.2035,
+      "interaction_gain": -0.0229,
+      "rows": 959,
+      "passes": false
+    },
+    {
+      "sources": [
+        "P",
+        "M"
+      ],
+      "target": "W",
+      "joint_information": 1.2535,
+      "redundancy": 0.0013,
+      "unique": [
+        0.0,
+        1.2055
+      ],
+      "synergy": 0.0467,
+      "synergy_fraction": 0.0373,
+      "null_q99_fraction": 0.163,
+      "interaction_gain": 0.0041,
+      "rows": 959,
+      "passes": false
+    },
+    {
+      "sources": [
+        "W",
+        "A"
+      ],
+      "target": "D",
+      "joint_information": 3.1174,
+      "redundancy": 1.0208,
+      "unique": [
+        1.817,
+        0.0
+      ],
+      "synergy": 0.2796,
+      "synergy_fraction": 0.0897,
+      "null_q99_fraction": 0.0887,
+      "interaction_gain": 0.0378,
+      "rows": 959,
+      "passes": false
+    },
+    {
+      "sources": [
+        "S",
+        "D"
+      ],
+      "target": "C",
+      "joint_information": 1.0285,
+      "redundancy": 0.9042,
+      "unique": [
+        0.0,
+        0.0767
+      ],
+      "synergy": 0.0475,
+      "synergy_fraction": 0.0462,
+      "null_q99_fraction": 0.2175,
+      "interaction_gain": 0.0064,
+      "rows": 959,
+      "passes": false
+    }
+  ],
+  "closure": {
+    "loss_core_only": 0.109674,
+    "loss_core_and_periphery": 0.110228,
+    "loss_shuffled_periphery": 0.110372,
+    "leak": -0.005058,
+    "shuffled_leak": -0.006371,
+    "leak_over_shuffled": 0.001304,
+    "periphery_width": 2,
+    "closed": true,
+    "largest_leaks": []
+  },
+  "edges": [
+    {
+      "source": "A",
+      "target": "C",
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "D",
+      "effect": 0.0058,
+      "p": 0.028925,
+      "q": 0.153132,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "G",
+      "effect": 0.0498,
+      "p": 0.067455,
+      "q": 0.263953,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "M",
+      "effect": -0.0012,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "N",
+      "effect": 0.1281,
+      "p": 7.5e-05,
+      "q": 0.000519,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "P",
+      "effect": 0.0013,
+      "p": 0.379963,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "S",
+      "effect": 0.0368,
+      "p": 0.157404,
+      "q": 0.461146,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "W",
+      "effect": 0.0434,
+      "p": 0.057085,
+      "q": 0.233528,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "A",
+      "effect": 0.0104,
+      "p": 0.433943,
+      "q": 0.723238,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "D",
+      "effect": 0.0027,
+      "p": 0.209444,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "G",
+      "effect": -0.0349,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "I",
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "M",
+      "effect": 0.0342,
+      "p": 0.125359,
+      "q": 0.433936,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "N",
+      "effect": 0.0006,
+      "p": 0.495088,
+      "q": 0.774819,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "P",
+      "effect": 0.0039,
+      "p": 0.323503,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "S",
+      "effect": -0.0161,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "W",
+      "effect": 0.0816,
+      "p": 0.02016,
+      "q": 0.113399,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "A",
+      "effect": -0.0508,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "C",
+      "effect": -0.0153,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "G",
+      "effect": 0.0242,
+      "p": 0.274454,
+      "q": 0.602459,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "M",
+      "effect": 0.0236,
+      "p": 0.243494,
+      "q": 0.561909,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "N",
+      "effect": 0.2739,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 3,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "P",
+      "effect": 0.0001,
+      "p": 0.463973,
+      "q": 0.759228,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "S",
+      "effect": -0.0335,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "W",
+      "effect": 0.0368,
+      "p": 0.361738,
+      "q": 0.660817,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "A",
+      "effect": 0.0767,
+      "p": 0.158839,
+      "q": 0.461146,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "C",
+      "effect": 0.0249,
+      "p": 0.135324,
+      "q": 0.440355,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "D",
+      "effect": 0.0032,
+      "p": 0.193084,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "I",
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "M",
+      "effect": 0.9918,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "N",
+      "effect": 0.6085,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 7,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "P",
+      "effect": 0.0142,
+      "p": 0.038635,
+      "q": 0.173857,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "S",
+      "effect": 0.3983,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 5,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "W",
+      "effect": 0.1041,
+      "p": 0.155119,
+      "q": 0.461146,
+      "replication": 2,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "A",
+      "effect": 0.1005,
+      "p": 0.121309,
+      "q": 0.433936,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "C",
+      "effect": 0.0023,
+      "p": 0.369028,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "D",
+      "effect": 0.0018,
+      "p": 0.265844,
+      "q": 0.598148,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "G",
+      "effect": 0.0364,
+      "p": 0.04716,
+      "q": 0.202113,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "M",
+      "effect": -0.0076,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "N",
+      "effect": 0.0784,
+      "p": 0.036625,
+      "q": 0.173857,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "P",
+      "effect": 0.0,
+      "p": 0.496918,
+      "q": 0.774819,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "S",
+      "effect": 0.0394,
+      "p": 0.207659,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "W",
+      "effect": 0.0844,
+      "p": 0.00431,
+      "q": 0.02586,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "A",
+      "effect": 0.0209,
+      "p": 0.385723,
+      "q": 0.660817,
+      "replication": 2,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "C",
+      "effect": -0.0009,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "D",
+      "effect": -0.0017,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "G",
+      "effect": 0.0099,
+      "p": 0.369703,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "N",
+      "effect": -0.1005,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "P",
+      "effect": -0.0003,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "S",
+      "effect": 0.0123,
+      "p": 0.374213,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "W",
+      "effect": 0.1011,
+      "p": 0.180139,
+      "q": 0.506641,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "A",
+      "effect": 0.0227,
+      "p": 0.384523,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "C",
+      "effect": 0.0107,
+      "p": 0.110634,
+      "q": 0.414879,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "D",
+      "effect": -0.0036,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "G",
+      "effect": 0.0296,
+      "p": 0.03769,
+      "q": 0.173857,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "I",
+      "effect": -0.0006,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "M",
+      "effect": 0.0391,
+      "p": 0.295169,
+      "q": 0.629233,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "P",
+      "effect": -0.005,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "S",
+      "effect": 0.0397,
+      "p": 0.136999,
+      "q": 0.440355,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "W",
+      "effect": 0.0148,
+      "p": 0.216189,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "A",
+      "effect": -0.0889,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "C",
+      "effect": 0.0179,
+      "p": 0.300633,
+      "q": 0.629233,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "D",
+      "effect": -0.0001,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "G",
+      "effect": -0.0128,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "M",
+      "effect": -0.0374,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "N",
+      "effect": -0.0175,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "S",
+      "effect": -0.0086,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "W",
+      "effect": -0.0425,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "A",
+      "effect": 0.0293,
+      "p": 0.370353,
+      "q": 0.660817,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "C",
+      "effect": 0.3801,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "D",
+      "effect": 0.0026,
+      "p": 0.227909,
+      "q": 0.539784,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "G",
+      "effect": 0.4327,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 7,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "I",
+      "effect": 0.0,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "M",
+      "effect": 0.2774,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 3,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "N",
+      "effect": 1.7761,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "P",
+      "effect": 0.0006,
+      "p": 0.389148,
+      "q": 0.660817,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "W",
+      "effect": 0.69,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 6,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "A",
+      "effect": -0.0219,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "C",
+      "effect": -0.0026,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "D",
+      "effect": 0.0025,
+      "p": 0.213414,
+      "q": 0.525865,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "G",
+      "effect": 0.3284,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 6,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "I",
+      "effect": 0.0006,
+      "p": 0.499328,
+      "q": 0.774819,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "M",
+      "effect": 0.1247,
+      "p": 0.00271,
+      "q": 0.017421,
+      "replication": 1,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "N",
+      "effect": 1.8386,
+      "p": 5e-06,
+      "q": 4.1e-05,
+      "replication": 8,
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "P",
+      "effect": -0.0046,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "S",
+      "effect": 0.1293,
+      "p": 7e-05,
+      "q": 0.000519,
+      "replication": 0,
+      "trials": 48,
+      "kept": false
+    }
+  ],
+  "graph": {
+    "nodes": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "edges": [
+      "G->M",
+      "G->N",
+      "G->S",
+      "S->C",
+      "S->G",
+      "S->N",
+      "S->W",
+      "W->G",
+      "W->N"
+    ],
+    "edge_count": 9,
+    "components": [
+      [
+        "G",
+        "S",
+        "W"
+      ],
+      [
+        "A"
+      ],
+      [
+        "C"
+      ],
+      [
+        "D"
+      ],
+      [
+        "I"
+      ],
+      [
+        "M"
+      ],
+      [
+        "N"
+      ],
+      [
+        "P"
+      ]
+    ],
+    "one_strongly_connected_component": false,
+    "vertex_connectivity": 0,
+    "cycle_count": 2,
+    "cycles_per_node": {
+      "P": 0,
+      "I": 0,
+      "A": 0,
+      "G": 2,
+      "C": 0,
+      "S": 2,
+      "M": 0,
+      "W": 1,
+      "D": 0,
+      "N": 0
+    },
+    "shortest_reentry": {
+      "P": 0,
+      "I": 0,
+      "A": 0,
+      "G": 3,
+      "C": 0,
+      "S": 3,
+      "M": 0,
+      "W": 3,
+      "D": 0,
+      "N": 0
+    },
+    "every_node_on_two_cycles": false,
+    "every_node_reenters_through_two_others": false,
+    "shortest_cycles": [
+      "G->S",
+      "G->S->W"
+    ]
+  },
+  "per_condition": {
+    "per_condition": {
+      "conversation": {
+        "edges": 7,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "problem_solving": {
+        "edges": 8,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "autonomy": {
+        "edges": 8,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "idle": {
+        "edges": 8,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "salience": {
+        "edges": 8,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "stress": {
+        "edges": 8,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "memory": {
+        "edges": 9,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "tool_use": {
+        "edges": 7,
+        "one_component": false,
+        "vertex_connectivity": 0
+      }
+    },
+    "conditions_with_scc": 0
+  },
+  "perturbation": {
+    "mean_spread": 0.10000000000000002,
+    "mean_pci": 0.1270921702165705,
+    "null_q99": 0.0,
+    "beats_null": true,
+    "mean_null_spread": 0.0,
+    "spread_by_source": {
+      "P": 0.0,
+      "I": 0.0,
+      "A": 0.0,
+      "G": 0.2,
+      "C": 0.0,
+      "S": 0.4,
+      "M": 0.1,
+      "W": 0.2,
+      "D": 0.1,
+      "N": 0.0
+    },
+    "pci_by_source": {
+      "P": 0.0,
+      "I": 0.0,
+      "A": 0.0,
+      "G": 0.262,
+      "C": 0.0,
+      "S": 0.318,
+      "M": 0.215,
+      "W": 0.291,
+      "D": 0.185,
+      "N": 0.0
+    },
+    "null_pci_by_source": {
+      "P": 0.0,
+      "I": 0.0,
+      "A": 0.0,
+      "G": 0.0,
+      "C": 0.0,
+      "S": 0.0,
+      "M": 0.0,
+      "W": 0.0,
+      "D": 0.0,
+      "N": 0.0
+    },
+    "matrices": {
+      "P": {
+        "source": "P",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "I": {
+        "source": "I",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "A": {
+        "source": "A",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "G": {
+        "source": "G",
+        "spread": 0.2,
+        "depth": 0.3788,
+        "reached": [
+          "M",
+          "N"
+        ],
+        "pci": 0.2624,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000111111",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "C": {
+        "source": "C",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "S": {
+        "source": "S",
+        "spread": 0.4,
+        "depth": 0.7424,
+        "reached": [
+          "G",
+          "C",
+          "W",
+          "N"
+        ],
+        "pci": 0.3179,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000111000000000000000000000000000000000000000000000000111111",
+          "000000000000000001111100000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000111111111111111000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000001111111111111111111111111111111111"
+        ]
+      },
+      "M": {
+        "source": "M",
+        "spread": 0.1,
+        "depth": 0.4545,
+        "reached": [
+          "W"
+        ],
+        "pci": 0.215,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000111111111111111111111111111111000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "W": {
+        "source": "W",
+        "spread": 0.2,
+        "depth": 0.3788,
+        "reached": [
+          "G",
+          "N"
+        ],
+        "pci": 0.2907,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000011",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "D": {
+        "source": "D",
+        "spread": 0.1,
+        "depth": 0.3788,
+        "reached": [
+          "N"
+        ],
+        "pci": 0.1848,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "N": {
+        "source": "N",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      }
+    }
+  },
+  "global_access": {
+    "consumers": 3,
+    "consumer_list": [
+      "M",
+      "N",
+      "S"
+    ],
+    "returns": true,
+    "return_paths": [
+      "G->S->W"
+    ]
+  },
+  "timescale": {
+    "fast_to_slow": true,
+    "fast_to_slow_edges": [
+      "G->M",
+      "G->N",
+      "G->S"
+    ],
+    "slow_to_fast": true,
+    "slow_to_fast_edges": [
+      "S->C",
+      "S->G",
+      "W->G"
+    ]
+  },
+  "agency": {
+    "self_to_action": 1.6435,
+    "self_to_action_floor": 0.8888,
+    "self_drives_action": true,
+    "ownership_divergence": 31.2567,
+    "ownership_floor": 25.1167,
+    "outcome_updates_self": true,
+    "action_text_changed_under_self_perturbation": false,
+    "trials": 5,
+    "note": ""
+  },
+  "lesion": {
+    "cut": [
+      "G",
+      "S",
+      "W"
+    ],
+    "intact": {
+      "phi_do": -0.07036,
+      "spread": 0.26667,
+      "synergy": 0.17692
+    },
+    "lesioned": {
+      "phi_do": -0.11921,
+      "spread": 0.1,
+      "synergy": 0.23878
+    },
+    "rescued": {
+      "phi_do": -0.16985,
+      "spread": 0.16667,
+      "synergy": 0.10316
+    },
+    "deltas": {
+      "phi_do": 0.04885,
+      "spread": 0.16667,
+      "synergy": -0.06187
+    },
+    "rescue": {
+      "phi_do": -0.05064,
+      "spread": 0.06667,
+      "synergy": -0.13562
+    },
+    "deficit": false,
+    "rescued_ok": false
+  },
+  "nulls": {
+    "phi_table": {
+      "replay": -0.1494,
+      "time_shuffle": -0.01058,
+      "recurrent": 0.26392,
+      "star": 0.00558,
+      "hub": 0.01121,
+      "one_way": 0.03305,
+      "prompt_only": 0.00456,
+      "frozen_slow": 0.02068
+    },
+    "detail": {
+      "replay": {
+        "phi_do": -0.1494,
+        "draws": [
+          -0.1494,
+          -5.06411,
+          -2.76145
+        ],
+        "kind": "surrogate"
+      },
+      "time_shuffle": {
+        "phi_do": -0.01058,
+        "draws": [
+          -0.05242,
+          -0.01058,
+          -0.01355
+        ],
+        "kind": "surrogate"
+      },
+      "recurrent": {
+        "phi_do": 0.26392,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      },
+      "star": {
+        "phi_do": 0.00558,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 3,
+        "reentry": true
+      },
+      "hub": {
+        "phi_do": 0.01121,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 1,
+        "reentry": true
+      },
+      "one_way": {
+        "phi_do": 0.03305,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      },
+      "prompt_only": {
+        "phi_do": 0.00456,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 3,
+        "reentry": true
+      },
+      "frozen_slow": {
+        "phi_do": 0.02068,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      }
+    },
+    "surrogate_floor": -0.01058,
+    "phi_above_floor": -0.08325,
+    "phi_beats_all": false,
+    "all_nulls_fail": true,
+    "nulls_fail_the_bar": true,
+    "reference_architecture_passes": true,
+    "reference_recurrent_phi": 0.26392,
+    "summary": {
+      "reference_recurrent": 0.26392,
+      "worst_null": 0.03305
+    }
+  },
+  "verdict": {
+    "isc": false,
+    "passed": 12,
+    "total": 24,
+    "failed": [
+      "causal_closure_scc",
+      "robust_recurrence_kappa",
+      "cycles_per_domain",
+      "reentry",
+      "partition_irreducibility",
+      "partition_beats_nulls",
+      "differentiation",
+      "perturbational_spread",
+      "synergy",
+      "natural_runtime_replication",
+      "lesion_deficit",
+      "rescue"
+    ],
+    "criteria": [
+      {
+        "criterion": "causal_closure_scc",
+        "section": "14",
+        "requires": "every domain reaches every other one through interventional edges",
+        "passed": false,
+        "value": [
+          [
+            "G",
+            "S",
+            "W"
+          ],
+          [
+            "A"
+          ],
+          [
+            "C"
+          ],
+          [
+            "D"
+          ],
+          [
+            "I"
+          ],
+          [
+            "M"
+          ],
+          [
+            "N"
+          ],
+          [
+            "P"
+          ]
+        ],
+        "bar": "one component covering all domains",
+        "detail": {
+          "edge_count": 9
+        }
+      },
+      {
+        "criterion": "robust_recurrence_kappa",
+        "section": "17",
+        "requires": "no single domain's removal disconnects the rest",
+        "passed": false,
+        "value": 0,
+        "bar": ">= 2",
+        "detail": {}
+      },
+      {
+        "criterion": "cycles_per_domain",
+        "section": "15",
+        "requires": "every domain lies on at least two cross-domain directed cycles",
+        "passed": false,
+        "value": {
+          "P": 0,
+          "I": 0,
+          "A": 0,
+          "G": 2,
+          "C": 0,
+          "S": 2,
+          "M": 0,
+          "W": 1,
+          "D": 0,
+          "N": 0
+        },
+        "bar": ">= 2 each",
+        "detail": {}
+      },
+      {
+        "criterion": "reentry",
+        "section": "16",
+        "requires": "influence leaves each domain and returns through at least two others",
+        "passed": false,
+        "value": {
+          "P": 0,
+          "I": 0,
+          "A": 0,
+          "G": 3,
+          "C": 0,
+          "S": 3,
+          "M": 0,
+          "W": 3,
+          "D": 0,
+          "N": 0
+        },
+        "bar": "cycle length >= 3",
+        "detail": {}
+      },
+      {
+        "criterion": "partition_irreducibility",
+        "section": "11",
+        "requires": "the cheapest bipartition still costs held-out prediction",
+        "passed": false,
+        "value": -0.0938,
+        "bar": "> 0.05",
+        "detail": {
+          "cheapest_cut": [
+            "GSW",
+            "PIACMDN"
+          ],
+          "dearest_cuts": [
+            {
+              "cut": "PIAG|CSMWDN",
+              "phi": 0.064676
+            },
+            {
+              "cut": "PIAGC|SMWDN",
+              "phi": 0.073985
+            },
+            {
+              "cut": "MN|PIAGCSWD",
+              "phi": 0.076378
+            },
+            {
+              "cut": "CMN|PIAGSWD",
+              "phi": 0.080447
+            }
+          ],
+          "surrogate_floor": -0.01058,
+          "above_surrogate_floor": -0.08325
+        }
+      },
+      {
+        "criterion": "partition_beats_nulls",
+        "section": "18",
+        "requires": "irreducibility exceeds every null architecture and matched surrogate",
+        "passed": false,
+        "value": {
+          "replay": -0.1494,
+          "time_shuffle": -0.01058,
+          "recurrent": 0.26392,
+          "star": 0.00558,
+          "hub": 0.01121,
+          "one_way": 0.03305,
+          "prompt_only": 0.00456,
+          "frozen_slow": 0.02068
+        },
+        "bar": "above all nulls",
+        "detail": {
+          "surrogate_floor": -0.01058,
+          "margin_over_floor": -0.08325
+        }
+      },
+      {
+        "criterion": "differentiation",
+        "section": "18",
+        "requires": "the integrated state is not one dimension wearing many names",
+        "passed": false,
+        "value": 0.0929,
+        "bar": ">= 0.4",
+        "detail": {
+          "d_eff": 10.8666,
+          "largest_component_share": 0.2345
+        }
+      },
+      {
+        "criterion": "differentiation_above_floor",
+        "section": "18",
+        "requires": "effective dimension is far above the one-dimensional floor",
+        "passed": true,
+        "value": {
+          "d_eff": 10.8666,
+          "top_share": 0.2345
+        },
+        "bar": "d_eff >= 3 and no component above half the variance",
+        "detail": {}
+      },
+      {
+        "criterion": "intrinsic_persistence",
+        "section": "19",
+        "requires": "the previous internal state predicts the next beyond the environment",
+        "passed": true,
+        "value": 0.492,
+        "bar": "> 0, and above the shuffled-state control",
+        "detail": {
+          "over_shuffle": 0.493007
+        }
+      },
+      {
+        "criterion": "causal_closure_of_the_core",
+        "section": "3",
+        "requires": "no variable outside K predicts K's future better than K does",
+        "passed": true,
+        "value": -0.0051,
+        "bar": "no improvement on K beyond what a shuffled periphery gives",
+        "detail": {
+          "largest_leaks": []
+        }
+      },
+      {
+        "criterion": "perturbational_spread",
+        "section": "24",
+        "requires": "a local displacement reaches most of the core",
+        "passed": false,
+        "value": 0.1,
+        "bar": ">= 0.6",
+        "detail": {
+          "per_source": {
+            "P": 0.0,
+            "I": 0.0,
+            "A": 0.0,
+            "G": 0.2,
+            "C": 0.0,
+            "S": 0.4,
+            "M": 0.1,
+            "W": 0.2,
+            "D": 0.1,
+            "N": 0.0
+          }
+        }
+      },
+      {
+        "criterion": "perturbational_complexity",
+        "section": "26",
+        "requires": "the response is structured, not local and not a broadcast",
+        "passed": true,
+        "value": 0.1271,
+        "bar": "a response that reached somewhere, above the 99th percentile of matched nulls",
+        "detail": {
+          "null": 0.0,
+          "sources_that_reached_anything": [
+            "G",
+            "S",
+            "M",
+            "W",
+            "D"
+          ]
+        }
+      },
+      {
+        "criterion": "synergy",
+        "section": "27",
+        "requires": "domains carry information jointly that neither carries alone",
+        "passed": false,
+        "value": [
+          0.0562,
+          0.0373,
+          0.0897,
+          0.0462
+        ],
+        "bar": ">= 0.1 and above its shifted null",
+        "detail": {
+          "triples": [
+            [
+              "A",
+              "S",
+              "G"
+            ],
+            [
+              "P",
+              "M",
+              "W"
+            ],
+            [
+              "W",
+              "A",
+              "D"
+            ],
+            [
+              "S",
+              "D",
+              "C"
+            ]
+          ]
+        }
+      },
+      {
+        "criterion": "metastability",
+        "section": "29",
+        "requires": "the state settles into regimes and still moves between them",
+        "passed": true,
+        "value": {
+          "regimes": 2,
+          "entropy": 0.0755
+        },
+        "bar": "more than one regime, entropy strictly between zero and its ceiling",
+        "detail": {}
+      },
+      {
+        "criterion": "global_access",
+        "section": "30",
+        "requires": "workspace content reaches at least three heterogeneous consumers",
+        "passed": true,
+        "value": [
+          "M",
+          "N",
+          "S"
+        ],
+        "bar": ">= 3",
+        "detail": {}
+      },
+      {
+        "criterion": "recurrent_global_access",
+        "section": "31",
+        "requires": "a consumer of the workspace later changes the workspace again",
+        "passed": true,
+        "value": [
+          "G->S->W"
+        ],
+        "bar": "at least one G -> X -> G path",
+        "detail": {}
+      },
+      {
+        "criterion": "self_drives_action",
+        "section": "33",
+        "requires": "changing the self-model changes deliberation or behaviour",
+        "passed": true,
+        "value": 1.6435,
+        "bar": "above the same-arm floor",
+        "detail": {
+          "floor": 0.8888
+        }
+      },
+      {
+        "criterion": "ownership",
+        "section": "34",
+        "requires": "the same world state updates the self differently when she caused it",
+        "passed": true,
+        "value": 31.2567,
+        "bar": "above the same-arm floor",
+        "detail": {
+          "floor": 25.1167
+        }
+      },
+      {
+        "criterion": "fast_to_slow",
+        "section": "38",
+        "requires": "fast cognition changes the slow developmental state",
+        "passed": true,
+        "value": [
+          "G->M",
+          "G->N",
+          "G->S"
+        ],
+        "bar": "at least one edge from a fast domain into a slow one",
+        "detail": {}
+      },
+      {
+        "criterion": "slow_to_fast",
+        "section": "38",
+        "requires": "the slow developmental state changes later fast cognition",
+        "passed": true,
+        "value": [
+          "S->C",
+          "S->G",
+          "W->G"
+        ],
+        "bar": "at least one edge from a slow domain into a fast one",
+        "detail": {}
+      },
+      {
+        "criterion": "natural_runtime_replication",
+        "section": "44",
+        "requires": "the graph holds across ordinary conditions, not only one workload",
+        "passed": false,
+        "value": {
+          "conversation": {
+            "edges": 7,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "problem_solving": {
+            "edges": 8,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "autonomy": {
+            "edges": 8,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "idle": {
+            "edges": 8,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "salience": {
+            "edges": 8,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "stress": {
+            "edges": 8,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "memory": {
+            "edges": 9,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "tool_use": {
+            "edges": 7,
+            "one_component": false,
+            "vertex_connectivity": 0
+          }
+        },
+        "bar": "strongly connected in at least three conditions",
+        "detail": {}
+      },
+      {
+        "criterion": "lesion_deficit",
+        "section": "39",
+        "requires": "cutting the cheapest partition degrades the measures it should",
+        "passed": false,
+        "value": {
+          "phi_do": 0.04885,
+          "spread": 0.16667,
+          "synergy": -0.06187
+        },
+        "bar": "irreducibility, complexity and synergy all fall",
+        "detail": {}
+      },
+      {
+        "criterion": "rescue",
+        "section": "40",
+        "requires": "restoring the cut restores them",
+        "passed": false,
+        "value": {
+          "phi_do": -0.05064,
+          "spread": 0.06667,
+          "synergy": -0.13562
+        },
+        "bar": "a deficit first, then the measures return towards the intact values",
+        "detail": {}
+      },
+      {
+        "criterion": "beats_every_null",
+        "section": "41",
+        "requires": "the whole battery separates the system from every matched null",
+        "passed": true,
+        "value": {
+          "reference_recurrent": 0.26392,
+          "worst_null": 0.03305
+        },
+        "bar": "no null passes the conjunction",
+        "detail": {}
+      }
+    ],
+    "notes": {
+      "unwritable_domains": [],
+      "intervention_seconds": 836.2,
+      "intervention_power": {
+        "pairs_tested": 90,
+        "paired_trials_per_pair": 48,
+        "smallest_reachable_q": 0.00045,
+        "underpowered": false
+      },
+      "attenuation": {
+        "C": {
+          "self_effect": 2.6043,
+          "largest_outgoing": 0.0816,
+          "attenuation": 31.91
+        },
+        "P": {
+          "self_effect": 1.4744,
+          "largest_outgoing": 0.0179,
+          "attenuation": 82.43
+        },
+        "W": {
+          "self_effect": 4.7168,
+          "largest_outgoing": 1.8386,
+          "attenuation": 2.57
+        },
+        "G": {
+          "self_effect": 1.9227,
+          "largest_outgoing": 0.9918,
+          "attenuation": 1.94
+        },
+        "I": {
+          "self_effect": 3.2608,
+          "largest_outgoing": 0.1005,
+          "attenuation": 32.45
+        },
+        "S": {
+          "self_effect": 1.6756,
+          "largest_outgoing": 1.7761,
+          "attenuation": 0.94
+        },
+        "M": {
+          "self_effect": 2.8464,
+          "largest_outgoing": 0.1011,
+          "attenuation": 28.17
+        },
+        "D": {
+          "self_effect": 4.111,
+          "largest_outgoing": 0.2739,
+          "attenuation": 15.01
+        },
+        "A": {
+          "self_effect": 0.3208,
+          "largest_outgoing": 0.1281,
+          "attenuation": 2.5
+        },
+        "N": {
+          "self_effect": 2.7278,
+          "largest_outgoing": 0.0397,
+          "attenuation": 68.7
+        }
+      },
+      "seconds": 2568.0
+    }
+  }
+}

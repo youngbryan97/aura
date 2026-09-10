@@ -27,6 +27,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("Consciousness.GlobalWorkspace")
 
+
+def _ignition_level(priority: float, threshold: float) -> float:
+    """Where the winner sits relative to the ignition bar, in [0, 1].
+
+    Half at the bar exactly, so the number keeps saying what it always said
+    about whether the workspace ignited, and stays a reading on both sides of
+    it instead of saturating the moment it is cleared.
+    """
+    value = max(0.0, min(1.0, float(priority)))
+    bar = min(max(float(threshold), 1e-6), 1.0 - 1e-6)
+    if value < bar:
+        return 0.5 * value / bar
+    return 0.5 + 0.5 * (value - bar) / (1.0 - bar)
+
 _WORKSPACE_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -1308,8 +1322,19 @@ class GlobalWorkspace:
             logger.debug("GW unity workspace frame skipped: %s", exc)
 
         # --- Ignition Detection ---
+        # How far the winner is from the threshold, in both directions. The
+        # level was the priority divided by the threshold and clipped at one,
+        # so every winner at or above six tenths read exactly one — and since
+        # something usually bids above that, this was 1.0 on every turn of
+        # every session and stopped being a reading of anything. Affect takes
+        # it as arousal and the state schema reads it as a domain column;
+        # both were handed a constant.
+        #
+        # Half at the threshold, one when the winner could not have been
+        # stronger, zero when nothing was competing. `ignited` is unchanged: it
+        # is still whether the winner cleared the bar.
         winner_priority = winner.effective_priority
-        self.ignition_level = min(1.0, winner_priority / self._IGNITION_THRESHOLD)
+        self.ignition_level = _ignition_level(winner_priority, self._IGNITION_THRESHOLD)
         was_ignited = self.ignited
         self.ignited = winner_priority >= self._IGNITION_THRESHOLD
         

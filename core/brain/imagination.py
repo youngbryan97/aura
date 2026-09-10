@@ -890,7 +890,13 @@ class ImaginationEngine:
                     self._frame_index.pop(stale_id, None)
         return frame
 
-    def snapshot(self, *, subject: str = "", include_content: bool = False) -> dict[str, Any]:
+    def snapshot(
+        self,
+        *,
+        subject: str = "",
+        include_content: bool = False,
+        for_owner: bool = False,
+    ) -> dict[str, Any]:
         """Health and shape. NOT the contents of the last private scratchpad.
 
         This returned the complete latest frame — the objective, the
@@ -904,6 +910,20 @@ class ImaginationEngine:
         The default is now shape without content. ``include_content=True``
         returns the latest frame for the NAMED subject only, so a caller who
         genuinely needs it has to say whose it is.
+
+        ``for_owner`` is the one case that cannot name a subject and is still
+        entitled: the person whose machine this is, reading their own Imagine
+        panel. A subject here is the TOPIC she imagined about, derived from the
+        text, and the panel cannot know it without being told the thing it is
+        asking to be shown. Withholding it from the owner did not protect
+        anybody — it left the panel reporting "(no objective)", "no objects in
+        this frame" and "no attractor competition in this frame" over a frame
+        that had all three, and it left the render button unable to find the
+        image prompt it exists to send.
+
+        The flag is an assertion by the caller, so it is checked rather than
+        trusted: ``tests/test_the_owner_can_see_her_own_imagination.py`` fails
+        if any call site passes it outside an owner-authenticated branch.
         """
         who = _subject_key(subject) if subject else ""
         with self._state_lock:
@@ -917,7 +937,9 @@ class ImaginationEngine:
                 for record in list(self._outcomes)[-5:]
                 if not who or record.get("subject") == who
             ]
-        latest = self._frame_summary(latest_frame, who, include_content)
+        latest = self._frame_summary(
+            latest_frame, who, include_content, for_owner=for_owner
+        )
         return {
             # An on-demand generator with no lifecycle is genuinely always
             # ready to serve, so "running" stays True and callers keep that
@@ -964,11 +986,17 @@ class ImaginationEngine:
 
     @staticmethod
     def _frame_summary(
-        frame: "ImaginationFrame | None", subject: str, include_content: bool
+        frame: "ImaginationFrame | None",
+        subject: str,
+        include_content: bool,
+        *,
+        for_owner: bool = False,
     ) -> dict[str, Any] | None:
-        """Shape of the latest frame; its content only for a named subject."""
+        """Shape of the latest frame; its content for a named subject or the owner."""
         if frame is None:
             return None
+        if for_owner:
+            return frame.to_dict()
         if include_content and subject and frame.attractor_state.get("subject") == subject:
             return frame.to_dict()
         return {

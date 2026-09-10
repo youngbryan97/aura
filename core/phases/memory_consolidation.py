@@ -13,6 +13,11 @@ from . import BasePhase
 
 logger = logging.getLogger(__name__)
 
+#: How far identity stability moves when she repeats herself, and how far it
+#: comes back on a turn when she does not. One number for both directions,
+#: because the recovery is the same claim as the penalty read the other way.
+_LOOP_STABILITY_STEP: float = 0.3
+
 _MEMORY_CONSOLIDATION_ERRORS = (
     AttributeError,
     ConnectionError,
@@ -102,6 +107,7 @@ class MemoryConsolidationPhase(BasePhase):
                     break
             if is_strict_proof_answer_prompt(proof_text, origin=proof_origin):
                 new_state.cognition.long_term_memory = []
+                new_state.cognition.memory_scores = []
                 new_state.response_modifiers["proof_memory_consolidation_skipped"] = True
                 return new_state
         except _MEMORY_CONSOLIDATION_ERRORS as exc:
@@ -190,7 +196,9 @@ class MemoryConsolidationPhase(BasePhase):
                 if latest == str(prev.get("content", "")).strip() and len(latest) > 20:
                     duplicate_assistant_ids.add(id(prev))
                     logger.warning("🔄 [LOOP DETECTED] Assistant repeated content: '%s...'", latest[:30])
-                    new_state.identity.stability = max(0.1, new_state.identity.stability - 0.3)
+                    new_state.identity.stability = max(
+                        0.1, new_state.identity.stability - _LOOP_STABILITY_STEP
+                    )
                     # CRITICAL FIX: Clear the stuck pending_initiatives that caused the loop.
                     # Without this, the same objective re-queues indefinitely.
                     stuck_count = len(new_state.cognition.pending_initiatives)
@@ -217,6 +225,24 @@ class MemoryConsolidationPhase(BasePhase):
                     "duplicate_assistant_messages_pruned": len(duplicate_assistant_ids),
                     "latest_answer_preserved": True,
                 }
+            else:
+                # And it comes back when she stops repeating herself. This
+                # penalty had the only writer of `identity.stability` anywhere
+                # in the tree, and it only ever subtracted — so one repeated
+                # sentence early in a session pinned the number at its floor of
+                # 0.1 for the life of the state, and the phi estimate, the
+                # executive closure, the causal self-state and the workspace
+                # all read it from there. A degradation with no recovery path
+                # is not a signal, it is a fuse.
+                #
+                # The return is the same gain applied to the room left, so a
+                # clean turn recovers most of a single lapse and a genuine loop
+                # holds it down for as long as the loop lasts.
+                current = float(getattr(new_state.identity, "stability", 1.0) or 1.0)
+                if current < 1.0:
+                    new_state.identity.stability = min(
+                        1.0, current + _LOOP_STABILITY_STEP * (1.0 - current)
+                    )
 
         # vResilience: Workaround for slice limitations
         start_idx = max(0, len(new_state.cognition.working_memory) - 2)

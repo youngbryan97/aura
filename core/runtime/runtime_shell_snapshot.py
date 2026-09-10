@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import threading
 import time
 from collections import OrderedDict
@@ -37,6 +38,15 @@ _SNAPSHOTS: OrderedDict[str, RuntimeShellSnapshot] = OrderedDict()
 
 def _valid_revision(value: str) -> bool:
     return len(value) == 64 and all(character in _REVISION_PATTERN for character in value)
+
+
+def runtime_shell_revision(source_root_sha256: str, shell_assets_sha256: str) -> str:
+    """Address shell bytes independently of unrelated backend source edits."""
+    if not _valid_revision(source_root_sha256) or not _valid_revision(shell_assets_sha256):
+        raise ValueError("runtime shell identity requires valid source and asset digests")
+    return hashlib.sha256(
+        f"aura.shell.identity.v1:{source_root_sha256}:{shell_assets_sha256}".encode("ascii")
+    ).hexdigest()
 
 
 def runtime_shell_request_path(path: str) -> bool:
@@ -101,6 +111,7 @@ __all__ = [
     "clear_runtime_shell_snapshots",
     "publish_runtime_shell_snapshot",
     "runtime_shell_request_path",
+    "runtime_shell_revision",
     "runtime_shell_snapshot_asset",
     "runtime_shell_snapshot_known",
 ]

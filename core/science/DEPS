@@ -14,11 +14,11 @@ include_rules = [
     "+core.science",
 
     # What this package reaches for today.
+    "+core.consciousness",
     "+core.container",
     "+core.evaluation",
     "+core.governance_context",
     "+core.runtime",
-    "+core.science",
     "+core.world",
 
     # Everything else.

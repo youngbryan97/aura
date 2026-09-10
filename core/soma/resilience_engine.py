@@ -88,10 +88,26 @@ class ResilienceEngine:
     # same one rather than a second, invented number.
     FRUSTRATION_GAIN = 0.4
     DEPLETION_GAIN = 0.15
+    # A repeat of a failure already held is not new information about the
+    # world. One morphogenesis fault repeating once a second drove frustration
+    # and depletion to 1.00 in under a minute on the live runtime, so every
+    # reply afterwards was written from saturation caused by an internal
+    # bookkeeping error nobody had told her about. The nth repeat inside the
+    # window lands at 1/n, so the same fact arriving forty times moves the
+    # state about as far as four distinct ones do, and a genuinely new failure
+    # still lands in full.
+    HABITUATION_WINDOW_S = 300.0
+    MAX_TRACKED_SIGNATURES = 512
     DEPLETION_THRESHOLD = 0.75
     STRAIN_THRESHOLD = 0.45
     FRICTION_THRESHOLD = 0.20
     SNAPSHOT_CACHE_TTL_S = 0.25
+    #: How long a reading from the proprioceptive loop stands before this
+    #: engine goes back to reading the machine itself. Three beats at the
+    #: slowest cognitive cadence — ten seconds in sleep mode — because a loop
+    #: that has missed three consecutive beats is not sensing, and a frozen
+    #: body reading is worse than a fresh one taken the long way.
+    HOST_OBSERVATION_TTL_S = 30.0
 
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
@@ -99,6 +115,11 @@ class ResilienceEngine:
         self._update_task: asyncio.Task | None = None
         self._snapshot_cache: dict[str, object] | None = None
         self._snapshot_cache_at = 0.0
+        # signature -> (repeats inside the window, when it was last seen)
+        self._repeats: dict[str, tuple[int, float]] = {}
+        #: (taken_at, cpu, ram, thermal) as the proprioceptive loop last sensed
+        #: the host, or None before the loop has run once.
+        self._observed_host: tuple[float, float, float, float] | None = None
 
     async def pulse(self) -> dict[str, float]:
         """Metabolic heartbeat — ensures decay is applied even if loop stalls."""
@@ -130,16 +151,50 @@ class ResilienceEngine:
 
     # ── Event Ingestion ───────────────────────────────────────────────────
 
+    def _novelty(self, signature: str, now: float) -> float:
+        """1.0 for a failure not seen lately, 1/n for the nth repeat of one."""
+        repeats, last_seen = self._repeats.get(signature, (0, 0.0))
+        if now - last_seen > self.HABITUATION_WINDOW_S:
+            repeats = 0
+        repeats += 1
+        if len(self._repeats) >= self.MAX_TRACKED_SIGNATURES:
+            stale = sorted(self._repeats.items(), key=lambda item: item[1][1])
+            for key, _ in stale[: len(stale) // 4 or 1]:
+                self._repeats.pop(key, None)
+        self._repeats[signature] = (repeats, now)
+        return 1.0 / repeats
+
+    def repetition_state(self) -> dict[str, int]:
+        """What is currently repeating, for the health surface to report."""
+        now = time.time()
+        return {
+            signature: repeats
+            for signature, (repeats, seen) in self._repeats.items()
+            if repeats > 1 and now - seen <= self.HABITUATION_WINDOW_S
+        }
+
     def record_failure(
         self,
         domain: str,
         severity: float,
         stakes: float = 0.5,
+        signature: str | None = None,
     ) -> ResilienceState:
-        """Record a failure event and update the resilience profile."""
+        """Record a failure event and update the resilience profile.
+
+        ``signature`` names WHICH failure this is, so the same one recurring is
+        one fact arriving repeatedly rather than a world getting steadily
+        worse. A caller that does not name one is keyed by its domain and the
+        magnitude it reported: "planning failed at 0.5/0.5" and "planning
+        failed at 0.8/1.0" are then two facts rather than one, which is the
+        most a caller that says nothing more can be read to mean.
+        """
         now = time.time()
         severity = self._clamp01(severity)
         stakes = self._clamp01(stakes)
+        novelty = self._novelty(
+            signature or f"{domain}@{severity:.3f}/{stakes:.3f}", now
+        )
 
         event = FailureEvent(
             timestamp=now,
@@ -153,10 +208,10 @@ class ResilienceEngine:
         if len(history) > 100:
             self.profile.failure_history = history[-100:]
 
-        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN
+        frustration_delta = severity * stakes * self.FRUSTRATION_GAIN * novelty
         self.profile.frustration = min(1.0, self.profile.frustration + frustration_delta)
 
-        depletion_delta = severity * stakes * self.DEPLETION_GAIN
+        depletion_delta = severity * stakes * self.DEPLETION_GAIN * novelty
         self.profile.depletion = min(1.0, self.profile.depletion + depletion_delta)
 
         self._update_state()
@@ -164,11 +219,12 @@ class ResilienceEngine:
         self._invalidate_snapshot_cache()
 
         logger.info(
-            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f → "
+            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f → "
             "frustration=%.2f depletion=%.2f state=%s",
             domain,
             severity,
             stakes,
+            novelty,
             self.profile.frustration,
             self.profile.depletion,
             self.profile.state.value,
@@ -206,6 +262,11 @@ class ResilienceEngine:
         "reduces frustration more than it reduces depletion" means.
         """
         stakes = self._clamp01(stakes)
+        # The condition changed, so what was repeating is no longer the same
+        # standing fact. Anything that starts failing again after this lands
+        # in full.
+        for signature in [key for key in self._repeats if key.startswith(domain)]:
+            self._repeats.pop(signature, None)
         history = self.profile.failure_history
         recent = history[-20:]
         recent_failures_in_domain = sum(1 for e in recent if e.domain == domain and not e.recovered)
@@ -476,18 +537,57 @@ class ResilienceEngine:
             return 0.0
         return max(0.0, min(1.0, scalar))
 
+    def observe_host(
+        self,
+        *,
+        cpu_percent: float,
+        ram_percent: float,
+        temperature_c: float | None = None,
+    ) -> None:
+        """The body as the proprioceptive loop just sensed it.
+
+        There were two bodies. The loop publishes cpu, memory and temperature
+        into `state.soma.hardware`, which affect, the workspace and executive
+        closure all read; this engine went straight to psutil on every call,
+        and homeostasis reads this engine to compute her will to live. So the
+        one number that says whether she is holding together came from the host
+        by a route that never passed through her own body state, and nothing
+        the state did to those readings — damping, clamping, or an experiment
+        holding them still — could reach it.
+
+        One body. The loop is the organ that senses the host, and this is where
+        it reports.
+        """
+        # One assignment of one immutable tuple, so a reader either sees the
+        # whole previous reading or the whole new one. A lock here would sit on
+        # the path every phase takes.
+        self._observed_host = (
+            time.monotonic(),
+            self._clamp01(float(cpu_percent) / 100.0),
+            self._clamp01(float(ram_percent) / 100.0),
+            0.0 if temperature_c is None else self._clamp01((float(temperature_c) - 45.0) / 55.0),
+        )
+        # The cached snapshot was built from the old body; keeping it would
+        # hide the reading that just arrived for a quarter of a second, which
+        # is several phases.
+        self._snapshot_cache = None
+
     def _resource_snapshot(self) -> dict[str, float]:
         cpu_pressure = 0.0
         ram_pressure = 0.0
         thermal_pressure = 0.0
-        try:
-            from core.runtime import resource_psutil as psutil
+        observed = self._observed_host
+        if observed is not None and time.monotonic() - observed[0] <= self.HOST_OBSERVATION_TTL_S:
+            _, cpu_pressure, ram_pressure, thermal_pressure = observed
+        else:
+            try:
+                from core.runtime import resource_psutil as psutil
 
-            cpu_pressure = self._clamp01(psutil.cpu_percent(interval=None) / 100.0)
-            ram_pressure = self._clamp01(psutil.virtual_memory().percent / 100.0)
-            thermal_pressure = self._thermal_pressure(psutil)
-        except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
-            logger.debug("Resource telemetry unavailable: %s", exc)
+                cpu_pressure = self._clamp01(psutil.cpu_percent(interval=None) / 100.0)
+                ram_pressure = self._clamp01(psutil.virtual_memory().percent / 100.0)
+                thermal_pressure = self._thermal_pressure(psutil)
+            except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
+                logger.debug("Resource telemetry unavailable: %s", exc)
 
         return {
             "cpu_pressure": cpu_pressure,

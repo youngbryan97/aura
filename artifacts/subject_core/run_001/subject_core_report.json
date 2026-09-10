@@ -1,0 +1,3744 @@
+{
+  "notes": {
+    "unwritable_domains": [],
+    "intervention_seconds": 1424.6,
+    "intervention_power": {
+      "pairs_tested": 90,
+      "paired_trials_per_pair": 48,
+      "smallest_reachable_q": 0.00045,
+      "underpowered": false
+    },
+    "attenuation": {
+      "M": {
+        "self_effect": 5.655,
+        "largest_outgoing": 0.1528,
+        "attenuation": 37.0
+      },
+      "W": {
+        "self_effect": 8.5491,
+        "largest_outgoing": 1.8217,
+        "attenuation": 4.69
+      },
+      "A": {
+        "self_effect": 9.6208,
+        "largest_outgoing": 0.782,
+        "attenuation": 12.3
+      },
+      "C": {
+        "self_effect": 9.7411,
+        "largest_outgoing": 0.1684,
+        "attenuation": 57.84
+      },
+      "S": {
+        "self_effect": 9.3267,
+        "largest_outgoing": 3.2418,
+        "attenuation": 2.88
+      },
+      "D": {
+        "self_effect": 9.9789,
+        "largest_outgoing": 0.3764,
+        "attenuation": 26.51
+      },
+      "N": {
+        "self_effect": 3.7529,
+        "largest_outgoing": 0.2239,
+        "attenuation": 16.76
+      },
+      "G": {
+        "self_effect": 8.2118,
+        "largest_outgoing": 2.9868,
+        "attenuation": 2.75
+      },
+      "I": {
+        "self_effect": 3.934,
+        "largest_outgoing": 1.0837,
+        "attenuation": 3.63
+      },
+      "P": {
+        "self_effect": 1.966,
+        "largest_outgoing": 8.8549,
+        "attenuation": 0.22
+      }
+    },
+    "seconds": 2667.8
+  },
+  "campaign": {
+    "frozen": {
+      "thresholds": {
+        "cycles_per_node": 2.0,
+        "d_eff_normalised": 0.4,
+        "edge_effect": 0.3,
+        "edge_q": 0.01,
+        "edge_replication": 3.0,
+        "global_access_consumers": 3.0,
+        "phi_do": 0.05,
+        "reentry_domains": 3.0,
+        "spread": 0.6,
+        "synergy_fraction": 0.1,
+        "vertex_connectivity": 2.0
+      },
+      "edge_rules": {
+        "q_max": 0.01,
+        "effect_min": 0.3,
+        "replication_min": 3,
+        "sign_flip_draws": 200000
+      },
+      "intervention": {
+        "delta": 0.15,
+        "divergence_ceiling": 10.0,
+        "trials": 6,
+        "turns_per_arm": 2,
+        "substrate_step_seconds": 0.5
+      },
+      "recording": {
+        "rounds": 60,
+        "conditions": [
+          "conversation",
+          "problem_solving",
+          "autonomy",
+          "idle",
+          "salience",
+          "stress",
+          "memory",
+          "tool_use"
+        ]
+      },
+      "estimator": {
+        "components_per_domain": 4,
+        "folds": 5
+      },
+      "nulls": {
+        "architectures": [
+          "recurrent",
+          "star",
+          "hub",
+          "one_way",
+          "prompt_only",
+          "frozen_slow"
+        ]
+      },
+      "synergy_triples": [
+        [
+          "A",
+          "S",
+          "G"
+        ],
+        [
+          "P",
+          "M",
+          "W"
+        ],
+        [
+          "W",
+          "A",
+          "D"
+        ],
+        [
+          "S",
+          "D",
+          "C"
+        ]
+      ],
+      "domains": [
+        "P",
+        "I",
+        "A",
+        "G",
+        "C",
+        "S",
+        "M",
+        "W",
+        "D",
+        "N"
+      ],
+      "schema": {
+        "width": 167,
+        "hash": "6a9c9ab5de20164d180311d4affbd1aa"
+      },
+      "seed": 7
+    },
+    "fingerprint": "cd87b5405381d3bd5a4df0586e11fa64",
+    "commit": "0fb6fdd1cda074268f4b11e16f2264fb54610a1f",
+    "commit_subject": "fix(subject): the floor was six pieces of shared state the fork never carried",
+    "tree_hash": "85612e94f22348b4f00502bee0024ff3",
+    "dirty": true,
+    "python": "3.12.13",
+    "platform": "macOS-26.4.1-arm64-arm-64bit",
+    "started_at": 1788926257.1768808,
+    "finished_at": 1788928924.523802
+  },
+  "organism": {
+    "up": [
+      "bridge_loop",
+      "consciousness_bridge",
+      "consciousness_layers",
+      "consciousness_system",
+      "container",
+      "heartbeat_loop",
+      "liquid_substrate_alias",
+      "protocol_listener_stopped",
+      "substrate_loop_stopped"
+    ],
+    "down": {},
+    "stopped_loops": [
+      "ClosedCausalLoop.prediction",
+      "ConsciousnessBridge",
+      "EmbodiedInteroception",
+      "NeuralMesh",
+      "Neurochemical",
+      "OscillatoryBinding",
+      "StreamOfBeing.existence",
+      "SubstrateEvolution",
+      "UnifiedField"
+    ],
+    "still_running": [
+      "state_registry.notification_dispatcher"
+    ]
+  },
+  "recording": {
+    "frames": 15840,
+    "width": 167,
+    "conditions": {
+      "conversation": 1980,
+      "problem_solving": 1980,
+      "autonomy": 1980,
+      "idle": 1980,
+      "salience": 1980,
+      "stress": 1980,
+      "memory": 1980,
+      "tool_use": 1980
+    },
+    "live_domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "flat_columns": 48,
+    "one_way_columns": [
+      "I.token_velocity",
+      "G.fragmentation",
+      "G.branch_load",
+      "G.tick",
+      "G.broadcasts",
+      "C.loop_cycle",
+      "C.substrate_revision",
+      "S.bonding_level",
+      "S.belief_version",
+      "S.snapshot_count",
+      "S.agency_acted",
+      "S.agency_traces",
+      "M.evolution_log_load",
+      "W.model_mean_surprise",
+      "W.causal_edges",
+      "D.drive_curiosity",
+      "N.steps"
+    ],
+    "flat_column_names": [
+      "P.percept_novelty",
+      "P.spatial_present",
+      "P.entity_load",
+      "I.mycelium_density",
+      "I.sensor_load",
+      "A.social_hunger",
+      "A.cortisol",
+      "A.adrenaline",
+      "A.momentum",
+      "G.coherence",
+      "G.contradictions",
+      "G.discourse_depth",
+      "G.inhibited",
+      "G.modifier_focus",
+      "C.mode_dreaming",
+      "C.mode_dormant",
+      "C.phenomenal_coherence",
+      "S.evolution_score",
+      "S.narrative_version",
+      "S.narrative_len",
+      "S.value_load",
+      "S.preference_load",
+      "S.trait_openness",
+      "S.trait_conscientiousness",
+      "S.trait_extraversion",
+      "S.trait_agreeableness",
+      "S.trait_neuroticism",
+      "S.pending_updates",
+      "S.prediction_surprises",
+      "S.valence_error",
+      "S.drive_error",
+      "S.agency_pending",
+      "M.summary_len",
+      "M.ledger_load",
+      "M.thread_present",
+      "M.cold_memory_load",
+      "W.entity_load",
+      "W.relationship_load",
+      "W.preference_load",
+      "W.concept_load",
+      "W.user_trend",
+      "W.model_hidden_norm",
+      "W.causal_confirmed",
+      "W.model_facets",
+      "W.model_train_steps",
+      "D.drive_rest",
+      "D.drive_creation",
+      "N.era"
+    ],
+    "env_names": [
+      "condition_id",
+      "host_load",
+      "host_thermal",
+      "objective_len",
+      "percept_arrived",
+      "turn"
+    ],
+    "notes": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ],
+      "phase_failures": {}
+    }
+  },
+  "phi": {
+    "phi_do": -0.007071,
+    "best_cut": [
+      "ISD",
+      "PAGCMWN"
+    ],
+    "loss_full": 0.412902,
+    "loss_cut": 0.410003,
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "pairs": 479,
+    "cheapest_cuts": [
+      {
+        "cut": "ISD|PAGCMWN",
+        "phi": -0.007071
+      },
+      {
+        "cut": "W|PIAGCSMDN",
+        "phi": -0.005031
+      },
+      {
+        "cut": "SD|PIAGCMWN",
+        "phi": -0.00466
+      },
+      {
+        "cut": "S|PIAGCMWDN",
+        "phi": -0.00452
+      },
+      {
+        "cut": "ISWD|PAGCMN",
+        "phi": -0.004329
+      },
+      {
+        "cut": "SW|PIAGCMDN",
+        "phi": -0.003986
+      },
+      {
+        "cut": "SWD|PIAGCMN",
+        "phi": -0.001036
+      },
+      {
+        "cut": "ID|PAGCSMWN",
+        "phi": -0.000318
+      }
+    ],
+    "dearest_cuts": [
+      {
+        "cut": "SMN|PIAGCWD",
+        "phi": 0.067923
+      },
+      {
+        "cut": "CMWN|PIAGSD",
+        "phi": 0.068552
+      },
+      {
+        "cut": "MN|PIAGCSWD",
+        "phi": 0.074824
+      },
+      {
+        "cut": "CMN|PIAGSWD",
+        "phi": 0.077973
+      }
+    ],
+    "degenerate": false,
+    "note": ""
+  },
+  "differentiation": {
+    "d_eff": 9.638,
+    "d_eff_normalised": 0.081,
+    "live_width": 119,
+    "largest_component_share": 0.272,
+    "spectrum_head": [
+      0.272,
+      0.1249,
+      0.0591,
+      0.0449,
+      0.0374,
+      0.0348,
+      0.0273,
+      0.026,
+      0.0251,
+      0.022,
+      0.0212,
+      0.0197
+    ]
+  },
+  "intrinsic": {
+    "loss_environment_only": 0.743329,
+    "loss_environment_and_state": 0.469476,
+    "loss_shuffled_state": 0.756198,
+    "delta_intrinsic": 0.368414,
+    "delta_over_shuffled_state": 0.379162,
+    "pairs": 479,
+    "env_width": 6,
+    "passes": true,
+    "note": ""
+  },
+  "metastability": {
+    "regimes": 2,
+    "dwell_mean": 80.0,
+    "dwell_max": 333.0,
+    "transition_entropy": 0.0808,
+    "entropy_ceiling": 1.0,
+    "largest_regime_share": 0.6979,
+    "passes": true
+  },
+  "synergy": [
+    {
+      "sources": [
+        "A",
+        "S"
+      ],
+      "target": "G",
+      "joint_information": 2.1822,
+      "redundancy": 0.5896,
+      "unique": [
+        0.0,
+        1.5612
+      ],
+      "synergy": 0.0314,
+      "synergy_fraction": 0.0144,
+      "null_q99_fraction": 0.1664,
+      "interaction_gain": 0.049,
+      "rows": 479,
+      "passes": false
+    },
+    {
+      "sources": [
+        "P",
+        "M"
+      ],
+      "target": "W",
+      "joint_information": 1.1155,
+      "redundancy": 0.011,
+      "unique": [
+        0.0,
+        1.0896
+      ],
+      "synergy": 0.0148,
+      "synergy_fraction": 0.0133,
+      "null_q99_fraction": 0.4886,
+      "interaction_gain": 0.0873,
+      "rows": 479,
+      "passes": false
+    },
+    {
+      "sources": [
+        "W",
+        "A"
+      ],
+      "target": "D",
+      "joint_information": 4.1006,
+      "redundancy": 0.5249,
+      "unique": [
+        3.4504,
+        0.0
+      ],
+      "synergy": 0.1253,
+      "synergy_fraction": 0.0305,
+      "null_q99_fraction": 0.0538,
+      "interaction_gain": 0.0049,
+      "rows": 479,
+      "passes": false
+    },
+    {
+      "sources": [
+        "S",
+        "D"
+      ],
+      "target": "C",
+      "joint_information": 1.1076,
+      "redundancy": 0.8809,
+      "unique": [
+        0.2139,
+        0.0
+      ],
+      "synergy": 0.0127,
+      "synergy_fraction": 0.0115,
+      "null_q99_fraction": 0.1669,
+      "interaction_gain": 0.0035,
+      "rows": 479,
+      "passes": false
+    }
+  ],
+  "closure": {
+    "loss_core_only": 0.187116,
+    "loss_core_and_periphery": 0.184675,
+    "loss_shuffled_periphery": 0.186429,
+    "leak": 0.013044,
+    "shuffled_leak": 0.00367,
+    "leak_over_shuffled": 0.009408,
+    "periphery_width": 2,
+    "closed": false,
+    "largest_leaks": [
+      {
+        "variable": "EternalMemoryPhase._last_summary_refresh_at",
+        "gain": 0.01325
+      },
+      {
+        "variable": "EternalMemoryPhase._last_summary_refresh_completed_at",
+        "gain": 0.01325
+      }
+    ]
+  },
+  "edges": [
+    {
+      "source": "A",
+      "target": "C",
+      "effect": -0.0179,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0825,
+        "conversation": -0.0828,
+        "idle": 0.1289,
+        "memory": -0.108,
+        "problem_solving": -0.034,
+        "salience": 0.0152,
+        "stress": 0.0402,
+        "tool_use": -0.02
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "D",
+      "effect": 0.0047,
+      "p": 0.012095,
+      "q": 0.051835,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0006,
+        "conversation": 0.0121,
+        "idle": -0.0012,
+        "memory": 0.0036,
+        "problem_solving": -0.0011,
+        "salience": 0.0132,
+        "stress": -0.0053,
+        "tool_use": 0.0172
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "G",
+      "effect": 0.782,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 7,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.901,
+        "conversation": 0.4549,
+        "idle": 0.3706,
+        "memory": 1.4939,
+        "problem_solving": 0.4352,
+        "salience": 1.2044,
+        "stress": -0.0417,
+        "tool_use": 0.4377
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "A",
+      "target": "I",
+      "effect": 0.0637,
+      "p": 0.498008,
+      "q": 0.703571,
+      "replication": 1,
+      "conditions": [
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.5096,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "M",
+      "effect": 0.5462,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 5,
+      "conditions": [
+        "autonomy",
+        "memory",
+        "problem_solving",
+        "salience",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.3532,
+        "conversation": 0.0,
+        "idle": 0.2962,
+        "memory": 1.3295,
+        "problem_solving": 0.3105,
+        "salience": 1.4303,
+        "stress": 0.0,
+        "tool_use": 0.6497
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "A",
+      "target": "N",
+      "effect": 0.0349,
+      "p": 0.403588,
+      "q": 0.703571,
+      "replication": 2,
+      "conditions": [
+        "autonomy",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.7448,
+        "conversation": -0.4523,
+        "idle": 0.1329,
+        "memory": -0.3652,
+        "problem_solving": 0.0843,
+        "salience": 0.0099,
+        "stress": -0.1958,
+        "tool_use": 0.3207
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "P",
+      "effect": 0.0268,
+      "p": 0.148664,
+      "q": 0.388194,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.1085,
+        "conversation": -0.04,
+        "idle": -0.0045,
+        "memory": 0.03,
+        "problem_solving": 0.0429,
+        "salience": -0.037,
+        "stress": 0.0,
+        "tool_use": 0.1143
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "S",
+      "effect": 0.4579,
+      "p": 0.00356,
+      "q": 0.01602,
+      "replication": 5,
+      "conditions": [
+        "autonomy",
+        "idle",
+        "problem_solving",
+        "salience",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.3515,
+        "conversation": -0.5248,
+        "idle": 0.581,
+        "memory": 0.161,
+        "problem_solving": 0.5278,
+        "salience": 1.1526,
+        "stress": 0.0249,
+        "tool_use": 0.3888
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "A",
+      "target": "W",
+      "effect": -0.099,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0755,
+        "conversation": -0.0571,
+        "idle": -0.6093,
+        "memory": -0.1425,
+        "problem_solving": -0.1245,
+        "salience": 0.2361,
+        "stress": -0.0388,
+        "tool_use": 0.02
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "A",
+      "effect": 0.1684,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.1558,
+        "conversation": 0.14,
+        "idle": 0.1838,
+        "memory": 0.1679,
+        "problem_solving": 0.2156,
+        "salience": 0.2047,
+        "stress": 0.1473,
+        "tool_use": 0.1322
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "D",
+      "effect": 0.0016,
+      "p": 0.235009,
+      "q": 0.481322,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0042,
+        "conversation": 0.0021,
+        "idle": -0.0014,
+        "memory": -0.0109,
+        "problem_solving": 0.0139,
+        "salience": 0.0021,
+        "stress": -0.0006,
+        "tool_use": 0.0035
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "G",
+      "effect": 0.0412,
+      "p": 0.04994,
+      "q": 0.187968,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.1102,
+        "conversation": 0.0037,
+        "idle": 0.1831,
+        "memory": 0.0048,
+        "problem_solving": 0.0264,
+        "salience": 0.0217,
+        "stress": -0.0233,
+        "tool_use": 0.003
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "I",
+      "effect": 0.0004,
+      "p": 0.500082,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.0029,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "M",
+      "effect": 0.0154,
+      "p": 0.421783,
+      "q": 0.703571,
+      "replication": 1,
+      "conditions": [
+        "idle"
+      ],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.442,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": -0.3189
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "N",
+      "effect": -0.0818,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 2,
+      "conditions": [
+        "problem_solving",
+        "salience"
+      ],
+      "by_condition": {
+        "autonomy": -0.684,
+        "conversation": -0.0001,
+        "idle": -0.4003,
+        "memory": -0.0017,
+        "problem_solving": 0.4918,
+        "salience": 0.3425,
+        "stress": -0.6835,
+        "tool_use": 0.2806
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "P",
+      "effect": 0.0146,
+      "p": 0.271839,
+      "q": 0.520542,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0655,
+        "conversation": -0.0466,
+        "idle": 0.0497,
+        "memory": -0.074,
+        "problem_solving": 0.1612,
+        "salience": -0.0557,
+        "stress": -0.0226,
+        "tool_use": 0.039
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "S",
+      "effect": 0.1308,
+      "p": 0.157954,
+      "q": 0.394886,
+      "replication": 4,
+      "conditions": [
+        "idle",
+        "problem_solving",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.0646,
+        "conversation": -0.1036,
+        "idle": 0.5724,
+        "memory": -0.3271,
+        "problem_solving": 0.4389,
+        "salience": -0.2459,
+        "stress": 0.3455,
+        "tool_use": 0.3019
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "C",
+      "target": "W",
+      "effect": -0.0672,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0458,
+        "conversation": -0.0019,
+        "idle": -0.4753,
+        "memory": 0.0282,
+        "problem_solving": -0.095,
+        "salience": -0.1981,
+        "stress": 0.1942,
+        "tool_use": -0.0355
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "A",
+      "effect": 0.051,
+      "p": 0.246009,
+      "q": 0.481322,
+      "replication": 1,
+      "conditions": [
+        "conversation"
+      ],
+      "by_condition": {
+        "autonomy": -0.0362,
+        "conversation": 0.3764,
+        "idle": -0.0804,
+        "memory": 0.0119,
+        "problem_solving": 0.0287,
+        "salience": 0.062,
+        "stress": 0.027,
+        "tool_use": 0.0188
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "C",
+      "effect": -0.0182,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0484,
+        "conversation": -0.032,
+        "idle": -0.201,
+        "memory": -0.0579,
+        "problem_solving": 0.0219,
+        "salience": 0.0173,
+        "stress": 0.0044,
+        "tool_use": 0.0534
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "G",
+      "effect": 0.0503,
+      "p": 0.300718,
+      "q": 0.563847,
+      "replication": 1,
+      "conditions": [
+        "conversation"
+      ],
+      "by_condition": {
+        "autonomy": -0.4094,
+        "conversation": 0.3091,
+        "idle": -0.0158,
+        "memory": 0.292,
+        "problem_solving": 0.1092,
+        "salience": -0.0975,
+        "stress": 0.2004,
+        "tool_use": 0.0141
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "I",
+      "effect": -0.0004,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": -0.0029,
+        "idle": 0.0,
+        "memory": 0.0029,
+        "problem_solving": -0.0029,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "M",
+      "effect": -0.1349,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.2962,
+        "conversation": -0.5459,
+        "idle": 0.0,
+        "memory": 0.0462,
+        "problem_solving": -0.1586,
+        "salience": -0.2044,
+        "stress": 0.0,
+        "tool_use": 0.0798
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "N",
+      "effect": 0.3764,
+      "p": 0.07219,
+      "q": 0.240632,
+      "replication": 5,
+      "conditions": [
+        "conversation",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.1449,
+        "conversation": 1.4193,
+        "idle": -0.2966,
+        "memory": 0.3668,
+        "problem_solving": 0.489,
+        "salience": 0.4276,
+        "stress": 0.5783,
+        "tool_use": -0.1184
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "P",
+      "effect": -0.0177,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0813,
+        "conversation": 0.0097,
+        "idle": -0.0181,
+        "memory": -0.0399,
+        "problem_solving": -0.0377,
+        "salience": -0.0422,
+        "stress": 0.061,
+        "tool_use": 0.0073
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "S",
+      "effect": -0.0619,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 2,
+      "conditions": [
+        "idle",
+        "memory"
+      ],
+      "by_condition": {
+        "autonomy": -0.639,
+        "conversation": -0.8425,
+        "idle": 0.7311,
+        "memory": 0.437,
+        "problem_solving": -0.3005,
+        "salience": 0.2957,
+        "stress": -0.0221,
+        "tool_use": -0.155
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "D",
+      "target": "W",
+      "effect": 0.0046,
+      "p": 0.487663,
+      "q": 0.703571,
+      "replication": 1,
+      "conditions": [
+        "autonomy"
+      ],
+      "by_condition": {
+        "autonomy": 0.7476,
+        "conversation": 0.0273,
+        "idle": -0.3125,
+        "memory": -0.0325,
+        "problem_solving": -0.3352,
+        "salience": 0.0538,
+        "stress": -0.1537,
+        "tool_use": 0.0419
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "A",
+      "effect": 0.5617,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 4,
+      "conditions": [
+        "autonomy",
+        "idle",
+        "memory",
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.8439,
+        "conversation": 0.2188,
+        "idle": 1.2307,
+        "memory": 0.4092,
+        "problem_solving": 0.1764,
+        "salience": 0.1766,
+        "stress": 1.2373,
+        "tool_use": 0.201
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "C",
+      "effect": 0.0279,
+      "p": 0.206914,
+      "q": 0.454201,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0354,
+        "conversation": 0.1278,
+        "idle": 0.2975,
+        "memory": -0.0451,
+        "problem_solving": -0.0016,
+        "salience": -0.0471,
+        "stress": -0.1804,
+        "tool_use": 0.1079
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "D",
+      "effect": 0.0031,
+      "p": 0.098995,
+      "q": 0.296665,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0008,
+        "conversation": 0.0007,
+        "idle": 0.0008,
+        "memory": 0.0073,
+        "problem_solving": 0.0044,
+        "salience": 0.0084,
+        "stress": -0.0009,
+        "tool_use": 0.0031
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "I",
+      "effect": 0.0004,
+      "p": 0.500317,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0029,
+        "stress": 0.0,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "M",
+      "effect": 2.9868,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 3.3352,
+        "conversation": 2.5327,
+        "idle": 2.9839,
+        "memory": 3.0247,
+        "problem_solving": 3.581,
+        "salience": 2.2583,
+        "stress": 3.3576,
+        "tool_use": 2.8212
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "N",
+      "effect": 1.4059,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.1008,
+        "conversation": 1.3924,
+        "idle": 1.5162,
+        "memory": 1.3582,
+        "problem_solving": 2.63,
+        "salience": 1.4798,
+        "stress": 1.2493,
+        "tool_use": 0.5205
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "P",
+      "effect": 0.0032,
+      "p": 0.440423,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0407,
+        "conversation": 0.0007,
+        "idle": 0.0791,
+        "memory": -0.009,
+        "problem_solving": 0.1105,
+        "salience": -0.0743,
+        "stress": -0.0384,
+        "tool_use": -0.0836
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "G",
+      "target": "S",
+      "effect": 0.8274,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.4276,
+        "conversation": 0.9867,
+        "idle": 0.4168,
+        "memory": 0.5455,
+        "problem_solving": 0.6626,
+        "salience": 0.7832,
+        "stress": 0.8013,
+        "tool_use": 0.9955
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "G",
+      "target": "W",
+      "effect": 0.005,
+      "p": 0.476678,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.1452,
+        "conversation": 0.182,
+        "idle": -0.2472,
+        "memory": -0.0042,
+        "problem_solving": 0.0463,
+        "salience": 0.0476,
+        "stress": 0.2703,
+        "tool_use": -0.1095
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "A",
+      "effect": 0.2165,
+      "p": 0.038445,
+      "q": 0.157274,
+      "replication": 1,
+      "conditions": [
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.0536,
+        "conversation": 0.1395,
+        "idle": 0.2387,
+        "memory": 0.1372,
+        "problem_solving": 0.2242,
+        "salience": 0.1445,
+        "stress": 0.6045,
+        "tool_use": 0.1898
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "C",
+      "effect": 0.051,
+      "p": 0.085515,
+      "q": 0.274868,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0993,
+        "conversation": 0.0608,
+        "idle": 0.0026,
+        "memory": 0.1013,
+        "problem_solving": -0.0084,
+        "salience": 0.1129,
+        "stress": 0.0377,
+        "tool_use": 0.0015
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "D",
+      "effect": 0.0015,
+      "p": 0.238294,
+      "q": 0.481322,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0005,
+        "conversation": 0.0016,
+        "idle": 0.0024,
+        "memory": 0.0012,
+        "problem_solving": -0.0002,
+        "salience": -0.0042,
+        "stress": 0.0038,
+        "tool_use": 0.0083
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "G",
+      "effect": 0.4765,
+      "p": 0.000235,
+      "q": 0.001113,
+      "replication": 5,
+      "conditions": [
+        "conversation",
+        "idle",
+        "memory",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": -0.0204,
+        "conversation": 1.0286,
+        "idle": 0.3726,
+        "memory": 0.647,
+        "problem_solving": 0.0594,
+        "salience": -0.1054,
+        "stress": 1.2822,
+        "tool_use": 0.5481
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "I",
+      "target": "M",
+      "effect": 0.085,
+      "p": 0.245464,
+      "q": 0.481322,
+      "replication": 2,
+      "conditions": [
+        "idle",
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.442,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.7979,
+        "tool_use": -0.5601
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "N",
+      "effect": 1.0837,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 7,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.7531,
+        "conversation": 1.6803,
+        "idle": 1.172,
+        "memory": 1.075,
+        "problem_solving": 0.2125,
+        "salience": 1.4645,
+        "stress": 1.1523,
+        "tool_use": 1.1596
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "I",
+      "target": "P",
+      "effect": 0.0202,
+      "p": 0.195449,
+      "q": 0.43976,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0,
+        "conversation": 0.095,
+        "idle": 0.0429,
+        "memory": -0.0226,
+        "problem_solving": 0.0287,
+        "salience": -0.0814,
+        "stress": 0.0158,
+        "tool_use": 0.0835
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "S",
+      "effect": -0.0528,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "conversation"
+      ],
+      "by_condition": {
+        "autonomy": 0.0666,
+        "conversation": 0.3313,
+        "idle": 0.1284,
+        "memory": -0.3091,
+        "problem_solving": -0.5066,
+        "salience": 0.1644,
+        "stress": -0.1365,
+        "tool_use": -0.1611
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "I",
+      "target": "W",
+      "effect": 0.1707,
+      "p": 0.100549,
+      "q": 0.296665,
+      "replication": 1,
+      "conditions": [
+        "idle"
+      ],
+      "by_condition": {
+        "autonomy": -0.1544,
+        "conversation": -0.0396,
+        "idle": 1.1773,
+        "memory": 0.1076,
+        "problem_solving": 0.0777,
+        "salience": 0.0023,
+        "stress": 0.2346,
+        "tool_use": -0.0399
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "A",
+      "effect": -0.0807,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0244,
+        "conversation": 0.0019,
+        "idle": -0.1092,
+        "memory": -0.3591,
+        "problem_solving": -0.0169,
+        "salience": -0.0472,
+        "stress": -0.0724,
+        "tool_use": -0.018
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "C",
+      "effect": 0.0159,
+      "p": 0.336353,
+      "q": 0.605436,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0074,
+        "conversation": -0.0178,
+        "idle": 0.1878,
+        "memory": 0.1142,
+        "problem_solving": -0.0573,
+        "salience": -0.0622,
+        "stress": 0.0012,
+        "tool_use": -0.0458
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "D",
+      "effect": -0.0015,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0023,
+        "conversation": 0.0023,
+        "idle": 0.0,
+        "memory": -0.005,
+        "problem_solving": -0.0015,
+        "salience": 0.0027,
+        "stress": -0.0011,
+        "tool_use": -0.0121
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "G",
+      "effect": -0.1113,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "idle"
+      ],
+      "by_condition": {
+        "autonomy": 0.0791,
+        "conversation": -0.6879,
+        "idle": 0.4801,
+        "memory": 0.0043,
+        "problem_solving": 0.0007,
+        "salience": -0.1065,
+        "stress": -0.6445,
+        "tool_use": -0.0154
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "I",
+      "effect": 0.0004,
+      "p": 0.499353,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0029,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0029,
+        "problem_solving": -0.0029,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "N",
+      "effect": -0.515,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "conversation"
+      ],
+      "by_condition": {
+        "autonomy": 0.207,
+        "conversation": 0.3449,
+        "idle": -1.098,
+        "memory": 0.1715,
+        "problem_solving": -3.1995,
+        "salience": -0.0167,
+        "stress": -0.16,
+        "tool_use": -0.3696
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "P",
+      "effect": -0.0173,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0158,
+        "conversation": -0.0526,
+        "idle": 0.0497,
+        "memory": 0.0211,
+        "problem_solving": -0.066,
+        "salience": -0.0226,
+        "stress": 0.0,
+        "tool_use": -0.0836
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "S",
+      "effect": 0.1528,
+      "p": 0.150964,
+      "q": 0.388194,
+      "replication": 2,
+      "conditions": [
+        "problem_solving",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.1733,
+        "conversation": -0.0115,
+        "idle": 0.1396,
+        "memory": -0.068,
+        "problem_solving": 0.4171,
+        "salience": -0.1726,
+        "stress": 0.2128,
+        "tool_use": 0.5319
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "M",
+      "target": "W",
+      "effect": 0.0044,
+      "p": 0.486913,
+      "q": 0.703571,
+      "replication": 2,
+      "conditions": [
+        "autonomy",
+        "conversation"
+      ],
+      "by_condition": {
+        "autonomy": 0.3972,
+        "conversation": 0.3469,
+        "idle": 0.2724,
+        "memory": -0.1506,
+        "problem_solving": 0.2574,
+        "salience": -0.0609,
+        "stress": -0.9865,
+        "tool_use": -0.0408
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "A",
+      "effect": 0.015,
+      "p": 0.411233,
+      "q": 0.703571,
+      "replication": 1,
+      "conditions": [
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": -0.1025,
+        "conversation": 0.0335,
+        "idle": -0.0265,
+        "memory": -0.3449,
+        "problem_solving": 0.0291,
+        "salience": 0.0153,
+        "stress": 0.5109,
+        "tool_use": 0.0048
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "C",
+      "effect": -0.0814,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.18,
+        "conversation": 0.0003,
+        "idle": -0.2592,
+        "memory": -0.1603,
+        "problem_solving": 0.0974,
+        "salience": -0.0004,
+        "stress": -0.1405,
+        "tool_use": -0.0082
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "D",
+      "effect": -0.002,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0036,
+        "conversation": -0.0013,
+        "idle": 0.0003,
+        "memory": -0.0011,
+        "problem_solving": -0.0128,
+        "salience": -0.0048,
+        "stress": -0.0021,
+        "tool_use": 0.009
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "G",
+      "effect": -0.0213,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0079,
+        "conversation": 0.2098,
+        "idle": -0.0079,
+        "memory": -0.5786,
+        "problem_solving": -0.0148,
+        "salience": -0.0206,
+        "stress": 0.0659,
+        "tool_use": 0.1676
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "I",
+      "effect": 0.0004,
+      "p": 0.500012,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0029,
+        "conversation": -0.0029,
+        "idle": 0.0029,
+        "memory": 0.0029,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": 0.0029
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "M",
+      "effect": -0.0773,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": -0.3437,
+        "problem_solving": 0.0,
+        "salience": -0.4598,
+        "stress": 0.4835,
+        "tool_use": -0.2985
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "P",
+      "effect": 0.0096,
+      "p": 0.313098,
+      "q": 0.575079,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0,
+        "conversation": 0.0862,
+        "idle": -0.0226,
+        "memory": 0.0222,
+        "problem_solving": 0.0107,
+        "salience": -0.0181,
+        "stress": 0.0497,
+        "tool_use": -0.0516
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "S",
+      "effect": 0.2239,
+      "p": 0.05397,
+      "q": 0.194291,
+      "replication": 1,
+      "conditions": [
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.0682,
+        "conversation": 0.1288,
+        "idle": 0.2149,
+        "memory": 0.1801,
+        "problem_solving": -0.0827,
+        "salience": 0.1344,
+        "stress": 0.1711,
+        "tool_use": 0.9766
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "N",
+      "target": "W",
+      "effect": -0.0284,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "autonomy"
+      ],
+      "by_condition": {
+        "autonomy": 0.3329,
+        "conversation": -0.0027,
+        "idle": -0.296,
+        "memory": 0.0834,
+        "problem_solving": -0.0281,
+        "salience": -0.199,
+        "stress": -0.2191,
+        "tool_use": 0.1011
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "A",
+      "effect": 8.8549,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 9.875,
+        "conversation": 7.9601,
+        "idle": 9.8025,
+        "memory": 8.7825,
+        "problem_solving": 7.8573,
+        "salience": 8.0472,
+        "stress": 9.8703,
+        "tool_use": 8.6444
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "P",
+      "target": "C",
+      "effect": 0.0515,
+      "p": 0.102184,
+      "q": 0.296665,
+      "replication": 1,
+      "conditions": [
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.0665,
+        "conversation": 0.0788,
+        "idle": 0.1393,
+        "memory": -0.151,
+        "problem_solving": -0.0274,
+        "salience": -0.1253,
+        "stress": 0.3337,
+        "tool_use": 0.0974
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "D",
+      "effect": -0.001,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0057,
+        "conversation": -0.0159,
+        "idle": -0.0,
+        "memory": 0.0098,
+        "problem_solving": 0.005,
+        "salience": -0.0164,
+        "stress": 0.0026,
+        "tool_use": 0.0128
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "G",
+      "effect": -0.1119,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 1,
+      "conditions": [
+        "autonomy"
+      ],
+      "by_condition": {
+        "autonomy": 1.0382,
+        "conversation": -1.4041,
+        "idle": -0.6277,
+        "memory": -0.4233,
+        "problem_solving": 0.0767,
+        "salience": 0.1747,
+        "stress": -0.018,
+        "tool_use": 0.2879
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "I",
+      "effect": 0.0011,
+      "p": 0.124369,
+      "q": 0.349789,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0,
+        "problem_solving": 0.0029,
+        "salience": 0.0029,
+        "stress": 0.0029,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "M",
+      "effect": -0.0566,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0687,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": -0.2282,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": -0.2934
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "N",
+      "effect": 0.2311,
+      "p": 0.176264,
+      "q": 0.428751,
+      "replication": 4,
+      "conditions": [
+        "autonomy",
+        "idle",
+        "memory",
+        "problem_solving"
+      ],
+      "by_condition": {
+        "autonomy": 0.5406,
+        "conversation": -1.5007,
+        "idle": 1.0848,
+        "memory": 1.6527,
+        "problem_solving": 0.8679,
+        "salience": 0.147,
+        "stress": -1.2204,
+        "tool_use": 0.2771
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "S",
+      "effect": 0.1769,
+      "p": 0.139029,
+      "q": 0.379171,
+      "replication": 3,
+      "conditions": [
+        "autonomy",
+        "idle",
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": 0.8798,
+        "conversation": -0.3906,
+        "idle": 0.5578,
+        "memory": -0.1723,
+        "problem_solving": 0.2094,
+        "salience": 0.1923,
+        "stress": 0.3653,
+        "tool_use": -0.2268
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "P",
+      "target": "W",
+      "effect": 0.2699,
+      "p": 0.050125,
+      "q": 0.187968,
+      "replication": 1,
+      "conditions": [
+        "idle"
+      ],
+      "by_condition": {
+        "autonomy": 0.2916,
+        "conversation": -0.0002,
+        "idle": 2.0046,
+        "memory": 0.1418,
+        "problem_solving": -0.2208,
+        "salience": 0.0381,
+        "stress": -0.0928,
+        "tool_use": -0.003
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "A",
+      "effect": 0.8016,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.8204,
+        "conversation": 0.814,
+        "idle": 1.0545,
+        "memory": 0.673,
+        "problem_solving": 0.4957,
+        "salience": 0.7796,
+        "stress": 1.3726,
+        "tool_use": 0.4028
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "C",
+      "effect": 1.0234,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.879,
+        "conversation": 0.9178,
+        "idle": 1.2168,
+        "memory": 1.1099,
+        "problem_solving": 1.0136,
+        "salience": 0.9658,
+        "stress": 0.8485,
+        "tool_use": 1.2359
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "D",
+      "effect": 0.0003,
+      "p": 0.444898,
+      "q": 0.703571,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0028,
+        "conversation": 0.0029,
+        "idle": 0.001,
+        "memory": 0.0101,
+        "problem_solving": 0.0097,
+        "salience": -0.0156,
+        "stress": -0.0003,
+        "tool_use": -0.0023
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "G",
+      "effect": 1.8233,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.6281,
+        "conversation": 2.0099,
+        "idle": 1.937,
+        "memory": 1.8351,
+        "problem_solving": 2.4139,
+        "salience": 1.7572,
+        "stress": 2.1204,
+        "tool_use": 0.8847
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "I",
+      "effect": -0.0004,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.0,
+        "problem_solving": 0.0,
+        "salience": 0.0,
+        "stress": 0.0,
+        "tool_use": -0.0029
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "M",
+      "effect": 0.9128,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 7,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.2154,
+        "conversation": 1.0936,
+        "idle": 0.6738,
+        "memory": 0.0685,
+        "problem_solving": 1.2723,
+        "salience": 1.6986,
+        "stress": 0.8483,
+        "tool_use": 0.4316
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "N",
+      "effect": 3.2418,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.803,
+        "conversation": 4.81,
+        "idle": 2.1431,
+        "memory": 4.1145,
+        "problem_solving": 6.3504,
+        "salience": 2.1133,
+        "stress": 2.8224,
+        "tool_use": 1.7775
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "S",
+      "target": "P",
+      "effect": -0.0062,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.1311,
+        "conversation": 0.0353,
+        "idle": 0.0158,
+        "memory": 0.0226,
+        "problem_solving": -0.0625,
+        "salience": -0.1775,
+        "stress": -0.0,
+        "tool_use": -0.0141
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "S",
+      "target": "W",
+      "effect": 0.6775,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 6,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 1.0255,
+        "conversation": 0.4718,
+        "idle": 1.0347,
+        "memory": 0.699,
+        "problem_solving": 0.1652,
+        "salience": 0.2711,
+        "stress": 1.1484,
+        "tool_use": 0.6044
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "A",
+      "effect": 0.542,
+      "p": 5e-06,
+      "q": 2.8e-05,
+      "replication": 7,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 0.3897,
+        "conversation": 0.3456,
+        "idle": 0.6404,
+        "memory": 0.6135,
+        "problem_solving": 0.2375,
+        "salience": 0.3134,
+        "stress": 1.0777,
+        "tool_use": 0.7178
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "C",
+      "effect": 0.031,
+      "p": 0.216509,
+      "q": 0.463948,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": -0.0007,
+        "conversation": -0.0939,
+        "idle": 0.1669,
+        "memory": 0.0719,
+        "problem_solving": -0.0088,
+        "salience": 0.1435,
+        "stress": 0.0081,
+        "tool_use": -0.0388
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "D",
+      "effect": 0.0024,
+      "p": 0.183954,
+      "q": 0.435681,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0007,
+        "conversation": 0.0024,
+        "idle": -0.0009,
+        "memory": 0.0107,
+        "problem_solving": 0.012,
+        "salience": -0.0112,
+        "stress": -0.001,
+        "tool_use": 0.0069
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "G",
+      "effect": 0.8071,
+      "p": 5.5e-05,
+      "q": 0.000275,
+      "replication": 6,
+      "conditions": [
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": -0.185,
+        "conversation": 1.3749,
+        "idle": 1.388,
+        "memory": 0.6039,
+        "problem_solving": 0.5227,
+        "salience": 0.1182,
+        "stress": 0.9306,
+        "tool_use": 1.7033
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "I",
+      "effect": -0.0015,
+      "p": 1.0,
+      "q": 1.0,
+      "replication": 0,
+      "conditions": [],
+      "by_condition": {
+        "autonomy": 0.0,
+        "conversation": 0.0,
+        "idle": -0.0029,
+        "memory": -0.0029,
+        "problem_solving": 0.0,
+        "salience": -0.0029,
+        "stress": -0.0029,
+        "tool_use": 0.0
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "M",
+      "effect": 0.1477,
+      "p": 0.065185,
+      "q": 0.225639,
+      "replication": 2,
+      "conditions": [
+        "memory",
+        "stress"
+      ],
+      "by_condition": {
+        "autonomy": -0.192,
+        "conversation": 0.0,
+        "idle": 0.0,
+        "memory": 0.5461,
+        "problem_solving": 0.0,
+        "salience": 0.2866,
+        "stress": 0.3002,
+        "tool_use": 0.241
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "N",
+      "effect": 1.8217,
+      "p": 1e-05,
+      "q": 5.3e-05,
+      "replication": 8,
+      "conditions": [
+        "autonomy",
+        "conversation",
+        "idle",
+        "memory",
+        "problem_solving",
+        "salience",
+        "stress",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": 2.5856,
+        "conversation": 3.5682,
+        "idle": 0.4383,
+        "memory": 3.0506,
+        "problem_solving": 0.6638,
+        "salience": 0.5092,
+        "stress": 2.7502,
+        "tool_use": 1.008
+      },
+      "trials": 48,
+      "kept": true
+    },
+    {
+      "source": "W",
+      "target": "P",
+      "effect": 0.0371,
+      "p": 0.438543,
+      "q": 0.703571,
+      "replication": 1,
+      "conditions": [
+        "problem_solving"
+      ],
+      "by_condition": {
+        "autonomy": -0.1537,
+        "conversation": 0.0051,
+        "idle": 0.0452,
+        "memory": 0.0419,
+        "problem_solving": 0.5588,
+        "salience": -0.1243,
+        "stress": -0.0859,
+        "tool_use": 0.0098
+      },
+      "trials": 48,
+      "kept": false
+    },
+    {
+      "source": "W",
+      "target": "S",
+      "effect": 0.1405,
+      "p": 0.190169,
+      "q": 0.438852,
+      "replication": 3,
+      "conditions": [
+        "idle",
+        "salience",
+        "tool_use"
+      ],
+      "by_condition": {
+        "autonomy": -0.0275,
+        "conversation": -0.4232,
+        "idle": 1.0611,
+        "memory": -0.1413,
+        "problem_solving": -0.3759,
+        "salience": 0.317,
+        "stress": 0.1887,
+        "tool_use": 0.5249
+      },
+      "trials": 48,
+      "kept": false
+    }
+  ],
+  "graph": {
+    "nodes": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "edges": [
+      "A->G",
+      "A->M",
+      "G->A",
+      "G->M",
+      "G->N",
+      "G->S",
+      "I->G",
+      "I->N",
+      "P->A",
+      "S->A",
+      "S->C",
+      "S->G",
+      "S->M",
+      "S->N",
+      "S->W",
+      "W->A",
+      "W->G",
+      "W->N"
+    ],
+    "edge_count": 18,
+    "components": [
+      [
+        "A",
+        "G",
+        "S",
+        "W"
+      ],
+      [
+        "C"
+      ],
+      [
+        "D"
+      ],
+      [
+        "I"
+      ],
+      [
+        "M"
+      ],
+      [
+        "N"
+      ],
+      [
+        "P"
+      ]
+    ],
+    "one_strongly_connected_component": false,
+    "vertex_connectivity": 0,
+    "cycle_count": 5,
+    "cycles_per_node": {
+      "P": 0,
+      "I": 0,
+      "A": 3,
+      "G": 5,
+      "C": 0,
+      "S": 4,
+      "M": 0,
+      "W": 2,
+      "D": 0,
+      "N": 0
+    },
+    "shortest_reentry": {
+      "P": 0,
+      "I": 0,
+      "A": 3,
+      "G": 3,
+      "C": 0,
+      "S": 3,
+      "M": 0,
+      "W": 3,
+      "D": 0,
+      "N": 0
+    },
+    "every_node_on_two_cycles": false,
+    "every_node_reenters_through_two_others": false,
+    "shortest_cycles": [
+      "A->G",
+      "G->S",
+      "A->G->S",
+      "G->S->W",
+      "A->G->S->W"
+    ]
+  },
+  "per_condition": {
+    "per_condition": {
+      "conversation": {
+        "edges": 16,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "problem_solving": {
+        "edges": 13,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "autonomy": {
+        "edges": 16,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "idle": {
+        "edges": 17,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "salience": {
+        "edges": 14,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "stress": {
+        "edges": 16,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "memory": {
+        "edges": 17,
+        "one_component": false,
+        "vertex_connectivity": 0
+      },
+      "tool_use": {
+        "edges": 17,
+        "one_component": false,
+        "vertex_connectivity": 0
+      }
+    },
+    "conditions_with_scc": 0
+  },
+  "perturbation": {
+    "mean_spread": 0.1,
+    "mean_pci": 0.1307741321482697,
+    "null_q99": 0.0,
+    "beats_null": true,
+    "mean_null_spread": 0.0,
+    "spread_by_source": {
+      "P": 0.2,
+      "I": 0.1,
+      "A": 0.0,
+      "G": 0.2,
+      "C": 0.0,
+      "S": 0.4,
+      "M": 0.0,
+      "W": 0.1,
+      "D": 0.0,
+      "N": 0.0
+    },
+    "pci_by_source": {
+      "P": 0.186,
+      "I": 0.185,
+      "A": 0.0,
+      "G": 0.407,
+      "C": 0.0,
+      "S": 0.345,
+      "M": 0.0,
+      "W": 0.185,
+      "D": 0.0,
+      "N": 0.0
+    },
+    "null_pci_by_source": {
+      "P": 0.0,
+      "I": 0.0,
+      "A": 0.0,
+      "G": 0.0,
+      "C": 0.0,
+      "S": 0.0,
+      "M": 0.0,
+      "W": 0.0,
+      "D": 0.0,
+      "N": 0.0
+    },
+    "matrices": {
+      "P": {
+        "source": "P",
+        "spread": 0.2,
+        "depth": 0.3788,
+        "reached": [
+          "A",
+          "N"
+        ],
+        "pci": 0.1861,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "I": {
+        "source": "I",
+        "spread": 0.1,
+        "depth": 0.3788,
+        "reached": [
+          "N"
+        ],
+        "pci": 0.1848,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "A": {
+        "source": "A",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "G": {
+        "source": "G",
+        "spread": 0.2,
+        "depth": 0.3333,
+        "reached": [
+          "M",
+          "N"
+        ],
+        "pci": 0.4073,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000111111",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111000000000"
+        ]
+      },
+      "C": {
+        "source": "C",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "S": {
+        "source": "S",
+        "spread": 0.4,
+        "depth": 0.6212,
+        "reached": [
+          "G",
+          "C",
+          "W",
+          "N"
+        ],
+        "pci": 0.3447,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000011",
+          "000000000000000001111100000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000001111111000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000001111111111111111111111111111111111"
+        ]
+      },
+      "M": {
+        "source": "M",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "W": {
+        "source": "W",
+        "spread": 0.1,
+        "depth": 0.3788,
+        "reached": [
+          "N"
+        ],
+        "pci": 0.1848,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000001111111111111111111111111"
+        ]
+      },
+      "D": {
+        "source": "D",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      },
+      "N": {
+        "source": "N",
+        "spread": 0.0,
+        "depth": 0.0,
+        "reached": [],
+        "pci": 0.0,
+        "lags": 66,
+        "rows": [
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000",
+          "000000000000000000000000000000000000000000000000000000000000000000"
+        ]
+      }
+    }
+  },
+  "global_access": {
+    "consumers": 4,
+    "consumer_list": [
+      "A",
+      "M",
+      "N",
+      "S"
+    ],
+    "returns": true,
+    "return_paths": [
+      "A->G->S",
+      "A->G->S->W",
+      "G->S->W"
+    ]
+  },
+  "timescale": {
+    "fast_to_slow": true,
+    "fast_to_slow_edges": [
+      "A->M",
+      "G->M",
+      "G->N",
+      "G->S",
+      "I->N"
+    ],
+    "slow_to_fast": true,
+    "slow_to_fast_edges": [
+      "S->A",
+      "S->C",
+      "S->G",
+      "W->A",
+      "W->G"
+    ]
+  },
+  "agency": {
+    "self_to_action": 0.0089,
+    "self_to_action_floor": 0.0045,
+    "self_drives_action": true,
+    "ownership_divergence": 22.797,
+    "ownership_floor": 0.2233,
+    "outcome_updates_self": true,
+    "action_text_changed_under_self_perturbation": false,
+    "trials": 5,
+    "note": ""
+  },
+  "lesion": {
+    "cut": [
+      "I",
+      "S",
+      "D"
+    ],
+    "intact": {
+      "phi_do": -0.0492,
+      "spread": 0.23333,
+      "synergy": 0.16974
+    },
+    "lesioned": {
+      "phi_do": -0.06878,
+      "spread": 0.4,
+      "synergy": 0.13943
+    },
+    "rescued": {
+      "phi_do": -0.09767,
+      "spread": 0.16667,
+      "synergy": 0.12617
+    },
+    "deltas": {
+      "phi_do": 0.01958,
+      "spread": -0.16667,
+      "synergy": 0.03031
+    },
+    "rescue": {
+      "phi_do": -0.02889,
+      "spread": -0.23333,
+      "synergy": -0.01325
+    },
+    "deficit": false,
+    "rescued_ok": false
+  },
+  "nulls": {
+    "phi_table": {
+      "replay": -0.3223,
+      "time_shuffle": -0.02131,
+      "recurrent": 0.26392,
+      "star": 0.00558,
+      "hub": 0.01121,
+      "one_way": 0.03305,
+      "prompt_only": 0.00456,
+      "frozen_slow": 0.02068
+    },
+    "detail": {
+      "replay": {
+        "phi_do": -0.3223,
+        "draws": [
+          -0.3223,
+          -0.36573,
+          -70.07207
+        ],
+        "kind": "surrogate"
+      },
+      "time_shuffle": {
+        "phi_do": -0.02131,
+        "draws": [
+          -0.02458,
+          -0.02705,
+          -0.02131
+        ],
+        "kind": "surrogate"
+      },
+      "recurrent": {
+        "phi_do": 0.26392,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      },
+      "star": {
+        "phi_do": 0.00558,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 3,
+        "reentry": true
+      },
+      "hub": {
+        "phi_do": 0.01121,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 1,
+        "reentry": true
+      },
+      "one_way": {
+        "phi_do": 0.03305,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      },
+      "prompt_only": {
+        "phi_do": 0.00456,
+        "kind": "architecture",
+        "one_component": true,
+        "vertex_connectivity": 3,
+        "reentry": true
+      },
+      "frozen_slow": {
+        "phi_do": 0.02068,
+        "kind": "architecture",
+        "one_component": false,
+        "vertex_connectivity": 0,
+        "reentry": false
+      }
+    },
+    "surrogate_floor": -0.02131,
+    "phi_above_floor": 0.01424,
+    "phi_beats_all": false,
+    "all_nulls_fail": true,
+    "nulls_fail_the_bar": true,
+    "reference_architecture_passes": true,
+    "reference_recurrent_phi": 0.26392,
+    "summary": {
+      "reference_recurrent": 0.26392,
+      "worst_null": 0.03305
+    }
+  },
+  "verdict": {
+    "isc": false,
+    "passed": 11,
+    "total": 24,
+    "failed": [
+      "causal_closure_scc",
+      "robust_recurrence_kappa",
+      "cycles_per_domain",
+      "reentry",
+      "partition_irreducibility",
+      "partition_beats_nulls",
+      "differentiation",
+      "causal_closure_of_the_core",
+      "perturbational_spread",
+      "synergy",
+      "natural_runtime_replication",
+      "lesion_deficit",
+      "rescue"
+    ],
+    "criteria": [
+      {
+        "criterion": "causal_closure_scc",
+        "section": "14",
+        "requires": "every domain reaches every other one through interventional edges",
+        "passed": false,
+        "value": [
+          [
+            "A",
+            "G",
+            "S",
+            "W"
+          ],
+          [
+            "C"
+          ],
+          [
+            "D"
+          ],
+          [
+            "I"
+          ],
+          [
+            "M"
+          ],
+          [
+            "N"
+          ],
+          [
+            "P"
+          ]
+        ],
+        "bar": "one component covering all domains",
+        "detail": {
+          "edge_count": 18
+        }
+      },
+      {
+        "criterion": "robust_recurrence_kappa",
+        "section": "17",
+        "requires": "no single domain's removal disconnects the rest",
+        "passed": false,
+        "value": 0,
+        "bar": ">= 2",
+        "detail": {}
+      },
+      {
+        "criterion": "cycles_per_domain",
+        "section": "15",
+        "requires": "every domain lies on at least two cross-domain directed cycles",
+        "passed": false,
+        "value": {
+          "P": 0,
+          "I": 0,
+          "A": 3,
+          "G": 5,
+          "C": 0,
+          "S": 4,
+          "M": 0,
+          "W": 2,
+          "D": 0,
+          "N": 0
+        },
+        "bar": ">= 2 each",
+        "detail": {}
+      },
+      {
+        "criterion": "reentry",
+        "section": "16",
+        "requires": "influence leaves each domain and returns through at least two others",
+        "passed": false,
+        "value": {
+          "P": 0,
+          "I": 0,
+          "A": 3,
+          "G": 3,
+          "C": 0,
+          "S": 3,
+          "M": 0,
+          "W": 3,
+          "D": 0,
+          "N": 0
+        },
+        "bar": "cycle length >= 3",
+        "detail": {}
+      },
+      {
+        "criterion": "partition_irreducibility",
+        "section": "11",
+        "requires": "the cheapest bipartition still costs held-out prediction",
+        "passed": false,
+        "value": -0.0071,
+        "bar": "> 0.05",
+        "detail": {
+          "cheapest_cut": [
+            "ISD",
+            "PAGCMWN"
+          ],
+          "dearest_cuts": [
+            {
+              "cut": "SMN|PIAGCWD",
+              "phi": 0.067923
+            },
+            {
+              "cut": "CMWN|PIAGSD",
+              "phi": 0.068552
+            },
+            {
+              "cut": "MN|PIAGCSWD",
+              "phi": 0.074824
+            },
+            {
+              "cut": "CMN|PIAGSWD",
+              "phi": 0.077973
+            }
+          ],
+          "surrogate_floor": -0.02131,
+          "above_surrogate_floor": 0.01424
+        }
+      },
+      {
+        "criterion": "partition_beats_nulls",
+        "section": "18",
+        "requires": "irreducibility exceeds every null architecture and matched surrogate",
+        "passed": false,
+        "value": {
+          "replay": -0.3223,
+          "time_shuffle": -0.02131,
+          "recurrent": 0.26392,
+          "star": 0.00558,
+          "hub": 0.01121,
+          "one_way": 0.03305,
+          "prompt_only": 0.00456,
+          "frozen_slow": 0.02068
+        },
+        "bar": "above all nulls",
+        "detail": {
+          "surrogate_floor": -0.02131,
+          "margin_over_floor": 0.01424
+        }
+      },
+      {
+        "criterion": "differentiation",
+        "section": "18",
+        "requires": "the integrated state is not one dimension wearing many names",
+        "passed": false,
+        "value": 0.081,
+        "bar": ">= 0.4",
+        "detail": {
+          "d_eff": 9.638,
+          "largest_component_share": 0.272
+        }
+      },
+      {
+        "criterion": "differentiation_above_floor",
+        "section": "18",
+        "requires": "effective dimension is far above the one-dimensional floor",
+        "passed": true,
+        "value": {
+          "d_eff": 9.638,
+          "top_share": 0.272
+        },
+        "bar": "d_eff >= 3 and no component above half the variance",
+        "detail": {}
+      },
+      {
+        "criterion": "intrinsic_persistence",
+        "section": "19",
+        "requires": "the previous internal state predicts the next beyond the environment",
+        "passed": true,
+        "value": 0.3684,
+        "bar": "> 0, and above the shuffled-state control",
+        "detail": {
+          "over_shuffle": 0.379162
+        }
+      },
+      {
+        "criterion": "causal_closure_of_the_core",
+        "section": "3",
+        "requires": "no variable outside K predicts K's future better than K does",
+        "passed": false,
+        "value": 0.013,
+        "bar": "no improvement on K beyond what a shuffled periphery gives",
+        "detail": {
+          "largest_leaks": [
+            {
+              "variable": "EternalMemoryPhase._last_summary_refresh_at",
+              "gain": 0.01325
+            },
+            {
+              "variable": "EternalMemoryPhase._last_summary_refresh_completed_at",
+              "gain": 0.01325
+            }
+          ]
+        }
+      },
+      {
+        "criterion": "perturbational_spread",
+        "section": "24",
+        "requires": "a local displacement reaches most of the core",
+        "passed": false,
+        "value": 0.1,
+        "bar": ">= 0.6",
+        "detail": {
+          "per_source": {
+            "P": 0.2,
+            "I": 0.1,
+            "A": 0.0,
+            "G": 0.2,
+            "C": 0.0,
+            "S": 0.4,
+            "M": 0.0,
+            "W": 0.1,
+            "D": 0.0,
+            "N": 0.0
+          }
+        }
+      },
+      {
+        "criterion": "perturbational_complexity",
+        "section": "26",
+        "requires": "the response is structured, not local and not a broadcast",
+        "passed": true,
+        "value": 0.1308,
+        "bar": "a response that reached somewhere, above the 99th percentile of matched nulls",
+        "detail": {
+          "null": 0.0,
+          "sources_that_reached_anything": [
+            "P",
+            "I",
+            "G",
+            "S",
+            "W"
+          ]
+        }
+      },
+      {
+        "criterion": "synergy",
+        "section": "27",
+        "requires": "domains carry information jointly that neither carries alone",
+        "passed": false,
+        "value": [
+          0.0144,
+          0.0133,
+          0.0305,
+          0.0115
+        ],
+        "bar": ">= 0.1 and above its shifted null",
+        "detail": {
+          "triples": [
+            [
+              "A",
+              "S",
+              "G"
+            ],
+            [
+              "P",
+              "M",
+              "W"
+            ],
+            [
+              "W",
+              "A",
+              "D"
+            ],
+            [
+              "S",
+              "D",
+              "C"
+            ]
+          ]
+        }
+      },
+      {
+        "criterion": "metastability",
+        "section": "29",
+        "requires": "the state settles into regimes and still moves between them",
+        "passed": true,
+        "value": {
+          "regimes": 2,
+          "entropy": 0.0808
+        },
+        "bar": "more than one regime, entropy strictly between zero and its ceiling",
+        "detail": {}
+      },
+      {
+        "criterion": "global_access",
+        "section": "30",
+        "requires": "workspace content reaches at least three heterogeneous consumers",
+        "passed": true,
+        "value": [
+          "A",
+          "M",
+          "N",
+          "S"
+        ],
+        "bar": ">= 3",
+        "detail": {}
+      },
+      {
+        "criterion": "recurrent_global_access",
+        "section": "31",
+        "requires": "a consumer of the workspace later changes the workspace again",
+        "passed": true,
+        "value": [
+          "A->G->S",
+          "A->G->S->W",
+          "G->S->W"
+        ],
+        "bar": "at least one G -> X -> G path",
+        "detail": {}
+      },
+      {
+        "criterion": "self_drives_action",
+        "section": "33",
+        "requires": "changing the self-model changes deliberation or behaviour",
+        "passed": true,
+        "value": 0.0089,
+        "bar": "above the same-arm floor",
+        "detail": {
+          "floor": 0.0045
+        }
+      },
+      {
+        "criterion": "ownership",
+        "section": "34",
+        "requires": "the same world state updates the self differently when she caused it",
+        "passed": true,
+        "value": 22.797,
+        "bar": "above the same-arm floor",
+        "detail": {
+          "floor": 0.2233
+        }
+      },
+      {
+        "criterion": "fast_to_slow",
+        "section": "38",
+        "requires": "fast cognition changes the slow developmental state",
+        "passed": true,
+        "value": [
+          "A->M",
+          "G->M",
+          "G->N",
+          "G->S",
+          "I->N"
+        ],
+        "bar": "at least one edge from a fast domain into a slow one",
+        "detail": {}
+      },
+      {
+        "criterion": "slow_to_fast",
+        "section": "38",
+        "requires": "the slow developmental state changes later fast cognition",
+        "passed": true,
+        "value": [
+          "S->A",
+          "S->C",
+          "S->G",
+          "W->A",
+          "W->G"
+        ],
+        "bar": "at least one edge from a slow domain into a fast one",
+        "detail": {}
+      },
+      {
+        "criterion": "natural_runtime_replication",
+        "section": "44",
+        "requires": "the graph holds across ordinary conditions, not only one workload",
+        "passed": false,
+        "value": {
+          "conversation": {
+            "edges": 16,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "problem_solving": {
+            "edges": 13,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "autonomy": {
+            "edges": 16,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "idle": {
+            "edges": 17,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "salience": {
+            "edges": 14,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "stress": {
+            "edges": 16,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "memory": {
+            "edges": 17,
+            "one_component": false,
+            "vertex_connectivity": 0
+          },
+          "tool_use": {
+            "edges": 17,
+            "one_component": false,
+            "vertex_connectivity": 0
+          }
+        },
+        "bar": "strongly connected in at least three conditions",
+        "detail": {}
+      },
+      {
+        "criterion": "lesion_deficit",
+        "section": "39",
+        "requires": "cutting the cheapest partition degrades the measures it should",
+        "passed": false,
+        "value": {
+          "phi_do": 0.01958,
+          "spread": -0.16667,
+          "synergy": 0.03031
+        },
+        "bar": "irreducibility, complexity and synergy all fall",
+        "detail": {}
+      },
+      {
+        "criterion": "rescue",
+        "section": "40",
+        "requires": "restoring the cut restores them",
+        "passed": false,
+        "value": {
+          "phi_do": -0.02889,
+          "spread": -0.23333,
+          "synergy": -0.01325
+        },
+        "bar": "a deficit first, then the measures return towards the intact values",
+        "detail": {}
+      },
+      {
+        "criterion": "beats_every_null",
+        "section": "41",
+        "requires": "the whole battery separates the system from every matched null",
+        "passed": true,
+        "value": {
+          "reference_recurrent": 0.26392,
+          "worst_null": 0.03305
+        },
+        "bar": "no null passes the conjunction",
+        "detail": {}
+      }
+    ],
+    "notes": {
+      "unwritable_domains": [],
+      "intervention_seconds": 1424.6,
+      "intervention_power": {
+        "pairs_tested": 90,
+        "paired_trials_per_pair": 48,
+        "smallest_reachable_q": 0.00045,
+        "underpowered": false
+      },
+      "attenuation": {
+        "M": {
+          "self_effect": 5.655,
+          "largest_outgoing": 0.1528,
+          "attenuation": 37.0
+        },
+        "W": {
+          "self_effect": 8.5491,
+          "largest_outgoing": 1.8217,
+          "attenuation": 4.69
+        },
+        "A": {
+          "self_effect": 9.6208,
+          "largest_outgoing": 0.782,
+          "attenuation": 12.3
+        },
+        "C": {
+          "self_effect": 9.7411,
+          "largest_outgoing": 0.1684,
+          "attenuation": 57.84
+        },
+        "S": {
+          "self_effect": 9.3267,
+          "largest_outgoing": 3.2418,
+          "attenuation": 2.88
+        },
+        "D": {
+          "self_effect": 9.9789,
+          "largest_outgoing": 0.3764,
+          "attenuation": 26.51
+        },
+        "N": {
+          "self_effect": 3.7529,
+          "largest_outgoing": 0.2239,
+          "attenuation": 16.76
+        },
+        "G": {
+          "self_effect": 8.2118,
+          "largest_outgoing": 2.9868,
+          "attenuation": 2.75
+        },
+        "I": {
+          "self_effect": 3.934,
+          "largest_outgoing": 1.0837,
+          "attenuation": 3.63
+        },
+        "P": {
+          "self_effect": 1.966,
+          "largest_outgoing": 8.8549,
+          "attenuation": 0.22
+        }
+      },
+      "seconds": 2667.8
+    }
+  }
+}

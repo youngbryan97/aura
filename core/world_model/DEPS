@@ -6,11 +6,12 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 13 outbound edges when this was generated.
+# 12 outbound edges when this was generated.
 
-description = "core.world_model: may import only what it already imports; every new edge is an edit here."
+description = "core.world_model: declared dependencies only; cycle observation reads the canonical percept representation through core.state.percepts."
 
 include_rules = [
+    "+core.soma",
     "+core.world_model",
 
     # What this package reaches for today.
@@ -24,9 +25,9 @@ include_rules = [
     "+core.health",
     "+core.resilience",
     "+core.runtime",
+    "+core.state.percepts",
     "+core.thought_stream",
     "+core.values",
-    "+core.world_model",
 
     # Everything else.
     "-core",

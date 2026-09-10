@@ -266,7 +266,7 @@ def compute_desktop_memory_envelope(
     total_ram_bytes: int,
     env: Mapping[str, str] | None = None,
 ) -> DesktopMemoryEnvelope:
-    """Derive an ordered envelope that admits the 32B lane and protects the host.
+    """Derive an ordered envelope that admits the cortex lane and protects the host.
 
     The process limit is the canonical admission ceiling. Lower rungs shed
     caches and optional workers before it; the lethal rung retains an external

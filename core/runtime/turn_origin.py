@@ -41,6 +41,7 @@ __all__ = [
     "USER_FACING_ORIGINS",
     "a_person_is_waiting",
     "normalise_origin",
+    "the_open_turn_is_a_persons_turn",
 ]
 
 #: Every name the layers that ask this question knew between them.
@@ -128,3 +129,26 @@ def a_person_is_waiting(origin: Any = "", *, stated: bool | None = None) -> bool
     if name in USER_FACING_ORIGINS:
         return True
     return name.startswith(FOREGROUND_ORIGIN_PREFIXES)
+
+
+def the_open_turn_is_a_persons_turn() -> bool | None:
+    """The stated fact, taken from the turn bound to this context.
+
+    This is the ``stated`` argument for callers that never received one. A
+    turn binds itself to the context when it starts and carries the origin it
+    started with, so a layer deep inside the turn can read the fact instead of
+    parsing a phase name — which is the case the docstring above says a name
+    rule cannot cover, and the reason it does not try.
+
+    ``None`` means there is no open turn, which is the normal state of
+    background work and is not an answer either way.
+    """
+
+    try:
+        from core.runtime.turn_outcome import current_turn
+    except ImportError:
+        return None
+    turn = current_turn()
+    if turn is None:
+        return None
+    return a_person_is_waiting(getattr(turn, "origin", ""))

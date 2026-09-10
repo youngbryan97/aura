@@ -166,6 +166,9 @@ def _generation_owner_is_user_foreground(owner: str) -> bool:
     owner = str(owner or "").strip().lower()
     if not owner:
         return False
+    # Substring, deliberately: `owner` is the constructed `origin:purpose`
+    # key, not a sentence — `desktop:response_generation_user`,
+    # `voice_loop:reply`. The words in it run into their neighbours.
     return any(
         marker in owner
         for marker in (
@@ -554,10 +557,56 @@ async def _await_while_it_is_working(
             # queue is delayed, so silence here is not evidence that the owned
             # request stopped.  Wait for an explicit endpoint terminal state or
             # for the caller to cancel the turn.
+            # Two different quantities, and the runtime has one number for
+            # them: how long the WORK should take, and how long a PERSON will
+            # wait. The endpoint's first-token ceiling is the first — it is
+            # sized from the prompt and the token budget — and this wait is
+            # the second.
+            #
+            # LIVE, 2026-09-08: a desktop turn with a 49,136-character prompt
+            # got a 900-second first-token ceiling, the 27B took the job on a
+            # host at 11.8GB free with a 9B already resident, spent fifteen
+            # minutes at half a core paging weights, and produced no first
+            # token. `is_inference_ready()` said False for 631 seconds while
+            # it happened. Nothing was broken; the person was simply not being
+            # served, and nothing said so.
+            #
+            # Still waiting, deliberately: the endpoint owns first-token,
+            # livelock, heartbeat, memory-pressure and cancellation, and this
+            # outer estimate cannot see native MLX work while the loop is
+            # delayed. What changes is that the wait past a person's patience
+            # is now named, with the number it passed.
             logger.info(
                 "Endpoint past its %.1fs estimate; waiting for its owned terminal state.",
                 budget_s,
             )
+            try:
+                from core.brain.llm.mlx_client import longest_a_turn_may_take
+
+                a_person_waits = float(longest_a_turn_may_take())
+            except (ImportError, AttributeError, TypeError, ValueError):
+                a_person_waits = 0.0
+            if a_person_waits > 0.0 and budget_s < a_person_waits:
+                async def _say_when_it_passes_a_persons_patience() -> None:
+                    try:
+                        await asyncio.sleep(max(0.0, a_person_waits - budget_s))
+                    except asyncio.CancelledError:
+                        return
+                    if not task.done():
+                        logger.warning(
+                            "A person has been waiting %.0fs for a first token, "
+                            "past the %.0fs a turn is meant to take; still "
+                            "waiting because the endpoint owns the terminal "
+                            "state and has not given one.",
+                            a_person_waits,
+                            a_person_waits,
+                        )
+
+                watcher = asyncio.ensure_future(_say_when_it_passes_a_persons_patience())
+                try:
+                    return await task
+                finally:
+                    watcher.cancel()
             return await task
 
         try:
@@ -3204,7 +3253,7 @@ class HealthAwareLLMRouter:
         """Protect live desktop Aura from background local-model memory spikes.
 
         Background cognition should stay active, but on a 64GB-class desktop it
-        cannot freely wake extra 9B/1.5B MLX workers beside the 32B Cortex lane.
+        cannot freely wake extra 9B/1.5B MLX workers beside the cortex lane.
         That pattern is what showed up in the live neural stream as a large
         footprint spike followed by forced shedding.  Admission is endpoint
         specific: Reflex is light enough to run with moderate headroom, while
@@ -3275,7 +3324,7 @@ class HealthAwareLLMRouter:
         # still binds. It represents memory the new worker and the already
         # resident foreground lane need after admission; kernel pressure says
         # whether pages are currently contested, not whether two model peaks
-        # fit together. Lowering this floor to 4GB admitted a 9B beside the 32B
+        # fit together. Lowering this floor to 4GB admitted a 9B beside the cortex
         # at 67% host use, then the emergency reclaimer killed the Cortex.
         try:
             from core.utils.memory_monitor import kernel_memory_pressure_level
@@ -3426,7 +3475,7 @@ class HealthAwareLLMRouter:
 
     async def _restore_primary_after_deep_handoff(self) -> None:
         """
-        Return the system to the 32B conversational brain after a 72B handoff.
+        Return the system to the cortex conversational brain after a 72B handoff.
         This keeps the 72B strictly transient and prevents it from lingering in RAM.
         """
         # Own the generation lane before rebooting workers: this task is
@@ -3702,7 +3751,22 @@ class HealthAwareLLMRouter:
                     ctx_summary.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
 
             if ctx_summary:
-                context_header = " ".join(ctx_summary)
+                # One block per line, because the splitter reads lines.
+                #
+                # These were joined with a space, and the header pattern that
+                # decides which sections are per-turn — `^\[[A-Z][^\n\]]*\]$`
+                # — cannot match a line holding two bracket groups. So the most
+                # volatile text in the whole prompt was invisible to the one
+                # stage that exists to move volatile text out of the stable
+                # head, and it stayed there.
+                #
+                # LIVE, 2026-09-08: `matched 596 (25.5%) before diverging;
+                # divergent text begins: ' INQUISITIVE (substrate energy: 0.31,
+                # substrate focus: 0.78, substrate'`. Everything after token
+                # 596 — three quarters of the prompt — was re-prefilled every
+                # turn on a model whose cache cannot be trimmed, so a strict
+                # prefix is the only reuse there is.
+                context_header = "\n".join(ctx_summary)
                 # [Fix] Move Affective and Somatic state to system_prompt instead of user prompt to prevent echoing.
                 #
                 # APPENDED, never prepended. This block is the single most
@@ -3719,10 +3783,15 @@ class HealthAwareLLMRouter:
                 # 31,697 tokens re-prefilled because 21 were reusable. Volatile
                 # grounding last means the stable identity and contract text
                 # forms a long shared prefix and only the tail is recomputed.
+                # No label above them. Each bracketed block is already a
+                # header the splitter recognises and files under its own
+                # label, so an extra "System State Context:" line only leaves
+                # an empty section behind in the stable head once its contents
+                # have moved to the turn.
                 if system_prompt:
-                    system_prompt = f"{system_prompt}\n\nSystem State Context:\n{context_header}"
+                    system_prompt = f"{system_prompt}\n\n{context_header}"
                 else:
-                    system_prompt = f"System State Context:\n{context_header}"
+                    system_prompt = context_header
 
                 # We no longer prepend this to the user prompt.
 

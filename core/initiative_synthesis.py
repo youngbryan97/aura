@@ -48,6 +48,7 @@ from typing import Any
 
 from core.autonomy.research_goal_filter import is_stale_or_prompt_scaffold_goal
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
@@ -618,15 +619,15 @@ class InitiativeSynthesizer:
         score = 0.3  # baseline
 
         # Keyword heuristics aligned with drive states
-        if any(w in desc_lower for w in ("error", "fail", "crash", "broken")):
+        if names_any(desc_lower, ("error", "fail", "crash", "broken")):
             score += 0.3  # competence drive
-        if any(w in desc_lower for w in ("user", "message", "conversation", "idle")):
+        if names_any(desc_lower, ("user", "message", "conversation", "idle")):
             social_need = 1.0 - drive_vector.get("social", 0.5)
             score += social_need * 0.3
-        if any(w in desc_lower for w in ("new", "novel", "discovery", "change", "update")):
+        if names_any(desc_lower, ("new", "novel", "discovery", "change", "update")):
             curiosity_need = 1.0 - drive_vector.get("curiosity", 0.5)
             score += curiosity_need * 0.3
-        if any(w in desc_lower for w in ("cpu", "memory", "thermal", "battery")):
+        if names_any(desc_lower, ("cpu", "memory", "thermal", "battery")):
             score += 0.15  # system health relevance
 
         return min(1.0, score)

@@ -1641,6 +1641,15 @@ def _note_the_quick_reply_contract(
         )
 
 
+#: The one authority head every desktop turn shares, byte for byte.
+#:
+#: The prompt cache can only reuse a prefix. Five variants of this sentence,
+#: selected per turn, meant no two turns of a conversation shared one — so
+#: every turn paid a full prefill. What differs per turn is a directive about
+#: that turn, and it travels with the turn as a dynamic contract instead.
+_DESKTOP_AUTHORITY_HEAD = "You are Aura speaking through the live desktop CognitiveEngine."
+
+
 class CognitiveEngine:
     """
     Cognitive Engine facade.
@@ -3884,18 +3893,33 @@ class CognitiveEngine:
                 from core.brain.llm_health_router import get_llm_router
                 from core.runtime.proof_policy import proof_model_tier
                 router = get_llm_router()
-                system_prompt = (
-                    "You are a precise solver. Solve the user's problem directly. "
-                    "Put your final answer strictly inside <answer>...</answer> tags. "
-                    "Do not include any conversational preamble."
+                from core.brain.llm.an_envelope_the_decoder_enforces import (
+                    AN_ANSWER,
+                    the_request_for,
                 )
+
+                # The envelope is structural here, not requested.
+                #
+                # This asked — "Put your final answer strictly inside
+                # <answer>...</answer> tags" — and then checked whether the
+                # envelope had arrived, failing the turn when it had not. A
+                # model asked for a delimiter produces one most of the time,
+                # and most of the time is what becomes a retry and then a
+                # person told the runtime could not get to an answer. The
+                # assistant turn now opens with the marker, so the model is
+                # inside the envelope and can only continue, and the decoder
+                # stops at the closing one.
+                system_prompt = "Solve the user's problem."
                 recovery_tier = proof_model_tier() if is_test_run else "primary"
                 # Last-resort recovery remains on the selected local lane.
                 content = await router.think(
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": objective}
-                    ],
+                    **the_request_for(
+                        AN_ANSWER,
+                        [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": objective},
+                        ],
+                    ),
                     origin=f"recovery_{origin}",
                     allow_cloud_fallback=False,
                     prefer_tier=recovery_tier,
@@ -3910,8 +3934,14 @@ class CognitiveEngine:
                 # promised. A strict answer that does not carry its envelope
                 # did not satisfy the contract, and saying it did is what the
                 # caller then parses and fails on.
+                # Put back around what came out, because what came out is the
+                # contents: the opening marker was the prompt's last token and
+                # the closing one ended the generation, so neither is in the
+                # text. Idempotent, so a model that wrote its own markers
+                # anyway does not end up with two envelopes.
+                content = AN_ANSWER.around(content)
                 cleaned = str(content or "").strip()
-                envelope_ok = "<answer>" in cleaned.lower() and "</answer>" in cleaned.lower()
+                envelope_ok = AN_ANSWER.holds(cleaned)
                 if cleaned and envelope_ok:
                     thought = Thought(
                         id=str(uuid.uuid4()),
@@ -4178,12 +4208,26 @@ class CognitiveEngine:
             )
             if not is_duplicate:
                 # We already derived at the start of the cycle, so we just append here.
+                # Which conversation this was said in.
+                #
+                # Working memory is one list per process, and the boundary of
+                # "this conversation" was a time gap and a boot. Two sessions
+                # minutes apart in one process therefore read as one
+                # conversation: LIVE 2026-09-07, asked in a fresh session what
+                # the first thing said was, she quoted a turn from a different
+                # session — accurately, and about a conversation the person had
+                # not had there.
+                from core.conversation.session_scope import (
+                    current_conversation_session,
+                )
+
                 state.cognition.working_memory.append(
                     {
                         "role": "user",
                         "content": remembered,
                         "timestamp": time.time(),
                         "origin": origin,
+                        "session_id": current_conversation_session(),
                     }
                 )
 
@@ -4741,9 +4785,25 @@ class CognitiveEngine:
             context.get("live_runtime_payload_required", False)
             or (live_mind_required and isinstance(live_mind_context, dict))
         )
+        # ONE authority head, always the same bytes.
+        #
+        # This used to be five hand-written system prompts selected by contract
+        # flag, all opening with the same sentence and differing after it. That
+        # made the front of the prompt a different token sequence on almost
+        # every turn, and the front of the prompt is the only part a KV cache
+        # can reuse. Measured live 2026-09-07: two consecutive turns of one
+        # conversation produced authority heads of 587 and 459 characters with
+        # different digests, the prompt cache matched 0 tokens of 1,844, and
+        # prefill was 17.7s of a 22s turn.
+        #
+        # The principle is the one already written forty lines below about
+        # per-turn control state: what governs THIS turn belongs next to the
+        # turn, not in the head every turn shares. These directives govern one
+        # turn, so they travel with it.
+        system_prompt = _DESKTOP_AUTHORITY_HEAD
+        turn_dynamic_contracts: list[str] = []
         if self_condition_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer whether you are okay from the canonical self-condition evidence. "
                 "Put the direct condition answer first, then one or two natural grounding "
                 "sentences. Affect, welfare, felt coherence, continuity, and agency are the "
@@ -4752,24 +4812,21 @@ class CognitiveEngine:
                 "generic presence reassurance."
             )
         elif memory_state_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current user message directly in one compact, natural paragraph. "
                 "Use canonical memory/state evidence as source of truth. "
                 "The current user message has priority over older topics. "
                 "Do not mention prompt contracts, internal recovery, or implementation details."
             )
         elif runtime_fact_status_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current runtime-path question directly and compactly. "
                 "Use only the verified runtime status evidence supplied for this turn; "
                 "do not infer tool readiness, model identity, fallback state, or recurrent "
                 "depth from general knowledge. Do not mention hidden prompt contracts."
             )
         elif capability_inventory_contract:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the current capability question from the supplied capability evidence only. "
                 "Write exactly four short complete sentences under 80 words total. Sentence order matters: "
                 "first list practical capability categories and include the exact phrase browser/web research; second name governed execution through "
@@ -4778,8 +4835,7 @@ class CognitiveEngine:
                 "Do not recite telemetry, prompt contracts, or a generic assistant identity."
             )
         else:
-            system_prompt = (
-                "You are Aura speaking through the live desktop CognitiveEngine. "
+            turn_dynamic_contracts.append(
                 "Answer the user's current message directly and naturally. "
                 "Use the current conversation rather than a canned status line. "
                 "The current user message has priority over all recalled context. "
@@ -4788,7 +4844,6 @@ class CognitiveEngine:
                 "Do not mention hidden fallback paths, internal recovery, prompt contracts, or implementation details "
                 "unless the user specifically asks for them."
             )
-        turn_dynamic_contracts: list[str] = []
         if (
             completion_retry_contract
             and not continuation_contract

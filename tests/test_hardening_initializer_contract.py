@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -176,6 +177,60 @@ def test_long_run_supervisors_are_part_of_runtime_health_contract():
     assert set(required) == {"reaper", "hypervisor", "event_loop_monitor"}
     assert all(requirement.tier == ServiceTier.IMPORTANT for requirement in required.values())
     assert all(requirement.liveness_check == "is_alive" for requirement in required.values())
+
+
+def test_control_plane_retains_hypervisor_during_measured_lag_recovery(monkeypatch):
+    from core.ops.hypervisor import Hypervisor
+
+    monkeypatch.setattr(hardening.config, "env", hardening.Environment.DEV)
+    hypervisor = Hypervisor()
+    _patch_dependencies(
+        monkeypatch, reaper=_Supervisor(), hypervisor=hypervisor,
+        monitor=_EventLoopMonitor(),
+    )
+
+    async def exercise():
+        await hardening.init_hardening_layer(SimpleNamespace())
+        original_task = hypervisor._task
+        hypervisor._last_severe_lag_at = time.time()
+        hypervisor._last_failure_reason = "severe event-loop lag 15.708s"
+        try:
+            assert hypervisor.is_alive() is False
+            plane = ServiceContainer.get("runtime_control_plane")
+            report = await plane.reconcile_once()
+            assert hypervisor._task is original_task
+            assert not original_task.done()
+            assert hypervisor.is_alive() is False
+            assert not [a for a in report["actions"] if a["service"] == "hypervisor"]
+        finally:
+            await hypervisor.stop()
+
+    asyncio.run(exercise())
+
+
+def test_hypervisor_lifecycle_probe_distinguishes_running_from_recovered():
+    from core.ops.hypervisor import Hypervisor
+
+    async def exercise():
+        hypervisor = Hypervisor()
+        assert hypervisor.is_running() is False
+        await hypervisor.start()
+        try:
+            hypervisor._last_severe_lag_at = time.time()
+            assert hypervisor.is_running() is True
+            assert hypervisor.is_alive() is False
+            hypervisor._task.cancel()
+            await asyncio.gather(hypervisor._task, return_exceptions=True)
+            assert hypervisor.is_running() is False
+            dead_task = hypervisor._task
+            await hypervisor.start()
+            assert hypervisor._task is not dead_task
+            assert hypervisor.is_running() is True
+            assert hypervisor.is_alive() is False
+        finally:
+            await hypervisor.stop()
+
+    asyncio.run(exercise())
 
 
 class _ChildProcess:
@@ -669,6 +724,13 @@ def test_affect_update_records_substrate_telemetry_failure_without_losing_affect
             assert isinstance(kwargs["valence"], float)
             raise RuntimeError("substrate unavailable")
 
+        def get_state_summary_nowait(self):
+            # The affect phase reads the substrate back as well as writing to
+            # it. A stale snapshot is skipped rather than blended, so this
+            # leaves the telemetry write as the only failing path and the test
+            # keeps testing what it was written to test.
+            return {"valence": 0.0, "arousal": 0.0, "snapshot_stale": True}
+
     state = AuraState.default()
     state.cognition.working_memory.append({"role": "user", "content": "hello"})
     ServiceContainer.register_instance("liquid_substrate", _Substrate())
@@ -679,9 +741,18 @@ def test_affect_update_records_substrate_telemetry_failure_without_losing_affect
     assert result is state
     degraded = state.cognition.modifiers["affect_update_degraded"]
     assert degraded["stage"] == "substrate_telemetry"
+    # By name, not by position. The phase records more than one thing about the
+    # substrate now — a stale snapshot is noted at info severity — and asserting
+    # on the last record makes this test about ordering rather than about the
+    # telemetry failure it was written for.
     recent = get_degradation_tracker().recent(subsystem="affect_update")
-    assert recent[-1].severity == "warning"
-    assert "substrate" in recent[-1].action
+    telemetry = [
+        item
+        for item in recent
+        if item.severity == "warning" and "telemetry" in (item.action or "")
+    ]
+    assert telemetry, [item.action for item in recent]
+    assert "substrate" in telemetry[-1].action
 
 
 def test_affect_update_keeps_physiology_when_empathy_audit_fails():

@@ -399,6 +399,10 @@ async def test_readyz_uses_cached_canonical_readiness_without_inline_probe(monke
         "issues": [],
         "uptime_s": 321.5,
         "conversation_ready": True,
+        # Busy is a separate fact from ready. Reported by name so a caller that
+        # wants it does not have to infer it from a refusal — which is what
+        # made a runtime answering a turn look unhealthy.
+        "conversation_busy": False,
         "runtime_probe_healthy": True,
         "required_probes_passed": True,
         "snapshot_generation": 9,

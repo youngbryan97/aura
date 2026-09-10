@@ -66,6 +66,8 @@ __all__ = [
     "ReconstructionConfig",
     "VolumeReconstructor",
     "AmbiguousSite",
+    "EXPRESSION_RECEIVER",
+    "UNSAFE_ATTRIBUTE_NAMES",
     "classify_external",
     "reconstruct",
     "DEFAULT_ROOTS",
@@ -117,6 +119,67 @@ def _outside_volume(module_path: str) -> bool:
 
 
 _STDLIB_MODULES: frozenset[str] = frozenset(sys.stdlib_module_names)
+
+#: Method names that belong to a builtin type or to a standard library object
+#: before they belong to anything here. ``"text".strip()`` is not a call into
+#: this system, and resolving it to a class that happens to define ``strip``
+#: attaches thousands of them to one cell.
+#:
+#: This was found from the other end. The combined graph's largest sink was a
+#: PhenomenalField method with an in-degree of 4,357, which is every ``.strip()``
+#: in the tree; the next three were ``.warning()``, ``.replace()`` and
+#: ``.extend()``. Those merge errors moved every hub, every rich-club number and
+#: every flow measurement built on them.
+_BUILTIN_METHOD_NAMES: frozenset[str] = frozenset(
+    name
+    for kind in (str, bytes, list, dict, set, frozenset, tuple, int, float, complex)
+    for name in dir(kind)
+    if not name.startswith("_")
+)
+
+#: Method names owned by a standard library object that is everywhere. A logger
+#: is not a cell in this system and neither is a path.
+_LIBRARY_METHOD_NAMES: frozenset[str] = frozenset(
+    {
+        "debug",
+        "info",
+        "warning",
+        "warn",
+        "error",
+        "exception",
+        "critical",
+        "log",
+        "setLevel",
+        "addHandler",
+        "exists",
+        "is_dir",
+        "is_file",
+        "mkdir",
+        "resolve",
+        "iterdir",
+        "glob",
+        "rglob",
+        "with_suffix",
+        "relative_to",
+        "joinpath",
+        "match",
+        "group",
+        "groups",
+        "cancel",
+        "done",
+        "result",
+        "acquire",
+        "release",
+        "wait",
+        "notify",
+        "set_result",
+        "add_done_callback",
+    }
+)
+
+#: Together, the names an attribute call may not be resolved on unless the
+#: receiver's type is known.
+UNSAFE_ATTRIBUTE_NAMES: frozenset[str] = _BUILTIN_METHOD_NAMES | _LIBRARY_METHOD_NAMES
 
 #: Modules through which a cell touches the world outside the process. A cell
 #: that reaches one of these is where Aura's nervous system meets her body, and
@@ -480,6 +543,15 @@ class _FunctionVisitor(ast.NodeVisitor):
         return False
 
 
+#: The qualifier reported when a method is called on an expression rather than
+#: on a name — ``str(x).strip()``, ``items[0].get()``, ``(a + b).replace()``.
+#: Reporting no qualifier for these was how ``"".strip()`` reached a class that
+#: happens to define ``strip``: the guard against unsafe names only fires when
+#: there is a receiver, and an expression is a receiver whose type is unknown,
+#: which is the case the guard is for.
+EXPRESSION_RECEIVER: str = "<expr>"
+
+
 def _call_target(func: ast.expr) -> tuple[str, str | None]:
     if isinstance(func, ast.Name):
         return func.id, None
@@ -489,7 +561,7 @@ def _call_target(func: ast.expr) -> tuple[str, str | None]:
             return func.attr, base.id
         if isinstance(base, ast.Attribute):
             return func.attr, base.attr
-        return func.attr, None
+        return func.attr, EXPRESSION_RECEIVER
     return "", None
 
 
@@ -519,6 +591,10 @@ class VolumeReconstructor:
         self.ambiguous_sites: list[AmbiguousSite] = []
         #: Per cell, how many of its calls left the process to touch the world.
         self.external_calls: dict[str, dict[str, int]] = {}
+        #: Which call sites join each pair. The reconstruction knows which cells
+        #: a locus joins; core/connectome/dataflow.py knows what happened to the
+        #: value at that locus, and this is what lets the two be joined.
+        self.contact_loci: dict[tuple[str, str], list[str]] = {}
 
     # -- discovery ------------------------------------------------------
 
@@ -694,6 +770,7 @@ class VolumeReconstructor:
                         kind=EdgeKind.DRIVE,
                     )
                 )
+                self.contact_loci.setdefault((call.caller, target), []).append(call.locus)
                 if call.value_used:
                     callee = units[target]
                     sign = -1 if callee.cell_class is CellClass.INHIBITORY else 1
@@ -772,6 +849,10 @@ class VolumeReconstructor:
         qualifier = call.qualifier
         module = scan.module
 
+        if qualifier == EXPRESSION_RECEIVER and name in UNSAFE_ATTRIBUTE_NAMES:
+            self._external(call.caller, "builtins", name)
+            return None
+
         if qualifier in (None, "self", "cls"):
             if call.scope:
                 hit = index.method(module, call.scope, name)
@@ -822,6 +903,19 @@ class VolumeReconstructor:
                     hit = index.method(homes[0], local_type, name)
                     if hit:
                         return self._hit(hit)
+
+        if (
+            qualifier is not None
+            and qualifier not in ("self", "cls")
+            and name in UNSAFE_ATTRIBUTE_NAMES
+        ):
+            # The receiver's type was not established by an import, a module
+            # alias or a local constructor, and the name is one a builtin or a
+            # standard library object owns. Attaching it to a same-named method
+            # here is a merge error, and a merge error looks exactly like a
+            # circuit.
+            self._external(call.caller, "builtins", name)
+            return None
 
         candidates = index.by_leaf.get(name, [])
         if not candidates:

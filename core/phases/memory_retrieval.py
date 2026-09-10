@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.soma.effort import note_effort
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 from core.utils.task_tracker import get_task_tracker
 
@@ -174,6 +175,7 @@ class MemoryRetrievalPhase(BasePhase):
             if is_strict_proof_answer_prompt(query or objective or "", origin=proof_origin):
                 new_state = state.derive("memory_retrieval_skipped_for_strict_proof")
                 new_state.cognition.long_term_memory = []
+                new_state.cognition.memory_scores = []
                 new_state.response_modifiers["proof_memory_retrieval_skipped"] = True
                 return new_state
         except _MEMORY_RECOVERABLE_ERRORS as exc:
@@ -592,9 +594,16 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 logger.debug("Failed to push memory affect: %s", exc)
 
+        scores: list[float] = []
         if memory_candidates:
             memory_candidates.sort(key=lambda item: item[0], reverse=True)
-            memories = [text for _, text in memory_candidates[:retrieval_limit]]
+            kept = memory_candidates[:retrieval_limit]
+            memories = [text for _, text in kept]
+            # And how well each one matched. The ranking is computed here and
+            # was discarded here, so every consumer downstream saw an unranked
+            # list of strings and had to treat a recollection that answered the
+            # question exactly the same as one that scraped in last.
+            scores = [round(float(score), 4) for score, _ in kept]
 
         if not memories:
             return state
@@ -602,6 +611,10 @@ class MemoryRetrievalPhase(BasePhase):
         # Derive new state with retrieved context
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
+        new_state.cognition.memory_scores = scores
+        # Recall costs something, and a body that cannot feel its own exertion
+        # cannot notice that thinking harder was expensive.
+        note_effort("recall", len(memory_candidates))
         new_state.response_modifiers["memory_retrieval_signature"] = {
             "query": query[:160],
             "retrieval_limit": retrieval_limit,

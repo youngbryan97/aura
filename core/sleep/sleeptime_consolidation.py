@@ -122,7 +122,7 @@ class SleepTimeConsolidator:
     attempt, never cached — and returns its replacement. Injected rather than
     reached for so this is testable without a cortex, and so the caller decides
     which model pays: consolidation is exactly the work that belongs on a small
-    fast model rather than the resident 32B.
+    fast model rather than the resident cortex.
     """
 
     def __init__(

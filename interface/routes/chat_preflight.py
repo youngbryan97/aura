@@ -62,7 +62,7 @@ from interface.routes.chat_common import (
     _INTERNAL_SURFACE_CONTEXT,
     _UNSET,
 )
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_async_lock, checked_lock
 
 
 _EXPRESSIVE_AFFORDANCES_FLAG = declare(
@@ -90,6 +90,80 @@ _QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS = (
     "affordance_context",
     "context_clamp",
 )
+
+
+@dataclasses.dataclass
+class TerminalExchangeCapture:
+    exchanges: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)
+
+
+_TERMINAL_EXCHANGES: ContextVar[TerminalExchangeCapture | None] = ContextVar(
+    "aura_terminal_exchanges", default=None,
+)
+_TERMINAL_HISTORY_LOCK = checked_async_lock("chat.terminal_history")
+
+
+def bind_terminal_exchanges():
+    """Give the durable delivery boundary custody of transcript finalization."""
+    capture = TerminalExchangeCapture()
+    return capture, _TERMINAL_EXCHANGES.set(capture)
+
+
+def reset_terminal_exchanges(token) -> None:
+    _TERMINAL_EXCHANGES.reset(token)
+
+
+async def finalize_terminal_exchanges(capture: TerminalExchangeCapture, payload: dict[str, Any]) -> bool:
+    """Persist the exact sealed answer, including early returns and cancellation."""
+    reply = str(payload.get("response") or "")
+    if not reply.strip():
+        return not capture.exchanges
+    committed = True
+    token = _TERMINAL_EXCHANGES.set(None)
+    try:
+        for exchange_id, entry in capture.exchanges.items():
+            principal_token = _CHAT_REQUEST_PRINCIPAL.set(entry["principal"])
+            surface_token = _CHAT_REQUEST_SURFACE.set(entry["surface"])
+            session_token = _CHAT_REQUEST_SESSION.set(entry["session"])
+            try:
+                metadata = dict(entry.get("metadata") or {})
+                metadata.update({
+                    "delivery_turn_id": str(payload.get("turn_id") or ""),
+                    "delivery_status": str(payload.get("status") or ""),
+                    "delivered_response_sha256": hashlib.sha256(reply.encode("utf-8")).hexdigest(),
+                })
+                state = await _complete_logged_exchange(
+                    exchange_id, entry["user"], reply,
+                    regenerated=entry.get("regenerated", False),
+                    record_experience=entry.get("record_experience", True)
+                    and payload.get("status") != "cancelled_by_user",
+                    exchange_metadata=metadata,
+                )
+                committed = committed and state == "committed"
+            finally:
+                _CHAT_REQUEST_SESSION.reset(session_token)
+                _CHAT_REQUEST_SURFACE.reset(surface_token)
+                _CHAT_REQUEST_PRINCIPAL.reset(principal_token)
+    finally:
+        _TERMINAL_EXCHANGES.reset(token)
+    return committed
+
+
+async def reconcile_terminal_history(journal=None, *, limit: int = 20) -> bool:
+    """Drain sealed transcript obligations through the existing persistence owner."""
+    if journal is None:
+        from core.runtime.chat_delivery_journal import get_chat_delivery_journal
+
+        journal = await asyncio.to_thread(get_chat_delivery_journal)
+    async with _TERMINAL_HISTORY_LOCK:
+        pending = await journal.pending_history(limit=limit)
+        for record, entries in pending:
+            committed = await finalize_terminal_exchanges(
+                TerminalExchangeCapture(exchanges=entries), dict(record.response or {}),
+            )
+            if committed:
+                await journal.acknowledge_history(record)
+        return bool(await journal.pending_history(limit=1))
 
 
 def _chat_evidence_profile(user_message: str, *, bounded_surface: bool) -> tuple[str, Any]:
@@ -567,6 +641,13 @@ async def _begin_logged_exchange(user_msg: str, *, session_id: str = "") -> str:
     """Create and durably pre-log an in-flight exchange."""
     exchange_id = _new_exchange_id()
     principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
+    capture = _TERMINAL_EXCHANGES.get()
+    if capture is not None:
+        capture.exchanges[exchange_id] = {
+            "user": user_msg, "session": str(session_id or ""),
+            "principal": _CHAT_REQUEST_PRINCIPAL.get(),
+            "surface": _CHAT_REQUEST_SURFACE.get(),
+        }
     async with _chat_memory_state._get_convo_lock():
         _conversation_log.append(
             {
@@ -609,6 +690,14 @@ async def _complete_logged_exchange(
     exchange_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Finalize a pending exchange in place so history is never duplicated."""
+    capture = _TERMINAL_EXCHANGES.get()
+    if capture is not None and exchange_id in capture.exchanges:
+        capture.exchanges[exchange_id].update({
+            "regenerated": regenerated,
+            "record_experience": record_experience,
+            "metadata": dict(exchange_metadata or {}),
+        })
+        return "pending_terminal_delivery"
     final_response = aura_response or "…"
     recorded_user = str(user_msg or "")
 
@@ -628,6 +717,7 @@ async def _complete_logged_exchange(
                 "user": recorded_user,
                 "principal_id": principal_id,
                 "principal_surface": principal_surface,
+                "session_id": str(_CHAT_REQUEST_SESSION.get() or "")[:64],
             }
             _conversation_log.append(target)
 
@@ -670,9 +760,8 @@ async def _complete_logged_exchange(
         ),
     )
     if learning_owned_by_outbox and durability_state == "failed":
-        # Method presence is not custody. If the atomic transcript/outbox
-        # write failed, retain the historical direct path rather than dropping
-        # the turn's semantic effects on the floor.
+        # The journal retains this turn for retry. Do not run learning ahead
+        # of a transcript commit that failed.
         learning_owned_by_outbox = False
     user_write = _durable_conversation_write_snapshot(
         f"{str(target.get('id') or exchange_id or '')[:64]}:user"
@@ -691,7 +780,7 @@ async def _complete_logged_exchange(
         exchange_metadata=target.get("metadata"),
     )
 
-    if record_experience and not learning_owned_by_outbox:
+    if record_experience and not learning_owned_by_outbox and durability_state == "committed":
         # Compatibility persistence implementations have no durable outbox.
         # Preserve their historical semantics; the production implementation
         # takes the supervised path above and does not hold up delivery.
@@ -951,6 +1040,15 @@ async def _drain_chat_turn_memory_log_queue(*, honor_foreground: bool = True) ->
     status = getattr(persistence, "memory_log_outbox_status", None)
     if not callable(claim) or not callable(settle):
         return
+
+    # Transcript custody comes before optional learning and its quiet window.
+    # This same supervised worker runs at startup, after writes, and shutdown.
+    try:
+        if await reconcile_terminal_history():
+            _schedule_chat_turn_memory_log_retry(1.0)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.terminal_transcript_recovery", exc)
+        _schedule_chat_turn_memory_log_retry(1.0)
 
     if honor_foreground:
         foreground_delay = _chat_turn_memory_log_foreground_delay()

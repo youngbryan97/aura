@@ -235,13 +235,31 @@ def _a_pass_in_moves(costs: dict[str, float]) -> float:
     along.
     """
     passes, quiet = costs.get("passes", 0.0), costs.get("quiet", 0.0)
-    if passes < 1.0 or quiet < 1.0:
+    if passes < 1.0:
         return 1.0
     a_pass = costs.get("pass_s", 0.0) / passes
-    a_quiet_move = costs.get("quiet_s", 0.0) / quiet
-    if a_quiet_move <= 0.0:
-        return 1.0
-    return max(1.0, a_pass / a_quiet_move)
+    if quiet >= 1.0:
+        a_quiet_move = costs.get("quiet_s", 0.0) / quiet
+        if a_quiet_move > 0.0:
+            return max(1.0, a_pass / a_quiet_move)
+    # Nothing to compare a pass against, because there has not been a quiet
+    # move — and there never will be while a pass is priced at one.
+    #
+    # Both halves had to be measured before either counted, so a run that
+    # thought about its first move could not find out that thinking was
+    # expensive: no quiet move, so a pass costs one, so the bar stays where a
+    # pass is cheap, so she thinks again. Live 2026-09-07: forty-eight passes
+    # for nineteen moves, every one of them about ten seconds.
+    #
+    # What she has instead is the pass itself against what the rest of a cycle
+    # takes — looking, deciding, pressing. A pass that takes longer than
+    # everything else put together is expensive whether or not she has ever
+    # done without one.
+    a_cycle = costs.get("cycle_s", 0.0) / max(1.0, costs.get("cycles", 0.0))
+    without_it = a_cycle - a_pass
+    if a_cycle > 0.0 and without_it > 0.0:
+        return max(1.0, a_pass / without_it)
+    return 1.0
 
 
 def _looks_like(foretold: Any, band: Any, lattice: Any) -> Any:
@@ -2282,6 +2300,36 @@ def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
     return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
 
 
+#: How many looks are kept to work out what looking costs here. Enough that
+#: one slow read does not move the bound, few enough that it follows a machine
+#: that has become busy.
+LOOKS_REMEMBERED = 12
+
+#: How much longer than usual a look may take before it is a wedge rather than
+#: a busy machine. Four, because a read competing with a resident model for
+#: the same hardware was measured taking about three times its idle cost, and
+#: a bound at the thing being measured refuses the first read that reaches it.
+LONGER_THAN_USUAL = 4.0
+
+
+def _how_long_a_look_takes(took: Sequence[float]) -> float:
+    """How long to wait for a reading, from how long they have taken here.
+
+    A fixed bound is a guess about a machine. This one is a measurement of the
+    machine she is on, and it widens when the machine gets busy — which is
+    exactly when a read is slow and exactly when calling it broken is wrong.
+
+    Until she has looked enough times to have an opinion, the standing bound
+    applies, which is what every caller assumed before there was anything to
+    measure.
+    """
+    seen = [one for one in took or () if one > 0.0]
+    if len(seen) < 3:
+        return OBSERVE_TIMEOUT_S
+    usual = sorted(seen)[len(seen) // 2]
+    return max(OBSERVE_TIMEOUT_S, usual * LONGER_THAN_USUAL)
+
+
 async def _the_best_reading_available(
     observation: dict[str, Any],
     band: tuple[float, float, float, float] | None,
@@ -2915,6 +2963,9 @@ async def pursue_on_screen(
     #: then took a third of the same still surface, and a reading is a
     #: screenshot and an OCR — about a third of the whole cost of a move.
     at_rest: dict[str, Any] = {"reading": None}
+    #: How long her last few looks took, so a busy machine is not mistaken
+    #: for a wedged one.
+    reading_took: list[float] = []
     #: Whether a restart control has APPEARED — turned up where there was
     #: none — which is a thing saying it has finished.
     #:
@@ -3136,21 +3187,38 @@ async def pursue_on_screen(
             # She has just watched this surface come to rest. Photographing
             # it again asks the same question of the same still picture.
             return ready
+        # As long as reading has taken here, not a number chosen elsewhere.
+        #
+        # A read and a language pass want the same machine, so a read that
+        # takes a second and a half on its own takes many while a resident
+        # model is generating. Bounded by a constant, that difference reads as
+        # a wedged capture: live 2026-09-07, "no reading inside 8.0s" and a
+        # run that ended saying it could not see, on a screen it had been
+        # reading perfectly a moment earlier. A busy machine and a broken one
+        # are not the same thing and do not have the same answer.
+        patience = _how_long_a_look_takes(reading_took)
+        began_looking = time.monotonic()
         try:
-            return await asyncio.wait_for(
-                read_screen(target_app, over=drawn["where"]), timeout=OBSERVE_TIMEOUT_S
+            seen = await asyncio.wait_for(
+                read_screen(target_app, over=drawn["where"]), timeout=patience
             )
         except TimeoutError:
             # A wedged capture is not a reason to keep acting blind.
             logger.info(
-                "the screen did not answer inside %.1fs", OBSERVE_TIMEOUT_S
+                "the screen did not answer inside %.1fs, and looking has been "
+                "taking %.1fs here",
+                patience,
+                (sum(reading_took) / len(reading_took)) if reading_took else 0.0,
             )
             return {
                 "ok": False,
                 "text": "",
                 "layout": [],
-                "error": f"observe_timeout: no reading inside {OBSERVE_TIMEOUT_S:.1f}s",
+                "error": f"observe_timeout: no reading inside {patience:.1f}s",
             }
+        reading_took.append(time.monotonic() - began_looking)
+        del reading_took[:-LOOKS_REMEMBERED]
+        return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
         reached = goal_reached(
@@ -3392,7 +3460,12 @@ async def pursue_on_screen(
     busy = WhatItCostsToBeBusy()
     #: What a language pass costs and what a whole cycle costs, both measured
     #: here, so "is this worth thinking about" can weigh the price.
-    costs: dict[str, float] = {"pass_s": 0.0, "passes": 0.0, "quiet_s": 0.0, "quiet": 0.0, "at": 0.0}
+    costs: dict[str, float] = {
+        "pass_s": 0.0, "passes": 0.0, "quiet_s": 0.0, "quiet": 0.0, "at": 0.0,
+        # What a whole cycle takes, so a pass has something to be dear
+        # against before she has ever gone without one.
+        "cycle_s": 0.0, "cycles": 0.0,
+    }
     #: How far she has got into this before, and where it stopped. A player on
     #: their sixth go at Ninja Gaiden is not reacting — they are replaying
     #: what they know and thinking only where they died last time.
@@ -3487,6 +3560,9 @@ async def pursue_on_screen(
         # reading, the deciding and the act — which is what a pass is being
         # weighed against.
         _began_deciding = time.monotonic()
+        if costs["at"] > 0.0:
+            costs["cycle_s"] += _began_deciding - costs["at"]
+            costs["cycles"] += 1.0
         if costs["at"] > 0.0 and costs.get("was_quiet"):
             costs["quiet_s"] += _began_deciding - costs["at"]
             costs["quiet"] += 1.0
@@ -3539,7 +3615,23 @@ async def pursue_on_screen(
             return None
         blocker_attempts["count"] = 0
         if not observation.get("ok"):
-            no_move["because"] = "waiting for what is in front of it to go"
+            # What the reading actually said went wrong.
+            #
+            # Every failed read was reported as something being in front of
+            # the thing and waited out. A read that timed out on a busy
+            # machine, a capture that errored, a window that had gone — all
+            # of them came back as an occlusion, which is a diagnosis of a
+            # cause nobody had established, and the answer to it is to wait,
+            # so she waited. Live 2026-09-07: three of those in a row ended
+            # the run as "no move available" after seventeen moves, with
+            # nothing on screen in front of anything.
+            went_wrong = str(observation.get("error") or "").strip()
+            no_move["because"] = (
+                f"the last reading did not come back: {went_wrong}"
+                if went_wrong
+                else "the last reading did not come back, and did not say why"
+            )
+            logger.info("no move this cycle: %s", no_move["because"])
             return None
 
         # What she is looking at, kept to the part that answers to her.
@@ -4839,6 +4931,11 @@ async def pursue_on_screen(
                 horizon=LANGUAGE_EVERY,
                 unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
                 recognised=recognised,
+                # How far she can trust her own arithmetic here, which is how
+                # often the rule she is using has been right about this world.
+                how_sure=(
+                    knows.rules.confidence() if knows.rules is not None else 0.0
+                ),
                 # What a pass costs, in moves not made, from this run's own
                 # clock. Live on a resident model it was about ten.
                 costs_moves=_a_pass_in_moves(costs),
@@ -5472,6 +5569,31 @@ async def pursue_on_screen(
     # She has taken something on, and the rest of her should know it.
     doing.taking_on(goal, where=target_app or "")
     executor = FluidExecutor(verifier=None, gateway=None)
+    # And it holds the foreground while it runs.
+    #
+    # A task somebody asked for is foreground for as long as it takes, not for
+    # the length of the sentence that started it. Her background thinking
+    # already stands aside for a foreground turn — it checks — and a turn ends
+    # the moment the reply is composed, so everything she does AFTER that,
+    # which is the whole of the task, ran as background beside her own
+    # research loops.
+    #
+    # Live 2026-09-07, playing a game on this machine: thirty-two decisions
+    # about what to do next, nine of them refused outright because the
+    # inference lanes were exhausted — by her own reimplementation lab and
+    # curriculum loop, running against the model she needed to choose a move.
+    holding_the_foreground = None
+    try:
+        from core.runtime.foreground_guard import begin_foreground_turn  # noqa: PLC0415
+
+        holding_the_foreground = begin_foreground_turn(
+            owner="screen_pursuit", source="desktop_task"
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="pursued a task without holding the foreground",
+        )
     try:
         receipt = await executor.pursue(
             goal,
@@ -5485,6 +5607,8 @@ async def pursue_on_screen(
     finally:
         if speaker is not None:
             await speaker.stop()
+        if holding_the_foreground is not None:
+            holding_the_foreground.close()
     result = receipt.to_dict()
     if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS and not receipt.completed:
         # Say what stopped it. "out_of_cycles" describes the budget running
@@ -5719,6 +5843,21 @@ async def pursue_on_screen(
         # Name it. "no_move_available" would describe the symptom of reading a
         # page that is not the task's, and hide that the browser had moved.
         result["outcome"] = "navigated_away"
+    # How it ended, said once, whatever ended it.
+    #
+    # A run that stopped left nothing behind saying so. Live 2026-09-07,
+    # driving a real game: nineteen moves, a rule worked out, and then the
+    # log went quiet — no outcome, no reason, no count. Whether she had
+    # finished, run out of budget, lost the window or hit a wall was not
+    # recoverable from anything she wrote down, and every question about the
+    # run had to start by guessing which of those it was.
+    logger.info(
+        "the run is over: %s after %d move(s)%s%s",
+        result.get("outcome") or ("done" if result.get("completed") else "stopped"),
+        len(moves),
+        f", {result['restarts']} restart(s)" if result.get("restarts") else "",
+        f" — {result['error']}" if result.get("error") else "",
+    )
     return result
 
 
@@ -5887,7 +6026,19 @@ async def _settled_after(
     # game, on a board she was reading perfectly.
     from core.perception.where_it_responds import places_and_text  # noqa: PLC0415
 
-    was = places_and_text(before)
+    def _reading(observation: dict[str, Any]) -> tuple[Any, str]:
+        """Where things are, and what the whole reading says.
+
+        Positions alone miss a change that happens in place. A score going from
+        996 to 0 does not move anything, and the reset that produced it is
+        exactly what this function was written to notice — measured live,
+        "Began again 1 time(s)" while the score sat unchanged. Positions alone
+        also cannot be dropped: a board mid-slide has the same words in
+        different places, and comparing words alone calls that unchanged.
+        """
+        return places_and_text(observation), str(observation.get("text") or "")
+
+    was = _reading(before)
     started = time.monotonic()
     seen = before
     moved = False
@@ -5897,7 +6048,7 @@ async def _settled_after(
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
             continue
-        said = places_and_text(now)
+        said = _reading(now)
         if not moved and said != was:
             moved = True
             _ANSWERING_TOOK["longest"] = max(
@@ -5921,7 +6072,7 @@ async def _settled_after(
                         "screen_pursuit", exc, severity="info",
                         action="waited for stillness rather than for what she foretold",
                     )
-        elif moved and said == places_and_text(seen):
+        elif moved and said == _reading(seen):
             # Changed, and now the same twice running: it has finished.
             return now, True
         seen = now

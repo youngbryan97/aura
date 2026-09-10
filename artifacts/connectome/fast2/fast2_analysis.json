@@ -1,0 +1,251 @@
+{
+  "recording": {
+    "frames": 16381,
+    "cells": 8171,
+    "frame_seconds": 0.02,
+    "observed_pairs": 1846
+  },
+  "predictability": {
+    "frames": 16381,
+    "cells": 8171,
+    "autocorrelation": {
+      "1": 0.13052,
+      "2": 0.03592,
+      "4": 0.01633,
+      "8": 0.01268,
+      "16": 0.01138,
+      "32": 0.01433
+    },
+    "between_condition_variance_share": 0.3497,
+    "median_active_cells_per_frame": 12.0,
+    "verdict": "the recent past says almost nothing about the next frame, so no forecaster can separate from any other and a tie between arms is not evidence about structure"
+  },
+  "zapbench": {
+    "dataset": {
+      "frames": 16381,
+      "cells": 8171,
+      "silent_cells_dropped": 0,
+      "train_frames": 11581,
+      "test_frames": 3200,
+      "conditions": [
+        "reconstruction",
+        "serialisation",
+        "tests_conversation",
+        "tests_governance",
+        "tests_memory",
+        "tests_runtime",
+        "tests_verify",
+        "topology",
+        "typing"
+      ],
+      "test_conditions": [
+        "serialisation",
+        "tests_conversation",
+        "tests_governance",
+        "tests_memory",
+        "tests_runtime",
+        "topology",
+        "typing"
+      ],
+      "test_conditions_unseen_in_training": [],
+      "held_out_condition": "",
+      "held_out_frames": 0,
+      "frame_seconds": 0.02,
+      "horizon": 32,
+      "signal": "calcium"
+    },
+    "adjacency": {
+      "connectome": {
+        "cells": 8171,
+        "in_edges": 2073,
+        "out_edges": 2073,
+        "cells_with_inputs": 1234,
+        "cells_with_outputs": 953,
+        "rewired": false
+      },
+      "rewired": {
+        "cells": 8171,
+        "in_edges": 2073,
+        "out_edges": 2073,
+        "cells_with_inputs": 1234,
+        "cells_with_outputs": 953,
+        "rewired": true
+      }
+    },
+    "predictability": {
+      "frames": 16381,
+      "cells": 8171,
+      "autocorrelation": {
+        "1": 0.13052,
+        "2": 0.03592,
+        "4": 0.01633,
+        "8": 0.01268,
+        "16": 0.01138,
+        "32": 0.01433
+      },
+      "between_condition_variance_share": 0.0044,
+      "median_active_cells_per_frame": 6947.0,
+      "verdict": "the recent past says almost nothing about the next frame, so no forecaster can separate from any other and a tie between arms is not evidence about structure"
+    },
+    "arms": [
+      {
+        "arm": "mean",
+        "context": 4,
+        "mae": 0.015893,
+        "mae_step_1": 0.015895,
+        "mae_step_8": 0.015896,
+        "mae_step_32": 0.015892,
+        "examples": 25861215
+      },
+      {
+        "arm": "condition_mean",
+        "context": 4,
+        "mae": 0.014116,
+        "mae_step_1": 0.014154,
+        "mae_step_8": 0.01413,
+        "mae_step_32": 0.014081,
+        "examples": 25861215
+      },
+      {
+        "arm": "persistence",
+        "context": 4,
+        "mae": 0.003522,
+        "mae_step_1": 0.003487,
+        "mae_step_8": 0.004021,
+        "mae_step_32": 0.003966,
+        "examples": 25861215
+      },
+      {
+        "arm": "blind",
+        "context": 4,
+        "mae": 0.015184,
+        "mae_step_1": 0.013328,
+        "mae_step_8": 0.015127,
+        "mae_step_32": 0.015292,
+        "examples": 25861215
+      },
+      {
+        "arm": "global",
+        "context": 4,
+        "mae": 0.011933,
+        "mae_step_1": 0.009415,
+        "mae_step_8": 0.011485,
+        "mae_step_32": 0.012345,
+        "examples": 25861215
+      },
+      {
+        "arm": "connectome",
+        "context": 4,
+        "mae": 0.01482,
+        "mae_step_1": 0.012792,
+        "mae_step_8": 0.014717,
+        "mae_step_32": 0.014931,
+        "examples": 25861215
+      },
+      {
+        "arm": "rewired",
+        "context": 4,
+        "mae": 0.015123,
+        "mae_step_1": 0.013236,
+        "mae_step_8": 0.015061,
+        "mae_step_32": 0.015213,
+        "examples": 25861215
+      }
+    ],
+    "structure_test": {
+      "context_4": {
+        "connectome_vs_rewired": {
+          "cells_compared": 1490,
+          "cells_identical": 6681,
+          "mean_difference": -0.003051225753893833,
+          "mean_ci_low": -0.0034268188147021125,
+          "mean_ci_high": -0.0026979309938145765,
+          "mean_significant": true,
+          "median_difference": -0.001496743151317469,
+          "median_ci_low": -0.0015858878361573433,
+          "median_ci_high": -0.0014199840422335352,
+          "median_significant": true,
+          "largest_shared_value_share": 0.0013,
+          "cells_better": 1321,
+          "cells_worse": 169,
+          "share_better": 0.8866,
+          "draws": 400
+        },
+        "connectome_vs_blind": {
+          "cells_compared": 1490,
+          "cells_identical": 6681,
+          "mean_difference": -0.0034125856555313663,
+          "mean_ci_low": -0.0038688992803049926,
+          "mean_ci_high": -0.0030529080603400012,
+          "mean_significant": true,
+          "median_difference": -0.0019027969398835898,
+          "median_ci_low": -0.0020095281404689043,
+          "median_ci_high": -0.0018308459701260604,
+          "median_significant": true,
+          "largest_shared_value_share": 0.0289,
+          "cells_better": 1327,
+          "cells_worse": 163,
+          "share_better": 0.8906,
+          "draws": 400
+        },
+        "verdict": "wiring predicts activity: the connectome beats its own rewiring on 88.7% of cells and on the median"
+      }
+    },
+    "held_out": {}
+  },
+  "prefetch": {
+    "hops": 1,
+    "rules": [
+      {
+        "rule": "connectome",
+        "precision": 0.60458,
+        "recall": 0.74498,
+        "f1": 0.66748,
+        "mean_predicted": 11.79,
+        "mean_actual": 9.57,
+        "frames": 500
+      },
+      {
+        "rule": "connectome_weighted",
+        "precision": 0.69851,
+        "recall": 0.70757,
+        "f1": 0.70301,
+        "mean_predicted": 9.69,
+        "mean_actual": 9.57,
+        "frames": 500
+      },
+      {
+        "rule": "frequent",
+        "precision": 0.16036,
+        "recall": 0.18436,
+        "f1": 0.17153,
+        "mean_predicted": 11.0,
+        "mean_actual": 9.57,
+        "frames": 500
+      },
+      {
+        "rule": "persistent",
+        "precision": 0.71134,
+        "recall": 0.70004,
+        "f1": 0.70565,
+        "mean_predicted": 9.42,
+        "mean_actual": 9.57,
+        "frames": 500
+      }
+    ],
+    "best": "persistent",
+    "verdict": "the connectome does not beat its nulls; persistent wins"
+  },
+  "best_rule": "persistent",
+  "likewise": {
+    "connected_pairs": 692,
+    "connected_mean_correlation": 0.74028,
+    "null_mean_correlation": 0.09065,
+    "null_spread": 0.00663,
+    "z": 97.937,
+    "nulls": 8,
+    "active_cells": 644,
+    "within_condition": true,
+    "verdict": "connected cells move together more than a degree-preserving rewiring allows, which is MICrONS's like-to-like rule"
+  }
+}

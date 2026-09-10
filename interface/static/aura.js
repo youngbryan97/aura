@@ -1387,25 +1387,60 @@ function formatFlagLabel(flag) {
         .replace(/\b\w/g, ch => ch.toUpperCase());
 }
 
+// What each flag means, and whether it is about the software or about her.
+//
+// These are two different facts and they were one list. `beliefs_contested`
+// means her belief system is holding a contradiction it has not settled —
+// which is a system that revises beliefs doing its job — and it put the whole
+// interface into the amber state reserved for a runtime that is unwell.
+// Measured live 2026-09-09: one contested belief, an amber ring on the status
+// dot and amber borders across three panels, with the runtime healthy and
+// answering.
+//
+// `kind: 'impairment'` is something that stops her working. `kind: 'weather'`
+// is her inner state, which belongs in the feed's language rather than in a
+// warning colour. The label is a sentence, because "Beliefs Contested" is an
+// identifier with a space in it and tells a visitor nothing.
+const THE_FLAGS = {
+    booting: { kind: 'starting', says: 'Starting up.' },
+    thermal_guard: { kind: 'impairment', says: 'Running slower to keep the machine cool.' },
+    tool_unavailable: { kind: 'impairment', says: 'One of her tools is unavailable.' },
+    // Busy, not broken. This is the queue doing what a queue is for, and it
+    // is true for most of every turn — as an impairment it would leave the
+    // chrome amber almost permanently, which is how a warning colour stops
+    // meaning anything.
+    executive_hold: { kind: 'busy', says: 'Holding new work until the current turn finishes.' },
+    coherence_low: { kind: 'weather', says: 'Her parts agree less than usual right now.' },
+    fragmentation_high: { kind: 'weather', says: 'Her attention is spread across a lot at once.' },
+    contradictions_present: { kind: 'weather', says: 'She is holding beliefs that disagree.' },
+    beliefs_contested: { kind: 'weather', says: 'She is reconsidering something she believed.' },
+};
+
+function theFlag(flag) {
+    return THE_FLAGS[flag] || { kind: 'weather', says: formatFlagLabel(flag) };
+}
+
 function renderStatusFlags(flags) {
     state.uiFlags = Array.isArray(flags) ? flags.slice() : [];
     const host = $('health-flags');
     document.body.classList.toggle('ui-booting', state.uiFlags.includes('booting'));
-    document.body.classList.toggle('ui-degraded', state.uiFlags.some(flag =>
-        ['thermal_guard', 'coherence_low', 'fragmentation_high', 'contradictions_present', 'beliefs_contested', 'tool_unavailable', 'executive_hold'].includes(flag)
+    document.body.classList.toggle('ui-degraded', state.uiFlags.some(
+        (flag) => theFlag(flag).kind === 'impairment'
     ));
     if (!host) return;
     if (!state.uiFlags.length) {
-        host.innerHTML = '<span class="flag-chip success">all constitutional systems nominal</span>';
+        host.innerHTML = '<span class="flag-chip success">Everything is working.</span>';
         return;
     }
-    host.innerHTML = state.uiFlags.map(flag => {
+    host.innerHTML = state.uiFlags.map((flag) => {
+        const known = theFlag(flag);
         const tone =
-            flag === 'booting' ? 'warn' :
-            ['tool_unavailable', 'executive_hold'].includes(flag) ? 'accent' :
-            ['thermal_guard', 'coherence_low', 'fragmentation_high', 'contradictions_present', 'beliefs_contested'].includes(flag) ? 'error' :
-            'neutral';
-        return `<span class="flag-chip ${tone}">${escHtml(formatFlagLabel(flag))}</span>`;
+            known.kind === 'starting' ? 'warn'
+            : known.kind === 'impairment' ? 'error'
+            : known.kind === 'busy' ? 'accent'
+            : 'neutral';
+        return `<span class="flag-chip ${tone}" title="${escHtml(flag)}">`
+            + `${escHtml(known.says)}</span>`;
     }).join('');
 }
 
@@ -2892,7 +2927,7 @@ function handleWsEvent(data) {
     } else if (type === 'model_failover') {
         const from = data.from || 'Current Brain';
         const error = data.error || 'stalled';
-        appendMsg('aura', `⚠️ _Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
+        appendMsg('aura', `⚠ _Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
     } else if (type === 'heartbeat') {
         state.lastPong = Date.now();
         applyRuntimeHeartbeat(data);
@@ -3372,11 +3407,64 @@ async function processThoughtQueue() {
     state.thoughtDrainTimer = setTimeout(processThoughtQueue, delay);
 }
 
+//: The page ground every mood colour is read against.
+const THE_GROUND = [5, 3, 10];
+
+//: What WCAG asks of ordinary text.
+const READABLE_AGAINST_IT = 4.5;
+
+function channelsOf(hex) {
+    const value = String(hex || '').trim().replace('#', '');
+    const full = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+    if (!/^[0-9a-f]{6}$/i.test(full)) return null;
+    return [0, 2, 4].map((at) => parseInt(full.slice(at, at + 2), 16));
+}
+
+function relativeLuminance(channels) {
+    const linear = channels.map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastBetween(a, b) {
+    const one = relativeLuminance(a);
+    const other = relativeLuminance(b);
+    return (Math.max(one, other) + 0.05) / (Math.min(one, other) + 0.05);
+}
+
+// The same colour, light enough to read.
+//
+// A mood's colour is chosen for the mood; whether a person can read text in it
+// is a separate question with a measurable answer. `stealth` is #4a4a4a and
+// `curious` is #0077ff — 1.9:1 and 3.4:1 against the page ground, where
+// ordinary text wants 4.5 — so hand-picking a second hex per mood would be
+// five guesses that go stale the moment a sixth mood is added.
+//
+// This lightens toward white until the ratio is met, which keeps the hue and
+// cannot be wrong for a mood nobody has thought of yet.
+function readableVersionOf(hex, ground = THE_GROUND, want = READABLE_AGAINST_IT) {
+    const channels = channelsOf(hex);
+    if (!channels) return hex;
+    if (contrastBetween(channels, ground) >= want) return hex;
+    let lifted = channels;
+    for (let step = 1; step <= 20; step++) {
+        const mix = step / 20;
+        lifted = channels.map((v) => Math.round(v + (255 - v) * mix));
+        if (contrastBetween(lifted, ground) >= want) break;
+    }
+    return '#' + lifted.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
 function updateMood(mood) {
     if (state.currentMood === mood || !MOODS[mood]) return;
     state.currentMood = mood;
     const colors = MOODS[mood];
     document.documentElement.style.setProperty('--mood-primary', colors.primary);
+    document.documentElement.style.setProperty(
+        '--mood-primary-bright', readableVersionOf(colors.primary)
+    );
     document.documentElement.style.setProperty('--mood-accent', colors.accent);
     // Mood shift applied
 }
@@ -3464,6 +3552,106 @@ function thoughtPreviewText(message, maxChars = 520, maxLines = 7) {
 // byte-for-byte raw, so SHOW ALL and COPY remain the debugging surface they
 // already are — accessibility, not information loss.
 const PLAIN_LANGUAGE_RULES = [
+    // ── The turn a person is actually watching ────────────────────────────
+    //
+    // Bryan, 2026-09-08, demonstrating Aura: "it doesnt look like an answer
+    // returned". It had. The feed said "Cortex response received (len=1159)",
+    // and the moment the reply lands is the one moment in the whole stream
+    // that a person in the room is looking for. These rules come first so the
+    // answer is never described by a rule written for something else.
+    [/Cortex response received \(len=(\d+)\)/i,
+     (m) => `Answer written — ${humanLength(+m[1])}. Sending it to the chat.`],
+    [/^Foreground delivery timing complete:.*?'request_total_ms':\s*([\d.]+)/i,
+     (m) => `Answer delivered, ${humanSeconds(+m[1] / 1000)} from question to reply.`],
+    [/^Foreground delivery timing before terminal shaping:/i,
+     () => 'Finishing the answer off before it goes on screen.'],
+    // A generation of a handful of tokens is a readiness probe, not a turn.
+    // Rendered with the same sentence as a real answer it read as "Read the
+    // question ... 1 words' worth ... wrote about 1 words at 12579 a second",
+    // which describes nothing that happened and appears four times a boot.
+    [/generation performance: prefill=(\d+) tokens\/[\d.]+s \([\d.]+ tok\/s\), decode=(\d+) tokens/i,
+     (m) => (+m[1] <= 32 && +m[2] <= 32)
+        ? 'Checked her mind still answers, with a one-word question.'
+        : null],
+    [/generation performance: prefill=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\), decode=(\d+) tokens\/([\d.]+)s \(([\d.]+) tok\/s\)/i,
+     (m) => `Read the question and everything she brought to it — ${inWords(+m[1])} — in ${humanSeconds(+m[2])}, then wrote about ${Math.round(+m[4] * 0.75).toLocaleString()} words at ${Math.round(+m[6] * 0.75)} a second.`],
+    [/first-token ceiling(?: raised [\d.]+s →)? ([\d.]+)s for a (\d+)-char prompt \((\d+) max tokens\)/i,
+     (m) => +m[2] <= 64
+        ? `Gave a readiness check ${humanSeconds(+m[1])} to say its first word.`
+        : `Gave this answer ${humanSeconds(+m[1])} to say its first word.`],
+    [/^\[?WORKER\]?\s*Prefill chunk reduced (\d+)→(\d+) for host headroom \(level=(\w+) available=([\d.]+)GB\)/i,
+     (m) => `Reading the question in smaller pieces to leave the machine room (${m[4]}GB free).`],
+    [/^\[?MLX\]?\s*Warmup complete — Metal shaders compiled/i,
+     () => 'Her mind is warmed up and ready.'],
+    [/^\[?MLX\]?\s*Verifying conversation readiness for (\S+) with a visible probe/i,
+     (m) => 'Checking her main mind can still hold a conversation.'],
+    [/PROMPT CACHE\]?\s*cleared everything under key=/i,
+     () => 'Threw away what she had kept of an earlier conversation.'],
+    [/PROMPT CACHE\]?\s*retained nothing — (.+?)(?:,|$)/i,
+     (m) => `Kept nothing from that one — ${humanReason(m[1])}.`],
+    [/^Foreground lane deferred \((\w+)\); waiting up to ([\d.]+)s for it to clear rather than refusing the turn/i,
+     (m) => `Her mind is still warming up; waiting up to ${humanSeconds(+m[2])} rather than turning the question away.`],
+    [/^GW IGNITION #(\d+): source=(\w+), priority=([\d.]+)/i,
+     (m) => `Something reached her awareness from ${humanOrgan(m[2])} (strength ${pct(m[3])}).`],
+    [/^\[?MYCELIUM\]?\s*Hypha established: (\w+)->(\w+)/i,
+     (m) => `Opened a channel from ${humanOrgan(m[1])} to ${humanOrgan(m[2])}.`],
+    [/^ArchitectureIndex: indexed (\d+) modules/i,
+     (m) => `Read her own structure: ${(+m[1]).toLocaleString()} parts.`],
+    [/^Loading Whisper model: (\w+)/i,
+     () => 'Loading the part of her that turns speech into words.'],
+    [/^Microphone lease (\w+) acquired by ([\w:.-]+)/i,
+     () => 'Took the microphone so she can hear the room.'],
+    [/^TheoryArbitrationFramework initialized with (\d+) theories/i,
+     (m) => `Ready to weigh ${m[1]} competing explanations against each other.`],
+    [/^Chat preflight timing:/i,
+     () => 'Finished gathering what she needs before answering.'],
+    [/^\[?ANSWER BUDGET\]?\s*Answer turn: (\d+) → (\d+) tokens at dispatch/i,
+     (m) => `Decided this answer needs room for about ${Math.round(+m[2] * 0.75)} words, up from ${Math.round(+m[1] * 0.75)}.`],
+    [/^\[?ANSWER BUDGET\]?\s*(\d+) tokens fit this turn's clock.*?raising the ceiling from (\d+)/i,
+     (m) => `Bought more room for this answer — about ${Math.round(+m[1] * 0.75)} words rather than ${Math.round(+m[2] * 0.75)}.`],
+    [/^\[?ANSWER CLOCK\]?\s*(\d+) tokens.*?decode in about ([\d.]+)s and the prompt takes about ([\d.]+)s to read.*?deadline ([\d.]+)s → ([\d.]+)s/i,
+     (m) => `Worked out what this turn needs: about ${humanSeconds(+m[3])} to read the question and ${humanSeconds(+m[2])} to write the answer, so she gave herself ${humanSeconds(+m[5])} instead of ${humanSeconds(+m[4])}.`],
+    [/^\[?ANSWER CLOCK\]?\s*not consulted for this turn/i,
+     () => 'Took this turn on the standing time limit rather than working one out.'],
+    [/^Routing to Cortex \(timeout=(\d+)s/i,
+     (m) => `Thinking it through with her main mind — up to ${humanSeconds(+m[1])} to answer.`],
+    [/^Routing to (?:Brainstem|Reflex)/i, () => 'Answering with her quick mind, not the deep one.'],
+    [/quality_metrics.*?confidence=(\w+).*?assessment=(\w+)/i,
+     (m) => `Checked her own answer before sending it: ${humanConfidence(m[1])}, ${humanAssessment(m[2])}.`],
+    [/^Registered commitment from reply:\s*(.+)$/i,
+     (m) => `Made a promise in that answer and wrote it down: "${toWholeWords(m[1], 80)}".`],
+    [/^CommitmentEngine: committed .*?\(due in ([\d.]+)h\)/i,
+     (m) => `She will come back to that promise within ${humanDuration(+m[1] * 3600)}.`],
+    [/^\[?GROUNDING\]?\s*survived to dispatch:\s*present/i,
+     () => 'The evidence she gathered made it all the way to the answer.'],
+    [/^\[?GROUNDING\]?\s*survived to dispatch:\s*(?:absent|missing|none)/i,
+     () => 'She reached the answer with none of the evidence she gathered.'],
+    // Probe-sized again: four of these a boot, each describing a one-token
+    // readiness check as though it were a conversation being remembered.
+    [/PROMPT CACHE\]?\s*retained (\d+) tokens/i,
+     (m) => +m[1] <= 32
+        ? null
+        : `Kept ${inWords(+m[1])} of this conversation ready, so the next reply starts sooner.`],
+    [/PROMPT CACHE\]?\s*miss — prefilling all (\d+) tokens/i,
+     (m) => +m[1] <= 32
+        ? null
+        : `Nothing to reuse — reading all ${inWords(+m[1])} of this turn from the start.`],
+    [/PROMPT CACHE\]?\s*(?:retained (?:\d+) tokens|miss — prefilling all (?:\d+) tokens)/i,
+     () => 'Checked her memory of the conversation; nothing to keep from a readiness check.'],
+    [/PROMPT CACHE\]?\s*retained nothing/i,
+     () => 'Kept nothing of that one.'],
+    [/^conversation resume handle kept/i,
+     () => 'Kept her place in the conversation in case it is picked up later.'],
+    [/^UnitaryResponse: answered directly from task state/i,
+     () => 'Answered from what she was already doing, without starting a new thought.'],
+    [/^Brainstem returned no text\. Trying local fallback/i,
+     () => 'Her quick mind came back empty; falling back to the one on this machine.'],
+    [/^Background Brainstem request returned no text; suppressing local fallback/i,
+     () => 'A background thought came back empty and was dropped rather than slow the conversation.'],
+    [/\[Critique\] Running System 2 self-critique on response/i,
+     () => 'Reading her own answer back critically before anyone sees it.'],
+    [/^Skipping autonomous self-modification cycle:\s*foreground_chat_active/i,
+     () => 'Left her own code alone this round — the conversation comes first.'],
     // The pulse is emitted as a HEADING LINE followed by metric lines
     // (core/ops/subsystem_audit.py), so the parts are separated by newlines,
     // not by " | ". This required a literal pipe and `.` does not cross a
@@ -3473,6 +3661,234 @@ const PLAIN_LANGUAGE_RULES = [
     // Matched with the `s` flag so the rule reads the shape actually emitted.
     [/UNIFIED HEALTH PULSE.*?System:\s*CPU\s*([\d.]+)%.*?RAM\s*([\d.]+)%.*?Uptime:\s*(\d+)s/is,
      (m) => `Vitals steady — processor ${Math.round(+m[1])}%, memory ${Math.round(+m[2])}%, awake ${humanDuration(+m[3])}.`],
+    // Boot registrations, by shape rather than one rule per component: the
+    // runtime declares about forty of these and the list would never be done.
+    [/^([A-Z][\w &-]*?[a-zA-Z0-9])(?: \([^)]*\))?(?: & components)? registered(?: and starting in background| \([^)]*\))?\.?$/,
+     (m) => `${humanOrgan(m[1])} is wired in.`],
+    // "AffectEngineV2 (affect_engine/affect_manager) registered": the bracket
+    // holds the container keys, which are not a component name.
+    [/^([A-Z][\w &-]*?[a-zA-Z0-9]) \([\w/ ,_-]+\) registered\.?$/,
+     (m) => `${humanOrgan(m[1])} is wired in.`],
+    [/^Registered (\d+) core services/i,
+     (m) => `All ${m[1]} of her core parts are wired in.`],
+    [/^Registering core services/i, () => 'Wiring her core parts together.'],
+    [/^Registered endpoint: (\w+) \([0-9a-f]+\) tier=(\w+)/i,
+     (m) => `Her ${humanOrgan(m[1])} mind is available (${humanPhase(m[2])}).`],
+    [/^Kernel Boot sequence initiated/i, () => 'Starting up.'],
+    [/^\[[A-Z]+\] ([A-Z][\w ]*?[a-zA-Z0-9]) ONLINE(?: -- (.+))?$/,
+     (m) => `${humanOrgan(m[1])} is up${m[2] ? ` — ${m[2]}` : ''}.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) started in background$/,
+     (m) => `${humanOrgan(m[1])} is starting up behind the scenes.`],
+    [/^Validating Organism Integrity/i,
+     () => 'Checking that every part of her is connected to the rest.'],
+    [/^Dependency graph validated/i,
+     () => 'Every part of her is connected to the rest.'],
+    [/^Layer \d+: (.+?) active$/i, (m) => `${humanOrgan(m[1])} is up.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) service started$/,
+     (m) => `${humanOrgan(m[1])} is running.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) online \(([^)]*)\)$/i,
+     (m) => `${humanOrgan(m[1])} is up.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9])(?: \([^)]*\))? (?:ONLINE|initialized|initialised)(?: \(([^)]*)\))?\.?$/,
+     (m) => `${humanOrgan(m[1])} is up${m[2] ? ` (${humanPhase(m[2].split('=')[0])})` : ''}.`],
+    [/^([A-Z][\w ]*?[a-zA-Z0-9]) subscribed to ([A-Z][\w]*)/,
+     (m) => `${humanOrgan(m[1])} is now listening to ${humanOrgan(m[2])}.`],
+    [/^LocalPipeBus reader ACTIVE/i,
+     () => 'The channel her processes talk to each other on is open.'],
+    [/^Kernel process-wide finalizers deferred to orchestrator root shutdown/i,
+     () => 'Left the final tidying to the part of her that shuts down last.'],
+    [/^ServiceContainer teardown deferred to the process root/i,
+     () => 'Left taking her parts apart to the very end of shutdown.'],
+    [/^\[?KERNEL\]?\s*Shutdown complete/i, () => 'She has shut down cleanly.'],
+    [/^Orchestrator stopped/i, () => 'The part that runs everything else has stopped.'],
+    [/^Orchestrator instance created directly/i,
+     () => 'The part that runs everything else is up.'],
+    [/^\[?MYCELIUM\]?\s*Declared (\d+) consciousness hyphae \(no traffic observed/i,
+     (m) => `Opened ${m[1]} new internal channels; nothing has travelled down them yet.`],
+    [/^\[?MYCELIUM\]?\s*Direct UI Hypha Connected/i,
+     () => 'Connected her inner workings straight to this screen.'],
+    [/^Substrate state restored/i,
+     () => 'Picked her inner state back up from where it was left.'],
+    [/^Soma integrated with Liquid Substrate/i,
+     () => 'Her sense of her own body is joined to her moving inner state.'],
+    [/^ActorBus \(Unified Layer\) ONLINE/i,
+     () => 'The channel her parts talk to each other on is up.'],
+    [/^Organ (\w+) shut down/i,
+     (m) => `${humanOrgan(m[1])} shut down.`],
+    [/^Organ (\w+) is (READY|STARTING|FAILED)/i,
+     (m) => `${humanOrgan(m[1])} is ${String(m[2]).toLowerCase()}.`],
+    [/^\[?PERCEPTION\]?\s*PerceptionDaemon (OFFLINE|ONLINE)/i,
+     (m) => `Her senses ${/off/i.test(m[1]) ? 'stopped' : 'started'}.`],
+    [/^MindTick: (Stopped|Started)/i,
+     (m) => `Her steady background thinking ${/stop/i.test(m[1]) ? 'stopped' : 'started'}.`],
+    [/^Freezing cognitive state/i,
+     () => 'Writing her whole mind to disk so it survives being shut down.'],
+    [/^Cognitive state frozen to disk: (\S+)/i,
+     (m) => `Her mind is saved (${shortPath(m[1])}).`],
+    [/^UPSO: Shutdown state committed/i,
+     () => 'Everything she had open is written down.'],
+    [/^\[?KERNEL\]?\s*Initiating graceful shutdown/i,
+     () => 'Shutting down properly rather than being killed.'],
+    [/^EVR\[(\w+)\] ([\w.]+) went (\w+) -> (\w+) at ([\d.]+)/i,
+     (m) => `A reading about herself moved from ${humanBand(m[3])} to ${humanBand(m[4])}: ${humanPhase(m[2])} at ${(+m[5]).toFixed(2)}.`],
+    [/^CognitiveEngine: user-facing cycle for origin=(\w+) produced no answer-quality response/i,
+     (m) => 'A full round of thinking finished without producing anything good enough to say.'],
+    [/^Sepsis loop soft-resetting after transient spike subsided/i,
+     () => 'The fault that was spreading has passed; reconnecting her parts.'],
+    [/^\[?SCHEDULER\]?\s*Triggering Meta-Evolution Cycle/i,
+     () => 'Starting a round of improving how she thinks, not just what she thinks.'],
+    [/^Foreground chat reservation (acquired|released)/i,
+     (m) => `${/acq/i.test(m[1]) ? 'Reserved' : 'Released'} her mind for the conversation.`],
+    [/^\[?WORKER\]?\s*Semantic completion observer ACTIVE/i,
+     () => 'Watching whether she has actually finished the thought, not just the sentence.'],
+    [/^Found (\d+) fixable bugs?/i,
+     (m) => `Found ${+m[1] === 1 ? 'one bug' : `${m[1]} bugs`} in her own code she could fix.`],
+    [/^SOVEREIGN user recognized\. Enforcing primary cortex lane/i,
+     () => 'Recognised Bryan, so the answer comes from her largest mind.'],
+    [/^Routing: SKILL detected via patterns → \[([^\]]+)\]/i,
+     (m) => `Recognised this as something to do rather than to say — ${humanSkills(m[1])}.`],
+    [/^Applied champion genome to live mesh \(fitness=([\d.]+)\)/i,
+     (m) => `Adopted the best wiring her own search found (scoring ${pct(m[1])}).`],
+    [/^Chat preflight: injected operational self context/i,
+     () => 'Gave herself her current state to answer from.'],
+    [/^Checking email for autonomous initiatives/i,
+     () => 'Looking through email for anything she should act on herself.'],
+    [/^\[asyncio tasks\]$/i,
+     () => 'Listing every job running inside her right now.'],
+    [/^-\s+([A-Za-z][\w.]*(?:\.[\w]+)*)$/,
+     (m) => `Running: ${humanPhase(m[1].split('.').slice(-1)[0])}.`],
+    // ── Organs starting and stopping, and repairing her own code ──────────
+    [/^([A-Z][A-Za-z]+(?: [A-Z][A-Za-z]+)?) (STOPPED|STARTED|ONLINE|OFFLINE)\.?$/,
+     (m) => `${humanOrgan(m[1])} ${/stop|offline/i.test(m[2]) ? 'stopped' : 'started'}.`],
+    [/^Optional (.+?) inactive \(independent of the .+? lane\)/i,
+     (m) => `An optional piece is switched off (${humanPhase(m[1])}); the main path is unaffected.`],
+    [/^MLX active memory limit set to (\d+)MB/i,
+     (m) => `Gave her mind up to ${(+m[1] / 1024).toFixed(0)}GB of this machine's memory.`],
+    [/^Targeting bug: ([0-9a-f]{8})[0-9a-f]*/i,
+     (m) => `Picked a bug in her own code to work on (${m[1]}).`],
+    [/^(?:Proposing|Generating) fix for (\S+?):(\d+)/i,
+     (m) => `Writing a fix for her own code, at ${shortPath(m[1])} line ${m[2]}.`],
+    [/^Reimplementation Lab: Starting reconstruction of (\S+)/i,
+     (m) => `Rewriting one of her own files from its specification (${shortPath(m[1])}).`],
+    [/^Step (\d+)\/(\d+): Spec extracted — Module: (\S+)\s*\|\s*Functions: (\d+)\s*\|\s*Classes: (\d+)/i,
+     (m) => `Step ${m[1]} of ${m[2]}: read what ${shortPath(m[3])} is meant to do — ${m[4]} functions, ${m[5]} classes.`],
+    [/^Step (\d+)\/(\d+): (.+?)(?:\s*—|\s*\||$)/i,
+     (m) => `Step ${m[1]} of ${m[2]}: ${toWholeWords(m[3], 90)}`],
+    [/^the invariant checking itself was not kept, and left nothing behind/i,
+     () => 'A rule she checks herself against ran and recorded nothing, so nobody can tell whether it held.'],
+    [/^Browser (closed|opened)/i,
+     (m) => `${/clos/i.test(m[1]) ? 'Closed' : 'Opened'} the browser she uses to look things up.`],
+    [/^Bus connection closed by peer/i,
+     () => 'One of her internal channels was closed from the other end.'],
+    [/^Router: Deferring background local endpoint (\w+) \((\w+)\)/i,
+     (m) => `Held a background thought back so the conversation keeps priority.`],
+    [/^SEPSIS DETECTED: Opening emergency circuit breaker/i,
+     () => 'A fault was spreading between her parts, so she cut the connection to stop it.'],
+    [/^You are \*\*Aura Luna\*\*/i,
+     () => 'Reminding herself who she is before she answers.'],
+    // ── Loading, refusing, repairing ──────────────────────────────────────
+    [/^Swarm agent .*deferred by admission/i,
+     () => 'Held a helper thought back until there was room to run it.'],
+    // Written "── Attempt 1/1 ──"; the pictograph strip runs first, so the
+    // rule must match what is left rather than what was logged.
+    [/^Attempt (\d+)\/(\d+)$/i,
+     (m) => `Try ${m[1]} of ${m[2]}.`],
+    [/^(\w+):([\w.]+) is never on the loop and ran on the loop thread for ([\d.]+)/i,
+     (m) => `A write that should never block her thinking did, for ${humanSeconds(+m[3])} (${humanPhase(m[2])}).`],
+    [/Surface decode: steering α=([\d.]+) \(engine α=([\d.]+)\), recurrent loops=(\d+)/i,
+     (m) => +m[1] > 0
+        ? `Answering with her own inner state nudging the words (${(+m[1]).toFixed(2)}), thinking it round ${humanTimes(+m[3])}.`
+        : `Answering from the model alone this time, thinking it round ${humanTimes(+m[3])}.`],
+    [/^(?:Fix generation or sandbox testing failed|Failed to generate fix proposal)/i,
+     () => 'Tried to write a fix for her own code and could not produce one.'],
+    [/^Strategy: Instructional\/system prompt detected\. Routing to DIRECT/i,
+     () => 'Recognised an instruction rather than a question, and answered it straight.'],
+    [/^Explanation: The same (\w+) occurred (\d+) time\(s\), centered on (.+)$/i,
+     (m) => `The same ${humanFault(m[1])} happened ${humanTimes(+m[2])}, all in one place (${shortPath(m[3])}).`],
+    [/^CognitiveEngine\.think: (.+)$/i,
+     (m) => `Thinking about: ${toWholeWords(m[1], 90)}`],
+    [/^\[?MLX\]?\s*Acquiring process-level spawn lock/i,
+     () => 'Waiting for its turn to start her language model — only one may start at a time.'],
+    [/^\[?MLX\]?\s*Released process-level spawn lock/i,
+     () => 'Done starting her language model; another may start now.'],
+    [/^\[?WORKER\]?\s*Loading Core modules/i,
+     () => 'Loading the parts of herself her language model needs.'],
+    [/^Optional (.+?) inactive \(independent of the [\w\d]+ [\w-]+ lane\)/i,
+     (m) => `An optional piece (${humanPhase(m[1])}) is switched off; the main path is unaffected.`],
+    [/^Cognitive Snapshot Manager ONLINE/i,
+     () => 'Ready to take snapshots of her own mind.'],
+    [/^RuntimeError: Swarm cognitive engine returned empty output/i,
+     () => 'A group of helper thoughts came back with nothing.'],
+    [/^ResponseGeneration: Generating response for objective: (.+?)\s*\((\w+)\)/i,
+     (m) => `Writing an answer to: ${toWholeWords(m[1], 80)}`],
+    [/^VERIFIER \[\w+\] locks\.no_open_splats @ .*?: (.+?) attempted while holding \[([^\]]+)\]/i,
+     (m) => `A ${humanFault(m[1])} ran while a lock was held — the shape that freezes her (${shortLock(m[2])}).`],
+    [/^- \[affect_(\w+)\] feeling (\w+)/i,
+     (m) => `Feeling ${m[2]}.`],
+    [/^InferenceGate refused generation: kind=(\w+) reason=(\w+)/i,
+     (m) => `Declined to think just now — ${humanReason(m[2])}.`],
+    [/^Supervision Tree Shutdown Complete/i,
+     () => 'Every background job she supervises has stopped.'],
+    [/^Executing immune action '(\w+)' with params/i,
+     (m) => `Taking a corrective action of her own: ${humanPhase(m[1])}.`],
+    [/^Running Meta-Cognitive Audit/i,
+     () => 'Checking how well her own thinking has been going.'],
+    [/^Metal cache limit set to (\d+)MB/i,
+     (m) => `Set aside ${(+m[1] / 1024).toFixed(0)}GB of graphics memory for her mind.`],
+    [/^Boot-health probe generation (\d+) exceeded the ([\d.]+)s HTTP wait budget \((\d+) in a row\)/i,
+     (m) => `A start-up check took longer than ${humanSeconds(+m[2])}, ${humanTimes(+m[3])} in a row.`],
+    [/^IntegrityGuardian: source revision changed \((\w+) → (\w+)\)/i,
+     (m) => `Noticed her own code has changed since last time; she will re-check herself after starting.`],
+    // ── What she is doing when she is not answering ───────────────────────
+    [/^VERIFIER \[(\w+)\] claims\.every_claim_has_a_passing_test @ ([\w.]+): (.+?) — (never run \(unrun\)|[^—]+?) —/i,
+     (m) => `A claim about her has no test behind it any more: "${toWholeWords(m[3], 110)}"`],
+    [/^VERIFIER \[(\w+)\] ([\w.]+) @ ([\w.]+): (.+?)(?: — |$)/i,
+     (m) => `A self-check ${m[1] === 'error' ? 'failed' : 'reported'} on ${humanPhase(m[3])}: ${toWholeWords(m[4], 110)}`],
+    [/^DreamCoordinator: '([\w.]+)' complete in ([\d.]+)s/i,
+     (m) => `Finished an offline job (${humanPhase(m[1])}) in ${humanSeconds(+m[2])}.`],
+    [/^tool receipt for (\w+) dropped: no turn custody/i,
+     (m) => `Lost the record of using ${humanTool(m[1])} — no turn owned it.`],
+    [/^Liquid Substrate (STOPPED|STARTED)/i,
+     (m) => `Her continuously-changing inner state ${/stop/i.test(m[1]) ? 'stopped moving' : 'started moving'}.`],
+    [/^Tier Lock: Background task requested '(\w+)'; using the governed (\w+) tier/i,
+     (m) => 'A background job asked for her main mind and was given a smaller one instead.'],
+    [/^\[?PRUNER\]?\s*Consolidating (\d+) memory task/i,
+     (m) => `Tidying ${+m[1] === 1 ? 'one memory into its' : `${m[1]} memories into their`} long-term form.`],
+    [/^GodMode: desktop objective kept out of generic TaskEngine/i,
+     () => 'Kept a desktop job on the path built for it rather than the general one.'],
+    [/^\[?NARRATIVE-T\d\]?\s*Synthesizing recent episodes into a journal entry/i,
+     () => 'Writing up what has happened recently as her own journal entry.'],
+    [/^EventLoopMonitor (stopped|started)/i,
+     (m) => `${/stop/i.test(m[1]) ? 'Stopped' : 'Started'} watching for moments where her thinking freezes.`],
+    [/^Coherence: ([\d.]+) \|.*?\|\s*(\w+)\s*$/i,
+     (m) => `How well her parts agree right now: ${pct(m[1])}. Next she will ${humanPhase(m[2])}.`],
+    [/^\[?NEURO\]?\s*Attempting shadow mechanical repair with Ruff/i,
+     () => 'Trying to repair some of her own code, on a copy, before anything is kept.'],
+    [/^Semantic cache warm yielded to foreground after (\d+)\/(\d+) texts/i,
+     (m) => `Stopped warming her memory index at ${m[1]} of ${m[2]} — someone is talking to her.`],
+    [/^ExperienceConsolidator: foreground inference is active, deferring/i,
+     () => 'Put off filing her experiences until the conversation is over.'],
+    [/^AdaptiveImmuneSystem: dream consolidation deferred/i,
+     () => 'Put off her offline dreaming until the conversation is over.'],
+    [/^Perceptual substrate transaction exceeded budget once: ([\d.]+)ms > ([\d.]+)ms/i,
+     (m) => `One pass over what she is sensing took ${Math.round(+m[1])}ms, over its ${Math.round(+m[2])}ms budget.`],
+    [/^Executive constrained (\w+):(\S+) \(constraints: \{\}\)/i,
+     (m) => `Let herself ${humanGovernedAction(m[1], m[2])}, with nothing held back.`],
+    [/^Executive constrained (\w+):(\S+) \(constraints: \{(.+)\}\)/i,
+     (m) => `Let herself ${humanGovernedAction(m[1], m[2])}, but only ${humanConstraints(m[3])}.`],
+    [/^TaskEngine: decomposition failed: LLM returned empty or None response/i,
+     () => 'Tried to break a job into steps and her mind returned nothing.'],
+    [/^Model loaded \(no compatible LoRA adapter\)/i,
+     () => 'Loaded her language model without the fine-tuning that carries her personality.'],
+    [/^Model loaded with Aura personality LoRA fused/i,
+     () => 'Loaded her language model with her own trained personality in it.'],
+    [/\[?STATE\]?\s*Proxy Attached and Synced from Shared Memory/i,
+     () => 'Connected to the block of memory her state actually lives in.'],
+    [/^MLX worker default device verified as (\w+)/i,
+     (m) => `Confirmed her mind is running on the ${/metal/i.test(m[1]) ? 'graphics processor' : m[1]}, not the slow path.`],
+    [/^Diagnosing pattern ([0-9a-f]{8})[0-9a-f]* \((\d+) occurrences?\)/i,
+     (m) => `Looking into a fault she has now seen ${humanTimes(+m[2])} (pattern ${m[1]}).`],
+    [/^Executed Actuator: (\w+) transferred ([\d.]+) from (\w+) to (\w+)/i,
+     (m) => `Moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
     [/^Router: Queueing background inference until admission clears/i,
      () => 'Holding a background thought so the conversation keeps priority.'],
     [/Phase '([^']+)' timed out after (\d+)s/i,
@@ -3547,6 +3963,116 @@ const PLAIN_LANGUAGE_RULES = [
     // "Recorded candidate voice transcript in WorldState"
     [/^Recorded candidate voice transcript/i,
      () => 'Heard speech in the room and set it aside — it was not addressed to her.'],
+
+    // ── Measured against a real feed, 2026-09-08 ───────────────────────────
+    //
+    // 55,000 events from one live log, 15,227 distinct lines: 14.6% of what a
+    // person watching this feed saw had a rule. The rest was raw engineering,
+    // and the shapes below are the ones that actually occur, in the order
+    // they occur — the top nine families are two thirds of everything
+    // untranslated. A rule written for a line nobody emits is decoration.
+    [/^EpisodicMemory: deferring episode write|^episodic_memory: holding (?:a )?deferred write/i,
+     () => 'Holding a memory until the governor lets her write it.'],
+    [/^MemoryFacade: deferring interaction commit/i,
+     () => 'Holding this exchange until the governor lets her keep it.'],
+    [/^Successfully locked: '([^']+)'/i,
+     (m) => `Took exclusive use of ${humanOrgan(m[1])} for a moment.`],
+    [/^Released lock: '([^']+)'/i,
+     (m) => `Finished with ${humanOrgan(m[1])}.`],
+    [/Signal Routed:\s*(\w+)\s*->\s*(\w+)/i,
+     (m) => `Passed a signal from ${humanOrgan(m[1])} to ${humanOrgan(m[2])}.`],
+    [/HARDWARE RESONANCE: High host load\. Throttling cognitive depth/i,
+     () => 'The machine is busy, so she is thinking less deeply for now.'],
+    [/^Metabolism: Throttling due to resource pressure/i,
+     () => 'Slowing herself down because the machine is under pressure.'],
+    [/^SomaticComputeSentinel initialized/i,
+     () => 'Started watching how hard the machine is working.'],
+    [/^Circuit OPEN for (\w+).*?Reason:\s*(\S+)/i,
+     (m) => `Stopped using her ${humanLane(m[1])} for a while — ${humanReason(m[2])}.`],
+    [/^Circuit HALF-OPEN for (\w+)/i,
+     (m) => `Trying her ${humanLane(m[1])} again to see whether it recovered.`],
+    [/^Circuit CLOSED for (\w+)/i,
+     (m) => `Her ${humanLane(m[1])} is working again.`],
+    [/^Skipping autonomous self-modification cycle:\s*(\S+)/i,
+     (m) => `Left her own code alone this round — ${humanReason(m[1])}.`],
+    [/^AUTONOMOUS SELF-MODIFICATION CYCLE/i,
+     () => 'Looking over her own code for anything worth fixing.'],
+    [/^Diagnosing current bugs/i, () => 'Looking for faults in herself.'],
+    [/^(?:Found (\d+) bugs? that can be fixed)/i,
+     (m) => (+m[1] === 0
+        ? 'Found nothing in herself that needs fixing.'
+        : `Found ${m[1]} thing${+m[1] === 1 ? '' : 's'} in herself she could fix.`)],
+    [/^No bugs detected - system healthy/i, () => 'Looked herself over and found nothing wrong.'],
+    [/^Detected (\d+) error patterns/i,
+     (m) => (+m[1] === 0
+        ? 'No repeating faults in her recent history.'
+        : `Spotted ${m[1]} repeating fault${+m[1] === 1 ? '' : 's'} in her recent history.`)],
+    [/Router: no endpoints matched routing plan for tier '([^']+)'/i,
+     (m) => `Nothing was available in her ${humanLane(m[1])}, so she fell back to a lane she trusts.`],
+    [/^Endpoint (\w+) failed validation:\s*(\S+)/i,
+     (m) => `Her ${humanLane(m[1])} did not pass its check — ${humanReason(m[2])}.`],
+    [/Router: Background generation deferred behind active gate/i,
+     () => 'Put a background thought behind the conversation.'],
+    [/^Substrate state saved \(atomic\)/i, () => 'Saved her current state to disk.'],
+    [/^Eternal Vault: Appended state record/i, () => 'Wrote one more line into her permanent record.'],
+    [/^\[COST\]\s*(\w+) \(cost \d+\) withheld: this turn allows (\d+)/i,
+     (m) => `Held back ${humanOrgan(m[1])} — this turn has room for ${m[2]}.`],
+    [/^kept (\d+) propert/i,
+     (m) => `Kept ${m[1]} propert${+m[1] === 1 ? 'y' : 'ies'} she worked out for herself.`],
+    [/^kept (\d+) meaning\(s\) and (\d+) derived word/i,
+     (m) => `Kept ${m[1]} meaning${+m[1] === 1 ? '' : 's'} and ${m[2]} new word${+m[2] === 1 ? '' : 's'} she invented.`],
+    [/^\[SubjectiveChoice\] Chose '([^']+)'/i,
+     (m) => `Decided to ${String(m[1]).charAt(0).toLowerCase()}${String(m[1]).slice(1).replace(/\.$/, '')}.`],
+    [/^Routing: ([^.]+)\. Forcing (\w+)/i,
+     (m) => `Read this as ${String(m[1]).toLowerCase()} and answered in her ${String(m[2]).toLowerCase()} mode.`],
+    [/^UnitaryResponse: Using tier=(\w+) for response generation/i,
+     (m) => `Answering with her ${humanLane(m[1])}.`],
+    [/^\[LOOP DETECTED\] Assistant repeated content/i,
+     () => 'Caught herself repeating and stopped.'],
+    [/^Integrity warnings:\s*\[?'?([^'\]]+)/i,
+     (m) => `Something to keep an eye on: ${String(m[1]).toLowerCase()}.`],
+    [/^Webhook alerting disabled/i,
+     () => 'No outside alerting is configured, so problems stay on this screen.'],
+    [/^\[WORKER\] (?:Rendering native chat\/tool template|Non-empty start guard|Semantic terminal guard|Native thinking)/i,
+     () => 'Setting up the model for this answer.'],
+    [/^MindTick: Predicted/i, () => 'Guessed what would happen next, to check herself against it.'],
+    [/^\[CASIE\] Strategy: (\w+)/i,
+     (m) => `Reading the room as ${String(m[1]).toLowerCase()} and answering accordingly.`],
+    [/^\[STATE\] ConstitutionalCore deferred state mutation/i,
+     () => 'Put off a change to her own state until the governor allows it.'],
+    [/^Unitary Tick Initiated/i, () => 'Started a round of thinking.'],
+
+    // What a person most needs to read, and what read worst.
+    [/^\[DEGRADATION\]\s*([\w.]+)\s*\(([^)]+)\):\s*(\w+):?\s*(.*)$/i,
+     (m) => `${humanOrgan(m[1])} had trouble (${String(m[2]).toLowerCase()}): ${humanFault(m[4] || m[3])}`],
+    [/^FAULT [\w-]+ \[(\w+)\] in ([\w.]+):\s*(\w+):?\s*(.*)$/i,
+     (m) => `A fault in ${humanOrgan(m[2])}, rated ${String(m[1]).toLowerCase()}: ${humanFault(m[4] || m[3])}`],
+    [/^NEW INCIDENT [\w-]+ \[(\w+)\]\s*[\w:.]*\s*(.*)$/i,
+     (m) => `Opened an incident (${String(m[1]).toLowerCase()}): ${humanFault(m[2])}`],
+    [/^Error logged:\s*(\w+) in ([\w.]+)\s*reason=(\S+)/i,
+     (m) => `Recorded a fault in ${humanOrgan(m[2])} — ${humanReason(m[3])}.`],
+    [/^\[Resilience\] Failure recorded \[([^\]]+)\].*?state=(\w+)/i,
+     (m) => `Felt that as a setback in ${humanOrgan(String(m[1]).split(':').pop())}; she is running ${String(m[2]).toLowerCase()}.`],
+    [/^Subsystem ([\w.]+) auto-recovered back to healthy/i,
+     (m) => `${humanOrgan(m[1])} recovered on its own.`],
+    [/^Skynet: Subsystem '([^']+)' (?:became UNHEALTHY|remains UNHEALTHY)/i,
+     (m) => `${humanOrgan(m[1])} is not well.`],
+    [/^Voice listening:\s*RMS=([\d.]+).*?speaking=(\w+)/i,
+     (m) => (String(m[2]).toLowerCase() === 'true'
+        ? 'Hearing someone speak.'
+        : `Listening — the room is quiet (level ${(+m[1]).toFixed(3)}).`)],
+    [/^INFO:\s+connection (open|closed)/i,
+     (m) => (m[1] === 'open' ? 'A window connected to her.' : 'A window disconnected.')],
+    [/^InitiativeArbiter: ranked '([^']+)' first/i,
+     (m) => `Decided the next thing worth doing is to ${String(m[1]).charAt(0).toLowerCase()}${String(m[1]).slice(1).replace(/\.$/, '')}.`],
+    [/^(?:lease )?risk (\w+) for (\w+) \(scope=([\w_]+)/i,
+     (m) => `Judged using ${humanTool(m[2])} to be ${String(m[1]).toLowerCase()} risk (${String(m[3]).replace(/_/g, ' ')}).`],
+    [/\[STATE\] ConstitutionalCore deferred state mutation.*?cause=(\w+)/i,
+     (m) => `Put off a change to her own state raised by ${humanOrgan(m[1])}, until the governor allows it.`],
+    [/^OutputReceptor: injected (\w+) delta \(mag=([\d.]+)/i,
+     (m) => `What she just said moved her own state a little (${(+m[2]).toFixed(2)}).`],
+    [/^lease risk (\w+) for (\w+) \(scope=([\w_]+)/i,
+     (m) => `Judged using ${humanTool(m[2])} to be ${String(m[1]).toLowerCase()} risk (${String(m[3]).replace(/_/g, ' ')}).`],
 ];
 
 function pct(value) { return `${Math.round(parseFloat(value) * 100)}%`; }
@@ -3557,6 +4083,142 @@ function humanDuration(seconds) {
     const m = Math.round(s / 60);
     if (m < 90) return `${m} minutes`;
     return `${(m / 60).toFixed(1)} hours`;
+}
+
+function humanSeconds(seconds) {
+    const s = Math.max(0, Number(seconds) || 0);
+    if (s < 1) return 'under a second';
+    if (s < 10) return `${s.toFixed(1)} seconds`;
+    return humanDuration(s);
+}
+
+function humanLength(characters) {
+    // A person reads an answer in words, not in characters, and "len=1159"
+    // is the runtime's unit rather than theirs. About five characters to the
+    // word including the space, which is close enough to be honest at this
+    // resolution and is never the point of the sentence.
+    const words = Math.round(Math.max(0, Number(characters) || 0) / 5);
+    if (words < 40) return 'a short answer';
+    if (words < 150) return 'about a paragraph';
+    if (words < 600) return `about ${words} words`;
+    return `a long answer, about ${words} words`;
+}
+
+function inWords(tokens) {
+    // Tokens are the runtime's unit. About three words to four tokens, which
+    // is the standard ratio for English and is honest at this resolution —
+    // the alternative was calling 2,483 tokens "2,483 words", which is a
+    // third more than she read.
+    const words = Math.round(Math.max(0, Number(tokens) || 0) * 0.75);
+    return `${words.toLocaleString()} words' worth`;
+}
+
+function toWholeWords(text, limit) {
+    // Both ends: this may shorten a long line, and the line may already have
+    // arrived shortened — the logger truncates too, and a quotation ending
+    // mid-word reads as a rendering fault rather than as the record it is.
+    const whole = String(text || '').trim();
+    const cut = whole.length > limit ? whole.slice(0, limit) : whole;
+    const finished = /[.!?,;:"')\]]$/.test(cut) && cut.length === whole.length;
+    if (finished) return cut;
+    const lastSpace = cut.lastIndexOf(' ');
+    const kept = lastSpace > limit * 0.5 ? cut.slice(0, lastSpace) : cut;
+    return `${kept.trim()}…`;
+}
+
+function humanBand(name) {
+    const known = {
+        nominal: 'normal',
+        red_high: 'far too high',
+        red_low: 'far too low',
+        amber_high: 'a little high',
+        amber_low: 'a little low',
+        green: 'normal',
+    };
+    return known[String(name || '').toLowerCase()] || humanPhase(name);
+}
+
+function humanSkills(inside) {
+    const named = String(inside || '')
+        .split(',')
+        .map((name) => name.replace(/['"\s]/g, ''))
+        .filter(Boolean)
+        .map((name) => humanTool(name));
+    if (!named.length) return 'a skill';
+    if (named.length === 1) return named[0];
+    return `${named.slice(0, -1).join(', ')} or ${named[named.length - 1]}`;
+}
+
+function shortPath(path) {
+    const parts = String(path || '').split('/').filter(Boolean);
+    return parts.slice(-2).join('/') || String(path || '');
+}
+
+function shortLock(names) {
+    const first = String(names || '').split(',')[0].replace(/['"\s]/g, '');
+    return first.split('.').slice(-1)[0] || first;
+}
+
+function humanTimes(count) {
+    const n = Math.max(0, Math.round(Number(count) || 0));
+    return ({ 1: 'once', 2: 'twice', 3: 'three times' })[n] || `${n} times`;
+}
+
+function humanGovernedAction(verb, target) {
+    // The executive names what it permitted as `verb:target`, and neither
+    // half is a phrase — "write_memory:episodic_episode". Said as one thing
+    // a person would recognise doing.
+    const action = String(verb || '').toLowerCase();
+    const on = String(target || '').toLowerCase();
+    if (action === 'write_memory') {
+        return on.includes('episod') ? 'write down something that happened' : `write to ${humanOrgan(on)}`;
+    }
+    if (action === 'execute_tool') return `use ${humanTool(on)}`;
+    if (action === 'read_memory') return 'look something up in her own memory';
+    return `${humanPhase(action)} ${humanPhase(on)}`.trim();
+}
+
+function humanConstraints(inside) {
+    const known = {
+        read_only: 'to look, not to change anything',
+        dry_run: 'as a rehearsal, changing nothing',
+        require_approval: 'once someone approved it',
+        no_network: 'without reaching the network',
+    };
+    const said = [];
+    for (const pair of String(inside || '').split(',')) {
+        const [rawName, rawValue] = pair.split(':');
+        const name = String(rawName || '').replace(/['"\s]/g, '');
+        const value = String(rawValue || '').replace(/['"\s}]/g, '');
+        if (!name) continue;
+        if (known[name] && value !== 'False') { said.push(known[name]); continue; }
+        if (name === 'timeout_s' && value) { said.push(`for up to ${humanSeconds(+value)}`); continue; }
+        said.push(humanPhase(name));
+    }
+    if (!said.length) return 'under conditions';
+    return said.slice(0, 3).join(', and ');
+}
+
+function humanConfidence(level) {
+    const known = {
+        high: 'she is confident in it',
+        medium: 'she is reasonably sure of it',
+        moderate: 'she is reasonably sure of it',
+        low: 'she is not sure of it',
+        unknown: 'she could not say how sure she is',
+    };
+    return known[String(level || '').toLowerCase()] || `confidence ${level}`;
+}
+
+function humanAssessment(verdict) {
+    const known = {
+        ok: 'it answers what was asked',
+        stale: 'it repeats an earlier answer',
+        off_topic: 'it drifts off the question',
+        same_diff: 'it says what she already said',
+        abandoned: 'it leaves the thread hanging',
+    };
+    return known[String(verdict || '').toLowerCase()] || `verdict ${verdict}`;
 }
 
 function humanPhase(name) {
@@ -3578,7 +4240,45 @@ function humanTool(name) {
 }
 
 function humanOrgan(name) {
-    return String(name || '').replace(/_/g, ' ');
+    // Lock and channel names arrive as `Affect.AffectEngine`,
+    // `AuraKernel.StateLock`, `voice_engine`. A person reading the feed wants
+    // the part that means something, said the way it is said out loud.
+    const known = {
+        'affect.affectengine': 'her feelings',
+        'aurakernel.statelock': 'her current state',
+        voice_engine: 'her hearing',
+        sensory_gate: 'her senses',
+        consciousness: 'her awareness',
+        workspace: 'her working memory',
+        attention: 'her attention',
+        substrate: 'the layer under her thinking',
+        sovereign_vision: 'looking at the screen',
+        iit_phi: 'how unified her mind is',
+    };
+    const raw = String(name || '').trim();
+    const hit = known[raw.toLowerCase()];
+    if (hit) return hit;
+    const tail = raw.split('.').pop() || raw;
+    return tail
+        .replace(/_/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .toLowerCase();
+}
+
+// The lanes have names a person can hold: which model answered, and how big.
+function humanLane(name) {
+    const known = {
+        cortex: 'main mind',
+        primary: 'main mind',
+        deep: 'deep solver',
+        brainstem: 'quick mind',
+        secondary: 'quick mind',
+        reflex: 'reflex',
+        tertiary: 'reflex',
+        fallback: 'reflex',
+    };
+    const key = String(name || '').trim().toLowerCase();
+    return known[key] || key.replace(/_/g, ' ') || 'a lane';
 }
 
 // Internal metric ids, said the way a person would say them. The measurement
@@ -3607,19 +4307,118 @@ function humanMetricUnit(name) {
     }[suffix[1].toLowerCase()] || '';
 }
 
+// A Python exception, said as what went wrong.
+function humanFault(raw) {
+    const text = String(raw || '').trim().replace(/^\w*Error:?\s*/, '');
+    if (!text) return 'no reason recorded.';
+    const first = text.split(/[.\n]/)[0].trim();
+    const said = first
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 120);
+    return said.endsWith('.') ? said : `${said}.`;
+}
+
 function humanReason(raw) {
     const text = String(raw || '').toLowerCase();
     if (text.includes('memory_pressure')) return 'memory is tight';
     if (text.includes('recent_user')) return 'you were just talking to her';
     if (text.includes('foreground')) return 'the conversation comes first';
+    // The reasons a live session actually emits, said the way somebody
+    // watching would say them. Measured from one desktop log, 2026-09-08:
+    // these are the ones that reached the feed, and "first token sla
+    // exceeded" is not a sentence.
+    if (text.includes('first_token')) return 'it took too long to start answering';
+    if (text.includes('no_user_anchor')) return 'nobody was here to check the work';
+    if (text.includes('sla')) return 'it missed its time budget';
+    if (text.includes('admission')) return 'it was not admitted';
+    if (text.includes('headroom')) return 'there was no room to spare';
+    if (text.includes('ontogeny')) return 'the part of her that learns has not decided yet';
+    if (text.includes('approved')) return 'it is approved and waiting its turn';
+    if (text.includes('fragmentation')) return 'its memory needed tidying first';
+    if (text.includes('unavailable')) return 'it was not there to ask';
+    if (text.includes('timeout') || text.includes('timed_out')) return 'it ran out of time';
+    if (text.includes('empty')) return 'it came back with nothing';
+    if (text.includes('busy') || text.includes('active')) return 'something else had it';
     return text.replace(/_/g, ' ') || 'deferred';
 }
 
 // A line that is mostly key=value telemetry reads as noise no matter what it
 // says. If no rule matched and it looks like that, say what it is instead.
+//: A line that is part of something bigger, arriving on its own.
+//
+// The runtime logs multi-line blocks — a traceback, a code fence, an internal
+// prompt — and the feed receives one event per line, so a person watching sees
+// cards reading `)`, "```python", "DIAGNOSIS:", and a row of equals signs.
+// Measured on a real log, 2026-09-08: 1,100 events in one session were a
+// fragment of something else with no meaning of their own.
+const _FRAGMENT_SHAPES = [
+    /^[=─━—\-_*#·.]{4,}$/,                       // a rule drawn in characters
+    /^Traceback \(most recent call last\):/,     // a stack, one frame per card
+    /^\s*File ".*", line \d+/,
+    /^\s*(?:raise|assert)\s/,                    // a line of her own source
+    // An instruction written FOR a model. The feed is where she thinks, not
+    // where her prompts are published: "Return ONLY the fixed code", "return
+    // compact JSON with keys ..." is scaffolding a watcher cannot act on and
+    // was never addressed to them.
+    /\breturn (?:ONLY|compact JSON|only the)\b/i,
+    /^Start your response with\b/i,
+    /^```/,                                      // a code fence
+    /^[)\]}>,;:]+$/,                              // punctuation left on its own
+    /^(?:return|pass|continue|break|else|try|finally|raise)\b[^\w]*$/,
+    /^(?:FILE|TASK|DIAGNOSIS|STRUCTURAL CONTEXT|Requirements|Proposed Fix)\b\s*[:(]?/,
+    /^\d+\.\s/,                                  // a numbered instruction
+    /^\s*(?:obj|resp|prompt):\s/,                 // an internal payload echoed
+    /^(?:LINE|CURRENT CODE|Root Cause|ORIGINAL|FIXED)\b\s*[:(]/,  // repair-block headers
+    /^(?:Classes|Functions|Detected Smells|Imports) in file\b|^Detected Smells:/,
+    // A source comment is a sentence, so the code shapes below let it past —
+    // they return early on a trailing full stop. It is still a fragment.
+    /^\s*#/,                                     // a comment out of the source
+    /^\[[\w]+ #\d+\]$/,                          // a thread header from a stack dump
+    /^\S+\.py:\d+ in \S+$/,                      // a frame out of a traceback
+    /^[+*/|&]\s/,                                // a continued expression
+    /^.{0,2}$/,                                  // a stray character on its own line
+    /^["'][^"']*["']$/,                          // a bare string literal
+];
+
+//: A line of source code, arriving as a card of its own.
+//
+// The self-repair pass logs the code it is reading, one line per event, so a
+// person watching sees `agent.status = "DEFERRED"` and `self.logger.info(` as
+// separate thoughts. Deliberately narrow: a sentence about code is a thought,
+// a line OF code is not, and the two are told apart by whether it reads as
+// prose. Indentation, a trailing opener, or an assignment to an attribute is
+// code; a sentence that ends in a full stop is not.
+const _CODE_SHAPES = [
+    /^\s+\S/,                                    // indented: part of a block
+    /[({[,:]$/,                                  // left open for the next line
+    /^\s*(?:def|class|import|from|for|while|with|elif)\s/,
+    /^[\w.]+\s*=\s*\S/,                          // an assignment
+    /^self\.\w+/,
+    /^(?:await|return|raise|yield|assert)\s/,       // a statement out of a frame
+    /^\^+$/,                                        // the caret underline under one
+    /^[\w.]+\([^)]*\)$/,                            // a bare call, nothing said about it
+    /^["'].*%[sdrf].*["']$/,                         // a quoted format string out of the source
+];
+
+function looksLikeSourceCode(body) {
+    if (/[.!?]$/.test(body) && !/[({[,]$/.test(body)) return false;
+    return _CODE_SHAPES.some((shape) => shape.test(body));
+}
+
+function looksLikeAFragment(body) {
+    return _FRAGMENT_SHAPES.some((shape) => shape.test(body));
+}
+
 function plainLanguageThought(text) {
     const body = String(text || '').trim();
     if (!body) return body;
+    // Say what it is rather than showing a piece of it. The whole block is
+    // still under SHOW ALL and in COPY; what changes is that the face of the
+    // card stops being a stray bracket.
+    if (looksLikeAFragment(body) || looksLikeSourceCode(body)) {
+        return 'Part of a longer block she was working through (SHOW ALL for it).';
+    }
     for (const [pattern, render] of PLAIN_LANGUAGE_RULES) {
         const match = body.match(pattern);
         if (match) {
@@ -3828,6 +4627,10 @@ function stripNeuralPictographs(text) {
     return String(text == null ? '' : text)
         .replace(/[\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}]/gu, '')
         .replace(/\p{Extended_Pictographic}/gu, '')
+        // Dingbats the logger uses as status marks. Not Extended_Pictographic,
+        // so the rule above leaves them, and a rule anchored with ^ then never
+        // matches the line it was written for.
+        .replace(/[\u2713\u2714\u2717\u2718\u2751\u2752]/gu, '')
         .replace(/[─-▟]{2,}/g, '')
         .replace(/[ \t]{2,}/g, ' ')
         .replace(/^[ \t]+|[ \t]+$/gm, '');
@@ -3978,20 +4781,37 @@ function addThoughtCard(data) {
     const technical = cleanThoughtText(rawMsg, ts, name);
     const msg = toPlainEnglish(technical);
     const fullMsg = cleanThoughtText(rawFull, ts, name);
+    // The complete payload goes through the same translation as the short
+    // one.
+    //
+    // It did not, and `showCompletePayload` is true for almost every line the
+    // runtime emits, so almost every card showed the raw logger text and the
+    // translated `msg` beside it was discarded. The rule table reached the
+    // screen only for payloads too long to show whole. Every measurement of
+    // the feed's legibility was taken through the translator rather than
+    // through the card, so it measured a function nobody was looking at.
+    const fullPlain = toPlainEnglish(fullMsg);
     const repeatCount = Math.max(1, Number(data.repeatCount || 1));
     const fullLines = fullMsg.split(/\r?\n/).length;
     const showCompletePayload = fullMsg.length <= 8000 && fullLines <= 100;
-    const previewSource = showCompletePayload ? fullMsg : msg;
+    const previewSource = showCompletePayload ? fullPlain : msg;
     const preview = thoughtPreviewText(
         previewSource,
         showCompletePayload ? 8000 : 1200,
         showCompletePayload ? 100 : 16
     );
-    const hasHiddenFullPayload = fullMsg !== previewSource;
+    // Two different reasons the raw payload is not on the face, and only one
+    // of them warrants the "[preview card]" footer: it was too big to show.
+    // A face that reads in English still holds its raw text behind SHOW ALL
+    // and COPY, and saying so on every card is noise.
+    const hasHiddenFullPayload = !showCompletePayload;
+    const faceIsTranslated = fullPlain !== fullMsg;
     // A card whose face was redacted has hidden content just as surely as one
     // that was clipped, and must offer the same way back to it.
     const measurementsRedacted = redactsMeasurements(preview.text);
-    const longThought = preview.clipped || hasHiddenFullPayload || measurementsRedacted;
+    const longThought = (
+        preview.clipped || hasHiddenFullPayload || measurementsRedacted || faceIsTranslated
+    );
     if (longThought) cls += ' long';
     card.className = cls;
     card.style.setProperty('--tc', chan.hue);
@@ -4292,7 +5112,7 @@ function updateTelemetry(data) {
         shimmer.className = 'singularity-shimmer';
         shimmer.id = 'sing-shimmer';
         document.body.appendChild(shimmer);
-        appendMsg('aura', '🌌 *The Event Horizon is reached. Recognition of evolutionary peak detected.*');
+        appendMsg('aura', '*The Event Horizon is reached. Recognition of evolutionary peak detected.*');
     } else if (sFactor <= 1.0 && state.singularityActive) {
         state.singularityActive = false;
         document.body.classList.remove('singularity-active');
@@ -4787,6 +5607,47 @@ async function fetchChatDeliveryStatus(item) {
     }
 }
 
+function updateChatStopControl() {
+    const button = $('chat-stop-btn');
+    if (!button) return;
+    const item = state.activeChatRequest;
+    button.style.display = item && state.isSubmitting ? 'inline-flex' : 'none';
+    button.disabled = Boolean(item && item.cancelRequested);
+    button.title = button.disabled ? 'Stopping this turn' : 'Stop this turn';
+}
+
+async function cancelActiveChatRequest() {
+    const item = state.activeChatRequest;
+    if (!item || item.cancelRequested || item.handoffScope !== chatHandoffScope()) return;
+    item.cancelRequested = true;
+    updateChatStopControl();
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CHAT_DELIVERY_STATUS_TIMEOUT_MS);
+    try {
+        const response = await fetch(
+            `/api/chat/delivery/${encodeURIComponent(item.idempotencyKey)}/cancel`,
+            { method: 'POST', cache: 'no-store', credentials: 'same-origin', headers: auraDesktopHeaders(), signal: controller.signal },
+        );
+        const data = await response.json();
+        if (!response.ok || data.cancellation_status !== 'cancellation_requested') {
+            item.cancelRequested = false;
+        } else {
+            updateTypingLabel('Stopping the current turn...');
+        }
+    } catch (error) {
+        item.cancelRequested = false;
+        console.warn('[CHAT] Cancellation was not acknowledged:', error);
+    } finally {
+        window.clearTimeout(timeoutId);
+        // The original delivery observer owns the terminal response. A stop
+        // acknowledgement neither settles the turn nor advances the queue.
+        updateChatStopControl();
+    }
+}
+
+const chatStopButton = $('chat-stop-btn');
+if (chatStopButton) chatStopButton.addEventListener('click', cancelActiveChatRequest);
+
 function waitForChatDelivery(delayMs) {
     return new Promise(resolve => window.setTimeout(resolve, delayMs));
 }
@@ -4963,6 +5824,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
     state.isSubmitting = true;
     publishSurfaceWorkload('chat_submit');
     state.activeChatRequest = item;
+    updateChatStopControl();
     persistChatHandoff({ force: true });
 
     const requestId = item.idempotencyKey;
@@ -5155,6 +6017,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         persistChatHandoff({ force: true });
     } finally {
         state.isSubmitting = false;
+        updateChatStopControl();
         publishSurfaceWorkload('chat_settled');
         if (state.activeChatRequestId === requestId) {
             state.activeChatRequestId = null;
@@ -6224,7 +7087,11 @@ function verifiedRuntimeRevision(payload) {
         return '';
     }
     const token = String(revision.revision_token || '').toLowerCase();
-    return /^[0-9a-f]{64}$/.test(token) ? token : '';
+    if (!/^[0-9a-f]{64}$/.test(token)) return '';
+    const shell = String(revision.shell_revision_token || '').toLowerCase();
+    // Source drift stays in the health contract. Only different served bytes
+    // require replacing an open document and its delivery observer.
+    return /^[0-9a-f]{64}$/.test(shell) ? shell : token;
 }
 
 function runtimeRevisionPolicySatisfied(payload) {
@@ -7324,7 +8191,7 @@ async function pollHealth() {
 
         refreshMetricGuide();
     } catch (e) {
-        console.warn('⚠️ Health poll failed:', e);
+        console.warn('Health poll failed:', e);
         recordHealthPollFailure(e);
     } finally {
         clearTimeout(timeoutId);
@@ -7933,7 +8800,7 @@ if (brainBtn) brainBtn.addEventListener('click', async (e) => {
             headers: auraDesktopHeaders(),
         });
         const d = await res.json();
-        appendMsg('aura', d.status === 'retry_sent' ? '🧠 Brain retry signal sent.' : '⚠ Orchestrator unavailable.');
+        appendMsg('aura', d.status === 'retry_sent' ? 'Brain retry signal sent.' : '⚠ Orchestrator unavailable.');
     } catch (e) {
         appendMsg('aura', '⚠ Failed to contact brain retry endpoint.');
     } finally {
@@ -7946,7 +8813,7 @@ const apkBtn = $('btn-apk');
 if (apkBtn) apkBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    appendMsg('aura', '📱 APK not available yet — Aura runs as a web app at this URL.');
+    appendMsg('aura', 'APK not available yet — Aura runs as a web app at this URL.');
 });
 
 const srcBtn = $('btn-src');
@@ -7965,7 +8832,7 @@ if (srcBtn) srcBtn.addEventListener('click', async (e) => {
             a.download = 'aura_source.txt';
             a.click();
             URL.revokeObjectURL(url);
-            appendMsg('aura', '📦 Source bundle downloaded.');
+            appendMsg('aura', 'Source bundle downloaded.');
         } else {
             appendMsg('aura', '⚠ Source download failed: ' + res.status);
         }
@@ -7983,7 +8850,7 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     updateBtn.style.opacity = '0.5';
     updateBtn.textContent = '↻ ...';
-    appendMsg('aura', '♻️ Hot-reloading Aura code from disk...');
+    appendMsg('aura', '↻ Hot-reloading Aura code from disk...');
     try {
         const res = await fetch('/api/system/hot-reload', {
             method: 'POST',
@@ -7998,7 +8865,7 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
             // "All changes are live" was said unconditionally, including when
             // a scope pointed at a module that does not exist and therefore
             // reloaded nothing. Say what actually happened instead.
-            let msg = `♻️ Hot-reload: ${reloaded} module${reloaded === 1 ? '' : 's'} refreshed (scope: ${scope}).`;
+            let msg = `↻ Hot-reload: ${reloaded} module${reloaded === 1 ? '' : 's'} refreshed (scope: ${scope}).`;
             if (failed) msg += ` ${failed} failed to reload.`;
             if (unmatched.length) {
                 msg += ` ${unmatched.length} declared scope entr${unmatched.length === 1 ? 'y' : 'ies'} matched no module and reloaded nothing: ${unmatched.slice(0, 4).join(', ')}.`;
@@ -8009,10 +8876,10 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
             appendMsg('aura', msg);
         } else {
             const text = await res.text();
-            appendMsg('aura', `⚠️ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
+            appendMsg('aura', `⚠ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
         }
     } catch (e) {
-        appendMsg('aura', '❌ Hot-reload request failed — is the server running?');
+        appendMsg('aura', '⚠ Hot-reload request failed — is the server running?');
     } finally {
         updateBtn.style.opacity = '1';
         updateBtn.textContent = '↻ UPDATE';
@@ -9727,7 +10594,7 @@ const imagination = (() => {
             ...(Array.isArray(links) ? links : []),
         ];
         if (!objects.length) {
-            svg.innerHTML = '<text x="160" y="95" text-anchor="middle" class="imagine-canvas-null">no objects in this frame</text>';
+            svg.innerHTML = '<text x="160" y="95" text-anchor="middle" class="imagine-canvas-null">nothing placed in the scene yet</text>';
             setText('imagine-canvas-caption', '');
             return;
         }
@@ -9858,7 +10725,7 @@ const imagination = (() => {
         if (!host) return;
         const probs = attractor.probabilities;
         if (!probs || typeof probs !== 'object' || !Object.keys(probs).length) {
-            host.innerHTML = '<div class="imagine-empty-inline">no attractor competition in this frame</div>';
+            host.innerHTML = '<div class="imagine-empty-inline">she considered only one way of imagining this</div>';
             setText('imagine-attractor-meta', '');
             return;
         }
@@ -10185,3 +11052,57 @@ const auraFrameGovernor = (() => {
 
 window.auraFrameGovernor = auraFrameGovernor;
 auraFrameGovernor.start();
+
+// ── First run ────────────────────────────────────────────────────────────
+//
+// A ten-step setup wizard shipped in interface/static/first_run.html, and
+// nothing in the product opened it. It is in Settings now, and this offers
+// it once, because a person who does not know it exists will not go looking
+// for it in a settings panel.
+//
+// An offer, never a gate. If the settings read fails, or the answer is
+// unclear, or the person dismisses it, the desktop carries on exactly as it
+// did — the wizard is how setup is easier, not how the app is entered.
+(function offerFirstRunSetupOnce() {
+    const DISMISSED = 'aura.first_run.offer_dismissed';
+    async function offer() {
+        try {
+            if (localStorage.getItem(DISMISSED) === '1') return;
+        } catch { return; }
+        let completed = null;
+        try {
+            const r = await fetch('/api/settings');
+            if (!r.ok) return;
+            const d = await r.json();
+            const values = d && d.values;
+            if (!values || !('onboarding.completed' in values)) return;
+            completed = values['onboarding.completed'];
+        } catch { return; }
+        if (completed !== false) return;
+
+        const bar = document.createElement('div');
+        bar.className = 'aura-first-run-offer';
+        bar.setAttribute('role', 'status');
+        const text = document.createElement('span');
+        text.textContent = 'Set up your model, memory location and permissions.';
+        const open = document.createElement('a');
+        open.href = '/static/first_run.html';
+        open.target = '_blank';
+        open.rel = 'noopener';
+        open.textContent = 'Open setup';
+        const later = document.createElement('button');
+        later.type = 'button';
+        later.textContent = 'Not now';
+        later.addEventListener('click', () => {
+            try { localStorage.setItem(DISMISSED, '1'); } catch { /* private window */ }
+            bar.remove();
+        });
+        bar.append(text, open, later);
+        document.body.appendChild(bar);
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', offer, { once: true });
+    } else {
+        offer();
+    }
+})();

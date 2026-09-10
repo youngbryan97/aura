@@ -265,6 +265,10 @@ class OntogenyCore(AuthorityObservationMixin):
             seed=self._seed,
         )
         self._last_reading: StateReading | None = None
+        #: Running moments for `advance`, kept apart from any control point's
+        #: so that stepping the lifetime state cannot shift a decision's
+        #: standardisation underneath it.
+        self._advance_moments: RunningMoments | None = None
         self._last_train = 0.0
         self._last_checkpoint = time.time()
         self._episodes_seen = 0
@@ -569,6 +573,26 @@ class OntogenyCore(AuthorityObservationMixin):
         )
 
     # ── the day-one surfaces ─────────────────────────────────────────────
+
+    def advance(self, schema: Any, features: Mapping[str, float]) -> Any:
+        """Step the shared reservoir on a moment, without deciding anything.
+
+        `consider` advances the state as a side effect of making a choice, so
+        the state only moved where a control point happened to sit. This is the
+        same step with no choice attached, for the cognitive cycle itself. The
+        state is the one every control point shares, on purpose: it is her
+        state, and what happened in a turn is legitimately context for the next
+        decision wherever that decision is made.
+        """
+        state = self._state_for(schema)
+        moments = self._advance_moments
+        if moments is None or len(moments.count) != len(schema.names):
+            moments = RunningMoments(len(schema.names))
+            self._advance_moments = moments
+        vector = schema.vector(features)
+        reading = state.step(design_row(vector, moments, update=True))
+        self._last_reading = reading
+        return reading
 
     def novelty(self) -> float:
         """How unlike her ordinary life this moment is. 0.5 until she has one."""
@@ -1094,15 +1118,30 @@ def _stable_index(seed: str, modulus: int) -> int:
 
 
 _core: OntogenyCore | None = None
-_core_lock = threading.Lock()
+_core_lock = checked_lock("core.ontogeny.service._core_lock")
 
 
 def get_ontogeny() -> OntogenyCore:
     global _core
-    if _core is None:
-        with _core_lock:
-            if _core is None:
-                _core = OntogenyCore()
+    if _core is not None:
+        return _core
+    # Built outside the lock, published under it.
+    #
+    # The constructor opens its store and fsyncs, and a blocking disk
+    # operation inside a process-wide lock stalls every other caller — which
+    # is what `locks.no_open_splats` exists to say, and what it said the
+    # first time these two locks became visible to lockdep on 2026-09-07:
+    # "fsync attempted while holding ['core.ontogeny.service._core_lock',
+    # 'core.ontogeny.experience._spine_lock']".
+    #
+    # A race builds two and keeps one. That costs an extra open and a close;
+    # holding a lock across an fsync costs the loop.
+    built: OntogenyCore | None = OntogenyCore()
+    with _core_lock:
+        if _core is None:
+            _core, built = built, None
+    if built is not None:
+        built.stop()
     return _core
 
 
@@ -1116,8 +1155,28 @@ def ontogeny_report() -> dict[str, Any]:
         return {"available": False, "error": type(exc).__name__}
 
 
+def ontogeny_built() -> bool:
+    """True when this organ already exists. Never builds one to find out."""
+    return _core is not None
+
+
 def ontogeny_health_report() -> dict[str, Any]:
-    """Bounded module-level projection for runtime health polling."""
+    """Bounded module-level projection for runtime health polling.
+
+    Observing, never constructing. Asking an organ how it is must not be the
+    thing that brings it into existence: the constructor opens its store and
+    fsyncs, and the health path calls this while holding the integrity
+    collection lock, so a cold poll put a blocking disk write under a
+    process-wide lock and tainted the runtime with a lock-order violation on
+    every boot.
+
+    The real boot path builds this organ (``core/runtime/foundations.py``,
+    and the container registration in ``core/service_registration.py``). When
+    it has not run yet, "not built" is the true state and the honest thing to
+    report.
+    """
+    if _core is None:
+        return {"schema": "aura.ontogeny.health.v1", "available": False, "built": False}
     try:
         return get_ontogeny().health_report()
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:

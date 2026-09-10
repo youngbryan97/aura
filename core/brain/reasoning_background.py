@@ -75,7 +75,7 @@ async def _job_nonparametric_ingest() -> dict[str, Any]:
         # ingestion. The signal exists to refuse heavy local generation, and
         # it was treated as optional in exactly the state where its
         # availability was uncertain — background maintenance is never worth
-        # an unmeasured allocation against a 32B resident.
+        # an unmeasured allocation against a resident cortex.
         record_degradation(
             "reasoning_background",
             exc,

@@ -295,9 +295,39 @@ class ExecutiveClosureEngine:
 
         state.loop_cycle = int(closed_loop_status.get("cycle_count") or (state.loop_cycle + 1))
         state.free_energy = float(closed_loop_status.get("free_energy", state.free_energy))
-        phi_estimate = float(closed_loop_status.get("phi_estimate", 0.0))
-        state.phi_estimate = phi_estimate
-        state.phi = phi_estimate
+        # A default may not overwrite a measurement.
+        #
+        # This read phi_estimate with a fallback of 0.0 and then assigned it to
+        # BOTH phi_estimate and phi. When the closed loop had nothing to report —
+        # it is not running in every context this phase runs in — the zero won,
+        # and it won against a phi that PhiConsciousnessPhase had computed one
+        # phase earlier. Measured across three objectives: 0.3256, 0.3237, 0.3237
+        # out of phi consciousness, and 0.0 out of here, every time.
+        #
+        # So the workspace's own reading never reached higher-order monitoring or
+        # the self model, and the links out of the workspace measured 0.009 and
+        # below in the effective connectome. An absent reading now leaves what
+        # the earlier phase measured.
+        reported_phi = (
+            closed_loop_status.get("phi_estimate")
+            if closed_loop_status.get("phi_measured", True)
+            else None
+        )
+        if reported_phi is not None:
+            phi_estimate = float(reported_phi)
+            state.phi_estimate = phi_estimate
+            state.phi = phi_estimate
+        else:
+            if not state.phi_estimate and state.phi:
+                # The estimate has no other writer at all, so carry the
+                # measurement into it rather than leaving a field nothing fills.
+                state.phi_estimate = float(state.phi)
+            # And bind the local from what the state now holds. The first
+            # version bound it only on the branch where the closed loop
+            # reported, and three lines below read it unconditionally — so in
+            # the case this change was written for, an absent report, the phase
+            # raised UnboundLocalError and died on every turn.
+            phi_estimate = float(state.phi_estimate or state.phi or 0.0)
         state.vitality = float(homeostasis_status.get("will_to_live", state.vitality))
 
         state.response_modifiers["executive_closure"] = {
@@ -708,15 +738,29 @@ class ExecutiveClosureEngine:
         if closed_loop and hasattr(closed_loop, "get_status"):
             try:
                 status = closed_loop.get_status()
+                phi_block = status.get("phi", {})
+                # Whether there IS a reading, not only what it is. A witness that
+                # has never cycled reports 0.0, and a 0.0 that means "nothing was
+                # measured" cannot be told from one that means "measured, zero" —
+                # which is how a phi computed one phase earlier got overwritten.
+                measured = bool(
+                    phi_block.get("measured", phi_block.get("estimate") is not None)
+                )
                 return {
                     "cycle_count": int(status.get("loop", {}).get("cycle_count", 0)),
                     "free_energy": float(status.get("free_energy", {}).get("current", 0.0)),
-                    "phi_estimate": float(status.get("phi", {}).get("estimate", 0.0)),
+                    "phi_estimate": float(phi_block.get("estimate", 0.0)),
+                    "phi_measured": measured,
                 }
             except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: closed-loop read failed: %s", exc)
-        return {"cycle_count": 0, "free_energy": 0.0, "phi_estimate": 0.0}
+        return {
+            "cycle_count": 0,
+            "free_energy": 0.0,
+            "phi_estimate": 0.0,
+            "phi_measured": False,
+        }
 
     def _get_workspace_snapshot(self) -> dict[str, Any]:
         workspace = ServiceContainer.get("global_workspace", default=None)

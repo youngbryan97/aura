@@ -748,3 +748,27 @@ def test_flight_software_invariants_registered_and_clean():
 
     report = verify("flight_software", record=False)
     assert report.ok, report.summary()
+
+
+def test_periodic_sync_reads_run_off_the_event_loop():
+    import threading
+
+    from core.runtime.foundations import _run_periodic_read_off_loop
+
+    async def exercise() -> tuple[list[int], bool]:
+        main_thread = threading.get_ident()
+        worker_threads: list[int] = []
+
+        def slow_read() -> None:
+            worker_threads.append(threading.get_ident())
+            time.sleep(0.08)
+
+        task = asyncio.create_task(_run_periodic_read_off_loop(slow_read))
+        await asyncio.sleep(0.01)
+        loop_remained_live = not task.done()
+        await task
+        return worker_threads, loop_remained_live and worker_threads[0] != main_thread
+
+    worker_threads, off_loop = asyncio.run(exercise())
+    assert worker_threads
+    assert off_loop

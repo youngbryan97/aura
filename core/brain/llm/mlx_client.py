@@ -80,7 +80,39 @@ _CHARS_PER_TOKEN = 4.0
 #: What to assume before this worker has been measured. Well under the
 #: 716-772 tok/s observed on this host, because being generous with an
 #: unmeasured worker costs a little latency and being mean costs the answer.
+#: What a model may call the tool's name, and what it may call its arguments.
+#: Every combination of the two is a call; neither list is ordered by
+#: preference because a payload carrying two of them is ambiguous and the
+#: first found is as good an answer as any.
+_CALL_NAME_KEYS: tuple[str, ...] = ("name", "tool", "function")
+_CALL_ARGUMENT_KEYS: tuple[str, ...] = ("arguments", "args", "parameters")
+
+
+def _first_present(payload: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
+    """The first of these keys the payload has, or None when it has none.
+
+    None means absent. A key present and holding None is a key present.
+    """
+
+    for key in keys:
+        if key in payload:
+            return payload[key]
+    return None
+
+
 _UNMEASURED_PREFILL_RATE = 300.0
+
+#: Dispositions under which steering is deliberately detached. The worker
+#: decides these against a signed migration authority and reports them at
+#: info; a parent that warns about them is warning about a decision.
+_EXPECTED_STEERING_DETACHMENTS = frozenset(
+    {
+        "steering_generation_checkpoint_incompatible",
+        "steering_generation_deferred",
+        "steering_generation_retired",
+        "neutral",
+    }
+)
 
 #: How much longer than the reading itself to allow. A shared lane queues,
 #: and a deadline with no room for that cancels healthy work.
@@ -95,6 +127,27 @@ _PREFILL_HEADROOM = 3.0
 #: a game timed out at eight seconds and she played the whole thing with no
 #: plan. These are rates this machine was seen working at, not guesses.
 _HOST_RATES: dict[str, float] = {"prefill": 0.0, "decode": 0.0, "weight_load": 0.0}
+
+#: And the prefill rate BY MODEL, because it is a property of the model and
+#: not of the machine.
+#:
+#: The decode rate learned this already — "the rate belongs to the model.
+#: Sizing a 27B's clock on readings a 9B produced is what aborted three
+#: generations on one question" — and prefill kept one number for every worker
+#: on the host.
+#:
+#: LIVE, 2026-09-08, a fresh boot: a small lane wrote 9 tokens a second into
+#: the shared entry, the 27B read its own prompt at 116, and the clock built
+#: from the shared number said reading would take 630 seconds and sized the
+#: turn at 833. Nothing was wrong with the turn. The number describing it
+#: belonged to a different model.
+_HOST_PREFILL_TPS: dict[str, float] = {}
+
+
+def _model_rate_key(model_path: object) -> str:
+    """The name a rate is filed under. Empty when there is no model to name."""
+    name = os.path.basename(str(model_path or "")).strip().lower()
+    return name
 
 #: Gigabytes of weights a second, before this host has been seen loading any.
 #: Deliberately slow for the same reason the prefill default is: being
@@ -122,6 +175,11 @@ _COLD_START_HEADROOM = 2.0
 #: is credited with little until it proves otherwise.
 _UNMEASURED_DECODE_RATE = 8.0
 
+#: The shortest prompt whose prefill time is mostly reading rather than
+#: setting up. Below it the rate measures the fixed cost of starting a
+#: generation, which is the same for every prompt and is not a rate.
+_BIG_ENOUGH_TO_TIME_TOKENS = 128
+
 
 def reset_host_rates_for_test() -> dict[str, float]:
     """Forget the measured host rates, and hand back what they were.
@@ -135,6 +193,7 @@ def reset_host_rates_for_test() -> dict[str, float]:
     previous = dict(_HOST_RATES)
     for key in _HOST_RATES:
         _HOST_RATES[key] = 0.0
+    _HOST_PREFILL_TPS.clear()
     return previous
 
 
@@ -3702,6 +3761,13 @@ def _origin_is_user_facing(origin: str | None) -> bool:
     return _normalized_origin(origin) in _USER_FACING_ORIGINS
 
 
+class _WarmupDeferredError(RuntimeError):
+    """The runtime chose not to spawn a worker, so there was nothing to warm.
+
+    A refusal, not a fault. It carries the reason the runtime gave.
+    """
+
+
 def _background_deferral_active(origin: str | None = None) -> str | None:
     """Mirror InferenceGate's background quiet policy inside the MLX client.
 
@@ -5286,6 +5352,10 @@ class MLXLocalClient:
 
         # Shared memory flag to track if affective steering successfully attached
         self._steering_active = self._mp_context.Value("b", False, lock=False)
+        #: What the worker said about WHY, once it has said anything. Empty
+        #: before the first init receipt, which is not the same fact as a
+        #: worker that reported no disposition.
+        self._steering_disposition = ""
         self._steering_liveness_observed = False
 
         # Cooperative preemption channel: the parent writes the ACTIVE job's
@@ -6070,6 +6140,49 @@ class MLXLocalClient:
                         exact_decode = measured_decode
                 except (TypeError, ValueError, OverflowError):
                     pass
+                # The rate every deadline is built from. MLX timed this
+                # inside the worker; the estimate this side keeps times how
+                # often it was told, which is a different quantity and was
+                # wrong by a factor of ten. See _measured_prefill_rate.
+                try:
+                    reported_tps = float(performance.get("prompt_tps") or 0.0)
+                except (TypeError, ValueError, OverflowError):
+                    reported_tps = 0.0
+                try:
+                    measured_over = int(performance.get("prompt_tokens") or 0)
+                except (TypeError, ValueError, OverflowError):
+                    measured_over = 0
+                if measured_over < _BIG_ENOUGH_TO_TIME_TOKENS:
+                    # Too small to be a rate. Setting a generation up costs
+                    # the same whether it reads one token or a thousand, so
+                    # over a short prompt that fixed cost IS the measurement.
+                    #
+                    # LIVE, 2026-09-08: the readiness probes send one and four
+                    # token prompts, and MLX honestly reports 2.7 and 13.3
+                    # tokens a second for them. Averaged into the rate the
+                    # deadlines are built from, they took a 27B that reads at
+                    # 116 down to single digits, and the answer clock then
+                    # said a 9,360-character prompt would take 819 seconds to
+                    # read and sized the turn at 1,022. The same reasoning is
+                    # already written down one module over, where the read
+                    # rate refuses to learn from a prompt under 400 characters.
+                    reported_tps = 0.0
+                if math.isfinite(reported_tps) and reported_tps > 0.0:
+                    held = float(
+                        getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0
+                    )
+                    # Averaged, so one generation under contention does not
+                    # become the rule, and unaveraged for the first, so a
+                    # fresh worker is not judged by a number nobody took.
+                    self._worker_measured_prefill_tps = (
+                        reported_tps
+                        if held <= 0.0
+                        else held * 0.7 + reported_tps * 0.3
+                    )
+                    _HOST_RATES["prefill"] = self._worker_measured_prefill_tps
+                    key = _model_rate_key(getattr(self, "model_path", ""))
+                    if key:
+                        _HOST_PREFILL_TPS[key] = self._worker_measured_prefill_tps
             # Old workers do not report the split. Keep the bounded fallback
             # for rolling compatibility, but never overwrite MLX's measured
             # prompt and decode clocks with an estimate when they are present.
@@ -6480,7 +6593,12 @@ class MLXLocalClient:
                 self._prefill_tokens_per_s = (
                     observed if previous <= 0.0 else previous * 0.7 + observed * 0.3
                 )
-                _HOST_RATES["prefill"] = self._prefill_tokens_per_s
+                # Not into _HOST_RATES. This is how often the parent was
+                # TOLD about prefill, across an IPC queue onto a busy event
+                # loop, and publishing it as the host's prefill rate is how a
+                # 52,020-character prompt came to be budgeted at 1,082
+                # seconds of reading. The host rate is set from what MLX
+                # timed inside the worker.
         if done != last_done:
             self._prefill_observed_at = now
             self._prefill_observed_tokens = done
@@ -6551,42 +6669,8 @@ class MLXLocalClient:
             pass
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
-            # How long this prompt took to read, written down where every
-            # deadline is built from.
-            #
-            # The worker process records this and the deadlines are built in
-            # this one, so the record the answer clock consults was empty on a
-            # fresh runtime: reading a prompt counted as free, the clock
-            # granted 23 seconds, this worker measured the same prompt as
-            # needing 23.2 to read, and every user-facing generation was
-            # cancelled at 23. The fallback ladder then found no small model
-            # admitted under the memory headroom, waited out its budget and
-            # ended the turn in a refusal.
-            #
-            # LIVE 2026-09-04, forty minutes after a clean boot: five
-            # cancellations in ten minutes and not one answer delivered.
-            #
-            # Only after a worker has produced a token before, because
-            # everything before the FIRST token of a worker's life is weights
-            # coming off disk as well as the prompt, and that is a different
-            # fact — measured separately, just below.
-            _started_at = float(getattr(self, "_current_request_started_at", 0.0) or 0.0)
-            if (
-                int(getattr(self, "_tokens_since_spawn", 0) or 0) > 0
-                and _started_at > 0.0
-                and self._current_prompt_chars > 0
-            ):
-                try:
-                    from core.brain.llm.thinking_reserve import (  # noqa: PLC0415
-                        record_read_rate,
-                    )
-
-                    record_read_rate(
-                        prompt_chars=self._current_prompt_chars,
-                        elapsed_s=now - _started_at,
-                    )
-                except (ImportError, TypeError, ValueError):
-                    pass
+            # Request-to-token latency includes queueing and admission. Only
+            # worker timings and advancing prefill frames measure reading.
             # What loading this model actually cost, from the one request
             # that pays for it. Everything before the first token of a
             # worker's life is weights coming off disk plus reading the
@@ -6683,7 +6767,28 @@ class MLXLocalClient:
                     repetition_penalty=1.0,
                     health_probe=True,
                     disable_prompt_cache=True,
-                    clear_prompt_cache=True,
+                    # NOT clear_prompt_cache.
+                    #
+                    # `disable_prompt_cache` is what this probe needs: it
+                    # neither reads nor writes, so its twenty characters can
+                    # never be mistaken for a conversation's prefix.
+                    # `clear_prompt_cache` is a different instrument — it wipes
+                    # the whole model+scope trie — and this probe runs on the
+                    # `user_surface` scope BETWEEN user turns.
+                    #
+                    # So every readiness check threw away the conversation's
+                    # cached prefix a moment before the next turn asked for it.
+                    # LIVE, 2026-09-08: `Verifying conversation readiness ...
+                    # with a visible probe` and immediately `cleared everything
+                    # under key=(5026061904, 'user_surface')`, then three
+                    # consecutive turns each `matched 0 (0.0%)` against 663
+                    # tokens retained from the turn before.
+                    #
+                    # The same reasoning is already written in mlx_worker.py
+                    # beside the bypass flag — "health probes fire between user
+                    # turns, and clearing on every probe would evict the
+                    # conversation's cached prefix before the next turn could
+                    # reuse it" — and the explicit flag went on doing it.
                 ),
                 timeout=max(1.0, float(budget_s)),
             )
@@ -7067,12 +7172,46 @@ class MLXLocalClient:
     def _measured_prefill_rate(self) -> float:
         """Tokens a second this worker reads a prompt at, as measured.
 
+        Two things measure this and only one of them measures reading.
+
+        MLX times the prefill inside the worker and reports it. This side
+        times the gaps between prefill PROGRESS MESSAGES, which cross an IPC
+        queue and land on a busy event loop, so what it measures is how often
+        the parent got told — and with the chunk size reduced for host
+        headroom, that is one chunk per scheduling slice.
+
+        LIVE, 2026-09-07, one turn: the worker logged prefill at 410-990
+        tok/s and this side had learned 56. The deadline built on 56 said a
+        52,020-character prompt would take 698 seconds to read, against about
+        30 in fact, and every user-facing turn was sized against it.
+
+        So the worker's own measurement is the rate, and the progress-interval
+        estimate is what there is until a generation has finished.
+
         Falls back to a deliberately pessimistic rate until it has seen one:
         being generous with an unmeasured worker costs a little latency, and
         being mean with it costs the answer.
         """
-        rate = float(getattr(self, "_prefill_tokens_per_s", 0.0) or 0.0)
-        return rate if rate > 0.0 else _UNMEASURED_PREFILL_RATE
+        measured = float(getattr(self, "_worker_measured_prefill_tps", 0.0) or 0.0)
+        if measured > 0.0:
+            return measured
+        # What another worker running THIS model measured, if one has. Same
+        # hardware and the same weights, so it is the same fact.
+        #
+        # Not the shared host entry. A rate from a different model is a
+        # measurement of a different thing, and taking it made a fresh 27B
+        # believe it read at the speed of a lane a thirtieth its size.
+        key = _model_rate_key(getattr(self, "model_path", ""))
+        by_model = float(_HOST_PREFILL_TPS.get(key) or 0.0) if key else 0.0
+        if by_model > 0.0:
+            return by_model
+        # Deliberately NOT self._prefill_tokens_per_s. That number is the
+        # rate progress MESSAGES arrive at, and it has been measured at 6
+        # tokens a second on a worker doing 500 — the estimate is of the
+        # event loop, not of the GPU. It stays for in-flight liveness, where
+        # "something arrived" is the whole question, and it sizes no
+        # deadlines.
+        return _UNMEASURED_PREFILL_RATE
 
     def least_time_to_read(self, prompt_chars: int) -> float:
         """The least time in which this worker could read that prompt.
@@ -7460,6 +7599,7 @@ class MLXLocalClient:
             "progress_age_s": progress_age_s,
             "worker_progress_anchor": worker_progress_anchor,
             "last_token_progress_at": self._last_token_progress_at,
+            "last_prefill_progress_at": self._prefill_progress_at(),
             "last_ready_at": self._last_ready_at,
             "last_generation_completed_at": self._last_generation_completed_at,
             "last_user_facing_completed_at": self._last_user_facing_completed_at,
@@ -9882,6 +10022,25 @@ class MLXLocalClient:
             severity="error",
         )
 
+    async def _cancel_latent_request_cleanly(
+        self, fut: SharedFuture, *, req_id: str, expected_request_sha256: str, reason: str,
+    ) -> dict[str, Any] | None:
+        """Keep request ownership until its recurrent cleanup receipt is checked."""
+        if self._current_request_id != req_id:
+            return None
+        self.soft_cancel_active_generation(reason)
+        try:
+            cancel_ack = await _await_shared_future(fut, timeout_s=_LATENT_CANCEL_ACK_GRACE_S)
+        except (TimeoutError, BrokenPipeError, OSError):
+            return None
+        if self._clean_latent_cancel_ack(
+            cancel_ack,
+            expected_request_id=req_id,
+            expected_request_sha256=expected_request_sha256,
+        ):
+            return cancel_ack
+        return None
+
     async def unified_recurrent_shadow_probe_async(
         self,
         public_token_ids: Sequence[int],
@@ -11100,22 +11259,12 @@ class MLXLocalClient:
             try:
                 res = await _await_shared_future(fut, timeout_s=generation_budget)
             except TimeoutError:
-                self.soft_cancel_active_generation("latent_reason_deadline")
-                try:
-                    # Deliberately OUTSIDE the caller's budget, and small. The
-                    # deadline is already spent; this buys the worker one
-                    # decode step to answer, and the alternative to a clean
-                    # acknowledgement is rebooting a healthy 32B.
-                    cancel_ack = await _await_shared_future(
-                        fut, timeout_s=_LATENT_CANCEL_ACK_GRACE_S
-                    )
-                except (TimeoutError, BrokenPipeError, OSError):
-                    cancel_ack = None
-                if self._clean_latent_cancel_ack(
-                    cancel_ack,
-                    expected_request_id=req_id,
+                cancel_ack = await self._cancel_latent_request_cleanly(
+                    fut, req_id=req_id,
                     expected_request_sha256=expected_request_sha256,
-                ):
+                    reason="latent_reason_deadline",
+                )
+                if cancel_ack is not None:
                     receipt = dict(cancel_ack.get("receipt") or {})
                     progress = dict(self._latent_progress_by_request.get(req_id) or {})
                     logger.warning(
@@ -11447,8 +11596,16 @@ class MLXLocalClient:
             }
         except asyncio.CancelledError:
             if fut is not None:
-                self.soft_cancel_active_generation("latent_reason_caller_cancelled")
-                deferred_reboot = "latent_reason_caller_cancelled"
+                cancel_ack = await asyncio.shield(self._cancel_latent_request_cleanly(
+                    fut, req_id=req_id,
+                    expected_request_sha256=expected_request_sha256,
+                    reason="latent_reason_caller_cancelled",
+                ))
+                if cancel_ack is None:
+                    deferred_reboot = "latent_reason_caller_cancelled"
+                else:
+                    self._set_lane_state("ready")
+                    logger.info("Latent request %s stopped with verified cleanup; resident lane preserved.", req_id)
             raise
         except (BrokenPipeError, OSError, TimeoutError, queue.Full) as exc:
             deferred_reboot = f"latent_ipc_failed:{type(exc).__name__}"
@@ -11495,7 +11652,7 @@ class MLXLocalClient:
         The model lives in the WORKER process, so the only correct swap is a
         worker recycle with the new path. (This replaces a retired
         live_learner monkey-patch that loaded a second full copy of the model
-        into the ORCHESTRATOR process — ~20GB of wired memory on the 32B lane
+        into the ORCHESTRATOR process — ~20GB of wired memory on the cortex lane
         — while generations kept flowing through the worker's old weights.)
         Busy lanes defer the recycle until the active request finishes; the
         respawn path re-resolves the fused manifest, so crash recovery after
@@ -12374,9 +12531,8 @@ class MLXLocalClient:
     async def _soft_cancel_acknowledged(self, timeout_s: float | None = None) -> bool:
         """Wait (bounded) for the worker to acknowledge a soft-cancel.
 
-        Acknowledgement = the worker cleared the shared cancel flag (it
-        demonstrably passed through its token loop) while staying alive with
-        fresh heartbeats. When this returns True the orphaned generation has
+        Acknowledgement is a terminal frame for the exact cancelled request,
+        observed after its cancel was issued. When this returns True the orphaned generation has
         already been dropped worker-side — late text cannot bleed into the
         next turn because its request id is no longer pending — so the warm
         model can be preserved instead of paying a ~60-90s reload.
@@ -14399,6 +14555,9 @@ class MLXLocalClient:
                                 ),
                                 severity="warning",
                             )
+                        self._steering_disposition = str(
+                            res.get("steering_disposition") or ""
+                        )
                         raw_steering = res.get("steering_active")
                         if raw_steering is not None:
                             try:
@@ -14538,7 +14697,18 @@ class MLXLocalClient:
 
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""
-        return self._process is not None and self._process.is_alive() and self._init_done
+        process = self._process
+        if process is None:
+            return False
+        try:
+            alive = process.is_alive()
+        except ValueError:
+            # Retirement can close a proven-dead handle between this read
+            # and is_alive(). Other invalid-handle failures remain visible.
+            if getattr(process, "_closed", False):
+                return False
+            raise
+        return bool(alive and self._init_done and self._process is process)
 
 
     def _still_producing(self, *, within_s: float, foreground_request: bool) -> bool:
@@ -14647,9 +14817,9 @@ class MLXLocalClient:
                 # the request neither aborted nor honestly failed.
                 memory_snapshot = None
                 try:
-                    memory_snapshot = get_memory_pressure_snapshot()
+                    memory_snapshot = await asyncio.to_thread(get_memory_pressure_snapshot)
                     if memory_snapshot.should_gc:
-                        gc.collect()
+                        await asyncio.to_thread(gc.collect)
                 except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
                     # Unobserved pressure is not observed headroom. Heavy lanes
                     # are the allocation that pushes this host over, so a blind
@@ -15263,11 +15433,28 @@ class MLXLocalClient:
         def _normalize(payload: Any) -> dict[str, Any] | None:
             if not isinstance(payload, dict):
                 return None
-            if "tool" in payload and "args" in payload:
-                name, args = payload.get("tool"), payload.get("args")
-            elif "name" in payload and "arguments" in payload:
-                name, args = payload.get("name"), payload.get("arguments")
-            else:
+            # A call is a call whatever the model named its keys.
+            #
+            # Two combinations were accepted, `tool`/`args` and
+            # `name`/`arguments`, and the third common one was not. A model
+            # that writes `function`/`args` produced an object nothing here
+            # recognised, so the intent became prose — and the safety gate
+            # then correctly refused it as a prompt artifact, leaving a turn
+            # with no call and no answer and no record of either.
+            #
+            # LIVE, 2026-09-07: `ResponseGeneration rejected unsafe
+            # user-facing draft (prompt_artifact, len=138):
+            # '<tool_call>\n{"function": "local_file_read", "args": {...}}'`.
+            # The fallback ladder answered from the 9B.
+            #
+            # Both halves are still required: an object with a name and no
+            # arguments is not a call, which is what keeps ordinary JSON from
+            # being read as one. And the allowlist below still decides whether
+            # the named tool may run, so a name nobody offers is refused by
+            # name rather than disappearing.
+            name = _first_present(payload, _CALL_NAME_KEYS)
+            args = _first_present(payload, _CALL_ARGUMENT_KEYS)
+            if name is None or args is None:
                 return None
             if not isinstance(name, str) or not name.strip():
                 return None
@@ -15493,12 +15680,30 @@ class MLXLocalClient:
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
             )
-        else:
-            logger.warning(
-                "⚠️ [STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s) — "
-                "substrate state is not modulating inference.",
+        elif str(getattr(self, "_steering_disposition", "")) in _EXPECTED_STEERING_DETACHMENTS:
+            # A signed migration disposition is a decision, not a fault. The
+            # worker says so at info; the parent used to warn about it on
+            # every call because it was sent the boolean and not the reason.
+            #
+            # LIVE, 2026-09-07: "Liveness flag CLEAR for this worker
+            # (origin=api_stabilizer, gen=0)" beside the worker's own
+            # "Affective steering remains detached under signed migration
+            # disposition: steering_generation_deferred."
+            logger.info(
+                "⏸️ [STEERING] Detached under a signed disposition (origin=%s, "
+                "gen=%s, disposition=%s); substrate state is deliberately not "
+                "modulating inference.",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
+                self._steering_disposition,
+            )
+        else:
+            logger.warning(
+                "⚠️ [STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s, "
+                "disposition=%s) — substrate state is not modulating inference.",
+                origin,
+                int(getattr(self, "_worker_generation", 0) or 0),
+                str(getattr(self, "_steering_disposition", "")) or "unreported",
             )
 
     def _drain_phi_residual_ring(self) -> int:
@@ -16584,6 +16789,23 @@ class MLXLocalClient:
             origin_label = str(kwargs.get("origin", "") or "")
             purpose_label = str(kwargs.get("purpose", "") or "")
             expected_cancel_reason = self._consume_expected_generation_cancellation(req_id)
+            from core.runtime.what_stops_it import current as current_execution
+
+            owner_stopped = current_execution(whose="mlx_generation").stopping.stopped
+            # Cancelling the parent future does not reach the worker process.
+            # Signal only this request before cleanup clears its sequence.
+            if self._current_request_id == req_id:
+                cancellation = self.soft_cancel_active_generation("generation_caller_cancelled")
+                if cancellation.get("requested") and self.is_alive():
+                    acknowledged = await asyncio.shield(self._soft_cancel_acknowledged())
+                    if not acknowledged:
+                        self._deferred_reboot_reason = "cancelled_worker_not_acknowledged"
+                        self._record_degraded_event(
+                            "generation_cancel_not_acknowledged",
+                            detail=os.path.basename(self.model_path),
+                            severity="error",
+                            foreground_request=foreground_request,
+                        )
             # CP126 9edfb10c. This used to be the labels alone, so ANY request
             # could suppress a cancellation degradation by calling itself
             # "baseline" — a self-signed excuse for the exact signal that says
@@ -16601,6 +16823,11 @@ class MLXLocalClient:
                     "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
                     os.path.basename(self.model_path),
                     expected_cancel_reason,
+                )
+            elif owner_stopped:
+                logger.info(
+                    "Generation cancelled for %s by its execution owner.",
+                    os.path.basename(self.model_path),
                 )
             elif benchmark_baseline_cancel:
                 logger.info(
@@ -16620,6 +16847,7 @@ class MLXLocalClient:
             self._pending_generations.pop(req_id, None)
             if (
                 not expected_cancel_reason
+                and not owner_stopped
                 and not benchmark_baseline_cancel
                 and not shutdown_cancel
                 and (
@@ -17090,6 +17318,28 @@ class MLXLocalClient:
                     timeout=remaining,
                 )
                 if warmup_text is None and not self.is_alive():
+                    # A worker that was never started is not a worker that
+                    # died.
+                    #
+                    # `_generate_inner` returns None and logs "stopped before
+                    # worker spawn" when a background deferral is in force —
+                    # the runtime deciding, on purpose, not to spawn a 27B
+                    # while the cortex is starting. The warm-up then found no
+                    # worker alive and called it dead: a degradation at
+                    # warning, a MARGINAL fault record, and a resilience hit
+                    # of frustration 0.13 and depletion 0.05, every boot, for
+                    # the runtime doing exactly what it meant to do.
+                    #
+                    # LIVE, 2026-09-09, three lines apart: `Background
+                    # generation for Aura-Qwen3.8-27B stopped before worker
+                    # spawn (cortex_startup_quiet)` then `FAULT
+                    # RUNTIME-MLX_CLIENT [MARGINAL] ...
+                    # warmup_precompile_worker_dead`.
+                    deferral = _background_deferral_active(
+                        owner_name or os.path.basename(self.model_path)
+                    )
+                    if deferral:
+                        raise _WarmupDeferredError(str(deferral))
                     raise RuntimeError("warmup_precompile_worker_dead")
                 # CP126 cdd743de + b6439433. A nonempty token from a
                 # max_tokens=1 "Hello" proves Metal shaders compiled — it does
@@ -17361,6 +17611,17 @@ class MLXLocalClient:
                                 owner_name=owner_name,
                                 warmup_timeout=warmup_timeout,
                             )
+                        except _WarmupDeferredError as deferred:
+                            # Nothing failed and nothing is recorded against
+                            # her: the runtime declined to spawn, and the
+                            # warm-up says so and stands down.
+                            logger.info(
+                                "⏸️ [MLX] Warmup deferred for %s: the runtime is not "
+                                "spawning workers right now (%s).",
+                                os.path.basename(self.model_path),
+                                deferred,
+                            )
+                            return False
                         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                             self._set_lane_state(
                                 "recovering", f"warmup_precompile_failed:{type(e).__name__}"

@@ -241,6 +241,15 @@ SCHEMA: tuple[SettingDef, ...] = (
         apply_mode="live_bridge",
     ),
     SettingDef(
+        "onboarding.completed",
+        "First-run setup done",
+        "dev",
+        False,
+        "Whether the first-run wizard has been finished on this machine.",
+        "bool",
+        owner="first_run_wizard",
+    ),
+    SettingDef(
         "dev.developer_mode",
         "Developer mode",
         "dev",

@@ -67,6 +67,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = [
+    "AnatomyRefusedError",
     "AReceipt",
     "WHAT_A_TIER_WANTS",
     "a_ledger_of_its_own",
@@ -82,6 +83,14 @@ __all__ = [
 ]
 
 logger = logging.getLogger("Aura.HowAChangeIsPromoted")
+
+
+class AnatomyRefusedError(RuntimeError):
+    """The shape of the system refused this promotion.
+
+    Re-exported from ``core.connectome.anatomy_law`` so a caller that catches it
+    does not have to import the connectome to do so.
+    """
 
 #: How far being wrong about each kind of part reaches, and so how large a
 #: claim its evidence has to support. Read off the part, not assigned to it:
@@ -246,9 +255,38 @@ def promote(
     evidence: str,
     replaced: Any = None,
     asked_from_outside: str | None = None,
+    anatomy: Any = None,
 ) -> AReceipt:
-    """Move a change up a state and write the line that says so."""
+    """Move a change up a state and write the line that says so.
+
+    ``anatomy`` is what the change did to the shape of the system, from
+    ``core.connectome.anatomy_gate``. A change can pass its probe and leave the
+    system worse built — one more brittle cell everything runs through, one more
+    channel with a writer and no reader — and the receipt should say so. What it
+    appends names what got worse before what got better, because a receipt that
+    records only the gain is why nobody can tell later what a change cost.
+
+    And the shape now REFUSES. Recording the anatomy in the evidence was a
+    diagnosis; nothing anywhere read it back, so a change that made the system
+    worse built was promoted with a note saying so. ``anatomy_permits`` decides,
+    the tolerance comes off the same blast-radius ladder the family counts do,
+    and a refusal raises :class:`AnatomyRefusedError` rather than returning a
+    receipt — because a receipt for a promotion that must not happen is worse
+    than no receipt at all.
+
+    A rollback is never refused. Putting something back is the remedy for a
+    change that should not have been kept, and a law that could block the remedy
+    would trap the system in the state the law exists to prevent.
+    """
     receipts, stack, archive = _ledger_stores()
+    verdict = _anatomy_permits(at, anatomy, became)
+    if verdict is not None and not verdict.allowed:
+        logger.info("%s", verdict.sentence())
+        raise AnatomyRefusedError(verdict.sentence())
+    if anatomy is not None:
+        evidence = f"{evidence} | anatomy: {_anatomical_line(anatomy)}"
+    elif verdict is not None:
+        evidence = f"{evidence} | anatomy: {verdict.reason}"
     if replaced is not None:
         stack.append((at, replaced))
         if len(stack) > 64:
@@ -270,6 +308,55 @@ def promote(
     if _PRIVATE_LEDGER.get() is None:
         logger.info("%s", made.describes())
     return made
+
+
+#: States that undo rather than install. The law never refuses one: putting
+#: something back is the remedy for a change that should not have been kept.
+_UNDOING: frozenset[str] = frozenset(
+    {"rolled back", "would not go back", "retired", "refused"}
+)
+
+
+def _anatomy_permits(at: str, anatomy: Any, became: str) -> Any:
+    """Ask the shape of the system whether this may be promoted.
+
+    Returns None where the law could not be consulted at all — an import error,
+    a reading that will not parse. That is reported in the receipt rather than
+    treated as permission, and it is not treated as a refusal either: a law that
+    blocks every change whenever its own machinery is unavailable is an outage,
+    not a constitution.
+    """
+    if str(became) in _UNDOING:
+        return None
+    try:
+        from core.connectome.anatomy_law import anatomy_permits
+
+        return anatomy_permits(_as_delta(anatomy), at=at)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("the anatomical law could not be consulted: %s", exc)
+        return None
+
+
+def _as_delta(anatomy: Any) -> Any:
+    """What the caller handed over, if it is a reading the law can use."""
+    if anatomy is None:
+        return None
+    return anatomy if hasattr(anatomy, "moves") else None
+
+
+def _anatomical_line(anatomy: Any) -> str:
+    """Render an anatomical verdict, or say why it could not be rendered.
+
+    A promotion must not fail because the shape could not be measured, and it
+    must not silently drop the measurement either.
+    """
+    try:
+        from core.connectome.anatomy_gate import anatomical_evidence
+
+        return anatomical_evidence(anatomy)
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("anatomical evidence could not be rendered: %s", exc)
+        return f"unavailable ({type(exc).__name__})"
 
 
 def what_it_replaced(at: str) -> Any | None:

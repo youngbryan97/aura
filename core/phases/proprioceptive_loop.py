@@ -24,6 +24,7 @@ except ImportError:
     psutil = None
 
 from ..state.aura_state import AuraState
+from ..state.percepts import emit_percept, read_percept
 from . import BasePhase
 
 logger = logging.getLogger("core.phases.proprioception")
@@ -66,6 +67,7 @@ class ProprioceptiveLoop(BasePhase):
     """
     
     def __init__(self, container: Any):
+        self._thermal_probe: Any = None
         self.container = container
         self._last_thought_time: float = 0.0
         self._last_perception_time: float = 0.0
@@ -78,6 +80,202 @@ class ProprioceptiveLoop(BasePhase):
         for channel in _PROPRIOCEPTIVE_CHANNELS:
             soma.hardware.pop(f"{channel}_degraded", None)
             soma.hardware.pop(f"{channel}_error", None)
+
+    def _push_perceptual_frame(self, state: Any) -> None:
+        """Give the substrate the frame it was built to take.
+
+        Every value is a reading the phase already has. Nothing is invented for
+        the frame, and a key with no reading is left out rather than filled
+        with a plausible number, because the substrate treats an absent key as
+        zero and that is the honest answer for a channel that reported nothing.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("liquid_substrate", default=None) or get_runtime_service(
+                "conscious_substrate", default=None
+            )
+            if substrate is None or not hasattr(substrate, "inject_perceptual_frame"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            raw = list(getattr(state.world, "recent_percepts", []) or [])
+            # Through the shared reading. The first version asked each percept
+            # for a `source` key that no producer writes, so the screen channel
+            # was zero however much she was looking at, and priced presence as
+            # a bare count — one percept and twenty read the same.
+            percepts = [read_percept(item) for item in raw[-8:]]
+            newest = percepts[-1] if percepts else None
+            visual = {"vision", "ambient_observation"}
+            social = {"interaction", "positive_interaction", "extended_dialogue", "deep_expression"}
+            threat = {"error", "internal_error", "threat_detected", "resource_pressure"}
+            frame = {
+                "cpu_percent": float(hardware.get("cpu_usage", 0.0) or 0.0),
+                "memory_percent": float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                "thermal": float(hardware.get("temperature", 0.0) or 0.0) / 100.0,
+                "valence": float(getattr(state.affect, "valence", 0.0) or 0.0),
+                "arousal": float(getattr(state.affect, "arousal", 0.0) or 0.0),
+                "user_presence": newest.salience if newest else 0.0,
+                "screen_changed": max(
+                    (item.intensity for item in percepts if item.kind in visual), default=0.0
+                ),
+                "social": max(
+                    (item.intensity for item in percepts if item.kind in social), default=0.0
+                ),
+                "threat": max(
+                    (item.intensity for item in percepts if item.kind in threat), default=0.0
+                ),
+            }
+            reading = state.response_modifiers.get("ontogenetic_novelty")
+            if reading is not None:
+                frame["novelty"] = float(reading)
+            substrate.inject_perceptual_frame(frame)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the substrate did not receive this tick's perceptual frame",
+            )
+
+    def _report_hardware_stress(self, state: Any) -> None:
+        """Tell the homeostatic coupling what the body is doing, every tick.
+
+        `_apply_hardware_resonance` throttles thinking depth, creativity and
+        temperature when the host is stressed, and expires its reading after
+        thirty seconds if nothing refreshes it. The only reporter was the
+        integrity monitor, on its own cadence and only above its own alarm
+        thresholds, so between alarms the resonance was expired and the body
+        had no say in how hard she was allowed to think. The phase that takes
+        the readings is the one that should be reporting them.
+
+        The thermal level comes from the substrate monitor, the same source the
+        integrity monitor uses, so there are no new bands here.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            coupling = ServiceContainer.get("homeostatic_coupling", default=None)
+            if coupling is None or not hasattr(coupling, "process_resource_stress"):
+                return
+            hardware = getattr(state.soma, "hardware", {}) or {}
+            level = 0
+            try:
+                from core.resilience.substrate_monitor import SubstrateMonitor
+
+                if self._thermal_probe is None:
+                    self._thermal_probe = SubstrateMonitor()
+                level = int(self._thermal_probe.thermal()[0])
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+                level = 0
+            # Megabytes, because that is what the consumer compares against —
+            # it throttles above 3500 — and the hardware dict carries percents.
+            # Passing a percent there is a threshold that can never be crossed.
+            coupling.process_resource_stress(
+                cpu_load=float(hardware.get("cpu_usage", 0.0) or 0.0),
+                mem_mb=self._process_megabytes(),
+                thermal_level=level,
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="hardware stress was not reported to the homeostatic coupling",
+            )
+
+    @staticmethod
+    def _process_megabytes() -> float:
+        """Resident set size in MB, or zero when it cannot be read."""
+        try:
+            import psutil
+
+            return float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+        except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
+            return 0.0
+
+    def _feel_body_pressure(self, state: Any) -> None:
+        """Hold the nociceptive strain channel at the body's current pressure.
+
+        Total, and silent when the reading is unavailable: an absent body is
+        not a painless one, but guessing a level for it would be worse than
+        leaving the channel to decay.
+        """
+        try:
+            from core.affect.nociception import DamageChannel, get_nociception_engine
+            from core.being.aura_now import BodyState
+
+            pressure = float(BodyState.from_aura_state(state).total_pressure)
+            if pressure > 0.0:
+                get_nociception_engine().hold(DamageChannel.RESOURCE_EXHAUSTION, pressure)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "proprioceptive_loop",
+                exc,
+                severity="debug",
+                action="the body's load was not reported to nociception this tick",
+            )
+
+    def _report_host(self, state: Any, soma: Any) -> None:
+        """Hand what was just sensed to the engine homeostasis reads, and feel it.
+
+        The second half is the channel that was never built. The affect phase
+        lists `resource_pressure` among the percepts it treats as a threat, and
+        no place in the tree has ever emitted one: a receiver with no
+        transmitter, so a machine at ninety percent load reached her feeling
+        through nothing at all. The percept is emitted only past the strain the
+        resilience engine itself calls friction, and carries the pressure as
+        its strength.
+        """
+        engine = self._get_service(
+            "soma",
+            soma=soma,
+            channel="host_observation",
+            action="Left the resilience engine reading the machine directly this tick",
+            severity="debug",
+        )
+        report = getattr(engine, "observe_host", None)
+        if not callable(report):
+            return
+        hardware = soma.hardware
+        try:
+            report(
+                cpu_percent=float(hardware.get("cpu_usage", 0.0) or 0.0),
+                ram_percent=float(hardware.get("ram_usage", hardware.get("vram_usage", 0.0)) or 0.0),
+                temperature_c=(
+                    float(hardware["temperature"])
+                    if hardware.get("temperature_available")
+                    else None
+                ),
+            )
+            body = dict((engine.get_body_snapshot() or {}).get("soma", {}) or {})
+            # Her own exertion counts as pressure. Working hard is a strain
+            # whoever else is using the machine, and it is the only part of
+            # this reading she causes.
+            pressure = max(
+                float(body.get("resource_anxiety", 0.0) or 0.0),
+                float(body.get("thermal_load", 0.0) or 0.0),
+                float(getattr(soma, "exertion", 0.0) or 0.0),
+            )
+            friction = float(getattr(engine, "FRICTION_THRESHOLD", 0.20))
+            if pressure > friction:
+                emit_percept(
+                    state.world,
+                    "resource_pressure",
+                    content=(
+                        f"under load: {pressure:.0%} pressure, "
+                        f"{float(hardware.get('cpu_usage', 0.0) or 0.0):.0f}% cpu, "
+                        f"{float(getattr(soma, 'exertion', 0.0) or 0.0):.0%} of it mine"
+                    ),
+                    intensity=pressure,
+                )
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            self._mark_channel_degraded(
+                soma,
+                "host_observation",
+                exc,
+                action="Left the resilience engine reading the machine directly this tick",
+                severity="debug",
+            )
 
     def _mark_channel_degraded(
         self,
@@ -177,6 +375,14 @@ class ProprioceptiveLoop(BasePhase):
             try:
                 soma.hardware["cpu_usage"] = psutil.cpu_percent(interval=0)
                 mem = psutil.virtual_memory()
+                # Both names carry the same reading. `vram_usage` is what the
+                # field has always been called and several readers use it, but
+                # the number is system memory, and three call sites in
+                # cognitive integration and the selfhood tick ask for
+                # `ram_usage` — which nothing published, so they read a
+                # constant zero and the body reached those layers saying
+                # nothing. Publishing the correct name is what closes them.
+                soma.hardware["ram_usage"] = mem.percent
                 soma.hardware["vram_usage"] = mem.percent
                 
                 # Temperature (macOS may not expose this)
@@ -237,6 +443,35 @@ class ProprioceptiveLoop(BasePhase):
                 severity="warning",
             )
         
+        # ── 1a. Her own exertion, which is not the machine's load ────────
+        # The host readings say what the computer is doing; most of that is not
+        # hers. This is what she spent: how wide a recall she asked for, how
+        # many steps the substrate integrated, how much the world model learned
+        # from what she showed it. Without it, nothing she chooses can come
+        # back to her as a felt cost.
+        try:
+            from core.soma.effort import EffortLedger, get_effort_ledger
+
+            ledger = get_effort_ledger()
+            spent = ledger.drain()
+            soma.effort = dict(spent)
+            soma.exertion = EffortLedger.exertion(spent)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            self._mark_channel_degraded(
+                soma,
+                "effort",
+                exc,
+                action="Left this tick's exertion unmeasured and kept the rest of the body schema",
+                severity="debug",
+            )
+
+        # ── 1b. And the body reports itself to the engine that judges it ──
+        # The resilience engine went straight to psutil on every call, and
+        # homeostasis reads that engine to compute her will to live. Two
+        # bodies: one in the state that every phase reads, one taken behind it.
+        # This is the sensing organ, so this is where the reading is published.
+        self._report_host(new_state, soma)
+
         # ── 2. Cognitive Latency (Self-Awareness of Thought Speed) ──
         now = time.time()
         if self._last_thought_time > 0:
@@ -330,6 +565,24 @@ class ProprioceptiveLoop(BasePhase):
                 )
                 logger.debug("Proprioception homeostatic probe failed: %s", e)
             
+        # The body's own load is a strain, and nothing was reporting it as one.
+        # Nociception had a resource-exhaustion channel that only the immune
+        # system and the degradation sink ever wrote to, so a machine running
+        # hot and full felt nothing about it and the whole interoception ->
+        # affect path carried a constant. `BodyState.total_pressure` is the
+        # runtime's own calibrated reading, so no new threshold is invented
+        # here.
+        self._feel_body_pressure(new_state)
+        self._report_hardware_stress(new_state)
+
+        # And push the same reading into the substrate's own dimensions.
+        # `inject_perceptual_frame` maps telemetry, user state, screen and audio
+        # into fixed bands of the continuous substrate, and the only thing in
+        # the tree with that name is a different class in the language layer, so
+        # this one had no caller: perception and the body reached recurrent
+        # cognition through nothing at all.
+        self._push_perceptual_frame(new_state)
+
         soma.updated_at = time.time()
 
         # ── 4b. [RUBICON] Motor Cortex Awareness ───────────────

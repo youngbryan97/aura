@@ -476,7 +476,7 @@ class STaRReasoner:
         self._task = None
         await self._flush_accepted()
         await self._flush_quarantine()
-        self._save_stats()
+        await self._save_stats()
         logger.info("STaR Reasoner stopped")
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -777,7 +777,7 @@ class STaRReasoner:
 
                 await self._flush_quarantine()
                 self._check_lora_trigger()
-                self._save_stats()
+                await self._save_stats()
 
             except asyncio.CancelledError:
                 raise
@@ -1043,11 +1043,22 @@ class STaRReasoner:
 
     # ── Persistence ──────────────────────────────────────────────────────
 
-    def _save_stats(self) -> None:
-        try:
-            from core.runtime.atomic_writer import atomic_write_text
+    async def _save_stats(self) -> None:
+        """Persist counters without lending fsync latency to cognition.
 
-            atomic_write_text(self._stats_path, json.dumps(self._stats_payload(), indent=2))
+        This method is reached only by async lifecycle paths. A live turn
+        caught the directory fsync here holding the main loop for 58 seconds,
+        long enough to make a healthy model worker look dead and strand its
+        answer. Serialization stays local; the durable write belongs to the
+        asynchronous atomic-write lane.
+        """
+        try:
+            from core.runtime.atomic_writer import async_atomic_write_text
+
+            await async_atomic_write_text(
+                self._stats_path,
+                json.dumps(self._stats_payload(), indent=2),
+            )
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             record_degradation('star_reasoner', e)
 

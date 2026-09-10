@@ -1,0 +1,2183 @@
+{
+  "entries": [
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "DELETE /api/engineering/designs/{design_id}",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /activity",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/action-log",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "GET /api/ambient/state",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/authority/standing",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "GET /api/chat/delivery/{idempotency_key}",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/circadian/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/code-graph/hotspots",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/code-graph/orphans",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/code-graph/search",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/code-graph/stats",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/code-graph/who-calls",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/conscience",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/db-maintenance",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "GET /api/devices",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/capability",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/designs",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/designs/{design_id}",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/designs/{design_id}/file/{filename}",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/designs/{design_id}/sheet/{kind}",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/reference",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "GET /api/engineering/validation",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "GET /api/export",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "GET /api/export/conversation",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/allostasis.py",
+      "kind": "api",
+      "name": "GET /api/forecasts",
+      "reachable": true,
+      "reachable_by": "allostasis.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/health",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/health/boot",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/health/heartbeat",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/health/interiority",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/health/mind_tick",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/healthz",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/imagination",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/incidents",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/initiative-overflow",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/integration",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "GET /api/integrity",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/knowledge/graph",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/knowledge/relationships",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/media.py",
+      "kind": "api",
+      "name": "GET /api/media/search",
+      "reachable": true,
+      "reachable_by": "media.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/media.py",
+      "kind": "api",
+      "name": "GET /api/media/stream/{item_id}",
+      "reachable": true,
+      "reachable_by": "media.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/episodic",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/export",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/goals",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/provenance",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/recent",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "GET /api/memory/semantic",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/metrics",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/metrics/prometheus",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/mhaf/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/mycelial/graph",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/mycelium",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/pneuma/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/projects",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/readyz",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/receipts",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/relationships",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/performance.py",
+      "kind": "api",
+      "name": "GET /api/report",
+      "reachable": true,
+      "reachable_by": "performance.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/resources",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/security/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/self/measured",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "GET /api/sessions",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/interaction_signals.py",
+      "kind": "api",
+      "name": "GET /api/signals/status",
+      "reachable": true,
+      "reachable_by": "interaction_signals.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/skills",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/snapshot",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/privacy.py",
+      "kind": "api",
+      "name": "GET /api/source",
+      "reachable": true,
+      "reachable_by": "privacy.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/mission_control.py",
+      "kind": "api",
+      "name": "GET /api/status",
+      "reachable": true,
+      "reachable_by": "mission_control.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "GET /api/status",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/strategic/projects",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/multimodal.py",
+      "kind": "api",
+      "name": "GET /api/stream",
+      "reachable": true,
+      "reachable_by": "multimodal.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/privacy.py",
+      "kind": "api",
+      "name": "GET /api/stream/voice",
+      "reachable": true,
+      "reachable_by": "privacy.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/substrate/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/control-plane",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/desktop-access",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/hot-reload/scopes",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/hot-reload/status",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/incidents",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/learning",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/memory/growth",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/system/source-drift",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/telemetry/stream",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/terminal/status",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/tokens",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/tools/catalog",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/ui/bootstrap",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "GET /api/user-engagement",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/viability",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "GET /api/voice/state",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/world",
+      "reachable": true,
+      "reachable_by": "dashboard.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/worlds.py",
+      "kind": "api",
+      "name": "GET /api/worlds",
+      "reachable": true,
+      "reachable_by": "worlds.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/worlds.py",
+      "kind": "api",
+      "name": "GET /api/worlds/{world_id}",
+      "reachable": true,
+      "reachable_by": "worlds.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/worlds.py",
+      "kind": "api",
+      "name": "GET /api/worlds/{world_id}/render",
+      "reachable": true,
+      "reachable_by": "worlds.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/dashboard.py",
+      "kind": "api",
+      "name": "GET /api/{receipt_id}",
+      "reachable": true,
+      "reachable_by": "dashboard.trace_router mounted at /api"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /controls",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/inner_state.py",
+      "kind": "api",
+      "name": "GET /inner-state",
+      "reachable": true,
+      "reachable_by": "inner_state.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/inner_state.py",
+      "kind": "api",
+      "name": "GET /inner-state/will-receipt/{receipt_id}",
+      "reachable": true,
+      "reachable_by": "inner_state.router mounted at /"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /metrics",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /metrics/prometheus",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /mind",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /pair",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /telemetry",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/inner_state.py",
+      "kind": "api",
+      "name": "GET /unity",
+      "reachable": true,
+      "reachable_by": "inner_state.router mounted at /"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /worlds",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "GET /{path:path}",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/performance.py",
+      "kind": "api",
+      "name": "POST /api/ack",
+      "reachable": true,
+      "reachable_by": "performance.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/acoustic/a1/mandate",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/acoustic/a1/run",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/acoustic/provision",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "POST /api/ambient/clear",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "POST /api/ambient/companion-turn",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "POST /api/ambient/position",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "POST /api/ambient/recall",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/ambient.py",
+      "kind": "api",
+      "name": "POST /api/ambient/visibility",
+      "reachable": true,
+      "reachable_by": "ambient.router mounted at /"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "POST /api/application-ack",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "POST /api/auth/fresh",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "POST /api/auth/revoke",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/authority/standing/grants",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/authority/standing/{grant_id}/restore",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/authority/standing/{grant_id}/revoke",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/brain/retry",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "POST /api/chat",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "POST /api/chat/regenerate",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/chat.py",
+      "kind": "api",
+      "name": "POST /api/cheat-codes/activate",
+      "reachable": true,
+      "reachable_by": "chat.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "POST /api/checkpoints/restore",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "POST /api/checkpoints/save",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/consolidate/now",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/connect/begin",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/connect/verify",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/grant-scope",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/pair/begin",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/pair/cancel",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/pair/complete",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/revoke",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/devices.py",
+      "kind": "api",
+      "name": "POST /api/devices/revoke-scope",
+      "reachable": true,
+      "reachable_by": "devices.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/engineering.py",
+      "kind": "api",
+      "name": "POST /api/engineering/design",
+      "reachable": true,
+      "reachable_by": "engineering.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/performance.py",
+      "kind": "api",
+      "name": "POST /api/frame",
+      "reachable": true,
+      "reachable_by": "performance.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/imagination/visualize",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/mandate",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "POST /api/memory/contest",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "POST /api/memory/delete",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "POST /api/memory/edit",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "POST /api/memory/freeze",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/memory.py",
+      "kind": "api",
+      "name": "POST /api/memory/mark_false",
+      "reachable": true,
+      "reachable_by": "memory.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/preflight",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/privacy.py",
+      "kind": "api",
+      "name": "POST /api/privacy/camera",
+      "reachable": true,
+      "reachable_by": "privacy.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/privacy.py",
+      "kind": "api",
+      "name": "POST /api/privacy/microphone",
+      "reachable": true,
+      "reachable_by": "privacy.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/reboot",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "POST /api/reset",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/settings.py",
+      "kind": "api",
+      "name": "POST /api/rollback",
+      "reachable": true,
+      "reachable_by": "settings.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/reality_reach.py",
+      "kind": "api",
+      "name": "POST /api/run",
+      "reachable": true,
+      "reachable_by": "reality_reach.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/mission_control.py",
+      "kind": "api",
+      "name": "POST /api/run_mission",
+      "reachable": true,
+      "reachable_by": "mission_control.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/security/snapshot",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/interaction_signals.py",
+      "kind": "api",
+      "name": "POST /api/signals/camera_capture",
+      "reachable": true,
+      "reachable_by": "interaction_signals.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/interaction_signals.py",
+      "kind": "api",
+      "name": "POST /api/signals/typing",
+      "reachable": true,
+      "reachable_by": "interaction_signals.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/interaction_signals.py",
+      "kind": "api",
+      "name": "POST /api/signals/vision",
+      "reachable": true,
+      "reachable_by": "interaction_signals.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/interaction_signals.py",
+      "kind": "api",
+      "name": "POST /api/signals/voice",
+      "reachable": true,
+      "reachable_by": "interaction_signals.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/skill/execute",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/system/browser-pursuit",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/system/desktop-access/open-settings/{permission}",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/system/desktop-access/request-accessibility",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/system/desktop-access/request-screen",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/system/hot-reload",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/terminal/send",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/system.py",
+      "kind": "api",
+      "name": "POST /api/ui/shell-error",
+      "reachable": true,
+      "reachable_by": "system.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/subsystems.py",
+      "kind": "api",
+      "name": "POST /api/voice/affect-modulate",
+      "reachable": true,
+      "reachable_by": "subsystems.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/privacy.py",
+      "kind": "api",
+      "name": "POST /api/voice/chunk",
+      "reachable": true,
+      "reachable_by": "privacy.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/worlds.py",
+      "kind": "api",
+      "name": "POST /api/worlds/{world_id}/step",
+      "reachable": true,
+      "reachable_by": "worlds.router mounted at /api"
+    },
+    {
+      "declared_in": "interface/routes/rpc.py",
+      "kind": "api",
+      "name": "POST /rpc/attention_spike",
+      "reachable": true,
+      "reachable_by": "rpc.router mounted at /rpc"
+    },
+    {
+      "declared_in": "interface/routes/rpc.py",
+      "kind": "api",
+      "name": "POST /rpc/query_beliefs",
+      "reachable": true,
+      "reachable_by": "rpc.router mounted at /rpc"
+    },
+    {
+      "declared_in": "interface/routes/rpc.py",
+      "kind": "api",
+      "name": "POST /rpc/receive_beliefs",
+      "reachable": true,
+      "reachable_by": "rpc.router mounted at /rpc"
+    },
+    {
+      "declared_in": "interface/routes/rpc.py",
+      "kind": "api",
+      "name": "POST /rpc/receive_principles",
+      "reachable": true,
+      "reachable_by": "rpc.router mounted at /rpc"
+    },
+    {
+      "declared_in": "interface/routes/rpc.py",
+      "kind": "api",
+      "name": "POST /rpc/receive_resonance",
+      "reachable": true,
+      "reachable_by": "rpc.router mounted at /rpc"
+    },
+    {
+      "declared_in": "interface/server.py",
+      "kind": "api",
+      "name": "WEBSOCKET /ws",
+      "reachable": true,
+      "reachable_by": "declared on the app itself"
+    },
+    {
+      "declared_in": "interface/routes/voice_duplex.py",
+      "kind": "api",
+      "name": "WEBSOCKET /ws/voice",
+      "reachable": true,
+      "reachable_by": "voice_duplex.router mounted at /"
+    },
+    {
+      "bytes": 868628559,
+      "declared_in": "models/Qwen2.5-1.5B-Instruct-4bit",
+      "kind": "model",
+      "name": "Qwen2.5-1.5B-Instruct-4bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 1
+    },
+    {
+      "bytes": 18431478459,
+      "declared_in": "models/Qwen2.5-32B-Instruct-4bit",
+      "kind": "model",
+      "name": "Qwen2.5-32B-Instruct-4bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 4
+    },
+    {
+      "bytes": 34812857379,
+      "declared_in": "models/Qwen2.5-32B-Instruct-8bit",
+      "kind": "model",
+      "name": "Qwen2.5-32B-Instruct-8bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 7
+    },
+    {
+      "bytes": 40900550929,
+      "declared_in": "models/Qwen2.5-72B-Instruct-4bit",
+      "kind": "model",
+      "name": "Qwen2.5-72B-Instruct-4bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 8
+    },
+    {
+      "bytes": 4284346255,
+      "declared_in": "models/Qwen2.5-7B-Instruct-4bit",
+      "kind": "model",
+      "name": "Qwen2.5-7B-Instruct-4bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 1
+    },
+    {
+      "bytes": 5950221072,
+      "declared_in": "models/Qwen3.5-9B-4bit",
+      "kind": "model",
+      "name": "Qwen3.5-9B-4bit",
+      "reachable": true,
+      "reachable_by": "on disk only",
+      "weight_files": 2
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "ManageAbilities",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "add_belief",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "auto_refactor",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "build_app",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "build_document",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "status",
+      "kind": "skill",
+      "name": "clock",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "sandboxed_compute",
+      "kind": "skill",
+      "name": "code_repl",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "pure_compute",
+      "kind": "skill",
+      "name": "coding_skill",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "cognitive_trainer",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_desktop_control",
+      "kind": "skill",
+      "name": "computer_use",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "curiosity",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "deploy_ghost_probe",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "design_engineering",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_desktop_control",
+      "kind": "skill",
+      "name": "desktop_task",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "sandboxed_compute",
+      "kind": "skill",
+      "name": "diagnose_repo",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "dream_sleep",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "email_adapter",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "embodiment",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "environment_info",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "evolution_status",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "execute_nethack_action",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "file_operation",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "force_dream_cycle",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "free_search",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "grounded_search",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "http_request",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "image_gen",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "improve_own_code",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "install_package",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "inter_agent_comm",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "sandboxed_compute",
+      "kind": "skill",
+      "name": "internal_sandbox",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "knowledge_base",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "listen",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "local_reference_search",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "malware_analysis",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "manifest_to_device",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "memory_ops",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "memory_sync",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "messages",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "pure_compute",
+      "kind": "skill",
+      "name": "native_chat",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "notify_user",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_desktop_control",
+      "kind": "skill",
+      "name": "os_automation",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_desktop_control",
+      "kind": "skill",
+      "name": "os_manipulation",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "personality",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "plan_mode",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "program_dna_equivalence_battery",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "program_dna_reconstruct",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "pure_compute",
+      "kind": "skill",
+      "name": "propagation",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_desktop_control",
+      "kind": "skill",
+      "name": "pursue_on_screen",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "pure_compute",
+      "kind": "skill",
+      "name": "quantum_lab",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "query_beliefs",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "query_visual_context",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "reddit_adapter",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "reminder",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "pure_compute",
+      "kind": "skill",
+      "name": "render_bridge",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "sandboxed_compute",
+      "kind": "skill",
+      "name": "run_code",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "search_web",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "sec_ops",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "self_evolution",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "self_improvement",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "self_repair",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "social_lurker",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "sovereign_browser",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "sovereign_imagination",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "sovereign_network",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "sovereign_terminal",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "sovereign_vision",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "speak",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "stealth_ops",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "system_proprioception",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_write_artifacts",
+      "kind": "skill",
+      "name": "test_generator",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "toggle_senses",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "privileged_mutation",
+      "kind": "skill",
+      "name": "train_self",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "uplink_local",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "voice_mute",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "sandboxed_compute",
+      "kind": "skill",
+      "name": "voice_output",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "voice_stop_tts",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "voice_unmute",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "foreground_browser_dialogue",
+      "kind": "skill",
+      "name": "web_interlocutor",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "read_only",
+      "kind": "skill",
+      "name": "web_search",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "state_mutation",
+      "kind": "skill",
+      "name": "world_forge",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "declared_in": "",
+      "effect_scope": "external_io",
+      "kind": "skill",
+      "name": "x_tools",
+      "reachable": true,
+      "reachable_by": "core.capability_engine.CapabilityEngine.skills"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/activity.html",
+      "kind": "ui",
+      "name": "activity.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    },
+    {
+      "control_ids": [
+        "close"
+      ],
+      "controls": 1,
+      "declared_in": "interface/static/bubble.html",
+      "kind": "ui",
+      "name": "bubble.html",
+      "reachable": true,
+      "reachable_by": "scripts/AuraLauncher.swift"
+    },
+    {
+      "control_ids": [
+        "collapse",
+        "expand",
+        "input",
+        "send"
+      ],
+      "controls": 4,
+      "declared_in": "interface/static/companion_chat.html",
+      "kind": "ui",
+      "name": "companion_chat.html",
+      "reachable": true,
+      "reachable_by": "scripts/AuraLauncher.swift"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/controls.html",
+      "kind": "ui",
+      "name": "controls.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    },
+    {
+      "control_ids": [
+        "scrub"
+      ],
+      "controls": 1,
+      "declared_in": "interface/static/devtools.html",
+      "kind": "ui",
+      "name": "devtools.html",
+      "reachable": true,
+      "reachable_by": "interface/static/index.html"
+    },
+    {
+      "control_ids": [
+        "back",
+        "next"
+      ],
+      "controls": 2,
+      "declared_in": "interface/static/first_run.html",
+      "kind": "ui",
+      "name": "first_run.html",
+      "reachable": true,
+      "reachable_by": "interface/static/aura.js"
+    },
+    {
+      "control_ids": [
+        "approval-modal-cancel",
+        "approval-modal-confirm",
+        "btn-activate-cheat-code",
+        "btn-apk",
+        "btn-brain",
+        "btn-cam",
+        "btn-campaign",
+        "btn-clear-history",
+        "btn-export-data",
+        "btn-mem-map",
+        "btn-mute",
+        "btn-reboot",
+        "btn-soul",
+        "btn-src",
+        "btn-term",
+        "btn-update",
+        "chat-input",
+        "hud-overflow-btn",
+        "imagine-auto-toggle",
+        "imagine-render-btn",
+        "metric-guide-close",
+        "metric-guide-toggle",
+        "mic-btn",
+        "neural-pause-toggle",
+        "neural-readable-toggle",
+        "onboard-next",
+        "onboard-skip",
+        "regen-btn",
+        "reload",
+        "setting-accent",
+        "setting-approval",
+        "setting-autolisten",
+        "setting-chat-text-size",
+        "setting-cheat-code",
+        "setting-enrichment",
+        "setting-neural-paused",
+        "setting-neural-text-size",
+        "setting-reflection",
+        "setting-theme",
+        "setting-tts-speed"
+      ],
+      "controls": 48,
+      "declared_in": "interface/static/index.html",
+      "kind": "ui",
+      "name": "index.html",
+      "reachable": true,
+      "reachable_by": "interface/memory_ui.py"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/memory/index.html",
+      "kind": "ui",
+      "name": "memory/index.html",
+      "reachable": true,
+      "reachable_by": "interface/memory_ui.py"
+    },
+    {
+      "control_ids": [
+        "edit-textarea",
+        "save-edit-btn"
+      ],
+      "controls": 2,
+      "declared_in": "interface/static/memory_panel.html",
+      "kind": "ui",
+      "name": "memory_panel.html",
+      "reachable": true,
+      "reachable_by": "interface/memory_ui.py"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/mind.html",
+      "kind": "ui",
+      "name": "mind.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    },
+    {
+      "control_ids": [
+        "mission-objective"
+      ],
+      "controls": 1,
+      "declared_in": "interface/static/mission_control.html",
+      "kind": "ui",
+      "name": "mission_control.html",
+      "reachable": true,
+      "reachable_by": "interface/static/aura.js"
+    },
+    {
+      "control_ids": [
+        "soul-fit",
+        "soul-zoom-in",
+        "soul-zoom-out"
+      ],
+      "controls": 3,
+      "declared_in": "interface/static/mycelial.html",
+      "kind": "ui",
+      "name": "mycelial.html",
+      "reachable": true,
+      "reachable_by": "interface/static/aura.js"
+    },
+    {
+      "control_ids": [
+        "code",
+        "gen-btn",
+        "name",
+        "pair-btn"
+      ],
+      "controls": 4,
+      "declared_in": "interface/static/pair.html",
+      "kind": "ui",
+      "name": "pair.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/schematics.html",
+      "kind": "ui",
+      "name": "schematics.html",
+      "reachable": true,
+      "reachable_by": "interface/static/index.html"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/shell/index.html",
+      "kind": "ui",
+      "name": "shell/index.html",
+      "reachable": true,
+      "reachable_by": "interface/memory_ui.py"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/substrate.html",
+      "kind": "ui",
+      "name": "substrate.html",
+      "reachable": true,
+      "reachable_by": "interface/static/index.html"
+    },
+    {
+      "control_ids": [],
+      "controls": 0,
+      "declared_in": "interface/static/telemetry.html",
+      "kind": "ui",
+      "name": "telemetry.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    },
+    {
+      "control_ids": [
+        "live-btn",
+        "step-btn",
+        "world-select"
+      ],
+      "controls": 3,
+      "declared_in": "interface/static/worlds.html",
+      "kind": "ui",
+      "name": "worlds.html",
+      "reachable": true,
+      "reachable_by": "interface/server.py"
+    }
+  ],
+  "non_claims": [
+    "Reachable means something outside the declaration can get to it.",
+    "Nothing here says a capability works; that is what exercising it says.",
+    "An empty orphan list is a fact about wiring, not about quality."
+  ],
+  "schema_version": 1,
+  "summary": {
+    "by_kind": {
+      "api": 174,
+      "model": 6,
+      "skill": 82,
+      "ui": 18
+    },
+    "could_not_count": {},
+    "orphans": [],
+    "reachable": 280,
+    "total": 280
+  }
+}

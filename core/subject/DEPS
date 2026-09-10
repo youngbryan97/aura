@@ -1,0 +1,54 @@
+# core/subject — layering rules. Written, not generated.
+#
+# This package measures the organism; it must never become part of it. The
+# rule is one-way: subject may import the runtime it measures, and nothing in
+# the runtime may import subject. A measurement that the thing being measured
+# can read is a feedback loop, and every number here would then be partly
+# about itself.
+#
+# A generated closed-world list would say something weaker — "what it imports
+# today" — and would widen the moment somebody added an import, which is the
+# direction this rule exists to hold.
+
+description = "core.subject: may read and restore measured organism state, including effort; the organism may not read it."
+
+include_rules = [
+    "+core.motivation",
+    "+core.subject",
+
+    # What it reads to build K and to drive a life.
+    "+core.kernel",
+    "+core.memory",
+    "+core.ontogeny",
+    "+core.state",
+
+    # The organs K is read from. The workspace is imported for its candidate
+    # type, because displacing the workspace means entering a bid rather than
+    # writing a readout, and a bid has a type.
+    "+core.consciousness",
+
+    # Writing the recording. Consequential writes go through the gateway inside
+    # a governed scope like every other write in the tree; the battery is not
+    # exempt from the rule it is measuring compliance with.
+    "+core.governance_context",
+    "+core.runtime",
+
+    # How it reaches the running organism to take a reading. Every one of
+    # these is subject -> runtime, which is the direction the rule allows;
+    # named module by module rather than package by package, so a wider reach
+    # into any of them is a line in a diff.
+    "+core.agency.authorship",
+    "+core.agency.intention_loop",
+    "+core.consciousness.consciousness_bridge",
+    "+core.consciousness.system",
+    "+core.container",
+    "+core.runtime.service_registry",
+    "+core.service_registration",
+    "+core.soma.effort",
+
+    # Everything else.
+    "-core",
+    "-interface",
+    "-skills",
+    "-aura_main",
+]

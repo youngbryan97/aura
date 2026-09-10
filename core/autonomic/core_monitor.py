@@ -20,8 +20,8 @@ class AutonomicCore:
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
         
-        # Unified Thresholds — raised for M5 64GB hardware where the 32B model
-        # alone consumes ~31% of unified memory.
+        # Unified Thresholds — raised for M5 64GB hardware where the resident
+        # cortex alone consumes about a third of unified memory.
         self.defrag_ram_percent = 85.0     # Substrate defrag (SnapKV + episodic eviction)
         self.throttle_ram_percent = 94.0   # Skip deep thoughts / background tasks
         self.cleanup_ram_percent = 96.0    # Aggressive GC
@@ -294,12 +294,13 @@ class AutonomicCore:
     async def _check_idle_model_swap(self):
         """Model hot-swap budget: unload the resident cortex when idle.
 
-        After 5 minutes with no user interaction, automatically swap the 32B
-        model for the 7B brainstem. The inference gate will lazy-reload the 32B
-        when the next user message arrives.
+        After 5 minutes with no user interaction, automatically swap the cortex
+        for the smaller brainstem. The inference gate will lazy-reload the
+        cortex when the next user message arrives.
 
-        This is the single biggest RAM reclamation available — the 32B model
-        alone consumes ~20GB vs ~5GB for the 7B.
+        This is the single biggest RAM reclamation available — the resident
+        Aura-Qwen3.8-27B holds about 20GB against roughly 5GB for the
+        brainstem.
         """
         if not self.orchestrator:
             return
@@ -315,7 +316,7 @@ class AutonomicCore:
             if idle_seconds < idle_threshold:
                 return
 
-            # Only swap if the 32B is actually loaded.
+            # Only swap if the cortex is actually loaded.
             from core.container import ServiceContainer
             mlx_client = ServiceContainer.get("mlx_client", default=None)
             if not mlx_client or not hasattr(mlx_client, 'is_alive'):

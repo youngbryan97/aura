@@ -9,9 +9,9 @@ rules live in [CONTRIBUTING.md](CONTRIBUTING.md); the deep spec is
 A real Aura instance is usually running on this machine (port 8000,
 `aura_main` process, logs streaming to `~/.aura/logs/`). **Never kill,
 restart, or port-collide with it.** Do not boot a second full desktop
-runtime or load another 32B model beside it — the host has 64GB and the
-live model already holds ~20GB wired. Code fixes reach the live instance
-only when the user restarts it themselves.
+runtime or load a second cortex-sized model beside it — the host has 64GB
+and the live model, Aura-Qwen3.8-27B, already holds ~20GB wired. Code
+fixes reach the live instance only when the user restarts it themselves.
 
 ## Environment
 
@@ -37,10 +37,10 @@ make layering     # DEPS include-rule gate; baseline in config/ only shrinks
   OOM-killed (~83%); always use the chunk runner.
 - **Chunk count is a memory budget, not a constant.** 6 chunks (≈353 files
   per pytest process) is right on an idle host and gets the *runner itself*
-  killed when something else holds ~18GB — a resident 32B, a training sweep.
+  killed when something else holds ~18GB — the resident 27B, a training sweep.
   The symptom is a log containing only the chunk header, because
   `capture_output=True` buffers the chunk's output in a parent that is then
-  gone. Check `free` first; with a 32B up, use `--chunks 40` (≈54 files,
+  gone. Check `free` first; with the 27B up, use `--chunks 40` (≈54 files,
   ~70s each). `/tmp/aura_test_chunks_progress.log` names the chunk that was
   in flight, and `--min-free-gb N` refuses rather than gambles.
 - A test failing in-chunk but passing alone is an ORDER-DEPENDENCE defect —

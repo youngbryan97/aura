@@ -576,16 +576,21 @@ def _resolve_memory_limit_bytes() -> int:
             gb = float(override)
             if gb > 0.0:
                 return int(gb * (1024 ** 3))
-        except (TypeError, ValueError):
-            pass
+        except (TypeError, ValueError) as exc:
+            # An override that is not a number is a typo in a setting, not a
+            # reason to refuse to compute a limit. The default stands and the
+            # value that could not be read is named.
+            logger.debug("memory-limit override %r is not a number: %s", override, exc)
     try:
         from core.utils.memory_monitor import get_memory_pressure_snapshot
 
         limit_gb = float(get_memory_pressure_snapshot().process_rss_limit_gb or 0.0)
         if limit_gb > 0.0:
             return int(limit_gb * (1024 ** 3))
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        # No pressure snapshot on this host: fall back to the compiled default
+        # rather than treating an unavailable reading as a limit of zero.
+        logger.debug("memory pressure snapshot unavailable: %s", exc)
     return DEFAULT_MEMORY_LIMIT_BYTES
 
 

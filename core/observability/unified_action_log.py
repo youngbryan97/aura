@@ -152,17 +152,18 @@ class UnifiedActionLog:
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
-                from core.governance_context import local_internal_governed_scope
-                with local_internal_governed_scope("unified_action_log.record", domain="file_write"):
-                    get_file_write_gateway().append_text(
-                        self._persist_path,
-                        json.dumps(entry) + "\n",
-                        encoding="utf-8",
-                        source="unified_action_log.record",
-                    )
-            except (json.JSONDecodeError, OSError, TypeError, ValueError) as _exc:
-                record_degradation('unified_action_log', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                try:
+                    from core.governance_context import local_internal_governed_scope
+                    with local_internal_governed_scope("unified_action_log.record", domain="file_write"):
+                        get_file_write_gateway().append_text(
+                            self._persist_path,
+                            json.dumps(entry) + "\n",
+                            encoding="utf-8",
+                            source="unified_action_log.record",
+                        )
+                except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                    record_degradation("unified_action_log", exc)
+                    logger.debug("Action-log append failed: %s", exc)
             else:
                 loop.create_task(self._persist_entry(entry))
 

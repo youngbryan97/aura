@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -523,7 +522,7 @@ def _default_authority_path() -> Path:
 
 
 _ledger: AuthorityLedger | None = None
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.ontogeny.authority._ledger_lock")
 
 
 def get_authority_ledger() -> AuthorityLedger:

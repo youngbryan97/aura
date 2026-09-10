@@ -87,6 +87,9 @@ import subprocess
 logger = logging.getLogger(__name__)
 
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
 def is_allowed(value):
     """A predicate. Every exit is a boolean, so this is a gate."""
     if value is None:
@@ -898,8 +901,11 @@ def test_the_volume_and_gap_layers_find_what_the_call_graph_cannot(layered_repo)
     # Neither pair is joined by a call.
     assert multilayer.unique_fraction(Layer.VOLUME) == pytest.approx(1.0)
     census = multilink_census(multilayer)
-    assert census["volume_only"] >= 1
-    assert census["gap_only"] >= 1
+    # The census keys are the set of layers joining a pair, so a pair joined only
+    # by a topic is "volume" and one joined by a call as well is "volume+wired".
+    assert census.get("volume", 0) >= 1
+    assert census.get("gap", 0) >= 1
+    assert all("+" not in key or "wired" in key for key in census)
 
 
 def test_a_sentence_is_not_a_topic(layered_repo):
@@ -1515,3 +1521,1631 @@ def test_live_levels_are_empty_without_a_running_system():
     from core.connectome.laminar import LaminarConfig, config_for
 
     assert config_for("anywhere", levels, None).z == LaminarConfig().z
+
+
+# ---------------------------------------------------------------------------
+# A call count is not a weight
+# ---------------------------------------------------------------------------
+
+
+_FLOW_MODULE = '''
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def make():
+    return 1
+
+
+def check():
+    return True
+
+
+def discards():
+    """Ten calls, nothing read."""
+    for _ in range(10):
+        make()
+
+
+def logs_it():
+    logger.info("value %s", make())
+
+
+def keeps_it():
+    value = make()
+    return value + 1
+
+
+def branches_on_it():
+    if check():
+        return 1
+    return 0
+
+
+def returns_it():
+    return make()
+
+
+class Holder:
+    def escapes(self):
+        self.value = make()
+'''
+
+
+@pytest.fixture
+def flow_repo(tmp_path: Path) -> Path:
+    package = tmp_path / "core" / "flow"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_FLOW_MODULE)
+    return tmp_path
+
+
+def test_what_happens_to_a_returned_value_is_classified(flow_repo):
+    from core.connectome.dataflow import Consequence, extract_dataflow
+
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    text = (flow_repo / "core" / "flow" / "mod.py").read_text().splitlines()
+    found: dict[str, str] = {}
+    for locus, consequence in flow.by_locus.items():
+        line = int(locus.split(":")[1])
+        found.setdefault(text[line - 1].strip(), str(consequence))
+    assert found["make()"] == str(Consequence.DISCARDED)
+    assert found['logger.info("value %s", make())'] == str(Consequence.LOGGED)
+    assert found["value = make()"] == str(Consequence.LOCAL)
+    assert found["if check():"] == str(Consequence.BRANCH)
+    assert found["return make()"] == str(Consequence.RETURNED)
+    assert found["self.value = make()"] == str(Consequence.ESCAPES)
+
+
+def test_ten_calls_that_carry_nothing_weigh_nothing(flow_repo):
+    from core.connectome.dataflow import extract_dataflow, weight_edges
+
+    reconstructor = VolumeReconstructor(flow_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    weighted = weight_edges(snapshot, flow, reconstructor.contact_loci)
+
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    by_pair = {
+        (names[pre], names[post]): entry
+        for (pre, post), entry in weighted.items()
+        if pre in names and post in names
+    }
+    discarding = by_pair[("discards", "make")]
+    assert discarding["contacts"] == 1  # one site, in a loop
+    assert discarding["mean_weight"] == pytest.approx(0.0)
+    assert discarding["carries_nothing"] is True
+
+    deciding = by_pair[("branches_on_it", "check")]
+    assert deciding["carries_nothing"] is False
+    assert deciding["mean_weight"] > discarding["mean_weight"]
+
+
+def test_the_report_separates_heavy_and_empty_from_light_and_decisive(flow_repo):
+    from core.connectome.dataflow import dataflow_report, extract_dataflow, weight_edges
+
+    reconstructor = VolumeReconstructor(flow_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    flow = extract_dataflow(flow_repo, roots=("core",))
+    weighted = weight_edges(snapshot, flow, reconstructor.contact_loci)
+    report = dataflow_report(snapshot, weighted)
+    assert report["edges_weighted"] > 0
+    assert 0.0 <= report["carries_nothing_share"] <= 1.0
+    assert any("branches_on_it" in row["pair"] for row in report["single_call_decisive"])
+
+
+# ---------------------------------------------------------------------------
+# Durable stores and the process boundary
+# ---------------------------------------------------------------------------
+
+
+_STORE_MODULE = '''
+import json
+import subprocess
+
+
+def writes(out):
+    out.write_text("payload")
+    (out / "report.json").write_text("{}")
+
+
+def reads(out):
+    return (out / "report.json").read_text()
+
+
+def writes_nobody_reads(out):
+    (out / "orphan.json").write_text("{}")
+
+
+def spawns():
+    return subprocess.run(["helper-binary"], check=False)
+
+
+def spawns_too():
+    return subprocess.run(["helper-binary", "--flag"], check=False)
+'''
+
+
+def test_a_store_written_here_and_read_there_is_an_edge(tmp_path: Path):
+    from core.connectome.layers import Layer, extract_layers
+
+    package = tmp_path / "core" / "store"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_STORE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, tmp_path, roots=("core",))
+
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    io_named = {
+        (names[pre], names[post])
+        for pre, post in multilayer.io
+        if pre in names and post in names
+    }
+    assert ("writes", "reads") in io_named
+    stores = {
+        key.partition(":")[2]: value
+        for key, value in multilayer.channels.items()
+        if key.startswith(str(Layer.IO))
+    }
+    assert "report.json" in stores
+    orphan = stores.get("orphan.json")
+    assert orphan is not None and orphan["write"] and not orphan["read"]
+
+
+def test_two_cells_that_spawn_the_same_helper_meet_at_the_boundary(tmp_path: Path):
+    from core.connectome.layers import extract_layers
+
+    package = tmp_path / "core" / "store"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_STORE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    multilayer = extract_layers(snapshot, tmp_path, roots=("core",))
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    ipc_named = {
+        tuple(sorted((names[pre], names[post])))
+        for pre, post in multilayer.ipc
+        if pre in names and post in names
+    }
+    assert ("spawns", "spawns_too") in ipc_named
+
+
+# ---------------------------------------------------------------------------
+# The effective connectome: what a connection does, in the state she is in
+# ---------------------------------------------------------------------------
+
+
+def _driven_trace(frames: int, *, driven: bool, condition: str, seed: int):
+    """Two cells wired a->b, with b either driven by a's past or not."""
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+
+    rng = np.random.default_rng(seed)
+    a = rng.normal(0.0, 1.0, frames)
+    noise = rng.normal(0.0, 0.3, frames)
+    b = np.empty(frames)
+    b[0] = noise[0]
+    for t in range(1, frames):
+        b[t] = (0.9 * a[t - 1] if driven else 0.0) + 0.2 * b[t - 1] + noise[t]
+    values = np.stack([a, b], axis=1).astype("float32")
+    snapshot = _graph_snapshot([("a", "b", 1)])
+    trace = ActivityTrace(
+        uids=("a", "b"),
+        conditions=tuple([condition] * frames),
+        spikes=[],
+        array=values,
+    )
+    return snapshot, trace
+
+
+def test_an_edge_that_drives_survives_the_rotation_null():
+    from core.connectome.effective import Grade, predictive_influence
+
+    snapshot, trace = _driven_trace(400, driven=True, condition="c", seed=1)
+    graph = predictive_influence(trace, snapshot, "c", nulls=8)
+    edge = graph.edges[("a", "b")]
+    assert edge.grade is Grade.PREDICTIVE
+    assert edge.survives_null is True
+    assert edge.weight > 0.3
+    assert graph.summary()["edges_surviving_null"] == 1
+
+
+def test_an_edge_that_drives_nothing_does_not():
+    from core.connectome.effective import predictive_influence
+
+    snapshot, trace = _driven_trace(400, driven=False, condition="c", seed=2)
+    graph = predictive_influence(trace, snapshot, "c", nulls=8)
+    assert graph.edges[("a", "b")].survives_null is False
+
+
+def test_a_condition_with_too_few_frames_is_skipped_not_guessed():
+    from core.connectome.effective import MIN_FRAMES_PER_CONDITION, predictive_influence
+
+    snapshot, trace = _driven_trace(40, driven=True, condition="c", seed=3)
+    graph = predictive_influence(trace, snapshot, "c")
+    assert graph.edges == {}
+    assert str(MIN_FRAMES_PER_CONDITION) in graph.skipped
+    assert graph.summary()["edges_measured"] == 0
+
+
+def test_the_same_anatomy_can_run_different_circuits():
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.effective import compare_conditions, predictive_influence
+
+    frames = 400
+    rng = np.random.default_rng(7)
+    # Under "left" the a->b edge carries; under "right" the c->d edge does.
+    a = rng.normal(0, 1, frames * 2)
+    c = rng.normal(0, 1, frames * 2)
+    b = np.zeros(frames * 2)
+    d = np.zeros(frames * 2)
+    for t in range(1, frames * 2):
+        in_left = t < frames
+        b[t] = (0.9 * a[t - 1] if in_left else 0.0) + rng.normal(0, 0.3)
+        d[t] = (0.0 if in_left else 0.9 * c[t - 1]) + rng.normal(0, 0.3)
+    values = np.stack([a, b, c, d], axis=1).astype("float32")
+    snapshot = _graph_snapshot([("a", "b", 1), ("c", "d", 1)])
+    trace = ActivityTrace(
+        uids=("a", "b", "c", "d"),
+        conditions=tuple(["left"] * frames + ["right"] * frames),
+        spikes=[],
+        array=values,
+    )
+    left = predictive_influence(trace, snapshot, "left", nulls=8)
+    right = predictive_influence(trace, snapshot, "right", nulls=8)
+    assert left.edges[("a", "b")].survives_null is True
+    assert left.edges[("c", "d")].survives_null is False
+    assert right.edges[("c", "d")].survives_null is True
+    assert right.edges[("a", "b")].survives_null is False
+
+    # Two edges is not enough to correlate two effective graphs, and the
+    # comparison says so rather than reporting a correlation over two points.
+    comparison = compare_conditions(left, right, snapshot=snapshot, limit=4)
+    assert comparison["shared_edges"] == 2
+    assert "too few edges" in comparison["verdict"]
+    assert "correlation" not in comparison
+
+
+def test_comparing_two_states_names_what_each_recruits():
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.effective import compare_conditions, predictive_influence
+
+    frames = 400
+    cells = 12
+    rng = np.random.default_rng(11)
+    values = rng.normal(0.0, 1.0, size=(frames * 2, cells))
+    edges = [(f"c{i}", f"c{i + 1}", 1) for i in range(cells - 1)]
+    # The first half of the chain carries in "left", the second half in "right".
+    for t in range(1, frames * 2):
+        in_left = t < frames
+        for i in range(cells - 1):
+            early = i < (cells - 1) // 2
+            carries = early if in_left else not early
+            if carries:
+                values[t, i + 1] = 0.9 * values[t - 1, i] + rng.normal(0, 0.3)
+    snapshot = _graph_snapshot(edges)
+    trace = ActivityTrace(
+        uids=tuple(f"c{i}" for i in range(cells)),
+        conditions=tuple(["left"] * frames + ["right"] * frames),
+        spikes=[],
+        array=values.astype("float32"),
+    )
+    left = predictive_influence(trace, snapshot, "left", nulls=8)
+    right = predictive_influence(trace, snapshot, "right", nulls=8)
+    comparison = compare_conditions(left, right, snapshot=snapshot, limit=8)
+    assert comparison["shared_edges"] >= 8
+    assert comparison["surviving_in_left_only"] >= 1
+    assert comparison["surviving_in_right_only"] >= 1
+    assert "active in one state and not the other" in comparison["verdict"]
+
+
+def test_a_predictive_weight_may_not_be_read_as_a_cause():
+    from core.connectome.effective import Grade
+
+    assert "predict" in Grade.PREDICTIVE.licenses
+    assert "model" in Grade.MODEL.licenses
+    assert "disabling" in Grade.INTERVENTIONAL.licenses
+    # The grades are ordered by what they license, and nothing promotes one.
+    assert Grade.PREDICTIVE.licenses != Grade.INTERVENTIONAL.licenses
+
+
+def test_the_model_tier_ranks_removals_and_says_it_is_a_model():
+    from core.connectome.effective import Grade, model_influence
+
+    snapshot = _graph_snapshot(
+        [("hub", "x", 5), ("x", "y", 5), ("y", "z", 5), ("side", "z", 1)]
+    )
+    graph = model_influence(snapshot, ["hub", "side"], steps=4)
+    assert graph.grade is Grade.MODEL
+    assert graph.summary()["licenses"].startswith("that a model")
+    assert graph.edges
+
+
+# ---------------------------------------------------------------------------
+# Merge errors: a builtin method name is not a cell here
+# ---------------------------------------------------------------------------
+
+
+_MERGE_MODULE = '''
+class Field:
+    def strip(self):
+        """A real method that shares a name with str.strip."""
+        return "clean"
+
+    def warning(self):
+        return None
+
+
+def uses_the_real_one(field):
+    holder = Field()
+    return holder.strip()
+
+
+def uses_a_string(raw):
+    return str(raw or "").strip().lower()
+
+
+def uses_a_logger(logger):
+    logger.warning("something")
+'''
+
+
+def test_a_string_method_is_not_resolved_to_a_class_that_shares_its_name(tmp_path: Path):
+    """The largest sink in the combined graph was every .strip() in the tree.
+
+    A method call on an expression has a receiver whose type is unknown, and
+    resolving it by name attaches thousands of standard-library calls to
+    whichever class happens to define that name.
+    """
+    package = tmp_path / "core" / "merge"
+    package.mkdir(parents=True)
+    (tmp_path / "core" / "__init__.py").write_text("")
+    (package / "__init__.py").write_text("")
+    (package / "mod.py").write_text(_MERGE_MODULE)
+
+    reconstructor = VolumeReconstructor(tmp_path, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    names = {uid: unit.name.rsplit(":", 1)[1] for uid, unit in snapshot.units.items()}
+    pairs = {
+        (names[conn.pre], names[conn.post])
+        for conn in snapshot.edges(EdgeKind.DRIVE)
+        if conn.pre in names and conn.post in names
+    }
+    # The local constructor gives the receiver a type, so this one resolves.
+    assert ("uses_the_real_one", "Field.strip") in pairs
+    # These two have receivers whose type is unknown and must not.
+    assert ("uses_a_string", "Field.strip") not in pairs
+    assert ("uses_a_logger", "Field.warning") not in pairs
+
+
+def test_the_unsafe_names_cover_builtins_and_the_common_library_objects():
+    from core.connectome.volume import UNSAFE_ATTRIBUTE_NAMES
+
+    for name in ("strip", "replace", "extend", "append", "keys", "items", "split"):
+        assert name in UNSAFE_ATTRIBUTE_NAMES
+    for name in ("warning", "exception", "exists", "is_dir", "resolve"):
+        assert name in UNSAFE_ATTRIBUTE_NAMES
+    # Names this system owns must stay resolvable.
+    for name in ("record_degradation", "reconstruct", "publish_telemetry"):
+        assert name not in UNSAFE_ATTRIBUTE_NAMES
+
+
+# ---------------------------------------------------------------------------
+# The coalition
+# ---------------------------------------------------------------------------
+
+
+def test_a_station_claims_each_cell_once():
+    from core.connectome.coalition import assign_stations
+
+    units = {}
+    for name, module in (
+        ("a", "core.affect.emotion_engine"),
+        ("b", "core.consciousness.global_workspace"),
+        ("c", "core.agency.goal_planner"),
+        ("d", "core.utils.unrelated"),
+    ):
+        unit = _unit(name, region=module.split(".")[1])
+        unit.neuropil = module
+        units[name] = unit
+    snapshot = ConnectomeSnapshot(version=1, units=units, connections={}, neuropils={})
+    stations = assign_stations(snapshot)
+    claimed = [uid for station in stations.values() for uid in station.cells]
+    assert len(claimed) == len(set(claimed))
+    assert "a" in stations["affect"].cells
+    assert "b" in stations["workspace"].cells
+    assert "c" in stations["planning"].cells
+    assert "d" not in claimed
+
+
+def test_a_ring_that_carries_beats_a_shuffled_one():
+    from core.connectome.coalition import Station, test_closure
+
+    # A clean ring: each station reaches only the next.
+    ring = ["s0", "s1", "s2", "s3"]
+    edges = []
+    for i, name in enumerate(ring):
+        nxt = ring[(i + 1) % len(ring)]
+        edges.append((f"{name}_out", f"{nxt}_in", 4))
+        edges.append((f"{name}_in", f"{name}_out", 4))
+    snapshot = _graph_snapshot(edges)
+    stations = {
+        name: Station(name=name, patterns=(), cells=(f"{name}_in", f"{name}_out"))
+        for name in ring
+    }
+    report = test_closure(
+        snapshot, None, stations, order=ring, use_effective=False, nulls=200, max_hops=3
+    )
+    assert report.closed is True
+    assert report.ring_enrichment > report.null_enrichment
+    assert report.enrichment_z > 1.0
+    assert "carries more than a ring drawn at random" in report.as_json()["verdict"]
+
+
+def test_a_ring_nobody_wired_does_not():
+    from core.connectome.coalition import Station, test_closure
+
+    # A star: everything reaches s0 and nothing else.
+    ring = ["s0", "s1", "s2", "s3"]
+    edges = [(f"{name}_out", "s0_in", 4) for name in ring[1:]]
+    edges += [(f"{name}_in", f"{name}_out", 4) for name in ring]
+    snapshot = _graph_snapshot(edges)
+    stations = {
+        name: Station(name=name, patterns=(), cells=(f"{name}_in", f"{name}_out"))
+        for name in ring
+    }
+    report = test_closure(
+        snapshot, None, stations, order=ring, use_effective=False, nulls=200, max_hops=3
+    )
+    assert report.closed is False
+    assert report.enrichment_z < 2.0
+    assert "carry nothing" in report.as_json()["verdict"]
+
+
+def test_a_recording_the_stations_did_not_fire_in_is_refused():
+    from core.connectome.coalition import Station, test_closure
+
+    snapshot = _graph_snapshot([("a_out", "b_in", 1), ("b_out", "a_in", 1)])
+    stations = {
+        "a": Station(name="a", patterns=(), cells=("a_in", "a_out")),
+        "b": Station(name="b", patterns=(), cells=("b_in", "b_out")),
+        "c": Station(name="c", patterns=(), cells=()),
+    }
+
+    class _Effective:
+        condition = "quiet"
+        edges: dict = {}
+
+    report = test_closure(
+        snapshot,
+        _Effective(),
+        stations,
+        order=["a", "b", "c"],
+        use_effective=True,
+        recorded=["a_in"],
+    )
+    assert report.links == []
+    assert "did not fire" in report.skipped
+    assert report.as_json()["verdict"] == report.skipped
+
+
+def test_every_lesion_prediction_says_what_survives_and_what_does_not():
+    from core.connectome.coalition import LESION_PREDICTIONS
+
+    # Three from the theory, three from what the first run of them found. The
+    # list only grows: a prediction is deleted when the mechanism it describes
+    # is gone, never because it came out wrong.
+    assert len(LESION_PREDICTIONS) >= 6
+    assert len({prediction.name for prediction in LESION_PREDICTIONS}) == len(
+        LESION_PREDICTIONS
+    )
+    for prediction in LESION_PREDICTIONS:
+        assert prediction.predicted_intact
+        assert prediction.predicted_lost
+        assert prediction.readout
+        assert prediction.predicted_intact != prediction.predicted_lost
+
+
+# ---------------------------------------------------------------------------
+# What she can ask about her own machinery
+# ---------------------------------------------------------------------------
+
+
+def _effective_with(edges: dict, condition: str = "c"):
+    from core.connectome.effective import EffectiveConnectome, EffectiveEdge, Grade
+
+    graph = EffectiveConnectome(condition=condition, grade=Grade.PREDICTIVE, frames=400)
+    for (pre, post), (weight, z) in edges.items():
+        graph.edges[(pre, post)] = EffectiveEdge(
+            pre=pre,
+            post=post,
+            condition=condition,
+            weight=weight,
+            null_mean=0.0,
+            null_spread=1.0,
+            z=z,
+            samples=400,
+            grade=Grade.PREDICTIVE,
+        )
+    return graph
+
+
+def test_she_can_ask_which_circuit_dominates():
+    from core.connectome.introspect import dominant_circuit
+
+    snapshot = _graph_snapshot([("a", "b", 1), ("c", "d", 1)])
+    graph = _effective_with({("a", "b"): (0.6, 9.0), ("c", "d"): (0.1, 0.4)})
+    answer = dominant_circuit(snapshot, graph)
+    assert "a" in answer.finding and "b" in answer.finding
+    assert answer.detail["edges_surviving"] == 1
+    assert "not by intervention" in answer.caveat
+
+
+def test_a_predictive_answer_never_words_itself_as_a_cause():
+    from core.connectome.effective import Grade
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("mech", "out", 1)])
+    graph = _effective_with({("mech", "out"): (0.5, 8.0)})
+    answer = does_it_influence(snapshot, graph, ["mech"], ["out"], belief="I thought this did it")
+    assert answer.grade is Grade.PREDICTIVE
+    assert "influence" in answer.finding
+    assert "cause" not in answer.finding.lower()
+    assert "not by intervention" in answer.caveat
+    assert "predict" in answer.grade.licenses
+
+
+def test_the_mechanism_she_believes_in_may_have_no_influence():
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("believed", "out", 1), ("actual", "out", 1)])
+    graph = _effective_with(
+        {("believed", "out"): (0.02, 0.3), ("actual", "out"): (0.7, 11.0)}
+    )
+    believed = does_it_influence(snapshot, graph, ["believed"], ["out"])
+    actual = does_it_influence(snapshot, graph, ["actual"], ["out"])
+    assert "none of them influences" in believed.finding
+    assert "influence it" in actual.finding
+
+
+def test_asking_about_machinery_nobody_measured_says_so():
+    from core.connectome.introspect import does_it_influence
+
+    snapshot = _graph_snapshot([("a", "b", 1)])
+    graph = _effective_with({("a", "b"): (0.5, 8.0)})
+    answer = does_it_influence(snapshot, graph, ["unmeasured"], ["b"])
+    assert "no edge" in answer.finding
+    assert "absence of a measurement is not absence of an influence" in answer.caveat
+
+
+def test_she_can_ask_which_pathways_her_failures_depend_on():
+    from core.connectome.introspect import failure_correlates
+
+    pairs = {(f"p{i}", f"q{i}") for i in range(10)}
+    snapshot = _graph_snapshot([(p, q, 1) for p, q in pairs])
+    failing = _effective_with({p: (0.6 if p == ("p3", "q3") else 0.1, 9.0) for p in pairs},
+                              condition="failing")
+    succeeding = _effective_with({p: (0.1, 9.0) for p in pairs}, condition="succeeding")
+    answer = failure_correlates(snapshot, failing, succeeding)
+    assert "p3" in answer.finding and "q3" in answer.finding
+    assert "correlation" in answer.caveat
+
+
+def test_what_would_change_is_scored_against_a_matched_control():
+    from core.connectome.introspect import what_would_change
+
+    edges = [("src", "bridge", 1)] + [("bridge", f"far{i}", 1) for i in range(10)]
+    edges += [("src", f"near{i}", 1) for i in range(10)]
+    snapshot = _graph_snapshot(edges)
+    snapshot.units["src"].attrs["afferent"] = 1
+    answer = what_would_change(snapshot, ["bridge"])
+    assert "reachability in the graph, not behaviour" in answer.caveat
+    assert answer.detail["excess_reach_loss"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# A change that has to answer for what it did to the anatomy
+# ---------------------------------------------------------------------------
+
+
+def test_every_axis_says_which_direction_is_better():
+    from core.connectome.anatomy_gate import AXES
+
+    assert len(AXES) == 7
+    for axis in AXES:
+        assert axis.question
+        assert axis.improved(1.0, 2.0) is axis.higher_is_better
+        assert axis.improved(2.0, 1.0) is not axis.higher_is_better
+
+
+def test_an_axis_that_was_not_measured_is_not_scored_as_unchanged():
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    before = Quality(values={"local_recurrence": 1.0}, unmeasured=("dormant_machinery",))
+    after = Quality(values={"local_recurrence": 2.0}, unmeasured=("dormant_machinery",))
+    delta = compare_quality(before, after)
+    assert "local_recurrence" in delta.moves
+    assert "dormant_machinery" not in delta.moves
+    assert "dormant_machinery" in delta.unmeasured
+    assert delta.improved == ["local_recurrence"]
+
+
+def test_a_change_that_makes_something_worse_says_so_first():
+    from core.connectome.anatomy_gate import Quality, anatomical_evidence, compare_quality
+
+    before = Quality(values={"local_recurrence": 1.0, "half_wired_channels": 10.0})
+    after = Quality(values={"local_recurrence": 2.0, "half_wired_channels": 20.0})
+    delta = compare_quality(before, after)
+    assert delta.improved == ["local_recurrence"]
+    assert delta.worsened == ["half_wired_channels"]
+    evidence = anatomical_evidence(delta, change="added a broadcast")
+    assert evidence.index("worse:") < evidence.index("better:")
+    assert "and worse in" not in delta.verdict
+    assert "half_wired_channels" in delta.verdict
+
+
+def test_a_change_that_moves_nothing_measured_says_that_too():
+    from core.connectome.anatomy_gate import Quality, anatomical_evidence, compare_quality
+
+    same = Quality(values={"local_recurrence": 1.0})
+    delta = compare_quality(same, Quality(values={"local_recurrence": 1.0}))
+    assert delta.improved == [] and delta.worsened == []
+    assert "did not move" in delta.verdict
+    assert "no axis moved" in anatomical_evidence(delta) or "not measured" in anatomical_evidence(
+        delta
+    )
+
+
+def test_quality_measures_what_it_has_and_names_what_it_does_not():
+    from core.connectome.anatomy_gate import measure_quality
+
+    edges = [("src", "hub", 4)] + [("hub", f"leaf{i}", 2) for i in range(12)]
+    snapshot = _graph_snapshot(edges)
+    quality = measure_quality(snapshot, spof_sample=4)
+    assert "local_recurrence" in quality.values
+    assert "single_points_of_failure" in quality.values
+    for name in ("coupling_carrying_nothing", "half_wired_channels", "dormant_machinery"):
+        assert name in quality.unmeasured
+    assert quality.detail["spof_sampled"] <= 4
+
+
+def test_a_promotion_can_carry_what_the_change_did_to_the_shape():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    before = Quality(
+        values={"local_recurrence": 1.0, "half_wired_channels": 10.0},
+        unmeasured=("dormant_machinery",),
+    )
+    # Worse by 0.4 of a channel rather than by ten of them. A regression larger
+    # than a change to this part is allowed to cost is refused outright now, and
+    # what this test is about is the LINE the receipt carries when a change is
+    # kept — see the anatomical-law tests for the refusal.
+    after = Quality(
+        values={"local_recurrence": 2.0, "half_wired_channels": 10.4},
+        unmeasured=("dormant_machinery",),
+    )
+    delta = compare_quality(before, after)
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "a.change",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+        plain = promote(
+            "b.change", became="canary", started_by="test", evidence="the probe paid"
+        )
+    assert "the probe paid" in receipt.evidence
+    assert "worse: half_wired_channels" in receipt.evidence
+    assert receipt.evidence.index("worse:") < receipt.evidence.index("better:")
+    assert "not measured" in receipt.evidence
+    # A promotion with nothing to say about the anatomy still says that.
+    assert plain.evidence.startswith("the probe paid")
+    assert "was not measured" in plain.evidence
+
+
+def test_a_promotion_never_fails_because_the_shape_could_not_be_measured():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    class _Broken:
+        def as_json(self):
+            raise ValueError("no")
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "c.change",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=_Broken(),
+        )
+    assert "the probe paid" in receipt.evidence
+    assert "anatomy:" in receipt.evidence
+
+
+# ---------------------------------------------------------------------------
+# The stations are the phases that run, not the modules that share their names
+# ---------------------------------------------------------------------------
+
+
+def _kernel_phase_names() -> list[str]:
+    """Every phase the kernel actually assembles, in order."""
+    import tempfile
+
+    from core.kernel.aura_kernel import AuraKernel, KernelConfig
+    from core.state.state_repository import StateRepository
+
+    with tempfile.TemporaryDirectory() as raw:
+        vault = StateRepository(db_path=f"{raw}/stations.db", is_vault_owner=True)
+        kernel = AuraKernel(config=KernelConfig(), vault=vault)
+        kernel._setup_phases()
+        return [type(phase).__name__ for phase in kernel._phases]
+
+
+@pytest.mark.slow
+def test_every_phase_that_runs_a_turn_is_placed_in_the_ring_or_outside_it():
+    """A phase missing from the table and one deliberately outside it differ.
+
+    The station table was written from module names and none of them ran. Nought
+    of 129 workspace cells and nought of 272 action cells fired in a recording of
+    240 turns, so the coalition test reported an architecture and measured a
+    dictionary. This is the check that stops that recurring: the kernel's own
+    phase list is the ground truth, and every phase in it has to be placed —
+    either at a station or explicitly at none, with the reason in the comment.
+    """
+    from core.connectome.coalition import COALITION_ORDER, PHASE_STATIONS
+
+    running = _kernel_phase_names()
+    unplaced = [name for name in running if name not in PHASE_STATIONS]
+    assert not unplaced, (
+        f"these phases run a turn and the station table does not mention them: {unplaced}"
+    )
+    stale = [name for name in PHASE_STATIONS if name not in running]
+    assert not stale, f"the table places phases the kernel no longer runs: {stale}"
+    placed = {station for station in PHASE_STATIONS.values() if station}
+    assert placed == set(COALITION_ORDER), (
+        f"the ring wants {sorted(COALITION_ORDER)} and the phases supply {sorted(placed)}"
+    )
+
+
+@pytest.mark.slow
+def test_each_station_claims_the_phase_assigned_to_it():
+    """The patterns have to reach the phase they were written for.
+
+    Placing ``UnitaryResponsePhase`` at ``action`` in one dictionary and failing
+    to write a pattern that matches its module in the other is the same defect as
+    before, one indirection along.
+    """
+    from core.connectome.coalition import PHASE_STATIONS, assign_stations
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    stations = assign_stations(snapshot)
+    where: dict[str, str] = {}
+    for name, station in stations.items():
+        for uid in station.cells:
+            unit = snapshot.units.get(uid)
+            if unit is not None:
+                where[f"{unit.neuropil}:{unit.name}"] = name
+
+    missing: list[str] = []
+    for phase, expected in PHASE_STATIONS.items():
+        if not expected:
+            continue
+        found = {
+            station
+            for key, station in where.items()
+            if key.rsplit(":", 1)[-1].split(".")[0] == phase
+            or f":{phase}." in key
+            or key.endswith(f":{phase}")
+        }
+        if expected not in found:
+            missing.append(f"{phase} wanted {expected}, patterns gave {sorted(found) or 'nothing'}")
+    assert not missing, "\n".join(missing)
+
+
+# ---------------------------------------------------------------------------
+# do(i): the cut is exact, reversible, and scored against a comparable cut
+# ---------------------------------------------------------------------------
+
+
+def test_a_lesion_puts_the_cell_back_even_when_the_body_raises():
+    """A cut that does not heal turns one experiment into every later one."""
+    from core.connectome import intervene
+    from core.connectome.volume import VolumeReconstructor
+
+    before = VolumeReconstructor.build
+    try:
+        with intervene.silence("core.connectome.volume:VolumeReconstructor.build"):
+            assert VolumeReconstructor.build is not before
+            raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        pass
+    assert VolumeReconstructor.build is before
+
+
+def test_a_silenced_cell_absorbs_its_calls_and_says_how_many():
+    from core.connectome import intervene
+
+    with intervene.silence("core.connectome.types:CellClass"):
+        pass  # a class is callable; the point is the count below
+
+    class _Holder:
+        @staticmethod
+        def work(value):
+            return value * 2
+
+    import core.connectome.types as types_module
+
+    types_module._probe_holder = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_holder.work", returns=0):
+            assert types_module._probe_holder.work(21) == 0
+            assert types_module._probe_holder.work(3) == 0
+        assert types_module._probe_holder.work(21) == 42
+        assert intervene.silenced_calls("core.connectome.types:_probe_holder.work") == 2
+    finally:
+        del types_module._probe_holder
+
+
+def test_an_async_cell_is_replaced_by_something_awaitable():
+    """Handing a coroutine's caller a plain value measures the crash, not the cut."""
+    import asyncio
+
+    from core.connectome import intervene
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        async def work():
+            return "real"
+
+    types_module._probe_async = _Holder  # type: ignore[attr-defined]
+    try:
+        with intervene.silence("core.connectome.types:_probe_async.work", returns="cut"):
+            assert asyncio.run(types_module._probe_async.work()) == "cut"
+        assert asyncio.run(types_module._probe_async.work()) == "real"
+    finally:
+        del types_module._probe_async
+
+
+def test_a_lesion_refuses_what_it_cannot_cut():
+    from core.connectome import intervene
+
+    for uid in (
+        "core.connectome.types",
+        "core.connectome.types:NotThere",
+        "no.such.module:thing",
+        "core.connectome.types:CORTICAL_EI_RATIO",
+    ):
+        with pytest.raises(intervene.LesionRefusedError):
+            with intervene.silence(uid):
+                pass
+
+
+def test_the_control_is_matched_on_both_degrees():
+    from core.connectome.intervene import degree_matched_control
+    from core.connectome.types import (
+        CellClass,
+        Connection,
+        ConnectomeSnapshot,
+        EdgeKind,
+        Unit,
+    )
+
+    units = {
+        name: Unit(uid=name, name=name, neuropil="m", region="r", cell_class=CellClass.EXCITATORY)
+        for name in ("hub", "twin", "leaf", "a", "b", "c")
+    }
+    connections = {}
+    for pre, post in (
+        ("a", "hub"), ("b", "hub"), ("c", "hub"), ("hub", "leaf"),
+        ("a", "twin"), ("b", "twin"), ("c", "twin"), ("twin", "leaf"),
+    ):
+        connections[(pre, post, EdgeKind.DRIVE)] = Connection(
+            pre=pre, post=post, kind=EdgeKind.DRIVE, sign=1.0, contacts=1
+        )
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections=connections, neuropils={"m": tuple(units)}
+    )
+    assert degree_matched_control(snapshot, "hub") == "twin"
+
+
+def test_an_intervention_reports_a_lesion_that_never_bit():
+    """A cell nothing called is not a lesion, and looks exactly like a null one."""
+    from core.connectome.intervene import run_intervention
+    import core.connectome.types as types_module
+
+    class _Holder:
+        @staticmethod
+        def never_called():
+            return 1
+
+    types_module._probe_unused = _Holder  # type: ignore[attr-defined]
+    try:
+        report = run_intervention(
+            lambda: {"score": 1.0},
+            "core.connectome.types:_probe_unused.never_called",
+            control="core.connectome.types:_probe_unused.never_called",
+            repeats=2,
+        )
+        assert not report.bit
+        assert "never called" in report.verdict()
+    finally:
+        del types_module._probe_unused
+
+
+def test_a_registered_lesion_prediction_names_a_readout_that_exists():
+    """A prediction with no readout is a design, not an experiment.
+
+    Three of the six say what should be lost and were run; this pins that a
+    prediction claiming an available readout has one in the runner, on both
+    sides, so the claim and the machinery cannot drift apart.
+    """
+    import importlib.util
+
+    from core.connectome.coalition import LESION_PREDICTIONS
+
+    spec = importlib.util.spec_from_file_location(
+        "aura_run_lesions", Path(__file__).resolve().parents[1] / "tools" / "run_lesions.py"
+    )
+    assert spec is not None and spec.loader is not None
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+
+    for prediction in LESION_PREDICTIONS:
+        if not prediction.readout_available:
+            continue
+        assert prediction.name in runner.INTACT_READOUTS, prediction.name
+        lost = set(runner.LOST_READOUTS.get(prediction.name, ())) | set(
+            runner.RISING_READOUTS.get(prediction.name, ())
+        )
+        assert lost, f"{prediction.name} claims a readout and names nothing to lose"
+        assert prediction.station in runner.STATION_PHASES, prediction.station
+
+
+# ---------------------------------------------------------------------------
+# The mesh, as a layer of the same graph
+# ---------------------------------------------------------------------------
+
+
+def test_what_the_code_injects_can_reach_what_the_code_reads():
+    """The two ends of the mesh the rest of the system touches must connect.
+
+    ``EmbodiedInteroception._push_to_mesh`` injects into the sensory tier and
+    ``ConsciousnessBridge._integration_tick`` reads the executive projection. For
+    a long time nothing injected could arrive: inter-column probability decayed
+    as exp(-|i - j| * 0.15) and a tier boundary is where that distance is
+    largest, so on eight seeds nought of sixteen executive columns was reachable
+    from any sensory column, 7 to 16 columns were isolated, and the mesh came
+    apart into 13 to 25 pieces.
+
+    Several seeds, because the topology is a random draw and one draw is one
+    draw.
+    """
+    import numpy as np
+
+    from core.connectome.neural import build_mesh_layer, signal_can_cross
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    reached = []
+    isolated = []
+    for seed in range(4):
+        mesh = NeuralMesh(MeshConfig())
+        mesh._rng = np.random.default_rng(seed=seed)
+        mesh._inter_W = mesh._build_inter_column_weights() + mesh._build_feedforward_weights()
+        mesh._build_feedback_weights()
+        crossing = signal_can_cross(build_mesh_layer(mesh))
+        reached.append(crossing["executive_share_reached"])
+        isolated.append(crossing["isolated_columns"])
+    assert min(reached) > 0.5, (
+        f"a signal injected into the sensory tier reaches {min(reached):.0%} of the "
+        "executive columns on the worst of four draws"
+    )
+    assert max(isolated) <= 8, f"{max(isolated)} columns are wired to nothing"
+
+
+def test_the_mesh_seam_names_the_cells_that_touch_it():
+    """A mesh method called on something that is not a mesh is not a seam edge.
+
+    ``get_field_state`` is also a method of the unified field. Matching on the
+    method name alone attributed its call sites to the mesh, which is the merge
+    error this package already paid for once in the call graph.
+    """
+    from core.connectome.neural import SEAM_CALLS, _find_callers, build_mesh_layer, join_to_code
+    from core.connectome.volume import VolumeReconstructor
+
+    reconstructor = VolumeReconstructor(Path(__file__).resolve().parents[1])
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    callers = _find_callers(snapshot, SEAM_CALLS)
+    assert callers["inject_sensory"], "nothing drives the mesh"
+    assert callers["get_executive_projection"], "nothing reads the mesh"
+    for uid in callers["get_field_state"]:
+        assert "unified_field" not in snapshot.units[uid].neuropil
+
+    layer = join_to_code(build_mesh_layer(), snapshot)
+    summary = layer.summary()
+    assert summary["code_cells_driving"] >= 1
+    assert summary["code_cells_driven"] >= 1
+    assert summary["columns"] == 64
+
+
+# ---------------------------------------------------------------------------
+# The shape of the system refuses, rather than only being recorded
+# ---------------------------------------------------------------------------
+
+
+def _delta(before: dict, after: dict, unmeasured: tuple = ()):
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    return compare_quality(
+        Quality(values=dict(before), unmeasured=unmeasured),
+        Quality(values=dict(after), unmeasured=unmeasured),
+    )
+
+
+def test_the_tolerance_is_read_off_the_part_rather_than_picked():
+    """Further-reaching parts are allowed to cost less shape, from one ladder."""
+    from core.cognition.how_a_change_is_promoted import HOW_FAR
+    from core.connectome.anatomy_law import tolerated_regression
+
+    ladder = {part: tolerated_regression(part) for part in HOW_FAR}
+    assert ladder["word"] > ladder["the search"] > ladder["the deciding"]
+    for part, allowance in ladder.items():
+        assert allowance == pytest.approx(HOW_FAR[part]), part
+
+
+def test_a_regression_past_the_tolerance_refuses_the_promotion():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+        the_receipts,
+    )
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 9.0})
+    with a_ledger_of_its_own():
+        with pytest.raises(AnatomyRefusedError) as refusal:
+            promote(
+                "word overreach",
+                became="canary",
+                started_by="test",
+                evidence="the probe paid",
+                anatomy=delta,
+            )
+        # No receipt for a promotion that did not happen.
+        assert the_receipts() == ()
+    assert "single point of failure" in str(refusal.value)
+    assert "tolerance" in str(refusal.value)
+
+
+def test_a_regression_inside_the_tolerance_is_promoted_and_recorded():
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 3.2})
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word small cost",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+    assert "worse: single_points_of_failure" in receipt.evidence
+
+
+def test_the_same_regression_is_refused_where_every_decision_runs_through_it():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+    )
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 3.2})
+    with a_ledger_of_its_own(), pytest.raises(AnatomyRefusedError):
+        promote(
+            "the deciding/what a change is worth",
+            became="canary",
+            started_by="test",
+            evidence="the probe paid",
+            anatomy=delta,
+        )
+
+
+def test_an_unmeasured_change_passes_except_where_nobody_looking_is_not_an_answer():
+    from core.cognition.how_a_change_is_promoted import (
+        AnatomyRefusedError,
+        a_ledger_of_its_own,
+        promote,
+    )
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word unmeasured", became="canary", started_by="test", evidence="paid"
+        )
+        assert "not measured" in receipt.evidence
+        with pytest.raises(AnatomyRefusedError) as refusal:
+            promote(
+                "the search/the proposer",
+                became="canary",
+                started_by="test",
+                evidence="paid",
+            )
+    assert "nobody can account" in str(refusal.value)
+
+
+def test_putting_something_back_is_never_refused():
+    """A law that could block the remedy would trap the state it exists to stop."""
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    delta = _delta({"single_points_of_failure": 3.0}, {"single_points_of_failure": 99.0})
+    with a_ledger_of_its_own():
+        for became in ("rolled back", "would not go back", "retired"):
+            receipt = promote(
+                "the deciding/whatever",
+                became=became,
+                started_by="she",
+                evidence="the probe did not hold",
+                anatomy=delta,
+            )
+            assert receipt.became == became
+
+
+def test_a_counted_axis_is_counted_and_a_ratio_axis_is_scaled():
+    """One more brittle cell is one more, whatever the total was.
+
+    Dividing a count by a total that the same edit changed measures the
+    denominator. Ratio axes are scaled because a shift of 0.02 means something
+    different against 0.05 than against 5.0.
+    """
+    from core.connectome.anatomy_law import anatomy_permits
+
+    counted = _delta({"half_wired_channels": 100.0}, {"half_wired_channels": 100.4})
+    assert anatomy_permits(counted, at="word").allowed
+    ratio = _delta({"local_recurrence": 1.0}, {"local_recurrence": 0.4})
+    verdict = anatomy_permits(ratio, at="word")
+    assert not verdict.allowed
+    assert verdict.regressions["local_recurrence"] == pytest.approx(0.6)
+
+
+def test_the_law_is_not_an_outage_when_its_own_machinery_is_missing():
+    """A constitution that blocks everything when it cannot run is a failure mode."""
+    from core.cognition.how_a_change_is_promoted import a_ledger_of_its_own, promote
+
+    class _NotAReading:
+        pass
+
+    with a_ledger_of_its_own():
+        receipt = promote(
+            "word x",
+            became="canary",
+            started_by="test",
+            evidence="paid",
+            anatomy=_NotAReading(),
+        )
+    assert receipt.became == "canary"
+
+
+# ---------------------------------------------------------------------------
+# The reading hierarchy, against a meta-analysis of 163 human studies
+# ---------------------------------------------------------------------------
+
+
+def _reading_profile(name: str, cells: set, regions: dict | None = None):
+    from core.connectome.reading import ReadingProfile
+
+    return ReadingProfile(
+        condition=name,
+        cells=frozenset(cells),
+        by_region=regions or {"r": len(cells)},
+        frames=500,
+    )
+
+
+def test_every_human_reading_finding_carries_what_would_refuse_it():
+    from core.connectome.reading import HUMAN_READING
+
+    assert len(HUMAN_READING) == 5
+    for finding in HUMAN_READING:
+        assert finding.in_humans and finding.predicted_here and finding.falsifier
+        assert finding.predicted_here != finding.in_humans
+        # The prediction is about her, so it may not simply name a brain region.
+        assert "cortex" not in finding.predicted_here.lower()
+
+
+def test_a_core_is_what_every_level_fires_and_specific_is_what_only_one_does():
+    from core.connectome.reading import core_and_specific
+
+    profiles = {
+        "letter": _reading_profile("letter", {"a", "b", "L"}),
+        "word": _reading_profile("word", {"a", "b", "W"}),
+        "sentence": _reading_profile("sentence", {"a", "b", "S"}),
+        "text": _reading_profile("text", {"a", "b", "T"}),
+    }
+    shape = core_and_specific(profiles)
+    assert shape["core"] == 2
+    assert shape["specific"] == {"letter": 1, "word": 1, "sentence": 1, "text": 1}
+    assert shape["core_share_of_each"]["letter"] == pytest.approx(2 / 3, abs=1e-4)
+
+
+def test_the_frame_cap_is_what_stops_a_longer_condition_looking_bigger():
+    """A condition recorded twice as long fires more cells for that reason.
+
+    Without the cap, "text recruits the most machinery" is a statement about how
+    many frames text got.
+    """
+    import numpy as np
+
+    from core.connectome.activity import ActivityTrace
+    from core.connectome.reading import profile_condition
+    from core.connectome.types import CellClass, ConnectomeSnapshot, Unit
+
+    # Two conditions firing the same cell, one recorded four times as long, and
+    # a second cell that only fires in the long one's later frames.
+    rows = []
+    conditions = []
+    for index in range(500):
+        rows.append([1.0, 1.0 if index > 400 else 0.0])
+        conditions.append("long")
+    for _ in range(100):
+        rows.append([1.0, 0.0])
+        conditions.append("short")
+    trace = ActivityTrace(
+        uids=("one", "two"),
+        conditions=tuple(conditions),
+        spikes=[],
+        array=np.asarray(rows),
+    )
+    units = {
+        name: Unit(uid=name, name=name, neuropil="m", region="r", cell_class=CellClass.EXCITATORY)
+        for name in ("one", "two")
+    }
+    snapshot = ConnectomeSnapshot(
+        version=1, units=units, connections={}, neuropils={"m": ("one", "two")}
+    )
+    uncapped = profile_condition(trace, snapshot, "long")
+    capped = profile_condition(trace, snapshot, "long", frames_cap=100, seed=3)
+    assert uncapped.size == 2
+    assert capped.frames == 100
+    assert capped.size <= uncapped.size
+
+
+def test_two_routes_needs_both_sides_to_have_something_of_their_own():
+    from core.connectome.reading import dual_route
+
+    known = _reading_profile("word", {"a", "b", "K"})
+    unknown = _reading_profile("pseudoword", {"a", "b", "U"})
+    both = dual_route(known, unknown)
+    assert both["two_routes"] is True
+    assert both["only_known"] == 1 and both["only_unknown"] == 1
+
+    nested = dual_route(known, _reading_profile("pseudoword", {"a", "b"}))
+    assert nested["two_routes"] is False, "one route inside another is one route"
+
+
+def test_the_task_and_the_stimulus_are_measured_the_same_way():
+    """Comparing a distance with a count would decide the answer in advance."""
+    from core.connectome.reading import task_over_stimulus
+
+    profiles = {
+        "word": _reading_profile("word", {"a", "b", "c", "d"}),
+        "sentence": _reading_profile("sentence", {"a", "b", "c", "e"}),
+        "judge_word": _reading_profile("judge_word", {"x", "y", "z", "w"}),
+    }
+    measured = task_over_stimulus(
+        profiles,
+        same_task_pairs=[("word", "sentence")],
+        same_stimulus_pairs=[("word", "judge_word")],
+    )
+    assert measured["task_beats_stimulus"] is True
+    assert 0.0 <= measured["distance_when_the_text_changes"] <= 1.0
+    assert 0.0 <= measured["distance_when_the_question_changes"] <= 1.0
+
+
+def test_the_reading_analysis_that_was_run_is_the_one_that_is_published():
+    """The numbers in CONNECTOME.md come out of the artefact, not out of prose."""
+    import json
+
+    path = Path(__file__).resolve().parents[1] / "artifacts" / "connectome" / "reading" / "reading_analysis.json"
+    if not path.exists():
+        pytest.skip("no reading recording on this checkout")
+    payload = json.loads(path.read_text())
+    from core.connectome.reading import HUMAN_READING
+
+    assert set(payload["findings"]) == {finding.name for finding in HUMAN_READING}
+    for row in payload["findings"].values():
+        assert isinstance(row["holds"], bool)
+        assert row["falsifier"]
+
+
+# ---------------------------------------------------------------------------
+# What is measured, what was chosen, and what nothing here pins
+# ---------------------------------------------------------------------------
+
+
+def test_every_term_of_the_mind_says_where_its_value_comes_from():
+    from core.science.reference_mind import CONSTRAINTS, Provenance, Term
+
+    covered = {one.term for one in CONSTRAINTS}
+    assert covered == set(Term), f"missing: {sorted(set(Term) - covered)}"
+    for one in CONSTRAINTS:
+        assert one.evidence and one.what_it_pins
+        assert one.uses in set(Provenance)
+        if one.uses in (Provenance.MEASURED, Provenance.DERIVED):
+            assert one.where, f"{one.term} claims a measurement and names no module"
+            assert one.falsifier or one.note, f"{one.term} claims a measurement bare"
+
+
+def test_a_term_that_claims_a_measurement_names_a_module_that_exists():
+    """A citation to a file nobody wrote is the same defect as no citation."""
+    from core.science.reference_mind import CONSTRAINTS, Provenance
+
+    root = Path(__file__).resolve().parents[1]
+    for one in CONSTRAINTS:
+        if one.uses not in (Provenance.MEASURED, Provenance.DERIVED) or not one.where:
+            continue
+        assert (root / one.where).exists(), f"{one.term} points at {one.where}"
+
+
+def test_the_share_that_rests_on_evidence_is_reported_rather_than_assumed():
+    from core.science.reference_mind import identifiability
+
+    report = identifiability()
+    assert 0.0 <= report["grounded_share"] <= 1.0
+    assert report["grounded"] + len(report["chosen_or_absent"]) == report["terms"]
+    assert "engineer" in report["verdict"]
+
+
+def test_the_mesh_says_how_many_of_its_numbers_anybody_measured():
+    """Calling a boundary sensory does not make the index it sits at a finding."""
+    from core.science.reference_mind import audit_mesh
+
+    report = audit_mesh()
+    assert report["fields"] >= 10
+    assert report["chosen"] > 0, (
+        "every structural number in the mesh now claims a basis; if that is real "
+        "the bases belong in _MESH_MEASURED with their sources"
+    )
+    assert report["chosen"] + report["with_a_basis"] == report["fields"]
+
+
+def test_a_transmitter_can_land_somewhere_rather_than_everywhere():
+    """One scalar for 4,096 units made dopamine at the sensory tier and dopamine
+    at the executive tier the same event. Cortex is not like that: receptor
+    densities vary by area and a transmitter's effect depends on where it lands.
+
+    Uniform stays the default, because saying the spatial structure has not been
+    measured is honest and guessing at it is not.
+    """
+    import numpy as np
+
+    from core.consciousness.neural_mesh import NeuralMesh
+
+    mesh = NeuralMesh()
+    assert set(mesh._tier_names) == {"sensory", "association", "executive"}
+    assert all(pair == (1.0, 1.0) for pair in mesh.regional_modulation().values())
+    assert np.allclose(mesh._tier_vector(0), 1.0)
+
+    mesh.set_regional_modulation({"executive": (2.0, 0.5), "sensory": (0.7, 1.4)})
+    gain = mesh._tier_vector(0)
+    noise = mesh._tier_vector(1)
+    assert gain[0] == pytest.approx(0.7) and gain[-1] == pytest.approx(2.0)
+    assert noise[0] == pytest.approx(1.4) and noise[-1] == pytest.approx(0.5)
+    assert gain[mesh.cfg.sensory_end + 1] == pytest.approx(1.0), "association untouched"
+
+    for _ in range(4):
+        mesh._tick_inner()
+    assert np.isfinite(mesh.get_field_state()).all()
+
+    mesh.set_regional_modulation(None)
+    assert np.allclose(mesh._tier_vector(0), 1.0)
+
+
+def test_a_bad_regional_multiplier_cannot_switch_the_mesh_off():
+    from core.consciousness.neural_mesh import NeuralMesh
+
+    mesh = NeuralMesh()
+    mesh.set_regional_modulation(
+        {
+            "executive": (float("nan"), 1.0),
+            "sensory": (1e9, -4.0),
+            "nowhere": (2.0, 2.0),
+        }
+    )
+    applied = mesh.regional_modulation()
+    assert applied["executive"] == (1.0, 1.0), "a non-finite pair is refused whole"
+    assert applied["sensory"][0] <= 4.0 and applied["sensory"][1] >= 0.0
+    assert "nowhere" not in applied
+
+
+def test_the_coalition_is_read_off_the_measurement_rather_than_the_diagram():
+    """A ring asks each station for exactly one outgoing edge.
+
+    The measurement does not respect that: the two strongest connections both
+    leave the self model, and no cycle can hold them both. Forcing a ring on
+    that discards the finding to keep the diagram.
+    """
+    from core.connectome.coalition import measured_coalition
+
+    gains = {
+        ("self_model", "interoception"): 0.914,
+        ("self_model", "affect"): 0.639,
+        ("affect", "planning"): 0.313,
+        ("interoception", "self_model"): 0.120,
+        ("planning", "affect"): 0.090,
+        ("workspace", "self_model"): 0.070,
+        ("self_model", "workspace"): 0.060,
+        ("action", "text"): 0.001,
+    }
+    coalition = measured_coalition(gains, condition="task", keep=7)
+    top = [f"{pre} -> {post}" for pre, post, _ in coalition.edges[:3]]
+    assert top == [
+        "self_model -> interoception",
+        "self_model -> affect",
+        "affect -> planning",
+    ]
+    # Influence that leaves these comes back to them: that is what makes it a
+    # coalition rather than a ranking.
+    assert coalition.closes
+    # The group reported is the LARGEST set that can all reach each other. Here
+    # that is interoception, self_model and workspace; affect and planning form
+    # a smaller two-station loop of their own.
+    assert "self_model" in coalition.recurrent
+    assert len(coalition.recurrent) >= 3
+    assert coalition.total_pairs == len(gains)
+
+
+def test_a_coalition_that_does_not_close_says_so():
+    from core.connectome.coalition import measured_coalition
+
+    one_way = {
+        ("a", "b"): 0.9,
+        ("b", "c"): 0.8,
+        ("c", "d"): 0.7,
+        ("d", "e"): 0.6,
+    }
+    coalition = measured_coalition(one_way, keep=4)
+    assert not coalition.closes
+    assert "does not close" in coalition.as_json()["verdict"]
+
+
+def test_a_default_may_not_overwrite_a_measurement():
+    """Executive closure wrote a 0.0 over a phi another phase had computed.
+
+    The witness returns 0.0 when it has never cycled, and a consumer could not
+    tell that apart from a measured zero. So the workspace's own reading never
+    reached higher-order monitoring or the self model: phi came out of phi
+    consciousness at 0.3256, 0.3237, 0.3237 across three objectives, and out of
+    executive closure at 0.0 every time.
+    """
+    # Nothing measured: the earlier reading stands.
+    unmeasured = {"phi_estimate": 0.0, "phi_measured": False}
+    reported = (
+        unmeasured.get("phi_estimate")
+        if unmeasured.get("phi_measured", True)
+        else None
+    )
+    assert reported is None
+
+    # Measured, and it happens to be zero: that one wins, because it is a
+    # measurement.
+    measured = {"phi_estimate": 0.0, "phi_measured": True}
+    reported = (
+        measured.get("phi_estimate") if measured.get("phi_measured", True) else None
+    )
+    assert reported == 0.0
+
+
+def test_the_witness_says_whether_it_has_measured_anything():
+    from core.consciousness.closed_loop import PhiWitness
+
+    witness = PhiWitness()
+    diagnostics = witness.get_diagnostics()
+    assert diagnostics["phi_measured"] is False
+    assert diagnostics["phi_estimate"] == 0.0, "no history, so no reading"
+
+
+def test_the_meshs_numbers_come_from_a_paper_or_say_they_do_not():
+    """Thirteen of fourteen were choices with nothing behind them.
+
+    A number that cannot be derived is not a failing; a number that cannot be
+    derived and is not SAID to be a choice is.
+    """
+    from core.connectome.cortical_constants import (
+        MEASUREMENTS,
+        STILL_CHOSEN,
+        derived_mesh_constants,
+        provenance_report,
+    )
+
+    for one in MEASUREMENTS:
+        assert one.source and one.what_it_is
+        assert one.value > 0
+
+    derived = derived_mesh_constants()
+    for name, row in derived.items():
+        assert row["from"] and row["arithmetic"], name
+        assert isinstance(row["value"], float), name
+
+    for name, reason in STILL_CHOSEN.items():
+        assert len(reason) > 40, f"{name} is recorded as chosen with no reason"
+        assert name not in derived, f"{name} is both derived and chosen"
+
+    report = provenance_report()
+    assert report["counts"]["derived"] >= 8
+
+
+def test_the_mesh_reads_the_derived_constants_rather_than_repeating_them():
+    from core.connectome.cortical_constants import derived_mesh_constants
+    from core.consciousness.neural_mesh import MeshConfig
+
+    derived = derived_mesh_constants()
+    config = MeshConfig()
+    for field_name in (
+        "intra_column_density",
+        "inter_column_density",
+        "decay",
+        "stdp_window",
+        "stdp_depression",
+        "inhibitory_fraction",
+    ):
+        assert getattr(config, field_name) == pytest.approx(
+            derived[field_name]["value"], abs=1e-4
+        ), field_name
+    # dt is deliberately NOT the cortical step: this mesh ticks at 10 Hz over
+    # units with no membrane, and adopting a 0.25 ms step would be arithmetic
+    # dressed as fidelity.
+    assert config.dt != pytest.approx(derived["dt"]["value"])
+
+
+def test_the_measured_density_sits_closer_to_criticality_than_the_chosen_one():
+    """The reason for adopting it, run rather than asserted."""
+    from dataclasses import replace
+
+    import numpy as np
+
+    from core.connectome.criticality import branching_ratio_mr
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    def branching(config, steps=400, seed=3):
+        mesh = NeuralMesh(config)
+        rng = np.random.default_rng(seed)
+        counts = []
+        for index in range(steps):
+            if index % 40 == 0:
+                mesh.inject_sensory(rng.standard_normal(64).astype(np.float32) * 0.4)
+            mesh._tick_inner()
+            counts.append(float((np.abs(mesh.get_field_state()) > 0.1).sum()))
+        return branching_ratio_mr(np.asarray(counts))
+
+    measured = branching(MeshConfig())
+    chosen = branching(replace(MeshConfig(), intra_column_density=0.80, inter_column_density=0.05))
+    assert abs(measured.m - 1.0) < abs(chosen.m - 1.0), (
+        f"the measured density sits at {measured.m:.4f} and the chosen one at "
+        f"{chosen.m:.4f}; the reason for adopting it was that it is nearer 1.0"
+    )

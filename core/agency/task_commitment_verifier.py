@@ -49,6 +49,7 @@ from typing import Any, Dict, List, Optional
 
 from core.config import config
 from core.continuity import is_evaluation_contamination
+from core.conversation.word_markers import names_any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.executors import run_durable_receipt_io, run_durable_receipt_io_sync
@@ -442,7 +443,7 @@ class TaskCommitmentVerifier:
         lowered = str(objective or "").lower()
         if not lowered:
             return False
-        if not any(marker in lowered for marker in _CONTINUATION_MARKERS):
+        if not names_any(lowered, _CONTINUATION_MARKERS):
             return False
 
         stripped = lowered
@@ -1099,9 +1100,9 @@ class TaskCommitmentVerifier:
             return False
 
         summary = str(getattr(result, "summary", "") or "").lower()
-        if any(
-            marker in summary
-            for marker in (
+        if names_any(
+            summary,
+            (
                 "attempted",
                 "tried",
                 "meant to",
@@ -1417,7 +1418,7 @@ class TaskCommitmentVerifier:
         external_records = self._task_engine_entries()
 
         lowered = str(objective or "").lower()
-        followup_query = any(marker in lowered for marker in _STATUS_FOLLOWUP_MARKERS)
+        followup_query = names_any(lowered, _STATUS_FOLLOWUP_MARKERS)
 
         def _score(entry: Dict[str, Any]) -> tuple[float, float]:
             status = str(entry.get("status", "") or "")

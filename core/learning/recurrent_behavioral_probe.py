@@ -38,8 +38,10 @@ def tokenize_task(
     prompt: str,
     answer: str,
 ) -> tuple[list[int], list[int]]:
+    from core.brain.llm.chat_format import for_this_template
+
     prompt_tokens = tokenizer.apply_chat_template(
-        [{"role": "user", "content": prompt}],
+        for_this_template(tokenizer, [{"role": "user", "content": prompt}]),
         add_generation_prompt=True,
         tokenize=True,
     )

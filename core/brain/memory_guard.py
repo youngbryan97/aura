@@ -15,6 +15,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.conversation.word_markers import names_any
+
 logger = logging.getLogger("Aura.MemoryGuard")
 
 #: Fallback capacities when no live model manifest is available. CP126
@@ -299,7 +301,7 @@ class ContextPruner:
         chosen = lines[0]
         for line in lines:
             lowered = line.lower()
-            if any(marker in lowered for marker in markers):
+            if names_any(lowered, markers):
                 chosen = line
                 break
         if len(chosen) > MAX_ECHO_FRAGMENT_CHARS:

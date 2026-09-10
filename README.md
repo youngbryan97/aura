@@ -258,7 +258,19 @@ mechanism, **trained intrinsic recurrence**
 ([docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md)), makes the real
 token stream re-enter the middle block, so a 64-layer checkpoint runs 160 layers
 deep at T=4 with the same weights, and trains it on typed, exactly checkable
-program traces instead of answers. That is where the gain came from.
+program traces instead of answers. That training path is distinct from the
+typed semantic-machine evidence below. CP566 measured a learned semantic
+machine whose terminal state conditioned the model's answer decode; it did
+not isolate a gain from repeated middle-layer passes in the resident model.
+
+The [frozen RLC baseline](docs/evidence/G01_RLC_BASELINE_2026-09-08.md)
+records the evidence available on 2026-09-08 and its mechanism boundaries.
+The fresh v16 natural-language replication reached **26/96** exact answers,
+below its preregistered **48/96** floor; ordinary decode was not run after
+that futility stop. The v19 repair reached **93/96** on the exposed development
+cohort, with coefficient lesion **0/96**. That development result still needs
+fresh replication. Neither record establishes broad reasoning gain or grants
+serving authority.
 
 | | |
 |---|---|
@@ -266,7 +278,7 @@ program traces instead of answers. That is where the gain came from.
 | Live runtime integration on the resident 32B | **PROVEN** |
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
-| Capability gain, **trained intrinsic** recurrence, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
+| Capability gain, typed semantic machine plus state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
 | Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
 | Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
 | Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
@@ -280,12 +292,14 @@ program traces instead of answers. That is where the gain came from.
 load-bearing: the limitations line ships inside the same receipt as the verdict.
 
 On a frozen four-domain cohort of 60 typed tasks — coding, calibration,
-misleading premise, scientific inference — the trained controller answered 60/60
+misleading premise, scientific inference — the semantic-machine treatment answered 60/60
 exactly against 16/60 for ordinary decode, with a matched wire base at 7, a
 coefficient lesion at 5, and a wrong-state control at 0. Forty-four ordinary
 failures converted, none regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The
-gain disappears under lesion, which is what makes it a claim about the trained
-coefficients rather than about extra decode budget.
+coefficient lesion reduces the result, which supports dependence on those
+learned coefficients within this experiment. State conditioning, formatting
+assistance and retries remain part of the recorded treatment contract;
+equal-compute broad reasoning comparisons remain a separate requirement.
 
 The 2026-08-24 cortex migration then repeated that bounded claim on the fused
 Qwen3.8-27B resident model. A separately seeded 60-task, 300-decode campaign
@@ -296,6 +310,9 @@ rows before the frozen adjudicator returned `BOUNDED_WOW_SIGNAL` again. This
 is evidence that the bounded typed tissue/executor mechanism is portable
 across two model generations; it is not a head-to-head 27B-versus-32B quality
 benchmark because the cohorts and model identities differ.
+The ordinary 27B arm produced no parseable final answers under that campaign's
+decode contract. Its 0/60 therefore cannot establish lack of knowledge or
+performance under a different completion budget.
 
 The next bridge now works without a family-specific compiler. A generic
 enumerative inducer received sixteen input-output examples, no family label and
@@ -364,19 +381,24 @@ programs: 366 produced the same value and two produced the same typed refusal,
 for 368/368 agreement across arithmetic, sequence and fork/join. All 20 declared
 primitives have both floor semantics and a type signature; a new primitive
 without either is refused. The neural front end and endogenous substrate now
-share execution semantics. Learning a new schema from reused parts remains open.
+share execution semantics. Later v14 evidence recovered **79/96** programs and
+answers on a fresh, fit-withheld synthetic program family using shared
+primitives. Its endogenous replay also reached **79/96**, versus **0/96**
+under coefficient lesion. Open-domain schema acquisition remains unproven.
 
 One family — misleading premise — gained nothing, and the reason is worth
 stating rather than averaging away: ordinary decode was already at ceiling there
 (15/15), and the controller preserved all fifteen instead of manufacturing a
 gain by regressing its own baseline. The other three families supplied the 44.
 
-It runs in the live serving path today. `semantic_neural_serving.py` refuses to
+It has dated serving-path qualification. `semantic_neural_serving.py` refuses to
 serve unless a descriptor-bound activation record says `active_by_default`.
-The current 27B package is `rlc-27b-recovery-05346acd618d1c925f16`; its runtime
+The CP1011 27B package is `rlc-27b-recovery-05346acd618d1c925f16`; its recorded runtime
 verification is 120/120 exact, 120/120 lesion-disrupted, 120/120 through both
 foreground and service integrations, and unsupported language refused, at a
-9.229 / 38.696 ms median / maximum.
+9.229 / 38.696 ms median / maximum. These are qualification measurements, not
+a live-status probe. Present activation must be checked against the running
+process, source revision, model identity and eligible-request receipt.
 
 It is still not a broad reasoning gain, not static fusion, not frontier
 performance, and it still cannot answer ordinary chat — admission is decided
@@ -856,7 +878,7 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 140 modules in `core/consciousness/` (157 total including subpackages
+There are 143 modules in `core/consciousness/` (160 total including subpackages
 `caa/`, `inner_light/`, and `mhaf/`). The ones that do most of the
 load-bearing work:
 

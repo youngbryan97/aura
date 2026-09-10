@@ -21,6 +21,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from core.config import config
+from core.conversation.word_markers import names_any
 from core.runtime.atomic_writer import atomic_write_text
 
 logger = logging.getLogger("Learning.Tools")
@@ -156,23 +157,23 @@ class ToolLearningSystem:
         A proper version would use embeddings, but this is fast.
         """
         text = user_input.lower()
-        if any(w in text for w in ["write code", "implement", "create function", "generate", "build a"]):
+        if names_any(text, ["write code", "implement", "create function", "generate", "build a"]):
             return "code_generation"
-        if any(w in text for w in ["fix", "debug", "error", "bug", "broken", "not working"]):
+        if names_any(text, ["fix", "debug", "error", "bug", "broken", "not working"]):
             return "code_fix"
-        if any(w in text for w in ["file", "read", "write", "save", "delete", "move", "copy"]):
+        if names_any(text, ["file", "read", "write", "save", "delete", "move", "copy"]):
             return "file_operation"
-        if any(w in text for w in ["search", "find", "look up", "google", "web"]):
+        if names_any(text, ["search", "find", "look up", "google", "web"]):
             return "web_search"
-        if any(w in text for w in ["run", "execute", "command", "terminal", "shell", "install"]):
+        if names_any(text, ["run", "execute", "command", "terminal", "shell", "install"]):
             return "system_command"
-        if any(w in text for w in ["analyze", "explain", "what does", "why", "how does"]):
+        if names_any(text, ["analyze", "explain", "what does", "why", "how does"]):
             return "analysis"
-        if any(w in text for w in ["write", "story", "poem", "creative", "imagine"]):
+        if names_any(text, ["write", "story", "poem", "creative", "imagine"]):
             return "creative_writing"
-        if any(w in text for w in ["plan", "steps", "strategy", "roadmap", "goal"]):
+        if names_any(text, ["plan", "steps", "strategy", "roadmap", "goal"]):
             return "planning"
-        if any(w in text for w in ["what is", "tell me", "define", "know about"]):
+        if names_any(text, ["what is", "tell me", "define", "know about"]):
             return "knowledge_query"
         return "conversation"
 

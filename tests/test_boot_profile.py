@@ -152,3 +152,21 @@ def test_boot_spine_is_instrumented():
         assert f'boot_profiler.mark("{phase}")' in source, (
             f"boot spine lost its '{phase}' profiler mark"
         )
+
+
+def test_boot_profile_persistence_is_awaited_off_loop():
+    import ast
+    from pathlib import Path
+
+    tree = ast.parse((Path(__file__).resolve().parents[1] / "aura_main.py").read_text())
+    boot = next(n for n in tree.body if isinstance(n, ast.AsyncFunctionDef)
+                and n.name == "_boot_runtime_orchestrator")
+    writes = [n for n in ast.walk(boot) if isinstance(n, ast.Attribute)
+              and n.attr == "write_artifact"]
+    assert len(writes) == 1
+    assert any(
+        isinstance(n, ast.Await) and isinstance(n.value, ast.Call)
+        and ast.unparse(n.value.func) == "asyncio.to_thread"
+        and writes[0] in n.value.args
+        for n in ast.walk(boot)
+    )

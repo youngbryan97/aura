@@ -8,7 +8,7 @@ reports the result, and a conductor job that calls all three every hour.
 So the interesting question is not what is missing. It is why an hourly job
 has produced nothing, and the answer is in its admission bar. The campaign
 runs under the research background profile: fifteen minutes of no user
-activity, memory below 85%, conversation ready. A machine with a resident 32B
+activity, memory below 85%, conversation ready. A machine with a resident cortex
 sits above that memory line most of the time, and a machine somebody is
 working on is rarely idle for fifteen minutes. Both conditions are right for a
 job that spends three generations per trial. Together they are a job that
@@ -111,10 +111,24 @@ def _load_if_needed() -> None:
         return
     try:
         raw = json.loads(where_it_is_kept().read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001 — a record that cannot be read is not a
-        # reason to stop the job it is recording. The path itself can raise:
-        # a state root that is not resolvable is a real condition here and the
-        # first version let it out of note_a_consideration.
+    except (
+        AttributeError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        # A record that cannot be read is not a reason to stop the job it is
+        # recording. The path itself can raise: a state root that is not
+        # resolvable is a real condition here, and the first version let it
+        # out of note_a_consideration.
+        #
+        # Named rather than bare. Every way this can fail is a missing file, an
+        # unresolvable root, or bytes that are not the document — and a
+        # genuinely unexpected type of failure reading a record should reach
+        # somebody rather than be absorbed by the reader.
         return
     if not isinstance(raw, dict):
         return

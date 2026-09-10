@@ -12,6 +12,7 @@ from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.task_ownership import create_tracked_task
 from core.state.aura_state import AffectVector, AuraState
+from core.state.percepts import drop_consumed, fresh_for, mark_consumed
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -181,7 +182,24 @@ class AffectUpdatePhase(Phase):
         affect.emotions[emotion] = self._clip01(value)
 
     def _bump_emotion(self, affect: AffectVector, emotion: str, delta: float) -> None:
-        self._set_emotion(affect, emotion, affect.emotions.get(emotion, 0.0) + delta)
+        """Raise a feeling by a share of the room it has left.
+
+        Added flat, every event of a kind pushed the same distance, so a
+        channel already near its ceiling took the same step as one at rest and
+        the ceiling arrived within a dozen turns. Three emotions then sat at
+        1.0 for the whole of a session — and a feeling that is always at
+        maximum is not a feeling, it is a constant. Nothing downstream could
+        tell an ordinary moment from an overwhelming one, and displacing affect
+        moved nothing because there was nowhere for it to move.
+
+        The gain is unchanged. What changed is that it applies to the headroom:
+        a channel at rest still takes the full step, one near the top takes
+        almost none, and the same event lands differently depending on what she
+        already feels. Lowering a feeling is symmetric — the room below.
+        """
+        current = affect.emotions.get(emotion, 0.0)
+        room = (1.0 - current) if delta >= 0.0 else current
+        self._set_emotion(affect, emotion, current + delta * room)
 
     def _ensure_affect_schema(self, affect: AffectVector) -> None:
         """Backfill newer affect dimensions into persisted older AuraState snapshots."""
@@ -219,12 +237,21 @@ class AffectUpdatePhase(Phase):
         
         # 3. Reactive Updates (from recent percepts)
         # Ported from DamasioV2.react()
-        recent_percepts = list(state.world.recent_percepts)
+        # A percept lives one turn. This phase used to take the whole list and
+        # clear it, which does prevent double-processing and also deletes the
+        # event for everyone downstream: the workspace competition, the world
+        # model's observation, the phi estimate and the state's own reading of
+        # perception all run after this phase, and all of them saw an empty
+        # stream on every turn. Now what this phase felt on a previous turn is
+        # dropped here, what arrived since is felt and marked, and the rest of
+        # the turn can see what arrived. No clock and no growth: the stream
+        # holds exactly one turn of perception by the time affect is done.
+        drop_consumed(state.world, "affect")
+        recent_percepts = fresh_for(state.world.recent_percepts, "affect")
         self._process_percepts(affect, recent_percepts)
-
-        # Percept Clearing (Atomic Hygiene)
-        # Prevent double-processing or leak. Percepts are transient impacts.
-        state.world.recent_percepts.clear()
+        for item in recent_percepts:
+            mark_consumed(item, "affect")
+        state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
         self._apply_conversation_feedback(affect, state)
@@ -240,12 +267,43 @@ class AffectUpdatePhase(Phase):
         
         # 6. Unified Personality Resonance (Unitary Logic)
         self._update_resonance(state)
+
+        # 6b. Advance the lifetime state on this moment, and let what it senses
+        # colour the moment. The reservoir used to step only when a memory
+        # retrieval happened to ask it something, so a day of conversation with
+        # no retrieval left her developmental state exactly where it started.
+        #
+        # After the emotion channels are settled, not before. The first version
+        # ran this at the top of the phase and the derived-affect step three
+        # steps later recomputed curiosity from the emotions dictionary, which
+        # overwrote the blend every time: displacing the developmental state
+        # far enough to take novelty from 0.60 to 1.00 moved curiosity by five
+        # ten-thousandths.
+        self._advance_lifetime(state, affect)
+
+        # 6c. What won the workspace, as arousal. Global workspace theory's
+        # claim is that ignition makes content available to the specialised
+        # processes, and affect is one of them; the blend weight is the
+        # ignition level itself, so a competition that barely ignited moves
+        # arousal barely and a full one moves it most of the way to the
+        # winner's priority.
+        self._blend_broadcast_into_affect(state, affect)
         
         # Direct Telemetry Bridge: Push VAD to LiquidSubstrate for real-time HUD sync
         from core.container import ServiceContainer
-        ls = ServiceContainer.get("liquid_substrate", default=None)
+        ls = ServiceContainer.get("liquid_substrate", default=None) or ServiceContainer.get(
+            "conscious_substrate", default=None
+        )
         if ls:
             self._schedule_substrate_update(ls, affect, state)
+            # And read it back. `HomeostaticCoupling` says the continuous
+            # substrate is the ground truth for felt state and blends it at
+            # thirty percent — into a local dictionary used to pick cognitive
+            # modifiers, and never into the affect state itself. The push
+            # existed and the return did not, so the substrate was thirty
+            # percent of how hard she was allowed to think and none of how she
+            # felt.
+            self._blend_substrate_into_affect(ls, affect, state)
         
         # 7. Despair Spiral check (Injection)
         self._check_resilience_surges(affect)
@@ -283,6 +341,198 @@ class AffectUpdatePhase(Phase):
             severity=severity,
             extra={"stage": stage},
         )
+
+    def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
+        """Step her lifetime state, then blend curiosity toward its novelty.
+
+        The blend weight is the step's own displacement — how far this moment
+        moved her — rather than a number chosen here. A large developmental
+        update pulls the moment toward how unprecedented it is; a quiet step
+        leaves curiosity alone. Nothing else in the runtime reads novelty, so
+        without this the state was advancing and sensing into a void.
+        """
+        try:
+            from core.ontogeny.lifetime import LIFETIME_SCHEMA, advance
+
+            features = {
+                "perception": float(len(state.world.recent_percepts or [])),
+                "interoception": float(
+                    (getattr(state.soma, "hardware", {}) or {}).get("cpu_usage", 0.0) or 0.0
+                ),
+                "affect_valence": float(affect.valence),
+                "affect_arousal": float(affect.arousal),
+                "workspace": float(getattr(state.cognition, "conversation_energy", 0.5) or 0.5),
+                "cognition": float(getattr(state, "phi", 0.0) or 0.0),
+                "self_state": float(getattr(state.identity, "stability", 1.0) or 1.0),
+                "memory": float(len(state.cognition.working_memory or [])),
+                "world": float(len(getattr(state.world, "facts", {}) or {})),
+                "deliberation": float(len(state.cognition.active_goals or [])),
+            }
+            del LIFETIME_SCHEMA
+            reading = advance(features)
+            if reading is None:
+                return
+            weight = max(0.0, min(1.0, float(reading.displacement)))
+            affect.curiosity = max(
+                0.0,
+                min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
+            )
+            state.response_modifiers["ontogenetic_novelty"] = round(float(reading.novelty), 4)
+            state.response_modifiers["ontogenetic_displacement"] = round(weight, 4)
+            self._ground_affect(state, affect, novelty=float(reading.novelty))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="lifetime_state",
+                action="kept affect state after the lifetime reservoir did not advance",
+                severity="warning",
+            )
+
+    def _ground_affect(self, state: AuraState, affect: AffectVector, *, novelty: float) -> None:
+        """Let the measured signals name the feeling, when they have earned it.
+
+        `AffectGroundingEngine` derives affect from sustained evidence —
+        prediction error from the world model, nociceptive pressure from the
+        body, novelty from the lifetime state — and refuses to assert a label
+        until it has enough samples. It was registered as a service and never
+        called, so the three channels it bridges were readers with nothing
+        running them.
+
+        What it returns informs rather than replaces. The grounded label is
+        blended into the emotion of the same name with the engine's own
+        confidence as the weight, so a tentative read moves almost nothing and
+        a well-evidenced one moves most of the way. Nothing here overrides the
+        dominant emotion outright: an evidence layer that can silence the rest
+        of affect is not evidence, it is a second opinion with a veto.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("affect_grounding", default=None)
+            if engine is None:
+                return
+            control = 0.5
+            try:
+                from core.agency.authorship import get_agency_ledger
+
+                ledger = get_agency_ledger()
+                if ledger.acted:
+                    control = float(ledger.efficacy)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+                control = 0.5
+            engine.observe(
+                novelty=novelty,
+                valence=float(affect.valence),
+                arousal=float(affect.arousal),
+                control=control,
+                idle=0.0 if (state.cognition.current_objective or "").strip() else 1.0,
+            )
+            engine.gather()
+            grounded = engine.dominant()
+            if grounded is None:
+                return
+            weight = max(0.0, min(1.0, float(grounded.confidence)))
+            channel = grounded.label
+            if channel in affect.emotions:
+                affect.emotions[channel] = max(
+                    0.0,
+                    min(
+                        1.0,
+                        (1.0 - weight) * float(affect.emotions[channel])
+                        + weight * float(grounded.intensity),
+                    ),
+                )
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["grounded"] = grounded.to_dict()
+            affect.markers = markers
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="affect_grounding",
+                action="kept affect state after grounded affect could not be read",
+                severity="warning",
+            )
+
+    def _blend_broadcast_into_affect(self, state: AuraState, affect: AffectVector) -> None:
+        """Read the last broadcast's ignition off the workspace and feel it."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            workspace = get_runtime_service("global_workspace", default=None)
+            reading = getattr(workspace, "last_broadcast_arousal", None)
+            if not isinstance(reading, dict):
+                return
+            level = float(reading.get("ignition", 0.0))
+            if level <= 0.0:
+                return
+            target = float(reading.get("priority", 0.0))
+            affect.arousal = max(0.0, min(1.0, (1.0 - level) * float(affect.arousal) + level * target))
+            state.response_modifiers["broadcast_ignition"] = round(level, 4)
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="broadcast_arousal",
+                action="kept affect state without the broadcast's ignition",
+                severity="warning",
+            )
+
+    def _blend_substrate_into_affect(
+        self, substrate: Any, affect: AffectVector, state: AuraState
+    ) -> None:
+        """Close the loop the coupling's own docstring describes.
+
+        The share is the one `HomeostaticCoupling` already uses, imported
+        rather than repeated, because two copies of a number like this drift
+        and then two subsystems disagree about how much of her feeling is the
+        substrate.
+
+        A stale reading is skipped rather than blended. The substrate publishes
+        how old its snapshot is, and a felt state built from a snapshot taken
+        before the last thing that happened is worse than one built without it.
+        """
+        try:
+            from core.consciousness.homeostatic_coupling import SUBSTRATE_SHARE
+
+            reading = substrate.get_state_summary_nowait()
+            if not isinstance(reading, dict):
+                return
+            if reading.get("snapshot_stale"):
+                # Worth recording rather than skipping quietly. The snapshot is
+                # marked fresh only by the substrate's own dynamics step, so a
+                # loop that has died disconnects the substrate from affect with
+                # no other symptom — the readings stay plausible and simply
+                # stop arriving.
+                state.response_modifiers["substrate_snapshot_age_s"] = round(
+                    float(reading.get("snapshot_age_s", 0.0)), 3
+                )
+                record_degradation(
+                    "affect_update",
+                    RuntimeError("substrate snapshot stale"),
+                    severity="info",
+                    action="affect kept its own valence; the substrate is not integrating",
+                )
+                return
+            keep = 1.0 - SUBSTRATE_SHARE
+            affect.valence = max(
+                -1.0,
+                min(1.0, affect.valence * keep + float(reading.get("valence", 0.0)) * SUBSTRATE_SHARE),
+            )
+            affect.arousal = max(
+                0.0,
+                min(1.0, affect.arousal * keep + float(reading.get("arousal", 0.0)) * SUBSTRATE_SHARE),
+            )
+            state.response_modifiers["substrate_share_of_affect"] = SUBSTRATE_SHARE
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="substrate_readback",
+                action="kept affect state without the substrate's contribution",
+                severity="warning",
+            )
 
     def _schedule_substrate_update(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
         try:
@@ -367,6 +617,18 @@ class AffectUpdatePhase(Phase):
             "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
             "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
             "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+            # Three types the tree emits that this map had no entry for, so a
+            # phase crash, an apology and every stimulus injected through the
+            # compatibility bridge arrived and moved nothing. An internal error
+            # is an error; a self-correction is an error about her own output,
+            # without the part that is afraid of the world.
+            "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+            # The body under strain. This type was already listed as a threat
+            # a few lines up, and until the proprioceptive loop emitted one,
+            # nothing in the tree ever produced it — so a machine at ninety
+            # percent load reached her feeling through nothing at all.
+            "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
+            "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
             "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
             "neural_decode": ["anticipation", "surprise"]  # Base neural burst
         }

@@ -25,14 +25,16 @@ the snapshot down with it, and the section says which one.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Phenomena.Wiring")
 
-#: Container keys for the fourteen. The order is the order they are reported
-#: in, which is roughly the order they were built rather than any hierarchy.
+#: Container keys for the group. The order is the order they are reported in,
+#: which is roughly the order they were built rather than any hierarchy.
 SERVICE_NAMES: tuple[str, ...] = (
     "constitutive_identity",
     "expressive_dynamics",
@@ -48,6 +50,7 @@ SERVICE_NAMES: tuple[str, ...] = (
     "reciprocity",
     "empathic_coupling",
     "aesthetic_response",
+    "social_stamina",
 )
 
 #: The invariant modules. Registration happens on import, so the tuple is the
@@ -310,6 +313,15 @@ def sample() -> dict[str, float]:
         except _RECOVERABLE:
             pass  # not started yet, so no reading; see _WHY_A_MISSING_READING_IS_FINE
 
+    stamina = _service("social_stamina")
+    if stamina is not None:
+        try:
+            reading = stamina.read()
+            put(ch.CHANNEL_STAMINA, reading.stamina)
+            put(ch.CHANNEL_BELONGING, reading.belonging)
+        except _RECOVERABLE:
+            pass
+
     aesthetic = _service("aesthetic_response")
     if aesthetic is not None:
         try:
@@ -364,6 +376,11 @@ def snapshot() -> dict[str, Any]:
         concerns.append(f"state mostly not their own: {', '.join(merged)}")
     if (sections.get("receptivity") or {}).get("isolation", {}).get("closed"):
         concerns.append("nothing accepted and nothing learned about anyone")
+    stamina = sections.get("social_stamina") or {}
+    if stamina.get("wants_but_cannot"):
+        concerns.append("wanting company with nothing left to spend on it")
+    elif stamina.get("overdrawn") and stamina.get("exhausted"):
+        concerns.append("spending more time in company than can be sustained")
     unsupported = (sections.get("constitutive_identity") or {})
     for identity, row in unsupported.items():
         if isinstance(row, dict) and row.get("unsupported_declarations"):
@@ -381,3 +398,272 @@ def snapshot() -> dict[str, Any]:
 def reset_for_test() -> None:
     global _booted
     _booted = False
+
+
+# ---------------------------------------------------------------- deliberation
+
+#: What a candidate action can predict about itself, and which organ prices
+#: each one. The organ is asked only when the candidate says something it can
+#: price; an organ with nothing to say abstains rather than contributing zero,
+#: because a zero and a silence are different facts and a sum cannot tell them
+#: apart afterwards.
+PRICED_EFFECTS: tuple[tuple[str, str], ...] = (
+    ("relieves_need", "care_allocation"),
+    ("accepts_offer", "receptivity"),
+    ("uses_marker", "conventions"),
+    ("forecloses", "reversibility_ledger"),
+    ("presentation_effort", "signal_channel"),
+    ("returns_in_kind", "reciprocity"),
+    ("moves_another", "empathic_coupling"),
+    ("is_practice", "craft_practice"),
+    ("makes_artifact", "novelty_value"),
+    ("takes_position", "prospect_refuge"),
+    ("is_expressive", "expressive_dynamics"),
+    ("enacts_practice", "constitutive_identity"),
+)
+
+
+@dataclass(frozen=True)
+class Contribution:
+    """One organ's reading of one candidate, with what it read it from."""
+
+    organ: str
+    effect: str
+    value: float
+    unit: str
+    """What the value is measured in. Carried because these do not agree.
+
+    Care benefit is in budget units, an orbit is in seconds, a stance is a
+    sign. Adding them produces a number whose largest term is whichever organ
+    happens to use the biggest units, and no reader downstream can tell that
+    from a result.
+    """
+
+    grounds: str
+
+
+@dataclass(frozen=True)
+class Weighing:
+    """What the fourteen had to say about one candidate action.
+
+    There is no total, and adding one would be the module's worst possible
+    move. The contributions are in different currencies — budget units,
+    seconds, a sign — and the first draft averaged them, which does not
+    refuse to weight them: it silently weights every organ at one and lets
+    whichever uses the largest units decide. A candidate that hums for forty
+    seconds beat every other candidate on the strength of the unit.
+
+    So the commensuration is the caller's, supplied explicitly to ``rank``,
+    exactly as ``core/environment/prospect_refuge.py`` refuses to combine
+    prospect and refuge without being told how.
+    """
+
+    candidate: str
+    contributions: tuple[Contribution, ...]
+    abstained: tuple[str, ...]
+
+    def by_organ(self) -> dict[str, float]:
+        return {c.organ: c.value for c in self.contributions}
+
+    def units(self) -> dict[str, str]:
+        return {c.organ: c.unit for c in self.contributions}
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "candidate": self.candidate,
+            "contributions": [
+                {"organ": c.organ, "effect": c.effect, "unit": c.unit,
+                 "value": round(c.value, 4), "grounds": c.grounds}
+                for c in self.contributions
+            ],
+            "abstained": list(self.abstained),
+        }
+
+
+class IncommensurableError(ValueError):
+    """Raised when a ranking was asked for without saying how to compare."""
+
+
+def rank(
+    readings: Sequence[Weighing], *, weights: Mapping[str, float]
+) -> list[tuple[Weighing, float]]:
+    """Order candidates under a commensuration the caller supplies.
+
+    ``weights`` maps organ name to how much one of that organ's units is
+    worth. Every organ that contributed has to appear, and an omission raises
+    rather than defaulting — a missing weight silently treated as zero is a
+    decision to ignore an organ, made by nobody, visible to no one.
+    """
+    contributed = {c.organ for reading in readings for c in reading.contributions}
+    missing = sorted(contributed - set(weights))
+    if missing:
+        raise IncommensurableError(
+            "no weight given for " + ", ".join(missing) + ". These readings are "
+            "in different units and cannot be compared until something says "
+            "what one unit of each is worth"
+        )
+    scored = [
+        (
+            reading,
+            sum(weights[c.organ] * c.value for c in reading.contributions),
+        )
+        for reading in readings
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+    return scored
+
+
+def _price(organ_name: str, effect: str, payload: Any, service: Any) -> Contribution | None:
+    """Ask one organ what a predicted effect is worth. Nothing when it cannot say."""
+    try:
+        if organ_name == "care_allocation":
+            key, need = payload
+            recipient = service.recipient(str(key))
+            if recipient.need <= 0 and float(need) <= 0:
+                return None
+            return Contribution(
+                organ_name, effect, recipient.benefit(float(need)), "budget",
+                f"saturating benefit at responsiveness {recipient.responsiveness:.3f}",
+            )
+        if organ_name == "receptivity":
+            from core.social.receptivity import Offer
+
+            source, value, exposure = payload
+            decision = service.consider(
+                Offer(source=str(source), value=float(value), exposure=float(exposure))
+            )
+            return Contribution(
+                organ_name, effect,
+                decision.expected_value + decision.value_of_learning, "value",
+                decision.reason,
+            )
+        if organ_name == "conventions":
+            adoption = service.adopt(str(payload))
+            if adoption.meaning is None and adoption.coordination_value == 0:
+                return None
+            return Contribution(organ_name, effect, adoption.net, "coordination",
+                                adoption.reason)
+        if organ_name == "reversibility_ledger":
+            # Priced by the option value the candidate throws away, so an
+            # action that forecloses is worth strictly less than one that does
+            # not, at the same harm.
+            harm, reversibility, revision = payload
+            recoverable = float(harm) * min(max(float(reversibility), 0.0), 1.0)
+            return Contribution(
+                organ_name, effect,
+                float(revision) * recoverable - float(harm), "harm",
+                "option value of being able to change your mind, less the harm",
+            )
+        if organ_name == "signal_channel":
+            quality, budget = payload
+            report = service.worth_sending(float(quality), budget=float(budget))
+            if not service.schedule.separating():
+                return None
+            return Contribution(
+                organ_name, effect,
+                float(report["read_as"] or 0.0) - float(report["cost"]), "type",
+                "how the effort would be read, less what it costs to make",
+            )
+        if organ_name == "reciprocity":
+            stance = service.stance(str(payload))
+            if stance.cooperation_stable is None:
+                return None
+            return Contribution(
+                organ_name, effect,
+                1.0 if stance.cooperation_stable else -1.0, "sign",
+                stance.reason,
+            )
+        if organ_name == "empathic_coupling":
+            rest = service.rest()
+            if rest is None or str(payload) not in rest:
+                return None
+            return Contribution(
+                organ_name, effect, -float(rest[str(payload)]), "affect",
+                "their rest state, which acting on their behalf would move",
+            )
+        if organ_name == "craft_practice":
+            skill = service._skills.get(str(payload))
+            rate = skill.improvement_rate() if skill else None
+            if rate is None:
+                return None
+            return Contribution(
+                organ_name, effect, float(rate), "quality_per_attempt",
+                "quality gained per attempt on this skill lately",
+            )
+        if organ_name == "novelty_value":
+            key, blob = payload
+            scored = service.value(str(key), bytes(blob))
+            return Contribution(
+                organ_name, effect, scored.value, "fraction",
+                f"novelty {scored.novelty:.3f} against a corpus of {scored.corpus_size}",
+            )
+        if organ_name == "prospect_refuge":
+            space, position = payload
+            field_obj = service.get(str(space))
+            if field_obj is None:
+                return None
+            found = [p for p in field_obj.score() if p.key == str(position)]
+            if not found:
+                return None
+            return Contribution(
+                organ_name, effect, found[0].asymmetry, "fraction",
+                "how much more it sees than is seen of it",
+            )
+        if organ_name == "expressive_dynamics":
+            # An orbit has no completion, so what it is worth is time on it.
+            return Contribution(
+                organ_name, effect, float(payload), "s",
+                "time on a cycle, which is the only account an orbit has",
+            )
+        if organ_name == "constitutive_identity":
+            identity, practice = payload
+            held = service.get(str(identity))
+            whole = held.coherence(record=False)
+            without = held.coherence_without(str(practice))
+            return Contribution(
+                organ_name, effect, whole.r - without.r, "coherence",
+                "coherence this practice is holding up",
+            )
+    except _RECOVERABLE:
+        return None
+    return None
+
+
+def weigh(candidates: Mapping[str, Mapping[str, Any]]) -> list[Weighing]:
+    """Ask the fourteen what they make of each candidate action.
+
+    This is deliberately not a decision. It does not pick, and it does not
+    gate — ``UnifiedWill.decide`` is the only authority on whether an action
+    may happen, and this file adds no second one. What it produces is an
+    advisory reading with each contribution named and sourced, so a caller can
+    say which organ moved an answer and by how much.
+
+    A candidate declares what it predicts about itself. Only the organs whose
+    effect it declares are consulted, and an organ with no evidence for its
+    reading abstains. Nothing is ordered here, because ordering needs a
+    commensuration and this file does not have one; pass the readings to
+    ``rank`` with weights when a caller can supply them.
+    """
+    readings: list[Weighing] = []
+    for name, predicted in candidates.items():
+        contributions: list[Contribution] = []
+        abstained: list[str] = []
+        for effect, organ_name in PRICED_EFFECTS:
+            if effect not in predicted:
+                continue
+            service = _service(organ_name)
+            if service is None:
+                abstained.append(organ_name)
+                continue
+            priced = _price(organ_name, effect, predicted[effect], service)
+            if priced is None:
+                abstained.append(organ_name)
+            else:
+                contributions.append(priced)
+        readings.append(
+            Weighing(
+                candidate=name, contributions=tuple(contributions),
+                abstained=tuple(abstained),
+            )
+        )
+    return readings

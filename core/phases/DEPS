@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 42 outbound edges when this was generated.
+# 46 outbound edges when this was generated.
 
 description = "core.phases: may import only what it already imports; every new edge is an edit here."
 
@@ -15,8 +15,10 @@ include_rules = [
 
     # What this package reaches for today.
     "+core.adaptation",
+    "+core.affect",
     "+core.agency",
     "+core.autonomy",
+    "+core.being",
     "+core.brain",
     "+core.cognition",
     "+core.coherence",
@@ -39,14 +41,16 @@ include_rules = [
     "+core.llm",
     "+core.memory",
     "+core.morality",
-    "+core.phases",
+    "+core.ontogeny",
     "+core.reasoning",
+    "+core.resilience",
     "+core.runtime",
     "+core.self",
     "+core.self_modification",
     "+core.service_names",
     "+core.skills",
     "+core.social",
+    "+core.soma",
     "+core.somatic",
     "+core.state",
     "+core.synthesis",
@@ -55,6 +59,7 @@ include_rules = [
     "+core.utils",
     "+core.voice",
     "+core.will",
+    "+core.world_model",
 
     # Outside core. Each of these is a layering break already in
     # the tree; recorded here so it is visible where the rule is,

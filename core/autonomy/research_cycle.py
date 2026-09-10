@@ -29,6 +29,7 @@ from core.autonomy.research_text_policy import (
 from core.runtime import background_policy
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.state_ownership import state_root
+from core.state.percepts import emit_percept
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ResearchCycle")
@@ -599,11 +600,13 @@ class ResearchCycle:
         identity_impact = await self._update_narrative(state, goal, findings)
 
         # 8. Emit positive affect percepts
-        state.world.recent_percepts.append({
-            "type":      "goal_achieved",
-            "intensity": 0.7,
-            "payload":   {"goal": goal[:60], "drive": drive},
-        })
+        emit_percept(
+            state.world,
+            "goal_achieved",
+            content=f"researched {goal[:60]}",
+            intensity=0.7,
+            payload={"goal": goal[:60], "drive": drive},
+        )
 
         # 9. Replenish motivation budgets
         budgets = state.motivation.budgets

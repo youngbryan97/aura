@@ -10,6 +10,7 @@ what made them the first ones that could leave.
 from __future__ import annotations
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -121,6 +122,9 @@ def _desktop_cognitive_failure_repair_target(reason: str) -> str:
     """Choose the narrowest implementation surface implicated by a failed turn."""
 
     normalized = str(reason or "").lower()
+    # Substring, deliberately: `reason` is a failure CODE, not a sentence —
+    # "cognitive_reply_failed", "no_thought", "quality_gate_rejected" — and
+    # its words are joined by underscores rather than spaces.
     if any(marker in normalized for marker in ("timeout", "no_thought", "empty")):
         return "core/brain/llm/mlx_client.py"
     if any(marker in normalized for marker in ("quality", "unsafe", "failure_envelope")):
@@ -958,7 +962,7 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
         "describe",
         "about",
     )
-    if any(marker in lowered for marker in explicit_content_markers):
+    if names_any(lowered, explicit_content_markers):
         return False
     if re.search(r"\b(?:write|draft|compose|create|make)\s+(?:a\s+|an\s+)?report\b", lowered):
         return False
@@ -977,7 +981,7 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
         "from the document",
         "from notes",
     )
-    if any(marker in lowered for marker in sourced_content_markers):
+    if names_any(lowered, sourced_content_markers):
         return True
     operational_report_markers = (
         "report the path",
@@ -990,7 +994,7 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
         "receipt",
         "what you did",
     )
-    if any(marker in lowered for marker in operational_report_markers) and (
+    if names_any(lowered, operational_report_markers) and (
         "pdf" in lowered or "move" in lowered or "copy" in lowered
     ):
         return True

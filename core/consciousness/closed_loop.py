@@ -745,8 +745,18 @@ class PhiWitness:
         return self.current_phi > 0.01
 
     def get_diagnostics(self) -> dict[str, Any]:
+        """What the witness has, and whether it has anything.
+
+        ``current_phi`` returns 0.0 when nothing has been measured yet, and a
+        consumer cannot tell that apart from a measured zero. Executive closure
+        could not: it read the 0.0 and wrote it over a phi another phase had
+        computed one step earlier, so the workspace's own reading never reached
+        anything downstream of it. ``phi_measured`` is the flag that makes the
+        two distinguishable.
+        """
         return {
             "phi_estimate": round(self.current_phi, 5),
+            "phi_measured": bool(self._phi_history),
             "phi_threshold_met": self.phi_threshold_met,
             "substrate_history_len": len(self._substrate_history),
             "output_history_len": len(self._output_affect_history),
@@ -1380,6 +1390,9 @@ class ClosedCausalLoop:
             },
             "phi": {
                 "estimate": round(self._loop_state.phi_estimate, 5),
+                # Whether anything has been measured, so a consumer can tell a
+                # measured zero from a witness that has never cycled.
+                "measured": bool(self._phi_witness.get_diagnostics().get("phi_measured")),
                 "threshold_met": self._loop_state.phi_threshold_met,
                 "statement": self.get_phi_statement(),
             },

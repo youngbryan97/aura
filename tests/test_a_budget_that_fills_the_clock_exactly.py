@@ -1,0 +1,181 @@
+"""An answer budget must leave room to deliver the answer.
+
+`_tokens_the_turn_is_allowed_to_take` searched for the largest answer that
+fits the turn's wall clock and found one that fits it EXACTLY. Everything a
+turn does after the last token — stabilizing, shaping, classifying,
+persisting, emitting a receipt, writing the response — came out of a clock
+that had already been spent.
+
+Measured live 2026-09-07: the clock predicted 91s of reading and 148s of
+decoding against a 243s deadline, the delivery path costs about 3.6s, and two
+probes returned nothing at all after five minutes.
+
+The reserve is measured in the same window and with the same pessimism as the
+decode and read rates it sits beside, because a constant here is a guess about
+a machine.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from core.brain.llm import thinking_reserve
+
+
+@pytest.fixture(autouse=True)
+def _isolated_store(tmp_path, monkeypatch):
+    """Its own store per test.
+
+    These measurements persist on purpose, so tests that share a store share
+    their readings — and one that records a proof of insufficiency changes what
+    another one measures.
+    """
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path))
+    thinking_reserve.forget()
+    yield
+    thinking_reserve.forget()
+
+
+def _reset() -> None:
+    thinking_reserve._delivery_costs.clear()
+
+
+def test_unmeasured_delivery_reserves_nothing() -> None:
+    """Silence, like every other unmeasured quantity here."""
+    _reset()
+    assert thinking_reserve.seconds_to_deliver() == 0.0
+
+
+def test_one_reading_is_not_a_percentile() -> None:
+    _reset()
+    thinking_reserve.record_delivery_cost(3.6)
+    assert thinking_reserve.seconds_to_deliver() == 0.0
+
+
+def test_the_reserve_is_pessimistic_once_it_is_measured() -> None:
+    """The slow deliveries are the ones that lose an answer already written."""
+    _reset()
+    readings = [1.0] * 15 + [9.0] * 5
+    for value in readings:
+        thinking_reserve.record_delivery_cost(value)
+    reserved = thinking_reserve.seconds_to_deliver()
+    median = sorted(readings)[len(readings) // 2]
+    assert reserved > median, (
+        "a typical reading would miss every delivery slower than typical"
+    )
+    assert reserved <= max(readings), "the reserve may not exceed what was seen"
+
+
+def test_a_stall_is_not_a_routine_delivery_cost() -> None:
+    """One wedged turn must not size every later budget down to nothing."""
+    _reset()
+    for _ in range(12):
+        thinking_reserve.record_delivery_cost(2.0)
+    thinking_reserve.record_delivery_cost(600.0)
+    assert thinking_reserve.seconds_to_deliver() <= 2.0
+
+
+def test_rubbish_readings_are_ignored() -> None:
+    _reset()
+    for value in (float("nan"), float("inf"), -1.0):
+        thinking_reserve.record_delivery_cost(value)
+    assert not thinking_reserve._delivery_costs
+
+
+def test_the_budget_subtracts_the_reserve() -> None:
+    """The defect was a search that fit the clock exactly."""
+    source = Path("core/brain/inference_gate.py").read_text()
+    start = source.index("def _tokens_the_turn_is_allowed_to_take")
+    end = source.index("def _reasoning_reserve", start)
+    body = source[start:end]
+    assert "seconds_to_deliver" in body, (
+        "the budget no longer reserves anything for delivering the answer"
+    )
+    assert body.index("seconds_to_deliver") < body.index("low, high = 0"), (
+        "the reserve must come off before the search, not after it"
+    )
+
+
+def test_the_route_records_what_delivery_actually_cost() -> None:
+    """A reserve with no observer stays silent forever."""
+    source = Path("interface/routes/chat.py").read_text()
+    assert "record_delivery_cost" in source
+
+
+def test_an_unmeasured_model_caps_nothing() -> None:
+    """Silence leaves the budget exactly as it was."""
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    assert thinking_reserve.answer_tokens_seen("probe-model") == 0
+
+
+def test_the_cap_is_what_answers_have_actually_produced() -> None:
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    for tokens in (8, 117, 80, 231):
+        thinking_reserve.record_decode_rate(
+            generated_tokens=tokens, elapsed_s=tokens / 6.0, model="probe-model"
+        )
+    assert thinking_reserve.answer_tokens_seen("probe-model") == 231
+
+
+def test_a_generation_that_ran_out_outranks_what_was_seen() -> None:
+    """Otherwise the cap locks in whatever ceiling produced the observations."""
+    thinking_reserve._rates.clear()
+    thinking_reserve._proved_insufficient_by_model.clear()
+    thinking_reserve.record_decode_rate(
+        generated_tokens=100, elapsed_s=16.0, model="probe-model"
+    )
+    thinking_reserve.record_budget_that_ran_out_thinking(
+        budget_tokens=2048, model="probe-model"
+    )
+    assert thinking_reserve.answer_tokens_seen("probe-model") >= 2048
+
+
+def test_the_raise_is_bounded_by_what_was_needed() -> None:
+    source = Path("core/brain/inference_gate.py").read_text()
+    start = source.index("_affordable = max(")
+    end = source.index("serving_lane = self._cortex_serving_lane", start)
+    body = source[start:end]
+    assert "answer_tokens_seen" in body, (
+        "the ceiling is raised to whatever the clock affords again"
+    )
+    assert "max(max_tokens, _ever_needed)" in body, (
+        "the lane's own ask must remain a floor, so this can only ever add"
+    )
+
+
+def test_the_delivery_reserve_survives_a_restart() -> None:
+    """A measurement that does not survive is a measurement nobody has.
+
+    The first version of this recorded the cost and never persisted it, which
+    is the mistake `save()` already carries a note about for the read rates. A
+    fresh boot then had no reserve until ten more turns had paid for one — and
+    a restart is exactly when a budget most needs to know what delivery costs.
+
+    `forget()` removes the store as well as the memory, so a restart is
+    modelled by emptying the WINDOW and reading the file back, which is what a
+    new process does.
+    """
+    for _ in range(12):
+        thinking_reserve.record_delivery_cost(3.6)
+    before = thinking_reserve.seconds_to_deliver()
+    assert before > 0.0
+    assert thinking_reserve.save() is True
+
+    thinking_reserve._delivery_costs.clear()
+    assert thinking_reserve.seconds_to_deliver() == 0.0
+    assert thinking_reserve.load() > 0
+    assert thinking_reserve.seconds_to_deliver() == pytest.approx(before)
+
+
+def test_a_stored_stall_is_still_refused_on_the_way_back_in() -> None:
+    for _ in range(12):
+        thinking_reserve.record_delivery_cost(2.0)
+    thinking_reserve.record_delivery_cost(600.0)
+    thinking_reserve.save()
+    thinking_reserve._delivery_costs.clear()
+    thinking_reserve.load()
+    assert thinking_reserve.seconds_to_deliver() <= 2.0

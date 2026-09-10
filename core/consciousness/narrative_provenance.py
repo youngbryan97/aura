@@ -40,7 +40,7 @@ import json
 import math
 import time
 from collections import deque
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
@@ -291,12 +291,47 @@ def _text_distance(left: str, right: str) -> float:
     return 1.0 - (len(a & b) / len(union)) if union else 0.0
 
 
-def _state_distance(left: Mapping[str, float], right: Mapping[str, float]) -> float:
+def _ranges(states: Sequence[Mapping[str, float]]) -> dict[str, tuple[float, float]]:
+    """The span of every channel across the states being compared.
+
+    Needed because the channels are not on one scale and nothing here can know
+    their scales. `_narrative_state` carries a duration in seconds and a count
+    of moments beside two values in [0, 1]; without normalising, the distance
+    between two states is almost entirely the duration, and a generator whose
+    words tracked valence perfectly scored 0.03 against its shuffled null
+    instead of 0.90.
+    """
+    spans: dict[str, tuple[float, float]] = {}
+    keys = {key for state in states for key in state}
+    for key in sorted(keys):
+        values = [float(s[key]) for s in states if key in s]
+        spans[key] = (min(values), max(values)) if values else (0.0, 1.0)
+    return spans
+
+
+def _state_distance(
+    left: Mapping[str, float],
+    right: Mapping[str, float],
+    ranges: Mapping[str, tuple[float, float]] | None = None,
+) -> float:
     shared = sorted(set(left) & set(right))
     if not shared:
         return 0.0
-    total = sum((float(left[k]) - float(right[k])) ** 2 for k in shared)
-    return math.sqrt(total / len(shared))
+    total = 0.0
+    counted = 0
+    for key in shared:
+        low, high = (ranges or {}).get(key, (0.0, 1.0))
+        span = high - low
+        if span <= 0.0:
+            # Every state agrees here, so the channel separates nothing. It
+            # contributes nothing rather than dividing by zero, and it does
+            # not dilute the channels that do separate something.
+            continue
+        total += ((float(left[key]) - float(right[key])) / span) ** 2
+        counted += 1
+    if counted == 0:
+        return 0.0
+    return math.sqrt(total / counted)
 
 
 def _rank(values: list[float]) -> list[float]:
@@ -425,12 +460,13 @@ def fidelity(pairs: Iterable[tuple[str, Mapping[str, float]]]) -> Fidelity:
     if len(items) < 2:
         return Fidelity(0.0, 0.0, len(items), len({digest(s) for _t, s in items}))
 
+    ranges = _ranges([state for _text, state in items])
     text_d: list[float] = []
     state_d: list[float] = []
     for i in range(len(items)):
         for j in range(i + 1, len(items)):
             text_d.append(_text_distance(items[i][0], items[j][0]))
-            state_d.append(_state_distance(items[i][1], items[j][1]))
+            state_d.append(_state_distance(items[i][1], items[j][1], ranges))
 
     observed = _spearman(text_d, state_d)
 
@@ -442,7 +478,9 @@ def fidelity(pairs: Iterable[tuple[str, Mapping[str, float]]]) -> Fidelity:
         shuffled: list[float] = []
         for i in range(len(items)):
             for j in range(i + 1, len(items)):
-                shuffled.append(_state_distance(items[order[i]][1], items[order[j]][1]))
+                shuffled.append(
+                    _state_distance(items[order[i]][1], items[order[j]][1], ranges)
+                )
         nulls.append(_spearman(text_d, shuffled))
     null = sum(nulls) / len(nulls) if nulls else 0.0
 

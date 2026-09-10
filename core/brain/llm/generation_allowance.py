@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 
-def resident_generation_seconds(messages: list[dict], decode_max_tokens: int) -> float:
+def resident_generation_seconds(
+    messages: list[dict], decode_max_tokens: int, *, private_tokens_included: bool = False,
+) -> float:
     """Return measured read/decode time, or zero without a loaded model rate."""
     from core.brain.llm.chat_format import thinking_enabled_for_generation
     from core.brain.llm.mlx_client import get_mlx_client
@@ -20,7 +22,8 @@ def resident_generation_seconds(messages: list[dict], decode_max_tokens: int) ->
         return 0.0
     private_tokens = (
         max(0, int(reserve_tokens(model)))
-        if thinking_enabled_for_generation(model, answer_is_derived_here=True)
+        if not private_tokens_included
+        and thinking_enabled_for_generation(model, answer_is_derived_here=True)
         else 0
     )
     capacity = max(decode_max_tokens, min(8192, decode_max_tokens + private_tokens))

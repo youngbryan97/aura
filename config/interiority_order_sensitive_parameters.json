@@ -6,6 +6,10 @@
     "interiority.f08.welfare_tradeoff_floor",
     "interiority.f09.suppression_cost_per_unit",
     "interiority.receptor.dephosphorylation_rate",
-    "interiority.receptor.internalisation_rate"
-  ]
+    "interiority.receptor.internalisation_rate",
+    "interiority.receptor.recycling_rate"
+  ],
+  "notes": {
+    "interiority.receptor.recycling_rate": "Added 2026-09-07, and it was revealed rather than introduced. The third arm of the same receptor adaptation whose other two are already here. Its sensitivity was invisible while interiority.tendency_conflict was pinned at 1.0 \u2014 normalised entropy over the ACTIVE tendencies, so two equally-weighted readinesses scored the ceiling and self.coherence was a constant zero. With the conflict measured against the whole vocabulary the coherence varies, and this rate reorders conclusions through it. Nothing here got worse; a dependency that already existed stopped being hidden by a constant."
+  }
 }

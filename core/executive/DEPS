@@ -21,7 +21,7 @@ include_rules = [
     "+core.constitution",
     "+core.container",
     "+core.continuity",
-    "+core.executive",
+    "+core.conversation",
     "+core.goals",
     "+core.governance",
     "+core.governance_context",

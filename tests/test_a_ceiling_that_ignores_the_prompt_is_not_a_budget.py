@@ -20,6 +20,7 @@ class _Worker:
     """Just the parts of the client this arithmetic touches."""
 
     _prefill_tokens_per_s = 0.0
+    _worker_measured_prefill_tps = 0.0
 
     _measured_prefill_rate = mlx_client.MLXLocalClient._measured_prefill_rate
     _prefill_floor_seconds = mlx_client.MLXLocalClient._prefill_floor_seconds
@@ -47,13 +48,30 @@ def test_an_empty_prompt_needs_nothing():
     assert _Worker()._prefill_floor_seconds(-5) == 0.0
 
 
-def test_a_measured_worker_uses_its_own_rate():
+def test_a_measured_worker_uses_the_rate_the_worker_reported():
+    """The worker's own clock, not the rate its progress messages arrive at.
+
+    This used to set ``_prefill_tokens_per_s`` and expect the deadline to be
+    built from it. That number is the interval between prefill PROGRESS
+    MESSAGES, which cross an IPC queue onto a busy event loop, so it measures
+    how often the parent got told. Live on 2026-09-07 the worker logged 410 to
+    990 tok/s while this side had learned 56, and the deadline built from 56
+    said a 52,020-character prompt would take 698 seconds to read against about
+    thirty in fact.
+    """
     worker = _Worker()
-    worker._prefill_tokens_per_s = 720.0
+    worker._worker_measured_prefill_tps = 720.0
     assert worker._measured_prefill_rate() == 720.0
     # Faster worker, smaller floor.
     slow = _Worker()._prefill_floor_seconds(3431)
     assert worker._prefill_floor_seconds(3431) < slow
+
+
+def test_the_progress_interval_estimate_sizes_no_deadline():
+    """It stays for in-flight liveness and must never size a ceiling again."""
+    worker = _Worker()
+    worker._prefill_tokens_per_s = 720.0
+    assert worker._measured_prefill_rate() == mlx_client._UNMEASURED_PREFILL_RATE
 
 
 def test_the_rate_is_measured_between_observations_not_since_the_request_began():

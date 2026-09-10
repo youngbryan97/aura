@@ -266,3 +266,58 @@ def test_an_uncalibrated_instrument_is_not_silenced():
     model._witness_observation = ""
     model._renderings.record("something is different today", {"valence": 0.9}, "n")
     assert "Recent introspection" in model.get_phenomenal_context_fragment()
+
+
+def test_a_channel_on_another_scale_does_not_swamp_the_calibration():
+    """`_narrative_state` carries a duration in seconds and a count of moments
+    beside two values in [0, 1]. Unnormalised, the distance between two states
+    is almost entirely the duration, and a generator whose words tracked
+    valence perfectly scored 0.03 against its shuffled null instead of 0.90."""
+    import random
+
+    from core.consciousness.narrative_provenance import fidelity
+
+    rng = random.Random(5)
+    words = {
+        "calm": "quiet settled still",
+        "tense": "tight urgent pressing",
+        "bright": "lit clear vivid",
+        "heavy": "slow dim weighted",
+    }
+    pairs = []
+    for index in range(16):
+        valence, arousal = rng.choice([0.1, 0.9]), rng.choice([0.1, 0.9])
+        key = (
+            "calm" if valence < 0.5 and arousal < 0.5
+            else "tense" if arousal > 0.5 and valence < 0.5
+            else "bright" if arousal > 0.5
+            else "heavy"
+        )
+        pairs.append(
+            (
+                words[key],
+                {
+                    "valence": valence,
+                    "arousal": arousal,
+                    "duration": index * 60.0,
+                    "moments_recorded": float(index),
+                },
+            )
+        )
+    assert fidelity(pairs).informative is True
+
+
+def test_a_channel_every_state_agrees_on_does_not_dilute_the_rest():
+    """It separates nothing, so it contributes nothing rather than a zero
+    term that drags the mean distance down."""
+    from core.consciousness.narrative_provenance import _state_distance, _ranges
+
+    states = [{"a": 0.0, "constant": 5.0}, {"a": 1.0, "constant": 5.0}]
+    ranges = _ranges(states)
+    assert _state_distance(states[0], states[1], ranges) == pytest.approx(1.0)
+
+
+def test_states_with_nothing_in_common_are_at_no_distance():
+    from core.consciousness.narrative_provenance import _state_distance
+
+    assert _state_distance({"a": 1.0}, {"b": 2.0}) == 0.0

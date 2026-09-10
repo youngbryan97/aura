@@ -463,11 +463,65 @@ _DESKTOP_ACCESS_DIRECT_PROBE_TIMEOUT_S = _env_positive_float(
     2.0,
 )
 _SSE_IDLE_HEARTBEAT_S = _env_positive_float("AURA_SSE_IDLE_HEARTBEAT_S", 15.0)
-_SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(os.getenv("AURA_SSE_QUEUE_BACKLOG_LIMIT", ""), 100))
+def _declare_route_flag(name: str, *, default: str, description: str):
+    """Declare one of this module's knobs, or fall back to the raw read.
+
+    A route module must not fail to import because the flag registry is not
+    importable yet; the fallback keeps the old behaviour and the declaration is
+    what makes the knob visible in the flag report.
+    """
+    try:
+        from core.runtime.flags import FlagKind, declare
+
+        return declare(
+            name,
+            kind=FlagKind.STRING,
+            default=default,
+            description=description,
+            owner="interface.routes.system",
+        )
+    except (ImportError, ValueError):
+        class _Raw:
+            def value(self) -> str:
+                return os.environ.get(name, default)
+
+        return _Raw()
+
+
+# Declared rather than read raw. Each of these was an os.getenv or an
+# os.environ.get with its default written at the call site, so the same knob
+# had two spellings in one file and none of them appeared in the flag report.
+_FLAG_SSE_BACKLOG = _declare_route_flag(
+    "AURA_SSE_QUEUE_BACKLOG_LIMIT",
+    default="100",
+    description="How many events one SSE subscriber may fall behind before it is dropped.",
+)
+_FLAG_PROBE_THRESHOLD = _declare_route_flag(
+    "AURA_HEALTH_PROBE_DEGRADATION_THRESHOLD",
+    default="3",
+    description="Consecutive failed health probes before a degradation is recorded.",
+)
+_FLAG_PROBE_WORKERS = _declare_route_flag(
+    "AURA_HEALTH_PROBE_WORKERS",
+    default="2",
+    description="Threads the health probe pool runs with.",
+)
+_FLAG_GUI_PROXY = _declare_route_flag(
+    "AURA_GUI_PROXY",
+    default="",
+    description="Set to 1 when this process serves the desktop GUI through a proxy.",
+)
+_FLAG_REACT_SHELL = _declare_route_flag(
+    "AURA_ENABLE_REACT_SHELL",
+    default="",
+    description="Set to 1 to serve the experimental React shell.",
+)
+
+_SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(_FLAG_SSE_BACKLOG.value(), 100))
 _HEALTH_PROBE_TIMEOUT_S = _env_positive_float("AURA_HEALTH_PROBE_TIMEOUT_S", 2.5)
 _HEALTH_PROBE_DEGRADATION_THRESHOLD = max(
     2,
-    _safe_int(os.getenv("AURA_HEALTH_PROBE_DEGRADATION_THRESHOLD", ""), 3),
+    _safe_int(_FLAG_PROBE_THRESHOLD.value(), 3),
 )
 _HEALTH_PROBE_STUCK_THRESHOLD_S = max(
     10.0,
@@ -499,7 +553,7 @@ _HEALTH_PROBE_FUTURES: dict[bool, Future[tuple[dict[str, Any], int]]] = {}
 _HEALTH_PROBE_GENERATIONS: dict[bool, int] = {}
 _HEALTH_PROBE_STARTED_AT: dict[bool, float] = {}
 _HEALTH_PROBE_EXECUTOR = ThreadPoolExecutor(
-    max_workers=max(2, min(4, _safe_int(os.getenv("AURA_HEALTH_PROBE_WORKERS", ""), 2))),
+    max_workers=max(2, min(4, _safe_int(_FLAG_PROBE_WORKERS.value(), 2))),
     thread_name_prefix="AuraHealthProbe",
 )
 _HEALTH_CACHE_TTL_S = _env_positive_float("AURA_HEALTH_CACHE_TTL_S", 5.0)
@@ -599,6 +653,12 @@ def _health_probe_state_snapshot() -> dict[str, Any]:
             ),
             "generation": int(_HEALTH_PROBE_STATE.get("generation") or 0),
             "total_timeouts": int(_HEALTH_PROBE_STATE.get("total_timeouts") or 0),
+            # How long the current run of missed wait budgets is. A reader
+            # asking "is this backpressure or a fault" wants the run, not the
+            # total.
+            "consecutive_timeouts": int(
+                _HEALTH_PROBE_STATE.get("consecutive_timeouts") or 0
+            ),
             "total_contentions": int(
                 _HEALTH_PROBE_STATE.get("total_contentions") or 0
             ),
@@ -1262,6 +1322,17 @@ def _collect_runtime_revision_uncached() -> dict[str, Any]:
                 shell_assets_sha256=frozen_digest,
                 assets=frozen_assets,
             )
+            from core.runtime.runtime_shell_snapshot import runtime_shell_revision
+
+            shell_revision = runtime_shell_revision(
+                str(result.get("actual_source_root_sha256") or ""), frozen_digest,
+            )
+            _publish_runtime_shell_snapshot(
+                revision_token=shell_revision,
+                shell_assets_sha256=frozen_digest,
+                assets=frozen_assets,
+            )
+            result["shell_revision_token"] = shell_revision
         except _SYSTEM_RECOVERABLE_ERRORS as exc:
             result["verified"] = False
             result["capture_stable"] = False
@@ -1970,15 +2041,40 @@ def _start_or_join_health_probe(
     return future, generation, True
 
 
+#: How many generations in a row may miss the HTTP wait budget before it stops
+#: being backpressure and starts being a fault.
+#:
+#: Missing it once is the singleflight working: the caller is handed fresh
+#: cached evidence within its budget and the probe finishes in its own time.
+#: The guide is explicit that expected backpressure logs at info and only
+#: becomes a degradation when it is persistent, and this is the number that
+#: decides persistent.
+#:
+#: LIVE, 2026-09-07: generations 20 through 24 each logged a warning while a
+#: person was being answered — five warnings for a mechanism doing exactly
+#: what it was built to do.
+_HEALTH_PROBE_TIMEOUTS_BEFORE_A_WARNING = 4
+
+
 def _record_health_probe_wait_timeout(generation: int) -> tuple[dict[str, Any], bool]:
     recorded = False
     with _HEALTH_PROBE_STATE_LOCK:
         if int(_HEALTH_PROBE_STATE.get("timeout_recorded_generation") or 0) != generation:
             recorded = True
+            previous = int(
+                _HEALTH_PROBE_STATE.get("timeout_recorded_generation") or 0
+            )
             _HEALTH_PROBE_STATE["timeout_recorded_generation"] = generation
             _HEALTH_PROBE_STATE["total_timeouts"] = int(
                 _HEALTH_PROBE_STATE.get("total_timeouts") or 0
             ) + 1
+            # Consecutive means the generation before this one also missed.
+            # A generation that came back inside its budget resets it, so a
+            # busy stretch is one run and not a new alarm each time.
+            run = int(_HEALTH_PROBE_STATE.get("consecutive_timeouts") or 0)
+            _HEALTH_PROBE_STATE["consecutive_timeouts"] = (
+                run + 1 if previous and generation == previous + 1 else 1
+            )
     return _health_probe_state_snapshot(), recorded
 
 
@@ -2242,19 +2338,24 @@ async def _build_boot_health_payload_bounded(*, is_gui_proxy: bool) -> tuple[dic
             is_gui_proxy=is_gui_proxy,
         )
         if timeout_recorded:
-            fallback_payload = fallback[0]
+            # Backpressure until it is persistent. One generation missing its
+            # budget is the singleflight doing its job: the caller gets fresh
+            # cached evidence inside the budget and the probe finishes in its
+            # own time. A run of them is a probe that is not coming back, and
+            # that is what a warning is for.
+            run = int(probe_state.get("consecutive_timeouts") or 1)
             log = (
-                logger.info
-                if generation == 1
-                and not bool(fallback_payload.get("ready"))
-                and not bool(fallback_payload.get("conversation_ready"))
-                else logger.warning
+                logger.warning
+                if run >= _HEALTH_PROBE_TIMEOUTS_BEFORE_A_WARNING
+                else logger.info
             )
             log(
-                "Boot-health probe generation %d exceeded the %.1fs HTTP wait budget; "
-                "the singleflight remains active and later polls will reuse its result.",
+                "Boot-health probe generation %d exceeded the %.1fs HTTP wait budget "
+                "(%d in a row); the singleflight remains active and later polls will "
+                "reuse its result.",
                 generation,
                 _HEALTH_PROBE_TIMEOUT_S,
+                run,
             )
         return _attach_health_probe_state(fallback)
     except _SYSTEM_RECOVERABLE_ERRORS as exc:
@@ -3594,7 +3695,7 @@ def _collect_neurodynamic_status() -> dict[str, Any]:
     return payload
 
 
-def _collect_imagination_status() -> dict[str, Any]:
+def _collect_imagination_status(*, for_owner: bool = False) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "status": "idle",
         "frames": 0,
@@ -3611,7 +3712,7 @@ def _collect_imagination_status() -> dict[str, Any]:
         engine = ServiceContainer.peek("imagination_engine", default=None)
         if engine is None or not hasattr(engine, "snapshot"):
             return payload
-        snapshot = engine.snapshot() or {}
+        snapshot = engine.snapshot(for_owner=for_owner) or {}
         if not isinstance(snapshot, dict):
             return payload
         governance = snapshot.get("governance") or {}
@@ -3663,7 +3764,7 @@ async def api_imagination_visualize(request: Request) -> JSONResponse:
     if not _owner_authenticated(request):
         raise HTTPException(status_code=403, detail="Rendering imagination is owner-only")
 
-    snapshot = await asyncio.to_thread(_collect_imagination_status)
+    snapshot = await asyncio.to_thread(_collect_imagination_status, for_owner=True)
     frame = snapshot.get("latest") if isinstance(snapshot, dict) else None
     if not isinstance(frame, dict):
         return JSONResponse(
@@ -3765,7 +3866,7 @@ async def api_imagination_visualize(request: Request) -> JSONResponse:
 
 
 @router.get("/imagination")
-async def api_imagination() -> JSONResponse:
+async def api_imagination(request: Request) -> JSONResponse:
     """Aura's live imagination workspace, for the Imagine panel.
 
     The same frame the engine is actually reasoning with — it already ships
@@ -3775,8 +3876,15 @@ async def api_imagination() -> JSONResponse:
 
     ``status`` is "idle" until she has imagined something. The panel renders
     that as an honest empty state rather than inventing a canvas.
+
+    The owner sees the frame; anybody else sees its shape. Redacting it from
+    everyone was why the panel showed "(no objective)" and an empty canvas over
+    a frame that had both, and why the render button could never find the image
+    prompt it exists to send.
     """
-    payload = await asyncio.to_thread(_collect_imagination_status)
+    payload = await asyncio.to_thread(
+        _collect_imagination_status, for_owner=_owner_authenticated(request)
+    )
     worlds: list[dict[str, Any]] = []
     try:
         from core.worlds import get_world_host
@@ -4214,22 +4322,48 @@ async def readyz(request: Request):
     try:
         from core.runtime.health_contract import required_probe_groups_pass
 
-        snapshot = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
-        snapshot = _apply_runtime_revision_truth(snapshot)
-        snapshot = _apply_current_shutdown_truth(snapshot)
+        snapshot = read_runtime_health_snapshot()
         readiness = dict(snapshot.get("readiness_contract") or {})
         required_probes = dict(
             readiness.get("required_probes")
             or snapshot.get("required_probes")
             or {}
         )
-        ready = bool(
-            readiness.get("healthy") is True
-            and readiness.get("system_ready") is True
-            and readiness.get("conversation_ready") is True
-            and readiness.get("runtime_probe_healthy") is True
-            and required_probe_groups_pass(required_probes)
+        # A server actively serving a request is ready, never un-ready — the
+        # Kubernetes rule, and the one `boot_status` already applies through
+        # `conversation_lane_is_serving`. This endpoint re-derived readiness
+        # from the raw `conversation_ready` flag instead, so it answered 503
+        # for the whole of every turn: measured live 2026-09-07, `state=ready
+        # active_generations=1 blockers=['active_generation_in_flight']` and
+        # `/api/readyz` 503 while the runtime was answering perfectly. Two
+        # readiness deciders, and the endpoint used the one that reads busy as
+        # broken.
+        from core.health.conversation_lane import conversation_lane_is_serving
+
+        conversation_can_serve = bool(
+            readiness.get("conversation_ready") is True
+            or conversation_lane_is_serving(snapshot.get("conversation_lane"))
         )
+        # One list, read twice: the verdict is every condition holding, and
+        # the explanation is the ones that do not. Written as two expressions
+        # they drift, and the drift is silent in the direction that matters —
+        # `healthy` was a conjunct of the verdict and absent from the
+        # explanation, so a runtime blocked on it answered 503 with an empty
+        # `issues` list.
+        #
+        # LIVE, 2026-09-07: `{"status":"not_ready","ready":false,"issues":[]}`
+        # while a turn was being served. A health surface that refuses and
+        # cannot say why is the shape this endpoint keeps producing; the
+        # chat route carries the same note about a condition with eight
+        # disjuncts whose warning printed seven.
+        conditions: tuple[tuple[str, bool], ...] = (
+            ("runtime_not_healthy", readiness.get("healthy") is True),
+            ("system_not_ready", readiness.get("system_ready") is True),
+            ("conversation_lane_not_ready", bool(conversation_can_serve)),
+            ("runtime_probe_unhealthy", readiness.get("runtime_probe_healthy") is True),
+            ("runtime_required_probes", bool(required_probe_groups_pass(required_probes))),
+        )
+        ready = all(satisfied for _name, satisfied in conditions)
         issues = list(
             dict.fromkeys(
                 str(item)
@@ -4241,27 +4375,34 @@ async def readyz(request: Request):
             )
         )
         if not ready and not issues:
-            if readiness.get("system_ready") is not True:
-                issues.append("system_not_ready")
-            if readiness.get("conversation_ready") is not True:
-                issues.append("conversation_lane_not_ready")
-            if readiness.get("runtime_probe_healthy") is not True:
-                issues.append("runtime_probe_unhealthy")
-            if not required_probe_groups_pass(required_probes):
-                issues.append("runtime_required_probes")
+            issues.extend(name for name, satisfied in conditions if not satisfied)
         metadata = dict(snapshot.get("health_read_model") or {})
         result = {
             "status": "ready" if ready else "not_ready",
             "ready": ready,
             "issues": issues,
             "uptime_s": round(float(snapshot.get("uptime", 0.0) or 0.0), 1),
-            "conversation_ready": readiness.get("conversation_ready") is True,
+            "conversation_ready": conversation_can_serve,
+            # Busy is a different fact from not ready, and a caller that wants
+            # to know whether a turn is in flight is entitled to ask for it by
+            # name rather than inferring it from a refusal.
+            "conversation_busy": bool(snapshot.get("conversation_busy", False)),
             "runtime_probe_healthy": readiness.get("runtime_probe_healthy") is True,
             "required_probes_passed": required_probe_groups_pass(required_probes),
             "snapshot_generation": int(metadata.get("snapshot_generation", 0) or 0),
             "snapshot_age_s": round(float(metadata.get("age_s", 0.0) or 0.0), 3),
             "serving": str(metadata.get("serving", "unknown") or "unknown"),
         }
+        try:
+            from core.verify.one_way_decisions import record_decision
+
+            record_decision(
+                "readyz",
+                admitted=bool(ready),
+                reason=", ".join(issues[:3]),
+            )
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         status_code = 200 if ready else 503
         return JSONResponse(result, status_code=status_code)
     except _SYSTEM_RECOVERABLE_ERRORS as e:
@@ -4375,7 +4516,7 @@ async def _collect_api_health_payload(
     boot_snapshot, _ = build_boot_health_snapshot(
         orch,
         rt,
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
         conversation_lane=conversation_lane,
     )
     connected = bool(
@@ -5312,15 +5453,21 @@ def _apply_current_shutdown_truth(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def read_runtime_health_snapshot() -> dict[str, Any]:
+    """One nonblocking readiness source for HTTP, websocket and SSE clients."""
+
+    payload = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
+    payload = _apply_runtime_revision_truth(payload)
+    return _apply_current_shutdown_truth(payload)
+
+
 @router.get("/health")
 async def api_health(request: Request):
     """Serve the latest versioned snapshot without running live probes inline."""
 
     _mark_runtime_service_progress("api.health")
     _restore_owner_session_from_request(request)
-    payload = _apply_health_read_model_truth(_HEALTH_READ_MODEL.read())
-    payload = _apply_runtime_revision_truth(payload)
-    payload = _apply_current_shutdown_truth(payload)
+    payload = read_runtime_health_snapshot()
     access_profile = request_access_profile(request)
     payload = _runtime_revision_response_projection(
         payload,
@@ -5403,7 +5550,7 @@ async def api_ui_bootstrap(request: Request = None):
     boot_snapshot, _status_code = build_boot_health_snapshot(
         orch,
         rt,
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
         conversation_lane=conversation_lane,
     )
     status_obj = getattr(orch, "status", None)
@@ -5433,7 +5580,7 @@ async def api_ui_bootstrap(request: Request = None):
         "shell": "legacy_shell" if legacy_ui_index.exists() else "react_shell",
         "legacy_fallback_available": legacy_ui_index.exists(),
         "experimental_shell_available": (shell_dist_dir / "index.html").exists(),
-        "experimental_shell_enabled": os.environ.get("AURA_ENABLE_REACT_SHELL", "").strip().lower()
+        "experimental_shell_enabled": str(_FLAG_REACT_SHELL.value() or "").strip().lower()
         in {"1", "true", "yes", "on"},
     }
     legacy_ui_status["canonical_shell"] = (
@@ -5476,7 +5623,7 @@ async def api_ui_bootstrap(request: Request = None):
             ),
             "initialized": bool(getattr(status_obj, "initialized", False)),
             "websocket_clients": ws_manager.count(),
-            "is_gui_proxy": os.environ.get("AURA_GUI_PROXY") == "1",
+            "is_gui_proxy": str(_FLAG_GUI_PROXY.value()) == "1",
         },
         "access": access_profile,
         "runtime_revision": _runtime_revision_fallback_contract(),
@@ -5613,7 +5760,7 @@ async def api_ui_shell_error(payload: dict[str, Any] | None = _UI_SHELL_ERROR_BO
 async def api_boot_health(request: Request = None):
     _mark_runtime_service_progress("api.health.boot")
     payload, status_code = await _build_boot_health_payload_bounded(
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+        is_gui_proxy=str(_FLAG_GUI_PROXY.value()) == "1",
     )
     access_profile = request_access_profile(request)
     payload = _runtime_revision_response_projection(
@@ -5936,63 +6083,10 @@ async def api_heartbeat():
     pass through the canonical boot health contract.
     """
     _mark_runtime_service_progress("api.health.heartbeat")
-    payload, status_code = await _build_boot_health_payload_bounded(
-        is_gui_proxy=False,
-    )
-    conversation_lane = _collect_conversation_lane_status_resilient()
-    conversation_ready = bool(conversation_lane.get("conversation_ready", False))
-    conversation_busy = conversation_lane_is_busy(conversation_lane)
-    required_probes = payload.get("required_probes", {})
-    probe_blockers = _heartbeat_probe_blockers(required_probes)
-    runtime_revision = payload.get("runtime_revision")
-    if not isinstance(runtime_revision, dict):
-        runtime_revision = _runtime_revision_fallback_contract()
-    revision_blocker = _runtime_revision_blocker(runtime_revision)
-    integrity_report = _collect_runtime_integrity_report()
-    integrity_payload = _runtime_integrity_public_payload(integrity_report)
-    proof_readiness_healthy = bool(
-        integrity_payload.get("proof_readiness", False)
-        and not revision_blocker
-    )
-    blockers = _normalize_conversation_health_blockers(
-        list(payload.get("blockers", []) or [])
-        + probe_blockers
-        + ([revision_blocker] if revision_blocker else []),
-        conversation_ready=conversation_ready,
-        conversation_busy=conversation_busy,
-    )
-    runtime_probe_healthy = not probe_blockers
-    healthy = (
-        status_code in {200, 202}
-        and bool(payload.get("system_ready", payload.get("ready", False)))
-        and runtime_probe_healthy
-        and conversation_ready
-        and not blockers
-    )
-    if not healthy and not (runtime_probe_healthy and conversation_busy and not blockers):
-        status_code = 503
-    status = "healthy" if healthy else "working" if runtime_probe_healthy and conversation_busy else "unhealthy"
-    heartbeat_payload = {
-        "status": status,
-        "healthy": healthy,
-        "runtime_probe_healthy": runtime_probe_healthy,
-        "time": time.time(),
-        "required_probes": required_probes,
-        "blockers": blockers,
-        "boot_phase": payload.get("boot_phase"),
-        "conversation_ready": conversation_ready,
-        "conversation_busy": conversation_busy,
-        "conversation_lane": conversation_lane,
-        "integrity": integrity_payload,
-        "proof_readiness_healthy": proof_readiness_healthy,
-        "certification_ready": bool(healthy and proof_readiness_healthy),
-        "integrity_blockers": integrity_payload.get("proof_blockers", []),
-        "runtime_revision": _runtime_revision_response_projection(
-            {"runtime_revision": runtime_revision},
-            include_diagnostics=False,
-        ).get("runtime_revision"),
-    }
-    return JSONResponse(heartbeat_payload, status_code=status_code)
+    payload = runtime_heartbeat_payload()
+    payload["time"] = payload["timestamp"]
+    status_code = 200 if payload["status"] in {"healthy", "working"} else 503
+    return JSONResponse(_json_safe(payload), status_code=status_code)
 
 
 # ── Hot Reload ────────────────────────────────────────────────

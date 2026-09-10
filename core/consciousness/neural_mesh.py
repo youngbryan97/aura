@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any
 
@@ -119,6 +120,54 @@ class CorticalTier(Enum):
     EXECUTIVE = auto()     # columns 48-63  — executive control / self-model
 
 
+def _from_cortex(name: str, fallback: float) -> float:
+    """One derived mesh constant, or the value it had before the derivation.
+
+    A mesh that will not build is worse than a mesh built on a number somebody
+    picked, so every one of these falls back rather than raising.
+    """
+    try:
+        from core.connectome.cortical_constants import derived_mesh_constants
+
+        return float(derived_mesh_constants()[name]["value"])
+    except (ImportError, KeyError, TypeError, ValueError):
+        return fallback
+
+
+def _cortical_intra_density() -> float:
+    return _from_cortex("intra_column_density", 0.80)
+
+
+def _cortical_inter_density() -> float:
+    return _from_cortex("inter_column_density", 0.05)
+
+
+def _cortical_leak() -> float:
+    return _from_cortex("decay", 0.03)
+
+
+def _cortical_stdp_window() -> float:
+    return _from_cortex("stdp_window", 0.02)
+
+
+def _cortical_stdp_asymmetry() -> float:
+    return _from_cortex("stdp_depression", 0.5)
+
+
+def _cortical_inhibitory_fraction() -> float:
+    """Inhibitory cells as a share of a cortical column, from the published table.
+
+    Falls back to the rounded 0.20 if the connectome package cannot be reached,
+    because a mesh that will not build is worse than a mesh built on a rounding.
+    """
+    try:
+        from core.connectome.types import CORTICAL_EXCITATORY, CORTICAL_INHIBITORY
+
+        total = CORTICAL_EXCITATORY + CORTICAL_INHIBITORY
+        return round(CORTICAL_INHIBITORY / total, 4) if total else 0.20
+    except ImportError:
+        return 0.20
+
 @dataclass(frozen=True)
 class MeshConfig:
     """Immutable configuration for the neural mesh."""
@@ -127,25 +176,73 @@ class MeshConfig:
     neurons_per_column: int = 64   # total_neurons / columns
 
     # Connectivity
-    intra_column_density: float = 0.80   # dense local
-    inter_column_density: float = 0.05   # sparse long-range
+    #
+    # Both densities are the cortical microcircuit's own, from Potjans and
+    # Diesmann's 8x8 connection matrix: the mean of its eight within-population
+    # probabilities, and the mean of its fifty-six between-population ones.
+    # They were 0.80 and 0.05, which made this mesh six times more densely
+    # wired inside a column than cortex is.
+    #
+    # Measured before adopting, over 600 ticks with the same seed and the same
+    # drive: the multistep-regression branching ratio moves from 0.9917 to
+    # 0.9971 — closer to the critical 1.0 the regulator steers for — and the
+    # regression's own fit improves from 0.991 to 0.995. A quieter mesh, and a
+    # better-conditioned one.
+    intra_column_density: float = field(default_factory=_cortical_intra_density)
+    inter_column_density: float = field(default_factory=_cortical_inter_density)
     inter_column_distance_decay: float = 0.15   # strength ∝ exp(-d * decay)
-    inhibitory_fraction: float = 0.20    # 20% of neurons are inhibitory (Dale's law)
+    #: Derived, not chosen. Potjans and Diesmann's cortical column has 77,169
+    #: cells in eight populations, 15,326 of them inhibitory, which is 0.1986.
+    #: The table is in core/connectome/types.py and this reads it rather than
+    #: repeating a rounded 0.20 that nothing could check.
+    inhibitory_fraction: float = field(default_factory=_cortical_inhibitory_fraction)
 
     # Dynamics
+    #
+    # dt is NOT the cortical step. A membrane resolves a 0.5 ms synaptic
+    # current and this mesh ticks at 10 Hz over units that have no membrane;
+    # the biological number describes a different clock, and adopting it would
+    # be arithmetic dressed as fidelity.
+    #
+    # The leak IS a ratio and does transfer: a membrane forgets its input with
+    # a time constant of 10 ms, so one step loses dt/tau of what it held.
     dt: float = 0.05                     # integration timestep
-    decay: float = 0.03                  # leak
+    decay: float = field(default_factory=_cortical_leak)
     noise_sigma: float = 0.008           # stochastic drive
     activation_gain: float = 1.0         # tanh gain
 
     # STDP
+    #
+    # The window and the asymmetry are Bi and Poo's, measured in hippocampal
+    # culture: potentiation falls off with a time constant of 16.8 ms and
+    # depression with 33.7 ms, so each depression step is 16.8/33.7 of a
+    # potentiation step. The chosen 0.02 and 0.5 were within a whisker of both,
+    # which is worth saying — somebody had read the paper — and they are read
+    # from it now rather than repeated.
     stdp_lr: float = 0.0005             # base learning rate
-    stdp_window: float = 0.02            # temporal window (seconds)
+    stdp_window: float = field(default_factory=_cortical_stdp_window)
     stdp_potentiation: float = 1.0       # A+
-    stdp_depression: float = 0.5         # A−  (asymmetric → net potentiation)
+    stdp_depression: float = field(default_factory=_cortical_stdp_asymmetry)
 
     # Lateral inhibition
     lateral_inhibition_strength: float = 0.25
+
+    # Feedforward pathway (sensory → association → executive)
+    #
+    # Built explicitly, and without a distance term, because a projection from
+    # one tier to the next is not a local connection. The mesh used to leave
+    # this to inter_column_weights, whose probability decays as
+    # exp(-|i - j| * 0.15); a sensory column at index 0 and an executive column
+    # at index 48 are 48 apart, which makes that probability 0.05 * e^-7.2, or
+    # about one edge in twenty-eight thousand. Measured over eight seeds with
+    # both matrices built, nought of sixteen executive columns was reachable
+    # from any sensory column, every time, while the code injects into the
+    # sensory tier and reads the executive projection. The density is the same
+    # 0.05 the local wiring uses; only the decay is gone.
+    feedforward_density: float = 0.05
+    feedforward_strength: float = 0.06
+    #: Sensory straight to executive, sparser, as a shortcut rather than a path.
+    feedforward_direct_density: float = 0.01
 
     # Tier boundaries (column indices)
     sensory_end: int = 16
@@ -306,6 +403,15 @@ class NeuralMesh:
             col = CorticalColumn(i, tier, self.cfg.neurons_per_column, self.cfg, self._rng)
             self.columns.append(col)
 
+        #: Which tier each column belongs to, as a name, so a per-tier multiplier
+        #: can be turned into a per-column vector without asking again.
+        # ``CorticalTier`` is an auto() enum, so ``.value`` is 1, 2, 3. The NAME
+        # is what a receptor field is keyed by, and reading the value here made
+        # every per-tier lookup miss and every multiplier silently stay at one.
+        self._tier_names: list[str] = [
+            self._tier_for(index).name.lower() for index in range(self.cfg.columns)
+        ]
+
         # Inter-column weight matrix (columns × columns), sparse, distance-weighted
         self._inter_W = self._build_inter_column_weights()
 
@@ -323,6 +429,17 @@ class NeuralMesh:
         # multiplicative factors. Publishing one immutable tuple keeps mesh
         # ticks coherent without taking a controller lock on the hot path.
         self._base_modulatory_state = (1.0, 1.0, 1.0)
+        # Per-tier multipliers on gain and noise. Uniform until something
+        # measures otherwise, which is the honest default: it says the spatial
+        # structure has not been measured rather than guessing at it. A
+        # transmitter arriving at the sensory tier and the same transmitter
+        # arriving at the executive tier were the same event before this — one
+        # scalar for 4,096 units — and in cortex they are not.
+        self._tier_modulation: dict[str, tuple[float, float]] = {
+            "sensory": (1.0, 1.0),
+            "association": (1.0, 1.0),
+            "executive": (1.0, 1.0),
+        }
         self._criticality_modulatory_factors = (1.0, 1.0)
         self._modulatory_state = (1.0, 1.0, 1.0)
         self._modulatory_gain: float = 1.0
@@ -346,6 +463,11 @@ class NeuralMesh:
         self._recurrent_feedback_strength: float = 0.8  # relative to feedforward
         self._feedback_W: np.ndarray | None = None
         self._build_feedback_weights()
+        # And the pathway that carries signal the other way. Built after the
+        # feedback one so both are on the same draw, and folded into _inter_W
+        # rather than applied separately: the feedforward sweep is the mesh's
+        # ordinary integration step, not a second pass over it.
+        self._inter_W = self._inter_W + self._build_feedforward_weights()
 
         # Stats
         self._mean_column_energy: float = 0.0
@@ -512,6 +634,49 @@ class NeuralMesh:
                        (tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.EXECUTIVE):
                         strength *= 1.5
                     weights[i, j] = strength
+        return weights
+
+    def _build_feedforward_weights(self) -> np.ndarray:
+        """The bottom-up pathway, built the way the top-down one is.
+
+        The mesh had an explicit feedback matrix and no explicit feedforward
+        one. What carried signal upward was ``_build_inter_column_weights``,
+        which is local wiring — its probability decays with the distance between
+        column indices — and a tier boundary is exactly where that distance is
+        large. So sensory injection could not reach the executive projection,
+        and the two ends of the mesh that the rest of the system actually
+        touches were in different connected components on every seed tried.
+
+        Distance is left out here on purpose. A projection between cortical
+        areas is an axon bundle, not a local connection, and its existence does
+        not fall off with how far apart the areas are.
+        """
+        n = self.cfg.columns
+        weights = np.zeros((n, n), dtype=np.float32)
+        for i in range(n):
+            tier_i = self._tier_for(i)
+            for j in range(n):
+                if i == j:
+                    continue
+                tier_j = self._tier_for(j)
+                forward = (
+                    tier_i == CorticalTier.SENSORY and tier_j == CorticalTier.ASSOCIATION
+                ) or (
+                    tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.EXECUTIVE
+                )
+                direct = (
+                    tier_i == CorticalTier.SENSORY and tier_j == CorticalTier.EXECUTIVE
+                )
+                if forward:
+                    probability = self.cfg.feedforward_density
+                    scale = self.cfg.feedforward_strength
+                elif direct:
+                    probability = self.cfg.feedforward_direct_density
+                    scale = self.cfg.feedforward_strength
+                else:
+                    continue
+                if self._rng.random() < probability:
+                    weights[i, j] = self._rng.standard_normal() * scale
         return weights
 
     def _build_feedback_weights(self):
@@ -804,17 +969,22 @@ class NeuralMesh:
 
         # Metal GPU acceleration: offload the heavy einsum to Apple Metal via MLX.
         # For 64 columns × (64×64) matmuls, Metal is 5-10x faster than CPU numpy.
+        # One gain per column rather than one for the mesh. Uniform unless a
+        # receptor field says otherwise, so this is the same arithmetic it was
+        # until something measures a difference between the tiers.
+        gain_by_column = gain * self._tier_vector(0)
         if _HAS_MLX and _MLX_METAL_ENABLED:
             x_mx = mx.array(x_matrix)
             ext_mx = mx.array(ext)
+            gain_mx = mx.array(gain_by_column.reshape(-1, 1))
             recurrent_mx = mx.einsum('cij,cj->ci', self._W_batch_mx, x_mx)
-            activity_mx = mx.tanh(gain * (recurrent_mx + ext_mx))
+            activity_mx = mx.tanh(gain_mx * (recurrent_mx + ext_mx))
             mx.eval(activity_mx)  # force Metal evaluation
             activity = np.array(activity_mx, dtype=np.float32)
             recurrent = np.array(recurrent_mx, dtype=np.float32)
         else:
             recurrent = np.einsum('cij,cj->ci', self._W_batch, x_matrix)  # (64, 64)
-            activity = np.tanh(gain * (recurrent + ext))
+            activity = np.tanh(gain_by_column[:, None] * (recurrent + ext))
         recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
         activity = np.nan_to_num(activity, nan=0.0, posinf=1.0, neginf=-1.0)
 
@@ -825,7 +995,11 @@ class NeuralMesh:
         inh_mean = inh_activity / inh_counts  # (64,)
         inhibition = np.where(~inh_masks, -cfg.lateral_inhibition_strength * inh_mean[:, None], 0.0)
 
-        noise = self._rng.standard_normal(x_matrix.shape).astype(np.float32) * noise_sigma
+        noise = (
+            self._rng.standard_normal(x_matrix.shape).astype(np.float32)
+            * noise_sigma
+            * self._tier_vector(1)[:, None]
+        )
         dx = (-cfg.decay * x_matrix + activity + inhibition + noise) * dt
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
@@ -1283,6 +1457,56 @@ class NeuralMesh:
             self._modulatory_plasticity,
             self._modulatory_noise,
         ) = effective
+
+    def _tier_vector(self, which: int) -> np.ndarray:
+        """One multiplier per column, from the per-tier pair. 0 is gain, 1 is noise."""
+        return np.array(
+            [
+                self._tier_modulation.get(name, (1.0, 1.0))[which]
+                for name in self._tier_names
+            ],
+            dtype=np.float32,
+        )
+
+    def set_regional_modulation(
+        self, multipliers: dict[str, tuple[float, float]] | None
+    ) -> dict[str, tuple[float, float]]:
+        """How much each tier scales gain and noise, on top of the global state.
+
+        A receptor field supplies these. Passing None restores uniform, which is
+        what the mesh did before it could express the difference at all: one
+        scalar for every one of its 4,096 units, so dopamine arriving at the
+        sensory tier and dopamine arriving at the executive tier were the same
+        event. Cortex is not like that — receptor densities vary by area, and a
+        transmitter's effect depends on where it lands and what receptor is
+        there — and until a measurement fills these in they stay at one, which
+        says the structure is unmeasured rather than guessing at it.
+        """
+        wanted = {"sensory": (1.0, 1.0), "association": (1.0, 1.0), "executive": (1.0, 1.0)}
+        if multipliers:
+            for tier, pair in multipliers.items():
+                name = str(tier).rsplit(".", 1)[-1].lower()
+                if name not in wanted:
+                    continue
+                try:
+                    gain_scale = float(pair[0])
+                    noise_scale = float(pair[1])
+                except (TypeError, ValueError, IndexError):
+                    continue
+                if not (math.isfinite(gain_scale) and math.isfinite(noise_scale)):
+                    continue
+                wanted[name] = (
+                    max(0.1, min(4.0, gain_scale)),
+                    max(0.0, min(4.0, noise_scale)),
+                )
+        with self._modulation_lock:
+            self._tier_modulation = wanted
+        return dict(wanted)
+
+    def regional_modulation(self) -> dict[str, tuple[float, float]]:
+        """What each tier is currently scaling gain and noise by."""
+        with self._modulation_lock:
+            return dict(self._tier_modulation)
 
     def set_modulatory_state(
         self,

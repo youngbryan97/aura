@@ -15,6 +15,26 @@ class CallRecorder:
         return self.result
 
 
+def test_action_log_disk_failure_preserves_event_without_breaking_caller(monkeypatch, tmp_path):
+    import threading
+    from core.observability import unified_action_log as module
+
+    def fail_write(*args, **kwargs):
+        raise OSError("disk unavailable")
+
+    errors = []
+    monkeypatch.setattr(module, "get_file_write_gateway", lambda: SimpleNamespace(append_text=fail_write))
+    monkeypatch.setattr(module, "record_degradation", lambda source, exc: errors.append((source, exc)))
+    log = object.__new__(module.UnifiedActionLog)
+    log._entries = []
+    log._lock = threading.Lock()
+    log._persist_path = tmp_path / "actions.jsonl"
+    log.record("speak", "test", "reflex")
+    assert log.recent()[0]["action"] == "speak"
+    assert len(errors) == 1
+    assert isinstance(errors[0][1], OSError)
+
+
 def test_action_log_route_registered_before_spa_catchall():
     from interface import server as server_module
 
@@ -58,6 +78,35 @@ async def test_api_action_log_returns_json_payload(monkeypatch):
 
     assert payload["stats"]["total"] == 1
     assert payload["items"][0]["action"] == "clock"
+
+
+@pytest.mark.asyncio
+async def test_unified_action_log_defers_persistence_on_running_loop(monkeypatch, tmp_path):
+    from core.observability.unified_action_log import UnifiedActionLog
+
+    class _AsyncGateway:
+        def __init__(self):
+            self.calls = []
+
+        async def append_text_async(self, path, text, **kwargs):
+            self.calls.append((path, text, kwargs))
+
+    gateway = _AsyncGateway()
+    monkeypatch.setattr(
+        "core.observability.unified_action_log.get_file_write_gateway",
+        lambda: gateway,
+    )
+    log = object.__new__(UnifiedActionLog)
+    log._entries = []
+    import threading
+    log._lock = threading.Lock()
+    log._persist_path = tmp_path / "unified_action_log.jsonl"
+
+    log.record("speak", "test", "reflex", outcome="ok")
+    assert gateway.calls == []
+    await __import__("asyncio").sleep(0)
+    assert len(gateway.calls) == 1
+    assert json.loads(gateway.calls[0][1])["action"] == "speak"
 
 
 def test_unified_action_log_rehydrates_from_disk(tmp_path):

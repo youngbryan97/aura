@@ -1,3 +1,6 @@
+"""Operationally: this measures the current values of the declared phenomenal channels and holds them in one place, so a reader gets the same numbers a writer wrote. 'Field' is the container.
+"""
+
 from __future__ import annotations
 from typing import Dict
 

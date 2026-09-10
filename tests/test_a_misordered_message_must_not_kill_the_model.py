@@ -130,13 +130,23 @@ def test_every_render_path_goes_through_it():
 
     from core.brain.llm import chat_format
 
+    # The three normalisations were written out by hand at four call sites and
+    # at none of the render sites outside this module, so they live behind one
+    # entry point now. What matters is that a render site goes through it and
+    # that it still does all three — not the shape of the composition.
+    prepared = inspect.getsource(chat_format.for_this_template)
+    assert "system_first(" in prepared
+    assert "normalize_tool_transcript_for_template" in prepared
+    assert "normalize_runtime_evidence_for_template" in prepared
     for render in (
         chat_format.render_chat_template,
         chat_format.render_chat_continuation_template,
     ):
         source = inspect.getsource(render)
-        assert "system_first(messages)" in source
-        assert "normalize_tool_transcript_for_template" in source
+        assert "for_this_template(" in source, (
+            "a render site that prepares the transcript by hand is the defect "
+            "for_this_template exists to prevent"
+        )
 
 
 def test_mapping_tool_template_receives_an_object_without_mutating_history():
@@ -265,7 +275,9 @@ def test_the_trimmer_cannot_kill_the_worker_with_a_template_error():
     source = inspect.getsource(mlx_worker)
     where = source.index("def _render(candidate_messages")
     body = source[where : where + 1200]
-    assert "system_first(" in body, "the trimmer renders without normalising order"
+    assert "for_this_template(" in body, (
+        "the trimmer renders without normalising order"
+    )
     assert "except Exception" in body, "a template refusal still escapes the trimmer"
 
 
@@ -274,14 +286,14 @@ def test_native_template_failure_cannot_escape_the_generation_job():
 
     from core.brain.llm import mlx_worker
 
+    # Read from the whole loop rather than a window between two literals: the
+    # window was bounded by a line that has since moved above the handler, so
+    # the assertions were run against a fragment that could not contain them.
     source = inspect.getsource(mlx_worker._mlx_worker_loop)
-    start = source.index('logger.info("🎯 [WORKER] Rendering native chat/tool template.")')
-    end = source.index('temp = _admit_sampling_control(job, "temp")', start)
-    body = source[start:end]
-    assert "except Exception" in body
-    # Without the closing quote: the marker is now an f-string carrying the
-    # exception type, which is more of the reason rather than less, and
-    # pinning the old spelling failed over an improvement.
-    assert "chat_template_failed_with_tools:" in body
-    assert '"status": "error"' in body
-    assert "continue" in body
+    assert "except Exception" in source
+    assert "chat_template_failed_with_tools" in source
+    assert '"status": "error"' in source
+    # A tool-calling contract fails closed rather than degrading to prose.
+    failure = source.index("chat_template_failed_with_tools")
+    after = source[failure : failure + 400]
+    assert "continue" in after, "the failed tool job must not fall through to generation"

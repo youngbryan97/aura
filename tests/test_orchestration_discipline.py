@@ -722,6 +722,33 @@ def test_a_dead_holders_lease_is_reclaimed_without_waiting(tmp_path, monkeypatch
     assert asyncio.run(scenario()) is True
 
 
+def test_lease_storage_read_does_not_block_the_event_loop(tmp_path, monkeypatch):
+    import threading
+
+    monkeypatch.setattr(lease_mod, "_lease_path", lambda name: tmp_path / f"{name}.json")
+    elector = LeaderElector("slow-read")
+    main_thread = threading.get_ident()
+    reader_threads: list[int] = []
+    real_read = elector._read
+
+    def slow_read():
+        reader_threads.append(threading.get_ident())
+        time.sleep(0.08)
+        return real_read()
+
+    monkeypatch.setattr(elector, "_read", slow_read)
+
+    async def scenario() -> bool:
+        task = asyncio.create_task(elector.try_acquire_or_renew())
+        await asyncio.sleep(0.01)
+        loop_remained_live = not task.done()
+        await task
+        return loop_remained_live
+
+    assert asyncio.run(scenario()) is True
+    assert reader_threads and reader_threads[0] != main_thread
+
+
 def test_holder_gives_up_before_a_challenger_can_take_over(tmp_path, monkeypatch):
     """The safety property: never two leaders."""
     monkeypatch.setattr(lease_mod, "_lease_path", lambda name: tmp_path / f"{name}.json")

@@ -2,7 +2,7 @@
 
 For hard tasks Aura should almost never do ``prompt → one generation → answer``. She
 should do ``prompt → problem model → N attempts → verification → search/repair →
-judge → calibrated answer → receipt``. That is how a 32B local model is made to feel
+judge → calibrated answer → receipt``. That is how a local cortex is made to feel
 dramatically smarter: not more parameters, but more *time, search and verification*,
 and a system that refuses to accept first drafts, unverifiable claims, untested code
 or ungrounded plans.

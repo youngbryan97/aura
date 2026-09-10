@@ -263,6 +263,14 @@ class IntentionLoop:
         with self._lock:
             self._active_intentions[intention_id] = rec
 
+        # Emit the efference copy: what she expects this to do, recorded before
+        # she does it. The comparator was built for exactly this moment — "call
+        # this when an initiative is promoted, before execution" — and only the
+        # executive authority path ever called it, so an intention formed
+        # anywhere else was compared against nothing and produced no sense of
+        # having caused its own outcome.
+        self._emit_efference(rec)
+
         self._persist(rec)
 
         # Record to CognitiveLedger
@@ -357,6 +365,13 @@ class IntentionLoop:
 
     @staticmethod
     def _actual_outcome_is_success(observation: str, actual_outcome: str) -> bool:
+        """Whether the outcome text says the thing worked.
+
+        Prose only. `_succeeded` prefers the flag the caller already recorded
+        and falls back to this, because a caller that reports success in its
+        own words was being recorded as a failure and the capability beliefs
+        were learning from it.
+        """
         text = str(actual_outcome or "").lower()
         return (
             str(observation or "").lower() == "tool_succeeded"
@@ -365,6 +380,20 @@ class IntentionLoop:
             or "status=ok" in text
             or "completed successfully" in text
         )
+
+    def _succeeded(self, rec: IntentionRecord, actual_outcome: str) -> bool:
+        """Did it work. The recorded flag first, the words only if there is none.
+
+        `record_action` is given a boolean by the caller who ran the tool. Going
+        back to the outcome string to rediscover it means an intention whose
+        result is described in any other wording is a failure, which is how a
+        run of successful writes taught the self model an efficacy of zero.
+        """
+        for action in reversed(rec.actions_taken or []):
+            flag = getattr(action, "success", None)
+            if isinstance(flag, bool):
+                return flag
+        return self._actual_outcome_is_success(rec.observation or "", actual_outcome)
 
     def observe(
         self,
@@ -423,9 +452,139 @@ class IntentionLoop:
                 rec.surprise,
             )
 
+        # An intention she formed and acted on is hers by construction, so this
+        # is where the agency ledger learns what she actually did. Outcomes she
+        # only watched arrive through the perception path instead, and never
+        # touch her capability beliefs — see core/agency/authorship.py.
+        self._record_authorship(rec, actual_outcome)
+
         return rec.surprise
 
+    def _emit_efference(self, rec: IntentionRecord) -> None:
+        """Predict the outcome before acting. Never raises into intend()."""
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+
+            get_agency_comparator().emit_efference(
+                layer="intention_loop",
+                # An intention is formed because she expects it to work. That
+                # is the prediction, and recording it as anything else would be
+                # recording a hedge she did not have.
+                predicted_state={"goal_completed": 1.0, "surprise": 0.0},
+                action_goal=rec.intention,
+                action_source=rec.drive,
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("efference not emitted: %s", exc)
+
+    def _compare_outcome(self, rec: IntentionRecord, succeeded: bool) -> str:
+        """Compare what happened to what she expected. Returns the attribution."""
+        try:
+            from core.consciousness.agency_comparator import get_agency_comparator
+
+            trace = get_agency_comparator().compare_and_attribute(
+                None,
+                {"goal_completed": 1.0 if succeeded else 0.0, "surprise": float(rec.surprise)},
+                action_goal=rec.intention,
+            )
+            return str(getattr(trace, "attribution_label", ""))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("outcome not compared: %s", exc)
+            return ""
+
+    def _record_authorship(self, rec: IntentionRecord, actual_outcome: str) -> None:
+        """Tell the agency ledger she caused this. Never raises into observe()."""
+        try:
+            from core.agency.authorship import SELF, Event, get_agency_ledger
+            from core.container import ServiceContainer
+
+            tool = ""
+            if rec.actions_taken:
+                tool = str(getattr(rec.actions_taken[-1], "tool_name", "") or "")
+            succeeded = self._succeeded(rec, actual_outcome)
+            get_agency_ledger().observe(
+                Event(
+                    what=tool or "intention",
+                    actor=SELF,
+                    verified=succeeded,
+                    detail={
+                        "intention_id": rec.id,
+                        "surprise": rec.surprise,
+                        # What the forward model made of it, beside what she
+                        # declared. The ledger records who acted; the comparator
+                        # measures how much of the outcome that action explains.
+                        # Keeping both is what makes a mismatch visible instead
+                        # of arriving as a confident number.
+                        "attribution": self._compare_outcome(rec, succeeded),
+                    },
+                ),
+                self_model=ServiceContainer.get("self_model", default=None),
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+            logger.debug("agency ledger not updated: %s", exc)
+
     # ── REVISE: Update beliefs and self-model ───────────────────────────
+
+    def _capability_confidence(self, tool_name: str) -> tuple[float, int]:
+        """How often this capability has done what it was asked, and on how many.
+
+        Laplace-smoothed, so one success is not certainty and a capability
+        nobody has used yet starts at even odds rather than at a number
+        somebody picked.
+        """
+
+        successes = 0
+        attempts = 0
+        for record in self._completed_intentions:
+            for action in record.actions_taken:
+                if action.tool_name != tool_name:
+                    continue
+                attempts += 1
+                successes += 1 if action.success else 0
+        return (successes + 1) / (attempts + 2), attempts
+
+    def _beliefs_this_cycle_established(
+        self, rec: "IntentionRecord"
+    ) -> List[BeliefUpdate]:
+        """What the cycle learned, read off the record it already holds.
+
+        The REVISE stage had exactly one caller and it passed
+        ``belief_updates=[]``, hardcoded — so the belief-revision edge, the
+        ledger transition and the push into BeliefRevisionEngine could never
+        fire. The whole stage was correct, complete, and fed nothing.
+
+        A cycle that used a capability establishes something about that
+        capability: whether it does what she intends. The confidence is the
+        measured success rate over completed intentions, not a number chosen
+        here, and the observation is this cycle's own outcome.
+        """
+
+        seen: dict[str, bool] = {}
+        for action in rec.actions_taken:
+            name = str(action.tool_name or "").strip()
+            if not name or name == "unknown":
+                continue
+            # A capability used twice in one cycle is one observation of it.
+            seen[name] = seen.get(name, True) and bool(action.success)
+        updates: List[BeliefUpdate] = []
+        for name, worked in seen.items():
+            before, attempts = self._capability_confidence(name)
+            after = (
+                (before * (attempts + 2) + (1 if worked else 0)) / (attempts + 3)
+            )
+            updates.append(
+                BeliefUpdate(
+                    belief=f"{name} does what I intend when I use it",
+                    old_confidence=round(before, 4),
+                    new_confidence=round(after, 4),
+                    reason=(
+                        f"{'succeeded' if worked else 'failed'} on "
+                        f"{rec.intention[:80]!r}; surprise {rec.surprise:.2f} "
+                        f"over {attempts} earlier attempt(s)"
+                    ),
+                )
+            )
+        return updates
 
     def revise(
         self,
@@ -437,14 +596,23 @@ class IntentionLoop:
         success: bool = True,
         status: Optional[str | IntentionStatus] = None,
     ) -> None:
-        """Close the loop: record revisions and finalize the intention."""
+        """Close the loop: record revisions and finalize the intention.
+
+        ``belief_updates=None`` means "you worked it out, tell me" and the loop
+        derives them from the record. An explicit empty list still means none,
+        so a caller that has decided there is nothing to revise keeps saying so.
+        """
         with self._lock:
             rec = self._active_intentions.get(intention_id)
             if rec is None:
                 logger.warning("revise: unknown intention_id %s", intention_id)
                 return
 
-            rec.belief_updates = belief_updates or []
+            rec.belief_updates = (
+                list(belief_updates)
+                if belief_updates is not None
+                else self._beliefs_this_cycle_established(rec)
+            )
             rec.self_model_updates = self_model_updates or []
             rec.tension_created = tension_created
             rec.tension_resolved = tension_resolved

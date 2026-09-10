@@ -80,6 +80,8 @@ from core.runtime.principal_context import (
 import time
 import uuid
 from functools import lru_cache, wraps
+from dataclasses import dataclass
+from core.runtime.what_stops_it import Stopping, stopping_with
 
 from interface.routes.chat_common import (
     MAX_CHAT_MESSAGE_BYTES,
@@ -93,6 +95,45 @@ _CHAT_DELIVERY_WAIT_TIMEOUT_FLAG = declare(
     description="Maximum wait for another owner of an admitted chat turn",
     owner="interface.routes.chat",
 )
+
+USER_CANCEL_REASON = "chat_delivery_cancelled_by_user"
+
+
+@dataclass
+class _ExecutingDelivery:
+    admission: DeliveryAdmission
+    task: asyncio.Task[Any]
+    cancel_requested: bool = False
+    stopping: Stopping | None = None
+
+
+_executing_deliveries: dict[DeliveryIdentity, _ExecutingDelivery] = {}
+
+
+def request_delivery_cancellation(record: DeliveryRecord) -> str:
+    """Cancel only the current execution of the authenticated journal record."""
+    if record.terminal:
+        return "already_terminal"
+    owner = _executing_deliveries.get(record.identity)
+    if owner is None or owner.task.done():
+        return "execution_not_cancellable"
+    current = owner.admission.record
+    if current.turn_id != record.turn_id or current.generation != record.generation:
+        return "owner_changed"
+    if not owner.cancel_requested:
+        owner.cancel_requested = True
+        if owner.stopping is not None:
+            owner.stopping.stop(USER_CANCEL_REASON)
+        owner.task.cancel(USER_CANCEL_REASON)
+    return "cancellation_requested"
+
+
+def _user_cancelled_response() -> JSONResponse:
+    return JSONResponse({
+        "response": "Stopped this turn. Actions already completed were not undone.",
+        "status": "cancelled_by_user",
+        "response_confidence": "cancelled",
+    })
 
 _PAIRED_CHAT_RESPONSE_KEYS = frozenset(
     {
@@ -233,6 +274,8 @@ def _chat_delivery_state_for_response(
     confidence = str(payload.get("response_confidence") or "").strip().casefold()
     if status in {"approval_required", "require_fresh_user_auth"}:
         return DeliveryState.AWAITING_APPROVAL
+    if status == "cancelled_by_user":
+        return DeliveryState.FAILED
     if "cancel" in status or status == "delivery_ambiguous":
         return DeliveryState.AMBIGUOUS
     failure_markers = (
@@ -249,6 +292,10 @@ def _chat_delivery_state_for_response(
     if (
         int(status_code) >= 400
         or confidence == "failed"
+        # Substring, deliberately: `status` is a status CODE — "guard_blocked",
+        # "llm_timeout" — and this is what marks a turn FAILED. Word matching
+        # would stop seeing the word inside the compound and report a failed
+        # turn as delivered.
         or any(marker in status for marker in failure_markers)
     ):
         return DeliveryState.FAILED
@@ -404,6 +451,7 @@ async def _finalize_chat_delivery(
     state: DeliveryState,
     status_code: int,
     payload: dict[str, Any],
+    history_capture: dict[str, Any] | None = None,
 ) -> DeliveryRecord:
     operation = get_task_tracker().create_task(
         journal.finalize(
@@ -411,6 +459,7 @@ async def _finalize_chat_delivery(
             state=state,
             http_status=status_code,
             response=payload,
+            **({"history_capture": history_capture} if history_capture else {}),
         ),
         name=f"ChatDeliveryFinalize:{admission.record.turn_id}",
     )
@@ -755,6 +804,72 @@ def _run_chat_delivery_commit_hooks(
             )
 
 
+#: Statuses that assert the turn produced an answer. An empty body under one of
+#: these is a turn that looks answered to everything downstream and says nothing
+#: to the person.
+_A_STATUS_THAT_CLAIMS_AN_ANSWER = ("completed", "served", "cognitive_engine", "ok")
+
+
+def _no_empty_answer_leaves_this_boundary(response: Any) -> Any:
+    """Refuse to present an empty reply as a completed turn.
+
+    Forty-one places in the chat route build a `"response"` field and there is
+    no finalizer between them and the person, so a guard at any one of them
+    covers one path. This is the boundary every turn already passes through.
+
+    LIVE 2026-09-07: "does the file X exist, and what is in it?" came back with
+    `"response": ""` and `"status": "desktop_objective_completed"`. Before that
+    the same turn came back as a bare "…", which is the same defect wearing a
+    character.
+
+    It replaces nothing and generates nothing. It changes what the turn CLAIMS
+    — an empty answer is reported as one, so the recovery and the receipts see
+    a failure instead of a success. Turning this into a refusal to respond at
+    all would be the other failure: gating a working runtime into silence.
+    """
+
+    # The envelope-coercion guard further down is located by a test that
+    # searches this file for its opening type check, so this one is written
+    # inverted: an identical line here would send that test to the wrong guard.
+    if isinstance(response, JSONResponse):
+        try:
+            payload = json.loads(bytes(response.body).decode("utf-8"))
+        except (AttributeError, TypeError, ValueError, UnicodeDecodeError):
+            return response
+        return _report_an_empty_answer_as_one(response, payload)
+    return response
+
+
+def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
+    """Rewrite the CLAIM of a turn whose answer is empty. Generates nothing."""
+
+    if not isinstance(payload, dict) or "response" not in payload:
+        return response
+    if str(payload.get("response") or "").strip():
+        return response
+    status = str(payload.get("status") or "")
+    # Substring, deliberately: `status` is a status CODE, as above.
+    if not any(token in status for token in _A_STATUS_THAT_CLAIMS_AN_ANSWER):
+        return response
+
+    logger.warning(
+        "⚠️ An empty reply was about to be served as %r; reporting it as a turn "
+        "that produced no answer instead.",
+        status,
+    )
+    try:
+        from core.conversation.reply_provenance import THE_HONEST_FAILURE
+
+        honest = str(THE_HONEST_FAILURE)
+    except (ImportError, AttributeError):
+        honest = "No answer formed for that turn."
+    payload["response"] = honest
+    payload["status"] = f"empty_answer_withheld:{status}" if status else "empty_answer_withheld"
+    payload["response_confidence"] = "failed"
+    payload["empty_answer_original_status"] = status
+    return JSONResponse(payload, status_code=response.status_code)
+
+
 def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[..., Any]:
     """Fence every chat turn before side effects and durably seal its outcome."""
 
@@ -839,6 +954,11 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
 
         if admission.kind is AdmissionKind.REPLAY:
             try:
+                await _chat_preflight.reconcile_terminal_history(journal)
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation("chat.terminal_transcript_recovery", exc)
+                _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
+            try:
                 response = _chat_delivery_replay_response(admission.record)
                 replay_payload = dict(admission.record.response or {})
                 replay_payload["delivery_replayed"] = True
@@ -876,6 +996,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
         turn_token = _CHAT_DELIVERY_TURN_ID.set(admission.record.turn_id)
         key_token = _CHAT_DELIVERY_IDEMPOTENCY_KEY.set(admission.record.identity.idempotency_key)
         pending_claim_token = _CHAT_PENDING_DELIVERY_CLAIM.set(("", ()))
+        terminal_exchanges, terminal_exchange_token = _chat_preflight.bind_terminal_exchanges()
         fence_lost = asyncio.Event()
         heartbeat_task = get_task_tracker().create_task(
             _chat_delivery_heartbeat(journal, admission, fence_lost),
@@ -887,13 +1008,28 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 with (
                     relational_principal_scope(observed_principal or exact_principal),
                     bind_chat_delivery_progress(journal, admission),
+                    stopping_with("chat_delivery", trace=admission.record.turn_id) as execution,
                 ):
                     await report_chat_delivery_progress(
                         phase="understanding",
                         message="Understanding the request and gathering its relevant context.",
                         details={"surface": request_access_profile(request).get("surface", "")},
                     )
-                    response = await handler(*args, **kwargs)
+                    owner = _ExecutingDelivery(admission, asyncio.current_task(), stopping=execution.stopping)
+                    _executing_deliveries[admission.record.identity] = owner
+                    try:
+                        try:
+                            response = await handler(*args, **kwargs)
+                        except asyncio.CancelledError:
+                            if not owner.cancel_requested:
+                                raise
+                            response = _user_cancelled_response()
+                    finally:
+                        if _executing_deliveries.get(admission.record.identity) is owner:
+                            _executing_deliveries.pop(admission.record.identity, None)
+                    if owner.cancel_requested:
+                        response = _user_cancelled_response()
+                    response = _no_empty_answer_leaves_this_boundary(response)
                     await report_chat_delivery_progress(
                         phase="finalizing",
                         message="Checking the result and its evidence before replying.",
@@ -918,7 +1054,9 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         state=DeliveryState.AMBIGUOUS,
                         status_code=409,
                         payload=cancelled_payload,
+                        history_capture=terminal_exchanges.exchanges,
                     )
+                    _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
                 except (ChatDeliveryFenceLost, ChatDeliveryJournalError) as exc:
                     logger.error(
                         "Chat cancellation could not seal its authoritative state: %s",
@@ -1116,6 +1254,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     state=terminal_state,
                     status_code=response.status_code,
                     payload=payload,
+                    history_capture=terminal_exchanges.exchanges,
                 )
             except ChatDeliveryFenceLost:
                 return await _chat_delivery_fence_response(journal, admission)
@@ -1139,6 +1278,19 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                 )
 
             _run_chat_delivery_commit_hooks(request, payload)
+            try:
+                async with _chat_preflight._TERMINAL_HISTORY_LOCK:
+                    committed = await _chat_preflight.finalize_terminal_exchanges(terminal_exchanges, payload)
+                    if committed and terminal_exchanges.exchanges:
+                        await journal.acknowledge_history(terminal_record)
+                if not committed:
+                    _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
+            except _CHAT_RECOVERABLE_ERRORS as exc:
+                record_degradation(
+                    "chat.terminal_transcript", exc,
+                    action="retained the sealed delivery journal while transcript finalization failed",
+                )
+                _chat_preflight._schedule_chat_turn_memory_log(chat_origin="terminal_recovery")
 
             response.body = response.render(payload)
             response.headers["content-length"] = str(len(response.body))
@@ -1173,6 +1325,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     record_degradation("chat.pending_delivery_ack", exc)
             return response
         finally:
+            _chat_preflight.reset_terminal_exchanges(terminal_exchange_token)
             pending_owner, pending_ids = _CHAT_PENDING_DELIVERY_CLAIM.get()
             if pending_owner and pending_ids:
                 try:

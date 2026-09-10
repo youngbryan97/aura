@@ -1381,7 +1381,9 @@ class PhenomenologicalExperiencer:
         self._running = False
         if self._update_task:
             self._update_task.cancel()
-        self._save_phenomenal_memory()
+            await asyncio.gather(self._update_task, return_exceptions=True)
+            self._update_task = None
+        await asyncio.to_thread(self._save_phenomenal_memory)
         logger.info("🌟 PhenomenologicalExperiencer OFFLINE")
 
     # ── Workspace Subscriber ──────────────────────────────────────────────────
@@ -1632,7 +1634,7 @@ class PhenomenologicalExperiencer:
         if report:
             self._rebuild_context_string()
             # Persist significant phenomenal moments
-            self._persist_phenomenal_moment(report)
+            await self._persist_phenomenal_moment(report)
 
     async def _run_witness(self):
         """LLM-powered witness reflection."""
@@ -1761,7 +1763,7 @@ class PhenomenologicalExperiencer:
 
     # ─── Persistence ──────────────────────────────────────────────────────────
 
-    def _persist_phenomenal_moment(self, report: str):
+    async def _persist_phenomenal_moment(self, report: str):
         """Save a significant phenomenal moment to the experiential archive."""
         archive_path = self.save_dir / "phenomenal_archive.jsonl"
         try:
@@ -1779,7 +1781,7 @@ class PhenomenologicalExperiencer:
                 "phenomenological_experiencer.persist_moment",
                 domain="file_write",
             ):
-                get_file_write_gateway().append_text(
+                await get_file_write_gateway().append_text_async(
                     archive_path,
                     json.dumps(entry) + "\n",
                     source="phenomenological_experiencer.persist_moment",

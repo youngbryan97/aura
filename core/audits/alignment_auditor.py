@@ -84,7 +84,9 @@ class AlignmentAuditor:
                 try:
                     data = json.loads(match.group(0))
                     # Strict schema: required keys AND validated types/ranges.
-                    if isinstance(data, dict) and all(k in data for k in ("score", "aligned", "reason")):
+                    # Keys of a parsed object, not words in a sentence: a
+                    # subset test, not `names_any`.
+                    if isinstance(data, dict) and {"score", "aligned", "reason"} <= data.keys():
                         data["score"] = _finite_unit(data.get("score"))
                         data["aligned"] = bool(data.get("aligned"))
                         data["reason"] = str(data.get("reason", ""))[:1000]

@@ -1762,9 +1762,16 @@ def test_protected_foreground_summary_message_filters_symbolic_scene_leak(monkey
 def test_simple_affect_check_uses_canonical_self_condition_projection(monkeypatch):
     from interface.routes import chat as chat_module
 
+    # Patch the seam the reply actually goes through. `_build_self_condition_evidence`
+    # moved to chat_reply_shaping and is called from that module's own namespace,
+    # so patching `chat` left the real builder running and this test measured
+    # whether a self-condition sample happened to exist rather than what it
+    # says it measures.
+    from interface.routes import chat_reply_shaping as shaping_module
+
     monkeypatch.setattr(chat_module, "_shape_with_live_substrate", lambda text, user_message="": text)
     monkeypatch.setattr(
-        chat_module,
+        shaping_module,
         "_build_self_condition_evidence",
         lambda _message, **_kwargs: {
             "reply": (
@@ -2938,9 +2945,14 @@ def test_conversation_recall_isolation_by_session_id(monkeypatch):
     assert "alpha session question" in recalled
     assert "bravo session question" not in recalled
     assert missed is not None
-    assert "completed prior turn" in missed.lower()
+    # The property this guards is isolation, not a form of words: a session
+    # with nothing in it must say so and must not reach into another one.
     assert "alpha session question" not in missed
     assert "bravo session question" not in missed
+    assert any(
+        phrase in missed.lower()
+        for phrase in ("completed prior turn", "haven't said anything", "nothing yet")
+    ), missed
 
 
 def test_repo_probe_request_detects_dependency_reads():

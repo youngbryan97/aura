@@ -1,4 +1,4 @@
-.PHONY: connectome connectome-pathology connectome-record connectome-zapbench interiority skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline state-ownership epistemic-independence architecture-lint gap-atlas campaigns cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight convergence agi-gauntlet agi-gauntlet-quick
+.PHONY: connectome connectome-pathology connectome-record connectome-zapbench subject-core subject-core-frozen interiority skill-scope skill-scope-baseline lock-advisories release-dry-run release-ready lint-surface lint-surface-grow product-facts threat-model red-team method-size-changed deps-generate deps-check deps-gate lockfiles lockfiles-check review-policy branch-protection branch-protection-policy typed-surface typed-surface-baseline typecheck-changed coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline state-ownership epistemic-independence architecture-lint gap-atlas campaigns cognitive-complexity reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture inherited-inventory advisory-inventory shipped-inventory acceptance-links feed-legibility prompt-steering cannot-fire checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report rlc-27b-inventory rlc-27b-tissue rlc-27b-grounding rlc-27b-mtp rlc-27b-package rlc-27b-steering-plan rlc-27b-queue rlc-27b-critical-path rlc-27b-execution-plan rlc-27b-readiness rlc-27b-preflight convergence agi-gauntlet agi-gauntlet-quick
 
 
 PYTHON ?= python
@@ -315,6 +315,23 @@ connectome-record:
 	@echo "🧠 Recording activity under nine workloads..."
 	@$(PYTHON) tools/record_connectome_activity.py --budget 240
 
+subject-core:
+	@echo "🧪 Running the Intrinsic Subject Core battery..."
+	@$(PYTHON) tools/run_subject_core.py --rounds 24 --trials 6 --out artifacts/subject_core
+
+subject-core-frozen:
+	@echo "🧪 Three runs of the battery, so a criterion that changes answer says so..."
+	@for i in 1 2 3; do \
+		$(PYTHON) tools/run_subject_core.py --rounds 60 --trials 6 --lesion-rounds 16 \
+			--out artifacts/subject_core || exit 1; \
+	done
+	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
+		--json artifacts/subject_core/scorecard.json \
+		--markdown artifacts/subject_core/SCORECARD.md
+	@echo "🧭 Which edges are missing, and what stopped each one..."
+	@$(PYTHON) tools/subject_core_gaps.py artifacts/subject_core \
+		--json artifacts/subject_core/gaps.json
+
 connectome-zapbench:
 	@echo "🧠 Forecasting whole-mind activity..."
 	@$(PYTHON) tools/run_zapbench.py --data artifacts/connectome
@@ -409,6 +426,36 @@ reqproof-progress:
 reqproof-docket:
 	@echo "📋 Generating the dependency-aware current requirement docket..."
 	@$(PYTHON) tools/reqproof/docket.py
+
+cannot-fire:
+	@echo "🔌 Checking for mechanisms no caller can switch on..."
+	@$(PYTHON) tools/lint_cannot_fire.py
+
+inherited-inventory:
+	@echo "🧾 Reconciling the inherited ledgers against the master queue..."
+	@$(PYTHON) -m tools.reqproof.inherited \
+		--reviews config/inherited_ledger_reviews.json \
+		--output artifacts/inherited_inventory.json
+
+advisory-inventory:
+	@echo "🗂  Holding every external review item to a disposition..."
+	@$(PYTHON) tools/reqproof/advisory.py --output artifacts/advisory_inventory.json
+
+shipped-inventory:
+	@echo "📦 Counting what ships: skills, models, pages, routes..."
+	@$(PYTHON) tools/reqproof/shipped.py --output artifacts/shipped_inventory.json
+
+acceptance-links:
+	@echo "🔗 Which release requirements name something you can run..."
+	@$(PYTHON) tools/reqproof/acceptance.py --output artifacts/requirement_acceptance.json
+
+feed-legibility:
+	@echo "🪟 How much of the neural feed a person could actually read..."
+	@$(PYTHON) tools/neural_feed_legibility.py --untranslated 15
+
+prompt-steering:
+	@echo "🧭 Text this runtime writes to steer a model, counted..."
+	@$(PYTHON) tools/prompt_steering_inventory.py --show 15
 
 reqproof-capture:
 	@test -n "$(SPEC)$(SPECS)" || (echo "usage: make reqproof-capture SPEC=<checked-proof-id> or SPECS='<id> <id>'" >&2; exit 2)

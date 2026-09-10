@@ -12,14 +12,42 @@ What follows from it is re-typing the response, not keeping a wrong answer.
 
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
 
+from interface.routes import chat
 from interface.routes.chat import (
     _apply_recorded_answer,
     _recorded_answer_corrections,
 )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recorded", [False, True])
+async def test_terminal_rewrite_cannot_inherit_the_original_byte_proof(monkeypatch, recorded):
+    original = "The first complete sentence. However"
+    replacement = "The measured record contains two completed actions."
+
+    async def correction(_message, reply):
+        return (replacement, True) if recorded else (reply, False)
+
+    monkeypatch.setattr(chat, "_recorded_answer_corrections", correction)
+    monkeypatch.setattr(chat, "_append_past_action_record", lambda _message, text: text)
+    monkeypatch.setattr(chat, "_correct_unsourced_self_metrics", lambda text: text)
+    monkeypatch.setattr(chat, "_correct_false_capability_denials", lambda text: text)
+    payload = _payload(original, proven=recorded)
+    payload["live_turn_contract"]["authored_answer_completion_proven"] = True
+    data = _served(await _apply_recorded_answer("Explain the result", _Response(payload)))
+    assert data["response"] != original
+    contract = data["live_turn_contract"]
+    assert contract["authored_answer_completion_proven"] is False
+    assert contract["delivery_payload_mutated_after_proof"] is True
+    assert contract["pre_mutation_response_sha256"] == hashlib.sha256(original.encode()).hexdigest()
+    assert contract["delivered_response_sha256"] == hashlib.sha256(data["response"].encode()).hexdigest()
+    if recorded:
+        assert contract["recorded_answer_served"] is True
 
 
 class _Response:

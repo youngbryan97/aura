@@ -20,6 +20,7 @@ import numpy as np
 import torch
 
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.soma.effort import note_effort
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
@@ -856,6 +857,7 @@ class LiquidSubstrate:
             new_x_np = new_x_torch.detach().cpu().numpy()
             new_x_np = np.nan_to_num(new_x_np, nan=0.0, posinf=1.0, neginf=-1.0)
             self._integration_steps += 1
+            note_effort("substrate_steps", 1.0)
 
             connectivity_norm = float(self._cached_connectivity_norm)
             if connectivity_norm < 1e-8 and self.config.noise_level >= 0.1:

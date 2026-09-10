@@ -8137,7 +8137,18 @@ class UnitaryResponsePhase(Phase):
         return "\n".join(lines)
 
     def _emit_feedback_percepts(self, state: AuraState, response: str):
-        """Closed-loop feedback."""
+        """Closed-loop feedback, and what answering cost.
+
+        Producing three hundred words is more work than producing thirty, and
+        it is work she causes. Without this the body's sense of its own
+        exertion moved only with recall.
+        """
+        try:
+            from core.soma.effort import note_effort
+
+            note_effort("response_chars", len(str(response or "")))
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass
         r_lower = response.lower()
         p_type = "positive_interaction"
         intensity = 0.2

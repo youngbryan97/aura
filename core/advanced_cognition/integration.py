@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, cast
 
+from core.conversation.word_markers import names_any
 from core.runtime.lockdep import checked_lock
 
 from .continual_learning_stability import ContinualLearningStabilityEngine
@@ -286,9 +287,9 @@ class AdvancedCognitionRuntime:
             pred = self.transfer.predict(self._obs(state), self._act(action))
         goal_text = str(goal).lower()
         score = pred.get("expected_reward", 0.0) - pred.get("risk", 0.0)
-        if any(t in goal_text for t in ("learn", "map", "explore", "diagnose")):
+        if names_any(goal_text, ("learn", "map", "explore", "diagnose")):
             score += 0.15 * (1 - pred.get("confidence", 0.5))
-        if any(t in goal_text for t in ("safe", "survive", "preserve", "avoid")):
+        if names_any(goal_text, ("safe", "survive", "preserve", "avoid")):
             score -= 0.25 * pred.get("risk", 0.0)
         return float(max(-1.0, min(1.0, score)))
 

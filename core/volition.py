@@ -1,3 +1,6 @@
+"""Operationally: this measures which of the available actions is selected and records what was chosen over what. 'Volition' names the selection, not a claim about freedom.
+"""
+
 import asyncio
 import itertools
 import json

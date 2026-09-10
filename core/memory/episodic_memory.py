@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from core.cognition.actr_activation import base_level_activation
 from core.config import config
 from core.health.degraded_events import record_degraded_event
+from core.memory.a_deferral_is_not_a_refusal import DeferredWrites, is_a_deferral
 from core.memory.engram_association import (
     get_engram_association_field,
     is_engram_association_enabled,
@@ -231,6 +232,64 @@ class EpisodicMemory:
         # recall, keyed by episode_id. Consumed once by _register_recall to apply
         # bounded LTP consolidation to the engrams that won competition.
         self._last_competition_weights: dict[str, float] = {}
+        # What the governor put off, kept until it can be made. See
+        # core/memory/a_deferral_is_not_a_refusal.py for why this is not the
+        # same thing as a refusal.
+        self._last_refusal_reason = ""
+        self._deferred_episodes: DeferredWrites[dict[str, Any]] = DeferredWrites(
+            "episodic_memory", self._write_a_held_episode,
+            identity=lambda held: held["idempotency_key"],
+        )
+
+    def _hold_if_deferred(
+        self,
+        episode_id: str,
+        context: str,
+        action: str,
+        outcome: str,
+        success: bool,
+        emotional_valence: float,
+        tools_used: list[str] | None,
+        lessons: list[str] | None,
+        importance: float,
+        source: str,
+        metadata: dict[str, Any] | None,
+        stable_key: str,
+    ) -> None:
+        """Keep an episode the governor deferred; drop one it refused."""
+
+        reason = self._last_refusal_reason
+        if not is_a_deferral(reason):
+            return
+        self._deferred_episodes.hold(
+            {
+                "context": context,
+                "action": action,
+                "outcome": outcome,
+                "success": success,
+                "emotional_valence": emotional_valence,
+                "tools_used": list(tools_used or []) or None,
+                "lessons": list(lessons or []) or None,
+                "importance": importance,
+                "source": source,
+                "metadata": dict(metadata or {}) or None,
+                # Held episodes replay through the same idempotency key, so a
+                # replay that races the original writes one episode and not
+                # two.
+                "idempotency_key": stable_key or f"deferred:{episode_id}",
+            },
+            reason,
+        )
+
+    def _write_a_held_episode(self, held: dict[str, Any]) -> bool:
+        """Retry one held episode. True when it landed."""
+
+        return bool(self.record_episode(**held))
+
+    def deferred_state(self) -> dict[str, Any]:
+        """What is waiting on the governor, for the health surface."""
+
+        return self._deferred_episodes.state()
 
     def _detect_relational_significance(self, context: str, action: str, outcome: str) -> bool:
         """Detect if this conversation is relational/bonding and should be preserved.
@@ -556,7 +615,10 @@ class EpisodicMemory:
                 )
             )
             if not approved:
+                self._last_refusal_reason = str(reason or "")
                 logger.info("EpisodicMemory: deferring episode write: %s", reason)
+            else:
+                self._last_refusal_reason = ""
             if return_decision:
                 return approved, decision
             return approved
@@ -632,6 +694,19 @@ class EpisodicMemory:
             import uuid
 
             episode_id = str(uuid.uuid4())[:12]
+        # Before the check, not after it.
+        #
+        # The replay sat below the deferral branch, so it ran only on a write
+        # the governor had just approved — and the queue only ever fills when
+        # the governor is deferring. LIVE, 2026-09-08: "holding deferred
+        # writes (50 queued, 50 held so far, 0 landed)". Nothing had landed in
+        # that process because nothing could: the retry was behind the failure
+        # it retries.
+        #
+        # Here it runs on every attempt, so the first write after the governor
+        # relents drains what was held, and so does the first write of a turn
+        # that is itself about to be deferred.
+        self._deferred_episodes.replay()
         approved, governance_decision = self._approve_memory_write(
             context,
             action,
@@ -642,6 +717,32 @@ class EpisodicMemory:
             return_decision=True,
         )
         if not approved:
+            # A deferral is not a refusal.
+            #
+            # The ontogeny organ EXPLORES with "deferred" at the executive
+            # admission control point, and the comment beside that choice
+            # justifies it by saying a deferral only costs time. It costs
+            # time only where somebody comes back; here it destroyed the
+            # episode, so the exploration's own premise was false at this
+            # call site and the loss was systematic — the organ is a policy
+            # and defers again under the same conditions.
+            #
+            # LIVE, 2026-09-07: every episode write on a fresh boot came back
+            # "sync_approved|ontogeny:deferred".
+            self._hold_if_deferred(
+                episode_id,
+                context,
+                action,
+                outcome,
+                success,
+                emotional_valence,
+                tools_used,
+                lessons,
+                importance,
+                source,
+                metadata,
+                stable_key,
+            )
             return ""
         # Rate limiting — prevent flood during rapid tool loops
         # ISSUE 31 fix: Capture constant timestamp for storage consistency

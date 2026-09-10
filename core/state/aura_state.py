@@ -475,6 +475,13 @@ class SomaState:
         "is_visible": True
     })
     
+    # Her own exertion this cycle, and one number for how hard it was. The
+    # hardware readings above are the machine's load, most of which is not
+    # hers; this is what she spent thinking. Filled by the proprioceptive loop
+    # from the effort ledger the working subsystems report into.
+    effort: dict[str, float] = field(default_factory=dict)
+    exertion: float = 0.0
+
     # Cognitive Performance (Self-Awareness of Thought)
     latency: dict[str, float] = field(default_factory=lambda: {
         "last_thought_ms": 0.0,
@@ -526,6 +533,12 @@ class CognitiveContext:
     current_mode: CognitiveMode = CognitiveMode.REACTIVE
     working_memory: list[dict] = field(default_factory=list)  # Recent exchanges
     long_term_memory: list[str] = field(default_factory=list) # Retrieved RAG context
+    # How well each recollection matched what was asked, in the same order.
+    # Retrieval ranks its candidates by this score and then threw it away,
+    # keeping only the text — so nothing downstream could tell a recollection
+    # that answered the question from one that barely matched, and the
+    # workspace had to bid every memory at the same flat priority.
+    memory_scores: list[float] = field(default_factory=list)
     active_goals: list[dict] = field(default_factory=list)
     pending_initiatives: list[dict] = field(default_factory=list)
     attention_focus: str | None = None   # What is Aura attending to right now

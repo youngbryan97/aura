@@ -22,6 +22,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.runtime.health_fragments import collect_health_fragments
+from core.runtime.lockdep import checked_lock
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.HealthContract")
@@ -1351,6 +1352,35 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_shape_of_one_turn"] = {"error": repr(exc)}
 
+    # Decision points that have only ever answered one way.
+    #
+    # A gate nobody can pass takes a working system and gates it into a coma;
+    # a gate nobody can fail is decorative. Neither is findable in the source,
+    # because the code branches both ways and only the traffic says which
+    # branch is real. LIVE 2026-09-07: `/api/readyz` answered 503 for the whole
+    # of every turn while the runtime answered perfectly, and the prompt cache
+    # missed on every turn for the life of the process.
+    #
+    # Reported, never enforced. A runtime that refuses to start because a
+    # counter looks lopsided is the coma arriving by another route.
+    try:
+        from core.verify.one_way_decisions import decision_census, one_way_decisions
+
+        block["one_way_decisions"] = {
+            "census": decision_census(),
+            "only_one_answer": [
+                {
+                    "name": item.name,
+                    "verdict": item.verdict,
+                    "decisions": item.total,
+                    "last_refusal_reason": item.last_reason,
+                }
+                for item in one_way_decisions()
+            ],
+        }
+    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+        block["one_way_decisions"] = {"error": repr(exc)}
+
     # One working memory, and whether anything still normalises it against a
     # number of its own. Three readers did, and each was pinned at its own
     # ceiling for most of a conversation — a constant that looked like a
@@ -2240,7 +2270,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
 # ═══════════════════════════════════════════════════════════════════════
 
 _INTEGRITY_TTL_S = _float_env("AURA_HEALTH_INTEGRITY_TTL_S", 15.0)
-_INTEGRITY_LOCK = threading.Lock()
+_INTEGRITY_LOCK = checked_lock("core.runtime.health_contract._INTEGRITY_LOCK")
+_INTEGRITY_COLLECTION_LOCK = checked_lock("core.runtime.health_contract._INTEGRITY_COLLECTION_LOCK")
 _INTEGRITY_SNAPSHOT: dict[str, Any] | None = None
 _INTEGRITY_SNAPSHOT_AT = 0.0
 _INTEGRITY_SNAPSHOT_UNIX = 0.0
@@ -2287,14 +2318,23 @@ def _store_integrity_snapshot(block: dict[str, Any]) -> None:
 
 def _collect_integrity_snapshot() -> dict[str, Any]:
     """Collect and cache. Callers must already know they are off the loop."""
-    started = time.monotonic()
-    try:
-        block = _runtime_integrity_block()
-    except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
-        block = {"collect_error": repr(exc)}
-    block["collect_duration_s"] = round(max(0.0, time.monotonic() - started), 3)
-    _store_integrity_snapshot(block)
-    return block
+    with _INTEGRITY_COLLECTION_LOCK:
+        # Another off-loop caller may have completed the same scan while
+        # this caller waited. The event loop never acquires this lock.
+        with _INTEGRITY_LOCK:
+            if (
+                _INTEGRITY_SNAPSHOT is not None
+                and time.monotonic() - _INTEGRITY_SNAPSHOT_AT < _INTEGRITY_TTL_S
+            ):
+                return dict(_INTEGRITY_SNAPSHOT)
+        started = time.monotonic()
+        try:
+            block = _runtime_integrity_block()
+        except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
+            block = {"collect_error": repr(exc)}
+        block["collect_duration_s"] = round(max(0.0, time.monotonic() - started), 3)
+        _store_integrity_snapshot(block)
+        return block
 
 
 def _refresh_integrity_snapshot_async() -> None:
@@ -2456,7 +2496,7 @@ class ProbeVerdict:
         return {"kind": str(self.kind), "ok": self.ok, "reason": self.reason}
 
 
-_STARTUP_LATCH_LOCK = threading.Lock()
+_STARTUP_LATCH_LOCK = checked_lock("core.runtime.health_contract._STARTUP_LATCH_LOCK")
 _STARTUP_COMPLETE_AT: float | None = None
 # Fallback time base for the startup deadline: the moment this module was
 # imported. _process_uptime_seconds() reads the orchestrator's start time,

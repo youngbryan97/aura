@@ -73,7 +73,7 @@ class Hypervisor:
         self._startup_lag_grace_s = max(0.0, self._startup_lag_grace_s)
 
     async def start(self):
-        if self._running:
+        if self.is_running():
             return
         self._running = True
         self._start_time = time.time()
@@ -91,9 +91,13 @@ class Hypervisor:
                 logger.debug("Ignored asyncio.CancelledError in hypervisor.py: %s", _e)
         logger.info("👁️ Hypervisor Watchdog shutdown.")
 
+    def is_running(self) -> bool:
+        """Task liveness for lifecycle ownership, independent of lag health."""
+        return bool(self._running and self._task is not None and not self._task.done())
+
     def is_alive(self) -> bool:
-        """Return True only when the watchdog loop is actively supervised."""
-        if not bool(self._running and self._task is not None and not self._task.done()):
+        """Return True when supervision is running and lag health recovered."""
+        if not self.is_running():
             return False
         if self._last_severe_lag_at:
             stable_for = time.time() - self._last_severe_lag_at

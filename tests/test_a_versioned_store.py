@@ -33,6 +33,35 @@ def where(tmp_path):
 # --------------------------------------------------------- reading, writing
 
 
+def test_hold_during_disk_write_is_not_blocked_or_lost(where, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    store = AVersionedStore(where, major=1)
+    store.hold({"value": 1})
+    entered, release = threading.Event(), threading.Event()
+    gateway = get_file_write_gateway()
+    original = gateway.write_text
+
+    def paused_write(*args, **kwargs):
+        entered.set()
+        assert release.wait(5)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(gateway, "write_text", paused_write)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        flushing = pool.submit(store.flush)
+        try:
+            assert entered.wait(5)
+            pool.submit(store.hold, {"value": 2}).result(timeout=2)
+        finally:
+            release.set()
+        assert flushing.result(timeout=5)
+    assert store.load().data == {"value": 1}
+    assert store.flush()
+    assert store.load().data == {"value": 2}
+
+
 def test_nothing_there_is_none_and_not_an_error(where):
     assert AVersionedStore(where, major=1).load() is None
 

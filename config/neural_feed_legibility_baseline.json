@@ -1,0 +1,9 @@
+{
+  "schema_version": 2,
+  "note": "The share of a live session's neural-feed events that the feed turns into something a person could read, weighted by how often each line actually occurred. Measured by tools/neural_feed_legibility.py against tests/fixtures/neural_feed_sample.json, which is the 600 most frequent distinct lines from one desktop session. Only goes up.",
+  "share": 0.949,
+  "measured": "2026-09-08",
+  "counts_a_line_as_read_only_when": "a rule rewrote it. Schema 1 compared against the RAW line, so removing an emoji counted as translating a sentence, and 'Cortex response received (len=1159)' was scored legible because the tick mark in front of it had gone. Under the corrected measure the 0.88 recorded then was 0.644. Lines the card renders nothing for (a banner of box-drawing characters) are counted neither way.",
+  "was_under_the_old_measure": 0.88,
+  "the_same_feed_under_the_correct_one": 0.644
+}

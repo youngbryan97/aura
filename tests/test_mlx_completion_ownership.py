@@ -1,6 +1,7 @@
 """Foreground work follows progress; bounded probes retain their budgets."""
 
 import asyncio
+import threading
 import time
 from types import SimpleNamespace
 
@@ -162,9 +163,17 @@ def test_progress_owner_distinguishes_long_prefill_from_dead_worker(monkeypatch,
         client._first_token_hard_ceiling = lambda **kw: 20.0
         client._record_degraded_event = lambda *a, **kw: None
         monkeypatch.setattr(mlx_client.time, "time", lambda: 1000.0)
-        monkeypatch.setattr(mlx_client, "get_memory_pressure_snapshot", lambda: SimpleNamespace(
-            should_gc=False, refuse_heavy_local_generation=False
-        ))
+        loop_thread = threading.get_ident()
+
+        def memory_snapshot():
+            assert threading.get_ident() != loop_thread
+            return SimpleNamespace(should_gc=True, refuse_heavy_local_generation=False)
+
+        def collect():
+            assert threading.get_ident() != loop_thread
+
+        monkeypatch.setattr(mlx_client, "get_memory_pressure_snapshot", memory_snapshot)
+        monkeypatch.setattr(mlx_client.gc, "collect", collect)
         future = asyncio.get_running_loop().create_future()
         client._pending_generations["request"] = future
         calls = 0

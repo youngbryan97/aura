@@ -142,7 +142,7 @@ class IdentityChronicle:
         # Identity facts change rarely: upsert invalidates; access-count
         # writes don't (they touch no scoring input).
         self._facts_cache: list[IdentityFact] | None = None
-        self._facts_cache_lock = threading.Lock()
+        self._facts_cache_lock = checked_lock("core.identity.id_rag._facts_cache_lock")
 
     def __enter__(self) -> IdentityChronicle:
         return self

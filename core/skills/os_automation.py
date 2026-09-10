@@ -1196,7 +1196,7 @@ class OSAutomationCompilerSkill(BaseSkill):  # type: ignore[misc]
         # AppleScript compiler, which asks the resident 32B to WRITE
         # `set the clipboard to "ORION-7"` under a 35s budget, and the turn
         # died on TimeoutError after 55 seconds. A one-line script whose only
-        # variable is a string the person typed does not need a 32B model, and
+        # variable is a string the person typed does not need a cortex-sized model, and
         # every second spent generating it is a second of latency and a chance
         # to fail.
         clipboard_payload = cls._clipboard_payload_for_goal(goal, context)

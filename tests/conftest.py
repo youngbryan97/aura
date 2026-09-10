@@ -561,7 +561,7 @@ def _fresh_conversation_transcript():
 
 
 @pytest.fixture(autouse=True)
-def _measured_host_rates_do_not_leak():
+def _measured_host_rates_do_not_leak(request):
     """One test's measured decode rate must not size the next test's answer.
 
     core.brain.llm.mlx_client._HOST_RATES is a process-wide dict written by
@@ -592,8 +592,18 @@ def _measured_host_rates_do_not_leak():
     overview is constant for every test and costs nothing.
 
     A test that genuinely wants a built index builds it itself, the way
-    AURA_SCREEN_BLUEPRINT is set back by the tests that are about it.
+    AURA_SCREEN_BLUEPRINT is set back by the tests that are about it — and a
+    test that is ABOUT the build says so with @pytest.mark.real_architecture_index
+    and gets the real methods. Without that marker, the five tests in
+    tests/test_architecture_index_foreground.py were exercising this stub: build
+    returned len(self._index) without ever consulting the foreground guard, and
+    schedule_background_build did nothing, so every assertion about deferral and
+    about the build thread was an assertion about two lambdas.
     """
+    if request.node.get_closest_marker("real_architecture_index"):
+        yield
+        return
+
     try:
         from core.brain.llm import mlx_client
     except ImportError:
@@ -633,6 +643,37 @@ def hermetic_resource_sandbox(tmp_path_factory):
         yield sandbox
     finally:
         sandbox.close_and_assert_clean()
+
+
+@pytest.fixture(autouse=True)
+def _reset_process_wide_state():
+    """Clear the module-level singletons introduced by the canonical layer.
+
+    Production code writes to these: an interiority tick estimates into the
+    canonical state, a horizon check declares a criterion. So a test that
+    exercises any of that leaves state behind for whatever runs next, and the
+    result is a test that passes alone and fails in company — which is the
+    order-dependence this repository treats as a defect rather than as noise.
+
+    Cleared before rather than after, so a test that crashes does not poison
+    the one behind it.
+    """
+    for module_name, reset in (
+        ("core.canonical.state", lambda m: m.get_canonical_state().clear()),
+        ("core.verify.model_horizon", lambda m: m.reset_horizons()),
+        ("core.cognition.value_of_computation", lambda m: m.reset_swings()),
+        ("core.verify.epistemic_independence", lambda m: m.registry().clear()),
+        ("core.governance.value_levels", lambda m: m.registry().clear()),
+    ):
+        try:
+            import importlib
+
+            reset(importlib.import_module(module_name))
+        except (ImportError, AttributeError, RuntimeError, TypeError):
+            # A build without the module, or one where the reset moved. Not a
+            # reason to fail the test that was about to run.
+            continue
+    yield
 
 
 @pytest.fixture(autouse=True)

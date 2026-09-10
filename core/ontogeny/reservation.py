@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -217,7 +216,7 @@ class ExplorationReservation:
 
 
 _reservation: ExplorationReservation | None = None
-_reservation_lock = threading.Lock()
+_reservation_lock = checked_lock("core.ontogeny.reservation._reservation_lock")
 
 
 def get_reservation() -> ExplorationReservation:

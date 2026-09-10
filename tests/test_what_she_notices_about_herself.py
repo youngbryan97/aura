@@ -225,12 +225,23 @@ def test_a_receipt_chain_cannot_be_quietly_rewritten():
 
 
 def test_going_back_is_ordinary_and_the_predecessor_is_kept():
+    # The search is one of the two parts where "nobody measured what this did
+    # to the shape of the system" is not an acceptable answer, so installing
+    # anything here now has to carry a reading. That is the anatomical law, and
+    # this test installs something in order to take it back again.
+    from core.connectome.anatomy_gate import Quality, compare_quality
+
+    steady = compare_quality(
+        Quality(values={"single_points_of_failure": 4.0}),
+        Quality(values={"single_points_of_failure": 4.0}),
+    )
     promote(
         "the search/the order she tries them in",
         became="canary",
         started_by="she",
         evidence="sooner",
         replaced="the one before",
+        anatomy=steady,
     )
     assert the_stack()
     assert put_it_back("the search/the order she tries them in") == "the one before"

@@ -1267,6 +1267,7 @@ async def test_executive_rejects_identity_mismatch_and_records_failure_obligatio
     assert record.reason == "identity_continuity_mismatch"
     failure = state.cognition.modifiers["failure_obligations"]
     assert failure["last_reason"] == "identity_continuity_mismatch"
+    await continuity_module.flush_continuity_writes()
     continuity = ContinuityEngine()
     continuity.load()
     assert continuity._record is not None

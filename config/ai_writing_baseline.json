@@ -18,7 +18,7 @@
       "core/brain/inference_gate.py": 8,
       "core/brain/llm/latent_cortex/sequential_exclusion.py": 1,
       "core/brain/llm/mlx_client.py": 12,
-      "core/brain/llm/mlx_worker.py": 3,
+      "core/brain/llm/mlx_worker.py": 2,
       "core/brain/llm_health_router.py": 1,
       "core/brain/semantic_memory.py": 1,
       "core/consciousness/affective_steering.py": 5,
@@ -50,7 +50,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 69
+    "total": 68
   },
   "front": {
     "per_file": {

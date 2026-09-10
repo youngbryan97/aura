@@ -140,6 +140,7 @@ async def test_foreground_latent_runner_executes_full_stack_with_typed_ingress(
     assert outcome.trace["latent_cortex_ingress"]["schema"] == "test.ingress.v1"
     assert len(service.calls) == 1
     call = service.calls[0]
+    assert call["question"] == "Compare both designs."
     assert call["require_full_stack"] is True
     assert call["cognitive_context"][0] == {
         "source": "memory",
@@ -197,6 +198,7 @@ async def test_foreground_latent_runner_allows_fallback_after_terminal_receipt_f
     assert outcome.succeeded is False
     assert outcome.fallback_allowed is True
     assert outcome.trace["latent_cortex_fallback_used"] is True
+    assert outcome.trace["latent_cortex_receipt"]["episode_id"] == "ep-2"
 
 
 def test_host_reconstructed_incumbent_is_served_without_worker_fallback_flag(

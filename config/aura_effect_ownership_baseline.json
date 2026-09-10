@@ -233,7 +233,7 @@
       "scope": "<module>.OnlineLoRAGovernor.write_status"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.async_atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -3422,7 +3422,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/agency/what_she_invented.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory_async",
@@ -3958,7 +3958,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/cognition/what_she_gave_meaning.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -3966,7 +3966,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/cognition/what_she_gave_meaning.py",
-      "scope": "<module>.keep"
+      "scope": "<module>.keep._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -4093,6 +4093,14 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/consciousness/fusion_certificate.py",
+      "scope": "<module>.write_certificate"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
       "path": "core/consciousness/mhaf_field.py",
       "scope": "<module>.MycelialHypergraphAttractorField._save"
     },
@@ -4113,7 +4121,7 @@
       "scope": "<module>.NeologismEngine._save_lexicon"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -4198,15 +4206,15 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/continuity.py",
-      "scope": "<module>.ContinuityEngine.note_failure_obligation"
+      "scope": "<module>._persist_continuity_record"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/continuity.py",
-      "scope": "<module>.ContinuityEngine.save"
+      "scope": "<module>._persist_continuity_record._deferred"
     },
     {
       "callee": "<file_write_gateway>.write_text",
@@ -6783,6 +6791,62 @@
       "count": 1,
       "path": "core/state/where_checkpoints_are_kept.py",
       "scope": "<module>.InSqlite.__init__"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/archive.py",
+      "scope": "<module>.write_text"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._act"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._act"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.build_runtime"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/provenance.py",
+      "scope": "<module>.next_run_directory"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/recording.py",
+      "scope": "<module>.Recording.save"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/recording.py",
+      "scope": "<module>.Recording.save"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -15969,6 +16033,14 @@
       "scope": "<module>.PlatformRoot._verify_sys_process"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/subject/provenance.py",
+      "scope": "<module>._git"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16370,6 +16442,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "9a0608e57a6c03d93bd50a2111d9f0afde40444b0ba0104b0101acac34983e90",
+  "inventory_sha256": "1191fad05eefc0db43e139ae128376275b8a392648baf3d7c8dd4b30db9a8fc8",
   "schema_version": 1
 }

@@ -4,6 +4,9 @@ This module does not claim or prove private phenomenal consciousness. It gives
 Aura a causal, testable witness for a narrower capability: live functional
 states can become bounded first-person evidence that affects future generation,
 memory marking, and self-report posture.
+
+Operationally: this measures whether a report about her own state can be traced to a recorded reading, and refuses the report when it cannot.
+
 """
 from __future__ import annotations
 

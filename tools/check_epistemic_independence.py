@@ -100,10 +100,21 @@ def _derivation(func: ast.AST) -> dict[str, set[str]]:
 #: gate exists for: about half of anything beats its own mean.
 _AGGREGATES = frozenset(
     {
-        "mean", "average", "median", "percentile", "quantile", "nanmean",
-        "nanmedian", "stdev", "std", "pstdev", "variance", "var",
-        "fmean", "geometric_mean", "harmonic_mean",
+        "mean", "average", "median", "nanmean", "nanmedian",
+        "variance", "var", "fmean", "geometric_mean", "harmonic_mean",
     }
+)
+
+#: Aggregates whose whole purpose is to be a threshold over the data they are
+#: taken from. A quantile IS a cut point by definition, and a standard error
+#: IS the yardstick a mean is measured against — deriving those from the data
+#: being judged is the named method, not a bar somebody moved. Excluding them
+#: is precision, not a widened baseline: both appeared as new findings from
+#: legitimate code, and raising the baseline to admit them would have taught
+#: the next reader that this gate reports things to ignore.
+_THRESHOLD_BY_DEFINITION = frozenset(
+    {"percentile", "quantile", "nanpercentile", "nanquantile",
+     "stdev", "std", "pstdev", "sem", "standard_error"}
 )
 
 
@@ -130,6 +141,10 @@ def _aggregate_calls(node: ast.AST) -> set[str]:
         if str(name) in _AGGREGATES:
             for argument in child.args:
                 found |= _names(argument)
+        elif str(name) in _THRESHOLD_BY_DEFINITION:
+            # A quantile threshold or a sigma yardstick. Named, standard, and
+            # correct: the bar is supposed to come from the data here.
+            continue
     return found
 
 

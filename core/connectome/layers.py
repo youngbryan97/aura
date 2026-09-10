@@ -64,17 +64,28 @@ __all__ = [
     "layer_report",
     "PUBLISH_NAMES",
     "SUBSCRIBE_NAMES",
+    "IO_READ_NAMES",
+    "IO_WRITE_NAMES",
+    "IPC_NAMES",
     "STATE_READ_NAMES",
     "STATE_WRITE_NAMES",
 ]
 
 
 class Layer(StrEnum):
-    """The three ways one cell reaches another."""
+    """The ways one cell reaches another.
+
+    ``WIRED`` is a call. ``VOLUME`` is a topic neither end knows the other is
+    on. ``GAP`` is shared mutable state in the process. ``IO`` is a durable
+    store — a file, a table — where the write and the read can be days apart and
+    in different processes. ``IPC`` crosses the process boundary itself.
+    """
 
     WIRED = "wired"
     VOLUME = "volume"
     GAP = "gap"
+    IO = "io"
+    IPC = "ipc"
 
 
 #: Calls that put something on a topic without knowing who reads it.
@@ -133,6 +144,61 @@ STATE_WRITE_NAMES: frozenset[str] = frozenset(
         "register_factory",
         "provide",
         "bind",
+    }
+)
+
+#: Calls that write to a durable store. The store outlives the process, so a
+#: writer and a reader here can be days and a restart apart, which is a kind of
+#: coupling no in-process analysis can see at all.
+IO_WRITE_NAMES: frozenset[str] = frozenset(
+    {
+        "write_text",
+        "write_bytes",
+        "write_json",
+        "atomic_write_text",
+        "atomic_write_bytes",
+        "atomic_write_json",
+        "async_atomic_write_text",
+        "async_atomic_write_bytes",
+        "async_atomic_write_json",
+        "append_text",
+        "atomic_append_text",
+        "dump",
+        "savez",
+        "savez_compressed",
+        "to_csv",
+        "to_parquet",
+    }
+)
+IO_READ_NAMES: frozenset[str] = frozenset(
+    {
+        "read_text",
+        "read_bytes",
+        "read_json",
+        "load",
+        "loads_file",
+        "read_csv",
+        "read_parquet",
+        "drain_text",
+    }
+)
+
+#: Calls that cross the process boundary. A subprocess command, a socket
+#: address, a shared-memory name and a queue name are all channels two cells can
+#: meet on without either being in the other's address space.
+IPC_NAMES: frozenset[str] = frozenset(
+    {
+        "Popen",
+        "run",
+        "check_call",
+        "check_output",
+        "spawn",
+        "connect",
+        "bind",
+        "SharedMemory",
+        "shared_memory",
+        "sendto",
+        "recvfrom",
     }
 )
 
@@ -197,6 +263,31 @@ def _channel_key(node: ast.expr | None) -> str:
     return ""
 
 
+def _boundary_key(node: ast.Call) -> str:
+    """The command, address or name a cross-process call meets another cell at.
+
+    A subprocess call names its binary as the first element of a list, a socket
+    names an address, and shared memory names a key. All three are the first
+    string literal that appears, so that is what is taken — and a call with no
+    literal at all names a boundary nobody else can be matched to, so it is left
+    out rather than joined to everything.
+    """
+    for argument in [*node.args, *(kw.value for kw in node.keywords)]:
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+            text = argument.value.strip()
+            if text and " " not in text:
+                return text
+        if isinstance(argument, (ast.List, ast.Tuple)) and argument.elts:
+            head = argument.elts[0]
+            if isinstance(head, ast.Constant) and isinstance(head.value, str):
+                text = head.value.strip()
+                if text:
+                    return text.rsplit("/", 1)[-1]
+            if isinstance(head, ast.Name):
+                return head.id
+    return ""
+
+
 def _first_channel(node: ast.Call) -> str:
     """The first argument that looks like a topic rather than like a payload.
 
@@ -213,6 +304,57 @@ def _first_channel(node: ast.Call) -> str:
             channel = _channel_key(keyword.value)
             if channel:
                 return channel
+    return ""
+
+
+#: Extensions that name a durable store rather than a Python attribute.
+_STORE_SUFFIXES: frozenset[str] = frozenset(
+    {
+        "json", "jsonl", "txt", "md", "csv", "tsv", "parquet", "npz", "npy",
+        "db", "sqlite", "sqlite3", "log", "yaml", "yml", "toml", "pkl", "bin",
+        "pt", "safetensors", "gguf", "html", "xml", "pdf",
+    }
+)
+
+
+def _store_shaped(channel: str) -> bool:
+    """Whether a name is a durable store rather than a value.
+
+    A store name carries a path separator or a file extension, or is a constant
+    written in capitals. Without this the layer would join every cell that ever
+    called ``json.dump`` on anything, which is a bus and not a connection.
+    """
+    if not channel:
+        return False
+    if "/" in channel or channel.startswith("."):
+        return True
+    if "." in channel and channel.rsplit(".", 1)[-1].lower() in _STORE_SUFFIXES:
+        return True
+    return channel.isupper() and len(channel) > 3
+
+
+def _store_key(node: ast.Call) -> str:
+    """Find the store a call names, wherever in its arguments it appears.
+
+    Paths are built, not written down: ``(out / "report.json").write_text(...)``
+    names its store in the receiver, and ``gateway.write_text(out / "report.json")``
+    names it in the first argument. Scanning the receiver as well as every
+    argument reads both, where taking the first argument alone reads a local
+    variable and finds nothing. The filename is the channel rather than the whole
+    path, because two cells meeting at the same file usually build the directory
+    separately.
+    """
+    receiver = [node.func.value] if isinstance(node.func, ast.Attribute) else []
+    for argument in [*receiver, *node.args, *(kw.value for kw in node.keywords)]:
+        for inner in ast.walk(argument):
+            if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+                text = inner.value.strip()
+                if _store_shaped(text) and " " not in text:
+                    return text.rsplit("/", 1)[-1]
+            elif isinstance(inner, ast.Name) and _store_shaped(inner.id):
+                return inner.id
+            elif isinstance(inner, ast.Attribute) and _store_shaped(inner.attr):
+                return inner.attr
     return ""
 
 
@@ -243,6 +385,20 @@ class _ChannelVisitor(ast.NodeVisitor):
         name = func.attr if isinstance(func, ast.Attribute) else (
             func.id if isinstance(func, ast.Name) else ""
         )
+        if name in IO_WRITE_NAMES or name in IO_READ_NAMES:
+            store = _store_key(node)
+            if _store_shaped(store):
+                self.uses.append(
+                    (store, Layer.IO, "write" if name in IO_WRITE_NAMES else "read")
+                )
+            self.generic_visit(node)
+            return
+        if name in IPC_NAMES:
+            boundary = _boundary_key(node)
+            if boundary:
+                self.uses.append((boundary, Layer.IPC, "write"))
+            self.generic_visit(node)
+            return
         if name:
             channel = _first_channel(node)
             if channel:
@@ -255,25 +411,42 @@ class _ChannelVisitor(ast.NodeVisitor):
                     self.uses.append((channel, Layer.GAP, "write"))
                 elif name in STATE_READ_NAMES and receiver in _STATE_RECEIVERS:
                     self.uses.append((channel, Layer.GAP, "read"))
+                elif name in IO_WRITE_NAMES:
+                    store = _store_key(node) or channel
+                    if _store_shaped(store):
+                        self.uses.append((store, Layer.IO, "write"))
+                elif name in IO_READ_NAMES:
+                    store = _store_key(node) or channel
+                    if _store_shaped(store):
+                        self.uses.append((store, Layer.IO, "read"))
+
         self.generic_visit(node)
 
 
 @dataclass
 class MultilayerConnectome:
-    """Three graphs over the same cells."""
+    """Every graph over the same cells."""
 
     wired: dict[tuple[str, str], int]
     volume: dict[tuple[str, str], int]
     gap: dict[tuple[str, str], int]
+    io: dict[tuple[str, str], int] = field(default_factory=dict)
+    ipc: dict[tuple[str, str], int] = field(default_factory=dict)
     channels: dict[str, dict[str, set[str]]] = field(default_factory=dict)
     unresolved_channels: int = 0
 
     def layer(self, layer: Layer) -> dict[tuple[str, str], int]:
-        return {Layer.WIRED: self.wired, Layer.VOLUME: self.volume, Layer.GAP: self.gap}[layer]
+        return {
+            Layer.WIRED: self.wired,
+            Layer.VOLUME: self.volume,
+            Layer.GAP: self.gap,
+            Layer.IO: self.io,
+            Layer.IPC: self.ipc,
+        }[layer]
 
     def combined(self) -> dict[tuple[str, str], int]:
         merged: dict[tuple[str, str], int] = dict(self.wired)
-        for source in (self.volume, self.gap):
+        for source in (self.volume, self.gap, self.io, self.ipc):
             for pair, weight in source.items():
                 merged[pair] = merged.get(pair, 0) + weight
         return merged
@@ -302,6 +475,8 @@ class MultilayerConnectome:
             "wired_pairs": len(self.wired),
             "volume_pairs": len(self.volume),
             "gap_pairs": len(self.gap),
+            "io_pairs": len(self.io),
+            "ipc_pairs": len(self.ipc),
             "combined_pairs": len(self.combined()),
             "channels": len(self.channels),
             "unresolved_channels": self.unresolved_channels,
@@ -352,12 +527,15 @@ def extract_layers(
                 visitor.visit(statement)
             for channel, layer, direction in visitor.uses:
                 entry = channels.setdefault(
-                    f"{layer}:{channel}", {"out": set(), "in": set(), "read": set(), "write": set()}
+                    f"{layer}:{channel}",
+                    {"out": set(), "in": set(), "read": set(), "write": set()},
                 )
                 entry[direction].add(uid)
 
     volume: dict[tuple[str, str], int] = {}
     gap: dict[tuple[str, str], int] = {}
+    io: dict[tuple[str, str], int] = {}
+    ipc: dict[tuple[str, str], int] = {}
     for key, entry in channels.items():
         layer_name, _, _channel = key.partition(":")
         if layer_name == str(Layer.VOLUME):
@@ -370,6 +548,30 @@ def extract_layers(
                     if pre != post:
                         pair = (pre, post)
                         volume[pair] = volume.get(pair, 0) + 1
+        elif layer_name == str(Layer.IO):
+            # A durable store is directed: the writer puts something there and
+            # the reader finds it, possibly in another process on another day.
+            writers, readers = entry["write"], entry["read"]
+            if len(writers) * len(readers) > max_channel_fanout:
+                skipped += 1
+                continue
+            for pre in writers:
+                for post in readers:
+                    if pre != post:
+                        pair = (pre, post)
+                        io[pair] = io.get(pair, 0) + 1
+        elif layer_name == str(Layer.IPC):
+            # Everything that names the same boundary meets at it, and which
+            # side is writing is not something a static read can tell.
+            touchers = entry["write"] | entry["read"]
+            if len(touchers) * len(touchers) > max_channel_fanout:
+                skipped += 1
+                continue
+            ordered = sorted(touchers)
+            for index, pre in enumerate(ordered):
+                for post in ordered[index + 1 :]:
+                    pair = (pre, post)
+                    ipc[pair] = ipc.get(pair, 0) + 1
         else:
             writers, readers = entry["write"], entry["read"]
             touchers = writers | readers
@@ -386,6 +588,8 @@ def extract_layers(
         wired=wired,
         volume=volume,
         gap=gap,
+        io=io,
+        ipc=ipc,
         channels=channels,
         unresolved_channels=skipped,
     )
@@ -425,46 +629,33 @@ def _iter_functions(
             yield f"{prefix}{child.name}", child
 
 
-#: The ways two cells can be joined once there is more than one layer. The worm
-#: paper calls these multilink motifs and its point is that some of them are
-#: over-represented: a monoamine link running one way over a reciprocal pair of
-#: synapses is a different circuit from either link alone.
-MULTILINK_NAMES: tuple[str, ...] = (
-    "wired_only",
-    "volume_only",
-    "gap_only",
-    "wired_and_volume",
-    "wired_and_gap",
-    "volume_and_gap",
-    "all_three",
-)
+#: The worm paper calls the combinations multilink motifs, and its point is that
+#: some of them are over-represented: a monoamine link running one way over a
+#: reciprocal pair of synapses is a different circuit from either link alone.
+#: With five layers there are thirty-one combinations, so the census reports the
+#: set of layers joining each pair rather than a name per combination.
 
 
 def multilink_census(multilayer: MultilayerConnectome) -> dict[str, int]:
-    """How many pairs are joined by each combination of layers."""
-    wired = set(multilayer.wired)
-    volume = set(multilayer.volume)
-    gap = set(multilayer.gap) | {(post, pre) for pre, post in multilayer.gap}
+    """How many pairs are joined by each combination of layers.
+
+    Undirected layers are counted in both directions before the sets are taken,
+    because a pair joined by a call one way and by shared state at all is joined
+    by both, and treating the state edge as one-way would split that pair into
+    two half-findings.
+    """
+    membership: dict[tuple[str, str], set[str]] = {}
+    for layer in Layer:
+        pairs = multilayer.layer(layer)
+        undirected = layer in {Layer.GAP, Layer.IPC}
+        for pre, post in pairs:
+            membership.setdefault((pre, post), set()).add(str(layer))
+            if undirected:
+                membership.setdefault((post, pre), set()).add(str(layer))
     counts: Counter[str] = Counter()
-    for pair in wired | volume | gap:
-        in_wired = pair in wired
-        in_volume = pair in volume
-        in_gap = pair in gap
-        if in_wired and in_volume and in_gap:
-            counts["all_three"] += 1
-        elif in_wired and in_volume:
-            counts["wired_and_volume"] += 1
-        elif in_wired and in_gap:
-            counts["wired_and_gap"] += 1
-        elif in_volume and in_gap:
-            counts["volume_and_gap"] += 1
-        elif in_wired:
-            counts["wired_only"] += 1
-        elif in_volume:
-            counts["volume_only"] += 1
-        else:
-            counts["gap_only"] += 1
-    return {name: counts.get(name, 0) for name in MULTILINK_NAMES}
+    for layers in membership.values():
+        counts["+".join(sorted(layers))] += 1
+    return dict(counts.most_common())
 
 
 def _as_graph(pairs: Mapping[tuple[str, str], int], nodes: Iterable[str]) -> DiGraphView:

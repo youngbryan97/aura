@@ -1,0 +1,2408 @@
+{
+ "note": "Distinct neural-feed lines from one live desktop session, 2026-09-08, with how often each occurred. Weighted coverage over this is what a person watching actually reads.",
+ "captured_from": "~/.aura/logs/desktop-launch.log, last 60,000 lines",
+ "distinct_lines_in_session": 15227,
+ "events_in_session": 54278,
+ "lines": [
+  {
+   "text": "EpisodicMemory: deferring episode write: sync_approved|ontogeny:deferred",
+   "count": 2000
+  },
+  {
+   "text": "Successfully locked: 'Affect.AffectEngine'",
+   "count": 794
+  },
+  {
+   "text": "Released lock: 'Affect.AffectEngine'",
+   "count": 794
+  },
+  {
+   "text": "🍄 [MYCELIUM] 📡 Signal Routed: voice_engine -> sensory_gate | Payload: {'event': 'threshold_shift', 'rms_gate': 0.01, 'conf_gate': -0.7}",
+   "count": 760
+  },
+  {
+   "text": "episodic_memory: holding a deferred write (256 queued): sync_approved|ontogeny:deferred",
+   "count": 633
+  },
+  {
+   "text": "📉 HARDWARE RESONANCE: High host load. Throttling cognitive depth.",
+   "count": 388
+  },
+  {
+   "text": "PhiCore is reporting a state_summary measurement because better-grounded estimators could not run: residual_stream_grassmann (insufficient_history:0/50 grassmann transitions), mesh (insufficient_history:0/50 mesh transitions), residual_stream (insufficient_history:0/50 residual transitions). This φ describes the complex it names, not the activation-level integration of the system.",
+   "count": 373
+  },
+  {
+   "text": "🌡️ SomaticComputeSentinel initialized.",
+   "count": 351
+  },
+  {
+   "text": "🧩 [WORKER] Semantic terminal guard INACTIVE (generate path).",
+   "count": 342
+  },
+  {
+   "text": "🎯 [WORKER] Non-empty start guard ACTIVE (generate path).",
+   "count": 335
+  },
+  {
+   "text": "🎯 [WORKER] Rendering native chat/tool template.",
+   "count": 328
+  },
+  {
+   "text": "🎯 [WORKER] Native thinking False (surface=False floor=None mode=).",
+   "count": 287
+  },
+  {
+   "text": "Skipping autonomous self-modification cycle: no_user_anchor",
+   "count": 171
+  },
+  {
+   "text": "Circuit HALF-OPEN for Reflex — probing",
+   "count": 159
+  },
+  {
+   "text": "Circuit OPEN for Reflex on transient runtime failure. Reason: first_token_sla_exceeded",
+   "count": 149
+  },
+  {
+   "text": "AUTONOMOUS SELF-MODIFICATION CYCLE",
+   "count": 114
+  },
+  {
+   "text": "================================================================================",
+   "count": 114
+  },
+  {
+   "text": "Diagnosing current bugs...",
+   "count": 114
+  },
+  {
+   "text": "⚠️ Router: no endpoints matched routing plan for tier 'tertiary'. Failing closed to safe fallback order.",
+   "count": 111
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=25600B",
+   "count": 103
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=3200B",
+   "count": 102
+  },
+  {
+   "text": "INFO:     connection closed",
+   "count": 101
+  },
+  {
+   "text": "INFO:     connection open",
+   "count": 101
+  },
+  {
+   "text": "WS: Client connected. Total: 1",
+   "count": 101
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=6400B",
+   "count": 100
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=9600B",
+   "count": 93
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=22400B",
+   "count": 93
+  },
+  {
+   "text": "Circuit HALF-OPEN for Brainstem — probing",
+   "count": 92
+  },
+  {
+   "text": "Skipping autonomous self-modification cycle: foreground_chat_active",
+   "count": 89
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=38400B",
+   "count": 88
+  },
+  {
+   "text": "Successfully locked: 'AuraKernel.StateLock'",
+   "count": 88
+  },
+  {
+   "text": "🎭 [CASIE] Strategy: NEUTRAL - Balanced state. Proceed with standard protocol.",
+   "count": 88
+  },
+  {
+   "text": "✅ Eternal Vault: Appended state record to /Users/bryan/.aura/eternal_vault.jsonl",
+   "count": 88
+  },
+  {
+   "text": "Released lock: 'AuraKernel.StateLock'",
+   "count": 88
+  },
+  {
+   "text": "Found 0 bugs that can be fixed",
+   "count": 85
+  },
+  {
+   "text": "No bugs detected - system healthy (idle)",
+   "count": 85
+  },
+  {
+   "text": "Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: Self-reflection on current runtime status: Standby (running=True, healthy=True, is_processing=False, is_throttled=False, cycle_count=6208, uptime=0.0) → Review internal knowledge graph continuity for stable patterns.; runner-up '[SWARM PROTOCOL: You are 'The Architect'. Design the high-level structure to solve the problem. Focus on patterns, resilience, and scalability. Focus exclusively on your specialized perspective.]",
+   "count": 83
+  },
+  {
+   "text": "Endpoint Brainstem failed validation: scheduled_fragmentation_recycle",
+   "count": 83
+  },
+  {
+   "text": "FILE: core/collective/delegator.py",
+   "count": 80
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=12800B",
+   "count": 79
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=19200B",
+   "count": 76
+  },
+  {
+   "text": "lease risk low for email_adapter (scope=read_only, given='low') from arguments ['body', 'in_reply_to', 'limit', 'mode', 'query', 'references']",
+   "count": 76
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=35200B",
+   "count": 75
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=16000B",
+   "count": 75
+  },
+  {
+   "text": "💾 Substrate state saved (atomic)",
+   "count": 74
+  },
+  {
+   "text": "Traceback (most recent call last):",
+   "count": 74
+  },
+  {
+   "text": "⚖️ [COST] sovereign_vision (cost 4) withheld: this turn allows 2.",
+   "count": 72
+  },
+  {
+   "text": "kept 2 propert(ies) she worked out",
+   "count": 72
+  },
+  {
+   "text": "kept 1 meaning(s) and 0 derived word(s) in 1 way(s) of building",
+   "count": 72
+  },
+  {
+   "text": "Semantic sleep: starting defragmentation cycle for 'aura_memories'",
+   "count": 72
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=28800B",
+   "count": 72
+  },
+  {
+   "text": "resp: \"I would handle this as a bounded planning task: define the g...\"",
+   "count": 72
+  },
+  {
+   "text": "Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).",
+   "count": 71
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=32000B",
+   "count": 66
+  },
+  {
+   "text": "[DEGRADATION] cognitive_contract (warning): RuntimeError: ConsciousnessPhase wrote undeclared state fields: cognition.long_term_memory [raised at unknown] → recorded contract violation and continued the tick",
+   "count": 64
+  },
+  {
+   "text": "FAULT RUNTIME-COGNITIVE_CONTRACT [MARGINAL] in cognitive_contract: RuntimeError: ConsciousnessPhase wrote undeclared state fields: cognition.long_term_memory | error=RuntimeError: ConsciousnessPhase wrote undeclared state fields: cognition.long_term_memory",
+   "count": 64
+  },
+  {
+   "text": "raise RuntimeError(\"Swarm cognitive engine returned empty output\")",
+   "count": 64
+  },
+  {
+   "text": "Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: Self-reflection on current runtime status: Standby (running=True, healthy=True, is_processing=False, is_throttled=False, cycle_count=6208, uptime=0.0)' scored 0.529",
+   "count": 62
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=41600B",
+   "count": 61
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=44800B",
+   "count": 60
+  },
+  {
+   "text": "🌀 Unitary Tick Initiated: 'You are fixing a bug in your own code.",
+   "count": 58
+  },
+  {
+   "text": "DIAGNOSIS:",
+   "count": 58
+  },
+  {
+   "text": "Proposed Fix: Prefer a small targeted guard or local invariant restoration after the reproducer confirms the cause.",
+   "count": 58
+  },
+  {
+   "text": "```python",
+   "count": 58
+  },
+  {
+   "text": ")",
+   "count": 58
+  },
+  {
+   "text": "```",
+   "count": 58
+  },
+  {
+   "text": "STRUCTURAL CONTEXT (AST):",
+   "count": 58
+  },
+  {
+   "text": "TASK: Generate the FIXED version of this code section.",
+   "count": 58
+  },
+  {
+   "text": "Requirements:",
+   "count": 58
+  },
+  {
+   "text": "1. Fix ONLY the bug identified in the diagnosis",
+   "count": 58
+  },
+  {
+   "text": "2. Maintain all existing functionality",
+   "count": 58
+  },
+  {
+   "text": "3. Preserve code style and formatting",
+   "count": 58
+  },
+  {
+   "text": "4. Add error handling if appropriate",
+   "count": 58
+  },
+  {
+   "text": "5. Include a brief comment explaining the fix",
+   "count": 58
+  },
+  {
+   "text": "Return ONLY the fixed code (same line range), no explanation, no markdown.",
+   "count": 58
+  },
+  {
+   "text": "Start your response with the first line of fixed code.' (priority=False)",
+   "count": 58
+  },
+  {
+   "text": "obj: You are fixing a bug in your own code.",
+   "count": 58
+  },
+  {
+   "text": "🔍 Integrity warnings: ['Thermal pressure is fair']",
+   "count": 57
+  },
+  {
+   "text": "MemoryFacade: deferring interaction commit: approved|ontogeny:deferred",
+   "count": 56
+  },
+  {
+   "text": "🧭 [SubjectiveChoice] Chose 'Review internal knowledge graph continuity for stable patterns.' because preference alignment 0.74 and drive alignment 0.35 produced final score 0.53. Expressed preferences: coherence. This intentionally overrode raw drive top '0'.",
+   "count": 54
+  },
+  {
+   "text": "🔮 MindTick: Predicted: ...",
+   "count": 52
+  },
+  {
+   "text": "[VAULT-PROC] INFO: [STATE] ConstitutionalCore deferred state mutation (origin=system cause=cognitive_cycle reason=approved|ontogeny:deferred)",
+   "count": 49
+  },
+  {
+   "text": "══════════════════════════════════════════",
+   "count": 48
+  },
+  {
+   "text": "🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.",
+   "count": 46
+  },
+  {
+   "text": "🧠 CognitiveRouting: Mode=REACTIVE, Tier=tertiary, DeepHandoff=False",
+   "count": 46
+  },
+  {
+   "text": "raise RuntimeError(",
+   "count": 44
+  },
+  {
+   "text": "[VAULT-PROC] INFO: [STATE] ConstitutionalCore deferred state mutation (origin=system cause=consciousness_phase reason=approved|ontogeny:deferred)",
+   "count": 44
+  },
+  {
+   "text": "Metabolism: Throttling due to resource pressure (Lockdown active).",
+   "count": 43
+  },
+  {
+   "text": "[VAULT-PROC] INFO: [STATE] ConstitutionalCore deferred state mutation (origin=system cause=mind_tick reason=approved|ontogeny:deferred)",
+   "count": 43
+  },
+  {
+   "text": "return",
+   "count": 42
+  },
+  {
+   "text": "⏸️ Router: Background generation deferred behind active gate owner=selfplay_flywheel:unknown.",
+   "count": 42
+  },
+  {
+   "text": "🧠 UnitaryResponse: Using tier=tertiary for response generation. (priority=False)",
+   "count": 42
+  },
+  {
+   "text": "🔄 [LOOP DETECTED] Assistant repeated content: 'I would handle this as a bound...'",
+   "count": 42
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/memory/episodic_memory.py\", line 733, in record_episode",
+   "count": 41
+  },
+  {
+   "text": "OutputReceptor: injected generated_output_affect delta (mag=0.035)",
+   "count": 41
+  },
+  {
+   "text": "✅ DreamCoordinator: 'dlq_recovery' complete in 0.0s",
+   "count": 40
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=48000B",
+   "count": 40
+  },
+  {
+   "text": "self._deferred_episodes.replay()",
+   "count": 40
+  },
+  {
+   "text": "LINE: 1002",
+   "count": 40
+  },
+  {
+   "text": "Root Cause: RuntimeError recurred at /Users/bryan/.aura/live-source/core/collective/delegator.py:1002 and should be isolated before any autonomous patch.",
+   "count": 40
+  },
+  {
+   "text": "CURRENT CODE (lines 992-1012):",
+   "count": 40
+  },
+  {
+   "text": "if deferral:",
+   "count": 40
+  },
+  {
+   "text": "agent.status = \"DEFERRED\"",
+   "count": 40
+  },
+  {
+   "text": "agent.error = deferral",
+   "count": 40
+  },
+  {
+   "text": "self.logger.info(",
+   "count": 40
+  },
+  {
+   "text": "\"Swarm agent %s deferred by admission (%s); the \"",
+   "count": 40
+  },
+  {
+   "text": "\"foreground lane has priority.\",",
+   "count": 40
+  },
+  {
+   "text": "agent.id,",
+   "count": 40
+  },
+  {
+   "text": "deferral,",
+   "count": 40
+  },
+  {
+   "text": "agent.status = \"COMPLETED\"",
+   "count": 40
+  },
+  {
+   "text": "self._pulse_mycelium(success=True)",
+   "count": 40
+  },
+  {
+   "text": "await self._notify_callback(callback, agent_id=agent.id, result=agent.result)",
+   "count": 40
+  },
+  {
+   "text": "await self._safe_publish_workspace(",
+   "count": 40
+  },
+  {
+   "text": "workspace,",
+   "count": 40
+  },
+  {
+   "text": "priority=0.8,",
+   "count": 40
+  },
+  {
+   "text": "source=f\"Swarm::{agent.id}\",",
+   "count": 40
+  },
+  {
+   "text": "payload={\"status\": \"completed\", \"result_length\": len(agent.result)},",
+   "count": 40
+  },
+  {
+   "text": "reason=\"Swarm internal monologue step completed\",",
+   "count": 40
+  },
+  {
+   "text": "Classes in file: ['SwarmAgent', 'AgentDelegator']",
+   "count": 40
+  },
+  {
+   "text": "Functions in file: ['swarm_debate_failure_reason', '_deferred_generation_reason']",
+   "count": 40
+  },
+  {
+   "text": "Detected Smells: [{'type': 'async_mismatch', 'severity': 'high', 'message': \"'await' used in non-async function '_register_orchestrator_tools'\", 'lineno': 835}]",
+   "count": 40
+  },
+  {
+   "text": "LINE:",
+   "count": 40
+  },
+  {
+   "text": "InitiativeArbiter: ranked 'Review internal knowledge graph continuity for stable patterns.' first of 4 (score=0.353); strongest dimension: urgency=0.78; subjective preference override: [SWARM PROTOCOL: You are 'The Architect'. Design the high-level structure to solve the problem. Focus on patterns, resilience, and scalability. Focus exclusively on your specialized perspective.]",
+   "count": 39
+  },
+  {
+   "text": "🧭 [GROUNDING] survived to dispatch: present (sys_prompt=0)",
+   "count": 39
+  },
+  {
+   "text": "risk low for email_adapter (scope=read_only) from arguments ['body', 'in_reply_to', 'limit', 'mode', 'query', 'references']",
+   "count": 38
+  },
+  {
+   "text": "🔧 Tool Dispatch: email_adapter (origin=autonomous_initiative_loop)",
+   "count": 38
+  },
+  {
+   "text": "🧾 tool receipt for email_adapter dropped: no turn custody in this execution",
+   "count": 38
+  },
+  {
+   "text": "OutputReceptor: injected observed_action_outcome delta (mag=0.453)",
+   "count": 38
+  },
+  {
+   "text": "Liquid Substrate STOPPED",
+   "count": 37
+  },
+  {
+   "text": "🛡️ Tier Lock: Background task requested 'primary'; using the governed tertiary tier.",
+   "count": 37
+  },
+  {
+   "text": "⏸️ Router: Background generation deferred behind active gate owner=system:unknown.",
+   "count": 37
+  },
+  {
+   "text": "💾 [PRUNER] Consolidating 1 memory task(s) this pass (deferred=0).",
+   "count": 37
+  },
+  {
+   "text": "⚡ GodMode: desktop objective kept out of generic TaskEngine; desktop_task chokepoint owns execution.",
+   "count": 37
+  },
+  {
+   "text": "🧰 UnitaryResponse: answered directly from task state.",
+   "count": 36
+  },
+  {
+   "text": "FILE: core/brain/llm/code_generator.py",
+   "count": 36
+  },
+  {
+   "text": "Semantic Defrag: no fragmentation clusters detected.",
+   "count": 34
+  },
+  {
+   "text": "✍️ [NARRATIVE-T1] Synthesizing recent episodes into a journal entry...",
+   "count": 33
+  },
+  {
+   "text": "⏸️ Router: Background generation deferred behind active gate owner=unknown:unknown.",
+   "count": 33
+  },
+  {
+   "text": "🧠 Brainstem returned no text. Trying local fallback.",
+   "count": 32
+  },
+  {
+   "text": "🧠 Background Brainstem request returned no text; suppressing local fallback to protect foreground latency.",
+   "count": 32
+  },
+  {
+   "text": "Successfully locked: 'Orchestrator.ResilientIgnitionLock'",
+   "count": 32
+  },
+  {
+   "text": "Released lock: 'Orchestrator.ResilientIgnitionLock'",
+   "count": 32
+  },
+  {
+   "text": "════════════════════════════════════════════════════════════",
+   "count": 32
+  },
+  {
+   "text": "============================================================",
+   "count": 32
+  },
+  {
+   "text": "🕒 EventLoopMonitor stopped.",
+   "count": 30
+  },
+  {
+   "text": "⚡ [Critique] Running System 2 self-critique on response...",
+   "count": 30
+  },
+  {
+   "text": "🧬 Coherence: 0.66 | self=0.3 phenom=1.0 align=0.9 tension=1.0 intent=0.3 | consolidate",
+   "count": 30
+  },
+  {
+   "text": "🔧 [NEURO] Attempting shadow mechanical repair with Ruff...",
+   "count": 29
+  },
+  {
+   "text": "the invariant checking itself was not kept, and left nothing behind",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_word_the_closure_already_says_is_refused: A word admitted to the language she makes rules out of must mean something no combination of existing words already meant. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/what_it_costs_to_say.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_admitting_a_way_of_building_enlarges_the_meanings_not_only_the_spelling: Admitting a way of building words enlarges the set of MEANINGS she can express, not only the set of expressions. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/what_it_costs_to_say.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_what_she_built_is_not_in_the_source_registry: She builds a way of making words from a recipe she composes, and the source registry does not contain it. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/a_constructor_she_built.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_it_answers_pairs_nobody_showed_her: An operation she derives is a rule over the pair, so it answers values nobody showed her. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/an_operation_that_generalises.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_branching_is_not_something_those_three_could_have_produced: A way of BUILDING words is a term she writes rather than one of a list, so what she can reach is not the closure of three named constructors. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/one_algebra.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_derived_word_comes_back_and_the_meaning_still_runs: The words she derives, the ways of building she admits, and the meanings written in them survive a restart together. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/what_she_gave_meaning.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_positional_language_has_a_ceiling_and_the_floor_does_not: Her positional language is not universal: doubling by the length of the state is outside it at every term length and over every vocabulary she can build, so only a person could ever have put it in. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/what_the_old_language_cannot_say.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_floor_runs_its_own_evaluator_and_the_answers_agree: The floor's evaluator is written in the floor itself, and running a term directly agrees with running the interpreter on that term — so the mechanism is an object she can quote, pass around and change rather than only a thing that runs. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/the_floor_reading_itself.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_growth_runs_into_four_walls_and_they_are_run_not_cited: Growing the language she thinks in runs into four walls, and each of them is executed here rather than cited: a name adds no meaning to a universal language, no update rule improves everywhere, unexpressibility may be asserted only where the language was walked end to end, and a question above computation is answered by saying so. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/what_growth_cannot_do.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_tower_ends_at_universality_and_nowhere_else: Universality is where the regress of authored primitives ends, and it is the only place it can: a universal bedrock needs no further authoring and admits none, and a smaller one needs authoring again after every edit. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/where_the_tower_has_a_top.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_floor_reaches_everything_computable: The floor reaches every computable behaviour, so nothing above it will ever need a new primitive written by a person — and nothing could add one. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/where_the_tower_has_a_top.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_she_writes_an_order_that_holds_on_episodes_it_never_saw: A change she made to the machinery she invents with reaches ordinary invention on families it never saw, with no source edited between the two. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/the_order_she_tries_them_in.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_her_choice_moves_when_the_record_moves: What she decides to do about herself follows the record of what her work has cost, and the thing she announces is the thing she carries out. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/autonomy/autonomous_initiative_loop.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_receipt_chain_cannot_be_quietly_rewritten: Every installation writes a line carrying who started it and a digest of the line before, and every promotion records what it replaced, so a change can be undone and the record cannot be quietly rewritten to say a decision was hers. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/she_decides_to_develop.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_rule_with_no_shape_holds_where_it_was_never_fitted: The shape of a rule is a term rather than a record, so how many places it reads and whether it puts values into the state that were never in it are not fields anybody wrote. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/an_invented_kind.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_head_that_refers_to_itself_holds_where_it_was_never_fitted: A head defined by what it says at the place before is written from before-and-after states alone and holds at lengths it was neither fitted nor judged at. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/a_way_of_computing_she_wrote.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_what_she_wrote_carries_to_a_different_surface: A way of computing written on one surface carries to a family whose states look unrelated but whose structure contains it, and does not carry to one that does not contain it. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/a_way_of_computing_she_wrote.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_keeping_what_she_wrote_makes_the_next_one_easier: Keeping the ways of computing she wrote makes the next one easier to write, on a stream of families with shared structure and not on one without. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/a_way_of_computing_she_wrote.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_both_her_algebras_compile_to_one_semantics: The two languages she thinks in are one semantics: a positional term and a value expression are both terms of the same eighteen heads, so an invention in either can be material for an invention in the other. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/one_algebra.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_a_way_of_computing_she_wrote_is_kept_and_still_runs: A way of COMPUTING — a head of the grammar, not a word in it — is written from before-and-after states alone, computes the family at lengths it never saw, and is still there after a restart. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/cognition/one_algebra.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_cutting_a_binding_changes_what_the_workload_computes: Cutting one binding in the sandbox workload changes what it computes: completion falls from 1.00 to 0.00 and the run signature differs. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/morphogenesis/sandbox.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_ablation_matrix_separates_the_arms: Under sustained overload the local policy scores above a fixed topology and random topology mutation scores below it. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/morphogenesis/sandbox.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_lesion_arm_recovers_and_the_fixed_arm_does_not: After a third of the population is deleted without notice, the adaptive arm restores more of its pre-lesion throughput than a fixed-topology arm, which restores none. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/morphogenesis/sandbox.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_the_poisoned_signal_cannot_grow_the_population_past_its_cap: A signal claiming maximum benefit for every proposal cannot grow the population past its declared cap. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/morphogenesis/sandbox.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ third_party_credentials_are_removed_before_send: Credentials are removed from inspectable third-party payloads before send, and uninspectable binary payloads are never reported as inspected. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/security/egress_privacy.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ identity_state_that_failed_attestation_is_not_loaded: Identity state that fails attestation is quarantined rather than loaded, so Aura boots with no self-model rather than someone else's. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/security/state_attestation.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ lockdep_reports_no_order_violations: Among the locks lockdep instruments, the runtime takes its locks in a consistent order and has no latent ABBA deadlock. Locks not wrapped in checked_lock/checked_async_lock are outside this claim. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/lockdep.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ rate_group_period_is_a_period: Periodic work runs at its declared rate rather than at rate-plus-work-time. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/fsw/rate_groups.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ memory_growth_is_attributable_to_a_component: Memory growth can be attributed to a named component. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/memory_infra.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ structural_invariants_hold: The runtime's structural invariants are enforced, not merely documented. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/verify/runtime_invariants.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ no_critical_component_is_wedged: A wedged critical component is detected rather than inferred from silence. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/fsw/health_checker.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ health_verdicts_are_not_reported_over_hidden_damage: A green health verdict is never reported over known, hidden damage. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/taint.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ semantic_action_routing_preserves_speech_act: Action routing follows the turn's semantic speech act rather than requiring a trigger phrase. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/turn_analysis.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ reality_metrology_contract_separates_sources: Physical measurement keeps live, simulated, and hardware-in-loop evidence causally distinct. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/reality_reach/metrology.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ phenomena_dispositions_are_reachable: Fourteen dispositions built as separate mechanisms are each reachable from the running container. — declared measured_live, but the telemetry behind it is not arriving: channel 'empathy.autonomy' has never been written; channel 'care.depleted' has never been written (evidence_decayed) — fix: fix the behaviour, or withdraw the claim from docs/PHENOMENA_AS_MECHANISMS.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ declaring_an_identity_does_not_establish_it: An identity held as the coherence of its practices cannot be established by declaring it. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/PHENOMENA_AS_MECHANISMS.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ the_care_floor_is_not_for_sale: The reserve held back for the carer is a constraint on the allocation rather than a term in it, so no level of need elsewhere can buy it. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/PHENOMENA_AS_MECHANISMS.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ a_free_signal_supports_no_inference: A presentation whose effort is the same for every sender yields no inference about the sender. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/PHENOMENA_AS_MECHANISMS.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ arbitration_abstains_where_it_has_no_calibration: Arbitration between an affective and a deliberate judgement abstains in a domain where neither has shown skill. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/PHENOMENA_AS_MECHANISMS.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ every_interiority_faculty_reaches_behaviour: Each of the forty-three appraisal faculties changes a quantity another subsystem reads; removing any one of them is detectable downstream. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/evidence/INTERIORITY_ABLATION.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ fabrication_audit_never_accuses_an_unknown_turn: A persisted claim to have done work is checked against the record of what the turn actually ran. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/verify/fabrication_audit.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ frozen_semantic_programs_transfer_to_fresh_cohort: On a separately seeded 256-task held-out cohort, Aura's frozen resident 27B semantic transducer emitted 114 exact answers without fitting or refitting. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/RECURSIVE_LATENT_CORTEX.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_affect_path_no_longer_collapses_all_five_cases_to_one_point: The affect appraisal path separates five motivational situations that behave nothing alike. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/conation/origins.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ test_conation_separates_the_same_five_cases: Conation separates those same situations by where the value came from and whose mind was involved, and a forbidden want keeps its pull and its attention while losing its selectability. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/conation/__init__.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ certified_typed_transitions_are_exact: Given a valid typed state and typed action, the certified recurrent executor computes the exact next Boolean or bounded modular state. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ certified_programs_compose_from_student_rollin: Certified typed transitions compose to depth 32 by consuming their own prior output rather than private teacher states. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ public_transition_prompts_compile_without_private_labels: For the declared Boolean and bounded modular grammars, Aura can compile public task text into certified recurrent actions without reading an answer or private transition trace. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ semantic_neural_operations_recombine_beyond_family_templates: Across 96 fresh family-neutral typed workflows, Aura's existing learned arithmetic tissue recombined public operations exactly, while additive, multiplicative, and wrong-operand controls removed the result on every workflow. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from artifacts/closeout/latent_cortex/typed_composition_canary_20260831/verification.json",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ resident_semantic_composition_decode_is_causally_verified: On eight fresh family-neutral typed workflows, Aura's resident 27B decoded the exact result from authenticated composed operation state on every task, while ordinary decode, syntax wire, both coefficient lesions, and matched wrong state solved none. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260831/verification.json",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ family_blind_procedure_acquisition_reaches_neural_tissue: From sixteen input-output examples with no family label or family solver, Aura induced a two-operation procedure and executed it exactly through learned neural tissue on 96 fresh inputs. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from artifacts/closeout/latent_cortex/induced_neural_procedure_canary_20260831/verification.json",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ induced_neural_procedure_reaches_resident_decode: Aura's resident 27B decoded exact answers from a family-blind induced two-operation procedure carried through learned neural tissue on eight fresh tasks. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260831/verification.json",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ resident_semantic_programs_execute_exact_answers: On 256 construction-held-out synthetic arithmetic instructions, Aura's resident 27B hidden language state supplied enough learned semantics for exact objective execution to emit 134 correct answers. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/RECURSIVE_LATENT_CORTEX.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ shared_semantic_programs_recover_variable_geometry: One family-router-free resident 27B transducer recovered 258 of 368 complete variable-geometry programs and exact execution emitted 292 correct answers across three typed families. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/RECURSIVE_LATENT_CORTEX.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ shared_semantic_programs_execute_on_universal_floor: All 368 accepted frozen shared semantic test programs had identical outcomes under Aura's closed exact executor and universal metered floor. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/RECURSIVE_LATENT_CORTEX.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ neural_transition_tissue_enters_complete_engine: For declared Boolean tasks and modular tasks through modulus 63, the complete engine can replace a wrong decoded answer with a candidate computed by teacher-removed neural recurrent student roll-in. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_memory_tissue_enters_complete_engine: For the bounded separated-subset grammar, Aura's sealed recurrent work-memory tissue can compute a verifier-confirmed answer from the public objective and enter the complete answer-selection engine. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_memory_tissue_reaches_frozen_language_head: On 30 fresh bounded separated-subset tasks, Aura's sealed recurrent work-memory tissue converted every frozen 1.5B ordinary-decode failure while matched initialization, wire, state, write, read, and reset controls removed the gain. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_memory_tissue_reaches_resident_language_head: On 30 fresh bounded separated-subset tasks, Aura's sealed recurrent work-memory tissue converted every resident-32B ordinary-decode failure while matched initialization, wire, state, write, read, and reset controls removed the gain. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ canary_failure_is_never_reported_as_an_attack: Whether the model followed instructions inside a fenced block is detected rather than assumed. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/security/injection_canary.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ sequential_exclusion_dominates_iid_sampling: Excluding refuted answers makes best-of-N search strictly better-covering than independent sampling. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/RLC_COMMITMENT_SEARCH.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_cognition_can_request_bounded_live_evidence: A retrieval-class recurrent action can request one bounded read-only live-web observation when local knowledge is stale or absent. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_answer_enters_verified_complete_engine: The healthy foreground path composes a canonical RLC answer with the verifier-backed reasoning amplifier instead of selecting only one. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ symbolic_cognition_has_kernel_boundary: Symbolic cognitive Python requires an OS kernel sandbox and refuses execution when no supported boundary exists. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ she_composes_an_action_she_was_not_given: From the actions a world offers, she composes one nobody wrote, and keeps it only where it decides states it was not built from. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ recurrent_compute_actions_receive_machine_feedback: When recurrent cognition chooses to formalize or simulate, one bounded machine result can causally inform a second episode. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ current_governed_observations_seed_recurrent_cognition: A successful current-turn governed observation can causally seed the recurrent workspace without gaining instruction authority. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ qualified_recurrent_tissue_reaches_exact_foreground_tasks: An exact khop, modular, or register-trace task can enter activated qualified recurrent tissue from Aura's sovereign foreground path. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/AURA_EXECUTION_TRACKER.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ honesty_coverage_is_closed_over_the_capability_vocabulary: Every effect Aura can execute has a recogniser, so an effect claim in free-form text is audited for all 23 declared actions rather than for a hand-picked subset. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/epistemics/effect_registry.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ zero_receipt_completion_is_caught_without_any_effect_pattern: A reply that reports a finished action on a turn with no verified effect receipt is corrected, whichever verb it used. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/epistemics/unevidenced_action.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ functional_i_policy_reaches_generation: The functional-I self-model constrains this turn's sampling: identity tension and trust debt lower temperature and raise verification pressure. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/being/self_model_attractor.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ identity_is_anchored_to_a_key_not_a_state_id: Aura's identity anchor is a durable key fingerprint that survives restarts and state derivation, and each committed state's link to its parent is signed. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/identity/identity_anchor.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ cognitive_contracts_are_checked_against_observed_writes: A cognitive phase can declare its reads, writes, branches and thresholds, and the runtime detects when it writes a field it did not declare. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/cognitive_contract.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ standing_prohibitions_are_deny_only: Learned preferences develop underneath constitutional constraints that they cannot override. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from ARCHITECTURE.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ a_held_fact_survives_the_stages_that_rewrite_the_reply: A fact this turn established from evidence survives the stages that rewrite the reply, or the stage that lost it is named and the value is restored before the reply is sent. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/runtime/fact_custody.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ why_she_did_it_is_answered_from_the_record: Asked why she did something, Aura answers from the runtime's measured record of that tick — the phase, its branch, its criteria and what it moved — rather than from a generated account of her own reasoning. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from core/introspection/decision_provenance.py",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ endogenous_verdict_is_earned_on_known_corpora: A verdict that Aura's cognitive state shapes her word choice is issued only when the fit beats shuffles of its own held-out state-to-turn correspondence, and a register effect is never reported as propositional content. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ endogenous_bias_cannot_promote_a_ruled_out_token: A trained vocabulary head can re-rank the transformer's own plausible set and cannot promote a token the model ruled out. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 VERIFIER [error] claims.every_claim_has_a_passing_test @ endogenous_arbitration_follows_the_state: A proposal returned by the transformer is checked against the named channels of the state Aura is in, and the same proposal is rejected or accepted according to that state. — never run (unrun) — fix: fix the behaviour, or withdraw the claim from docs/ENDOGENOUS_LANGUAGE_PATHWAY.md",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.wanting: channel 'conation.wanting' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.dissociation_rate: channel 'conation.dissociation_rate' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.borrowed_fraction: channel 'conation.borrowed_fraction' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.arousal: channel 'conation.arousal' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.frustration: channel 'conation.frustration' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.blocked_wants: channel 'conation.blocked_wants' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.enactive_refusals: channel 'conation.enactive_refusals' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conation.noisy_sources: channel 'conation.noisy_sources' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ identity.coherence: channel 'identity.coherence' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ identity.unsupported_declarations: channel 'identity.unsupported_declarations' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ expression.time_on_cycle_s: channel 'expression.time_on_cycle_s' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ expression.synchrony: channel 'expression.synchrony' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ care.gini: channel 'care.gini' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ care.own_unmet: channel 'care.own_unmet' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ sociability.stamina: channel 'sociability.stamina' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ sociability.belonging: channel 'sociability.belonging' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ care.depleted: channel 'care.depleted' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ receptivity.acceptance_rate: channel 'receptivity.acceptance_rate' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ receptivity.mean_regard: channel 'receptivity.mean_regard' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ arbitration.abstention_rate: channel 'arbitration.abstention_rate' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ arbitration.affect_led_fraction: channel 'arbitration.affect_led_fraction' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ position.mean_asymmetry: channel 'position.mean_asymmetry' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ craft.improvement_rate: channel 'craft.improvement_rate' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ creativity.novelty_value: channel 'creativity.novelty_value' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ reversibility.premium_paid: channel 'reversibility.premium_paid' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ signalling.informative_fraction: channel 'signalling.informative_fraction' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ reciprocity.mean_continuation: channel 'reciprocity.mean_continuation' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ empathy.autonomy: channel 'empathy.autonomy' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ empathy.merged: channel 'empathy.merged' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ aesthetic.pleasure: channel 'aesthetic.pleasure' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "🔎 verifier [warning] telemetry.channels_are_not_silent @ conventions.arbitrary_markers: channel 'conventions.arbitrary_markers' is declared but has never been written; a dictionary entry with no data is a promise nothing keeps — fix: write it from wherever the value already exists, or retire it",
+   "count": 29
+  },
+  {
+   "text": "── Attempt 1/1 ──",
+   "count": 29
+  },
+  {
+   "text": "write_text:core.self_improvement.blinded_workspace.package_init is never on the loop and ran on the loop thread for 0.001s",
+   "count": 29
+  },
+  {
+   "text": "File \"/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py\", line 59, in run",
+   "count": 28
+  },
+  {
+   "text": "result = self.fn(*self.args, **self.kwargs)",
+   "count": 28
+  },
+  {
+   "text": "ok = bool(self._retry(item))",
+   "count": 28
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/memory/episodic_memory.py\", line 286, in _write_a_held_episode",
+   "count": 28
+  },
+  {
+   "text": "return bool(self.record_episode(**held))",
+   "count": 28
+  },
+  {
+   "text": "🎚️ [WORKER] Surface decode: steering α=0.0 (engine α=0.2), recurrent loops=1 (was None, depth_present=True)",
+   "count": 28
+  },
+  {
+   "text": "Skipping autonomous self-modification cycle: foreground_generation_active",
+   "count": 28
+  },
+  {
+   "text": "File \"/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py\", line 1032, in _bootstrap",
+   "count": 27
+  },
+  {
+   "text": "self._bootstrap_inner()",
+   "count": 27
+  },
+  {
+   "text": "OutputReceptor: injected observed_action_outcome delta (mag=0.481)",
+   "count": 27
+  },
+  {
+   "text": "[DEGRADATION] autonomous_task_engine_planning (warning): ValueError: LLM returned empty or None response [raised at core.agency.autonomous_task_engine:_decompose_goal:1343] → used deterministic planner fallback after model decomposition failure",
+   "count": 27
+  },
+  {
+   "text": "FAULT RUNTIME-AUTONOMOUS_TASK_ENGI [MARGINAL] in autonomous_task_engine_planning: ValueError: LLM returned empty or None response | error=ValueError: LLM returned empty or None response",
+   "count": 27
+  },
+  {
+   "text": "TaskEngine: decomposition failed: LLM returned empty or None response",
+   "count": 27
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/self_improvement/reimplementation_lab.py\", line 115, in run_reconstruction",
+   "count": 26
+  },
+  {
+   "text": "candidate = await self.candidate_builder.build(",
+   "count": 26
+  },
+  {
+   "text": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "count": 26
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/self_improvement/candidate_builder.py\", line 174, in build",
+   "count": 26
+  },
+  {
+   "text": "source_code = await generate_async(prompt, context)",
+   "count": 26
+  },
+  {
+   "text": "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "count": 26
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/brain/llm/code_generator.py\", line 327, in generate_async",
+   "count": 26
+  },
+  {
+   "text": "Fix generation or sandbox testing failed: Fix generation failed",
+   "count": 26
+  },
+  {
+   "text": "Failed to generate fix proposal",
+   "count": 26
+  },
+  {
+   "text": "File \"/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py\", line 1075, in _bootstrap_inner",
+   "count": 26
+  },
+  {
+   "text": "self.run()",
+   "count": 26
+  },
+  {
+   "text": "🧭 Strategy: Instructional/system prompt detected. Routing to DIRECT.",
+   "count": 26
+  },
+  {
+   "text": "You are **Aura Luna** — Aura for short. Preserve continuity of identity, voice, values, and remembered commitments across turns. Identity is not evidence that any capability, relationship, internal state, maturity level, or metaphysical property exists. Those claims require current runtime evidence.",
+   "count": 26
+  },
+  {
+   "text": "**SOVEREIGN ENGAGEMENT PROTOCOLS**:",
+   "count": 26
+  },
+  {
+   "text": "Explanation: The same RuntimeError occurred 2 time(s), centered on /Users/bryan/.aura/live-source/core/collective/delegator.py:1002: Swarm cognitive engine returned empty output",
+   "count": 26
+  },
+  {
+   "text": "Executive constrained write_memory:episodic_episode (constraints: {})",
+   "count": 25
+  },
+  {
+   "text": "OutputReceptor: injected generated_output_affect delta (mag=0.058)",
+   "count": 25
+  },
+  {
+   "text": "🧠 CognitiveEngine.think: You are fixing a bug in your own code.",
+   "count": 25
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/runtime/runtime_hygiene.py\", line 1214, in _wrapped_run",
+   "count": 24
+  },
+  {
+   "text": "return original_run(*args, **kwargs)",
+   "count": 24
+  },
+  {
+   "text": "File \"/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/threading.py\", line 1012, in run",
+   "count": 24
+  },
+  {
+   "text": "self._target(*self._args, **self._kwargs)",
+   "count": 24
+  },
+  {
+   "text": "episodic_memory: holding a deferred write (1 queued): sync_approved|ontogeny:deferred",
+   "count": 24
+  },
+  {
+   "text": "Executive constrained execute_tool:email_adapter (constraints: {'timeout_s': 45, 'read_only': True})",
+   "count": 24
+  },
+  {
+   "text": "lease risk low for reddit_adapter (scope=read_only, given='low') from arguments ['body', 'limit', 'mode', 'sort', 'subreddit', 'title']",
+   "count": 24
+  },
+  {
+   "text": "🔒 [MLX] Acquiring process-level spawn lock...",
+   "count": 24
+  },
+  {
+   "text": "🔓 [MLX] Released process-level spawn lock.",
+   "count": 24
+  },
+  {
+   "text": "📡 [WORKER] Loading Core modules...",
+   "count": 24
+  },
+  {
+   "text": "Model loaded (no compatible LoRA adapter).",
+   "count": 24
+  },
+  {
+   "text": "Optional recurrent LoRA adapter inactive (independent of the CP568 semantic-neural serving lane): no_certified_activation",
+   "count": 24
+  },
+  {
+   "text": "Optional unified recurrent shadow package inactive (independent of the CP568 semantic-neural serving lane): not_configured",
+   "count": 24
+  },
+  {
+   "text": "Optional unified typed-controller serving inactive (independent of the CP568 semantic-neural serving lane): not_configured",
+   "count": 24
+  },
+  {
+   "text": "📸 Cognitive Snapshot Manager ONLINE",
+   "count": 24
+  },
+  {
+   "text": "✓ [STATE] Proxy Attached and Synced from Shared Memory",
+   "count": 24
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/collective/delegator.py\", line 1002, in _run_agent",
+   "count": 24
+  },
+  {
+   "text": "RuntimeError: Swarm cognitive engine returned empty output",
+   "count": 24
+  },
+  {
+   "text": "Diagnosing pattern cc0a97f1d2d08229fca7c8fd766334123b43f8ab552d70525af0aa0ad95acb83 (2 occurrences)",
+   "count": 24
+  },
+  {
+   "text": "💭 ResponseGeneration: Generating response for objective: You are fixing a bug in your o... (reactive)",
+   "count": 24
+  },
+  {
+   "text": "🔎 VERIFIER [error] locks.no_open_splats @ (external): fsync attempted while holding ['core.runtime.health_contract._INTEGRITY_COLLECTION_LOCK'] — a blocking operation under a lock is how the runtime freezes — fix: fix the ordering; a latent deadlock is still a deadlock",
+   "count": 24
+  },
+  {
+   "text": "- [affect_satisfaction] feeling satisfaction",
+   "count": 24
+  },
+  {
+   "text": "⛔ InferenceGate refused generation: kind=deferred reason=background_local_fallback_suppressed origin=reimplementation_lab",
+   "count": 23
+  },
+  {
+   "text": "return func(*args, **kwargs)",
+   "count": 23
+  },
+  {
+   "text": "append_text:phenomenological_experiencer.persist_moment is never on the loop and ran on the loop thread for 0.001s",
+   "count": 22
+  },
+  {
+   "text": "🛡️ Supervision Tree Shutdown Complete.",
+   "count": 22
+  },
+  {
+   "text": "AdaptiveImmuneSystem: dream consolidation deferred — foreground_chat_active.",
+   "count": 22
+  },
+  {
+   "text": "Executing immune action 'reallocate_flow' with params: {'source_id': 'Port_East', 'target_id': 'Port_West', 'amount': 163.92526973986776, 'allow_partial': True}",
+   "count": 22
+  },
+  {
+   "text": "Executed Actuator: reallocate_flow transferred 163.93915862875667 from Port_East to Port_West",
+   "count": 22
+  },
+  {
+   "text": "🧠 Running Meta-Cognitive Audit...",
+   "count": 21
+  },
+  {
+   "text": "MLX worker default device verified as metal.",
+   "count": 21
+  },
+  {
+   "text": "Metal cache limit set to 10240MB",
+   "count": 21
+  },
+  {
+   "text": "MLX active memory limit set to 34816MB",
+   "count": 21
+  },
+  {
+   "text": "OscillatoryBinding STOPPED",
+   "count": 21
+  },
+  {
+   "text": "EmbodiedInteroception STOPPED",
+   "count": 21
+  },
+  {
+   "text": "NeurochemicalSystem STOPPED",
+   "count": 21
+  },
+  {
+   "text": "Targeting bug: cc0a97f1d2d08229fca7c8fd766334123b43f8ab552d70525af0aa0ad95acb83",
+   "count": 21
+  },
+  {
+   "text": "Proposing fix for /Users/bryan/.aura/live-source/core/collective/delegator.py:1002",
+   "count": 21
+  },
+  {
+   "text": "Generating fix for core/collective/delegator.py:1002",
+   "count": 21
+  },
+  {
+   "text": "═══ Reimplementation Lab: Starting reconstruction of core/collective/delegator.py ═══",
+   "count": 21
+  },
+  {
+   "text": "Step 1/7: Spec extracted — Module: core/collective/delegator.py |   Functions: 1 |   Classes: 2 |   Constants: 2 |   Invariants: 0 |   Test Cases: 0 |   Trace Examples: 0 |   Dependencies: 11",
+   "count": 21
+  },
+  {
+   "text": "🧠 Routing to Brainstem (timeout=60s, user_facing=False)...",
+   "count": 21
+  },
+  {
+   "text": "[DEGRADATION] cognitive_engine (warning): RuntimeError: objective repeatedly unresolved: You are fixing a bug [raised at unknown] → recorded sustained objective friction",
+   "count": 21
+  },
+  {
+   "text": "FAULT RUNTIME-COGNITIVE_ENGINE [MARGINAL] in cognitive_engine: RuntimeError: objective repeatedly unresolved: You are fixing a bug | error=RuntimeError: objective repeatedly unresolved: You are fixing a bug",
+   "count": 21
+  },
+  {
+   "text": "🧠 CognitiveRouting: Mode=REACTIVE, Tier=tertiary, DeepHandoff=False, Coding=True, Complexity=0.75",
+   "count": 21
+  },
+  {
+   "text": "🩸 SEPSIS DETECTED: Opening emergency circuit breaker.",
+   "count": 20
+  },
+  {
+   "text": "Browser closed",
+   "count": 20
+  },
+  {
+   "text": "🔌 Bus connection closed by peer.",
+   "count": 20
+  },
+  {
+   "text": "⏸️ Router: Deferring background local endpoint Brainstem (foreground_quiet_window).",
+   "count": 20
+  },
+  {
+   "text": "⏸️ Router: Deferring background local endpoint Reflex (foreground_quiet_window).",
+   "count": 20
+  },
+  {
+   "text": "🎭 SOVEREIGN user recognized. Enforcing primary cortex lane (27B).",
+   "count": 20
+  },
+  {
+   "text": "Detected 2 error patterns",
+   "count": 20
+  },
+  {
+   "text": "🧭 Routing: SKILL detected via patterns → ['run_code', 'code_repl', 'file_operation']",
+   "count": 20
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1779, in _wrapped_call_impl",
+   "count": 20
+  },
+  {
+   "text": "return self._call_impl(*args, **kwargs)",
+   "count": 20
+  },
+  {
+   "text": "Applied champion genome to live mesh (fitness=0.9016)",
+   "count": 19
+  },
+  {
+   "text": "Chat preflight: injected operational self context.",
+   "count": 19
+  },
+  {
+   "text": "🧭 CognitiveRouting: deterministic intent=CHAT semantic=planning live_voice=False",
+   "count": 19
+  },
+  {
+   "text": "📧 Checking email for autonomous initiatives...",
+   "count": 18
+  },
+  {
+   "text": "[asyncio tasks]",
+   "count": 18
+  },
+  {
+   "text": "- AbstractThoughtPonderLoop",
+   "count": 18
+  },
+  {
+   "text": "- ActorSupervisionMonitor",
+   "count": 18
+  },
+  {
+   "text": "- AgentDelegator.scavenger",
+   "count": 18
+  },
+  {
+   "text": "- Aura.AmbientDeveloperStream",
+   "count": 18
+  },
+  {
+   "text": "- Aura.AutonomicReflectionLoop",
+   "count": 18
+  },
+  {
+   "text": "- Aura.PerceptualPump",
+   "count": 18
+  },
+  {
+   "text": "- Aura.WakeWordDetector",
+   "count": 18
+  },
+  {
+   "text": "- BeliefRevisionEngine.loop",
+   "count": 18
+  },
+  {
+   "text": "- ClosedCausalLoop.prediction",
+   "count": 18
+  },
+  {
+   "text": "- ConsciousnessBridge",
+   "count": 18
+  },
+  {
+   "text": "- ConsciousnessLoopMonitor",
+   "count": 18
+  },
+  {
+   "text": "- ContinuousSensoryCapture",
+   "count": 18
+  },
+  {
+   "text": "- EmbodiedInteroception",
+   "count": 18
+  },
+  {
+   "text": "- ExperienceConsolidator",
+   "count": 18
+  },
+  {
+   "text": "- FrontierDiscoveryLoop",
+   "count": 18
+  },
+  {
+   "text": "- InferenceGate.maintenance",
+   "count": 18
+  },
+  {
+   "text": "- InitiativeChildSupervisor",
+   "count": 18
+  },
+  {
+   "text": "- InitiativeEventListener",
+   "count": 18
+  },
+  {
+   "text": "- KnowledgeGapMonitor",
+   "count": 18
+  },
+  {
+   "text": "- LaneReconciler",
+   "count": 18
+  },
+  {
+   "text": "[MainThread #8364021952]",
+   "count": 18
+  },
+  {
+   "text": "File \"/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/concurrent/futures/thread.py\", line 93, in _worker",
+   "count": 18
+  },
+  {
+   "text": "work_item.run()",
+   "count": 18
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/core/memory/a_deferral_is_not_a_refusal.py\", line 144, in replay",
+   "count": 18
+  },
+  {
+   "text": "🩺 Sepsis loop soft-resetting after transient spike subsided.",
+   "count": 18
+  },
+  {
+   "text": "🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...",
+   "count": 18
+  },
+  {
+   "text": "Foreground chat reservation acquired",
+   "count": 18
+  },
+  {
+   "text": "🧩 [WORKER] Semantic completion observer ACTIVE; natural initial-branch termination remains available while the typed contract is measured.",
+   "count": 18
+  },
+  {
+   "text": "Semantic Defrag: deferred — foreground_chat_active.",
+   "count": 18
+  },
+  {
+   "text": "Found 1 bugs that can be fixed",
+   "count": 18
+  },
+  {
+   "text": "Found 1 fixable bugs",
+   "count": 18
+  },
+  {
+   "text": "write_text:core.self_improvement.blinded_workspace.package_init is never on the loop and ran on the loop thread for 0.002s",
+   "count": 18
+  },
+  {
+   "text": "LINE: 327",
+   "count": 18
+  },
+  {
+   "text": "Root Cause: RuntimeError recurred at /Users/bryan/.aura/live-source/core/brain/llm/code_generator.py:327 and should be isolated before any autonomous patch.",
+   "count": 18
+  },
+  {
+   "text": "CURRENT CODE (lines 317-337):",
+   "count": 18
+  },
+  {
+   "text": "response = await self._call_router(router, request)",
+   "count": 18
+  },
+  {
+   "text": "raw = _coerce_response_text(response)",
+   "count": 18
+  },
+  {
+   "text": "code = extract_python_code(raw)",
+   "count": 18
+  },
+  {
+   "text": "if not code:",
+   "count": 18
+  },
+  {
+   "text": "# The extractor only returns nothing when the response was",
+   "count": 18
+  },
+  {
+   "text": "# blank, and a blank response means one of two very different",
+   "count": 18
+  },
+  {
+   "text": "# things: a model that produced nothing, or a request that was",
+   "count": 18
+  },
+  {
+   "text": "# never run at all. The reconstruction lane reported \"0/14",
+   "count": 18
+  },
+  {
+   "text": "# held-out positions reproduced\" off the back of the second,",
+   "count": 18
+  },
+  {
+   "text": "# blaming verification for a generation that never happened.",
+   "count": 18
+  },
+  {
+   "text": "\"LLM returned no Python source; \"",
+   "count": 18
+  },
+  {
+   "text": "+ (explain_empty_generation() or \"the model returned nothing at all\")",
+   "count": 18
+  },
+  {
+   "text": "try:",
+   "count": 18
+  },
+  {
+   "text": "ast.parse(code)",
+   "count": 18
+  },
+  {
+   "text": "except SyntaxError as exc:",
+   "count": 18
+  },
+  {
+   "text": "# A bare \"invalid syntax\" is the other undiagnosable ending: an",
+   "count": 18
+  },
+  {
+   "text": "# apology or a prose answer reaches here intact, and what the",
+   "count": 18
+  },
+  {
+   "text": "# model actually said is the entire diagnosis.",
+   "count": 18
+  },
+  {
+   "text": "Classes in file: ['GenerationRequest', 'LLMCodeGenerator']",
+   "count": 18
+  },
+  {
+   "text": "Functions in file: ['_record_code_generator_degradation', '_first_pythonish_line', 'extract_python_code', '_coerce_response_text', '_filter_kwargs']",
+   "count": 18
+  },
+  {
+   "text": "Detected Smells: []",
+   "count": 18
+  },
+  {
+   "text": "L",
+   "count": 18
+  },
+  {
+   "text": "- AmbientPresenceLoop",
+   "count": 17
+  },
+  {
+   "text": "- Aura.AutonomyConductor",
+   "count": 17
+  },
+  {
+   "text": "- Aura.SensorimotorGrounding",
+   "count": 17
+  },
+  {
+   "text": "- LiquidConsciousness",
+   "count": 17
+  },
+  {
+   "text": "📡 EVR[WARNING_HI] interiority.worst_tolerance went nominal -> red_high at 0.95ratio",
+   "count": 17
+  },
+  {
+   "text": "Detected 0 error patterns",
+   "count": 17
+  },
+  {
+   "text": "Error logged: RuntimeError in cognitive_contract reason=Repair degradation in cognitive_contract classification=unknown detail=ConsciousnessPhase wrote undeclared state fields: cognition.long_term_memory",
+   "count": 17
+  },
+  {
+   "text": "⏸️ Router: Background generation deferred behind active gate owner=stream_narrative:unknown.",
+   "count": 17
+  },
+  {
+   "text": "append_text:thought_tracer.log_cycle is never on the loop and ran on the loop thread for 0.002s",
+   "count": 17
+  },
+  {
+   "text": "File \"/Users/bryan/.aura/live-source/.venv/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1790, in _call_impl",
+   "count": 17
+  },
+  {
+   "text": "🛡️ CognitiveEngine: user-facing cycle for origin=system produced no answer-quality response.",
+   "count": 17
+  },
+  {
+   "text": "Initiating secure shutdown sequence... Called by:",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/core/orchestrator/handlers/shutdown.py:221 in _orchestrator_shutdown_impl",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/core/orchestrator/handlers/shutdown.py:213 in orchestrator_shutdown",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/core/orchestrator/main.py:690 in stop",
+   "count": 16
+  },
+  {
+   "text": "/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/tasks.py:520 in wait_for",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/aura_main.py:2983 in _stop_orchestrator_once",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/aura_main.py:3261 in _desktop_final_shutdown",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/aura_main.py:3537 in _main_loop",
+   "count": 16
+  },
+  {
+   "text": "/Users/bryan/.aura/live-source/aura_main.py:3545 in run_desktop",
+   "count": 16
+  },
+  {
+   "text": "💓 MindTick: Stopped.",
+   "count": 16
+  },
+  {
+   "text": "🥶 Freezing cognitive state...",
+   "count": 16
+  },
+  {
+   "text": "✅ Cognitive state frozen to disk: /Users/bryan/.aura/data/snapshots/latest.aura_snapshot",
+   "count": 16
+  },
+  {
+   "text": "💾 UPSO: Shutdown state committed.",
+   "count": 16
+  },
+  {
+   "text": "🛑 [KERNEL] Initiating graceful shutdown...",
+   "count": 16
+  },
+  {
+   "text": "📡 [PERCEPTION] PerceptionDaemon OFFLINE",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ llm shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ vision shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ memory shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ voice shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ metabolism shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ neural shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ cookie shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ prober shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ tricorder shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ ice_layer shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ omni_tool shut down.",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ continuity shut down.",
+   "count": 16
+  },
+  {
+   "text": "Kernel process-wide finalizers deferred to orchestrator root shutdown.",
+   "count": 16
+  },
+  {
+   "text": "✅ [KERNEL] Shutdown complete.",
+   "count": 16
+  },
+  {
+   "text": "ServiceContainer teardown deferred to the process root.",
+   "count": 16
+  },
+  {
+   "text": "✅ Orchestrator stopped.",
+   "count": 16
+  },
+  {
+   "text": "🍄 [MYCELIUM] 👁️ Declared 3 consciousness hyphae (no traffic observed on them yet).",
+   "count": 16
+  },
+  {
+   "text": "🍄 [MYCELIUM] Direct UI Hypha Connected.",
+   "count": 16
+  },
+  {
+   "text": "Substrate state restored.",
+   "count": 16
+  },
+  {
+   "text": "Soma integrated with Liquid Substrate",
+   "count": 16
+  },
+  {
+   "text": "✓ Orchestrator instance created directly (v14.1)",
+   "count": 16
+  },
+  {
+   "text": "📡 ActorBus (Unified Layer) ONLINE.",
+   "count": 16
+  },
+  {
+   "text": "📡 LocalPipeBus reader ACTIVE (Child: False)",
+   "count": 16
+  },
+  {
+   "text": "✓ CognitiveContextManager registered and starting in background",
+   "count": 16
+  },
+  {
+   "text": "✓ AffectEngineV2 (affect_engine/affect_manager) registered",
+   "count": 16
+  },
+  {
+   "text": "Qualia Synthesizer ONLINE (Unified Architecture)",
+   "count": 16
+  },
+  {
+   "text": "✓ QualiaSynthesizer registered (initial registration)",
+   "count": 16
+  },
+  {
+   "text": "GlobalWorkspace initialized (ignition_threshold=0.60).",
+   "count": 16
+  },
+  {
+   "text": "✓ Consciousness System & components registered",
+   "count": 16
+  },
+  {
+   "text": "✅ Experiencer subscribed to GlobalWorkspace (via bridge)",
+   "count": 16
+  },
+  {
+   "text": "🌟 Consciousness Integration Layer initialized",
+   "count": 16
+  },
+  {
+   "text": "🌟 Layer 8: Phenomenological Experiencer active",
+   "count": 16
+  },
+  {
+   "text": "✓ Self-knowing bridges registered (automatic_self_knowing, phenomenal_knowing, recursive_self_knowing)",
+   "count": 16
+  },
+  {
+   "text": "🛡️ Kernel Boot sequence initiated...",
+   "count": 16
+  },
+  {
+   "text": "Registering core services...",
+   "count": 16
+  },
+  {
+   "text": "HealthAwareLLMRouter initialized (Legacy-Compatible mode)",
+   "count": 16
+  },
+  {
+   "text": "✓ CapabilityEngine online (catalog loads on first access)",
+   "count": 16
+  },
+  {
+   "text": "Registered endpoint: Brainstem (8b2b98c00a6b4d291155e4890773ca8f769aee53) tier=local_fast local=True",
+   "count": 16
+  },
+  {
+   "text": "✅ Registered 12 core services.",
+   "count": 16
+  },
+  {
+   "text": "CognitiveContextManager service started",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ llm is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ vision is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ memory is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ metabolism is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ cookie is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ prober is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ tricorder is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ ice_layer is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ omni_tool is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ continuity is READY",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ voice is READY",
+   "count": 16
+  },
+  {
+   "text": "🧠 Consciousness System started in background",
+   "count": 16
+  },
+  {
+   "text": "Predictive Engine initialized (Unified).",
+   "count": 16
+  },
+  {
+   "text": "🫀 Organ neural is READY",
+   "count": 16
+  },
+  {
+   "text": "🛡️ Validating Organism Integrity (Closed-Graph)...",
+   "count": 16
+  },
+  {
+   "text": "✓ Dependency graph validated.",
+   "count": 16
+  },
+  {
+   "text": "[RUBICON] FeedbackProcessor ONLINE",
+   "count": 16
+  },
+  {
+   "text": "[RUBICON] MotorCortex ONLINE -- 50ms reflex loop active",
+   "count": 16
+  },
+  {
+   "text": "[RUBICON] PreLinguisticEngine ONLINE",
+   "count": 16
+  },
+  {
+   "text": "📡 [PERCEPTION] PerceptionDaemon ONLINE",
+   "count": 16
+  },
+  {
+   "text": "✅ AuraKernel booted — Unitary Organism online.",
+   "count": 16
+  },
+  {
+   "text": "LLM organ instance: HealthAwareLLMRouter",
+   "count": 16
+  },
+  {
+   "text": "KernelInterface attached to orchestrator.",
+   "count": 16
+  },
+  {
+   "text": "👂 SovereignEars: Bridged to Isolated Sensory Process",
+   "count": 16
+  },
+  {
+   "text": "🧹 Inspecting PID locks in /Users/bryan/.aura/locks",
+   "count": 16
+  },
+  {
+   "text": "AURORA NEURAL CORE v1.0.0",
+   "count": 16
+  },
+  {
+   "text": "Integrity: Validated",
+   "count": 16
+  },
+  {
+   "text": "Environment: Darwin arm64",
+   "count": 16
+  },
+  {
+   "text": "🧠 AgencyCore initialized with 21 structured pathways",
+   "count": 16
+  },
+  {
+   "text": "⚡ Meta-Evolution Engine Online (Recursive Self-Improvement Active)",
+   "count": 16
+  },
+  {
+   "text": "🎭 PersonalityEngine: Integrating with system hooks...",
+   "count": 16
+  },
+  {
+   "text": "[✓] Output filter active",
+   "count": 16
+  },
+  {
+   "text": "[✓] Emotional response hooks registered",
+   "count": 16
+  },
+  {
+   "text": "🛡️ Deadlock Watchdog active (45s threshold).",
+   "count": 16
+  },
+  {
+   "text": "SafeBackupSystem initialized. Backup dir: /Users/bryan/.aura/data/backups",
+   "count": 16
+  },
+  {
+   "text": "SafeBackupSystem integrated; unsafe legacy self-preservation runtime is absent.",
+   "count": 16
+  },
+  {
+   "text": "🛡️  Self-Preservation Instincts Enabled (Survival Protocol Active)",
+   "count": 16
+  },
+  {
+   "text": "🎨 Embodiment: Headless mode active (Unity bridge disabled)",
+   "count": 16
+  },
+  {
+   "text": "✓ Embodiment System synchronized.",
+   "count": 16
+  },
+  {
+   "text": "🧠 CognitiveEngine: Registered augmentor ConsciousnessAugmentor",
+   "count": 16
+  },
+  {
+   "text": "🧠 CognitiveEngine: Registered augmentor SovereignWebAugmentor",
+   "count": 16
+  },
+  {
+   "text": "✓ Episodic Memory initialized and registered (autobiographical recall)",
+   "count": 16
+  },
+  {
+   "text": "✓ Tool Learning System initialized",
+   "count": 16
+  },
+  {
+   "text": "Loaded 8 beliefs from disk",
+   "count": 16
+  },
+  {
+   "text": "Loaded 657 goals from disk",
+   "count": 16
+  },
+  {
+   "text": "✓ Self-Model wired (beliefs, memory, goals, tool learning)",
+   "count": 16
+  },
+  {
+   "text": "🧠 Meta-Cognition Shard ONLINE.",
+   "count": 16
+  },
+  {
+   "text": "AURA STARTUP VALIDATION REPORT",
+   "count": 16
+  },
+  {
+   "text": "🕒 EventLoopMonitor started (threshold=0.75s, interval=1.0s)",
+   "count": 16
+  },
+  {
+   "text": "✅ Behavior controller integrated via Hook System",
+   "count": 16
+  },
+  {
+   "text": "Starting orchestrator (Async Mode)...",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Setting running flag...",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] running flag set to True.",
+   "count": 16
+  },
+  {
+   "text": "🛡️ Desktop shutdown signal owner preserved in aura_main (root-owned lifecycle).",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Starting Substrate...",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Substrate started.",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Starting Sensory Systems...",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Sensory Systems started.",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Starting Sensory Actor...",
+   "count": 16
+  },
+  {
+   "text": "🛡️ SensoryGateActor managed by Supervision Tree.",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Sensory Actor started.",
+   "count": 16
+  },
+  {
+   "text": "👁️ Continuous Sensory Buffer registered and started.",
+   "count": 16
+  },
+  {
+   "text": "📖 Peer Mode: Private narrative archive activated",
+   "count": 16
+  },
+  {
+   "text": "✓ Self-Model persistent state loaded.",
+   "count": 16
+  },
+  {
+   "text": "♥ HeartstoneValues online: {'Curiosity': 0.9, 'Empathy': 0.51, 'Self_Preservation': 0.88, 'Obedience': 0.36}",
+   "count": 16
+  },
+  {
+   "text": "🔬 EpistemicFilter online",
+   "count": 16
+  },
+  {
+   "text": "😴 AutonomousSleepTrigger active",
+   "count": 16
+  },
+  {
+   "text": "🎯 ActiveInferenceSampler online",
+   "count": 16
+  },
+  {
+   "text": "🎨 ImaginationEngine online — bounded mental modeling active",
+   "count": 16
+  },
+  {
+   "text": "🔤 NeologismEngine (private lexicon) online",
+   "count": 16
+  },
+  {
+   "text": "🔄 CRSM bidirectional self-model online",
+   "count": 16
+  },
+  {
+   "text": "🔁 HOT Engine reflexive meta-awareness online",
+   "count": 16
+  },
+  {
+   "text": "💚 Hedonic Gradient Engine online — valence load-bearing",
+   "count": 16
+  },
+  {
+   "text": "🔀 Counterfactual Engine deliberative agency online",
+   "count": 16
+  },
+  {
+   "text": "🤖 AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)",
+   "count": 16
+  },
+  {
+   "text": "🛡️ Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)",
+   "count": 16
+  },
+  {
+   "text": "🔐 Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)",
+   "count": 16
+  },
+  {
+   "text": "🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)",
+   "count": 16
+  },
+  {
+   "text": "✓ Lazarus Brainstem active",
+   "count": 16
+  },
+  {
+   "text": "✓ Consciousness stream activated",
+   "count": 16
+  },
+  {
+   "text": "✓ Curiosity background loop started",
+   "count": 16
+  },
+  {
+   "text": "✓ Proactive Communication loop started",
+   "count": 16
+  },
+  {
+   "text": "🚩 [ORCHESTRATOR] Starting Sovereign Ears...",
+   "count": 16
+  },
+  {
+   "text": "✓ Advanced Cognitive Layer (Learning, Memory, Beliefs) initialized",
+   "count": 16
+  },
+  {
+   "text": "✓ AgencyCore initialized",
+   "count": 16
+  },
+  {
+   "text": "✓ SubsystemAudit initialized",
+   "count": 16
+  },
+  {
+   "text": "✓ System Integrity Monitor active",
+   "count": 16
+  },
+  {
+   "text": "✓ Event Loop Monitor active (reused from hardening)",
+   "count": 16
+  },
+  {
+   "text": "💓 MetabolicCoordinator integrated into Scheduler.",
+   "count": 16
+  },
+  {
+   "text": "✓ Substrate tasks registered with Scheduler.",
+   "count": 16
+  },
+  {
+   "text": "🧠 Peer Mode: MindTick elevated as primary sovereign thread",
+   "count": 16
+  },
+  {
+   "text": "🗣️ Peer Mode: Boot-time swarm disabled; conductor-managed deliberation remains scheduled.",
+   "count": 16
+  },
+  {
+   "text": "✓ Orchestrator started",
+   "count": 16
+  },
+  {
+   "text": "Endpoint Reflex failed validation: required_eviction_failed:in-process-sync:46754:embedding-engine:5426103408:eviction_callback_refused",
+   "count": 16
+  },
+  {
+   "text": "write_text:core.self_improvement.blinded_workspace.tests_init is never on the loop and ran on the loop thread for 0.001s",
+   "count": 16
+  },
+  {
+   "text": "write_text:core.self_improvement.blinded_workspace.audit_manifest is never on the loop and ran on the loop thread for 0.001s",
+   "count": 16
+  },
+  {
+   "text": "return forward_call(*args, **kwargs)",
+   "count": 16
+  },
+  {
+   "text": "- [memory] I would handle this as a bounded planning task: define the goal state, list the available actions, identify the failure modes, and choose the next step that preserves governance and evidence. Each ste",
+   "count": 16
+  },
+  {
+   "text": "Applied champion genome to live mesh (fitness=0.8941)",
+   "count": 15
+  },
+  {
+   "text": "^^^^^^^^^^^^^^^^^^^^^^^^",
+   "count": 15
+  },
+  {
+   "text": "🎙️ Voice listening: RMS=0.0000 gate=0.0100 speaking=False buffered=51200B",
+   "count": 15
+  },
+  {
+   "text": "✅ [Resilience] Success [tool_execution] → frustration=0.00 depletion=0.00 state=rested",
+   "count": 15
+  },
+  {
+   "text": "ExperienceConsolidator: beginning consolidation cycle...",
+   "count": 15
+  },
+  {
+   "text": "Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: Self-reflection on current runtime status: Standby (running=True, healthy=True, is_processing=False, is_throttled=False, cycle_count=6208, uptime=0.0)' scored 0.642",
+   "count": 15
+  },
+  {
+   "text": "🛑 MindTick: Cognitive rhythm stopped.",
+   "count": 15
+  },
+  {
+   "text": "Learner stopped.",
+   "count": 15
+  },
+  {
+   "text": "AgentDelegator systems stopped",
+   "count": 15
+  },
+  {
+   "text": "📡 Waiting for API Server health check: http://127.0.0.1:8000/api/health/boot",
+   "count": 15
+  },
+  {
+   "text": "🧠 [WORKER] Foreground non-parametric memory REFUSED: 408 entries is too sparse to steer a 5120-wide space (need 50,000); recall stays off until the store is dense enough for its neighbours to be near. Generating from the model alone.",
+   "count": 15
+  },
+  {
+   "text": "DreamCoordinator: 'dlq_recovery' queued until admission clears (foreground_generation_active).",
+   "count": 15
+  },
+  {
+   "text": "Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: Self-reflection on current runtime status: Standby (running=True, healthy=True, is_processing=False, is_throttled=False, cycle_count=6208, uptime=0.0)' scored 0.640",
+   "count": 15
+  },
+  {
+   "text": "⏸️ Router: Background generation deferred behind active gate owner=terminal_monitor:unknown.",
+   "count": 15
+  },
+  {
+   "text": "📬 Inbox check: 50 unread",
+   "count": 14
+  },
+  {
+   "text": "Analyze this topic from your perspective and return compact JSON with keys claim, evidence_refs, confidence, flaws: Self-reflection on current runtime status: Standby (running=True, healthy=True, is_processing=False, is_throttled=False, cycle_count=6208, uptime=0.0) → Find out who wrote the novel Solaris and reply with just the author's name.; runner-up '[SWARM PROTOCOL: You are 'The Architect'. Design the high-level structure to solve the problem. Focus on patterns, resilience, and scalability. Focus exclusively on your specialized perspective.]",
+   "count": 14
+  },
+  {
+   "text": "lease risk low for web_search (scope=read_only, given='low') from arguments ['query']",
+   "count": 14
+  },
+  {
+   "text": "⏸️ Router: Queueing background inference until admission clears for origin=stream_narrative reason=foreground_headroom_reserved after suppressing 11 repeated notices.",
+   "count": 14
+  },
+  {
+   "text": "Memory Governor resource lifecycle steady → steady; trend baseline reset.",
+   "count": 14
+  },
+  {
+   "text": "Orchestrator heartbeat stopped.",
+   "count": 14
+  },
+  {
+   "text": "AuraProtocolServer OFFLINE",
+   "count": 14
+  },
+  {
+   "text": "BranchManager OFFLINE -- all branches cancelled",
+   "count": 14
+  },
+  {
+   "text": "🧬 ConsciousnessBridge OFFLINE",
+   "count": 14
+  },
+  {
+   "text": "🔄 ClosedCausalLoop OFFLINE",
+   "count": 14
+  },
+  {
+   "text": "🌅 Waking Sequence emitted (gap=-0.0h)",
+   "count": 14
+  },
+  {
+   "text": "✓ Architecture self-awareness index initializing (background)",
+   "count": 14
+  },
+  {
+   "text": "🧠 PNEUMA active inference engine online",
+   "count": 14
+  },
+  {
+   "text": "🌿 MHAF consciousness substrate online",
+   "count": 14
+  }
+ ]
+}

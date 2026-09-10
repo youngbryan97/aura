@@ -39,7 +39,6 @@ The contract:
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
@@ -181,7 +180,7 @@ def _definition_site(check: CheckFn) -> tuple[str, str]:
 
 class InvariantRegistry:
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.verify.invariants._lock")
         self._specs: dict[str, InvariantSpec] = {}
 
     def register(self, spec: InvariantSpec) -> InvariantSpec:

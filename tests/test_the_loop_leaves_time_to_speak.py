@@ -71,7 +71,11 @@ def test_the_reserve_is_taken_from_the_evidence_the_loop_carries() -> None:
     from pathlib import Path
 
     body = Path("core/brain/inference_gate.py").read_text()
-    start = body.index("timeout=_tool_loop_budget(")
+    # Anchored on the call, not on the keyword it is passed under. The
+    # parameter was renamed from `timeout` to `budget_s` and this test broke
+    # while the code it guards was untouched — a check that fails for a reason
+    # it does not name is worse than no check.
+    start = body.index("_tool_loop_budget(\n")
     window = body[start : start + 620]
     assert "_answer_reserve_seconds(" in window
     # The objective AND what the turn already read, because both come back

@@ -14,7 +14,7 @@ explicit and pinned by an allowlist test that only shrinks.
 
 - **Subsystem:** core/brain/llm/mlx_client.py (cortex lane)
 - **Severity / blast radius:** critical / organism
-- **Cause:** Concurrent lanes over-commit host RAM; the resident 32B loses first-token bandwidth; every spawn succeeds so spawn-failure backoff never engages
+- **Cause:** Concurrent lanes over-commit host RAM; the resident cortex loses first-token bandwidth; every spawn succeeds so spawn-failure backoff never engages
 - **Effect:** Every turn pinned ~200s; each cycle burns a 20GB cold reload; latency unusable while deaths=0 (ladder answers)
 - **Detection:** Inference-gate first-token deadline + K4 crash-loop breaker (young-death counting)
 - **Mitigation:** K3 declarative lane admission (declared footprints vs host budget); K4 backoff with half-open probe; pressure-adaptive token budgets
@@ -22,7 +22,7 @@ explicit and pinned by an allowlist test that only shrinks.
 - **Mitigation modules:** `core.brain.lane_admission`, `core.runtime.lane_reconciler`
 - **Recorded occurrences:** 2026-07-07 200-turn soak turns 21-38; 2026-07-08 fullstack-final soak
 
-## FM-LANE-002 — OOM SIGKILL with empty stderr on over-committed spawn (72B solver / fuse beside resident 32B)
+## FM-LANE-002 — OOM SIGKILL with empty stderr on over-committed spawn (72B solver / fuse beside the resident cortex)
 
 - **Subsystem:** core/brain/llm/mlx_client.py + core/learning/weight_compounding.py
 - **Severity / blast radius:** catastrophic / host
@@ -34,7 +34,7 @@ explicit and pinned by an allowlist test that only shrinks.
 - **Mitigation modules:** `core.brain.lane_admission`, `core.learning.weight_compounding`
 - **Recorded occurrences:** 2026-07-08 live autonomous cycle g0000 fuse OOM (b0b13625)
 
-## FM-LANE-003 — Duplicate heavy runtime: a second 32B spawns beside a wedged one
+## FM-LANE-003 — Duplicate heavy runtime: a second cortex spawns beside a wedged one
 
 - **Subsystem:** launcher + core/brain/llm/mlx_client.py
 - **Severity / blast radius:** catastrophic / host

@@ -478,6 +478,26 @@ def _within_current_conversation(history: Any) -> list[dict]:
     # belong to a different conversation by the plainest reading of the word,
     # and answering from them misattributes what the person said in a session
     # that has ended.
+    # A different SESSION is a different conversation, for the same reason a
+    # restart is: the person was not in it. Only where both sides are stamped,
+    # so an unstamped entry keeps exactly the behaviour it had.
+    from core.conversation.session_scope import (
+        current_conversation_session,
+        normalize_conversation_id,
+    )
+
+    here = current_conversation_session()
+    if here:
+        same_session = [
+            entry
+            for entry in entries
+            if normalize_conversation_id(entry.get("session_id")) in ("", here)
+        ]
+        if same_session:
+            entries = same_session
+        if len(entries) < 2:
+            return entries
+
     boot_at = _process_start_time()
     if boot_at is not None:
         after_boot = [

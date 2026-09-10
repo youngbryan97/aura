@@ -109,6 +109,10 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
                 verification="postcondition_verified" if receipt.get("ok") else "failed",
                 evidence=evidence or failure_detail,
                 observed_content=observed_content,
+                # This function records the effect on the ledger itself, below,
+                # under its own lane-qualified name. Mirroring here as well
+                # would put the same effect on the turn twice.
+                mirror_to_turn=False,
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("turn surface receipt unavailable for %s: %s", action, exc)

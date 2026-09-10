@@ -1,6 +1,6 @@
 # Recursive Latent Cortex (RLC)
 
-Status: Guide · Programme landing page · Reviewed against the tree 2026-09-02.
+Status: Guide · Programme landing page · Claim boundary reconciled 2026-09-08.
 Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
@@ -11,12 +11,34 @@ Aura's largest research programme. The question:
 > token. Can you make it *think longer* on a hard problem without changing a
 > single stored weight?
 
-The machinery works. **The frozen loop answered no, and the programme's own
-preregistered campaign is what proved it. Trained intrinsic recurrence then
-answered yes inside a narrow boundary — an adjudicated `BOUNDED_WOW_SIGNAL`
-on four named executable families, first on the resident 32B (CP566) and then
-again after migration to a distinct fused 27B cortex (CP1011).**
-The two mechanisms are different, and the claims ladder below keeps them apart.
+The frozen-loop campaign measured no gain under its tested conditions.
+A different mechanism, a learned typed semantic machine followed by
+state-conditioned language-model decoding, earned `BOUNDED_WOW_SIGNAL` on
+four executable families with the resident 32B (CP566) and fused 27B (CP1011).
+Those studies do not prove a reasoning gain from repeated middle-layer passes
+through the resident language model. The programme contains both mechanisms.
+
+## Current evidence boundary, 2026-09-08
+
+The [frozen baseline](evidence/G01_RLC_BASELINE_2026-09-08.md) binds the retained
+measurements and configured model metadata. Its acceptance check regrades 600
+historical decoded outputs. No new inference or live activation is claimed by
+that check.
+
+The latest fresh natural-language replication (v16) returned **26/96** exact
+answers and **22/96** programs, below its preregistered **48/96** answer floor.
+The ordinary arm was not run after that futility stop. The v19 clause-local
+identity repair returned **93/96** programs and answers versus **0/96** after
+coefficient lesion, on the already exposed development cohort. Fresh
+replication remains required; the development score cannot replace the failed
+replication or establish broad reasoning gain.
+
+The semantic-program track learns operations and argument bindings from
+resident hidden features, then executes accepted programs on the exact
+substrate. Its answer score measures that combined path. The v14 withheld
+family result used shared primitives; it does not demonstrate unseen-primitive
+induction. All serving statements below refer to their dated qualification,
+not to the status of an arbitrary currently running process.
 
 Turn the frozen resident checkpoint from a fixed-depth 64-layer pipeline into
 a **programmable, stateful, self-configuring reasoning machine** — without
@@ -73,10 +95,10 @@ preregistered campaigns with committed seeds.
 | | |
 |---|---|
 | **Mechanics** | **PROVEN.** KV rewind, RMSMatch stability, schedule validation, fast-weight identity-at-attach and proven-erase, checkpoint invariant, slot-ablation causality, matched-magnitude controls, equal-FLOP accounting — all on real `mlx_lm` Qwen2 weights, plus a full episode end to end on a trained 1.5B checkpoint in ~1.3s with contracting residuals (0.95 → 0.10). |
-| **Runtime integration** | **PROVEN.** Live on both the historical resident 32B and current fused 27B through the signed installed app; deep deliberation routes DEEP passes through latent episodes. Kill switch `AURA_LATENT_CORTEX=0`. |
+| **Runtime integration** | **HISTORICALLY DEMONSTRATED.** Qualified on the resident 32B and fused 27B; deep deliberation has a route through latent episodes. Current activation requires process/source/model and request-receipt verification. Kill switch `AURA_LATENT_CORTEX=0`. |
 | **Capability gain, frozen loop** | **REFUTED at 1.5B scale.** The 2026-07-17 preregistered campaign (seed committed first, n=24/family, Holm-corrected) returned: slot causality REFUTED at n=72; all 7 factorial ablation arms REFUTED — vanilla 21/72 beat every latent arm (7–13/72); self-consistency beat virtual width; gradient latent optimization was indistinguishable from its random control *and* from off. On an untrained-for-recurrence checkpoint at this scale, the frozen loop does not merely fail to help — **it hurts.** |
 | **Capability gain, 32B frozen loop** | **CONJECTURE (negative point estimate).** Template-parity sweep: latent 0.167→0.375 over 1→2 recurrent steps then plateau; vanilla 0.417 leads with fully overlapping Wilson intervals at n=24. Statistical parity. |
-| **Capability gain, 32B trained intrinsic recurrence** | **`BOUNDED_WOW_SIGNAL` (CP566).** A different mechanism: the answer's own token stream re-enters the middle block, and the controller is trained on typed traces. On a frozen four-domain cohort of 60 typed tasks the trained controller answered 60/60 exactly against 16/60 for ordinary decode; matched wire base 7, coefficient lesion 5, wrong-state control 0; 44 gains, 0 regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated, replicated, lesion-dependent, and bounded to four named executable families. |
+| **Capability gain, 32B typed semantic machine plus state-conditioned decode** | **`BOUNDED_WOW_SIGNAL` (CP566).** The semantic machine computes typed state which conditions the model's answer. On 60 tasks the combined treatment answered 60/60 exactly against ordinary decode 16, wire 7, coefficient lesion 5 and wrong-state 0; 44 gains, no regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. This is bounded to the recorded executable families and decode contract; it does not isolate resident-backbone recurrence gain. |
 | **Cross-generation recovery on the fused 27B** | **`BOUNDED_WOW_SIGNAL` (CP1011).** A separately seeded 60-task cohort on the descriptor-bound Qwen3.8-27B resident cortex returned treatment 60/60, ordinary decode 0/60, matched wire 6, coefficient lesion 4, wrong-state 0; 60 gains, 0 regressions, exact *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 rows and runtime verification passed 120/120 exact plus 120/120 lesion disruptions. This establishes bounded mechanism portability across two cortex generations, not general model superiority. |
 | **Family-blind procedure acquisition into neural tissue** | **SUPPORTED, BOUNDED (2026-08-31).** A generic inducer received 16 examples without a family label or solver, froze a depth-2 procedure, and a family-blind SSA lowerer executed it through learned arithmetic tissue at 96/96 exact on fresh inputs. Coefficient and wrong-input lesions disrupted 96/96, the no-procedure control solved 1/96, and 15 shuffled-output null searches found no fit. |
 | **Resident decode of an induced neural procedure** | **SUPPORTED, BOUNDED (2026-08-31).** The fused 27B decoded the induced procedure's authenticated neural state at 8/8 exact against ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8 and wrong-state 0/8. Seven gains, no regressions, exact paired one-sided *p* = 0.0078125; all 48 rows independently replayed. |
@@ -91,7 +113,7 @@ preregistered campaigns with committed seeds.
 | **Learned programs in common procedure currency** | **SUPPORTED, BOUNDED (2026-09-03).** The frozen floor check remains **368/368** exact agreements: **366** values and **two** typed refusals, with semantics and type signatures for **20/20** declared primitives. Accepted semantic IR now lowers to the same typed, source-independent `Program`, executes through Aura's universal metered floor and interns by executable contract in the common procedure registry. Different utterances that reveal the same computation share one procedure while retaining independent evidence provenance; pruning or merging releases the identity for genuine reacquisition. The resident shadow remains non-authoritative. This unifies learned semantic programs with Aura's other procedures; it does not establish open-domain induction, ordinary serving authority or broad reasoning. |
 | **Endogenous whole-family runtime replay** | **SUPPORTED, REPLICATED, SHADOW ONLY (2026-09-03).** The current live shadow reopens the v14 fit-withheld-family evidence and independently reconstructs all 96 public inputs from source text. On a newly materialized worker session, the unchanged treatment recovered **79/96** exact programs and answers while its coefficient lesion recovered **0/96**; exact paired *p*=1.65 × 10⁻²⁴. A second run produced a byte-identical certificate. The package hashes the live shadow and all execution sources and remains `serving_authority=false`. |
 | **Cross-language operation semantics** | **SUPPORTED AS A REPRESENTATION DIAGNOSTIC, BOUNDED (2026-09-01).** A family- and geometry-blind linear head was transferred in all six directions among ordinary arithmetic, three-step fork/join arithmetic and mixed sequence-pointer language. Absolute operation-span states transferred strongly in five directions but failed sequence→fork/join at whole-program exactness (**27/192** versus geometry-only 24), localizing the remaining nuisance. Answer-blind centering within factorial counterfactual sets exposed the shared operation signal: the four zero-token-overlap test directions reached **47/48, 48/48, 128/128 and 179/192**, while coefficient lesions reached 12, 12, 8 and 3 and label permutation reached zero throughout. Independent replay reloaded 1,296 records and exactly reproduced 14,720 program-arm rows. Because centering requires a target contrast batch and gold operation spans, this proves latent semantic content beneath construction context, not a deployable single-request compiler. |
-| **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
+| **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 ### What the training front has established
@@ -131,7 +153,7 @@ The programme used a 1.5B vehicle while the historical resident 32B stayed live,
   The model-independent typed tissue was rebound to the new descriptor and
   remeasured instead: 60/60 treatment, 0/60 ordinary, 6/60 matched wire, 4/60
   coefficient lesion, 0/60 wrong state, with all 300 journal rows independently
-  replayed. The active package is
+  replayed. The historically qualified package is
   `rlc-27b-recovery-05346acd618d1c925f16`; unsupported language remains refused.
 - **A learned procedure now reaches the tissue without a family compiler.** A
   generic program inducer learned `idiv(add(in0, in1), in2)` from sixteen public
@@ -526,7 +548,7 @@ launched, bounded).
   problems through the latent cortex when the Will allocates depth.
   Kill switch: `AURA_LATENT_CORTEX=0`. Budgets conservative by default.
 
-## Honest claims ladder (current state)
+## Frozen-loop mechanics evidence (historical)
 
 - **PROVEN (test suite, real mlx_lm Qwen2 architecture):** mechanics —
   KV rewind correctness, RMSMatch stability bounds (anchored trust band; the
@@ -677,10 +699,11 @@ must come from recurrence-native training (the objective + curriculum
 losses are the entry point) — exactly what this harness was built to be
 able to say without flinching.
 
-That prediction held. Recurrence-native training is where the dividend came
-from, on four named executable families, at CP566 on 2026-08-15. The section
-above is the frozen loop's verdict and stays as written;
-[INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) carries what replaced it.
+CP566 later measured a bounded gain with a typed semantic machine and
+state-conditioned decode. That result does not validate the prediction that
+repeating the resident backbone would improve reasoning. The section above
+retains the frozen-loop experiment's outcome; the current evidence boundary
+at the top of this page separates the later mechanisms.
 
 ## Calibrated heterogeneous integration (SPARK-034)
 

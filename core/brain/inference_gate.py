@@ -264,7 +264,7 @@ _EXPLICIT_DEFERRED_PREWARM_REFUSAL_LOG_INTERVAL_S = 60.0
 
 #: Lane failures that are TRANSIENT and must be re-armed rather than left
 #: terminal. A refused worker spawn is the clearest case: the runtime declined
-#: to load the 32B because the host was momentarily short of headroom, and host
+#: to load the cortex because the host was momentarily short of headroom, and host
 #: memory frees constantly. Parking the lane in `failed` over it meant she
 #: reported a broken mind for a condition that had already passed — live
 #: 2026-07-26, `memory_pressure_refused_worker_spawn:model_load_headroom:23.3GB
@@ -1493,7 +1493,7 @@ async def _recover_the_cortex_before_answering(
                         break
             # If cortex is STILL dead after recovery wait, downgrade to secondary
             # tier rather than sending the user a fallback/"wound up" response.
-            # A real answer from the 7B is better than no answer from the 32B.
+            # A real answer from the 7B is better than no answer from the cortex.
             if (
                 self._mlx_client
                 and hasattr(self._mlx_client, "is_alive")
@@ -3061,7 +3061,7 @@ class InferenceGate:
     #: told it none of this: policy deferral, a lane that could not be
     #: reached, a proof contract that names a model, and resource exhaustion
     #: all arrived as the same value the model returns when it says nothing.
-    REFUSAL_ABANDONED = "turn_abandoned"
+    REFUSAL_HALTED = "halted"
     REFUSAL_DEFERRED = "deferred"
     REFUSAL_PROOF_LANE = "proof_lane_required"
     REFUSAL_RESOURCE = "resource_exhausted"
@@ -4991,6 +4991,19 @@ class InferenceGate:
                 allowed -= float(seconds_to_read(int(prompt_chars)))
             except (ImportError, AttributeError, TypeError, ValueError):
                 pass
+        # And what the turn spends after the last token: stabilizing, shaping,
+        # classifying, persisting, emitting a receipt, writing the response.
+        # The search below finds the largest answer that fits EXACTLY, so a
+        # turn that used its ceiling had nothing left to deliver with and
+        # expired holding a finished answer. LIVE 2026-09-07: the clock
+        # predicted 91s reading and 148s decoding against a 243s deadline and
+        # the turn returned nothing after five minutes.
+        try:
+            from core.brain.llm.thinking_reserve import seconds_to_deliver
+
+            allowed -= float(seconds_to_deliver())
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget
@@ -5288,7 +5301,7 @@ class InferenceGate:
                 await self._proactive_cortex_watchdog()
 
                 # [STABILITY v53] Don't eagerly load brainstem/deep at boot.
-                # The 7B brainstem consumes ~5GB RAM that the 32B cortex needs.
+                # The 7B brainstem consumes ~5GB RAM that the cortex needs.
                 # At 62% RAM with both loaded, the cortex swaps and first-turn
                 # response time balloons to 80+ seconds. Load on demand only.
                 # await self._ensure_hot_spare_ready(BRAINSTEM_ENDPOINT)
@@ -5322,7 +5335,7 @@ class InferenceGate:
 
         # 1. Detect dead cortex and trigger recovery.
         #
-        # A WARMING lane is not a dead lane. During a 32B cold load the
+        # A WARMING lane is not a dead lane. During a cortex cold load the
         # worker legitimately fails is_alive() for 120-150s while the state
         # sits in warming/spawning/handshaking — and a warmup is not flagged
         # as "recovery in progress". The 20260708-postdoomfix soak showed
@@ -5567,6 +5580,7 @@ class InferenceGate:
                 "recurrent_depth",
                 "last_heartbeat",
                 "last_token_progress_at",
+                "last_prefill_progress_at",
                 "last_generation_completed_at",
                 "last_user_facing_completed_at",
                 "last_visible_readiness_at",
@@ -6184,7 +6198,7 @@ class InferenceGate:
     ) -> float:
         """Admission control for the foreground preflight — break the doom loop.
 
-        A COLD first boot legitimately needs ~150s to load the 32B, and the
+        A COLD first boot legitimately needs ~150s to load the cortex, and the
         user expects that one-time wait. But a RECOVERY (Cortex was ready, got
         force-killed on a first-token stall, is reloading) must NOT hold every
         foreground turn hostage for 90-180s — observed live (Jul 7 soak):
@@ -7283,7 +7297,7 @@ class InferenceGate:
             return
 
         # Never shed the small fallback models when memory is abundant. They
-        # are the guaranteed fast-answer path while the 32B cortex warms; with
+        # are the guaranteed fast-answer path while the cortex warms; with
         # the router now routing AROUND a not-ready cortex, shedding them left
         # nothing resident to answer and cascaded into a no-reply death spiral
         # (2026-07-15 soak: 7B >56s, 1.5B >14.7s, all thrashing to reload
@@ -7593,7 +7607,7 @@ class InferenceGate:
         [STABILITY v50] Raised ceiling from 90→150s for M5 64GB hardware.
         The previous 90s cap was too aggressive — after warmup checks,
         trust gate PBKDF2, and 20+ consciousness subsystem context assembly,
-        the 32B model often had only 40-55s of actual generation budget.
+        the cortex often had only 40-55s of actual generation budget.
         On M5 hardware there is no gateway proxy, so 504 risk is zero.
         """
         if is_background or requested_tier == "tertiary":
@@ -8150,7 +8164,7 @@ class InferenceGate:
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
         """[STABILITY v50] Give the primary Cortex 80% of the budget.
 
-        The previous 65/35 split starved the 32B model and gave 35% of
+        The previous 65/35 split starved the cortex and gave 35% of
         the user's patience to the brainstem fallback — which rarely
         produces a satisfying answer anyway. 80/20 gives Cortex full
         room to generate while preserving a meaningful brainstem window.
@@ -8167,7 +8181,7 @@ class InferenceGate:
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
-            # Give cortex 80% of the total budget so the 32B model has
+            # Give cortex 80% of the total budget so the cortex has
             # real headroom. On an API-protected 300s turn, preserve the heavy
             # lane instead of silently dropping it after the old 120s cap.
             if total_timeout >= 240.0:
@@ -8324,7 +8338,7 @@ class InferenceGate:
             yield
 
     async def _restore_primary_after_deep_handoff(self) -> None:
-        """Return the system to the 32B conversational brain after a 72B request."""
+        """Return the system to the cortex conversational brain after a 72B request."""
         try:
             from core.brain.llm.mlx_client import get_mlx_client
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
@@ -10640,7 +10654,7 @@ class InferenceGate:
     def _build_compact_messages(
         self, prompt: str, system_prompt: str, history: list[dict]
     ) -> list[dict[str, str]]:
-        """Compact prompt path for live conversation on the 32B lane."""
+        """Compact prompt path for live conversation on the cortex lane."""
         messages = [{"role": "system", "content": system_prompt}]
 
         for msg in history[-12:]:
@@ -11829,15 +11843,19 @@ class InferenceGate:
             halt = current(whose="inference_gate.generate").stopping
             if halt.stopped:
                 logger.info("🛑 generation not started: %s", halt.why)
-                # Through the receipt, not out of the front door. A bare None
-                # here is the same value an empty model answer produces, and
-                # the whole point of the refusal receipt is that a caller can
-                # tell "nobody is waiting for this" from "the model said
-                # nothing".
+                # Through the receipt, like every other policy exit here.
+                #
+                # A bare None is the same value the model returns when it
+                # produces no text, so a caller cannot tell "the runtime is
+                # stopping" from "the model said nothing" — and those want
+                # opposite handling. Four other exits on this path already
+                # carry a typed refusal to the caller's context, to the gate
+                # for health, and to the turn ledger; this one is a fifth.
                 return self._refuse_generation(
-                    self.REFUSAL_ABANDONED,
-                    str(halt.why or "the turn was stopped"),
-                    context=context,
+                    self.REFUSAL_HALTED,
+                    str(halt.why or "the runtime is stopping"),
+                    context=context if isinstance(context, dict) else None,
+                    origin=str((context or {}).get("origin") or ""),
                 )
         except (ImportError, RuntimeError, TypeError, ValueError):
             pass
@@ -12492,6 +12510,15 @@ class InferenceGate:
                 explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
             except (TypeError, ValueError, OverflowError):
                 explicit_max_tokens_cap = None
+        # Whether the CALLER asked for the floor, or the gate worked it out.
+        #
+        # A floor the caller supplied is the caller's own instruction and beats
+        # the caller's own stale cap — that is what a long-form desktop request
+        # carrying both max_tokens=1536 and user_surface_completion_floor=2560
+        # is asking for. A floor the gate computed is not an instruction, and
+        # raising a declared ceiling with it dispatched a request that asked for
+        # 384 at 1000 while the context still said 384.
+        caller_declared_completion_floor = "user_surface_completion_floor" in context
         surface_completion_floor = 0
         # How much room an answer needs is a property of the question, not of
         # the path that happens to serve it.
@@ -12533,19 +12560,30 @@ class InferenceGate:
                     initial_visible_user_prompt
                 )
             context["user_surface_completion_floor"] = surface_completion_floor
-            if max_tokens < surface_completion_floor:
+            # A declared ceiling wins, which is what the paragraph above says
+            # and what this used to contradict: it raised explicit_max_tokens_cap
+            # to the floor, so a caller asking for 384 was dispatched with 1000.
+            # The floor is for a turn nobody sized; it is not a licence to
+            # overrule a caller who did.
+            room = (
+                min(surface_completion_floor, explicit_max_tokens_cap)
+                if explicit_max_tokens_cap is not None
+                and not caller_declared_completion_floor
+                else surface_completion_floor
+            )
+            if max_tokens < room:
                 logger.info(
                     "🧠 Foreground completion contract raised the decode budget %d→%d.",
                     max_tokens,
-                    surface_completion_floor,
+                    room,
                 )
-                max_tokens = surface_completion_floor
+                max_tokens = room
             if explicit_max_tokens_cap is not None:
-                explicit_max_tokens_cap = max(
-                    explicit_max_tokens_cap,
-                    surface_completion_floor,
-                )
-                context["max_tokens"] = explicit_max_tokens_cap
+                if caller_declared_completion_floor:
+                    explicit_max_tokens_cap = max(
+                        explicit_max_tokens_cap, surface_completion_floor
+                    )
+                context["max_tokens"] = min(explicit_max_tokens_cap, max_tokens)
         if "max_tokens" not in context:
             max_tokens = self._adaptive_max_tokens_for_prompt(
                 initial_visible_user_prompt,
@@ -12554,7 +12592,7 @@ class InferenceGate:
                 requested_tier=requested_tier,
                 is_background=is_background,
             )
-        # When the 32B cortex is still warming or recovering, refuse to load
+        # When the cortex is still warming or recovering, refuse to load
         # the 72B Solver alongside it — they don't fit in 64GB together and
         # the resulting MemoryGuard panic-eviction creates a thrash loop where
         # neither lane stays up long enough to answer. Force primary; the
@@ -14070,6 +14108,26 @@ class InferenceGate:
             if str(msg.get("role", "")).strip().lower() == "system"
         )
         request_chars = max(0, prompt_chars - scaffold_chars)
+        # WHICH authority block moves. The scaffold total said 1809 on one turn
+        # and 1817 on the next, which is enough to make the merged front system
+        # message a different token sequence and cost the whole conversation
+        # its prompt-cache prefix — 17.7s of a 22s turn. A total cannot say
+        # which block did it; a per-block digest can.
+        if logger.isEnabledFor(logging.INFO):
+            _blocks = [
+                (len(str(msg.get("content", "") or "")),
+                 hashlib.sha256(
+                     str(msg.get("content", "") or "").encode("utf-8", "replace")
+                 ).hexdigest()[:8],
+                 str(msg.get("content", "") or "")[:48].replace("\n", "⏎"))
+                for msg in messages
+                if str(msg.get("role", "")).strip().lower() == "system"
+            ]
+            if _blocks:
+                logger.info(
+                    "🧩 [PROMPT BLOCKS] %s",
+                    " | ".join(f"{n}c {d} {h!r}" for n, d, h in _blocks),
+                )
         # The separately-passed system_prompt is merged into messages[0] at the
         # client boundary, so it is part of the prefill even though it is not in
         # `messages` here. Leaving it out of this line is how a 106,861-char
@@ -14170,6 +14228,12 @@ class InferenceGate:
                 )
             except (TypeError, ValueError, OverflowError):
                 _answer_floor_final = 0
+            # A floor may not raise a ceiling the caller declared. This one ran
+            # at dispatch, after the caller-cap clamp, so a request that asked
+            # for 384 was dispatched at 1000 while the context still said 384 —
+            # two numbers for one budget, and the model got the larger.
+            if explicit_max_tokens_cap is not None and not caller_declared_completion_floor:
+                _answer_floor_final = min(_answer_floor_final, explicit_max_tokens_cap)
             if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
                 logger.info(
                     "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
@@ -14356,11 +14420,39 @@ class InferenceGate:
                     )
                     - _reserve_the_worker_adds,
                 )
+                # What the clock affords is not evidence about what an answer
+                # needs. Raising to it unconditionally let a "compute this and
+                # show the code" turn plan 2,432 tokens — 449 seconds of decode
+                # at the measured rate — because the route allowed 480. The
+                # raise is bounded by what answers on this model have actually
+                # produced, with whatever the lane asked for as a floor so this
+                # can only ever add, and with a generation that demonstrably
+                # ran out outranking both so growth still costs one discovery.
+                try:
+                    from core.brain.llm.thinking_reserve import answer_tokens_seen
+
+                    _ever_needed = int(answer_tokens_seen(_model_for_clock))
+                except (ImportError, AttributeError, TypeError, ValueError):
+                    _ever_needed = 0
+                if _ever_needed > 0:
+                    _affordable = min(_affordable, max(max_tokens, _ever_needed))
+                # And never past a ceiling the caller declared. This raise is
+                # written to only ever add, which is right when nobody said how
+                # much room the answer gets and wrong when somebody did: a
+                # request carrying max_tokens=384 was dispatched at 1000 because
+                # the clock could afford it.
+                if (
+                    explicit_max_tokens_cap is not None
+                    and not caller_declared_completion_floor
+                ):
+                    _affordable = min(_affordable, explicit_max_tokens_cap)
                 if _affordable > max_tokens:
                     logger.info(
                         "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "
-                        "measured rate; raising the ceiling from %d.",
+                        "measured rate and within the %d this model has been seen "
+                        "to need; raising the ceiling from %d.",
                         _affordable,
+                        _ever_needed,
                         max_tokens,
                     )
                     max_tokens = _affordable
@@ -14556,7 +14648,7 @@ class InferenceGate:
                             try:
                                 # Admission control — break the cortex doom-loop.
                                 # A COLD first boot legitimately needs ~150s to
-                                # load the 32B and the user expects that one-time
+                                # load the cortex and the user expects that one-time
                                 # wait. But a RECOVERY (Cortex was ready, got
                                 # force-killed on a first-token stall, is now
                                 # reloading) must NOT block every foreground turn
@@ -14805,6 +14897,12 @@ class InferenceGate:
                                 ",".join(
                                     f"{name}={primary_surface_receipt.get(name)!r}"[:90]
                                     for name in sorted(map(str, primary_surface_receipt))
+                                    # Substring, deliberately: `name` is a
+                                    # receipt FIELD NAME — `surface_quality`,
+                                    # `rejected_by` — and this line exists to
+                                    # show what the receipt carries when it
+                                    # carries no reason. Narrowing it hides
+                                    # the fields worth seeing.
                                     if any(
                                         word in name
                                         for word in (
@@ -16045,6 +16143,14 @@ class InferenceGate:
             if token_age_s is None:
                 return False
             return token_age_s <= progress_stale_s
+        raw_prefill_progress = lane.get("last_prefill_progress_at")
+        if raw_prefill_progress not in (None, 0, 0.0, ""):
+            prefill_age_s = _elapsed_since(raw_prefill_progress, now=now)
+            return (
+                prefill_age_s is not None
+                and prefill_age_s <= request_age_s
+                and prefill_age_s <= progress_stale_s
+            )
         return request_age_s <= startup_grace_s
 
     @staticmethod

@@ -1707,12 +1707,19 @@ def test_volatile_state_context_is_appended_so_the_kv_prefix_stays_cacheable():
     from core.brain import llm_health_router
 
     source = inspect.getsource(llm_health_router)
-    assert 'f"{system_prompt}\\n\\nSystem State Context:\\n{context_header}"' in source, (
+    assert 'f"{system_prompt}\\n\\n{context_header}"' in source, (
         "the volatile state block must be appended after the stable prompt"
     )
-    assert 'f"System State Context:\\n{context_header}\\n\\n{system_prompt}"' not in source, (
+    assert 'f"{context_header}\\n\\n{system_prompt}"' not in source, (
         "prepending volatile state destroys prompt-cache reuse for the whole runtime"
     )
+    # And each reading on its own line, or the header pattern that moves
+    # volatile sections out of the authority head cannot see them: a line
+    # holding two bracket groups matches no header. Appending was never
+    # enough on its own — three quarters of the prompt still followed the
+    # block inside the same message.
+    assert 'context_header = "\\n".join(ctx_summary)' in source
+    assert 'context_header = " ".join(ctx_summary)' not in source
 
 
 def test_prompt_cache_reuse_survives_a_volatile_tail_but_not_a_volatile_head():

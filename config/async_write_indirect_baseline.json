@@ -192,11 +192,6 @@
       "_persist_phenomenal_moment"
     ],
     [
-      "core/consciousness/phenomenological_experiencer.py",
-      "stop",
-      "_save_phenomenal_memory"
-    ],
-    [
       "core/consciousness/unified_audit.py",
       "run",
       "save_to_file"

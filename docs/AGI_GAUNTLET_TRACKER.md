@@ -80,7 +80,7 @@ A gap of zero is the only way to tell a component that matters from one that
 is present.
 
 Two lesions are declared rather than run. The same weights in a plain
-scaffold needs the weights, and a second 32B beside the resident one is how
+scaffold needs the weights, and a second cortex beside the resident one is how
 this host dies. The self-model lesion needs a live runtime, because a lesion
 applied to a process that never booted removes nothing.
 

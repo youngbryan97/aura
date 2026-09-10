@@ -24,6 +24,7 @@ the runtime generates often enough that the window fills within minutes.
 from __future__ import annotations
 
 import json
+import math
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -166,9 +167,59 @@ def record_budget_that_ran_out_thinking(
     save()
 
 
+#: The smallest budget a thinking generation has been seen to finish inside,
+#: by model. The companion to the proof above and monotone in the other
+#: direction, so both survive being merged between processes: one takes the
+#: maximum, one takes the minimum, and neither depends on which was read
+#: first. :func:`proved_insufficient` reads them together.
+_finished_within_by_model: dict[str, int] = {}
+
+
+def record_budget_that_finished_thinking(
+    *, budget_tokens: int, model: str = ""
+) -> None:
+    """A thinking generation closed its channel and finished inside this budget.
+
+    The other half of the proof above, and it was missing, so the threshold
+    could only ever rise.
+
+    LIVE, 2026-09-08: the 27B's proof stood at 6,322 tokens, set by one
+    generation that ran away inside the channel. Ordinary turns are budgeted
+    at 512 to 1,345, and the gate that decides whether the private channel
+    opens refuses whenever the budget is no larger than the proof — so no
+    ordinary turn could ever think again. The model did its working in the
+    visible answer instead, ran out of tokens there, and a question about
+    daylight was published with a wrong number at the top and its correction
+    two thousand characters below.
+
+    A proof that can only be confirmed is not a proof. A generation that
+    finished inside B shows that the largest budget known to be too small is
+    smaller than B, and the threshold comes down to say so.
+    """
+
+    try:
+        spent = max(0, int(budget_tokens))
+    except (TypeError, ValueError):
+        return
+    if spent <= 0:
+        return
+    with _lock:
+        name = _model_key(model)
+        held = _finished_within_by_model.get(name, 0)
+        _finished_within_by_model[name] = spent if held <= 0 else min(held, spent)
+    save()
+
+
 #: Prefill rates, as (prompt_chars, chars_per_second) pairs. Beside the decode
 #: rates because they are the same kind of fact about the same generations.
 _read_rates: list[tuple[int, float]] = []
+
+#: What a turn spends AFTER the model stops decoding: stabilizing, shaping,
+#: classifying, persisting, emitting a receipt, writing the response. Declared
+#: here beside the other measured windows so save, restore and reset all see
+#: it — the first version of this lived at the bottom of the file and none of
+#: the three did.
+_delivery_costs: deque[float] = deque(maxlen=_WINDOW)
 
 #: When the store was last read, so a proof another process wrote is taken
 #: back without re-reading a file that has not changed.
@@ -252,6 +303,27 @@ def reserve_tokens(model: str = "") -> int:
         index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
         measured = max(0, seen[index])
     return max(measured, proved)
+
+
+def measured_reserve_tokens(model: str = "") -> int:
+    """What the private channel has been MEASURED to cost, and nothing else.
+
+    :func:`reserve_tokens` is the larger of this and the standing proof, which
+    is right for buying tokens — a budget should cover the worst thing seen.
+    It is wrong for deciding whether the channel opens at all, because the
+    proof only ever rose: one runaway generation set the 27B's at 6,322, no
+    ordinary turn is budgeted above 1,345, and the gate refused every one of
+    them for a fortnight. A veto that nothing can lift is not a veto, it is a
+    switch someone left off.
+    """
+
+    _restore_once()
+    with _lock:
+        seen = sorted(_reasoning_window_for(model))
+    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0
+    index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
+    return max(0, seen[index])
 
 
 def record_decode_rate(
@@ -374,10 +446,11 @@ def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
         seconds = float(elapsed_s)
     except (TypeError, ValueError):
         return
-    if chars <= 0 or not (seconds > 0.0) or seconds != seconds:
+    if chars <= 0 or not (seconds > 0.0) or not math.isfinite(seconds):
         return
     with _lock:
         _read_rates.append((chars, chars / seconds))
+        del _read_rates[:max(0, len(_read_rates) - _WINDOW)]
     _written_down()
 
 
@@ -438,10 +511,20 @@ def seconds_to_read(prompt_chars: int) -> float:
 
 
 def proved_insufficient(model: str = "") -> int:
-    """The largest budget a generation ran out of while still thinking."""
+    """The largest budget a generation ran out of while still thinking.
+
+    Bounded below anything that has since been seen to be enough. Without that
+    the number could only rise: one runaway set the 27B's at 6,322 tokens and
+    nothing in the runtime could ever bring it back, so the gate it feeds
+    refused every ordinary turn from then on.
+    """
 
     with _lock:
-        return _proved_insufficient_by_model.get(_model_key(model), 0)
+        proof = _proved_insufficient_by_model.get(_model_key(model), 0)
+        enough = _finished_within_by_model.get(_model_key(model), 0)
+    if enough > 0 and proof >= enough:
+        return max(0, enough - 1)
+    return proof
 
 
 def observations(model: str = "") -> int:
@@ -460,7 +543,9 @@ def forget() -> None:
         _observed_by_model.clear()
         _rates.clear()
         _read_rates.clear()
+        _delivery_costs.clear()
         _proved_insufficient_by_model.clear()
+        _finished_within_by_model.clear()
         # And forget having read the store, or a re-read would take it back.
         _last_seen_store_mtime = -1
         # Stops THIS process taking the readings back on the next call.
@@ -504,6 +589,18 @@ def forget() -> None:
 #: Where the measurements live between processes.
 _STORE = "decode_measurements.json"
 
+#: Which clock the stored read rates were taken with. See the note beside the
+#: write.
+#:
+#: Still "read_rates". The rows already on disk were recorded from first-token
+#: latency, and the worry was that they were measuring the queue and the
+#: weights as well as the reading — but they read at 1,089 to 7,677 characters
+#: a second, which is prefill and nothing else. On a warm worker the two
+#: clocks agree. Retiring them would have thrown away 128 good readings to fix
+#: a fault they did not have; the fault was a prefill rate shared between
+#: models, in core/brain/llm/mlx_client.py.
+_READ_RATE_KEY = "read_rates"
+
 
 def _store_path() -> Path | None:
     try:
@@ -537,10 +634,17 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
             _put_older_readings_first(_window_for(_ANY_MODEL), held, _one_pair)
         _read_rates[:0] = [
             row
-            for row in (_one_pair(item) for item in (stored.get("read_rates") or ()))
+            for row in (_one_pair(item) for item in (stored.get(_READ_RATE_KEY) or ()))
             if row is not None and row not in _read_rates
         ]
         del _read_rates[: max(0, len(_read_rates) - _WINDOW)]
+        for item in stored.get("delivery_costs") or ():
+            try:
+                value = float(item)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 <= value <= 60.0:
+                _delivery_costs.append(value)
 
 
 def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
@@ -560,6 +664,19 @@ def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
             stored.get("reasoning_tokens"),
             _one_int,
         )
+
+    finished = stored.get("finished_within_by_model")
+    if isinstance(finished, dict):
+        for name, value in finished.items():
+            try:
+                parsed = max(0, int(value))
+            except (TypeError, ValueError):
+                continue
+            if parsed <= 0:
+                continue
+            key = _model_key(str(name))
+            held = _finished_within_by_model.get(key, 0)
+            _finished_within_by_model[key] = parsed if held <= 0 else min(held, parsed)
 
     proofs = stored.get("proved_insufficient_by_model")
     if isinstance(proofs, dict):
@@ -639,6 +756,7 @@ def save() -> bool:
                         for name, window in _observed_by_model.items()
                     },
                 },
+                "finished_within_by_model": dict(_finished_within_by_model),
                 "proved_insufficient_by_model": dict(
                     _proved_insufficient_by_model
                 ),
@@ -660,7 +778,22 @@ def save() -> bool:
                 # other, and every restart began knowing nothing about how long
                 # a prompt takes to read. A measurement that does not survive
                 # is a measurement nobody has.
-                "read_rates": [[size, rate] for size, rate in _read_rates],
+                #
+                # The key names the clock. Until 2026-09-08 these were timed
+                # from first-token latency, which contains the reading and
+                # everything before it, and the stored window had settled at
+                # about 14 characters a second against a worker reading at
+                # 410 to 990 tokens a second. Those rows are not slow readings;
+                # they are measurements of a different quantity, so a reader
+                # that wants reading must not find them. Renaming the key
+                # retires them once, on the first write after the fix.
+                _READ_RATE_KEY: [[size, rate] for size, rate in _read_rates],
+                # And what a turn spends AFTER the last token. Added without
+                # its persistence at first, which is the mistake the note above
+                # this line describes: a fresh boot had no reserve until ten
+                # more turns had paid for one, and a restart is exactly when a
+                # budget most needs to know what delivery costs.
+                "delivery_costs": [round(value, 4) for value in _delivery_costs],
             }
         )
     try:
@@ -713,7 +846,7 @@ def load() -> int:
                         taken += 1
                 except (TypeError, ValueError):
                     continue
-        for row in raw.get("read_rates") or ():
+        for row in raw.get(_READ_RATE_KEY) or ():
             try:
                 size, rate = row
                 if int(size) > 0 and float(rate) > 0.0:
@@ -721,6 +854,14 @@ def load() -> int:
                     taken += 1
             except (TypeError, ValueError):
                 continue
+        for item in raw.get("delivery_costs") or ():
+            try:
+                value = float(item)
+            except (TypeError, ValueError):
+                continue
+            if 0.0 <= value <= 60.0:
+                _delivery_costs.append(value)
+                taken += 1
     return taken
 
 
@@ -756,3 +897,107 @@ def chars_readable_in(seconds: float, *, ceiling: int = 1_000_000) -> int:
         else:
             high = middle - 1
     return low
+
+
+def tokens_decodable_in(seconds: float, model: str = "", *, ceiling: int = 100_000) -> int:
+    """How many tokens fit in this much time, at the rate measured for `model`.
+
+    :func:`seconds_to_decode` asked from the other end, and searched rather
+    than inverted for the same reason :func:`chars_readable_in` is: two pieces
+    of arithmetic over one set of rates disagree eventually, and the graded
+    fallbacks the forward function uses when nothing comparable has been timed
+    then apply here unchanged.
+
+    Returns ``ceiling`` where the forward function is silent, because a rate
+    nobody has measured constrains nothing.
+    """
+
+    try:
+        allowed = float(seconds)
+    except (TypeError, ValueError):
+        return int(ceiling)
+    if allowed <= 0:
+        return 0
+    if seconds_to_decode(int(ceiling), model) <= allowed:
+        return int(ceiling)
+    low, high = 0, int(ceiling)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if seconds_to_decode(middle, model) <= allowed:
+            low = middle
+        else:
+            high = middle - 1
+    return low
+
+
+def record_delivery_cost(elapsed_s: float) -> None:
+    """Log what this turn spent between the last token and the answer landing."""
+
+    try:
+        seconds = float(elapsed_s)
+    except (TypeError, ValueError):
+        return
+    if not (seconds >= 0.0) or not math.isfinite(seconds):
+        return
+    # A minute of "delivery" is a stall being recorded as a routine cost, and
+    # it would size every later budget down to nothing.
+    if seconds > 60.0:
+        return
+    with _lock:
+        _delivery_costs.append(seconds)
+    _written_down()
+
+
+def seconds_to_deliver() -> float:
+    """Time to reserve for everything after the last token, or 0.0 unmeasured.
+
+    The budget searched for the largest answer that fits the turn's clock and
+    found one that fits it EXACTLY, so any turn that used its ceiling had
+    nothing left for delivery and expired holding a finished answer. Measured
+    live 2026-09-07: the clock predicted 91s of reading and 148s of decoding
+    against a 243s deadline, delivery costs about 3.6s, and the turn returned
+    nothing at all after five minutes.
+
+    Pessimistic in the same way and for the same reason as the decode and read
+    rates: the 90th percentile, because a budget sized on the typical delivery
+    overruns on every slower one, and those are the turns that lose an answer
+    already written.
+    """
+
+    _restore_once()
+    with _lock:
+        samples = sorted(_delivery_costs)
+    if len(samples) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0.0
+    index = min(len(samples) - 1, int(_PERCENTILE * (len(samples) - 1)))
+    return max(0.0, samples[index])
+
+
+def answer_tokens_seen(model: str = "") -> int:
+    """The longest answer this model has actually produced, or 0 unmeasured.
+
+    A budget was raised on every user-facing turn to whatever the wall clock
+    could afford. LIVE 2026-09-07: a request to compute a power and show the
+    code had its ceiling raised from 1,024 to 2,432 tokens, which the same
+    module's own estimate put at 449 seconds of decode, because the route
+    allowed 480. A ceiling is not a target — and a clock is not evidence about
+    what an answer needs either.
+
+    The longest answer actually produced is evidence. It is censored by the
+    ceilings that produced it, which is why the caller keeps whatever the lane
+    asked for as a floor and why `_proved_insufficient_by_model` — a
+    generation that demonstrably ran out — outranks it. Growth therefore still
+    costs at most one discovery, and a quiet window can no longer hand every
+    turn eight minutes.
+    """
+
+    _restore_once()
+    _take_back_any_newer_proof()
+    with _lock:
+        lengths = [length for length, _rate in _rates.get(_model_key(model), ())]
+        if not lengths:
+            lengths = [
+                length for window in _rates.values() for length, _rate in window
+            ]
+        proved = _proved_insufficient_by_model.get(_model_key(model), 0)
+    return max(max(lengths, default=0), proved)

@@ -235,14 +235,26 @@ class MorphGraph:
         with self._lock:
             return tuple(sorted(self._nodes))
 
+    # Sorting is not what the lock is for.
+    #
+    # These three sorted every edge in the graph while holding it, and the
+    # sort is the expensive half: a filter by one node still paid O(E log E)
+    # under the lock, on whatever thread asked.
+    #
+    # LIVE, 2026-09-07: `blocking lock 'morphogenesis.graph' taken at
+    # graph.py:239 was held 78ms on the event loop thread (limit 50ms)`. The
+    # lock exists to keep the dict from changing under a reader; a snapshot
+    # does that, and the ordering can be settled outside.
     def edges(self) -> tuple[MorphEdge, ...]:
         with self._lock:
-            return tuple(self._edges[k] for k in sorted(self._edges))
+            held = dict(self._edges)
+        return tuple(held[key] for key in sorted(held))
 
     def out_edges(self, node: str, *, edge_type: EdgeType | None = None) -> tuple[MorphEdge, ...]:
         node = str(node)
         with self._lock:
-            found = [e for k, e in sorted(self._edges.items()) if k[0] == node]
+            held = [(key, edge) for key, edge in self._edges.items() if key[0] == node]
+        found = [edge for _key, edge in sorted(held, key=lambda item: item[0])]
         if edge_type is not None:
             found = [e for e in found if e.edge_type == edge_type]
         return tuple(found)
@@ -250,7 +262,8 @@ class MorphGraph:
     def in_edges(self, node: str, *, edge_type: EdgeType | None = None) -> tuple[MorphEdge, ...]:
         node = str(node)
         with self._lock:
-            found = [e for k, e in sorted(self._edges.items()) if k[1] == node]
+            held = [(key, edge) for key, edge in self._edges.items() if key[1] == node]
+        found = [edge for _key, edge in sorted(held, key=lambda item: item[0])]
         if edge_type is not None:
             found = [e for e in found if e.edge_type == edge_type]
         return tuple(found)
