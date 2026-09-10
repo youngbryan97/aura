@@ -61,24 +61,62 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=20260908)
     arguments = parser.parse_args()
 
-    from mlx_lm import load
-
     from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
     from core.consciousness.affective_steering import AffectiveSteeringEngine
     from core.consciousness.fusion_certificate import write_certificate
     from core.consciousness.fusion_probe import measure_fusion
-
-    print(f"loading {arguments.model}", flush=True)
-    model, tokenizer = load(arguments.model)
+    from core.runtime.model_lane_control import standalone_model_lane
 
     checkpoint = (
         Path(arguments.model_path) if arguments.model_path else _snapshot_dir(arguments.model)
     )
+    # Held for the whole probe. This loads a second model on a machine whose
+    # resident cortex already holds about twenty gigabytes, and the lane is
+    # what stops the two of them meeting.
+    with standalone_model_lane(
+        owner_id="fusion-channel-probe",
+        model_path=str(checkpoint),
+        purpose="measurement",
+        request_gb=_weight_gigabytes(checkpoint),
+        metadata={"tool": "measure_fusion_channel", "model": arguments.model},
+    ):
+        return _measure(
+            arguments,
+            checkpoint,
+            build_model_artifact_descriptor,
+            AffectiveSteeringEngine,
+            measure_fusion,
+            write_certificate,
+        )
+
+
+def _weight_gigabytes(checkpoint: Path, floor: float = 1.0) -> float:
+    """How much the checkpoint's weights weigh, so the lane can price it."""
+    total = sum(
+        path.stat().st_size
+        for pattern in ("*.safetensors", "*.npz", "*.gguf")
+        for path in checkpoint.glob(pattern)
+    )
+    return max(floor, round(total / 1e9, 2))
+
+
+def _measure(
+    arguments,
+    checkpoint: Path,
+    build_model_artifact_descriptor,
+    steering_engine,
+    measure_fusion,
+    write_certificate,
+) -> int:
+    from mlx_lm import load
+
+    print(f"loading {arguments.model}", flush=True)
+    model, tokenizer = load(arguments.model)
     descriptor = build_model_artifact_descriptor(checkpoint, repository_id=arguments.model)
     digest = str(descriptor["descriptor_sha256"])
     print(f"checkpoint {checkpoint}\nidentity {digest[:16]}", flush=True)
 
-    engine = AffectiveSteeringEngine()
+    engine = steering_engine()
     attached = engine.attach(
         model, tokenizer, alpha=0.0, model_path=checkpoint, model_identity=descriptor
     )

@@ -53,6 +53,22 @@ class ValenceScorer:
     def __init__(self, model_id: str = DEFAULT_MODEL) -> None:
         from sentence_transformers import SentenceTransformer
 
+        from core.runtime.model_lane_control import (
+            acquire_synchronous_in_process_model_lane,
+            require_active_synchronous_in_process_model_lane,
+        )
+
+        # A model loaded into this process needs the process to be holding a
+        # lane for it, however small the model is. `core/memory/embedding_model`
+        # takes the same fence for the same reason: the accounting is of what
+        # is resident, not of what is large.
+        self._model_lane_lease = acquire_synchronous_in_process_model_lane(
+            owner_id="valence-scorer",
+            model_path=model_id,
+            purpose="measurement",
+            metadata={"tool": "valence_scorer"},
+        )
+        require_active_synchronous_in_process_model_lane(self._model_lane_lease)
         self.model_id = model_id
         self.model = SentenceTransformer(model_id)
         positive = self.model.encode(list(POSITIVE_ANCHORS), normalize_embeddings=True)

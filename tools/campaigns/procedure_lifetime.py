@@ -53,25 +53,18 @@ from core.cognition.trace_compiler import TraceCompiler  # noqa: E402
 
 
 def _resident_bytes() -> int:
-    """Resident set size in bytes, or 0 where the platform will not say."""
+    """Resident set size in bytes, or 0 where the platform will not say.
+
+    Through the one observer. `resource.getrusage` is a second reader of a
+    fact the runtime already observes, and one nothing can substitute, so a
+    campaign could not be run against a stated memory condition.
+    """
     try:
-        import resource
+        from core.runtime.resource_observation import get_resource_observer
 
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    except (ImportError, OSError, ValueError):
+        return int(get_resource_observer().memory().process_rss_bytes)
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
         return 0
-    # Linux reports kilobytes, macOS bytes.
-    return peak if peak > 1 << 20 else peak * 1024
-
-#: Each task reads three keys that matter and two that only happen to be
-#: there. A compiler that keeps all five has learned the room, not the task.
-REAL_KEYS = ("goal", "board", "hand")
-INCIDENTAL_KEYS = ("clock", "battery")
-
-#: How many deliberation steps one episode takes before the chunk exists. The
-#: cards say "previously hundreds-step episode", and three steps would make
-#: the compression claim about nothing.
-EPISODE_STEPS = 240
 
 
 def _episode(

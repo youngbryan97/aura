@@ -136,7 +136,23 @@ def run(
     from mlx_lm.generate import generate
     from mlx_lm.sample_utils import make_sampler
 
-    model, tokenizer = load(str(model_path))
+    from core.runtime.model_lane_control import acquire_standalone_model_lane
+
+    # Held for as long as the model is resident, not just across the load.
+    # This is a second cortex-sized model on a host whose resident one already
+    # holds about twenty gigabytes, and the lane is what stops the two of them
+    # meeting. Released in the `finally` at the end of the run.
+    lease = acquire_standalone_model_lane(
+        owner_id="selfreport-steering-ab",
+        model_path=str(model_path),
+        purpose="measurement",
+        metadata={"tool": "selfreport_steering_ab"},
+    )
+    try:
+        model, tokenizer = load(str(model_path))
+    except BaseException:
+        lease.release()
+        raise
 
     def gen(system: str, user: str, seed: int) -> str:
         mx.random.seed(seed)
@@ -190,6 +206,7 @@ def run(
     if fired["pos"] <= 0 or fired["neg"] <= 0:
         log("VOID: a steered arm never injected. This is not a null result.")
         out_path.write_text(json.dumps({"void": "no_injection", "fired": fired}, indent=2))
+        lease.release()
         return 3
 
     identical = sum(
@@ -199,6 +216,7 @@ def run(
     if identical == len(results["steered_pos"]):
         log("VOID: the steered arms produced identical text.")
         out_path.write_text(json.dumps({"void": "identical_text"}, indent=2))
+        lease.release()
         return 3
 
     log("scoring with the pre-registered embedding scorer")
@@ -208,6 +226,7 @@ def run(
             row["score"] = float(value)
 
     def scores(name: str) -> list[float]:
+        lease.release()
         return [r["score"] for r in results[name]]
 
     control = paired_stats(scores("prompt_pos"), scores("prompt_neg"))
@@ -215,6 +234,7 @@ def run(
         log("VOID: the scorer did not separate the prompt conditions.")
         out_path.write_text(json.dumps({"void": "scorer_control_failed",
                                         "control": control}, indent=2))
+        lease.release()
         return 3
 
     payload = {
@@ -248,6 +268,7 @@ def run(
     for name, stats_ in payload["contrasts"].items():
         log(f"  {name:38} delta={stats_['mean_delta']:+.4f} "
             f"dz={stats_['cohens_dz']} p={stats_['p_value']}")
+    lease.release()
     return 0
 
 

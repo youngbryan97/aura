@@ -44,16 +44,18 @@ PREDICATE = "PredicateNode"
 
 
 def _resident_bytes() -> int:
-    """Resident set size in bytes, or 0 where the platform will not say."""
-    try:
-        import resource
+    """Resident set size in bytes, or 0 where the platform will not say.
 
-        peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    except (ImportError, OSError, ValueError):
+    Through the one observer. `resource.getrusage` is a second reader of a
+    fact the runtime already observes, and one nothing can substitute, so a
+    campaign could not be run against a stated memory condition.
+    """
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        return int(get_resource_observer().memory().process_rss_bytes)
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
         return 0
-    # Linux reports kilobytes, macOS bytes. A value under a megabyte for a
-    # process this size can only be the kilobyte reading.
-    return peak if peak > 1 << 20 else peak * 1024
 
 
 def _percentile(values: list[float], fraction: float) -> float:

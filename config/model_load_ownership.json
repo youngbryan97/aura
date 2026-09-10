@@ -166,6 +166,26 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "research/consciousness/selfreport_steering_ab.py"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "acquire_synchronous_in_process_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "sentence_transformers"
+      ],
+      "ownership_mode": "in_process_sync_heartbeat",
+      "path": "research/consciousness/valence_scorer.py"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "acquire_standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "scripts/generate_steering_vectors.py"
     },
     {
@@ -287,6 +307,16 @@
     },
     {
       "expected_load_references": 1,
+      "guard_symbol": "acquire_standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/experiments/run_matched_27b.py"
+    },
+    {
+      "expected_load_references": 1,
       "guard_symbol": "standalone_model_lane",
       "min_guard_sites": 1,
       "modules": [
@@ -369,6 +399,16 @@
       "path": "tools/latent_cortex_lab.py"
     },
     {
+      "expected_load_references": 1,
+      "guard_symbol": "acquire_standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/matched/run_matched_substrate.py"
+    },
+    {
       "cleanup_scope": "guarded_finally",
       "cleanup_symbol": "clear_cache",
       "expected_load_references": 1,
@@ -392,6 +432,16 @@
       "ownership_mode": "standalone_process",
       "path": "tools/measure_candidate_peakedness.py",
       "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/measure_fusion_channel.py"
     },
     {
       "expected_load_references": 1,
@@ -674,6 +724,16 @@
       "ownership_mode": "standalone_process",
       "path": "tools/run_semantic_output_transfer_canary.py",
       "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/run_semantic_program_ordinary_baseline.py"
     },
     {
       "expected_load_references": 1,

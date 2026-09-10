@@ -123,9 +123,27 @@ def _wake_the_faculties() -> tuple[str, ...]:
 
 
 def _load():
+    """Load the substrate under a lane held for as long as it is resident.
+
+    The caller keeps the returned lease and releases it when the model goes.
+    A cortex-sized model beside the resident one is what the lane prevents.
+    """
     import mlx_lm
 
-    return mlx_lm.load(SUBSTRATE)
+    from core.runtime.model_lane_control import acquire_standalone_model_lane
+
+    lease = acquire_standalone_model_lane(
+        owner_id="matched-substrate",
+        model_path=str(SUBSTRATE),
+        purpose="measurement",
+        metadata={"tool": "run_matched_substrate"},
+    )
+    try:
+        model, tokenizer = mlx_lm.load(SUBSTRATE)
+    except BaseException:
+        lease.release()
+        raise
+    return model, tokenizer, lease
 
 
 #: The temperature a generation gets when no faculty modulates it. The same
@@ -575,7 +593,7 @@ def main() -> int:
     if missing:
         print(f"REFUSED: these arms remove nothing that is registered: {missing}")
         return 1
-    model, tok = _load()
+    model, tok, model_lane_lease = _load()
     tasks = every_task()
     print(
         f"substrate {SUBSTRATE} | {len(ARMS)} arms | {len(tasks)} tasks "
@@ -695,6 +713,7 @@ def main() -> int:
             source="matched_substrate",
         )
     print(f"wrote {out}")
+    model_lane_lease.release()
     return 0
 
 

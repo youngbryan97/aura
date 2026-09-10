@@ -104,14 +104,23 @@ class Interoception:
             return None
 
     def _system_load(self) -> float | None:
-        try:
-            import os
+        """How busy the machine is, from the one place that observes it.
 
-            one, _, _ = os.getloadavg()
-            cpus = os.cpu_count() or 1
-            return max(0.0, min(1.0, one / float(cpus)))
-        except (OSError, AttributeError, ValueError):
+        Read `os.getloadavg` and `os.cpu_count` directly, which is a second
+        answer to a question the runtime already has one answer to — and one
+        that no substitution can reach, so nothing could test what she does
+        under load without loading the machine.
+        """
+        try:
+            from core.runtime.resource_observation import get_resource_observer
+
+            compute = get_resource_observer().compute()
+        except (ImportError, OSError, AttributeError, RuntimeError, ValueError):
             return None
+        if not getattr(compute, "available", False):
+            return None
+        cpus = int(getattr(compute, "cpu_count", 0) or 0) or 1
+        return max(0.0, min(1.0, float(getattr(compute, "load_1m", 0.0)) / float(cpus)))
 
     def status(self) -> dict[str, Any]:
         with self._lock:

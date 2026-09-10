@@ -53,18 +53,36 @@ async def test_proprioception_marks_partial_sensor_loss_without_losing_body_sche
     from core.phases.proprioceptive_loop import ProprioceptiveLoop
     from core.state.aura_state import AuraState
 
-    class PartialPsutil(FakePsutil):
-        @staticmethod
-        def sensors_temperatures():
-            reason = "thermal bus unavailable"
-            raise OSError(reason)
-
     class BrokenRouter:
         def get_stats(self):
             reason = "router metrics timed out"
             raise TimeoutError(reason)
 
-    monkeypatch.setattr(proprioceptive_module, "psutil", PartialPsutil)
+    # The body reads its hardware through the one resource observer now, which
+    # is the substitutable surface. Replacing `proprioceptive_module.psutil`
+    # replaced a reader the loop no longer uses, so the fake was never
+    # consulted and this asserted against the real machine.
+    from core.runtime.resource_observation import (
+        SimulatedResourceObserver,
+        resource_observer_scope,
+    )
+
+    class ThermallyBlind(SimulatedResourceObserver):
+        def thermal(self, *, max_age_s: float = 5.0):
+            reason = "thermal bus unavailable"
+            raise OSError(reason)
+
+    observer = ThermallyBlind(
+        scenario_id="partial-sensor-loss",
+        cpu_percent=17.5,
+        memory_percent=42.0,
+    )
+    monkeypatch.setattr(proprioceptive_module, "psutil", FakePsutil)
+    stack = resource_observer_scope(observer)
+    stack.__enter__()
+    monkeypatch.setattr(
+        proprioceptive_module, "_observer_scope_for_test", stack, raising=False
+    )
     loop = ProprioceptiveLoop(
         DictContainer(
             {
@@ -74,7 +92,10 @@ async def test_proprioception_marks_partial_sensor_loss_without_losing_body_sche
         )
     )
 
-    state = await loop.execute(AuraState.default())
+    try:
+        state = await loop.execute(AuraState.default())
+    finally:
+        stack.__exit__(None, None, None)
 
     assert state.soma.hardware["cpu_usage"] == 17.5
     assert state.soma.hardware["vram_usage"] == 42.0

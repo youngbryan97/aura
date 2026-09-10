@@ -77,8 +77,25 @@ def mlx_arm(
         if "model" not in state:
             from mlx_lm import load
 
+            from core.runtime.model_lane_control import (
+                acquire_standalone_model_lane,
+            )
+
+            # Held for as long as the model stays in `state`, which is the
+            # life of the run. A cortex-sized model beside the resident one is
+            # what the lane exists to prevent.
             print(f"  loading {path.name} ...", flush=True)
-            model, tokenizer = load(str(path))
+            state["lease"] = acquire_standalone_model_lane(
+                owner_id="matched-27b",
+                model_path=str(path),
+                purpose="measurement",
+                metadata={"tool": "run_matched_27b"},
+            )
+            try:
+                model, tokenizer = load(str(path))
+            except BaseException:
+                state.pop("lease").release()
+                raise
             state["model"], state["tokenizer"] = model, tokenizer
         from mlx_lm import generate
 

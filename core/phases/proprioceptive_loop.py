@@ -187,9 +187,11 @@ class ProprioceptiveLoop(BasePhase):
     def _process_megabytes() -> float:
         """Resident set size in MB, or zero when it cannot be read."""
         try:
-            import psutil
+            from core.runtime.resource_observation import get_resource_observer
 
-            return float(psutil.Process().memory_info().rss) / (1024.0 * 1024.0)
+            return float(get_resource_observer().memory().process_rss_bytes) / (
+                1024.0 * 1024.0
+            )
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError):
             return 0.0
 
@@ -373,8 +375,17 @@ class ProprioceptiveLoop(BasePhase):
         if psutil:
             soma.hardware["psutil_available"] = True
             try:
-                soma.hardware["cpu_usage"] = psutil.cpu_percent(interval=0)
-                mem = psutil.virtual_memory()
+                # Through the one observer rather than through psutil here.
+                # A second reader of the same facts is a second answer, and
+                # one no substitution can reach — so nothing could put her
+                # body under load without loading the machine.
+                from core.runtime.resource_observation import (
+                    get_resource_observer,
+                )
+
+                observer = get_resource_observer()
+                soma.hardware["cpu_usage"] = float(observer.compute().cpu_percent)
+                mem = observer.memory()
                 # Both names carry the same reading. `vram_usage` is what the
                 # field has always been called and several readers use it, but
                 # the number is system memory, and three call sites in
@@ -388,10 +399,9 @@ class ProprioceptiveLoop(BasePhase):
                 # Temperature (macOS may not expose this)
                 soma.hardware["temperature_available"] = False
                 try:
-                    temps = psutil.sensors_temperatures()
-                    if temps:
-                        first_key = next(iter(temps))
-                        soma.hardware["temperature"] = temps[first_key][0].current
+                    thermal = observer.thermal()
+                    if getattr(thermal, "available", False) and not thermal.blind:
+                        soma.hardware["temperature"] = float(thermal.level)
                         soma.hardware["temperature_available"] = True
                 except (AttributeError, StopIteration, IndexError):
                     soma.hardware["temperature_available"] = False
@@ -408,9 +418,9 @@ class ProprioceptiveLoop(BasePhase):
                 # Battery (laptops)
                 soma.hardware["battery_available"] = False
                 try:
-                    bat = psutil.sensors_battery()
-                    if bat:
-                        soma.hardware["battery"] = bat.percent
+                    power = observer.power()
+                    if getattr(power, "available", False):
+                        soma.hardware["battery"] = float(power.battery_percent)
                         soma.hardware["battery_available"] = True
                 except AttributeError:
                     soma.hardware["battery_available"] = False
