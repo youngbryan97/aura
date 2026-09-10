@@ -40,13 +40,22 @@ Working list. Deleted when every line is done and green.
 
 ## Open
 
+- [ ] close the cascade gap. Her bursts are smaller and shorter than a human's;
+      the rich club is the first structure aimed at it and the sweep past the
+      human setting is running
+
 - [ ] the full offline suite green
-- [ ] a certificate for the resident 27B. The worker measures its own channel
-      after a minute of idle, so the number arrives on its own; until it does,
-      the channel stays shut on that model
-- [ ] fit anything to a human recording. `X(t)` is measured on her own substrate
-      and has never been compared against EEG, MEG, fMRI or single-unit data,
-      which is the experiment that term exists for
+- [ ] a certificate for the resident 27B. The mechanism is proven end to end on
+      the reflex 1.5B through the worker's own code path — alpha 0.0 before,
+      the probe runs, alpha 0.2 after, and a second call skips a checkpoint
+      that already has one. The 27B earns its own on the first idle minute
+      after the live instance restarts onto this code; until then the channel
+      stays shut on that model, which is the failure direction it should have
+- [x] fit anything to a human recording. Four published statistics of human
+      cortical activity, scored as floors rather than targets: her cascades
+      satisfy their own scaling relation, so she is critical, but her exponents
+      are 3.69 and 3.72 against cortex's 1.5 and 2.0 — bursts smaller and
+      shorter than a human's, which is the deficiency to close
 - [x] replace the mesh's chosen structural numbers with measured ones, or say
       for each why no measurement can reach it. Six are choices now, down from
       fourteen: the size of the thing, the slope of a tanh, a noise amplitude
@@ -65,8 +74,10 @@ Working list. Deleted when every line is done and green.
       H01's contact-multiplicity law, and the law was chosen by the number it
       was not fitted to — the heaviest pair in the volume, which the
       exponential cutoff makes a one-in-twenty-three-million event
-- [ ] development rather than construction: her own history is recoverable
-      exactly, and no developmental trajectory constrains how she got here
+- [x] development rather than construction: the mesh grows to 1.5 times its
+      adult density and is pruned back by what each synapse carried, landing on
+      the density its anatomy specifies. Pruning by co-activation beat the same
+      cut made at random in 5 of 5 seeds
 
 ## The standard these are held to
 
