@@ -52,11 +52,19 @@ def test_the_states_add_up(routes):
 
 
 def test_the_induction_is_authoritative_and_the_chat_path_proves_it():
-    """Not a claim in a table: the route is applied where answers are served."""
+    """Not a claim in a table: the route is applied where answers are served.
+
+    Read across the chat lane rather than one file. The call was in chat.py
+    until the lane was split, and pinning the filename made a module move look
+    like a route that had stopped being applied.
+    """
     assert THE_SEMANTIC_ROUTES["sequence_induction"]["state"] == "authoritative"
-    chat = (ROOT / "interface" / "routes" / "chat.py").read_text("utf-8")
-    assert "answer_sequence_question" in chat
-    assert '("worked_out_sequence"' in chat
+    lane = "\n".join(
+        path.read_text("utf-8")
+        for path in sorted((ROOT / "interface" / "routes").glob("chat*.py"))
+    )
+    assert "answer_sequence_question" in lane
+    assert '("worked_out_sequence"' in lane
 
 
 def test_the_recurrent_route_is_a_shadow_and_says_so(routes):

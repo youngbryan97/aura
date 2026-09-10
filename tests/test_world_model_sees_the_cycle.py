@@ -30,10 +30,19 @@ class _Model:
         return self._surprise
 
 
+#: The width of one observation. Three fields were added in the middle of the
+#: vector — the newest percept's salience, novelty, and the strongest recall
+#: score — and the number here is stated rather than derived on purpose: the
+#: model pads to 64 and will not complain, but every feature after an inserted
+#: one moves, so a weight learned about arousal starts reading curiosity.
+#: Changing it is a deliberate edit that costs the model what it has learned.
+OBSERVATION_WIDTH = 17
+
+
 def test_the_observation_is_fixed_width_and_all_numbers():
     vector = observation_of(AuraState.default())
     assert vector.dtype == np.float64
-    assert vector.size == 14
+    assert vector.size == OBSERVATION_WIDTH
     assert np.all(np.isfinite(vector))
 
 
@@ -67,7 +76,7 @@ def test_the_cycle_reaches_the_model_and_the_surprise_comes_back():
     assert observe_cycle(AuraState.default(), model) == pytest.approx(0.42)
     assert len(model.seen) == 1
     observation, action, learn = model.seen[0]
-    assert observation.size == 14
+    assert observation.size == OBSERVATION_WIDTH
     assert action.size == 4
     assert learn is True
 

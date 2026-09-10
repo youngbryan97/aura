@@ -52,6 +52,30 @@ __all__ = [
 #: what the others are doing, because "one owner" is only true if the rest are
 #: something other than writers.
 THE_DECLARED_OWNERS: dict[str, dict[str, str]] = {
+    "cognition.memory_scores": {
+        "owner": "core/phases/memory_retrieval.py",
+        "others": "the retrieval phase scores the recall and clears it when a "
+        "turn recalls nothing; workspace_feed and the subject driver keep the "
+        "same list trimmed to what they can hold, and memory_consolidation "
+        "clears it with the memories it consolidated",
+    },
+    "cognition.last_action_source": {
+        "owner": "core/subject/driver.py",
+        "others": "the driver names which proposal won the tick; subject/state "
+        "and clamp hash it into the subject vector and never write it",
+    },
+    "soma.effort": {
+        "owner": "core/phases/proprioceptive_loop.py",
+        "others": "the loop copies what the effort ledger spent this cycle; "
+        "note_effort adds to that ledger from wherever work happens, and "
+        "subject/state reads the recall entry out of it",
+    },
+    "soma.exertion": {
+        "owner": "core/phases/proprioceptive_loop.py",
+        "others": "derived by the same loop from the ledger; the subject "
+        "perturbation moves it deliberately, because an experiment holding the "
+        "host still needs one body channel that is hers rather than the machine's",
+    },
     "cognition.current_objective": {
         "owner": "core/phases/cognitive_routing.py",
         "others": "the kernel and mind_tick set it at the start of a turn and "
@@ -215,7 +239,16 @@ def _work_out_how_ownership_stands(here: Path) -> dict[str, Any]:
         and one not in THE_DECLARED_OWNERS
         and len(assigns.get(one, ())) > 1
     ]
-    silent = [one for one in rest if not assigns.get(one)]
+    # After all three answers, not beside them. A field nothing appears to
+    # assign is usually mutated in place through a container reference — which
+    # is exactly when a declaration is the only way to say who owns it. Left
+    # out of this exclusion, a declared field was counted both as owned and as
+    # nobody's, and `soma.effort` appeared in both answers at once.
+    silent = [
+        one
+        for one in rest
+        if not assigns.get(one) and one not in THE_DECLARED_OWNERS
+    ]
 
     return {
         "fields": len(fields),
