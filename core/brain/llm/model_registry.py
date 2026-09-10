@@ -13,17 +13,39 @@ import os
 import re
 import threading
 import time
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+# model_paths OWNS the base directory. The name is bound here for the path
+# tables below, which are built once at import and frozen — but every read
+# that happens at CALL time goes through `model_paths.BASE_DIR`, because a
+# second name for one value is how a patched test comes to lie about what
+# it patched. Three reads in this file are of that kind.
+from core.brain.llm import model_paths
 from core.brain.llm.context_window_evidence import (
     ContextWindowEvidence,
     assumed,
     derived,
     measured,
     note_assumption,
+)
+from core.brain.llm.model_paths import (
+    BASE_DIR,
+    get_fused_model_root,
+    get_models_dir,
+)
+from core.brain.llm.model_shapes import (
+    ActiveCortexSpec,
+    CortexBoundArtifactResolution,
+    CortexServingLaneLimits,
+    CortexServingLimits,
+)
+from core.brain.llm.model_shapes import (
+    canonical_contract_json as _canonical_contract_json,
+)
+from core.brain.llm.model_shapes import (
+    contract_digest as _contract_digest,
 )
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
@@ -136,189 +158,10 @@ _FLAG_MODEL = _declare_flag(
     owner="flag-migration",
 )
 
-
-logger = logging.getLogger("Aura.ModelRegistry")
-
-def resolve_installation_root(checkout: Path) -> Path:
-    """The installation this source is running inside, not the source itself.
-
-    ``get_models_dir`` and ``get_fused_model_root`` both already say that the
-    model inventory and the promotion pointer belong to the running
-    installation rather than to one source checkout. The base directory did not
-    honour that: it resolved to the directory holding this file, so a linked
-    worktree looked for models and for the active cortex manifest underneath
-    itself, found neither, and reported the pointer invalid.
-
-    A linked worktree's ``.git`` is a file reading
-    ``gitdir: <primary>/.git/worktrees/<name>``, so the primary checkout is
-    recoverable without running git and without knowing anybody's home
-    directory. A primary checkout has a ``.git`` directory and is already the
-    answer.
-
-    Falls back to the checkout whenever the marker is missing, unreadable,
-    shaped differently, or names a directory that is not there -- a wrong path
-    that exists is worse than the local one, and this runs at import.
-    """
-    marker = checkout / ".git"
-    try:
-        if not marker.is_file():
-            return checkout
-        text = marker.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
-        return checkout
-    if not text.startswith("gitdir:"):
-        return checkout
-    raw = text.split(":", 1)[1].strip()
-    if not raw:
-        return checkout
-    gitdir = Path(raw)
-    if not gitdir.is_absolute():
-        gitdir = (checkout / gitdir).resolve()
-    for parent in gitdir.parents:
-        if parent.name == ".git":
-            primary = parent.parent
-            return primary if primary.is_dir() else checkout
-    return checkout
-
-
-_SOURCE_CHECKOUT = Path(__file__).resolve().parents[3]
-_configured_root = str(os.getenv("AURA_ROOT", "")).strip()
-BASE_DIR = (
-    Path(_configured_root).expanduser()
-    if _configured_root
-    else resolve_installation_root(_SOURCE_CHECKOUT)
-)
 LOCAL_BACKEND = str(_FLAG_LOCAL_BACKEND.value()).strip().lower()
 
 
-def get_models_dir() -> Path:
-    """Return the model artifact root independently of the source checkout.
-
-    Worktree-built desktop apps execute source from the worktree but share the
-    large, immutable model inventory in the primary checkout.  Conflating those
-    two roots made a valid Hugging Face repository ID get reinterpreted as a
-    nonexistent path below the worktree.
-    """
-
-    configured = str(os.getenv("AURA_MODELS_DIR", "")).strip()
-    return Path(configured).expanduser() if configured else BASE_DIR / "models"
-
-
-def get_fused_model_root() -> Path:
-    """Return the runtime-wide model promotion root.
-
-    Promotion state belongs to the running Aura installation, not to an
-    individual source worktree.  A worktree must therefore observe the same
-    active manifest as the primary checkout or it can silently substitute an
-    unqualified base checkpoint for the promoted cortex.
-    """
-
-    configured = str(os.getenv("AURA_FUSED_MODEL_ROOT", "")).strip()
-    if configured:
-        return Path(configured).expanduser()
-    return BASE_DIR / "training" / "fused-model"
-
-
-@dataclass(frozen=True)
-class ActiveCortexSpec:
-    """Immutable, validated view of the one active cortex pointer.
-
-    JSON dictionaries are retained as canonical strings so callers cannot
-    mutate the registry's cached authority object.  Accessors return fresh
-    values when a subsystem needs the complete contract.
-    """
-
-    manifest_path: Path
-    pointer_sha256: str
-    schema_version: int
-    model_path: Path
-    base_model: str
-    tag: str
-    size_class: str
-    descriptor_sha256: str
-    repository_id: str
-    revision: str
-    serving_profile_sha256: str
-    migration_contract_sha256: str
-    evaluation_sha256: str
-    exact_identity: bool
-    promotion_qualified: bool
-    predecessor_pointer_sha256: str = ""
-    identity_transition_sha256: str = ""
-    identity_transition_verified: bool = False
-    _artifact_descriptor_json: str = ""
-    _serving_profile_json: str = ""
-    _migration_contract_json: str = ""
-    _evaluation_json: str = ""
-
-    @staticmethod
-    def _decode(value: str) -> dict[str, object] | None:
-        if not value:
-            return None
-        decoded = json.loads(value)
-        return decoded if isinstance(decoded, dict) else None
-
-    def artifact_descriptor(self) -> dict[str, object] | None:
-        return self._decode(self._artifact_descriptor_json)
-
-    def serving_profile(self) -> dict[str, object] | None:
-        return self._decode(self._serving_profile_json)
-
-    def migration_contract(self) -> dict[str, object] | None:
-        return self._decode(self._migration_contract_json)
-
-    def evaluation(self) -> dict[str, object] | None:
-        """Return a fresh copy of the validated promotion evaluation."""
-
-        return self._decode(self._evaluation_json)
-
-
-@dataclass(frozen=True)
-class CortexBoundArtifactResolution:
-    """Admission result for tissue that belongs only to the active cortex.
-
-    A non-cortex lane is not an identity failure. Brainstem, reflex, draft,
-    and specialist workers legitimately load other checkpoints, so callers
-    need a quiet way to distinguish those workers from a corrupted active
-    cortex identity.
-    """
-
-    status: str
-    model_path: Path | None = None
-    descriptor: dict[str, object] | None = None
-    reason: str = ""
-
-    @property
-    def matched(self) -> bool:
-        return self.status == "matched"
-
-
-@dataclass(frozen=True)
-class CortexServingLaneLimits:
-    """One qualified input/output envelope from the active cortex profile."""
-
-    name: str
-    max_input_tokens: int
-    max_output_tokens: int
-
-
-@dataclass(frozen=True)
-class CortexServingLimits:
-    """Immutable serving limits bound to one exact active model artifact."""
-
-    model_path: Path
-    descriptor_sha256: str
-    profile_sha256: str
-    source: str
-    qualified: bool
-    served_context_tokens: int
-    prefill_chunk_tokens: int
-    lanes: tuple[CortexServingLaneLimits, ...]
-
-    def lane(self, name: str) -> CortexServingLaneLimits | None:
-        normalized = str(name or "").strip().lower()
-        return next((lane for lane in self.lanes if lane.name == normalized), None)
-
+logger = logging.getLogger("Aura.ModelRegistry")
 
 _ACTIVE_CORTEX_SPEC_TTL_S = 5.0
 _active_cortex_spec_cache: (
@@ -329,24 +172,6 @@ _deep_specialist_status_cache: dict[
     str,
     tuple[float, tuple[object, ...], object],
 ] = {}
-
-
-def _canonical_contract_json(value: dict[str, object] | None) -> str:
-    if not isinstance(value, dict):
-        return ""
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        allow_nan=False,
-    )
-
-
-def _contract_digest(value: dict[str, object], *, digest_key: str) -> str:
-    material = dict(value)
-    material.pop(digest_key, None)
-    return hashlib.sha256(_canonical_contract_json(material).encode("ascii")).hexdigest()
 
 
 def _validate_identity_transition(
@@ -1287,7 +1112,7 @@ def _deep_specialist_identity_signature(
         from core.learning.specialist_cortex_admission import REQUIRED_SOURCE_CLOSURE
 
         signature.extend(
-            _path_stat_signature(BASE_DIR / relative)
+            _path_stat_signature(model_paths.BASE_DIR / relative)
             for relative in sorted(REQUIRED_SOURCE_CLOSURE)
         )
     except ImportError:
@@ -1365,7 +1190,7 @@ def get_deep_solver_admission_status(
         status = verify_specialist_qualification_certificate(
             certificate_path,
             trusted_public_key_path=trust_root_path,
-            source_root=BASE_DIR,
+            source_root=model_paths.BASE_DIR,
             current_source_commit=_current_specialist_source_commit(),
             resident_descriptor_sha256=resident.descriptor_sha256,
             resident_pointer_sha256=resident.pointer_sha256,
@@ -2154,7 +1979,7 @@ def resolve_personality_adapter(
     if not adapter_dir:
         if not _default_personality_lora_enabled(normalized_backend):
             return None
-        default_dir = BASE_DIR / "training" / "adapters" / "aura-personality"
+        default_dir = model_paths.BASE_DIR / "training" / "adapters" / "aura-personality"
         if (default_dir / "adapters.safetensors").exists():
             adapter_dir = str(default_dir)
     if not adapter_dir or not Path(adapter_dir).is_dir():

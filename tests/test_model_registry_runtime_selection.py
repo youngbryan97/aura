@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import core.brain.llm.model_paths as model_paths
 import core.brain.llm.model_registry as model_registry
 
 
@@ -233,7 +234,7 @@ def test_specialist_admission_cache_invalidates_on_evidence_or_source_change(
     trust_root.write_text("trust-root", encoding="utf-8")
     source.write_text("source-v1", encoding="utf-8")
 
-    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "deep_solver_is_distinctly_configured", lambda: True)
     monkeypatch.setattr(model_registry, "deep_solver_artifact_is_ready", lambda: True)
     monkeypatch.setattr(
@@ -340,7 +341,7 @@ def test_get_model_path_maps_q4_alias_to_existing_mlx_model_dir(monkeypatch, tmp
     model_dir = tmp_path / "models" / "Qwen2.5-72B-Instruct-4bit"
     model_dir.mkdir(parents=True)
 
-    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "LOCAL_BACKEND", "mlx")
     monkeypatch.setitem(
         model_registry.MODEL_PATHS,
@@ -366,7 +367,7 @@ def test_get_model_path_preserves_missing_absolute_paths(monkeypatch, tmp_path):
 
 
 def test_get_model_path_is_idempotent_for_governed_repository_id(monkeypatch, tmp_path):
-    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
     repository_id = model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit")
 
@@ -379,7 +380,7 @@ def test_explicit_shared_model_root_is_independent_of_source_root(monkeypatch, t
     shared_models = tmp_path / "primary" / "models"
     model_dir = shared_models / "Qwen2.5-32B-Instruct-8bit"
     model_dir.mkdir(parents=True)
-    monkeypatch.setattr(model_registry, "BASE_DIR", source_root)
+    monkeypatch.setattr(model_paths, "BASE_DIR", source_root)
     monkeypatch.setenv("AURA_MODELS_DIR", str(shared_models))
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
 
@@ -397,7 +398,7 @@ def test_explicit_promotion_root_wins_from_worktree_source(monkeypatch, tmp_path
         '{"active_model_path": "' + str(promoted_model) + '"}',
         encoding="utf-8",
     )
-    monkeypatch.setattr(model_registry, "BASE_DIR", source_root)
+    monkeypatch.setattr(model_paths, "BASE_DIR", source_root)
     monkeypatch.setenv("AURA_FUSED_MODEL_ROOT", str(promotion_root))
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
 

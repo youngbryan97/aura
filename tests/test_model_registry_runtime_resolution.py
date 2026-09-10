@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+import core.brain.llm.model_paths as model_paths
 import core.brain.llm.model_registry as model_registry
 
 pytestmark = pytest.mark.unit
@@ -23,7 +24,7 @@ CORTEX = model_registry._CORTEX_NAME
 @pytest.fixture
 def registry_sandbox(tmp_path, monkeypatch):
     monkeypatch.delenv("AURA_LLM__MLX_MODEL_PATH", raising=False)
-    monkeypatch.setattr(model_registry, "BASE_DIR", tmp_path)
+    monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
     manifest_dir = tmp_path / "training" / "fused-model"
     manifest_dir.mkdir(parents=True)
