@@ -66,7 +66,8 @@ from core.cognition.when_the_move_is_forbidden import a_way_round
 from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.cognition.which_way_to_win import which_way_to_win
 from core.runtime.errors import record_degradation
-from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
+from core.conversation.word_markers import names_any
+from core.runtime.watched_goal import BROWSERS, PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
@@ -2049,7 +2050,12 @@ async def _take_the_run_its_bearings(
     timeline was still in front, and brought the browser forward over the
     window it was driving to put it back.
     """
-    about_a_page = bool(open_page or expect_page)
+    # A run in a BROWSER is about a page whether or not the caller named one:
+    # the page is the thing being acted in, and the browser is only the window
+    # around it. Excluding it along with desktop applications left such a run
+    # with no anchor at all, so drift could not be detected — which is the
+    # thing this function exists to make possible.
+    about_a_page = bool(open_page or expect_page or names_any(target_app, BROWSERS))
     page = await current_page_identity() if (about_a_page or not target_app) else {}
     if not anchor["page"] and about_a_page:
         anchor["page"] = str(
@@ -3142,7 +3148,9 @@ async def pursue_on_screen(
                     # came back full of a timeline. The same care is two lines
                     # below, deciding which application the run belongs to,
                     # and was never applied to the page.
-                    about_a_page = bool(open_page or expect_page)
+                    about_a_page = bool(
+                        open_page or expect_page or names_any(target_app, BROWSERS)
+                    )
                     anchor["page"] = str(
                         expect_page
                         or (page.get("url") or page.get("title") or "" if about_a_page else "")

@@ -6797,8 +6797,19 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     finally:
         try:
             engine.set_alpha(restore_alpha)
-        except (AttributeError, TypeError, ValueError):
-            pass
+        except (AttributeError, TypeError, ValueError) as exc:
+            # Not a swallow. The probe left the engine's alpha wherever its
+            # last measurement put it, and failing to put it back would leave
+            # steering silently off — or silently hot — for the rest of this
+            # worker's life, with nothing anywhere saying why.
+            _record_mlx_degradation(
+                exc,
+                action=(
+                    "could not restore the steering alpha the fusion probe changed; "
+                    "the engine is left at the probe's last setting"
+                ),
+                severity="warning",
+            )
 
     if not certificates:
         return False

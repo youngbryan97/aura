@@ -607,9 +607,21 @@ def _an_application_here(said: str, *, only_chosen: bool = False) -> str:
     around the name — "the 2048 Game app", "2048 Game" — so the longest run
     of its words that matches something installed is what it names.
     """
+    spoken = str(said or "")
+    #: Whether the request called it an application at all. A prefix match is
+    #: how "the 2048 Game app" resolves from the word "2048", and it is also
+    #: how the ordinary noun in "keep refreshing the page until the build goes
+    #: green" resolved to the Pages application — "page" is a prefix of
+    #: "pages", exactly one installed thing starts with it, and a build watcher
+    #: became a word-processor goal. A prefix may only claim an application
+    #: when the sentence said it was one; an exact match still stands on its
+    #: own.
+    called_it_an_app = bool(
+        re.search(r"\b(?:app|application|game)\b", spoken, re.IGNORECASE)
+    )
     words = [
         one
-        for one in re.split(r"[^\w.+-]+", str(said or ""))
+        for one in re.split(r"[^\w.+-]+", spoken)
         if one and one.lower() not in {"the", "a", "an", "app", "application", "game"}
     ]
     if not words:
@@ -630,6 +642,8 @@ def _an_application_here(said: str, *, only_chosen: bool = False) -> str:
             tried = " ".join(words[at : at + take]).lower()
             if tried in by_name:
                 return by_name[tried]
+            if not called_it_an_app:
+                continue
             starts = {
                 name for lowered, name in by_name.items() if lowered.startswith(tried)
             }

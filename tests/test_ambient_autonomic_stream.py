@@ -373,7 +373,11 @@ async def test_native_multimodal_bridge_binds_ambient_frame_into_world_state(mon
         await bridge.execute(state, "Perception")
 
         percept = state.world.recent_percepts[-1]
-        assert percept["role"] == "ambient_developer_stream"
+        # `type` is what it is and `source` is where it came from. This asked
+        # for `role`, which is a legacy alias nothing has written since these
+        # percepts moved to `emit_percept`.
+        assert percept["type"] == "ambient_observation"
+        assert percept["source"] == "ambient_developer_stream"
         assert percept["frame_id"] == 4
         assert percept["repair_candidates"] == ["review_recent_terminal_errors"]
         assert percept["resource_interrupts"][0]["kind"] == "memory_pressure"

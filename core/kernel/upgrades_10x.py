@@ -1756,6 +1756,13 @@ class NativeMultimodalBridge(Phase):
                 "ambient_observation",
                 content=summary,
                 intensity=min(1.0, events / 20.0),
+                # Where it came from, alongside what it is. A consumer that
+                # wants to know which sense produced a percept was reading
+                # `role`, which nothing has written since these moved to
+                # `emit_percept`; `core/state/percepts.py` resolves a percept's
+                # kind through type, then role, then source, so naming the
+                # stream here restores the provenance without a legacy alias.
+                source="ambient_developer_stream",
                 frame_id=frame_id,
                 event_count=events,
                 repair_candidates=list(getattr(frame, "repair_candidates", ()) or ())[:6],
