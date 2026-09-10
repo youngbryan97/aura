@@ -48,20 +48,32 @@ class TimeWeightedRetriever:
         def _process():
             scored = []
             for res in raw_results:
-                base = res.get("similarity_score", 0.5)
-                ts = res.get("timestamp", time.time())
-                hits = res.get("reinforcement_count", 0)
-                
-                res["temporal_score"] = self._calculate_score(base, ts, hits)
-                scored.append(res)
+                metadata = res.get("metadata") or {}
+                if not isinstance(metadata, dict):
+                    metadata = {}
+                base = res.get("similarity_score", res.get("score", 0.5))
+                ts = res.get("timestamp", metadata.get("timestamp"))
+                hits = res.get("reinforcement_count", metadata.get("reinforcement_count", 0))
+                # The facade keeps provenance in metadata. Missing time must
+                # not become a claim that the memory was recorded today.
+                known_time = isinstance(ts, (int, float)) and math.isfinite(ts) and ts > 0
+                ranked = dict(res)
+                ranked["recall_timestamp"] = ts if known_time else None
+                ranked["temporal_score"] = self._calculate_score(
+                    float(base or 0.0), ts if known_time else time.time(), int(hits or 0)
+                )
+                scored.append(ranked)
 
             scored.sort(key=lambda x: x["temporal_score"], reverse=True)
             
             fragments = []
             for r in scored[:limit]:
                 text = r.get("text", "")
-                ts = r.get("timestamp", time.time())
-                fragments.append(self._apply_seasonal_context(text, ts))
+                ts = r["recall_timestamp"]
+                fragments.append(
+                    self._apply_seasonal_context(text, ts)
+                    if ts is not None else f"[Time unknown] {text}"
+                )
             
             return "\n".join(f"• {f}" for f in fragments)
 
