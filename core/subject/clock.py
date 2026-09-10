@@ -29,7 +29,13 @@ import threading
 import time as _time
 from typing import Any
 
-__all__ = ["ExperimentClock", "installed_clock"]
+__all__ = ["ExperimentClock", "installed_clock", "real_time"]
+
+#: The real `time.time`, kept so the harness can still measure itself. A
+#: run's duration, a timeout on the process, the stamp on an artefact: those
+#: are the machine's questions and they take the machine's answer whether or
+#: not the experiment's clock is installed.
+real_time = _time.time
 
 #: The process-wide installed clock, if any. One per process, because it
 #: replaces a module-level function that every subsystem shares.

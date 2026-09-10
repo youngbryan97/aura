@@ -429,4 +429,63 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         "no null passes the conjunction",
     ))
     del directed
+    _invalidate_on_missing_readings(out, evidence)
     return out
+
+
+#: How much of a run a source may fail to read before the columns that declare
+#: it stop being a measurement. Not zero: a reader can miss the first frames
+#: while its organ is still coming up, and a criterion should not be thrown
+#: away for that. A source missing on a fifth of the run is a subsystem that
+#: was not there, and every column reading it was a default.
+MISSING_SHARE: float = 0.20
+
+#: Which criteria rest on which organ. Named here rather than derived, because
+#: the point is to say in advance what a criterion needs — a mapping worked out
+#: after seeing which ones failed is not a precondition, it is an excuse.
+CRITERION_ORGANS: dict[str, tuple[str, ...]] = {
+    "global_access": ("workspace",),
+    "recurrent_global_access": ("workspace",),
+    "self_drives_action": ("self_model", "agency"),
+    "ownership": ("agency", "comparator"),
+    "fast_to_slow": ("ontogeny",),
+    "slow_to_fast": ("ontogeny",),
+}
+
+
+def _invalidate_on_missing_readings(verdict: Verdict, evidence: dict[str, Any]) -> None:
+    """A criterion whose organ was never read did not pass and did not fail.
+
+    For runtime resilience a missing read may reasonably default. For a
+    measurement it may not: a failed reader and a genuine zero are different
+    states, and until this ran they were the same number. A criterion resting
+    on an organ that was absent for most of the run is marked invalid — which
+    keeps it out of the conjunction's pass count exactly as a failure does, and
+    says why, so nobody reads it as a fact about the organism.
+    """
+    recording = evidence.get("recording") or {}
+    misses = recording.get("misses") or {}
+    absent: set[str] = set()
+    for source, row in misses.items():
+        if not isinstance(row, dict):
+            continue
+        if float(row.get("share", 0.0)) < MISSING_SHARE:
+            continue
+        if source.startswith("organ:"):
+            absent.add(source.split(":", 1)[1].split(".", 1)[0])
+    if not absent:
+        return
+    verdict.notes = dict(verdict.notes)
+    verdict.notes["organs_mostly_unread"] = sorted(absent)
+    import dataclasses
+
+    for index, item in enumerate(verdict.criteria):
+        needed = CRITERION_ORGANS.get(item.key, ())
+        gone = sorted(set(needed) & absent)
+        if not gone:
+            continue
+        verdict.criteria[index] = dataclasses.replace(
+            item,
+            passed=False,
+            detail={**(item.detail or {}), "invalid": f"read from no organ: {', '.join(gone)}"},
+        )

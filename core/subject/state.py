@@ -39,10 +39,12 @@ visible as a flat column rather than as a plausible number.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import math
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -188,16 +190,45 @@ def _agency_comparator() -> Any:
         return None
 
 
-def _call(obj: Any, name: str, default: Any = None) -> Any:
-    """Call a reader on an organ, and treat any failure as no reading."""
+#: What went wrong while the current reading was taken. A reader that failed
+#: and a genuine zero are different states, and until this existed they were
+#: the same number: an absent organ, a raising reader and a real reading of
+#: zero all reached the recording as 0.0, so a criterion could fail on a
+#: subsystem that was never asked. The reading records the misses beside the
+#: values and the run says whether it can be read at all.
+_MISSES: ContextVar[dict[str, str] | None] = ContextVar("subject_core_misses", default=None)
+
+
+def _miss(source: str, reason: str) -> None:
+    record = _MISSES.get()
+    if record is not None:
+        record.setdefault(source, reason)
+
+
+@contextlib.contextmanager
+def recording_misses() -> Iterator[dict[str, str]]:
+    """Collect what could not be read while this block runs."""
+    record: dict[str, str] = {}
+    token = _MISSES.set(record)
+    try:
+        yield record
+    finally:
+        _MISSES.reset(token)
+
+
+def _call(obj: Any, name: str, default: Any = None, *, source: str = "") -> Any:
+    """Call a reader on an organ, and say so when there was no reading."""
     if obj is None:
+        _miss(source or name, "organ absent")
         return default
     method = getattr(obj, name, None)
     if method is None:
+        _miss(source or name, "reader absent")
         return default
     try:
         return method()
-    except Exception:  # noqa: BLE001 - an organ that raises has told us nothing
+    except Exception as exc:  # noqa: BLE001 - an organ that raises has told us nothing
+        _miss(source or name, f"reader raised {type(exc).__name__}")
         return default
 
 
@@ -244,6 +275,47 @@ _MODES: tuple[str, ...] = ("reactive", "deliberate", "dreaming", "dormant")
 #: that share none to land apart, and few enough not to crowd the schema.
 CONTENT_BUCKETS: int = 4
 
+#: Vocabularies fixed before the run, so a category is a set of coordinates
+#: rather than a hash magnitude. Each carries one extra slot for a value
+#: outside the list, because a vocabulary that silently drops what it has not
+#: seen reports an unfamiliar state as the absence of a state.
+_UNPREDICTABLE_DIMENSIONS: tuple[str, ...] = (
+    "affect_valence",
+    "drive_state",
+    "attentional_focus",
+)
+
+#: Who an event is attributed to. `core.agency.authorship.SELF` is "self";
+#: everything else the ledger records names the party that caused it.
+_ACTORS: tuple[str, ...] = ("self", "user", "world", "system")
+
+#: An ordered ladder is not a set of names. Coding it one-hot throws away the
+#: order — the distance from "strongly self-authored" to "mixed" would equal
+#: the distance to "mostly world-caused" — so these are read as a position on
+#: the ladder, with a separate column saying whether there was a reading at
+#: all. Absent and middling are different states and a single scalar cannot
+#: hold both.
+_ATTRIBUTION_LADDER: dict[str, float] = {
+    "mostly world-caused": 0.0,
+    "mixed attribution": 0.5,
+    "mostly self-authored": 0.75,
+    "strongly self-authored": 1.0,
+}
+
+_USER_TREND_LADDER: dict[str, float] = {
+    "cooling_off": 0.0,
+    "neutral": 0.5,
+    "warming_up": 0.75,
+    "engaged": 1.0,
+}
+
+_FREE_ENERGY_TREND_LADDER: dict[str, float] = {
+    "falling": 0.0,
+    "stable": 0.5,
+    "rising": 1.0,
+}
+
+
 _SCHEMAS: dict[str, Schema] = {
     "P": _sch(
         "P",
@@ -255,7 +327,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("percept_strength", "world.recent_percepts[*].intensity"),
             ("spatial_present", "world.spatial_context"),
             ("objective_len", "cognition.current_objective"),
-            ("objective_hash", "cognition.current_objective"),
+            *[
+                (f"objective_profile_{i}", "cognition.current_objective")
+                for i in range(CONTENT_BUCKETS)
+            ],
         ),
     ),
     "I": _sch(
@@ -295,13 +370,17 @@ _SCHEMAS: dict[str, Schema] = {
             ("momentum", "affect.momentum"),
             ("action_urgency", "organ:free_energy.get_action_urgency"),
             ("surprise_trend", "organ:free_energy.get_trend"),
+            ("surprise_trend_known", "organ:free_energy.get_trend"),
         ),
     ),
     "G": _sch(
         "G",
         (
             ("attention_present", "cognition.attention_focus"),
-            ("attention_hash", "cognition.attention_focus"),
+            *[
+                (f"attention_profile_{i}", "cognition.attention_focus")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("coherence", "cognition.coherence_score"),
             ("fragmentation", "cognition.fragmentation_score"),
             ("contradictions", "cognition.contradiction_count"),
@@ -314,7 +393,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("ignited", "organ:workspace.ignited"),
             ("candidates", "organ:workspace.pending_candidates"),
             ("winner_priority", "organ:workspace.last_priority"),
-            ("winner_source", "organ:workspace.last_winner"),
+            *[
+                (f"winner_source_{i}", "organ:workspace.last_winner")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("tick", "organ:workspace.tick"),
             ("tie_impasses", "organ:workspace.tie_impasses"),
             ("inhibited", "organ:workspace.inhibited_sources"),
@@ -393,7 +475,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_efficacy", "organ:agency.efficacy"),
             ("agency_authored_share", "organ:agency.authored_share"),
             ("agency_capabilities", "organ:agency.capabilities"),
-            ("agency_last_actor", "organ:agency.last_actor"),
+            *[
+                (f"agency_actor_{name}", "organ:agency.last_actor")
+                for name in (*_ACTORS, "other")
+            ],
             # How well she predicts her own next internal state. The loop that
             # computes this runs every heartbeat and its surprise signal is
             # consumed downstream; the self-state schema was not reading the
@@ -403,7 +488,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("valence_error", "organ:self_prediction.valence_error_ema"),
             ("drive_error", "organ:self_prediction.drive_error_ema"),
             ("focus_error", "organ:self_prediction.focus_error_ema"),
-            ("least_predictable", "organ:self_prediction.most_unpredictable"),
+            *[
+                (f"least_predictable_{name}", "organ:self_prediction.most_unpredictable")
+                for name in (*_UNPREDICTABLE_DIMENSIONS, "other")
+            ],
             ("prediction_confidence", "organ:self_prediction.current_prediction.confidence"),
             # The efference-copy comparator: how much of what happened her own
             # action explains. It emits and compares — both of those are wired
@@ -413,6 +501,7 @@ _SCHEMAS: dict[str, Schema] = {
             ("agency_traces", "organ:comparator.total_traces"),
             ("agency_pending", "organ:comparator.pending_efferences"),
             ("agency_attribution", "organ:comparator.recent_attribution"),
+            ("agency_attribution_known", "organ:comparator.recent_attribution"),
         ),
     ),
     "M": _sch(
@@ -452,9 +541,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("relationship_load", "world.relationship_graph"),
             ("fact_load", "world.facts"),
             ("preference_load", "world.user_preferences"),
-            ("fact_churn", "world.facts"),
+            *[
+                (f"fact_profile_{i}", "world.facts")
+                for i in range(CONTENT_BUCKETS)
+            ],
             ("concept_load", "cold.concept_graph"),
             ("user_trend", "cognition.user_emotional_trend"),
+            ("user_trend_known", "cognition.user_emotional_trend"),
             ("model_surprise", "organ:world_model.surprise"),
             # The learned world model carries a latent it steps on every
             # observation, and a running surprise. Three counts of dictionary
@@ -490,7 +583,10 @@ _SCHEMAS: dict[str, Schema] = {
                 for i in range(CONTENT_BUCKETS)
             ],
             ("origin_is_user", "cognition.current_origin"),
-            ("action_source_hash", "cognition.last_action_source"),
+            *[
+                (f"action_source_{i}", "cognition.last_action_source")
+                for i in range(CONTENT_BUCKETS)
+            ],
             *((f"drive_{name}", f"motivation.budgets.{name}") for name in _DRIVES),
         ),
     ),
@@ -545,12 +641,16 @@ def _dig(root: Any, path: str, default: Any = None) -> Any:
     node = root
     for part in path.split("."):
         if node is None:
+            _miss(path, "path absent")
             return default
         if isinstance(node, Mapping):
             node = node.get(part, None)
         else:
             node = getattr(node, part, None)
-    return default if node is None else node
+    if node is None:
+        _miss(path, "value absent")
+        return default
+    return node
 
 
 def _sat(count: Any, scale: float) -> float:
@@ -574,9 +674,14 @@ def _hash_unit(text: Any) -> float:
     downstream measures treat it as any other coordinate, and the honest
     reading of a moved hash feature is that the content changed.
 
-    Used only where the field is an identity: which objective, which actor.
-    Where the field is a body of content that changes a word at a time, see
-    `_content_buckets`, which is a coordinate rather than a name.
+    No column reads one any more. Eleven did, and every one of them was a
+    coordinate in a space where the distance between two values meant nothing:
+    two adjacent categories sat as far apart as any other pair, and the one on
+    active memory's newest item hashed a dictionary that carries the instant it
+    arrived, so the column was a clock. Categories are one-hot now, ordered
+    ones are a position on their ladder, and bodies of text are
+    `_content_buckets`. What is left here is counting distinct items, where a
+    hash is exactly right because only equality is asked of it.
     """
     raw = str(text or "")
     if not raw:
@@ -648,23 +753,85 @@ def _content_buckets(text: Any, buckets: int = CONTENT_BUCKETS) -> list[float]:
     standard deviation, which put that whole scale into the floor two identical
     sham arms could not get below, and out of reach of any intervention.
 
-    The profile is the share of tokens falling in each bucket. Two contents
-    sharing most of their tokens have nearly the same profile; two sharing none
-    differ by as much as the content did. Collisions merge two words into one
-    bucket, which makes the reading conservative — the safe direction for a
-    distance.
+    Each token is projected onto every coordinate, by a fixed function of the
+    token itself, and the profile is the mean over tokens. Two contents sharing
+    most of their tokens have nearly the same profile; two sharing none are
+    near-orthogonal, and the inner product between two profiles rises with the
+    share of tokens they have in common. Every coordinate carries every token,
+    which is what the first version did not do: counting tokens into buckets
+    left a one-word field with three coordinates at zero whatever it said, and
+    a coordinate that cannot move is not a measurement.
     """
     raw = str(text or "")
     if not raw:
         return [0.0] * buckets
     tokens = raw.split() or [raw]
     kept = tokens[:_CONTENT_TOKENS]
-    counts = [0.0] * buckets
+    totals = [0.0] * buckets
     for token in kept:
-        digest = hashlib.blake2b(token.encode("utf-8", "ignore"), digest_size=4).digest()
-        counts[int.from_bytes(digest, "big") % buckets] += 1.0
-    total = float(len(kept))
-    return [value / total for value in counts]
+        digest = hashlib.blake2b(
+            token.encode("utf-8", "ignore"), digest_size=2 * buckets
+        ).digest()
+        for index in range(buckets):
+            word = int.from_bytes(digest[2 * index : 2 * index + 2], "big")
+            totals[index] += word / 32767.5 - 1.0
+    count = float(len(kept))
+    return [value / count for value in totals]
+
+
+def _one_hot(value: Any, vocabulary: Sequence[str]) -> list[float]:
+    """A category as one column per name, plus one for everything else.
+
+    A hash of a label has a magnitude nobody meant: two categories are as far
+    apart as the arithmetic of their digests happens to make them, and every
+    measure downstream is a distance. One column per name gives every pair of
+    distinct categories the same distance, which is what "different category"
+    means.
+    """
+    label = str(value or "").strip()
+    out = [0.0] * (len(vocabulary) + 1)
+    for index, name in enumerate(vocabulary):
+        if label == name:
+            out[index] = 1.0
+            return out
+    out[-1] = 1.0 if label else 0.0
+    return out
+
+
+def _ladder(value: Any, rungs: Mapping[str, float]) -> list[float]:
+    """A position on an ordered ladder, and whether there was a reading.
+
+    Two columns: where on the ladder, and known or not. Without the second, an
+    absent reading has to be spelled as some position on the ladder, and every
+    choice of position is a claim the instrument did not measure.
+    """
+    label = str(value or "").strip()
+    if label in rungs:
+        return [float(rungs[label]), 1.0]
+    return [0.0, 0.0]
+
+
+def _age(stamp: Any, *, span: float, now: float | None = None) -> float:
+    """How long ago, as a share of `span`, saturating at one.
+
+    A recency read as a hash of the item's text is not a recency; it is the
+    item's identity, and where the text carries the instant it arrived, it is
+    the clock. Both were true of active memory's second column.
+    """
+    try:
+        value = float(stamp)
+    except (TypeError, ValueError):
+        return 1.0
+    if value <= 0.0:
+        return 1.0
+    reference = time.time() if now is None else now
+    return min(1.0, max(0.0, (reference - value) / span))
+
+
+#: What counts as recent for a working-memory item, in seconds. A turn of the
+#: offline organism takes a few seconds and a conversation runs for minutes, so
+#: five minutes is the span over which "just now" and "a while ago" separate.
+_WORKING_MEMORY_SPAN: float = 300.0
 
 
 def _unfelt_share(percepts: Any) -> float:
@@ -719,7 +886,7 @@ def _read_P(state: Any, now: float) -> np.ndarray:
             strength,
             1.0 if _dig(state, "world.spatial_context") else 0.0,
             _sat(str(objective), 64.0),
-            _hash_unit(objective),
+            *_content_buckets(objective),
         ],
         dtype=np.float64,
     )
@@ -763,8 +930,8 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(physiology.get("cortisol"), 10.0), 20.0),
             _f(physiology.get("adrenaline")),
             _f(_dig(state, "affect.momentum"), 0.85),
-            _f(_call(organs.free_energy, "get_action_urgency", 0.0)),
-            _hash_unit(_call(organs.free_energy, "get_trend", "")),
+            _f(_call(organs.free_energy, "get_action_urgency", 0.0, source="organ:free_energy.get_action_urgency")),
+            *_ladder(_call(organs.free_energy, "get_trend", "", source="organ:free_energy.get_trend"), _FREE_ENERGY_TREND_LADDER),
         ]
     )
     return np.array(head, dtype=np.float64)
@@ -772,12 +939,12 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_G(state: Any, organs: Organs) -> np.ndarray:
     focus = _dig(state, "cognition.attention_focus", "") or ""
-    workspace = _call(organs.workspace, "get_status", {}) or {}
+    workspace = _call(organs.workspace, "get_status", {}, source="organ:workspace.get_status") or {}
     modifiers = _dig(state, "cognition.modifiers", {}) or {}
     return np.array(
         [
             1.0 if focus else 0.0,
-            _hash_unit(focus),
+            *_content_buckets(focus),
             _f(_dig(state, "cognition.coherence_score"), 1.0),
             _f(_dig(state, "cognition.fragmentation_score")),
             _sat(_f(_dig(state, "cognition.contradiction_count")), 4.0),
@@ -790,7 +957,7 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             1.0 if workspace.get("ignited") else 0.0,
             _sat(_f(workspace.get("pending_candidates")), 4.0),
             _f(workspace.get("last_priority")),
-            _hash_unit(workspace.get("last_winner")),
+            *_content_buckets(workspace.get("last_winner")),
             _sat(_f(workspace.get("tick")), 200.0),
             _sat(_f(workspace.get("tie_impasses")), 8.0),
             _sat(workspace.get("inhibited_sources") or [], 4.0),
@@ -834,8 +1001,8 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.phenomenal_state.energy")),
         ]
     )
-    affect = _call(organs.substrate, "get_substrate_affect", {}) or {}
-    status = _call(organs.substrate, "get_status", {}) or {}
+    affect = _call(organs.substrate, "get_substrate_affect", {}, source="organ:substrate.get_substrate_affect") or {}
+    status = _call(organs.substrate, "get_status", {}, source="organ:substrate.get_status") or {}
     head.extend(
         [
             _f(affect.get("valence")),
@@ -873,12 +1040,12 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             "neuroticism",
         )
     )
-    introspection = _call(organs.self_model, "get_introspection", {}) or {}
+    introspection = _call(organs.self_model, "get_introspection", {}, source="organ:self_model.get_introspection") or {}
     beliefs = getattr(organs.self_model, "beliefs", {}) or {}
-    agency = _call(organs.agency, "snapshot", {}) or {}
-    prediction = _call(organs.self_prediction, "get_snapshot", {}) or {}
+    agency = _call(organs.agency, "snapshot", {}, source="organ:agency.snapshot") or {}
+    prediction = _call(organs.self_prediction, "get_snapshot", {}, source="organ:self_prediction.get_snapshot") or {}
     current = prediction.get("current_prediction") or {}
-    comparator = _call(organs.comparator, "get_status", {}) or {}
+    comparator = _call(organs.comparator, "get_status", {}, source="organ:comparator.get_status") or {}
     head.extend(
         [
             _sat(_f(introspection.get("belief_count")), 16.0),
@@ -896,18 +1063,18 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(agency.get("efficacy")),
             _f(agency.get("authored_share")),
             _sat(_f(agency.get("capabilities")), 8.0),
-            _hash_unit(agency.get("last_actor", "")),
+            *_one_hot(agency.get("last_actor", ""), _ACTORS),
             _f(prediction.get("smoothed_error")),
             _sat(_f(prediction.get("surprise_count")), 16.0),
             _f(prediction.get("valence_error_ema")),
             _f(prediction.get("drive_error_ema")),
             _f(prediction.get("focus_error_ema")),
-            _hash_unit(prediction.get("most_unpredictable", "")),
+            *_one_hot(prediction.get("most_unpredictable", ""), _UNPREDICTABLE_DIMENSIONS),
             _f(current.get("confidence")),
             _f(comparator.get("agency_score"), 0.5),
             _sat(_f(comparator.get("total_traces")), 16.0),
             _sat(_f(comparator.get("pending_efferences")), 4.0),
-            _hash_unit(comparator.get("recent_attribution", "")),
+            *_ladder(comparator.get("recent_attribution", ""), _ATTRIBUTION_LADDER),
         ]
     )
     return np.array(head, dtype=np.float64)
@@ -979,9 +1146,9 @@ def _surprise_ratio(current: Any, typical: Any) -> float:
 
 def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
-    status = _call(organs.world_model, "status", {}) or {}
+    status = _call(organs.world_model, "status", {}, source="organ:world_model.status") or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
-    surprise = _call(organs.world_model, "surprise", None)
+    surprise = _call(organs.world_model, "surprise", None, source="organ:world_model.surprise")
     learned = (facets.get("learned", {}) or {}).get("detail", {}) or {}
     causal = (facets.get("causal", {}) or {}).get("detail", {}) or {}
     return np.array(
@@ -990,9 +1157,18 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _sat(_dig(state, "world.relationship_graph", {}) or {}, 8.0),
             _sat(facts, 16.0),
             _sat(_dig(state, "world.user_preferences", {}) or {}, 8.0),
-            _hash_unit(",".join(sorted(str(k) for k in facts)[:32])),
+            # What the facts say, not only which facts there are. Read as a
+            # list of keys, this column could not move while the world model
+            # rewrote the same fact every turn with different content — the
+            # keys are stable and the world is not.
+            *_content_buckets(
+                " ".join(
+                    f"{key} {_content_of(facts[key])}"
+                    for key in sorted(str(name) for name in facts)[:32]
+                )
+            ),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
-            _hash_unit(_dig(state, "cognition.user_emotional_trend", "neutral")),
+            *_ladder(_dig(state, "cognition.user_emotional_trend", "neutral"), _USER_TREND_LADDER),
             # How surprising this moment is relative to how surprising things
             # usually are, rather than the raw error squashed. Prediction error
             # is unbounded above and `tanh` is flat past about two and a half,
@@ -1057,7 +1233,7 @@ def _read_D(state: Any) -> np.ndarray:
         # content profile was a constant after the third turn of every run.
         *_content_buckets(" ".join(_content_of(goal, 320) for goal in goals[-3:])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
-        _hash_unit(_dig(state, "cognition.last_action_source", "")),
+        *_content_buckets(_dig(state, "cognition.last_action_source", "")),
     ]
     for name in _DRIVES:
         entry = budgets.get(name)
@@ -1110,6 +1286,11 @@ class CoreState:
     condition: str = ""
     tag: str = ""
     env: dict[str, float] = field(default_factory=dict)
+    #: Sources that could not be read while this frame was taken, and why. An
+    #: empty mapping means every column is a reading; a source in here means
+    #: the columns declaring it are a default, and the run has to say so rather
+    #: than let a criterion fail on a subsystem nobody asked.
+    misses: dict[str, str] = field(default_factory=dict)
 
     def vector(self) -> np.ndarray:
         return np.concatenate([self.values[key] for key in DOMAINS])
@@ -1146,16 +1327,18 @@ def read_core_state(
 
     ``state`` is an ``AuraState``, ``ontogeny`` is the lifetime reservoir and
     ``organs`` are the live workspace, substrate, free-energy engine, self model
-    and world model. Anything missing reads as zeros, which is a flat column
-    rather than a guess at what it would have said.
+    and world model. Anything missing reads as zeros — and says so: `misses`
+    names every source that could not be read and why, so a failed reader and a
+    genuine zero are two states rather than one number.
     """
     moment = time.time() if now is None else now
     kit = organs or Organs()
-    values = {"P": _read_P(state, moment), "N": _read_N(ontogeny)}
-    for key, reader in _STATE_READERS.items():
-        values[key] = reader(state)
-    for key, organ_reader in _ORGAN_READERS.items():
-        values[key] = organ_reader(state, kit)
+    with recording_misses() as misses:
+        values = {"P": _read_P(state, moment), "N": _read_N(ontogeny)}
+        for key, reader in _STATE_READERS.items():
+            values[key] = reader(state)
+        for key, organ_reader in _ORGAN_READERS.items():
+            values[key] = organ_reader(state, kit)
     for key in DOMAINS:
         width = domain_width(key)
         got = values[key]
@@ -1167,6 +1350,7 @@ def read_core_state(
         condition=condition,
         tag=tag,
         env=dict(env or {}),
+        misses=dict(misses),
     )
 
 

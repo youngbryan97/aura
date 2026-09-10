@@ -37,12 +37,13 @@ import os
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields as dataclass_fields, replace
 from pathlib import Path
 from typing import Any, ClassVar
 
 import numpy as np
 
+from core.subject.clock import real_time
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
@@ -531,17 +532,33 @@ _ANCHOR_DEPTH: int = 3
 #: thousands and only the recent ones carry an instant anything still reads.
 _ANCHOR_FANOUT: int = 64
 
+#: How far into the object graph the search for wall-clock instants goes. The
+#: workspace holds its last winner, the winner holds the instant it was
+#: submitted, and the priority every consumer reads is that instant against the
+#: clock — three hops from the organ.
+_ANCHOR_DEPTH: int = 4
 
 def _looks_like_an_instant(name: str, value: Any) -> bool:
     """Whether this field holds a wall-clock instant rather than a number.
 
-    Both halves are required. A float in the epoch window called `capacity` is
-    a coincidence; a field called `submitted_at` holding 0.3 is a duration.
+    A field called `submitted_at` holding 0.3 is a duration, so the value has to
+    land in the epoch window either way. Past that, a float there is taken as an
+    instant whatever it is called, and an int only when the name says so.
+
+    The two errors are not symmetric. Missing a stamp puts the machine's speed
+    into the floor of whatever domain reads it, silently, and that is how
+    `submitted_at` cost a session; shifting something that was not a stamp
+    moves it by seconds in seventeen hundred million, which only a reader
+    taking a difference could see, and a reader taking a difference is one this
+    is for. So a float in the window is enough, and the words are what admits
+    a count.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
     if not (_EPOCH_FLOOR < float(value) < _EPOCH_CEILING):
         return False
+    if isinstance(value, float):
+        return True
     lowered = str(name).lower()
     return any(word in lowered for word in _INSTANT_WORDS)
 
@@ -610,8 +627,109 @@ def _shift_inside(value: Any, shift: float, depth: int, seen: set[int]) -> None:
         _shift_anchors(value, shift, depth, seen)
 
 
+#: The environment an arm acts in. The strongest form of the experiment forks
+#: (K, E) rather than K alone: she writes a file, reads it back, and what she
+#: reads is the evidence her self-model learns efficacy from. Without this the
+#: sham arm inherited whatever the displaced arm had just written — the log it
+#: appended to, the room it made — and the one action that can fail, reading
+#: back a room made on the previous turn, succeeded or failed according to what
+#: another arm had done.
+
+
+def _world_state(root: Path | None) -> dict[str, Any] | None:
+    """Every byte under the scratch root, and where the directories are."""
+    if root is None or not Path(root).exists():
+        return None
+    root = Path(root)
+    files: dict[str, bytes] = {}
+    directories: list[str] = []
+    for item in sorted(root.rglob("*")):
+        name = str(item.relative_to(root))
+        if item.is_dir():
+            directories.append(name)
+        elif item.is_file():
+            try:
+                files[name] = item.read_bytes()
+            except OSError:
+                continue
+    return {"files": files, "directories": directories}
+
+
+def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
+    """Put the scratch root back to the bytes it held, and nothing else."""
+    if root is None or saved is None:
+        return
+    import shutil
+
+    root = Path(root)
+    keep = set(saved["files"]) | set(saved["directories"])
+    for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
+        name = str(item.relative_to(root))
+        if name in keep:
+            continue
+        try:
+            if item.is_dir():
+                shutil.rmtree(item, ignore_errors=True)
+            else:
+                item.unlink()
+        except OSError:
+            continue
+    for name in saved["directories"]:
+        (root / name).mkdir(parents=True, exist_ok=True)
+    for name, payload in saved["files"].items():
+        target = root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if not target.exists() or target.read_bytes() != payload:
+                target.write_bytes(payload)
+            # An arm reading a modification time would be reading which arm it
+            # is. Nothing in the probe does today; putting the stamp back costs
+            # nothing and stops that from becoming true by accident.
+            os.utime(target, (0, 0))
+        except OSError:
+            continue
+
+
+def _intentions_state(loop: Any) -> list[tuple] | None:
+    """Every row the intention database holds.
+
+    The loop keeps its open intentions in memory and its record of what came of
+    them on disk, and the fork carried only the first. Efficacy, the capability
+    beliefs the self model reads and the comparator's attributions are all
+    computed from what is on disk, so an arm that acted taught the next arm
+    what it had learned.
+    """
+    connection = getattr(loop, "_conn", None)
+    if connection is None:
+        return None
+    try:
+        return list(connection.execute("SELECT * FROM intentions"))
+    except Exception:  # noqa: BLE001 - a database that will not read is not carried
+        return None
+
+
+def _restore_intentions(loop: Any, rows: list[tuple] | None) -> None:
+    """Roll the intention database back to the rows the snapshot holds."""
+    connection = getattr(loop, "_conn", None)
+    if connection is None or rows is None:
+        return
+    try:
+        with connection:
+            connection.execute("DELETE FROM intentions")
+            if rows:
+                marks = ",".join("?" for _ in rows[0])
+                connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
+    except Exception:  # noqa: BLE001
+        return
+
+
 def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
-    """Move every wall-clock anchor forward by the time the restore skipped."""
+    """Move every wall-clock instant forward by the time the restore skipped.
+
+    One shared record of what has been visited, because the state, the organs
+    and the services reach many of the same objects and shifting one of them
+    twice puts the skipped interval into the reading rather than taking it out.
+    """
     if shift <= 0.0:
         return
     state = runtime.state
@@ -885,6 +1003,11 @@ class Snapshot:
     #: are process-wide, so without carrying them the sham arm started from a
     #: state the displaced arm had already moved — a floor on N of nearly two
     #: standard deviations before a single phase had run.
+    #: The scratch world, byte for byte, and the intention database's rows. The
+    #: experiment forks (K, E): what she wrote in one arm is not there for the
+    #: next, and what she learned from writing it is not either.
+    world: dict[str, Any] | None = None
+    intentions: list[tuple] | None = None
     moments: dict[str, Any] | None = None
     last_reading: Any = None
     #: What the last step sensed, which is what the N domain reports as novelty
@@ -1007,21 +1130,16 @@ class SubjectRuntime:
     # ── forking ──────────────────────────────────────────────────────────
 
     #: Which organs are carried across a fork, by the name they are read under.
-    ORGAN_FIELDS: ClassVar[tuple[str, ...]] = (
-        "workspace",
-        "substrate",
-        "free_energy",
-        "self_model",
-        "world_model",
-        "agency",
-        "soma",
-        # Both of these are process-wide and both write into the self-state
-        # domain every turn. Left out of the fork, the sham arm inherited the
-        # prediction error the displaced arm had just produced, which put four
-        # tenths of a standard deviation into the floor of every S column
-        # before a single phase had run.
-        "self_prediction",
-        "comparator",
+    #: Every organ the reading declares, taken from the declaration rather
+    #: than written out again here. The hand-kept version was missing
+    #: `self_prediction` and `comparator` for a whole session: both are
+    #: process-wide, both write into the self-state domain every turn, and
+    #: left out of the fork the sham arm inherited the prediction error the
+    #: displaced arm had just produced — four tenths of a standard deviation
+    #: in the floor of every S column before a phase had run. A second list
+    #: of the same organs is a second chance to forget one, so there is one.
+    ORGAN_FIELDS: ClassVar[tuple[str, ...]] = tuple(
+        organ.name for organ in dataclass_fields(Organs)
     )
 
     def freeze_host(self) -> dict[str, float]:
@@ -1197,6 +1315,8 @@ class SubjectRuntime:
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
+            world=_world_state(getattr(self, "_scratch", None)),
+            intentions=_intentions_state(self._intentions),
         )
 
     def restore(self, snapshot: Snapshot) -> None:
@@ -1226,6 +1346,8 @@ class SubjectRuntime:
         self._restore_phases(snapshot.phases)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
+        _restore_world(getattr(self, "_scratch", None), snapshot.world)
+        _restore_intentions(self._intentions, snapshot.intentions)
         if self.clock is not None and snapshot.clock_at is not None:
             # The clock is the state as far as a phase reading elapsed time is
             # concerned, so it rewinds with everything else and the shift below

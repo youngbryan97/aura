@@ -1257,75 +1257,94 @@ class StreamOfBeing:
         This is the between-times — the experience that happens
         when the conversation pauses. Not nothing. Never nothing.
         """
-        error_backoff_s = 2.0
         while self._running:
             try:
-                loop_start = time.time()
-                
-                # ── Synthesize a new NowMoment ───────────────────────────────
-                moment = await asyncio.to_thread(self._integrator.synthesize)
-                self._thread.add(moment)
-                if self._continuous_experience is not None:
-                    try:
-                        self._continuous_experience.append_now_moment(
-                            moment,
-                            objective=moment.attentional_focus,
-                            privacy_tier="standard",
-                        )
-                        self._continuous_experience_failures = 0
-                    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                        self._continuous_experience_failures += 1
-                        _emit_stream_fault(
-                            exc,
-                            severity="warning",
-                            action="continued after continuous experience append failed",
-                            stage="continuous_experience_append",
-                            extra={"failure_count": self._continuous_experience_failures},
-                        )
-                        if self._continuous_experience_failures >= CONTINUOUS_EXPERIENCE_FAILURE_LIMIT:
-                            self._continuous_experience = None
-                            _emit_stream_fault(
-                                RuntimeError("continuous experience append failure threshold exceeded"),
-                                action="disabled continuous experience bridge; primary experiential thread remains live",
-                                severity="degraded",
-                                stage="continuous_experience_disable",
-                            )
-                
-                # ── LLM deep narrative (when not in active chat) ─────────────
-                now = time.time()
-                is_chat_active = (now - self._last_user_interaction) < 60.0
-                narrative_age = now - self._deep_narrative_timestamp
-                
-                min_interval = (
-                    NARRATIVE_MIN_INTERVAL_DURING_CHAT_S if is_chat_active
-                    else NARRATIVE_INTERVAL_S
-                )
-                
-                if (
-                    narrative_age > min_interval
-                    and self._thread.current_moment
-                    and self._background_llm_allowed()
-                ):
-                    await self._run_deep_narrative(self._thread.current_moment)
-                
-                # ── Sleep until next cycle ────────────────────────────────────
-                elapsed = time.time() - loop_start
-                await asyncio.sleep(max(0.1, SYNTHESIS_INTERVAL_S - elapsed))
-                error_backoff_s = 2.0
-                
+                wait = await self.step()
             except asyncio.CancelledError:
                 break
-            except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
-                _emit_stream_fault(
-                    e,
-                    action="continued existence loop after isolating failed moment synthesis tick",
-                    severity="degraded",
-                    stage="existence_loop_tick",
-                    extra={"backoff_s": error_backoff_s},
-                )
-                logger.debug("Existence loop error: %s", e)
-                await asyncio.sleep(error_backoff_s)
-                error_backoff_s = min(EXISTENCE_LOOP_BACKOFF_MAX_S, error_backoff_s * 2.0)
+            await asyncio.sleep(wait)
+
+    async def step(self) -> float:
+        """One moment of the stream, and how long until the next.
+
+        The body of the existence loop, callable on its own. A harness that
+        needs a fixed number of moments per arm had to stop the loop to get
+        comparable arms, and stopping it meant measuring an organism with no
+        stream of being at all.
+        """
+        if not hasattr(self, "_existence_backoff_s"):
+            self._existence_backoff_s = 2.0
+        try:
+            loop_start = time.time()
+            
+            # ── Synthesize a new NowMoment ───────────────────────────────
+            moment = await asyncio.to_thread(self._integrator.synthesize)
+            self._thread.add(moment)
+            if self._continuous_experience is not None:
+                try:
+                    self._continuous_experience.append_now_moment(
+                        moment,
+                        objective=moment.attentional_focus,
+                        privacy_tier="standard",
+                    )
+                    self._continuous_experience_failures = 0
+                except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    self._continuous_experience_failures += 1
+                    _emit_stream_fault(
+                        exc,
+                        severity="warning",
+                        action="continued after continuous experience append failed",
+                        stage="continuous_experience_append",
+                        extra={"failure_count": self._continuous_experience_failures},
+                    )
+                    if self._continuous_experience_failures >= CONTINUOUS_EXPERIENCE_FAILURE_LIMIT:
+                        self._continuous_experience = None
+                        _emit_stream_fault(
+                            RuntimeError("continuous experience append failure threshold exceeded"),
+                            action="disabled continuous experience bridge; primary experiential thread remains live",
+                            severity="degraded",
+                            stage="continuous_experience_disable",
+                        )
+            
+            # ── LLM deep narrative (when not in active chat) ─────────────
+            now = time.time()
+            is_chat_active = (now - self._last_user_interaction) < 60.0
+            narrative_age = now - self._deep_narrative_timestamp
+            
+            min_interval = (
+                NARRATIVE_MIN_INTERVAL_DURING_CHAT_S if is_chat_active
+                else NARRATIVE_INTERVAL_S
+            )
+            
+            if (
+                narrative_age > min_interval
+                and self._thread.current_moment
+                and self._background_llm_allowed()
+            ):
+                await self._run_deep_narrative(self._thread.current_moment)
+            
+            # ── How long until the next cycle ─────────────────────────────
+            elapsed = time.time() - loop_start
+            self._existence_backoff_s = 2.0
+            return max(0.1, SYNTHESIS_INTERVAL_S - elapsed)
+            
+        except asyncio.CancelledError:
+            raise
+        except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued existence loop after isolating failed moment synthesis tick",
+                severity="degraded",
+                stage="existence_loop_tick",
+                extra={"backoff_s": self._existence_backoff_s},
+            )
+            logger.debug("Existence loop error: %s", e)
+            wait = self._existence_backoff_s
+            self._existence_backoff_s = min(
+                EXISTENCE_LOOP_BACKOFF_MAX_S, self._existence_backoff_s * 2.0
+            )
+            return wait
+        return SYNTHESIS_INTERVAL_S
 
     async def _run_deep_narrative(self, moment: NowMoment):
         """

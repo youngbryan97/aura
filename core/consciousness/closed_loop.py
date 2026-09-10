@@ -1045,158 +1045,174 @@ class ClosedCausalLoop:
 
     # ── Background Prediction Loop ─────────────────────────────────────────────
 
+    async def step(self) -> float:
+        """One turn of the prediction loop, and how long to wait before the next.
+
+        The loop used to be the only way to run this, so a harness that needs a
+        fixed number of iterations had to stop it and measure an organism with
+        the closed loop absent. Same body, same call sites, two schedules: the
+        runtime sleeps for what this returns, and an experiment calls it a
+        counted number of times.
+        """
+        try:
+            loop_start = time.time()
+
+            substrate = await self._get_substrate()
+            if substrate is None:
+                return PREDICTION_INTERVAL_S
+
+            current_x = np.asarray(substrate.x.copy(), dtype=np.float32).ravel()
+            self._ensure_vector_dimensions(len(current_x))
+
+            # STEP 1: Record state for Phi computation
+            self._phi_witness.record_substrate_state(current_x)
+
+            # STEP 2: Evaluate previous prediction. Off-loop: this is
+            # real numpy work over the full substrate vector and was
+            # observed live stalling the event loop for 6.0s under
+            # memory pressure. The predictor is only touched from this
+            # single call site, so a worker thread keeps it serialized.
+            cycle = await asyncio.to_thread(
+                self._predictor.observe_and_update,
+                current_x,
+                simulated_expectations=getattr(self, "_simulated_expectations", None),
+            )
+
+            if cycle is not None:
+                self._loop_state.current_free_energy = cycle.free_energy
+                self._loop_state.mean_free_energy = self._predictor.mean_free_energy
+                self._loop_state.cycle_count += 1
+
+                # Feed MetaCognitive Monitor (continuous observation)
+                try:
+                    metacog = self._get_research_metacog()
+                    if metacog is not None:
+                        metacog.observe(
+                            gradient_norm=cycle.prediction_error_magnitude,
+                            loss=cycle.free_energy,
+                            prediction_error=cycle.prediction_error_magnitude,
+                            confidence=max(0.0, 1.0 - cycle.free_energy),
+                            accuracy=max(0.0, 1.0 - cycle.prediction_error_magnitude),
+                        )
+                except (
+                    AttributeError,
+                    ImportError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                ) as exc:
+                    _emit_closed_loop_fault(
+                        exc,
+                        action="continued prediction loop after metacognitive observation failed",
+                        severity="warning",
+                        stage="closed_loop_metacognitive_observation",
+                    )
+                    logger.debug("Closed loop metacognitive observation skipped: %s", exc)
+
+                # STEP 3: Inject prediction error as stimulus
+                feedback = self._predictor.get_feedback_stimulus(cycle.error_vector)
+                if np.linalg.norm(feedback) > 0.01:
+                    await substrate.inject_stimulus(feedback, weight=1.0)
+                    self._loop_state.total_inject_count += 1
+
+                if cycle.free_energy > 0.3:
+                    logger.debug(
+                        "🌊 Self-surprise: F=%.4f — %s",
+                        cycle.free_energy,
+                        cycle.surprise_narrative,
+                    )
+
+            # STEP 4: Make the next prediction
+            self._predictor.predict(current_x)
+
+            # STEP 5: Update Phi estimate
+            phi = self._phi_witness.compute_phi_estimate()
+            self._loop_state.phi_estimate = phi
+            self._loop_state.phi_threshold_met = self._phi_witness.phi_threshold_met
+
+            # STEP 6: Periodic sync to registry
+            if self._loop_state.cycle_count % 20 == 0:
+                await self._sync_to_registry()
+
+            # STEP 7: Record state for PhiCore (IIT 4.0) if available
+            try:
+                from core.container import ServiceContainer
+
+                phi_core = ServiceContainer.get("phi_core", default=None)
+                if phi_core is not None:
+                    cognitive_vals = self._build_phi_core_cognitive_values(current_x)
+                    phi_core.record_state(
+                        current_x,
+                        cognitive_values=cognitive_vals,
+                    )
+                    self._maybe_schedule_phi_core_refresh(phi_core)
+
+                # Hierarchical 32-node + K-subsystem φ (runs alongside phi_core)
+                hphi = ServiceContainer.get("hierarchical_phi", default=None)
+                if hphi is not None:
+                    mesh = ServiceContainer.get("neural_mesh", default=None)
+                    mesh_field = None
+                    if mesh is not None and hasattr(mesh, "get_field_state"):
+                        try:
+                            mesh_field = mesh.get_field_state()
+                        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                            _emit_closed_loop_fault(
+                                exc,
+                                action="continued hierarchical phi pass without mesh field snapshot",
+                                severity="warning",
+                                stage="closed_loop_hphi_mesh_field",
+                            )
+                            logger.debug("Hierarchical phi mesh field read failed: %s", exc)
+                            mesh_field = None
+                    if mesh_field is not None and len(mesh_field) >= 4096:
+                        cog_aff = np.zeros(16, dtype=np.float64)
+                        cog_aff[: min(len(current_x), 16)] = current_x[:16]
+                        hphi.record_snapshot(cog_aff, mesh_field)
+                        self._maybe_schedule_hierarchical_phi_refresh(hphi)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="continued prediction loop after phi registry integration failed",
+                    severity="warning",
+                    stage="closed_loop_phi_registry",
+                )
+                logger.debug("Closed loop phi registry integration failed: %s", exc)
+
+            elapsed = time.time() - loop_start
+            self._consecutive_prediction_failures = 0
+            return max(0.1, PREDICTION_INTERVAL_S - elapsed)
+
+        except asyncio.CancelledError:
+            raise
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._consecutive_prediction_failures += 1
+            backoff_s = min(
+                PREDICTION_ERROR_BACKOFF_MAX_S,
+                2.0 * self._consecutive_prediction_failures,
+            )
+            _emit_closed_loop_fault(
+                exc,
+                action="kept closed-loop prediction task alive with adaptive backoff after cycle failure",
+                severity="degraded",
+                stage="closed_loop_prediction_loop",
+                extra={
+                    "consecutive_failures": self._consecutive_prediction_failures,
+                    "backoff_s": backoff_s,
+                },
+            )
+            logger.debug("Prediction loop error: %s", exc)
+            return backoff_s
+        return PREDICTION_INTERVAL_S
+
     async def _prediction_loop(self):
         """The continuous self-prediction loop — the beautiful loop."""
         while self._loop_state.is_running:
             try:
-                loop_start = time.time()
-
-                substrate = await self._get_substrate()
-                if substrate is None:
-                    await asyncio.sleep(PREDICTION_INTERVAL_S)
-                    continue
-
-                current_x = np.asarray(substrate.x.copy(), dtype=np.float32).ravel()
-                self._ensure_vector_dimensions(len(current_x))
-
-                # STEP 1: Record state for Phi computation
-                self._phi_witness.record_substrate_state(current_x)
-
-                # STEP 2: Evaluate previous prediction. Off-loop: this is
-                # real numpy work over the full substrate vector and was
-                # observed live stalling the event loop for 6.0s under
-                # memory pressure. The predictor is only touched from this
-                # single call site, so a worker thread keeps it serialized.
-                cycle = await asyncio.to_thread(
-                    self._predictor.observe_and_update,
-                    current_x,
-                    simulated_expectations=getattr(self, "_simulated_expectations", None),
-                )
-
-                if cycle is not None:
-                    self._loop_state.current_free_energy = cycle.free_energy
-                    self._loop_state.mean_free_energy = self._predictor.mean_free_energy
-                    self._loop_state.cycle_count += 1
-
-                    # Feed MetaCognitive Monitor (continuous observation)
-                    try:
-                        metacog = self._get_research_metacog()
-                        if metacog is not None:
-                            metacog.observe(
-                                gradient_norm=cycle.prediction_error_magnitude,
-                                loss=cycle.free_energy,
-                                prediction_error=cycle.prediction_error_magnitude,
-                                confidence=max(0.0, 1.0 - cycle.free_energy),
-                                accuracy=max(0.0, 1.0 - cycle.prediction_error_magnitude),
-                            )
-                    except (
-                        AttributeError,
-                        ImportError,
-                        RuntimeError,
-                        TypeError,
-                        ValueError,
-                    ) as exc:
-                        _emit_closed_loop_fault(
-                            exc,
-                            action="continued prediction loop after metacognitive observation failed",
-                            severity="warning",
-                            stage="closed_loop_metacognitive_observation",
-                        )
-                        logger.debug("Closed loop metacognitive observation skipped: %s", exc)
-
-                    # STEP 3: Inject prediction error as stimulus
-                    feedback = self._predictor.get_feedback_stimulus(cycle.error_vector)
-                    if np.linalg.norm(feedback) > 0.01:
-                        await substrate.inject_stimulus(feedback, weight=1.0)
-                        self._loop_state.total_inject_count += 1
-
-                    if cycle.free_energy > 0.3:
-                        logger.debug(
-                            "🌊 Self-surprise: F=%.4f — %s",
-                            cycle.free_energy,
-                            cycle.surprise_narrative,
-                        )
-
-                # STEP 4: Make the next prediction
-                self._predictor.predict(current_x)
-
-                # STEP 5: Update Phi estimate
-                phi = self._phi_witness.compute_phi_estimate()
-                self._loop_state.phi_estimate = phi
-                self._loop_state.phi_threshold_met = self._phi_witness.phi_threshold_met
-
-                # STEP 6: Periodic sync to registry
-                if self._loop_state.cycle_count % 20 == 0:
-                    await self._sync_to_registry()
-
-                # STEP 7: Record state for PhiCore (IIT 4.0) if available
-                try:
-                    from core.container import ServiceContainer
-
-                    phi_core = ServiceContainer.get("phi_core", default=None)
-                    if phi_core is not None:
-                        cognitive_vals = self._build_phi_core_cognitive_values(current_x)
-                        phi_core.record_state(
-                            current_x,
-                            cognitive_values=cognitive_vals,
-                        )
-                        self._maybe_schedule_phi_core_refresh(phi_core)
-
-                    # Hierarchical 32-node + K-subsystem φ (runs alongside phi_core)
-                    hphi = ServiceContainer.get("hierarchical_phi", default=None)
-                    if hphi is not None:
-                        mesh = ServiceContainer.get("neural_mesh", default=None)
-                        mesh_field = None
-                        if mesh is not None and hasattr(mesh, "get_field_state"):
-                            try:
-                                mesh_field = mesh.get_field_state()
-                            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                                _emit_closed_loop_fault(
-                                    exc,
-                                    action="continued hierarchical phi pass without mesh field snapshot",
-                                    severity="warning",
-                                    stage="closed_loop_hphi_mesh_field",
-                                )
-                                logger.debug("Hierarchical phi mesh field read failed: %s", exc)
-                                mesh_field = None
-                        if mesh_field is not None and len(mesh_field) >= 4096:
-                            cog_aff = np.zeros(16, dtype=np.float64)
-                            cog_aff[: min(len(current_x), 16)] = current_x[:16]
-                            hphi.record_snapshot(cog_aff, mesh_field)
-                            self._maybe_schedule_hierarchical_phi_refresh(hphi)
-                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                    _emit_closed_loop_fault(
-                        exc,
-                        action="continued prediction loop after phi registry integration failed",
-                        severity="warning",
-                        stage="closed_loop_phi_registry",
-                    )
-                    logger.debug("Closed loop phi registry integration failed: %s", exc)
-
-                elapsed = time.time() - loop_start
-                self._consecutive_prediction_failures = 0
-                await asyncio.sleep(max(0.1, PREDICTION_INTERVAL_S - elapsed))
-
+                wait = await self.step()
             except asyncio.CancelledError:
                 break
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                self._consecutive_prediction_failures += 1
-                backoff_s = min(
-                    PREDICTION_ERROR_BACKOFF_MAX_S,
-                    2.0 * self._consecutive_prediction_failures,
-                )
-                _emit_closed_loop_fault(
-                    exc,
-                    action="kept closed-loop prediction task alive with adaptive backoff after cycle failure",
-                    severity="degraded",
-                    stage="closed_loop_prediction_loop",
-                    extra={
-                        "consecutive_failures": self._consecutive_prediction_failures,
-                        "backoff_s": backoff_s,
-                    },
-                )
-                logger.debug("Prediction loop error: %s", exc)
-                await asyncio.sleep(backoff_s)
+            await asyncio.sleep(wait)
+
 
     async def _get_substrate(self):
         """Get the LiquidSubstrate from ServiceContainer."""

@@ -106,13 +106,21 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         }
 
     campaigns: dict[str, list[str]] = {}
+    seeds: list[Any] = []
     for index, report in enumerate(reports):
-        mark = (report.get("campaign") or {}).get("fingerprint", "unrecorded")
+        block = report.get("campaign") or {}
+        mark = block.get("fingerprint", "unrecorded")
         campaigns.setdefault(mark, []).append(f"run {index + 1}")
+        seeds.append(((block.get("frozen") or {}).get("seed")))
 
     return {
         "runs": runs,
         "campaigns": campaigns,
+        # Three runs of one seed say how much of the spread is the machine.
+        # Three seeds say how much is the initialisation, which is the stronger
+        # question and the one a replicate is run to answer.
+        "seeds": seeds,
+        "independent_initialisations": len({seed for seed in seeds if seed is not None}),
         "holds": sum(1 for row in rows if row["verdict"] == "holds"),
         "unresolved": sum(1 for row in rows if row["verdict"] == "unresolved"),
         "fails": sum(1 for row in rows if row["verdict"] == "fails"),
@@ -193,6 +201,13 @@ def report_markdown(card: dict[str, Any], reports: list[dict[str, Any]]) -> str:
                  f"({'dirty' if campaign.get('dirty') else 'clean'} tree)")
     lines.append(f"- tree hash `{campaign.get('tree_hash', '?')}`")
     lines.append(f"- fingerprint `{campaign.get('fingerprint', '?')}`")
+    seeds = [seed for seed in card.get("seeds", []) if seed is not None]
+    if seeds:
+        distinct = card.get("independent_initialisations", 0)
+        lines.append(
+            f"- seeds {seeds} — {distinct} independent initialisation"
+            f"{'' if distinct == 1 else 's'}"
+        )
     prints = card.get("campaigns") or {}
     if len(prints) > 1:
         lines.append(

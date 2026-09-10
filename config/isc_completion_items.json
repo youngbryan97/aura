@@ -1,6 +1,6 @@
 {
  "source": "Aura_ISC_Completion_Master_List.pdf, 40 pages, 2026-09-08",
- "count": 778,
+ "count": 782,
  "items": [
   {
    "id": "P0.1",
@@ -174,8 +174,8 @@
    "id": "P1.1",
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
-   "section": "Required work:",
-   "item": "Stop using 11/13/12 as the current score after that rerun.",
+   "section": "",
+   "item": "Run make subject-core-frozen on a frozen current head.",
    "source_marked_done": false
   },
   {
@@ -183,7 +183,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Record all three complete reports.",
+   "item": "Stop using 11/13/12 as the current score after that rerun.",
    "source_marked_done": false
   },
   {
@@ -191,7 +191,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Recompute stable-pass, unstable, and stable-fail criteria.",
+   "item": "Record all three complete reports.",
    "source_marked_done": false
   },
   {
@@ -199,7 +199,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Recompute the entire retained-edge graph.",
+   "item": "Recompute stable-pass, unstable, and stable-fail criteria.",
    "source_marked_done": false
   },
   {
@@ -207,7 +207,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Identify the new largest strongly connected component.",
+   "item": "Recompute the entire retained-edge graph.",
    "source_marked_done": false
   },
   {
@@ -215,7 +215,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Identify the new minimum-Phi cut.",
+   "item": "Identify the new largest strongly connected component.",
    "source_marked_done": false
   },
   {
@@ -223,7 +223,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Identify weakest outgoing coupling for every domain.",
+   "item": "Identify the new minimum-Phi cut.",
    "source_marked_done": false
   },
   {
@@ -231,7 +231,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Identify weakest incoming coupling for every domain.",
+   "item": "Identify weakest outgoing coupling for every domain.",
    "source_marked_done": false
   },
   {
@@ -239,7 +239,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Recompute per-source perturbational spread.",
+   "item": "Identify weakest incoming coupling for every domain.",
    "source_marked_done": false
   },
   {
@@ -247,7 +247,7 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Recompute all four fixed synergy triples.",
+   "item": "Recompute per-source perturbational spread.",
    "source_marked_done": false
   },
   {
@@ -255,11 +255,19 @@
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
-   "item": "Recompute per-condition graphs.",
+   "item": "Recompute all four fixed synergy triples.",
    "source_marked_done": false
   },
   {
    "id": "P1.12",
+   "phase": 1,
+   "phase_title": "Rerun current Aura before adding more architecture",
+   "section": "Required work:",
+   "item": "Recompute per-condition graphs.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P1.13",
    "phase": 1,
    "phase_title": "Rerun current Aura before adding more architecture",
    "section": "Required work:",
@@ -1678,8 +1686,8 @@
    "id": "P9.1",
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
-   "section": "or",
-   "item": "Preferably run the complete relevant metric suite on every null.",
+   "section": "",
+   "item": "Either rename the current criterion honestly to something like partition_null_separation, or",
    "source_marked_done": false
   },
   {
@@ -1687,7 +1695,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Calculate null distributions for recurrence/topology.",
+   "item": "Preferably run the complete relevant metric suite on every null.",
    "source_marked_done": false
   },
   {
@@ -1695,7 +1703,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Differentiation.",
+   "item": "Calculate null distributions for recurrence/topology.",
    "source_marked_done": false
   },
   {
@@ -1703,7 +1711,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Phi.",
+   "item": "Differentiation.",
    "source_marked_done": false
   },
   {
@@ -1711,7 +1719,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "perturbational complexity/spread.",
+   "item": "Phi.",
    "source_marked_done": false
   },
   {
@@ -1719,7 +1727,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "synergy.",
+   "item": "perturbational complexity/spread.",
    "source_marked_done": false
   },
   {
@@ -1727,7 +1735,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "intrinsic persistence.",
+   "item": "synergy.",
    "source_marked_done": false
   },
   {
@@ -1735,7 +1743,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "causal closure where applicable.",
+   "item": "intrinsic persistence.",
    "source_marked_done": false
   },
   {
@@ -1743,7 +1751,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Evaluate the 24-part conjunction on each null.",
+   "item": "causal closure where applicable.",
    "source_marked_done": false
   },
   {
@@ -1751,7 +1759,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Require ISC(N)=0 for every null N.",
+   "item": "Evaluate the 24-part conjunction on each null.",
    "source_marked_done": false
   },
   {
@@ -1759,7 +1767,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Require the positive recurrent reference to pass the criteria it is meant to demonstrate.",
+   "item": "Require ISC(N)=0 for every null N.",
    "source_marked_done": false
   },
   {
@@ -1767,7 +1775,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a hidden-broker null where the broker is deliberately outside K.",
+   "item": "Require the positive recurrent reference to pass the criteria it is meant to demonstrate.",
    "source_marked_done": false
   },
   {
@@ -1775,7 +1783,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a high-dimensional independent-noise null.",
+   "item": "Add a hidden-broker null where the broker is deliberately outside K.",
    "source_marked_done": false
   },
   {
@@ -1783,7 +1791,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a common-clock/common-driver null.",
+   "item": "Add a high-dimensional independent-noise null.",
    "source_marked_done": false
   },
   {
@@ -1791,7 +1799,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a random recurrent-network null.",
+   "item": "Add a common-clock/common-driver null.",
    "source_marked_done": false
   },
   {
@@ -1799,7 +1807,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a memory-only recurrence null.",
+   "item": "Add a random recurrent-network null.",
    "source_marked_done": false
   },
   {
@@ -1807,7 +1815,7 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a self-label-without-self-causation null.",
+   "item": "Add a memory-only recurrence null.",
    "source_marked_done": false
   },
   {
@@ -1815,11 +1823,19 @@
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
-   "item": "Add a pure all-to-all broadcast null.",
+   "item": "Add a self-label-without-self-causation null.",
    "source_marked_done": false
   },
   {
    "id": "P9.19",
+   "phase": 9,
+   "phase_title": "Make the null suite match the strength of the full equation",
+   "section": "or",
+   "item": "Add a pure all-to-all broadcast null.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P9.20",
    "phase": 9,
    "phase_title": "Make the null suite match the strength of the full equation",
    "section": "or",
@@ -2943,7 +2959,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "NumPy RNG.",
+   "item": "Python random.",
    "source_marked_done": false
   },
   {
@@ -2951,7 +2967,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "service-local RNGs.",
+   "item": "NumPy RNG.",
    "source_marked_done": false
   },
   {
@@ -2959,7 +2975,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "substrate RNG.",
+   "item": "service-local RNGs.",
    "source_marked_done": false
   },
   {
@@ -2967,7 +2983,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "model sampling RNG.",
+   "item": "substrate RNG.",
    "source_marked_done": false
   },
   {
@@ -2975,7 +2991,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "search/planning RNG.",
+   "item": "model sampling RNG.",
    "source_marked_done": false
   },
   {
@@ -2983,7 +2999,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "randomized tie resolution.",
+   "item": "search/planning RNG.",
    "source_marked_done": false
   },
   {
@@ -2991,7 +3007,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "file/environment randomness.",
+   "item": "randomized tie resolution.",
    "source_marked_done": false
   },
   {
@@ -2999,7 +3015,7 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "randomized arm ordering remains recorded.",
+   "item": "file/environment randomness.",
    "source_marked_done": false
   },
   {
@@ -3007,11 +3023,19 @@
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
-   "item": "matched arms use the same stochastic stream where scientifically appropriate.",
+   "item": "randomized arm ordering remains recorded.",
    "source_marked_done": false
   },
   {
    "id": "P21.10",
+   "phase": 21,
+   "phase_title": "Control randomness completely",
+   "section": "",
+   "item": "matched arms use the same stochastic stream where scientifically appropriate.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P21.11",
    "phase": 21,
    "phase_title": "Control randomness completely",
    "section": "",
@@ -3975,7 +3999,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Distinguish genuine zero.",
+   "item": "Every measured feature carries present/read_ok metadata.",
    "source_marked_done": false
   },
   {
@@ -3983,7 +4007,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Distinguish absent organ.",
+   "item": "Distinguish genuine zero.",
    "source_marked_done": false
   },
   {
@@ -3991,7 +4015,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Distinguish failed reader.",
+   "item": "Distinguish absent organ.",
    "source_marked_done": false
   },
   {
@@ -3999,7 +4023,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Distinguish stale reading.",
+   "item": "Distinguish failed reader.",
    "source_marked_done": false
   },
   {
@@ -4007,7 +4031,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Count failures per feature.",
+   "item": "Distinguish stale reading.",
    "source_marked_done": false
   },
   {
@@ -4015,7 +4039,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Required-organ failure invalidates affected criteria.",
+   "item": "Count failures per feature.",
    "source_marked_done": false
   },
   {
@@ -4023,7 +4047,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Repeated reader error invalidates the run.",
+   "item": "Required-organ failure invalidates affected criteria.",
    "source_marked_done": false
   },
   {
@@ -4031,7 +4055,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "organism.down is empty for required layers.",
+   "item": "Repeated reader error invalidates the run.",
    "source_marked_done": false
   },
   {
@@ -4039,7 +4063,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "unwritable_domains is empty.",
+   "item": "organism.down is empty for required layers.",
    "source_marked_done": false
   },
   {
@@ -4047,7 +4071,7 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "Required phase failures are zero.",
+   "item": "unwritable_domains is empty.",
    "source_marked_done": false
   },
   {
@@ -4055,11 +4079,19 @@
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",
-   "item": "No final artifact silently encodes failed reads as ordinary zero.",
+   "item": "Required phase failures are zero.",
    "source_marked_done": false
   },
   {
    "id": "P30.12",
+   "phase": 30,
+   "phase_title": "Stop turning measurement failures into plausible zeros",
+   "section": "",
+   "item": "No final artifact silently encodes failed reads as ordinary zero.",
+   "source_marked_done": false
+  },
+  {
+   "id": "P30.13",
    "phase": 30,
    "phase_title": "Stop turning measurement failures into plausible zeros",
    "section": "",

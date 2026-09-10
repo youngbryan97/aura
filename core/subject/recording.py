@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +52,10 @@ class Recording:
     columns: tuple[str, ...]
     slices: dict[str, slice]
     notes: dict[str, Any]
+    #: How many frames failed to read each source, and why. A column whose
+    #: source is in here is a default rather than a measurement for that many
+    #: frames, and a criterion resting on it is reporting on the harness.
+    misses: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def frames(self) -> int:
@@ -111,6 +115,7 @@ class Recording:
             columns=self.columns,
             slices=self.slices,
             notes={**self.notes, "sampled": "one frame per turn"},
+            misses=self.misses,
         )
 
     def monotone_columns(self, tolerance: float = 0.99) -> np.ndarray:
@@ -164,6 +169,11 @@ class Recording:
             ],
             "flat_column_names": list(self.flat_columns()),
             "env_names": list(self.env_names),
+            # The validity matrix: what could not be read, how often, and why.
+            # A run where this is not empty for a required organ is a run that
+            # measured the harness, and the verdict says so rather than letting
+            # a default stand in for a reading.
+            "misses": self.misses,
             "notes": self.notes,
         }
 
@@ -200,6 +210,25 @@ class Recording:
         return directory / "core_state.npz"
 
 
+def _missingness(states: Sequence[CoreState]) -> dict[str, dict[str, Any]]:
+    """One row per source that ever failed to read, over the whole recording.
+
+    A single missed read is a moment; the same source missing on every frame is
+    a subsystem that was never running, and the two cannot be told apart from
+    the values, which are 0.0 either way.
+    """
+    total = len(states)
+    counts: dict[str, dict[str, Any]] = {}
+    for item in states:
+        for source, reason in (item.misses or {}).items():
+            row = counts.setdefault(source, {"frames": 0, "reasons": {}})
+            row["frames"] += 1
+            row["reasons"][reason] = row["reasons"].get(reason, 0) + 1
+    for row in counts.values():
+        row["share"] = round(row["frames"] / max(1, total), 4)
+    return dict(sorted(counts.items(), key=lambda pair: -pair[1]["frames"]))
+
+
 def build_recording(
     states: Sequence[CoreState],
     *,
@@ -222,6 +251,7 @@ def build_recording(
         columns=feature_names(),
         slices=domain_slices(),
         notes=dict(notes or {}),
+        misses=_missingness(states),
     )
 
 

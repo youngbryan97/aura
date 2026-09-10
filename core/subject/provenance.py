@@ -22,6 +22,7 @@ tool unusable during the work it exists to support, and a reader who sees
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import platform
 import subprocess
@@ -30,7 +31,17 @@ import time
 from pathlib import Path
 from typing import Any
 
-__all__ = ["campaign", "fingerprint", "next_run_directory"]
+from core.subject.clock import real_time
+
+__all__ = [
+    "campaign",
+    "environment",
+    "fingerprint",
+    "run_fingerprint",
+    "manifest",
+    "mind_identity",
+    "next_run_directory",
+]
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -85,7 +96,24 @@ def _tree_hash() -> str:
 
 
 def fingerprint(frozen: dict[str, Any]) -> str:
-    """One short hash over everything that was fixed before the run."""
+    """One short hash over the method: everything fixed before the run but the seed.
+
+    Two runs differing only in their seed are the same experiment run twice,
+    which is what a replicate is. Folding the seed in made every replicate its
+    own campaign, so the one comparison a campaign exists to support — the same
+    method, independently initialised — could not be made without the scorecard
+    refusing to read across the runs.
+
+    The seed is recorded beside this and enters `run_fingerprint`, so a
+    particular run is still identified exactly.
+    """
+    method = {key: value for key, value in frozen.items() if key != "seed"}
+    blob = json.dumps(method, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.blake2b(blob.encode(), digest_size=16).hexdigest()
+
+
+def run_fingerprint(frozen: dict[str, Any]) -> str:
+    """The method and the seed: this exact run, reproducibly."""
     blob = json.dumps(frozen, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.blake2b(blob.encode(), digest_size=16).hexdigest()
 
@@ -142,14 +170,104 @@ def campaign(
     return {
         "frozen": frozen,
         "fingerprint": fingerprint(frozen),
+        "run_fingerprint": run_fingerprint(frozen),
         "commit": _git("rev-parse", "HEAD"),
         "commit_subject": _git("log", "-1", "--format=%s"),
         "tree_hash": _tree_hash(),
         "dirty": bool(_git("status", "--porcelain", "core", "tools")),
         "python": sys.version.split()[0],
         "platform": platform.platform(),
-        "started_at": time.time(),
+        # The machine's clock, not the experiment's: how long a run took is a
+        # question about the host, and the experiment's clock is stopped.
+        "started_at": real_time(),
     }
+
+
+def environment() -> dict[str, Any]:
+    """What the run ran on, beyond the commit.
+
+    A reader who wants to reproduce a number needs the machine and the
+    dependencies as well as the source. None of these enter the fingerprint —
+    two machines running the same campaign are the same campaign, and whether
+    the numbers agree is the question a second machine is run to answer.
+    """
+    import importlib.metadata as metadata
+
+    locks: list[str] = []
+    for name in ("requirements.txt", "requirements-lock.txt", "uv.lock", "poetry.lock"):
+        path = Path(__file__).resolve().parents[2] / name
+        if path.is_file():
+            locks.append(f"{name}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}")
+    hardware: dict[str, Any] = {}
+    try:
+        import psutil
+
+        hardware = {
+            "cpus": psutil.cpu_count(logical=True),
+            "physical_cpus": psutil.cpu_count(logical=False),
+            "memory_gb": round(psutil.virtual_memory().total / 1e9, 1),
+        }
+    except Exception:  # noqa: BLE001 - a machine that will not describe itself says so
+        hardware = {"note": "psutil unavailable"}
+    packages: dict[str, str] = {}
+    for name in ("numpy", "scipy", "torch", "scikit-learn"):
+        try:
+            packages[name] = metadata.version(name)
+        except Exception:  # noqa: BLE001
+            packages[name] = "absent"
+    return {
+        "os": platform.platform(),
+        "python": sys.version.split()[0],
+        "hardware": hardware,
+        "packages": packages,
+        "dependency_locks": locks,
+    }
+
+
+def mind_identity(mind: Any) -> dict[str, Any]:
+    """Which model answered, exactly.
+
+    The battery installs a deterministic stub so two arms differ by the
+    intervention rather than by decoding. That is a choice with consequences —
+    no edge measured under it runs through language — so the run records which
+    mind it had rather than leaving a reader to assume the cortex was up.
+    """
+    if mind is None:
+        return {"kind": "absent"}
+    identity: dict[str, Any] = {
+        "kind": type(mind).__name__,
+        "module": type(mind).__module__,
+    }
+    for name in ("model_name", "model_path", "tokenizer", "chat_template", "checksum"):
+        value = getattr(mind, name, None)
+        if isinstance(value, (str, int, float)):
+            identity[name] = value
+    source = ""
+    try:
+        source = inspect.getsource(type(mind))
+    except (OSError, TypeError):
+        source = ""
+    if source:
+        identity["code_sha256"] = hashlib.sha256(source.encode()).hexdigest()[:16]
+    identity["deterministic"] = bool(getattr(mind, "deterministic", True))
+    return identity
+
+
+def manifest(directory: Path) -> dict[str, str]:
+    """A SHA-256 for every file the run wrote, so a copy can be checked."""
+    out: dict[str, str] = {}
+    for item in sorted(Path(directory).rglob("*")):
+        if not item.is_file() or item.name == "manifest.json":
+            continue
+        digest = hashlib.sha256()
+        try:
+            with item.open("rb") as handle:
+                for block in iter(lambda: handle.read(1 << 20), b""):
+                    digest.update(block)
+        except OSError:
+            continue
+        out[str(item.relative_to(directory))] = digest.hexdigest()
+    return out
 
 
 def next_run_directory(root: Path) -> Path:

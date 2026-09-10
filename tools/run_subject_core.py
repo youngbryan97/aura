@@ -30,6 +30,8 @@ os.environ.setdefault("AURA_TESTING", "1")
 
 import numpy as np  # noqa: E402
 
+from core.subject.clock import real_time  # noqa: E402
+
 
 def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
@@ -157,7 +159,13 @@ async def main() -> int:
     from core.subject.synergy import synergy_suite
 
     from core.subject.archive import save_arms, save_edge_table, write_json
-    from core.subject.provenance import campaign, next_run_directory
+    from core.subject.provenance import (
+        campaign,
+        environment,
+        manifest,
+        mind_identity,
+        next_run_directory,
+    )
 
     started = time.monotonic()
     # A run never overwrites the one before it. The run that did not come out
@@ -404,8 +412,17 @@ async def main() -> int:
     evidence["verdict"] = verdict.as_dict()
     evidence["notes"]["seconds"] = round(time.monotonic() - started, 1)
 
-    evidence["campaign"]["finished_at"] = time.time()
+    evidence["campaign"]["finished_at"] = real_time()
+    evidence["campaign"]["environment"] = environment()
+    evidence["campaign"]["mind"] = mind_identity(
+        getattr(getattr(runtime.kernel, "organs", {}).get("llm", None), "instance", None)
+        if hasattr(runtime.kernel, "organs")
+        else None
+    )
+    evidence["campaign"]["command"] = " ".join([sys.executable, *sys.argv])
     write_json(args.out, "subject_core_report.json", evidence)
+    # Last, because it hashes what the run wrote and the report is one of them.
+    write_json(args.out, "manifest.json", manifest(args.out))
     print()
     print(verdict.table())
     print()

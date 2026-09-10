@@ -320,10 +320,10 @@ subject-core:
 	@$(PYTHON) tools/run_subject_core.py --rounds 24 --trials 6 --out artifacts/subject_core
 
 subject-core-frozen:
-	@echo "🧪 Three runs of the battery, so a criterion that changes answer says so..."
-	@for i in 1 2 3; do \
+	@echo "🧪 Three runs of the battery on three declared seeds, so a criterion that changes answer says so..."
+	@for seed in 7 11 13; do \
 		$(PYTHON) tools/run_subject_core.py --rounds 60 --trials 6 --lesion-rounds 16 \
-			--out artifacts/subject_core || exit 1; \
+			--seed $$seed --out artifacts/subject_core || exit 1; \
 	done
 	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
 		--json artifacts/subject_core/scorecard.json \
