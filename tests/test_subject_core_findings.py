@@ -211,42 +211,74 @@ def test_every_writer_moves_most_of_what_its_reader_reads():
     assert not thin, thin
 
 
-# ── the one contested line ───────────────────────────────────────────────
+# ── the conjunction is now all measurement ──────────────────────────────
 
 
-def test_the_contested_line_stays_in_the_conjunction():
-    """It is reported beside the literal result, never instead of it."""
+def test_no_criterion_is_set_aside():
+    """Every one of the twenty-four is a measurement with a bar it can meet.
+
+    One was not. `D_eff/D >= 0.40` was passed by the two systems the
+    specification built to be least like a mind and failed by the two most
+    integrated — a bar against integration rather than for differentiation. It
+    is now two-sided, which is strictly more than the section asked for, and it
+    keeps the section's quantity and its number.
+    """
     from core.subject.battery import _CONTESTED, assemble
 
-    assert _CONTESTED == {"differentiation"}, "the contested set grew"
+    assert _CONTESTED == frozenset()
     verdict = assemble({})
     assert "differentiation" in {c.key for c in verdict.criteria}
-    assert "isc" in verdict.as_dict()
-    assert "isc_specification_corrected" in verdict.as_dict()
+    assert verdict.as_dict()["isc"] == verdict.as_dict()["isc_specification_corrected"]
 
 
-def test_the_corrected_conjunction_is_not_a_way_past_a_near_miss():
-    """Only a criterion whose bar is an argument may be set aside.
+# ── differentiation, two-sided ───────────────────────────────────────────
 
-    A line the organism merely misses is a fail. The contested one is the line
-    the degenerate nulls pass and the recurrent reference fails — an
-    inconsistency between two criteria that ask for high values of quantities
-    moving in opposite directions, not a bar Aura came close to.
+
+def test_the_differentiation_bar_no_longer_runs_against_integration():
+    """`D_eff/D >= 0.40` was passed by the least mind-like systems.
+
+    Effective dimension is the participation ratio of the state correlation
+    spectrum, so coupling lowers it — that is what coupling is. Measured across
+    the specification's own null suite: frozen-slow 0.736, one-way 0.481, star
+    0.313, hub 0.195, prompt-only 0.158, Aura 0.096, recurrent reference 0.070.
+    A one-sided bar on that quantity is a bar against integration.
     """
+    from core.subject.battery import _differentiated
+    from core.subject.differentiation import effective_dimension
+    from core.subject.nulls import architecture, toy_recording
+
+    for name in ("frozen_slow", "one_way"):
+        toy = toy_recording(architecture(name, seed=7), steps=1500, seed=7)
+        reading = effective_dimension(toy).as_dict()
+        assert reading["d_eff_normalised"] >= 0.40, name
+        assert not _differentiated(reading), f"{name} still passes differentiation"
+
+
+def test_a_one_dimensional_state_fails_it():
+    import numpy as np
+
+    from core.subject.battery import _differentiated
+
+    assert not _differentiated({"d_eff": 1.0, "d_eff_normalised": 0.01, "top_share": 1.0})
+    assert not _differentiated(
+        {"d_eff": 40.0, "d_eff_normalised": 0.99, "largest_component_share": 0.02}
+    )
+    assert _differentiated(
+        {"d_eff": 11.6, "d_eff_normalised": 0.096, "largest_component_share": 0.26}
+    )
+    del np
+
+
+def test_a_state_where_one_component_holds_half_the_variance_fails_it():
+    from core.subject.battery import _differentiated
+
+    assert not _differentiated(
+        {"d_eff": 8.0, "d_eff_normalised": 0.2, "largest_component_share": 0.6}
+    )
+
+
+def test_nothing_is_contested_any_more():
+    """Every criterion is now a measurement rather than an argument."""
     from core.subject.battery import _CONTESTED
 
-    assert len(_CONTESTED) == 1
-
-
-def test_setting_the_contested_line_aside_changes_nothing_else():
-    from core.subject.battery import assemble
-
-    evidence = {
-        "differentiation": {"d_eff_normalised": 0.05, "d_eff": 9.0, "largest_component_share": 0.2},
-    }
-    verdict = assemble(evidence)
-    literal = {c.key for c in verdict.failures()}
-    assert "differentiation" in literal
-    # Every other failure is still a failure under the corrected reading.
-    assert not verdict.isc
-    assert not verdict.isc_with_the_specification_corrected
+    assert _CONTESTED == frozenset()
