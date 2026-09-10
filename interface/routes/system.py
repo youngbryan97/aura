@@ -65,7 +65,6 @@ from core.tools.runtime_tools import get_runtime_state
 from interface.auth import (
     _require_internal,
     _restore_owner_session_from_request,
-    paired_device_session_id,
     request_access_profile,
 )
 from interface.routes.devices import _owner_authenticated
@@ -5556,22 +5555,12 @@ async def api_ui_bootstrap(request: Request = None):
     status_obj = getattr(orch, "status", None)
     recent_conversation: list[dict[str, Any]] = []
     try:
-        from interface.routes.chat import _conversation_log, _conversation_log_lock
+        from interface.routes.chat_history import recent_ui_conversation
 
-        async with _conversation_log_lock:
-            recent_conversation = list(_conversation_log)[-40:]
+        recent_conversation = await recent_ui_conversation(request)
     except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation("system", exc)
         logger.debug("Bootstrap conversation log snapshot failed: %s", exc)
-    if conversation_only:
-        session_id = paired_device_session_id(request)
-        recent_conversation = [
-            entry
-            for entry in recent_conversation
-            if session_id
-            and str(entry.get("session_id") or "") == session_id
-        ]
-
     static_dir = config.paths.project_root / "interface" / "static"
     shell_dist_dir = static_dir / "shell" / "dist"
     legacy_ui_index = static_dir / "index.html"
