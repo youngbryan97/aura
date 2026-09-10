@@ -200,6 +200,37 @@ def _for_tier(tier: CorticalTier, name: str, fallback: float) -> float:
     return number if math.isfinite(number) and number > 0.0 else float(fallback)
 
 
+#: How far from its own mean a unit has to go to count as having fired, in
+#: standard deviations of its own activity.
+#:
+#: Three, which is what Shriki et al. used on human MEG: each sensor's
+#: continuous signal is thresholded at three standard deviations of that
+#: sensor's own trace, and every excursion past it is an event. It is a
+#: statement about a signal and its own variability, so it transfers to a unit
+#: that has neither millivolts nor a membrane, where an absolute level does
+#: not — and it is the same criterion the avalanche statistics this mesh is
+#: compared against were measured under.
+#:
+#: The mesh had an absolute 0.5 on a tanh output. Measured over 3,000 ticks
+#: with 4,096 units and an ordinary drive: zero spikes. Nothing ever reached
+#: it, `last_spike_time` stayed at -1 for every unit for the life of the mesh,
+#: and `_apply_stdp` therefore skipped every column on every tick. All of the
+#: plasticity in this file — both rules, both windows, every constant taken
+#: from a paper — had never once fired.
+#:
+#: Source: Shriki et al. 2013, J Neurosci 33(16):7079.
+SPIKE_SIGMA = 3.0
+
+#: How many samples the variance needs before a threshold may be built on it.
+#:
+#: The relative error of an estimated standard deviation is about
+#: 1/sqrt(2(n-1)), so ten samples put it under a quarter. Below that the
+#: estimate is small for no reason and the threshold is crossed by everything:
+#: unguarded, the mesh fired 8,370 of its 8,373 spikes in one burst in the
+#: first few ticks and was silent for the next five thousand.
+SPIKE_STATISTICS_MINIMUM = 10
+
+
 def _is_human_island(index: int, cfg: Any) -> bool:
     """Whether this column takes its local wiring from H01. -1 means all of them."""
     declared = int(getattr(cfg, "human_island_columns", 0) or 0)
@@ -385,7 +416,8 @@ class CorticalColumn:
     """
 
     __slots__ = ("index", "tier", "n", "x", "W", "inh_mask", "last_spike_time",
-                 "_lateral_inh_strength", "human_island")
+                 "_lateral_inh_strength", "human_island", "x_mean", "x_var",
+                 "stats_samples")
 
     def __init__(self, index: int, tier: CorticalTier, n: int, cfg: MeshConfig,
                  rng: np.random.Generator, human_island: bool = False):
@@ -455,6 +487,19 @@ class CorticalColumn:
 
         # Spike timing for STDP
         self.last_spike_time = np.full(n, -1.0, dtype=np.float64)
+
+        # What this unit's own activity usually looks like, so a threshold
+        # crossing can be defined against it. Both are exponential averages
+        # over the unit's own timescale; see `spike_thresholds`.
+        #: Mean and sum of squared deviations over the unit's WHOLE history,
+        #: by Welford's method. Not a window: Shriki's threshold is three
+        #: standard deviations of a sensor's own trace over the recording, and
+        #: a window would be a length nobody measured. An exponential average
+        #: at the unit's own timescale was tried and tracks the unit rather
+        #: than its variability — one spike in eight thousand ticks.
+        self.x_mean = self.x.copy()
+        self.x_var = np.zeros(n, dtype=np.float32)
+        self.stats_samples = 0
 
         self._lateral_inh_strength = cfg.lateral_inhibition_strength
 
@@ -536,9 +581,18 @@ class CorticalColumn:
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         self.x = np.clip(self.x + dx, -1.0, 1.0).astype(np.float32)
 
-        # Record spike times for STDP
-        firing = np.abs(self.x) > spike_threshold
-        self.last_spike_time[firing] = now
+        # Record spike times for STDP. `spike_threshold` is kept in the
+        # signature for callers that want an absolute one; when it is left at
+        # its default the unit's own fluctuation decides, as in the batched
+        # tick.
+        deviation = self.x - self.x_mean
+        self.stats_samples += 1
+        self.x_mean = (self.x_mean + deviation / self.stats_samples).astype(np.float32)
+        self.x_var = (self.x_var + deviation * (self.x - self.x_mean)).astype(np.float32)
+        if self.stats_samples >= SPIKE_STATISTICS_MINIMUM:
+            sigma = np.sqrt(np.maximum(self.x_var / (self.stats_samples - 1), 1e-12))
+            firing = np.abs(self.x - self.x_mean) > SPIKE_SIGMA * sigma
+            self.last_spike_time[firing] = now
 
 
 # ---------------------------------------------------------------------------
@@ -1275,12 +1329,24 @@ class NeuralMesh:
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
 
-        # Write back to columns and record spike times
-        spike_threshold = 0.5
+        # Write back to columns and record spike times.
+        #
+        # A spike is an excursion past the unit's OWN fluctuation, not past a
+        # fixed level. The fixed level was 0.5 on a tanh output, and nothing in
+        # this mesh ever reached it — see SPIKE_SIGMA.
         for i, col in enumerate(self.columns):
             col.x = x_new[i]
-            firing = np.abs(col.x) > spike_threshold
-            col.last_spike_time[firing] = now
+            # Both averages run at the unit's own timescale, which is the leak.
+            # No new constant: a unit that forgets its state at rate `decay`
+            # has no other rate to remember its statistics at.
+            deviation = col.x - col.x_mean
+            col.stats_samples += 1
+            col.x_mean = (col.x_mean + deviation / col.stats_samples).astype(np.float32)
+            col.x_var = (col.x_var + deviation * (col.x - col.x_mean)).astype(np.float32)
+            if col.stats_samples >= SPIKE_STATISTICS_MINIMUM:
+                sigma = np.sqrt(np.maximum(col.x_var / (col.stats_samples - 1), 1e-12))
+                firing = np.abs(col.x - col.x_mean) > SPIKE_SIGMA * sigma
+                col.last_spike_time[firing] = now
 
         # Cache col_means for stats (avoid recomputation)
         self._cached_col_means = col_means

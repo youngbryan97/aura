@@ -235,6 +235,19 @@ def extract_avalanches(
     a machine is never silent, so the threshold is a low percentile of the trace
     and the size is the area above it. That choice changes the exponents, which
     is why the percentile is reported alongside them.
+
+    The area is measured in units of the threshold, not in whatever the trace
+    is measured in. It was measured in the trace's own units and rounded to an
+    integer, so a mesh whose activity runs at a ten-thousandth gave every
+    cascade a size of 1 — 136 of them, all identical, and no distribution to
+    fit. Dividing by the threshold makes the size a ratio and the exponents
+    stop depending on the amplitude of the signal.
+
+    For the definition Beggs and Plenz actually used, where a bin is silent
+    only when no UNIT is active and a cascade's size is how many unit-bins it
+    contains, pass the per-unit trace to `extract_avalanches_per_unit`. A
+    scalar trace cannot express it: the mean over units is above its own
+    quartile three quarters of the time, so the runs are not cascades.
     """
     import numpy as np
 
@@ -243,13 +256,14 @@ def extract_avalanches(
         return Avalanches([], [], 0.0, 0.0)
     threshold = float(np.percentile(values, percentile))
     above = values > threshold
+    scale = threshold if threshold > 0 else 1.0
     sizes: list[int] = []
     durations: list[int] = []
     run_size = 0.0
     run_length = 0
     for value, is_active in zip(values, above, strict=True):
         if is_active:
-            run_size += float(value) - threshold
+            run_size += (float(value) - threshold) / scale
             run_length += 1
         elif run_length:
             sizes.append(max(1, int(round(run_size))))
@@ -264,6 +278,57 @@ def extract_avalanches(
         durations=durations,
         threshold=threshold,
         active_fraction=float(above.mean()),
+    )
+
+
+def extract_avalanches_per_unit(
+    activity: Any,
+    *,
+    percentile: float = 75.0,
+) -> Avalanches:
+    """Cascades the way Beggs and Plenz counted them.
+
+    `activity` is (time, units). A unit is active in a bin when it is above its
+    OWN quiet level, a bin is silent when no unit is active in it, and a cascade
+    is a run of non-silent bins whose size is how many unit-bins it contains.
+    That is an integer by construction and does not move when the whole
+    recording is scaled, which is what makes the exponents comparable to a
+    recording of tissue.
+
+    The threshold is per unit because units are not on the same scale. A mesh
+    column that barely moves would never cross a threshold set from the busiest
+    one, and would be silent for the whole recording.
+    """
+    import numpy as np
+
+    values = np.asarray(activity, dtype=np.float64)
+    if values.ndim != 2 or values.size == 0:
+        return Avalanches([], [], 0.0, 0.0)
+    magnitude = np.abs(values)
+    thresholds = np.percentile(magnitude, percentile, axis=0)
+    active = magnitude > thresholds[None, :]
+    per_bin = active.sum(axis=1)
+    sizes: list[int] = []
+    durations: list[int] = []
+    run_size = 0
+    run_length = 0
+    for count in per_bin:
+        if count > 0:
+            run_size += int(count)
+            run_length += 1
+        elif run_length:
+            sizes.append(run_size)
+            durations.append(run_length)
+            run_size = 0
+            run_length = 0
+    if run_length:
+        sizes.append(run_size)
+        durations.append(run_length)
+    return Avalanches(
+        sizes=sizes,
+        durations=durations,
+        threshold=float(np.mean(thresholds)),
+        active_fraction=float((per_bin > 0).mean()),
     )
 
 
@@ -298,13 +363,29 @@ class CriticalityReport:
         }
 
 
-def assess(activity: Sequence[float], *, percentile: float = 25.0) -> CriticalityReport:
-    """Estimate the branching ratio and test whether the avalanches agree with it."""
+def assess(
+    activity: Sequence[float],
+    *,
+    percentile: float = 25.0,
+    per_unit: Any = None,
+    per_unit_percentile: float = 75.0,
+) -> CriticalityReport:
+    """Estimate the branching ratio and test whether the avalanches agree with it.
+
+    The branching ratio comes from the summed trace. The cascades come from
+    `per_unit` when it is given — (time, units), the shape Beggs and Plenz
+    counted in — and from the summed trace otherwise, which is weaker and says
+    so through its own fit quality.
+    """
     import numpy as np
 
     branching = branching_ratio_mr(activity)
     naive = naive_branching_ratio(activity)
-    avalanches = extract_avalanches(activity, percentile=percentile)
+    avalanches = (
+        extract_avalanches_per_unit(per_unit, percentile=per_unit_percentile)
+        if per_unit is not None
+        else extract_avalanches(activity, percentile=percentile)
+    )
     size_fit = power_law_fit(avalanches.sizes)
     duration_fit = power_law_fit(avalanches.durations)
 

@@ -47,15 +47,24 @@ Working list. Deleted when every line is done and green.
 - [ ] fit anything to a human recording. `X(t)` is measured on her own substrate
       and has never been compared against EEG, MEG, fMRI or single-unit data,
       which is the experiment that term exists for
-- [ ] replace the mesh's ten remaining chosen structural numbers with measured
-      ones (four were replaced from published cortical measurements),
-      or say for each why no measurement can reach it
-- [ ] regions with different computational matter: one set of dynamics runs all
-      4,096 units, and cortical cell-type composition tracks functional
-      organisation
-- [ ] one plasticity rule with picked constants, applied to every unit alike
-- [ ] a human microcircuit island: H01 gives real local wiring statistics for a
-      piece of human cortex, and nothing here uses them
+- [x] replace the mesh's chosen structural numbers with measured ones, or say
+      for each why no measurement can reach it. Six are choices now, down from
+      fourteen: the size of the thing, the slope of a tanh, a noise amplitude
+      with no millivolts to be measured in, and one pathway strength
+- [x] regions with different computational matter: each band takes its own
+      cortical layers' inhibitory fraction and density — 20.0% at 0.106 for the
+      sensory band, 22.0% at 0.135 for association, 17.3% at 0.091 for
+      executive — derived from the table the global figures were averaged from
+- [x] one plasticity rule applied to every unit alike. Two rules now: Bi and
+      Poo's asymmetric window on excitatory synapses, Vogels' symmetric one
+      against a standing depression on inhibitory ones, the depression constant
+      being their own alpha = 2 * rho * tau. Finding it turned up four more:
+      Dale's law on the wrong axis, an anti-Hebbian window, plasticity that
+      grew synapses, and a unit that rested at forty times its drive
+- [x] a human microcircuit island: every column's local wiring is drawn from
+      H01's contact-multiplicity law, and the law was chosen by the number it
+      was not fitted to — the heaviest pair in the volume, which the
+      exponential cutoff makes a one-in-twenty-three-million event
 - [ ] development rather than construction: her own history is recoverable
       exactly, and no developmental trajectory constrains how she got here
 
