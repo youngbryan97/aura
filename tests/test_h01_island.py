@@ -1,0 +1,138 @@
+"""The wiring law H01 measured, and the test that chose between two of them.
+
+Three numbers from a cubic millimetre of human temporal cortex. Two laws that
+could have produced the first of them. The third settles which.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from core.connectome.island import (
+    MAX_CONTACTS,
+    REFUTED_BELOW,
+    candidate_laws,
+    connected_pairs,
+    contacts_per_pair,
+    expected_heaviest_pair,
+    probability_of_the_observed_maximum,
+    surviving_law,
+    wire_island,
+)
+from core.connectome.types import H01_REFERENCE
+
+
+def test_both_laws_reproduce_the_single_contact_fraction():
+    """It is what each was fitted to, so neither is predicting anything here."""
+    measured = float(H01_REFERENCE.get("single_contact_fraction"))
+    for law in candidate_laws():
+        assert law.p(1) == pytest.approx(measured, abs=1e-6)
+
+
+def test_the_one_parameter_law_predicts_the_four_or_more_fraction_and_misses():
+    """Fitted to one number, wrong about the second by half. That is a result."""
+    plain = candidate_laws()[0]
+    measured = float(H01_REFERENCE.get("four_or_more_contact_fraction"))
+    predicted = plain.p_at_least(4)
+    assert predicted > measured
+    assert predicted / measured == pytest.approx(1.58, abs=0.05)
+
+
+def test_the_two_parameter_law_predicts_nothing():
+    """Two parameters against two numbers is a fit; it hits both exactly."""
+    damped = candidate_laws()[1]
+    assert damped.p_at_least(4) == pytest.approx(
+        float(H01_REFERENCE.get("four_or_more_contact_fraction")), abs=1e-8
+    )
+    assert len(damped.fitted_to) == 2
+
+
+def test_the_observed_maximum_refutes_the_cutoff():
+    """Neither law was fitted to it, and only one survives it."""
+    plain, damped = candidate_laws()
+    assert probability_of_the_observed_maximum(plain) > 0.3
+    assert probability_of_the_observed_maximum(damped) < 1e-6
+    assert probability_of_the_observed_maximum(damped) < REFUTED_BELOW
+
+
+def test_the_surviving_law_is_the_one_fitted_to_less():
+    law = surviving_law()
+    assert law.name == "power law"
+    assert law.fitted_to == ("single_contact_fraction",)
+
+
+def test_the_volume_holds_about_as_many_pairs_as_synapses():
+    """Mean multiplicity is just over one, so the two counts nearly agree."""
+    law = surviving_law()
+    pairs = connected_pairs(law)
+    assert 1.0 < law.mean() < 1.1
+    assert pairs == pytest.approx(float(H01_REFERENCE.get("synapses")) / law.mean())
+
+
+def test_the_heaviest_pair_is_expected_about_once():
+    """H01 saw one. A law expecting none of them did not produce that volume."""
+    assert 0.1 < expected_heaviest_pair(surviving_law()) < 10.0
+
+
+def test_contacts_are_whole_numbers_within_the_observed_support():
+    law = surviving_law()
+    drawn = contacts_per_pair(law, 20_000, np.random.default_rng(3))
+    assert drawn.min() >= 1
+    assert drawn.max() <= MAX_CONTACTS
+    assert np.mean(drawn == 1) == pytest.approx(law.p(1), abs=0.01)
+
+
+def test_an_island_has_a_tail_a_gaussian_does_not():
+    rng = np.random.default_rng(11)
+    island = wire_island(256, 0.128775, rng)
+    strengths = np.abs(island[island != 0])
+    assert strengths.size > 0
+    # Every strength is a whole number of contacts at the contact strength.
+    contacts = strengths / 0.1
+    assert np.allclose(contacts, np.round(contacts))
+    assert strengths.max() / np.median(strengths) >= 4.0
+
+
+def test_an_island_keeps_the_density_it_was_asked_for():
+    rng = np.random.default_rng(5)
+    island = wire_island(512, 0.1, rng)
+    density = np.count_nonzero(island) / (512 * 511)
+    assert density == pytest.approx(0.1, abs=0.01)
+
+
+def test_an_island_has_no_self_connections():
+    island = wire_island(64, 0.9, np.random.default_rng(1))
+    assert not np.any(np.diag(island))
+
+
+def test_an_island_needs_units():
+    with pytest.raises(ValueError, match="island_needs_units"):
+        wire_island(0, 0.1, np.random.default_rng(1))
+
+
+def test_the_mesh_wires_every_column_from_the_measurement():
+    """Intra-column wiring is local wiring, which is what H01 measured."""
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    assert all(column.human_island for column in mesh.columns)
+    strengths = np.concatenate(
+        [np.abs(column.W[column.W != 0]).ravel() for column in mesh.columns]
+    )
+    assert float(np.median(strengths)) == pytest.approx(0.1, abs=1e-6)
+    assert float(strengths.max()) > 0.4
+
+
+def test_a_partial_island_wires_only_what_it_names():
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig(human_island_columns=8))
+    assert sum(1 for column in mesh.columns if column.human_island) == 8
+
+
+def test_no_island_leaves_the_mesh_as_it_was():
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig(human_island_columns=0))
+    assert not any(column.human_island for column in mesh.columns)

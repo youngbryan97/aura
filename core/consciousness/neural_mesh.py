@@ -168,6 +168,14 @@ def _cortical_inhibitory_fraction() -> float:
     except ImportError:
         return 0.20
 
+def _is_human_island(index: int, cfg: Any) -> bool:
+    """Whether this column takes its local wiring from H01. -1 means all of them."""
+    declared = int(getattr(cfg, "human_island_columns", 0) or 0)
+    if declared < 0:
+        return True
+    return index < declared
+
+
 @dataclass(frozen=True)
 class MeshConfig:
     """Immutable configuration for the neural mesh."""
@@ -196,6 +204,33 @@ class MeshConfig:
     #: The table is in core/connectome/types.py and this reads it rather than
     #: repeating a rounded 0.20 that nothing could check.
     inhibitory_fraction: float = field(default_factory=_cortical_inhibitory_fraction)
+    #: How many columns are wired from the H01 human reconstruction instead of
+    #: from a Gaussian.
+    #:
+    #: The mesh draws every connection strength from the same normal
+    #: distribution, which says a connection is a continuous quantity centred
+    #: on zero with no heavy tail. H01 measured the thing itself in a cubic
+    #: millimetre of human temporal cortex, and it is a COUNT: 96.5% of
+    #: connected pairs are joined by one contact, 0.092% by four or more, and
+    #: the heaviest pair carries about fifty. Those are different objects, and
+    #: only one of them was measured in a person.
+    #:
+    #: An island rather than the whole mesh, because what H01 measured is local
+    #: wiring in one volume. Claiming it for long-range structure that came from
+    #: nowhere near a microscope would be borrowing its authority.
+    #:
+    #: Measured over 400 ticks with the same seed and the same drive, as the
+    #: cortical densities were: the multistep-regression branching ratio moves
+    #: 1.0057 -> 1.0054 -> 1.0046 -> 1.0041 as 0, 8, 32 and 64 columns take the
+    #: human wiring, so every column of it puts the mesh 28% nearer the
+    #: critical 1.0 the regulator steers for. The regression's own fit holds at
+    #: 0.998 throughout and the regime stays critical. The heaviest connection
+    #: goes from 6.3 times the median to 10.0, which is the tail arriving.
+    #:
+    #: -1 means every column. Intra-column wiring is local wiring, which is
+    #: what H01 measured; the inter-column matrices are long-range and keep
+    #: their own construction, because nothing in that volume speaks to them.
+    human_island_columns: int = -1
 
     # Dynamics
     #
@@ -268,18 +303,28 @@ class CorticalColumn:
     """
 
     __slots__ = ("index", "tier", "n", "x", "W", "inh_mask", "last_spike_time",
-                 "_lateral_inh_strength")
+                 "_lateral_inh_strength", "human_island")
 
     def __init__(self, index: int, tier: CorticalTier, n: int, cfg: MeshConfig,
-                 rng: np.random.Generator):
+                 rng: np.random.Generator, human_island: bool = False):
         self.index = index
         self.tier = tier
         self.n = n
+        self.human_island = bool(human_island)
         self.x = rng.standard_normal(n).astype(np.float32) * 0.05
 
         # Intra-column connectivity (dense)
-        mask = rng.random((n, n)) < cfg.intra_column_density
-        self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
+        if self.human_island:
+            # Strengths are contact counts drawn from what H01 measured in
+            # human cortex, not Gaussian draws. Same density, same sign
+            # convention, different distribution of strength: almost every
+            # connection is worth one contact and a rare one is worth fifty.
+            from core.connectome.island import wire_island
+
+            self.W = wire_island(n, cfg.intra_column_density, rng, contact_strength=0.1)
+        else:
+            mask = rng.random((n, n)) < cfg.intra_column_density
+            self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
 
         # Dale's law: mark inhibitory neurons, flip their outgoing weights negative
         num_inh = max(1, int(n * cfg.inhibitory_fraction))
@@ -400,7 +445,14 @@ class NeuralMesh:
         self.columns: list[CorticalColumn] = []
         for i in range(self.cfg.columns):
             tier = self._tier_for(i)
-            col = CorticalColumn(i, tier, self.cfg.neurons_per_column, self.cfg, self._rng)
+            col = CorticalColumn(
+                i,
+                tier,
+                self.cfg.neurons_per_column,
+                self.cfg,
+                self._rng,
+                human_island=_is_human_island(i, self.cfg),
+            )
             self.columns.append(col)
 
         #: Which tier each column belongs to, as a name, so a per-tier multiplier

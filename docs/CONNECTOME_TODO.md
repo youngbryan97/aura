@@ -29,14 +29,26 @@ Working list. Deleted when every line is done and green.
       multipliers on mesh gain and noise, uniform until measured
 - [x] `make connectome` end to end with `--observed` and `--against`
 - [x] every published number regenerated on the corrected graph
+- [x] **the fusion channel** — her substrate reaches the model's forward pass on
+      a person's turn, or it does not, and a per-checkpoint certificate decides
+      which. Measured on the reflex 1.5B: the answers change on 5 of 8 probes,
+      two opposing states of hers land 0.282 nats apart while each sits 0.094
+      from silence, and forced-choice accuracy is unmoved. The gate that had
+      been returning zero since a void A/B now reads the measurement
+- [x] a claim about her own machinery is checked against the machinery, and a
+      leak in the middle of an answer costs the sentence rather than the answer
 
 ## Open
 
 - [ ] the full offline suite green
+- [ ] a certificate for the resident 27B. The worker measures its own channel
+      after a minute of idle, so the number arrives on its own; until it does,
+      the channel stays shut on that model
 - [ ] fit anything to a human recording. `X(t)` is measured on her own substrate
       and has never been compared against EEG, MEG, fMRI or single-unit data,
       which is the experiment that term exists for
-- [ ] replace the mesh's thirteen chosen structural numbers with measured ones,
+- [ ] replace the mesh's ten remaining chosen structural numbers with measured
+      ones (four were replaced from published cortical measurements),
       or say for each why no measurement can reach it
 - [ ] regions with different computational matter: one set of dynamics runs all
       4,096 units, and cortical cell-type composition tracks functional
