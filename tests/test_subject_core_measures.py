@@ -672,3 +672,51 @@ def test_an_empty_docket_costs_nothing_and_does_not_raise():
     from core.goals.goal_engine import what_leaving_each_costs
 
     assert what_leaving_each_costs([]) == []
+
+
+@pytest.mark.asyncio
+async def test_a_restored_arm_starts_where_the_snapshot_was(tmp_path):
+    """The decisive check on the fork: what a restore does not bring back.
+
+    Two arms of an intervention start from one snapshot, and anything the
+    snapshot does not carry is state the first arm leaves for the second. It
+    enters the floor of every edge measured afterwards, and it is invisible:
+    the run completes, the numbers look like numbers, and the threshold every
+    edge has to clear is quietly set by the harness rather than by the
+    organism.
+
+    Four leaks were found this way and each was worth between a quarter and two
+    standard deviations — the lifetime reservoir's last reading, a workspace
+    bid's submission instant, the world model's training lane, and every
+    service the hand-maintained fork list had never heard of.
+
+    Run small: this is the shape of the check, not the campaign.
+    """
+    import numpy as np
+
+    from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, start_organism
+    from core.subject.state import DOMAINS
+
+    runtime = build_runtime(tmp_path / "runtime", seed=11)
+    await start_organism(runtime, quiet=True)
+    conditions = [c for c in CONDITIONS if c.name in {"conversation", "idle"}]
+    await calibrate_clock(runtime, conditions, turns=1)
+    try:
+        for condition in conditions:
+            await runtime.turn_once(condition)
+            runtime.freeze_host()
+            snapshot = runtime.snapshot()
+            before = runtime.read(condition.name, "before", {})
+            await runtime.turn_once(condition)
+            runtime.restore(snapshot)
+            after = runtime.read(condition.name, "after", {})
+            runtime.thaw_host()
+            for domain in DOMAINS:
+                gap = np.abs(before.domain(domain) - after.domain(domain))
+                assert gap.max() <= 1e-9, (
+                    f"{condition.name}: {domain} did not come back, "
+                    f"largest column moved {gap.max()}"
+                )
+    finally:
+        if runtime.clock is not None:
+            runtime.clock.uninstall()

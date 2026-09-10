@@ -625,6 +625,17 @@ def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
     seen: set[int] = set()
     for name in runtime.ORGAN_FIELDS:
         _shift_anchors(getattr(runtime.organs, name, None), shift, seen=seen)
+    # And the services, which the fork restores and never rewound. The unity
+    # layer binds a mind-moment over a four-second window with a 1.2-second
+    # half-life, both measured against the wall clock, so two arms binding the
+    # same events at different instants scored the binding differently and
+    # coherence and fragmentation were the largest floor terms left in the
+    # workspace domain. A phase that reads elapsed time has to be handed the
+    # same elapsed time in both arms.
+    for name, instance in _built_services().items():
+        if name in _UNFORKED_SERVICES:
+            continue
+        _shift_anchors(instance, shift, seen=seen)
     world = getattr(state, "world", None)
     percepts = getattr(world, "recent_percepts", None)
     if isinstance(percepts, list):
@@ -638,31 +649,16 @@ def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
 #: Services left alone by the fork. The vault owns the run's database and the
 #: container owns the services themselves; rewinding either would break the
 #: machinery the measurement runs on rather than the state it measures.
-#: The services the fork considers at all. Everything the schema reads through
-#: an organ is already carried by name; what is left worth carrying is what
-#: those organs consult and what writes the state fields the schema reads. A
-#: hundred and ten services are built by the time the organism is up and almost
-#: all of them move during a turn, so "carry what moved" is no restriction —
-#: carrying them all costs about a second and a half each way against fifteen
-#: hundred restores in a run, which is half an hour of measuring nothing.
-_CANDIDATE_SERVICES: set[str] = {
-    "affect_grounding",
-    "drive_engine",
-    "executive_closure",
-    "goal_engine",
-    "homeostasis",
-    "homeostatic_coupling",
-    "inhibition_manager",
-    "intention_loop",
-    "memory_facade",
-    "metacognition",
-    "mind_model",
-    "motivation_engine",
-    "nociception",
-    "predictive_engine",
-    "soma_subsystem",
-    "temporal_binding",
-}
+#:
+#: There is no allowlist of what the fork considers. There was one — sixteen
+#: names, chosen by which services somebody thought a domain read — and the
+#: unity layer was not among them, so its four-second binding window and its
+#: last mind-moment survived from one arm into the next and coherence and
+#: fragmentation stayed the two largest terms in the floor after everything
+#: else had been found. A hand-maintained list of what to carry falls behind
+#: the tree by construction, and the calibration exists precisely so the
+#: question does not have to be answered by hand: take a reading, live a turn
+#: in each condition, take another, carry whatever moved.
 
 _UNFORKED_SERVICES: frozenset[str] = frozenset(
     {
@@ -931,6 +927,11 @@ class Snapshot:
     #: channel, before either arm had been displaced.
     effort: dict[str, float] | None = None
 
+    #: Where the experiment clock stood. Restoring rewinds the state, and the
+    #: clock the phases read is part of the state as far as they are concerned:
+    #: a drive decays by `decay * dt` and a mind-moment binds over a window,
+    #: both against `time.time`.
+    clock_at: float | None = None
     #: Wall clock when the snapshot was taken. Restoring rewinds the state but
     #: not the clock, so the second arm of a trial always sees more elapsed
     #: time than the first — the motivation phase decays every drive by
@@ -981,6 +982,11 @@ class SubjectRuntime:
     #: matched-environment control every arm of a comparison needs.
     frozen_host: dict[str, float] | None = None
     frozen_latency: dict[str, float] | None = None
+    #: The clock every arm shares, or None to run on the machine's. See
+    #: `core.subject.clock`: the phases that read elapsed time have to be
+    #: handed the same interval in both arms or the machine's own speed is in
+    #: the floor of every edge into them.
+    clock: Any = None
     #: Who the next action is attributed to. "self" is the ordinary case; the
     #: ownership experiment in core.subject.agency sets it to "external" for one
     #: arm and matches everything else, so the two runs differ in authorship
@@ -1046,11 +1052,11 @@ class SubjectRuntime:
         live a turn in each condition, take another, and carry whatever
         differed. What never moves cannot carry a difference between two arms.
         """
-        before_services = _service_state(_CANDIDATE_SERVICES)
+        before_services = _service_state(None)
         before_phases = self._phase_state()
         for condition in conditions:
             await self.turn_once(condition)
-        after_services = _service_state(_CANDIDATE_SERVICES)
+        after_services = _service_state(None)
         after_phases = self._phase_state()
 
         def moved(before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]) -> set[str]:
@@ -1187,6 +1193,7 @@ class SubjectRuntime:
             services=_service_state(self.forked_services),
             effort=_effort_state(),
             taken_at=time.time(),
+            clock_at=None if self.clock is None else self.clock.now(),
             global_random=random.getstate(),
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
@@ -1219,6 +1226,13 @@ class SubjectRuntime:
         self._restore_phases(snapshot.phases)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
+        if self.clock is not None and snapshot.clock_at is not None:
+            # The clock is the state as far as a phase reading elapsed time is
+            # concerned, so it rewinds with everything else and the shift below
+            # is zero. The shift stays because a run without the clock still
+            # has to rewind, and because it covers what the clock cannot: a
+            # module that bound `time.time` before the install.
+            self.clock.set(snapshot.clock_at)
         if snapshot.taken_at:
             _reanchor(self, time.time() - snapshot.taken_at)
 
@@ -1264,6 +1278,8 @@ class SubjectRuntime:
         frames: list[CoreState] = []
 
         async def capture(tag: str) -> None:
+            if self.clock is not None:
+                self.clock.advance()
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:
@@ -1843,6 +1859,56 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     except Exception as exc:  # noqa: BLE001
         logger.warning("intention loop unavailable: %s", exc)
     return runtime
+
+
+#: How finely the measured frame step is recorded. Rounded so that two runs on
+#: the same machine share a timeline exactly rather than differing in the
+#: fourth decimal, and so the number in the report is one a reader can compare.
+_CLOCK_GRAIN: float = 0.005
+
+
+#: How many turns the clock calibration times, and how many it throws away
+#: first. The first turns of a life are the cheapest — nothing has accumulated
+#: and no action has been taken — so timing them alone put the step at a third
+#: of what an ordinary frame costs.
+_CLOCK_WARMUP_TURNS: int = 2
+
+
+async def calibrate_clock(
+    runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
+) -> dict[str, float]:
+    """Time this machine's frames, then put the run on a clock of its own.
+
+    The step is measured rather than chosen: whatever a frame costs here is
+    what the experiment's clock advances by, so every threshold inside the
+    organism sees a timeline of about the right shape while both arms of every
+    intervention see exactly the same one.
+
+    Timed on `time.monotonic`, which this never replaces.
+    """
+    from core.subject.clock import ExperimentClock
+
+    for index in range(_CLOCK_WARMUP_TURNS):
+        await runtime.turn_once(conditions[index % len(conditions)])
+    frames = 0
+    started = time.monotonic()
+    for index in range(max(1, turns)):
+        condition = conditions[index % len(conditions)]
+        frames += len(await runtime.turn_once(condition))
+    elapsed = max(1e-6, time.monotonic() - started)
+    measured = elapsed / max(1, frames)
+    step = max(_CLOCK_GRAIN, round(measured / _CLOCK_GRAIN) * _CLOCK_GRAIN)
+    clock = ExperimentClock(step)
+    clock.install()
+    runtime.clock = clock
+    logger.info(
+        "subject-core: experiment clock installed at %.3fs a frame "
+        "(measured %.4f over %d frames)",
+        step,
+        measured,
+        frames,
+    )
+    return {"step": step, "measured": round(measured, 5), "frames": frames}
 
 
 async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:

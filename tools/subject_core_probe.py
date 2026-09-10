@@ -67,7 +67,7 @@ async def main() -> int:
     os.environ.setdefault("AURA_LOG_DIR", str(out / "logs"))
 
     from core.subject.causal import DEFAULT_DELTA, _arm
-    from core.subject.driver import CONDITIONS, build_runtime, start_organism
+    from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, start_organism
     from core.subject.recording import build_recording
     from core.subject.state import DOMAINS, feature_names
 
@@ -82,6 +82,9 @@ async def main() -> int:
     runtime = build_runtime(out / "runtime", seed=args.seed)
     organism = await start_organism(runtime, quiet=True)
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
+
+    reading = await calibrate_clock(runtime, conditions)
+    _log(f"experiment clock at {reading['step']:.3f}s a frame")
 
     _log(f"recording {args.rounds} rounds over {len(conditions)} conditions")
     frames = []

@@ -132,7 +132,13 @@ async def main() -> int:
     from core.subject.clamp import clamped
     from core.subject.closure import closure_gain
     from core.subject.differentiation import effective_dimension
-    from core.subject.driver import CONDITIONS, build_runtime, quiesce_organism, start_organism
+    from core.subject.driver import (
+        CONDITIONS,
+        build_runtime,
+        calibrate_clock,
+        quiesce_organism,
+        start_organism,
+    )
     from core.subject.graph import analyse_graph
     from core.subject.intrinsic import intrinsic_gain
     from core.subject.irreducibility import phi_do
@@ -182,6 +188,17 @@ async def main() -> int:
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
     if organism["down"]:
         _log(f"  did not come up: {organism['down']}")
+
+    # Before anything is recorded: time this machine's frames and put the run
+    # on a clock it advances itself. Two arms already saw the same state, the
+    # same organs and the same host, and still saw different amounts of time —
+    # which is half a standard deviation of deliberation's spread and one and a
+    # half of the workspace's, from nothing but how long the machine took.
+    evidence["notes"]["clock"] = await calibrate_clock(runtime, CONDITIONS)
+    _log(
+        f"experiment clock at {evidence['notes']['clock']['step']:.3f}s a frame "
+        f"(measured {evidence['notes']['clock']['measured']:.4f})"
+    )
 
     _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
     frames, periphery_rows = await _record(runtime, CONDITIONS, args.rounds)
