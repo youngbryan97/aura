@@ -103,10 +103,22 @@ def _extract_wallpaper(text: str) -> str | None:
         topic = _clean(image_topic_match.group(1))
         if topic:
             return topic
-    described_object = extract_object_description(
-        text,
-        "image",
-        action_phrases=("find", "search", "look up", "get", "download", "fetch"),
+    # An image is not a wallpaper unless the sentence says so.
+    #
+    # This branch asked only whether an image was described, where the two
+    # above both require the word "wallpaper" or "background". So "save it as
+    # a PDF ... and add a robot image" was read as a request to set the
+    # wallpaper to a robot, the task grew a `requested_wallpaper_verified`
+    # predicate it could never satisfy, and a chain that did everything asked
+    # of it reported "semantic completion incomplete".
+    described_object = (
+        extract_object_description(
+            text,
+            "image",
+            action_phrases=("find", "search", "look up", "get", "download", "fetch"),
+        )
+        if setting_surface
+        else None
     )
     if described_object:
         topic = _clean(described_object)

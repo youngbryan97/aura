@@ -92,12 +92,20 @@ PRODUCTION_ROOTS = ("core.runtime", "core.brain", "aura_main", "interface")
 #: The sanctioned write path is infrastructure, not live state. Every
 #: consequential write in this repository goes through the gateway, including
 #: from an experiment, so importing it is the rule rather than a breach of one.
+#:
+#: The model lane is here on the same argument. Loading a model without holding
+#: it is what put twenty gigabytes beside a resident cortex once already, and
+#: an experiment that loads one is exactly the case that must not be exempt —
+#: so importing the lane from research is the rule, not a breach of it. It
+#: grants no reading of live state: the lane says who may hold a model, and
+#: nothing about what she is doing.
 INFRASTRUCTURE = (
     "core.runtime.file_write_gateway",
     "core.runtime.atomic_writer",
     "core.runtime.subprocess_gateway",
     "core.runtime.lockdep",
     "core.runtime.errors",
+    "core.runtime.model_lane_control",
 )
 
 
