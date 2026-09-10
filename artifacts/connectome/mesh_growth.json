@@ -1,0 +1,224 @@
+{
+  "source": {
+    "source": "Huttenlocher & Dabholkar 1997, J Comp Neurol 387(2):167-178",
+    "recorded_in": "human auditory cortex and middle frontal gyrus, post-mortem, across the lifespan",
+    "peak_over_adult": 1.5,
+    "what_peaks_first": "auditory cortex at about three months, middle frontal gyrus at about three and a half years"
+  },
+  "runs": [
+    {
+      "ticks": 1600,
+      "peak_density": {
+        "sensory": 0.15681,
+        "association": 0.20063,
+        "executive": 0.13494
+      },
+      "overshot_to": {
+        "sensory": 0.15681,
+        "association": 0.20063,
+        "executive": 0.13494
+      },
+      "pruned_at": {
+        "sensory": 320,
+        "association": 720,
+        "executive": 1120
+      },
+      "adult_density": {
+        "sensory": 0.10465,
+        "association": 0.13442,
+        "executive": 0.09028
+      },
+      "target_density": {
+        "sensory": 0.10469,
+        "association": 0.13436,
+        "executive": 0.09015
+      },
+      "grown": 14801,
+      "pruned": 14787,
+      "overshoot": {
+        "sensory": 1.498,
+        "association": 1.493,
+        "executive": 1.497
+      },
+      "carried_by_use": 0.000726,
+      "carried_at_random": 0.000713,
+      "carried_over_random": 1.019,
+      "reach_by_use": 16,
+      "reach_at_random": 16,
+      "executive_columns": 16,
+      "note": "grew 14801 synapses to 1.5x the adult density and cut 14787 back, keeping what carried traffic"
+    },
+    {
+      "ticks": 1600,
+      "peak_density": {
+        "sensory": 0.15672,
+        "association": 0.20149,
+        "executive": 0.13466
+      },
+      "overshot_to": {
+        "sensory": 0.15672,
+        "association": 0.20149,
+        "executive": 0.13466
+      },
+      "pruned_at": {
+        "sensory": 320,
+        "association": 720,
+        "executive": 1120
+      },
+      "adult_density": {
+        "sensory": 0.10466,
+        "association": 0.13442,
+        "executive": 0.09028
+      },
+      "target_density": {
+        "sensory": 0.10469,
+        "association": 0.13436,
+        "executive": 0.09015
+      },
+      "grown": 14888,
+      "pruned": 14874,
+      "overshoot": {
+        "sensory": 1.497,
+        "association": 1.5,
+        "executive": 1.494
+      },
+      "carried_by_use": 0.000727,
+      "carried_at_random": 0.000713,
+      "carried_over_random": 1.021,
+      "reach_by_use": 16,
+      "reach_at_random": 16,
+      "executive_columns": 16,
+      "note": "grew 14888 synapses to 1.5x the adult density and cut 14874 back, keeping what carried traffic"
+    },
+    {
+      "ticks": 1600,
+      "peak_density": {
+        "sensory": 0.15648,
+        "association": 0.20195,
+        "executive": 0.13568
+      },
+      "overshot_to": {
+        "sensory": 0.15648,
+        "association": 0.20195,
+        "executive": 0.13568
+      },
+      "pruned_at": {
+        "sensory": 320,
+        "association": 720,
+        "executive": 1120
+      },
+      "adult_density": {
+        "sensory": 0.10466,
+        "association": 0.13442,
+        "executive": 0.09028
+      },
+      "target_density": {
+        "sensory": 0.10469,
+        "association": 0.13436,
+        "executive": 0.09015
+      },
+      "grown": 14999,
+      "pruned": 14985,
+      "overshoot": {
+        "sensory": 1.495,
+        "association": 1.503,
+        "executive": 1.505
+      },
+      "carried_by_use": 0.000727,
+      "carried_at_random": 0.000715,
+      "carried_over_random": 1.016,
+      "reach_by_use": 16,
+      "reach_at_random": 16,
+      "executive_columns": 16,
+      "note": "grew 14999 synapses to 1.5x the adult density and cut 14985 back, keeping what carried traffic"
+    },
+    {
+      "ticks": 1600,
+      "peak_density": {
+        "sensory": 0.1558,
+        "association": 0.2013,
+        "executive": 0.13571
+      },
+      "overshot_to": {
+        "sensory": 0.1558,
+        "association": 0.2013,
+        "executive": 0.13571
+      },
+      "pruned_at": {
+        "sensory": 320,
+        "association": 720,
+        "executive": 1120
+      },
+      "adult_density": {
+        "sensory": 0.10466,
+        "association": 0.13442,
+        "executive": 0.09028
+      },
+      "target_density": {
+        "sensory": 0.10469,
+        "association": 0.13436,
+        "executive": 0.09015
+      },
+      "grown": 14873,
+      "pruned": 14859,
+      "overshoot": {
+        "sensory": 1.488,
+        "association": 1.498,
+        "executive": 1.505
+      },
+      "carried_by_use": 0.000726,
+      "carried_at_random": 0.000713,
+      "carried_over_random": 1.018,
+      "reach_by_use": 16,
+      "reach_at_random": 16,
+      "executive_columns": 16,
+      "note": "grew 14873 synapses to 1.5x the adult density and cut 14859 back, keeping what carried traffic"
+    },
+    {
+      "ticks": 1600,
+      "peak_density": {
+        "sensory": 0.15692,
+        "association": 0.20151,
+        "executive": 0.13492
+      },
+      "overshot_to": {
+        "sensory": 0.15692,
+        "association": 0.20151,
+        "executive": 0.13492
+      },
+      "pruned_at": {
+        "sensory": 320,
+        "association": 720,
+        "executive": 1120
+      },
+      "adult_density": {
+        "sensory": 0.10465,
+        "association": 0.13442,
+        "executive": 0.09028
+      },
+      "target_density": {
+        "sensory": 0.10469,
+        "association": 0.13436,
+        "executive": 0.09015
+      },
+      "grown": 14920,
+      "pruned": 14906,
+      "overshoot": {
+        "sensory": 1.499,
+        "association": 1.5,
+        "executive": 1.497
+      },
+      "carried_by_use": 0.000726,
+      "carried_at_random": 0.000712,
+      "carried_over_random": 1.019,
+      "reach_by_use": 16,
+      "reach_at_random": 16,
+      "executive_columns": 16,
+      "note": "grew 14920 synapses to 1.5x the adult density and cut 14906 back, keeping what carried traffic"
+    }
+  ],
+  "beat_the_null": 5,
+  "of": 5,
+  "median_ratio": 1.019,
+  "landed_on_anatomy": true
+}
