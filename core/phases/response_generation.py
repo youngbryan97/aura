@@ -1269,6 +1269,24 @@ class ResponseGenerationPhase(BasePhase):
                     situation_block,
                 )
 
+        from core.conversation.answer_provenance import AnswerProvenance, provenance_grounding_json
+        from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
+
+        prior_answer_provenance = AnswerProvenance.from_value(
+            runtime_context.get("prior_answer_provenance")
+        )
+        if prior_answer_provenance is not None:
+            evidence_index = next(
+                (index for index in range(len(messages) - 1, -1, -1)
+                 if messages[index].get("role") == "user"),
+                len(messages),
+            )
+            messages.insert(evidence_index, stamp_grounding({
+                "role": RUNTIME_EVIDENCE_ROLE,
+                "content": provenance_grounding_json(prior_answer_provenance),
+                "metadata": {"type": "prior_answer_provenance"},
+            }))
+
         evidence_blocks = (
             (
                 "CONTEXT CHALLENGE EVIDENCE",

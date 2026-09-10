@@ -4977,6 +4977,13 @@ class CognitiveEngine:
         ).strip()
         if action_episode_evidence:
             task_grounding_blocks.append(action_episode_evidence)
+        from core.conversation.answer_provenance import AnswerProvenance, provenance_grounding_json
+
+        prior_answer_provenance = AnswerProvenance.from_value(
+            context.get("prior_answer_provenance")
+        )
+        if prior_answer_provenance is not None:
+            task_grounding_blocks.append(provenance_grounding_json(prior_answer_provenance))
         recall_evidence = str(context.get("conversation_recall_evidence") or "").strip()
         if recall_evidence:
             task_grounding_blocks.append(

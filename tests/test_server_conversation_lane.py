@@ -11238,16 +11238,28 @@ async def test_api_chat_projects_verified_action_episode_without_model_generatio
 
 
 @pytest.mark.asyncio
-async def test_api_chat_projects_verified_answer_provenance_without_quality_repair(
-    monkeypatch,
+@pytest.mark.parametrize("message", [
+    "How'd you know that?",
+    "But how can it redo the changes safely if some of them already reached the data files?",
+    "How can a courier deliver this safely if you already reached the building?",
+    "How did you reach that conclusion, and what are its limitations?",
+])
+async def test_api_chat_source_retrieval_never_replaces_the_question(
+    monkeypatch, message,
 ):
     from core.conversation.answer_provenance import AnswerProvenance
     from interface import server as server_module
     from interface.routes import chat as chat_routes
     from interface.routes import chat_common
 
-    async def _forbidden_cognitive_turn(*_args, **_kwargs):
-        pytest.fail("verified answer provenance must not allocate model generation")
+    class ReachedCognition(BaseException):
+        pass
+
+    calls = []
+
+    async def _capture_cognitive_turn(*args, **kwargs):
+        calls.append((args, kwargs))
+        raise ReachedCognition
 
     async def _fake_output_receipt(*_args, **_kwargs):
         return None
@@ -11274,7 +11286,7 @@ async def test_api_chat_projects_verified_answer_provenance_without_quality_repa
     monkeypatch.setattr(
         chat_routes,
         "_run_cognitive_engine_chat_turn",
-        _forbidden_cognitive_turn,
+        _capture_cognitive_turn,
     )
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -11314,36 +11326,26 @@ async def test_api_chat_projects_verified_answer_provenance_without_quality_repa
         }
     )
 
-    response = await server_module.api_chat(
-        server_module.ChatRequest(
-            message="How'd you know that?",
-            session_id="answer-provenance-live-route",
-        ),
-        SimpleNamespace(
-            headers={
-                "X-Aura-Surface": "desktop-ui",
-                "X-Aura-Require-CognitiveEngine": "true",
-            },
-            client=SimpleNamespace(host="test"),
-        ),
-        None,
-        None,
-    )
+    with pytest.raises(ReachedCognition):
+        await server_module.api_chat(
+            server_module.ChatRequest(
+                message=message,
+                session_id="answer-provenance-live-route",
+            ),
+            SimpleNamespace(
+                headers={
+                    "X-Aura-Surface": "desktop-ui",
+                    "X-Aura-Require-CognitiveEngine": "true",
+                },
+                client=SimpleNamespace(host="test"),
+            ),
+            None,
+            None,
+        )
 
-    payload = json.loads(response.body)
-    assert response.status_code == 200
-    assert payload["status"] == "verified_answer_provenance"
-    assert "no tool lookup" in payload["response"]
-    contract = payload["live_turn_contract"]
-    assert contract["response_authority_kind"] == (
-        "verified_answer_provenance_serialization"
-    )
-    assert contract["response_authority_proven"] is True
-    assert contract["state_native_output"] is True
-    assert contract["answer_delivery_proven"] is True
-    assert contract["final_text_authorship"] == (
-        "verified_answer_provenance_serialization"
-    )
+    assert len(calls) == 1
+    assert calls[0][1]["visible_user_message"] == message
+    assert calls[0][1]["prior_answer_provenance"] == provenance.to_dict()
 
 
 @pytest.mark.asyncio

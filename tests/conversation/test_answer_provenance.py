@@ -220,7 +220,7 @@ def test_unrelated_fact_turn_does_not_receive_historical_action_receipts(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_live_projection_reads_bound_prior_answer_without_model_narration(
+async def test_live_retrieval_binds_source_data_without_authoring_the_reply(
     monkeypatch,
 ) -> None:
     from core.conversation.turn_evidence_custody import turn_grounding_evidence
@@ -245,13 +245,13 @@ async def test_live_projection_reads_bound_prior_answer_without_model_narration(
 
     monkeypatch.setattr(chat_memory_state, "_recent_completed_conversation_exchanges", _recent)
     with bind_turn_evidence_custody(session_id="current-session", turn_id="current-turn"):
-        reply = await chat._resolve_answer_provenance_projection(
+        evidence = await chat._resolve_prior_answer_provenance(
             "Well then how did you know that?",
             session_id="current-session",
         )
         grounding = turn_grounding_evidence()
 
-    assert "no tool lookup" in reply
+    assert evidence == provenance.to_dict()
     assert len(grounding) == 1
     assert "aura.answer_provenance.v1" in grounding[0]
 
@@ -281,12 +281,12 @@ async def test_live_projection_leaves_prior_answer_content_for_the_cortex(
 
     monkeypatch.setattr(chat_memory_state, "_recent_completed_conversation_exchanges", _recent)
 
-    reply = await chat._resolve_answer_provenance_projection(
+    evidence = await chat._resolve_prior_answer_provenance(
         "What was the key distinction in your previous answer?",
         session_id="current-session",
     )
 
-    assert reply == ""
+    assert evidence is None
 
 
 def test_provenance_projection_has_verified_serialization_authority() -> None:
