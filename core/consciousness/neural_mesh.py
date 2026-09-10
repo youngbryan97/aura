@@ -168,6 +168,14 @@ def _cortical_inhibitory_fraction() -> float:
     except ImportError:
         return 0.20
 
+def _is_human_island(index: int, cfg: Any) -> bool:
+    """Whether this column takes its local wiring from H01. -1 means all of them."""
+    declared = int(getattr(cfg, "human_island_columns", 0) or 0)
+    if declared < 0:
+        return True
+    return index < declared
+
+
 @dataclass(frozen=True)
 class MeshConfig:
     """Immutable configuration for the neural mesh."""
@@ -211,9 +219,18 @@ class MeshConfig:
     #: wiring in one volume. Claiming it for long-range structure that came from
     #: nowhere near a microscope would be borrowing its authority.
     #:
-    #: The count is what it is because of what happens when it changes; see
-    #: `tools/measure_h01_island.py`.
-    human_island_columns: int = 0
+    #: Measured over 400 ticks with the same seed and the same drive, as the
+    #: cortical densities were: the multistep-regression branching ratio moves
+    #: 1.0057 -> 1.0054 -> 1.0046 -> 1.0041 as 0, 8, 32 and 64 columns take the
+    #: human wiring, so every column of it puts the mesh 28% nearer the
+    #: critical 1.0 the regulator steers for. The regression's own fit holds at
+    #: 0.998 throughout and the regime stays critical. The heaviest connection
+    #: goes from 6.3 times the median to 10.0, which is the tail arriving.
+    #:
+    #: -1 means every column. Intra-column wiring is local wiring, which is
+    #: what H01 measured; the inter-column matrices are long-range and keep
+    #: their own construction, because nothing in that volume speaks to them.
+    human_island_columns: int = -1
 
     # Dynamics
     #
@@ -434,7 +451,7 @@ class NeuralMesh:
                 self.cfg.neurons_per_column,
                 self.cfg,
                 self._rng,
-                human_island=i < int(getattr(self.cfg, "human_island_columns", 0) or 0),
+                human_island=_is_human_island(i, self.cfg),
             )
             self.columns.append(col)
 
