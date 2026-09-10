@@ -590,6 +590,54 @@ def _hash_unit(text: Any) -> float:
 _CONTENT_TOKENS: int = 64
 
 
+
+#: Keys whose value is bookkeeping rather than content: when a thing was
+#: written, which run wrote it, what its identifier is. A profile built from
+#: `str(entry)` reads all of them as words, so the clock a working-memory entry
+#: carries became four of active memory's coordinates — and two arms of one
+#: trial, appending the same sentence a second apart, differed across the whole
+#: profile before either had been displaced.
+_BOOKKEEPING_KEYS: frozenset[str] = frozenset(
+    {
+        "timestamp",
+        "at",
+        "time",
+        "created_at",
+        "written_at",
+        "id",
+        "uuid",
+        "turn",
+        "run_id",
+        "runtime_instance_id",
+        "state_digest",
+        "digest",
+        "hash",
+        "seq",
+        "index",
+    }
+)
+
+
+def _content_of(entry: Any, limit: int = 240) -> str:
+    """The part of an entry a profile should be built from.
+
+    A record is content plus bookkeeping. The content is what a later moment
+    could recall; the bookkeeping is when it was stored and by whom, and it
+    changes on every write whatever the content was.
+    """
+    if isinstance(entry, Mapping):
+        parts = []
+        for key in sorted(entry):
+            if str(key).lower() in _BOOKKEEPING_KEYS:
+                continue
+            value = entry[key]
+            if isinstance(value, Mapping):
+                value = _content_of(value, limit)
+            parts.append(f"{key}={value}")
+        return " ".join(parts)[:limit]
+    return str(entry)[:limit]
+
+
 def _content_buckets(text: Any, buckets: int = CONTENT_BUCKETS) -> list[float]:
     """A body of content as a coordinate: sharing most words means being close.
 
@@ -837,7 +885,13 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(introspection.get("version")), 32.0),
             _sat(_f(introspection.get("snapshot_count")), 8.0),
             _sat(_f(introspection.get("pending_update_count")), 4.0),
-            *_content_buckets(" ".join(f"{k}={beliefs[k]}" for k in sorted(beliefs)[:16])),
+            *_content_buckets(
+                " ".join(
+                    f"{k}={_content_of(beliefs[k])}"
+                    for k in sorted(beliefs)[:16]
+                    if str(k).lower() not in _BOOKKEEPING_KEYS
+                )
+            ),
             _sat(_f(agency.get("acted")), 16.0),
             _f(agency.get("efficacy")),
             _f(agency.get("authored_share")),
@@ -859,6 +913,33 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
+def _recency(entry: Any, scale: float = 2.0) -> float:
+    """How recently this was written, in [0, 1). One is now, zero is long ago.
+
+    The column was the hash of the entry's whole repr, which includes the wall
+    clock it was written at — so two arms of one trial, appending the same
+    sentence a second apart, differed by the full width of the hash. A hash
+    carries no magnitude at the best of times; over a clock it is noise with a
+    name, and it was the largest single term in the floor every edge into
+    active memory had to clear.
+
+    The scale is two seconds because that is the order of one turn. At sixty
+    the whole of a run's spread fell inside three percent of the column, and a
+    column that barely moves turns every wobble into several standard
+    deviations of nothing.
+    """
+    if not isinstance(entry, Mapping):
+        return 0.0
+    stamp = entry.get("timestamp") or entry.get("at") or entry.get("time")
+    try:
+        age = time.time() - float(stamp)
+    except (TypeError, ValueError):
+        return 0.0
+    if age < 0.0:
+        age = 0.0
+    return scale / (scale + age)
+
+
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
     retrieved = _dig(state, "cognition.long_term_memory", []) or []
@@ -866,11 +947,11 @@ def _read_M(state: Any) -> np.ndarray:
     return np.array(
         [
             _sat(working, 24.0),
-            _hash_unit(str(last)),
+            _recency(last),
             _sat(retrieved, 8.0),
-            *_content_buckets(" ".join(str(item)[:240] for item in list(retrieved)[-4:])),
+            *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
-            *_content_buckets(" ".join(str(item)[:240] for item in list(working)[-4:])),
+            *_content_buckets(" ".join(_content_of(item) for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
             1.0 if _dig(state, "cognition.active_thread_id") else 0.0,
@@ -974,7 +1055,7 @@ def _read_D(state: Any) -> np.ndarray:
         # The newest, not the oldest. `goals[:3]` takes the first three, which
         # stop changing the moment there are three — so this domain's whole
         # content profile was a constant after the third turn of every run.
-        *_content_buckets(" ".join(str(goal) for goal in goals[-3:])),
+        *_content_buckets(" ".join(_content_of(goal, 320) for goal in goals[-3:])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
         _hash_unit(_dig(state, "cognition.last_action_source", "")),
     ]
@@ -1291,6 +1372,11 @@ def _perturb_D(state: Any, delta: float, ontogeny: Any) -> bool:
                 "origin": "probe",
                 "status": "pending",
                 "priority": min(1.0, max(0.0, 0.5 + delta)),
+                # And what it is asking to be thought about now. The workspace
+                # prices deliberation's bid on `urgency` and drops a bid that
+                # states none, so a probe goal carrying only a priority was a
+                # displacement of deliberation that attention could not see.
+                "urgency": min(1.0, max(0.0, 0.5 + delta)),
             }
         )
         hit = True
@@ -1308,7 +1394,18 @@ def _perturb_D(state: Any, delta: float, ontogeny: Any) -> bool:
             span = _f(entry.get("capacity"), 100.0) or 100.0
             for key in ("current", "level"):
                 if key in entry:
-                    entry[key] = max(0.0, min(span, _f(entry[key]) + delta * span))
+                    # Toward capacity, by a share of what is missing, rather
+                    # than by the same amount everywhere. What deliberation
+                    # decides on is which drive is most depleted, and adding
+                    # one number to every drive leaves that comparison exactly
+                    # as it was: the intention generator dispatched on the same
+                    # name in both arms, so the displaced arm did the same
+                    # thing as the sham and deliberation reached nothing
+                    # through action. Meeting the most pressing need most is
+                    # what a displacement of motivation is.
+                    level = _f(entry[key])
+                    room = max(0.0, span - level)
+                    entry[key] = max(0.0, min(span, level + delta * room))
                     hit = True
     return hit
 

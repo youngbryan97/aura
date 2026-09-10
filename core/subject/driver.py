@@ -508,16 +508,63 @@ _CLOCK_ANCHORS: tuple[str, ...] = (
     "start_time",
     "_last_disk_time",
     "_last_thought_time",
+    "submitted_at",
 )
 
 #: Anything smaller than this is not a wall-clock instant. Epoch seconds passed
-#: a billion in 2001; a duration, a count or a rate never reaches it.
+#: a billion in 2001; a duration, a count or a rate never reaches it. The
+#: ceiling is the year 2100, above which a large number is something else.
 _EPOCH_FLOOR: float = 1e9
+_EPOCH_CEILING: float = 4.1e9
+
+#: What a field holding an instant is called. The named list above is the set
+#: the shallow pass knew about; a fork has to find the ones nobody listed,
+#: because the one that mattered most — when a workspace bid was submitted —
+#: is two objects deep inside the organ and was named none of them.
+_INSTANT_WORDS: tuple[str, ...] = ("time", "_at", "stamp", "clock", "since", "when")
+
+#: How far into an organ the rewind looks. The bid that decides a competition
+#: sits at depth two: workspace -> last_winner -> submitted_at.
+_ANCHOR_DEPTH: int = 3
+
+#: How many entries of a container the rewind reads. A history buffer can hold
+#: thousands and only the recent ones carry an instant anything still reads.
+_ANCHOR_FANOUT: int = 64
 
 
-def _shift_anchors(obj: Any, shift: float) -> None:
-    if obj is None:
+def _looks_like_an_instant(name: str, value: Any) -> bool:
+    """Whether this field holds a wall-clock instant rather than a number.
+
+    Both halves are required. A float in the epoch window called `capacity` is
+    a coincidence; a field called `submitted_at` holding 0.3 is a duration.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    if not (_EPOCH_FLOOR < float(value) < _EPOCH_CEILING):
+        return False
+    lowered = str(name).lower()
+    return any(word in lowered for word in _INSTANT_WORDS)
+
+
+def _shift_anchors(obj: Any, shift: float, depth: int = 0, seen: set[int] | None = None) -> None:
+    """Move every wall-clock instant inside this object forward by `shift`.
+
+    A restore rewinds the state but not the clock, so the arm that runs second
+    always sees more elapsed time than the arm that ran first. The named
+    anchors below are shifted at the top level; everything else is found by
+    walking the object, because the instant that decided the largest remaining
+    floor term was `submitted_at` on the workspace's last winner, and a bid's
+    priority is read as of now — so two arms reading the same winner a second
+    apart priced it differently and the workspace domain moved before either
+    had been displaced.
+    """
+    if obj is None or depth > _ANCHOR_DEPTH:
         return
+    if seen is None:
+        seen = set()
+    if id(obj) in seen:
+        return
+    seen.add(id(obj))
     for name in _CLOCK_ANCHORS:
         value = getattr(obj, name, None)
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value > _EPOCH_FLOOR:
@@ -525,6 +572,42 @@ def _shift_anchors(obj: Any, shift: float) -> None:
                 setattr(obj, name, float(value) + shift)
             except (AttributeError, TypeError, ValueError):
                 continue
+    fields = getattr(obj, "__dict__", None)
+    if isinstance(fields, dict):
+        for name, value in list(fields.items())[: _ANCHOR_FANOUT * 4]:
+            if _looks_like_an_instant(name, value):
+                try:
+                    setattr(obj, name, float(value) + shift)
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                continue
+            _shift_inside(value, shift, depth + 1, seen)
+    elif isinstance(obj, (dict, list, tuple)):
+        _shift_inside(obj, shift, depth, seen)
+
+
+def _shift_inside(value: Any, shift: float, depth: int, seen: set[int]) -> None:
+    """Follow a container or an ordinary object, and stop at anything else."""
+    if depth > _ANCHOR_DEPTH:
+        return
+    if isinstance(value, (str, bytes, bytearray, np.ndarray, int, float, bool, type(None))):
+        return
+    if isinstance(value, dict):
+        for key, item in list(value.items())[:_ANCHOR_FANOUT]:
+            if _looks_like_an_instant(str(key), item):
+                try:
+                    value[key] = float(item) + shift
+                except (TypeError, ValueError):
+                    continue
+                continue
+            _shift_inside(item, shift, depth + 1, seen)
+        return
+    if isinstance(value, (list, tuple, set, frozenset)):
+        for item in list(value)[-_ANCHOR_FANOUT:]:
+            _shift_inside(item, shift, depth + 1, seen)
+        return
+    if hasattr(value, "__dict__") and not _is_process_furniture(value):
+        _shift_anchors(value, shift, depth, seen)
 
 
 def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
@@ -539,8 +622,9 @@ def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
         getattr(state, "soma", None),
     ):
         _shift_anchors(holder, shift)
+    seen: set[int] = set()
     for name in runtime.ORGAN_FIELDS:
-        _shift_anchors(getattr(runtime.organs, name, None), shift)
+        _shift_anchors(getattr(runtime.organs, name, None), shift, seen=seen)
     world = getattr(state, "world", None)
     percepts = getattr(world, "recent_percepts", None)
     if isinstance(percepts, list):
@@ -707,6 +791,34 @@ def _restore_torch_random(saved: Any) -> None:
         return
 
 
+
+def _lifetime_last() -> Any:
+    """The lifetime module's own copy of the last step.
+
+    `core.ontogeny.lifetime` publishes what the reservoir sensed through a
+    module-level global rather than through the service, so nothing that forks
+    a run could carry it by carrying the service. The driver reads it once per
+    turn to fill N's novelty and displacement columns.
+    """
+    try:
+        from core.ontogeny import lifetime
+
+        with lifetime._lock:
+            return lifetime._last
+    except (ImportError, AttributeError):
+        return None
+
+
+def _restore_lifetime_last(saved: Any) -> None:
+    try:
+        from core.ontogeny import lifetime
+
+        with lifetime._lock:
+            lifetime._last = saved
+    except (ImportError, AttributeError):
+        return
+
+
 def _moments_of(service: Any) -> dict[str, Any] | None:
     """Everything the ontogeny service mutates that is not in a snapshot yet.
 
@@ -779,6 +891,16 @@ class Snapshot:
     #: standard deviations before a single phase had run.
     moments: dict[str, Any] | None = None
     last_reading: Any = None
+    #: What the last step sensed, which is what the N domain reports as novelty
+    #: and displacement. `_step_ontogeny` copies it onto the reservoir object
+    #: and `core.ontogeny.lifetime` keeps its own copy behind a module-level
+    #: global that no container holds, so neither travelled with the fork: two
+    #: sham arms restored from one snapshot read different novelty on their
+    #: opening frame, before a phase had run. Nine tenths of a standard
+    #: deviation of the largest floor term in the battery.
+    last_novelty: float = 0.5
+    last_displacement: float = 0.0
+    lifetime_last: Any = None
     #: The process-wide generators. Phases draw from `random` and `numpy.random`
     #: directly — the affect decay adds a Gaussian drift on every turn, and for
     #: an emotion that never otherwise moves that drift is the whole of the
@@ -1058,6 +1180,9 @@ class SubjectRuntime:
             rng_state=self.rng.getstate(),
             moments=_moments_of(self.ontogeny_service),
             last_reading=getattr(self.ontogeny_service, "_last_reading", None),
+            last_novelty=float(getattr(self.ontogeny, "last_novelty", 0.5)),
+            last_displacement=float(getattr(self.ontogeny, "last_displacement", 0.0)),
+            lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
             services=_service_state(self.forked_services),
             effort=_effort_state(),
@@ -1078,6 +1203,9 @@ class SubjectRuntime:
         self.ontogeny._scatter = np.array(snapshot.scatter, copy=True)
         self.ontogeny._centre_n = snapshot.centre_n
         _restore_moments(self.ontogeny_service, snapshot.moments)
+        self.ontogeny.last_novelty = snapshot.last_novelty
+        self.ontogeny.last_displacement = snapshot.last_displacement
+        _restore_lifetime_last(snapshot.lifetime_last)
         service = self.ontogeny_service
         if service is not None:
             service._last_reading = snapshot.last_reading
@@ -1240,6 +1368,51 @@ class SubjectRuntime:
             except BaseException as exc:  # noqa: BLE001
                 self.failures["heartbeat"] = self.failures.get("heartbeat", 0) + 1
                 self.failure_notes["heartbeat"] = f"{type(exc).__name__}: {exc}"[:200]
+        self._train_world_model()
+
+    def _train_world_model(self) -> None:
+        """The gradient steps the training lane would have taken, on this clock.
+
+        The lane is a thread on a two-second timer, and the wind-down stops it —
+        but the unified model starts it again the first time anything asks for
+        the learned facet, which happens inside a turn. So it was running
+        during the arms, taking however many steps the machine allowed, and the
+        model's weights, hidden norm and last surprise all differed between two
+        arms that had seen the same data. Three of the world model's columns,
+        and part of the body's exertion, were a fact about thread scheduling.
+
+        The passes and the pending-work gate are the lane's own, so what the
+        model learns is unchanged. Only the clock it learns on is the
+        experiment's rather than the host's.
+        """
+        model = getattr(self.organs, "world_model", None)
+        learned = getattr(model, "learned", None) if model is not None else None
+        if learned is None:
+            return
+        halt = getattr(learned, "stop_training", None)
+        if callable(halt) and getattr(learned, "_trainer_thread", None) is not None:
+            try:
+                halt()
+            except (RuntimeError, OSError) as exc:
+                logger.debug("could not stop the training lane: %s", exc)
+        try:
+            if int(getattr(learned, "_pending_since_train", 0)) <= 0:
+                return
+            learned._pending_since_train = 0
+            from core.world_model.learned_world_model import (
+                _BPTT_WINDOW,
+                _TRAIN_PASSES_PER_CYCLE,
+            )
+
+            for _ in range(_TRAIN_PASSES_PER_CYCLE):
+                if len(getattr(learned, "_replay", ())) < _BPTT_WINDOW:
+                    break
+                learned._mini_batch_update()
+        except (AttributeError, ImportError, ValueError, RuntimeError, FloatingPointError) as exc:
+            self.failures["world_model_training"] = (
+                self.failures.get("world_model_training", 0) + 1
+            )
+            logger.debug("deterministic world-model training failed: %s", exc)
 
     def _step_ontogeny(self, reading: CoreState) -> None:
         """Carry the last lifetime reading onto the reservoir object N reads.

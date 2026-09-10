@@ -633,3 +633,42 @@ def test_the_projection_moves_when_the_state_does():
     state.cognition.contradiction_count = 3
     state._refresh_cognitive_health()
     assert state.cognition.coherence_score != calm
+
+
+def test_a_goal_carries_what_leaving_it_costs_into_attention():
+    """The workspace prices deliberation on urgency, and nothing stated one.
+
+    `cognition.active_goals` is the goal engine's projection into the state
+    every phase reads, and it carried `priority` — how important the work is
+    once it has been chosen. The workspace bid reads `urgency` — how much the
+    thing is asking to be thought about now — and a goal that states none
+    enters at a flat neutral. So every goal she has ever held made the same
+    claim on attention, and nothing about what she was trying to do could
+    change what she attended to.
+
+    The engine already computed the answer to pick which goal to get on with:
+    what it costs to leave each one alone. This is that number, per goal.
+    """
+    from core.goals.goal_engine import what_leaving_each_costs
+
+    held = {"plan_id": "p1", "steps_done": 3, "steps_total": 4, "priority": 0.8}
+    loose = {"steps_done": 3, "steps_total": 4, "priority": 0.8}
+    costs = what_leaving_each_costs([held, loose])
+    assert costs[0] > 0.0, "a goal a plan is holding loses something by being left"
+    assert costs[1] == 0.0, "a goal nothing owns is not threatened by time"
+
+
+def test_leaving_costs_more_the_further_in_she_is():
+    """The quantity has to be a reading, not a label."""
+    from core.goals.goal_engine import what_leaving_each_costs
+
+    started = {"plan_id": "p1", "steps_done": 1, "steps_total": 8, "priority": 0.5}
+    nearly = {"plan_id": "p2", "steps_done": 7, "steps_total": 8, "priority": 0.5}
+    costs = what_leaving_each_costs([started, nearly])
+    assert costs[1] > costs[0]
+
+
+def test_an_empty_docket_costs_nothing_and_does_not_raise():
+    from core.goals.goal_engine import what_leaving_each_costs
+
+    assert what_leaving_each_costs([]) == []

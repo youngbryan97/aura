@@ -233,28 +233,16 @@ def the_steps_it_breaks_into(goal: dict[str, Any], *, most: int = 64) -> tuple[A
     return plan.steps if plan.settled else ()
 
 
-def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
-    """Which of the things she has going to spend the next stretch on.
+def _how_a_goal_stands(
+    active: list[dict[str, Any]],
+) -> tuple[Any, Any, Any]:
+    """How good each of these is, what time takes from it, and what is left.
 
-    It was the first of the list, which is to say the highest priority one,
-    which is to say the biggest. Watching two very strong Go players: there
-    are never fewer than three separate fights on the board and every move is
-    an answer to which of them to spend it on — and what decides it is never
-    which is biggest. It is what it costs to leave each one alone.
-
-    Those come apart exactly where it matters. A large thing nobody is
-    threatening is worth almost nothing to touch this turn, and a small thing
-    about to be lost outright can be worth more than anything else there.
-
-    Here the cost of leaving something is not invented. This engine blocks a
-    goal that goes stale while a plan still owns it, so a goal in flight
-    genuinely does lose something by being left, and one nothing owns does
-    not. Where nothing is at risk everything ties and the order she already
-    had stands, which is the honest answer rather than a manufactured urgency.
+    One definition, read by the choice of what to get on with and by the
+    urgency the same goals carry into attention. Two definitions of what a
+    goal is worth would let her attend to one thing and work on another
+    for no reason either could state.
     """
-    if len(active) < 2:
-        return active[0] if active else {}
-
     # How far off its payoff is, against how far her runs here have got.
     #
     # A Stellaris player choosing an agenda that pays after ten years is
@@ -290,6 +278,81 @@ def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
             return 0.0
         return (min(1.0, done / total) + float(one.get("priority") or 0.0)) * still_here_for(one)
 
+    def what_time_does(one: dict[str, Any]) -> tuple[str, ...]:
+        # Only where something owns it. A goal no plan is holding does not go
+        # stale, so there is nothing for time to take.
+        owned = str(one.get("plan_id") or one.get("task_id") or "").strip()
+        return ("go stale",) if owned else ()
+
+    def left_alone(one: dict[str, Any], _act: str) -> dict[str, Any]:
+        # What this engine already does to a goal left too long: blocks it.
+        return {**one, "steps_done": 0.0, "priority": 0.0}
+
+    return how_good, what_time_does, left_alone
+
+
+def what_leaving_each_costs(active: list[dict[str, Any]]) -> list[float]:
+    """What is lost by not spending this turn on each goal, in [0, 1].
+
+    This is the quantity the workspace asks a goal for and never got. A
+    goal states a `priority` — how much the work is worth once it has been
+    chosen — and the projection into cognition carried that and nothing
+    else, while the bid reads `urgency`: how much the thing is asking to be
+    thought about now. With none stated, every goal she has ever held bid
+    the same neutral number, so deliberation's claim on attention was a
+    constant and nothing about what she was trying to do could change what
+    she attended to.
+
+    The engine already knows the answer. It blocks a goal that goes stale
+    while a plan still owns it, so a goal in flight genuinely loses
+    something by being left and one nothing owns does not, and the same
+    comparison decides which one to get on with. Read here per goal rather
+    than only for the winner.
+    """
+    if not active:
+        return []
+    how_good, what_time_does, left_alone = _how_a_goal_stands(active)
+    costs: list[float] = []
+    for one in active:
+        if not what_time_does(one):
+            # Nothing is threatening it, so leaving it alone costs nothing.
+            # That is a reading rather than a missing one.
+            costs.append(0.0)
+            continue
+        try:
+            standing = how_good(one)
+            after = how_good(left_alone(one, "go stale"))
+        except (TypeError, ValueError, ZeroDivisionError):
+            costs.append(0.0)
+            continue
+        costs.append(max(0.0, min(1.0, standing - after)))
+    return costs
+
+
+def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
+    """Which of the things she has going to spend the next stretch on.
+
+    It was the first of the list, which is to say the highest priority one,
+    which is to say the biggest. Watching two very strong Go players: there
+    are never fewer than three separate fights on the board and every move is
+    an answer to which of them to spend it on — and what decides it is never
+    which is biggest. It is what it costs to leave each one alone.
+
+    Those come apart exactly where it matters. A large thing nobody is
+    threatening is worth almost nothing to touch this turn, and a small thing
+    about to be lost outright can be worth more than anything else there.
+
+    Here the cost of leaving something is not invented. This engine blocks a
+    goal that goes stale while a plan still owns it, so a goal in flight
+    genuinely does lose something by being left, and one nothing owns does
+    not. Where nothing is at risk everything ties and the order she already
+    had stands, which is the honest answer rather than a manufactured urgency.
+    """
+    if len(active) < 2:
+        return active[0] if active else {}
+
+    how_good, what_time_does, left_alone = _how_a_goal_stands(active)
+
     def what_she_can_do(one: dict[str, Any]) -> tuple[str, ...]:
         return ("get on with it",)
 
@@ -306,16 +369,6 @@ def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
             # looked like the largest step available.
             return got
         return got
-
-    def what_time_does(one: dict[str, Any]) -> tuple[str, ...]:
-        # Only where something owns it. A goal no plan is holding does not go
-        # stale, so there is nothing for time to take.
-        owned = str(one.get("plan_id") or one.get("task_id") or "").strip()
-        return ("go stale",) if owned else ()
-
-    def left_alone(one: dict[str, Any], _act: str) -> dict[str, Any]:
-        # What this engine already does to a goal left too long: blocks it.
-        return {**one, "steps_done": 0.0, "priority": 0.0}
 
     where = where_to_spend_it(
         {str(at): dict(one) for at, one in enumerate(active)},
@@ -1719,6 +1772,16 @@ class GoalEngine:
             active = self.get_active_goals(limit=limit, include_external=False, actionable_only=True)
             if not active:
                 active = self.get_active_goals(limit=limit, include_external=True, actionable_only=True)
+            shown = active[:limit]
+            # What each of these is asking to be thought about now, beside how
+            # important the work is once it has been chosen. The workspace
+            # prices deliberation's bid on `urgency` and this projection stated
+            # none, so every goal she has ever held entered attention at the
+            # same neutral default: nothing about what she was trying to do
+            # could change what she attended to. The number is the engine's own
+            # comparison — what it costs to leave each one alone — read per
+            # goal rather than only for the one it picks.
+            leaving = what_leaving_each_costs(shown)
             cognition.active_goals = [
                 {
                     "id": item.get("id"),
@@ -1727,13 +1790,14 @@ class GoalEngine:
                     "status": item.get("status"),
                     "horizon": item.get("horizon"),
                     "priority": item.get("priority"),
+                    "urgency": round(cost, 4),
                     "steps_done": item.get("steps_done"),
                     "steps_total": item.get("steps_total"),
                     "plan_id": item.get("plan_id"),
                     "task_id": item.get("task_id"),
                     "source": item.get("source"),
                 }
-                for item in active[:limit]
+                for item, cost in zip(shown, leaving, strict=True)
             ]
             current_objective = str(getattr(cognition, "current_objective", "") or "")
             current_origin = str(getattr(cognition, "current_origin", "") or "")

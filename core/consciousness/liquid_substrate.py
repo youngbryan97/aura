@@ -1544,82 +1544,93 @@ class LiquidSubstrate:
         # Track tasks if needed (e.g. if we were launching something here)
         # For now, this is just to ensure Issue 73 logic has a place to live
 
+    #: Where the perceptual frame's telemetry band starts. Not zero: dims 0-6
+    #: are the named psychological state — valence, arousal, dominance,
+    #: frustration, curiosity, energy, focus — and this method was written
+    #: believing dims 0-15 were a free telemetry block. Every proprioceptive
+    #: tick therefore added CPU load to her valence, thermal to her arousal,
+    #: memory to her dominance and CPU-plus-memory to her curiosity, with a
+    #: sign nobody chose, bypassing every appraisal path the body already has.
+    _TELEMETRY_BASE: int = 8
+
     def inject_perceptual_frame(self, frame_data: dict[str, Any]) -> None:
         """Inject structured perceptual data into specific substrate dimensions.
-        Maps telemetry (dims 0-15), user state (dims 16-31), screen state (dims 32-47),
-        and audio state (dims 48-63) to activations self.x under self.sync_lock.
+
+        Telemetry, user state, screen state and audio state each land in their
+        own band, and each band is blended toward the frame while every other
+        dimension is left as it was.
+
+        The blend used to run over the whole vector against a delta that was
+        zero everywhere the frame said nothing, so a frame carrying twenty
+        numbers pulled all five hundred and twelve dimensions a quarter of the
+        way to zero. The substrate's recurrent state was erased at a quarter
+        per tick by the input meant to inform it, which is most of why
+        displacing recurrent cognition reached nothing: there was nothing left
+        of it by the next reading.
         """
         n = self.config.neuron_count
         delta = np.zeros(n, dtype=np.float64)
+        written = np.zeros(n, dtype=bool)
 
-        # ── System telemetry → dims 0-15 ──
+        def put(index: int, value: float) -> None:
+            if 0 <= index < n:
+                delta[index] = value
+                written[index] = True
+
+        # ── System telemetry → its own band, above the psych state ──
         cpu = float(frame_data.get("cpu_percent", 0)) / 100.0
         mem = float(frame_data.get("memory_percent", 0)) / 100.0
         thermal = float(frame_data.get("thermal", 0))
-        if n > 0:
-            delta[0] = cpu * 0.3
-        if n > 1:
-            delta[1] = thermal * 0.4
-        if n > 2:
-            delta[2] = mem * 0.25
-        if n > 3:
-            delta[3] = max(0.0, cpu - 0.7) * 0.5
-        if n > 4:
-            delta[4] = min(1.0, cpu + mem) * 0.2
-        if n > 5:
-            delta[5] = -thermal * 0.1
+        base = self._TELEMETRY_BASE
+        put(base + 0, cpu * 0.3)
+        put(base + 1, thermal * 0.4)
+        put(base + 2, mem * 0.25)
+        put(base + 3, max(0.0, cpu - 0.7) * 0.5)
+        put(base + 4, min(1.0, cpu + mem) * 0.2)
+        put(base + 5, -thermal * 0.1)
 
         # ── User state → dims 16-31 ──
         user_presence = float(frame_data.get("user_presence", 0.5))
         voice_active = float(frame_data.get("voice_activity", False))
-        if n > 16:
-            delta[16] = user_presence * 0.35
-        if n > 17:
-            delta[17] = voice_active * 0.5
-        if n > 18:
-            delta[18] = max(0.0, 0.5 - user_presence) * 0.2
-        if n > 19:
-            delta[19] = min(1.0, user_presence + voice_active) * 0.15
+        put(16, user_presence * 0.35)
+        put(17, voice_active * 0.5)
+        put(18, max(0.0, 0.5 - user_presence) * 0.2)
+        put(19, min(1.0, user_presence + voice_active) * 0.15)
 
         # ── Screen/visual state → dims 32-47 ──
         screen_changed = float(frame_data.get("screen_changed", False))
         novelty = float(frame_data.get("novelty", 0))
         valence = float(frame_data.get("valence", 0))
         arousal = float(frame_data.get("arousal", 0))
-        if n > 32:
-            delta[32] = screen_changed * 0.3
-        if n > 33:
-            delta[33] = novelty * 0.25
-        if n > 34:
-            delta[34] = valence * 0.2
-        if n > 35:
-            delta[35] = arousal * 0.3
+        put(32, screen_changed * 0.3)
+        put(33, novelty * 0.25)
+        put(34, valence * 0.2)
+        put(35, arousal * 0.3)
 
         # ── Audio state → dims 48-63 ──
         social_signal = float(frame_data.get("social", 0))
         threat_signal = float(frame_data.get("threat", 0))
-        if n > 48:
-            delta[48] = social_signal * 0.35
-        if n > 49:
-            delta[49] = voice_active * 0.4
-        if n > 50:
-            delta[50] = threat_signal * 0.3
-        if n > 51:
-            delta[51] = -threat_signal * 0.15
+        put(48, social_signal * 0.35)
+        put(49, voice_active * 0.4)
+        put(50, threat_signal * 0.3)
+        put(51, -threat_signal * 0.15)
 
         # ── Cross-modal interaction terms → dims 64+ ──
-        if n > 64:
-            delta[64] = screen_changed * voice_active * 0.3
-        if n > 65:
-            delta[65] = thermal * user_presence * 0.2
-        if n > 66:
-            delta[66] = novelty * max(0.0, 1.0 - cpu) * 0.15
+        put(64, screen_changed * voice_active * 0.3)
+        put(65, thermal * user_presence * 0.2)
+        put(66, novelty * max(0.0, 1.0 - cpu) * 0.15)
 
-        # Apply as weighted perturbation under self.sync_lock
-        # Perceptual frames are the PRIMARY input
+        if not written.any():
+            return
+        # Blended into the dimensions the frame addressed, and nowhere else. A
+        # dimension the frame said nothing about keeps whatever the dynamics
+        # made of it, which is what makes the substrate a state rather than a
+        # readout of the last frame.
         weight = 0.25
         with self.sync_lock:
-            self.x = np.clip(self.x * (1.0 - weight) + delta * weight, -1.0, 1.0)
+            self.x[written] = np.clip(
+                self.x[written] * (1.0 - weight) + delta[written] * weight, -1.0, 1.0
+            )
             self.mark_state_mutated_locked("perceptual_frame")
 
     def inject_observation(self, observation: dict[str, Any]) -> None:

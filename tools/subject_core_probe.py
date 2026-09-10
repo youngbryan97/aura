@@ -46,6 +46,11 @@ async def main() -> int:
     parser.add_argument("--columns", type=int, default=6, help="columns to name per target")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
+        "--fork-check",
+        action="store_true",
+        help="run a turn, restore the snapshot, and name every column that did not come back",
+    )
+    parser.add_argument(
         "--where",
         action="store_true",
         help="with --census, name the phase at which each column first diverges",
@@ -87,6 +92,8 @@ async def main() -> int:
     scale = {key: recording.domain(key).std(axis=0) for key in DOMAINS}
     names = {key: feature_names(key) for key in DOMAINS}
 
+    if args.fork_check:
+        return await _fork_check(runtime, conditions, scale, names, args)
     if args.census:
         return await _census(runtime, conditions, scale, names, args)
 
@@ -152,6 +159,53 @@ async def main() -> int:
         print()
     return 0
 
+
+
+
+async def _fork_check(runtime, conditions, scale, names, args) -> int:
+    """What a restore does not bring back.
+
+    Two arms of an intervention start from one snapshot. Anything the snapshot
+    does not carry is state the first arm leaves for the second, and it enters
+    the floor of every edge measured afterwards. This runs a turn, restores,
+    and reads K again: a column that differs is state the fork does not carry,
+    named rather than averaged into a floor.
+    """
+    from core.subject.state import DOMAINS
+
+    leaked: dict[str, list[float]] = {}
+    for index in range(args.trials):
+        for condition in conditions:
+            await runtime.turn_once(condition)
+            runtime.freeze_host()
+            snapshot = runtime.snapshot()
+            before = runtime.read(condition.name, "before", {})
+            await runtime.turn_once(condition)
+            runtime.restore(snapshot)
+            after = runtime.read(condition.name, "after", {})
+            for domain in DOMAINS:
+                unit = np.asarray(scale.get(domain, np.zeros(0)), dtype=np.float64)
+                if unit.size == 0:
+                    continue
+                gap = np.abs(before.domain(domain) - after.domain(domain))
+                label = names.get(domain, ())
+                for i, value in enumerate(gap):
+                    if value <= 1e-12:
+                        continue
+                    key = f"{label[i] if i < len(label) else i}"
+                    scaled = value / unit[i] if unit[i] > 1e-6 else value
+                    leaked.setdefault(key, []).append(float(scaled))
+            runtime.thaw_host()
+            _log(f"  fork check {index + 1}/{args.trials} {condition.name}")
+
+    print()
+    if not leaked:
+        print("every measured column came back — the fork carries K")
+        return 0
+    print("columns a restore did not bring back, in units of ordinary spread")
+    for key, values in sorted(leaked.items(), key=lambda kv: -float(np.mean(kv[1]))):
+        print(f"  {float(np.mean(values)):8.4f}  {key}  ({len(values)} of {args.trials * len(conditions)})")
+    return 1
 
 
 async def _census(runtime, conditions, scale, names, args) -> int:
