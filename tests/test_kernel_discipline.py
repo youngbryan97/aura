@@ -446,6 +446,23 @@ def test_oom_badness_is_proportional_plus_adjustment():
     assert policy.select_victim(total).name == "background"
 
 
+def test_oom_report_scores_the_same_footprint_it_displays():
+    policy = OomPolicy()
+    observations = []
+
+    def footprint():
+        value = 100_000 * (len(observations) + 1)
+        observations.append(value)
+        return value
+
+    policy.register("changing", oom_score_adj=0, footprint=footprint,
+                    rationale="one observation per scoring snapshot")
+    row = policy.scoring_table(1_000_000)[0]
+    assert observations == [100_000]
+    assert row["footprint_bytes"] == 100_000
+    assert row["badness"] == 100
+
+
 def test_oom_never_selects_an_immune_organ():
     policy = OomPolicy()
     policy.register(

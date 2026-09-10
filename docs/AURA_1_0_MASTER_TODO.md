@@ -252,6 +252,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   dispatch funnel so it covers handlers not yet written — 14fbd8990, evidence
   [R06 receipt](evidence/R06_LOGGING_HANDLER_DEADLOCK_2026-09-07.md). The other
   five named sources are not yet audited.
+  UPDATE 2026-09-09: a live stall trace caught reply validation rebuilding the
+  full source skill catalog on the event loop; stabilization took 51 seconds.
+  Validation now reads the existing published registry only when a relevant
+  claim exists. OOM diagnostic rows now score and display one shared footprint
+  observation. Focused gates pass; deployment and latency replay remain. See
+  [catalog and diagnostic snapshot](evidence/R06_REPLY_CATALOG_AND_DIAGNOSTIC_SNAPSHOT_2026-09-09.md).
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
@@ -386,6 +392,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   IDs and inserts a completed answer beside its restored question without
   replaying the pane. Sixteen focused tests pass; live replay is pending. See
   [pending-window reconciliation](evidence/R09_PENDING_WINDOW_RECONCILIATION_2026-09-09.md).
+  LIVE UPDATE 2026-09-09: a second window opened during generation received
+  the completed answer without reload and retained exactly one copy on later
+  reconciliation. The same run exposed a synchronous source-catalog rebuild
+  in reply validation; its 51-second stabilization remains a separate defect.
 - [x] R10 Verify executable examples semantically, not merely process exit zero.
   Closed 2026-09-08. The code truth engine executes module-level assertions and
   doctest examples in the symbolic sandbox, demotes claims when execution is
