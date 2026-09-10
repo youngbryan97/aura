@@ -136,3 +136,110 @@ def test_no_island_leaves_the_mesh_as_it_was():
 
     mesh = NeuralMesh(MeshConfig(human_island_columns=0))
     assert not any(column.human_island for column in mesh.columns)
+
+
+# ── Regions with different computational matter ────────────────────────────
+
+
+def test_each_tier_carries_its_own_layers_composition():
+    """One figure averaged over four layers is not what any of them measured."""
+    from core.connectome.cortical_constants import derived_tier_constants
+
+    tiers = derived_tier_constants()
+    assert tiers["sensory"]["inhibitory_fraction"] == pytest.approx(0.2000, abs=1e-4)
+    assert tiers["association"]["inhibitory_fraction"] == pytest.approx(0.2200, abs=1e-4)
+    assert tiers["executive"]["inhibitory_fraction"] == pytest.approx(0.1725, abs=1e-4)
+    fractions = {entry["inhibitory_fraction"] for entry in tiers.values()}
+    assert len(fractions) == 3, "three bands with one number between them is not three bands"
+
+
+def test_tier_densities_come_from_the_same_matrix():
+    from core.connectome.cortical_constants import derived_tier_constants
+    from core.connectome.microcircuit import CORTICAL_CONN_PROBS
+
+    tiers = derived_tier_constants()
+    inside_layer_four = [CORTICAL_CONN_PROBS[row][column] for row in (2, 3) for column in (2, 3)]
+    assert tiers["sensory"]["intra_column_density"] == pytest.approx(
+        sum(inside_layer_four) / 4, abs=1e-6
+    )
+
+
+def test_the_mesh_wires_its_tiers_differently():
+    from core.consciousness.neural_mesh import CorticalTier, MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    observed = {}
+    for tier in CorticalTier:
+        columns = [column for column in mesh.columns if column.tier is tier]
+        observed[tier.name.lower()] = (
+            float(np.mean([column.inh_mask.mean() for column in columns])),
+            float(
+                np.mean(
+                    [
+                        np.count_nonzero(column.W) / (column.n * (column.n - 1))
+                        for column in columns
+                    ]
+                )
+            ),
+        )
+    assert observed["association"][0] > observed["sensory"][0] > observed["executive"][0]
+    assert observed["association"][1] > observed["sensory"][1] > observed["executive"][1]
+
+
+# ── One stream per structure ───────────────────────────────────────────────
+
+
+def test_local_wiring_cannot_move_the_long_range_graph():
+    """The confound that made the tier change look like a reachability failure.
+
+    Everything drew from one stream in construction order, so changing how a
+    column was wired changed how many numbers came out before the long-range
+    matrices were built. The tier change appeared to cost three columns and
+    three executive targets, and had caused none of it.
+    """
+    from core.consciousness import neural_mesh as mesh_module
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    graphs = []
+    for tier_table in (None, {}):
+        mesh_module._TIER_CONSTANTS = tier_table
+        graphs.append(np.array(NeuralMesh(MeshConfig())._inter_W, copy=True))
+    mesh_module._TIER_CONSTANTS = None
+    assert np.array_equal(graphs[0] != 0, graphs[1] != 0)
+
+
+def test_the_streams_are_reproducible():
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    first, second = NeuralMesh(MeshConfig()), NeuralMesh(MeshConfig())
+    assert np.array_equal(first._inter_W, second._inter_W)
+    assert np.array_equal(first.columns[0].W, second.columns[0].W)
+
+
+# ── No column is tissue the mesh cannot use ────────────────────────────────
+
+
+@pytest.mark.parametrize("seed", [1, 7, 42, 99, 12345])
+def test_every_column_has_a_way_in_and_a_way_out(seed, monkeypatch):
+    """A column with no edges is not a quiet column. There are none in cortex."""
+    from core.consciousness import neural_mesh as mesh_module
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    monkeypatch.setattr(mesh_module, "_MESH_SEED", seed)
+    weights = NeuralMesh(MeshConfig())._inter_W
+    present = np.abs(weights) > 0
+    assert not np.any(~present.any(axis=1)), "a column with nothing leaving it"
+    assert not np.any(~present.any(axis=0)), "a column with nothing arriving"
+
+
+@pytest.mark.parametrize("seed", [1, 7, 42, 99, 12345])
+def test_a_sensory_signal_reaches_every_executive_column(seed, monkeypatch):
+    from core.connectome.neural import build_mesh_layer, signal_can_cross
+    from core.consciousness import neural_mesh as mesh_module
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    monkeypatch.setattr(mesh_module, "_MESH_SEED", seed)
+    report = signal_can_cross(build_mesh_layer(NeuralMesh(MeshConfig())))
+    assert report["executive_reached_from_sensory"] == report["executive_columns"]
+    assert report["components"] == 1
+    assert report["isolated_columns"] == 0

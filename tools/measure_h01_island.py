@@ -40,11 +40,17 @@ os.environ.setdefault("AURA_TESTING", "1")
 os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_h01_island_logs")
 
 
-def _run(islands: int, ticks: int, seed: int) -> dict[str, Any]:
+def _run(islands: int, ticks: int, seed: int, *, tiered: bool = True) -> dict[str, Any]:
     import numpy as np
 
     from core.connectome.criticality import branching_ratio_mr
+    from core.consciousness import neural_mesh as mesh_module
     from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    # The uniform arm is the mesh's own fallback path, not a second
+    # implementation: an empty tier table sends every column back to the global
+    # figures it used before the layers were read.
+    mesh_module._TIER_CONSTANTS = None if tiered else {}
 
     config = MeshConfig(human_island_columns=islands)
     mesh = NeuralMesh(config)
@@ -79,6 +85,12 @@ def main() -> int:
     parser.add_argument("--islands", default="0,8,32,64")
     parser.add_argument("--ticks", type=int, default=600)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--tiers",
+        default="both",
+        choices=("both", "tiered", "uniform"),
+        help="whether each tier takes its own layers' wiring or the global average",
+    )
     arguments = parser.parse_args()
 
     from core.connectome.island import (
@@ -98,29 +110,52 @@ def main() -> int:
     chosen = surviving_law()
     print(f"  -> wiring from: {chosen.name}\n")
 
+    arms = (
+        (True, False) if arguments.tiers == "both" else (arguments.tiers == "tiered",)
+    )
     rows = []
-    for raw in [part.strip() for part in arguments.islands.split(",") if part.strip()]:
-        row = _run(int(raw), arguments.ticks, arguments.seed)
-        rows.append(row)
-        print(
-            f"{int(row['islands']):3d} human columns: branching ratio "
-            f"{row['branching_ratio']:.4f} (fit {row['fit']:.3f}), mean activity "
-            f"{row['mean_activity']:.5f}, heaviest connection "
-            f"{row['heaviest_over_median']:.1f}x the median, "
-            f"{int(row['connections']):,} connections, {row['regime']}",
-            flush=True,
-        )
+    for tiered in arms:
+        for raw in [part.strip() for part in arguments.islands.split(",") if part.strip()]:
+            row = _run(int(raw), arguments.ticks, arguments.seed, tiered=tiered)
+            row["tiered"] = tiered
+            rows.append(row)
+            print(
+                f"{'per-tier' if tiered else ' uniform'} wiring, "
+                f"{int(row['islands']):3d} human columns: branching ratio "
+                f"{row['branching_ratio']:.4f} (fit {row['fit']:.3f}), mean activity "
+                f"{row['mean_activity']:.5f}, heaviest connection "
+                f"{row['heaviest_over_median']:.1f}x the median, "
+                f"{int(row['connections']):,} connections, {row['regime']}",
+                flush=True,
+            )
 
-    base = rows[0]
     print()
-    for row in rows[1:]:
-        moved = abs(row["branching_ratio"] - 1.0) - abs(base["branching_ratio"] - 1.0)
-        direction = "nearer" if moved < 0 else "further from"
-        print(
-            f"{int(row['islands'])} human columns put the mesh {abs(moved):.4f} "
-            f"{direction} critical, with the fit at {row['fit']:.3f} "
-            f"against {base['fit']:.3f}"
-        )
+    for tiered in arms:
+        arm = [row for row in rows if row["tiered"] is tiered]
+        if len(arm) < 2:
+            continue
+        base = arm[0]
+        for row in arm[1:]:
+            moved = abs(row["branching_ratio"] - 1.0) - abs(base["branching_ratio"] - 1.0)
+            direction = "nearer" if moved < 0 else "further from"
+            print(
+                f"{'per-tier' if tiered else 'uniform'}: {int(row['islands'])} human "
+                f"columns put the mesh {abs(moved):.4f} {direction} critical, with the "
+                f"fit at {row['fit']:.3f} against {base['fit']:.3f}"
+            )
+    if len(arms) == 2:
+        for islands in sorted({int(row["islands"]) for row in rows}):
+            pair = {row["tiered"]: row for row in rows if int(row["islands"]) == islands}
+            if len(pair) != 2:
+                continue
+            moved = abs(pair[True]["branching_ratio"] - 1.0) - abs(
+                pair[False]["branching_ratio"] - 1.0
+            )
+            direction = "nearer" if moved < 0 else "further from"
+            print(
+                f"at {islands} human columns, giving each tier its own layers' wiring "
+                f"puts the mesh {abs(moved):.4f} {direction} critical"
+            )
     return 0
 
 

@@ -168,12 +168,48 @@ def _cortical_inhibitory_fraction() -> float:
     except ImportError:
         return 0.20
 
+_TIER_CONSTANTS: dict[str, dict[str, Any]] | None = None
+
+
+def _tier_constants() -> dict[str, dict[str, Any]]:
+    """What each tier's cortical layers say about its own wiring.
+
+    Read once. A failed import leaves an empty table, and every caller falls
+    back to the global figure, which is what the mesh used before this existed.
+    """
+    global _TIER_CONSTANTS
+
+    if _TIER_CONSTANTS is None:
+        try:
+            from core.connectome.cortical_constants import derived_tier_constants
+
+            _TIER_CONSTANTS = derived_tier_constants()
+        except (ImportError, KeyError, TypeError, ValueError):
+            _TIER_CONSTANTS = {}
+    return _TIER_CONSTANTS
+
+
+def _for_tier(tier: CorticalTier, name: str, fallback: float) -> float:
+    """One tier's value for a constant, or the global one."""
+    entry = _tier_constants().get(tier.name.lower(), {})
+    value = entry.get(name)
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return float(fallback)
+    return number if math.isfinite(number) and number > 0.0 else float(fallback)
+
+
 def _is_human_island(index: int, cfg: Any) -> bool:
     """Whether this column takes its local wiring from H01. -1 means all of them."""
     declared = int(getattr(cfg, "human_island_columns", 0) or 0)
     if declared < 0:
         return True
     return index < declared
+
+
+#: The one seed every structural stream is derived from.
+_MESH_SEED = 42
 
 
 @dataclass(frozen=True)
@@ -220,12 +256,13 @@ class MeshConfig:
     #: nowhere near a microscope would be borrowing its authority.
     #:
     #: Measured over 400 ticks with the same seed and the same drive, as the
-    #: cortical densities were: the multistep-regression branching ratio moves
-    #: 1.0057 -> 1.0054 -> 1.0046 -> 1.0041 as 0, 8, 32 and 64 columns take the
-    #: human wiring, so every column of it puts the mesh 28% nearer the
-    #: critical 1.0 the regulator steers for. The regression's own fit holds at
-    #: 0.998 throughout and the regime stays critical. The heaviest connection
-    #: goes from 6.3 times the median to 10.0, which is the tail arriving.
+    #: cortical densities were: the multistep-regression branching ratio goes
+    #: from 1.0058 to 1.0041 when every column takes the human wiring, which is
+    #: 31% of the distance to the critical 1.0 the regulator steers for. The
+    #: regression's own fit holds and the regime stays critical. The heaviest
+    #: connection goes from 6.3 times the median to 10.0, which is the tail
+    #: arriving. With each tier on its own layers' density the same change is
+    #: worth 1.0060 to 1.0047.
     #:
     #: -1 means every column. Intra-column wiring is local wiring, which is
     #: what H01 measured; the inter-column matrices are long-range and keep
@@ -313,6 +350,23 @@ class CorticalColumn:
         self.human_island = bool(human_island)
         self.x = rng.standard_normal(n).astype(np.float32) * 0.05
 
+        # What this tier's cortical layers say about its own wiring, rather
+        # than one figure averaged over all of them. Layer 4 is 20.0%
+        # inhibitory at density 0.106, layers 2/3 are 22.0% at 0.135, and the
+        # output layers are 17.3% at 0.091.
+        #
+        # This costs a little on the one dynamical measure and is kept anyway.
+        # Measured against the global figures on the same seed and drive, the
+        # branching ratio sits 0.0006 further from critical, the regime is
+        # unchanged and the fit is unchanged. What it buys is the constraint
+        # the global figures cannot satisfy at all: her three bands now carry
+        # the composition their cortical layers were measured to have. A model
+        # is not judged on one recording.
+        density = _for_tier(tier, "intra_column_density", cfg.intra_column_density)
+        inhibitory_fraction = _for_tier(
+            tier, "inhibitory_fraction", cfg.inhibitory_fraction
+        )
+
         # Intra-column connectivity (dense)
         if self.human_island:
             # Strengths are contact counts drawn from what H01 measured in
@@ -321,13 +375,13 @@ class CorticalColumn:
             # connection is worth one contact and a rare one is worth fifty.
             from core.connectome.island import wire_island
 
-            self.W = wire_island(n, cfg.intra_column_density, rng, contact_strength=0.1)
+            self.W = wire_island(n, density, rng, contact_strength=0.1)
         else:
-            mask = rng.random((n, n)) < cfg.intra_column_density
+            mask = rng.random((n, n)) < density
             self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
 
         # Dale's law: mark inhibitory neurons, flip their outgoing weights negative
-        num_inh = max(1, int(n * cfg.inhibitory_fraction))
+        num_inh = max(1, int(n * inhibitory_fraction))
         self.inh_mask = np.zeros(n, dtype=bool)
         self.inh_mask[rng.choice(n, size=num_inh, replace=False)] = True
         self.W[self.inh_mask, :] = -np.abs(self.W[self.inh_mask, :])
@@ -437,7 +491,32 @@ class NeuralMesh:
     def __init__(self, cfg: MeshConfig | None = None):
         self.cfg = cfg or MeshConfig()
         self._validate_config()
-        self._rng = np.random.default_rng(seed=42)
+        # One generator per structure, not one for the whole mesh.
+        #
+        # Everything drew from a single stream in construction order, so a
+        # change to how a COLUMN is wired changed how many numbers came out
+        # before the long-range matrices were built, and those came out
+        # different too. Measured while giving each tier its own layers'
+        # density: the inter-column graph went from 106 edges to 80, four
+        # columns fell out of it entirely, and executive reachability dropped
+        # from 14 of 16 to 12 — none of it caused by the change, all of it the
+        # stream having moved. An experiment on local wiring cannot be allowed
+        # to rewire the long-range graph as a side effect.
+        #
+        # Independent streams from one seed, so each structure is reproducible
+        # on its own and every arm of a comparison gets the same long-range
+        # graph unless the arm is about the long-range graph.
+        columns, inter, feedforward, feedback, projection, noise = (
+            np.random.default_rng([_MESH_SEED, stream]) for stream in range(6)
+        )
+        self._rng_columns = columns
+        self._rng_inter = inter
+        self._rng_feedforward = feedforward
+        self._rng_feedback = feedback
+        self._rng_projection = projection
+        #: Kept for the live step, which wants fresh noise rather than a
+        #: reproducible structure.
+        self._rng = noise
         self._lock = threading.Lock()
         self._modulation_lock = threading.Lock()
 
@@ -450,7 +529,7 @@ class NeuralMesh:
                 tier,
                 self.cfg.neurons_per_column,
                 self.cfg,
-                self._rng,
+                self._rng_columns,
                 human_island=_is_human_island(i, self.cfg),
             )
             self.columns.append(col)
@@ -473,7 +552,7 @@ class NeuralMesh:
         self._column_activations = np.zeros(self.cfg.columns, dtype=np.float32)
 
         # Projection matrix: 4096 → 64 (learned via slow PCA-like update)
-        self._projection = self._rng.standard_normal(
+        self._projection = self._rng_projection.standard_normal(
             (self.cfg.projection_dim, self.cfg.total_neurons)
         ).astype(np.float32) * (1.0 / np.sqrt(self.cfg.total_neurons))
 
@@ -515,11 +594,11 @@ class NeuralMesh:
         self._recurrent_feedback_strength: float = 0.8  # relative to feedforward
         self._feedback_W: np.ndarray | None = None
         self._build_feedback_weights()
-        # And the pathway that carries signal the other way. Built after the
-        # feedback one so both are on the same draw, and folded into _inter_W
-        # rather than applied separately: the feedforward sweep is the mesh's
-        # ordinary integration step, not a second pass over it.
+        # And the pathway that carries signal the other way. Folded into
+        # _inter_W rather than applied separately: the feedforward sweep is the
+        # mesh's ordinary integration step, not a second pass over it.
         self._inter_W = self._inter_W + self._build_feedforward_weights()
+        self._connect_every_column()
 
         # Stats
         self._mean_column_energy: float = 0.0
@@ -677,8 +756,8 @@ class NeuralMesh:
                     continue
                 dist = abs(i - j)
                 prob = self.cfg.inter_column_density * np.exp(-dist * self.cfg.inter_column_distance_decay)
-                if self._rng.random() < prob:
-                    strength = self._rng.standard_normal() * 0.05
+                if self._rng_inter.random() < prob:
+                    strength = self._rng_inter.standard_normal() * 0.05
                     # Feedforward bias: sensory→assoc→exec gets 1.5× strength
                     tier_i = self._tier_for(i)
                     tier_j = self._tier_for(j)
@@ -727,9 +806,71 @@ class NeuralMesh:
                     scale = self.cfg.feedforward_strength
                 else:
                     continue
-                if self._rng.random() < probability:
-                    weights[i, j] = self._rng.standard_normal() * scale
+                if self._rng_feedforward.random() < probability:
+                    weights[i, j] = self._rng_feedforward.standard_normal() * scale
         return weights
+
+    def _connect_every_column(self) -> int:
+        """Give every column at least one way in and one way out.
+
+        Measured on seed 42: 22 of 64 columns had no outgoing inter-column edge
+        and 21 had none incoming, four had neither, and a signal injected into
+        the sensory tier reached 11 of 16 executive columns. A column with no
+        edges is not a quiet column, it is tissue the rest of the mesh cannot
+        use, and there is no such thing in cortex.
+
+        The cause is the sampling rather than the densities. Each pair is a
+        coin flip at a probability that decays with distance, and over 63
+        chances a column can lose all of them; the expected number of columns
+        that do is not zero and never was. What cortex says is that every
+        column has connections, which is a statement about the conditional
+        distribution: given that a column IS connected, where does it connect?
+
+        So a column with nothing gets one edge drawn from that conditional —
+        the same distance-decayed weights it was already being sampled under,
+        renormalised over the partners it could have had. No new constant, and
+        the shape of who connects to whom is unchanged.
+
+        Returns how many edges it had to add.
+        """
+        added = 0
+        n = self.cfg.columns
+        if n < 2:
+            return 0
+        indices = np.arange(n)
+        # The same distance decay the matrix was sampled under.
+        distance = np.abs(indices[:, None] - indices[None, :]).astype(np.float64)
+        affinity = np.exp(-distance * self.cfg.inter_column_distance_decay)
+        np.fill_diagonal(affinity, 0.0)
+
+        def _draw(row: np.ndarray) -> int:
+            total = row.sum()
+            if total <= 0:
+                return int(self._rng_inter.integers(0, n))
+            return int(self._rng_inter.choice(n, p=row / total))
+
+        present = np.abs(self._inter_W) > 0
+        for column in range(n):
+            if not present[column].any():
+                target = _draw(affinity[column].copy())
+                self._inter_W[column, target] = (
+                    self._rng_inter.standard_normal() * 0.05
+                )
+                present[column, target] = True
+                added += 1
+            if not present[:, column].any():
+                source = _draw(affinity[:, column].copy())
+                self._inter_W[source, column] = (
+                    self._rng_inter.standard_normal() * 0.05
+                )
+                present[source, column] = True
+                added += 1
+        if added:
+            logger.debug(
+                "NeuralMesh connected %d column ends the unconditional draw left empty",
+                added,
+            )
+        return added
 
     def _build_feedback_weights(self):
         """Build the explicit top-down (exec→sensory) feedback pathway.
@@ -752,20 +893,20 @@ class NeuralMesh:
                 if tier_i == CorticalTier.EXECUTIVE and tier_j == CorticalTier.ASSOCIATION:
                     dist = abs(i - j)
                     prob = 0.08 * np.exp(-dist * 0.1)
-                    if self._rng.random() < prob:
-                        weights[i, j] = self._rng.standard_normal() * 0.04
+                    if self._rng_feedback.random() < prob:
+                        weights[i, j] = self._rng_feedback.standard_normal() * 0.04
                 # Association → Sensory (feedback)
                 elif tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.SENSORY:
                     dist = abs(i - j)
                     prob = 0.06 * np.exp(-dist * 0.1)
-                    if self._rng.random() < prob:
-                        weights[i, j] = self._rng.standard_normal() * 0.03
+                    if self._rng_feedback.random() < prob:
+                        weights[i, j] = self._rng_feedback.standard_normal() * 0.03
                 # Direct executive → Sensory (long-range feedback, sparser)
                 elif tier_i == CorticalTier.EXECUTIVE and tier_j == CorticalTier.SENSORY:
                     dist = abs(i - j)
                     prob = 0.03 * np.exp(-dist * 0.05)
-                    if self._rng.random() < prob:
-                        weights[i, j] = self._rng.standard_normal() * 0.02
+                    if self._rng_feedback.random() < prob:
+                        weights[i, j] = self._rng_feedback.standard_normal() * 0.02
 
         self._feedback_W = weights.astype(np.float32)
 
