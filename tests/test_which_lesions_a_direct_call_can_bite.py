@@ -63,3 +63,32 @@ def test_the_harness_table_names_real_files() -> None:
     for harness, files in WHAT_A_HARNESS_REACHES.items():
         for one in files:
             assert pathlib.Path(one).exists(), f"{harness} names {one}"
+
+
+# ── and what each channel hands over, in the same block ──────────────────
+
+def test_the_report_says_what_a_plain_call_can_move():
+    """Where a channel acts is half of it; what it hands over is the other."""
+    said = how_the_lesions_are_reachable()
+    movable = said["a_plain_call_can_move"]
+    assert movable, "no channel hands over anything a sampler or a prompt takes"
+    assert len(movable) < said["declared"], (
+        "every channel movable by a plain call would mean the recurrent ones "
+        "hand over something a single forward pass can consume"
+    )
+
+
+def test_every_channel_says_whether_it_can_be_moved_or_why_not():
+    for one in how_the_lesions_are_reachable()["each"]:
+        assert "a_plain_call_can_move_it" in one, one["channel"]
+        if not one["a_plain_call_can_move_it"]:
+            assert one.get("why_a_plain_call_cannot"), one["channel"]
+
+
+def test_the_recurrent_channels_are_not_claimed_by_a_plain_call():
+    """A pass count and a steering gain need a decoder that loops."""
+    from core.verify import influence_channels
+
+    movable = set(how_the_lesions_are_reachable()["a_plain_call_can_move"])
+    assert influence_channels.LIVE_MIND_RECURRENT_LOOPS not in movable
+    assert influence_channels.LIVE_MIND_STEERING_ALPHA not in movable

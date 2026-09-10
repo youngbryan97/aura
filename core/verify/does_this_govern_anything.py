@@ -38,6 +38,7 @@ __all__ = [
     "APrimitive",
     "who_imports",
     "how_far_it_reaches",
+    "named_by_a_string",
     "what_governs_and_what_does_not",
 ]
 
@@ -89,14 +90,23 @@ def _dotted(path: pathlib.Path, root: pathlib.Path) -> str:
 
 
 @functools.lru_cache(maxsize=4)
-def _every_import(root: str = "") -> dict[str, tuple[str, ...]]:
-    """module -> everything that imports it, anywhere in the tree."""
+def _read_the_tree(root: str = "") -> tuple[dict[str, tuple[str, ...]], frozenset[str]]:
+    """One walk, two answers: who imports what, and what production names.
+
+    The second was a second full parse of three and a half thousand files in
+    another module, which cost as much as the first and read the same bytes.
+    A module loaded by string — ``import_module("core.…")`` — is an edge no
+    import statement carries, so whoever asks "does anything reach this?"
+    needs both, and both come out of one pass.
+    """
     base = pathlib.Path(root or ROOT)
     imports: dict[str, set[str]] = {}
+    named_in_production: set[str] = set()
     for where in (*_PRODUCTION, *_REACHABLE_FROM, "tests"):
         top = base / where
         if not top.exists():
             continue
+        production = where in _PRODUCTION
         for path in top.rglob("*.py"):
             try:
                 tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
@@ -104,6 +114,17 @@ def _every_import(root: str = "") -> dict[str, tuple[str, ...]]:
                 continue
             me = _dotted(path, base)
             for node in ast.walk(tree):
+                if production and isinstance(node, ast.Constant):
+                    value = node.value
+                    if (
+                        isinstance(value, str)
+                        and "." in value
+                        and " " not in value
+                        and value != me
+                        and value.split(".")[0] in _PRODUCTION
+                    ):
+                        named_in_production.add(value)
+                    continue
                 named: list[str] = []
                 if isinstance(node, ast.Import):
                     named = [a.name for a in node.names]
@@ -113,7 +134,20 @@ def _every_import(root: str = "") -> dict[str, tuple[str, ...]]:
                     ]
                 for one in named:
                     imports.setdefault(one, set()).add(me)
-    return {name: tuple(sorted(who)) for name, who in imports.items()}
+    return (
+        {name: tuple(sorted(who)) for name, who in imports.items()},
+        frozenset(named_in_production),
+    )
+
+
+def _every_import(root: str = "") -> dict[str, tuple[str, ...]]:
+    """module -> everything that imports it, anywhere in the tree."""
+    return _read_the_tree(root)[0]
+
+
+def named_by_a_string(root: str = "") -> frozenset[str]:
+    """Module paths production code names as a string constant."""
+    return _read_the_tree(root)[1]
 
 
 def who_imports(module: str, root: str = "") -> tuple[str, ...]:

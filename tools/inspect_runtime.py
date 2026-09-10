@@ -308,6 +308,12 @@ THE_PRIMITIVES: tuple[str, ...] = tuple(
         "cognition.where_the_growing_is_starved",
         "verify.which_lesions_a_direct_call_can_bite",
         "runtime.what_the_environment_is_asked",
+        # The third: what a channel hands over, who the forge is judged by,
+        # and the census that asks this same question of the whole tree
+        # instead of the list above.
+        "verify.what_a_channel_hands_over",
+        "verify.how_much_of_it_governs",
+        "skill_management.what_the_probes_were_held_to",
     )
 )
 
@@ -362,6 +368,28 @@ def _lesion_reachability() -> Any:
     return how_the_lesions_are_reachable()
 
 
+def _forge_target() -> Any:
+    """Did any redraft offer a target its first draft had not set?"""
+    from core.skill_management.what_the_probes_were_held_to import (
+        how_the_target_has_held,
+    )
+
+    return how_the_target_has_held()
+
+
+def _how_much_governs() -> Any:
+    """Every module under the production roots, by what it decides.
+
+    The section beside this one, `what_governs`, asks the question of a
+    curated list of primitives, so it reports the share of the AUDITED
+    abstractions that govern and reads as though it were the share of the
+    system. This asks it of all of them.
+    """
+    from core.verify.how_much_of_it_governs import how_much_of_it_governs
+
+    return how_much_of_it_governs().as_dict()
+
+
 THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "topology": _topology,
     "owners": _owners,
@@ -402,6 +430,8 @@ THE_SECTIONS: dict[str, Callable[[], Any]] = {
     "environment_settings": _environment_settings,
     "language_growth": _language_growth,
     "lesion_reachability": _lesion_reachability,
+    "how_much_governs": _how_much_governs,
+    "forge_target": _forge_target,
 }
 
 

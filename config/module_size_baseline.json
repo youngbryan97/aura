@@ -111,7 +111,7 @@
     },
     "core/brain/llm/mlx_worker.py": {
       "lines": 8783,
-      "max_class_methods": 17
+      "max_class_methods": 8
     },
     "core/brain/llm_health_router.py": {
       "lines": 4684,
@@ -267,7 +267,7 @@
     },
     "core/orchestrator/main.py": {
       "lines": 3249,
-      "max_class_methods": 54
+      "max_class_methods": 53
     },
     "core/orchestrator/services.py": {
       "lines": 448,
@@ -314,7 +314,7 @@
       "max_class_methods": 38
     },
     "core/resilience/stability_guardian.py": {
-      "lines": 1388,
+      "lines": 1387,
       "max_class_methods": 34
     },
     "core/runtime/action_executor.py": {
@@ -386,7 +386,7 @@
       "max_class_methods": 33
     },
     "interface/routes/chat.py": {
-      "lines": 19575,
+      "lines": 19158,
       "max_class_methods": 6
     },
     "interface/routes/chat_memory_state.py": {
