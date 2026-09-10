@@ -22,16 +22,6 @@
       "_record"
     ],
     [
-      "core/adaptation/star_reasoner.py",
-      "_background_loop",
-      "_save_stats"
-    ],
-    [
-      "core/adaptation/star_reasoner.py",
-      "stop",
-      "_save_stats"
-    ],
-    [
       "core/adaptation/value_autopoiesis.py",
       "evolve_cycle",
       "_log_shift"
@@ -185,11 +175,6 @@
       "core/consciousness/neologism_engine.py",
       "synthesize",
       "_save_lexicon"
-    ],
-    [
-      "core/consciousness/phenomenological_experiencer.py",
-      "_run_deep_narrative",
-      "_persist_phenomenal_moment"
     ],
     [
       "core/consciousness/unified_audit.py",
