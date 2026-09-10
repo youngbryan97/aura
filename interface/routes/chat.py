@@ -153,7 +153,7 @@ from interface.routes.chat_turn_evidence import (  # noqa: E402,F401
     _prime_requested_output_contract_trace,
     _recent_action_receipts,
     _record_desktop_evidence_on_the_trace,
-    _resolve_answer_provenance_projection,
+    _resolve_prior_answer_provenance,
     _save_requested_artifact,
     _serve_built_artifact,
     _worker_receipt_transaction_id,
@@ -3786,6 +3786,7 @@ async def _run_cognitive_engine_chat_turn(
     turn_trace: dict[str, Any] | None = None,
     referential_anchor: str = "",
     action_episode_evidence: str = "",
+    prior_answer_provenance: dict[str, Any] | None = None,
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
     continuation_evidence: dict[str, Any] | None = None,
@@ -4577,6 +4578,7 @@ async def _run_cognitive_engine_chat_turn(
         "recent_context_needed": recent_context_needed,
         "discourse_repair_contract": discourse_repair_contract,
         "action_episode_evidence": action_episode_evidence[:1800],
+        "prior_answer_provenance": dict(prior_answer_provenance or {}),
         "live_mind_context": live_mind_context,
         "live_mind_context_required": bool(require_engine and not state_native_output_owner),
         "require_full_foreground_mind_reply": bool(
@@ -16181,21 +16183,15 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         if not _qualified_state_serialization_owner:
             try:
-                answer_provenance_projection = await _resolve_answer_provenance_projection(
+                prior_answer_provenance = await _resolve_prior_answer_provenance(
                     _semantic_user_message,
                     session_id=_chat_session_id,
                 )
             except _CHAT_RECOVERABLE_ERRORS as provenance_context_exc:
                 record_degradation("chat.answer_provenance_context", provenance_context_exc)
-                answer_provenance_projection = ""
+                prior_answer_provenance = None
         else:
-            answer_provenance_projection = ""
-
-        if answer_provenance_projection:
-            return await _finalize_fastpath(
-                answer_provenance_projection,
-                status="verified_answer_provenance",
-            )
+            prior_answer_provenance = None
 
         if not _qualified_state_serialization_owner:
             try:
@@ -16943,6 +16939,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
                     action_episode_evidence=action_episode_evidence,
+                    prior_answer_provenance=prior_answer_provenance,
                     conversation_resume_handle=_conversation_resume_handle_for_turn,
                     completed_capability_evidence=desktop_required_search_evidence,
                     evidence_profile=_preflight.evidence_profile,

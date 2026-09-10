@@ -252,7 +252,11 @@ def answer_provenance_from_turn(
 
 
 def asks_for_prior_answer_provenance(value: Any) -> bool:
-    """Whether a question asks how the immediately prior answer was known."""
+    """Cheap source-retrieval hint; not authority to replace a user's answer.
+
+    Content words alone do not establish subject or clause relations. Retrieved
+    facts therefore go to the ordinary reasoning path, even when this matches.
+    """
 
     focus = question_focus(value)
     if focus is None or focus.kind not in {

@@ -348,6 +348,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-09, provenance: lexical source hints now retrieve typed
+  evidence instead of taking ownership of a reply. Both compact and full
+  cognition receive the bound record with the original question unchanged.
+  Twenty-nine focused tests and final release gates pass; live replay pending.
+  See [provenance is evidence](evidence/R09_PROVENANCE_IS_EVIDENCE_2026-09-09.md).
   UPDATE 2026-09-09, 18:47: the repaired desktop survived and delivered the
   complete database-recovery answer in 19.60s, with 108ms stabilization. Fresh
   process bootstrap now reads the existing scoped durable conversation store;

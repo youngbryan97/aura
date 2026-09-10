@@ -169,19 +169,23 @@ def _context_challenge_repair_has_evidence(reply_text: str) -> bool:
     )
 
 
-async def _resolve_answer_provenance_projection(
+async def _resolve_prior_answer_provenance(
     user_message: str,
     *,
     session_id: str = "",
-) -> str:
-    """Answer a source follow-up from the evidence bound to that answer."""
+) -> dict[str, Any] | None:
+    """Retrieve bound source facts, without deciding what the user is asking."""
 
     from core.conversation.answer_provenance import (
-        answer_provenance_reply,
+        asks_for_prior_answer_provenance,
         provenance_grounding_json,
         select_prior_answer_provenance,
     )
 
+    # This inexpensive hint has retrieval authority, never answer authority.
+    # A lexical overlap can be incidental to the actual question.
+    if not asks_for_prior_answer_provenance(user_message):
+        return None
     recent_exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
         current_user_message=user_message,
         session_id=session_id,
@@ -190,11 +194,11 @@ async def _resolve_answer_provenance_projection(
     )
     provenance = select_prior_answer_provenance(user_message, recent_exchanges)
     if provenance is None:
-        return ""
+        return None
     from core.conversation.turn_evidence_custody import record_turn_grounding
 
     record_turn_grounding(provenance_grounding_json(provenance))
-    return answer_provenance_reply(provenance)
+    return provenance.to_dict()
 
 
 def _collect_recent_traceability_event_sync() -> tuple[dict[str, Any] | None, str]:
