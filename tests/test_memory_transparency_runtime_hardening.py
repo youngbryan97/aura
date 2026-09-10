@@ -43,7 +43,12 @@ async def test_dev_mode_callback_runtime_errors_degrade_but_invariants_surface(m
 
 
 @pytest.mark.asyncio
-async def test_dev_mode_represents_policy_deferral_without_failure_marker(caplog):
+@pytest.mark.parametrize("result", [
+    {"ok": False, "status": "deferred", "reason": "recent_user_287"},
+    {"ok": False, "status": "deferred_by_executive", "deferred": True},
+    {"ok": False, "error": "background_deferred:foreground_generation_active"},
+])
+async def test_dev_mode_represents_policy_deferral_without_failure_marker(caplog, result):
     from core.transparency.dev_mode import DevMode
 
     dev_mode = DevMode()
@@ -56,7 +61,7 @@ async def test_dev_mode_represents_policy_deferral_without_failure_marker(caplog
     with caplog.at_level(logging.INFO, logger="core.transparency.dev_mode"):
         await dev_mode.complete_tool_execution(
             trace,
-            {"ok": False, "status": "deferred", "reason": "recent_user_287"},
+            result,
             0.4,
         )
 

@@ -199,8 +199,9 @@ class DevMode:
         except ImportError:
             pass
 
-        result_status = str(result.get("status", "") or "").strip().lower()
-        deferred = result_status == "deferred"
+        from core.runtime.tool_result_contracts import tool_result_is_deferred
+
+        deferred = tool_result_is_deferred(result)
         trace.status = (
             "deferred"
             if deferred

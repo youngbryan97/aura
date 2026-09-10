@@ -1,5 +1,7 @@
 import asyncio
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from starlette.requests import Request
@@ -135,3 +137,42 @@ async def test_real_bootstrap_route_uses_the_durable_reader(history_store, servi
     response = await api_ui_bootstrap(request=owner_request())
     rows = json.loads(response.body)["conversation"]["recent"]
     assert [(row["id"], row["aura"]) for row in rows] == [("route-saved", "still here")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("paired", [False, True])
+async def test_history_restores_scoped_rows_while_default_executor_is_occupied(
+    history_store, monkeypatch, paired,
+):
+    surface = "paired_device" if paired else "owner"
+    session = "paired-a" if paired else "before-reboot"
+    if paired:
+        monkeypatch.setattr(chat_history, "request_access_profile", lambda request: {
+            "surface": surface, "conversation_only": True,
+        })
+        monkeypatch.setattr(chat_history, "paired_device_session_id", lambda request: session)
+    record(history_store, "visible", surface=surface, session=session)
+    record(history_store, "private", principal="owner-b", session="private-session")
+    loop = asyncio.get_running_loop()
+    original_pool = loop._default_executor
+    pool = ThreadPoolExecutor(max_workers=1)
+    release = threading.Event()
+    started = threading.Event()
+
+    def occupy_default_worker():
+        started.set()
+        release.wait(5)
+
+    loop.set_default_executor(pool)
+    pending = loop.run_in_executor(None, occupy_default_worker)
+    try:
+        while not started.is_set():
+            await asyncio.sleep(0)
+        rows = await chat_history.recent_ui_conversation(owner_request())
+        assert [row["id"] for row in rows] == ["visible"]
+        assert not release.is_set()
+    finally:
+        release.set()
+        await pending
+        loop._default_executor = original_pool
+        pool.shutdown(wait=True, cancel_futures=True)

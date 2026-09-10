@@ -3,6 +3,21 @@ from __future__ import annotations
 from typing import Any
 
 
+def tool_result_is_deferred(result: object) -> bool:
+    """Recognize admission deferrals without treating them as executions."""
+    if isinstance(result, dict):
+        status = str(result.get("status") or "").strip().lower()
+        return (
+            result.get("deferred") is True
+            or status in {"deferred", "deferred_by_executive"}
+            or any(
+                str(result.get(key) or "").strip().lower().startswith("background_deferred:")
+                for key in ("error", "reason")
+            )
+        )
+    return "background_deferred:" in str(result or "").lower()
+
+
 def _truncate_text(value: Any, limit: int = 1200) -> str:
     text = " ".join(str(value or "").split()).strip()
     if not text:
@@ -79,6 +94,10 @@ def compact_result_payload(result: object) -> dict[str, object]:
         "readable",
         "error",
         "status",
+        "deferred",
+        "reason",
+        "retryable",
+        "retry_after_s",
         "task_id",
         "commitment_id",
         "objective",

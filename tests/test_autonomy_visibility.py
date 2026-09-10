@@ -434,6 +434,39 @@ async def test_self_development_cycle_can_opt_in_visible_updates(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("stage", [0, 1, 2])
+@pytest.mark.parametrize("deferral", [
+    {"ok": False, "status": "deferred", "reason": "foreground_generation_active"},
+    {"ok": False, "status": "deferred_by_executive", "deferred": True, "reason": "retry_later"},
+    {"ok": False, "error": "background_deferred:foreground_quiet_window"},
+])
+async def test_self_development_deferral_stops_dependent_work_without_failure_feedback(
+    monkeypatch, stage, deferral,
+):
+    results = [
+        {"ok": True, "top_issues": [{"file": "example.py", "message": "complexity"}]},
+        {"ok": True, "message": "tests passed"},
+        {"ok": True, "proposal_path": PROPOSAL_PATH},
+    ]
+    results[stage] = deferral
+    capability = SimpleNamespace(execute=AsyncCallRecorder(side_effect=results))
+    monkeypatch.setattr(
+        "core.autonomy.autonomous_initiative_loop.optional_service",
+        lambda name, default=None: capability if name == "capability_engine" else default,
+    )
+    loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace(cognitive_engine=object()))
+    loop._curriculum_practice_step = AsyncCallRecorder()
+    loop._emit_feed = CallRecorder()
+    loop._queue_visible_update = CallRecorder()
+    await loop._run_self_development_cycle()
+    assert capability.execute.await_count == stage + 1
+    messages = [call.args[1] for call in loop._emit_feed.calls]
+    assert "deferred:" in messages[-1]
+    assert not any("unknown error" in text or "friction" in text or "Scan stalled" in text for text in messages)
+    assert not any("gate held" in call.args[0] for call in loop._queue_visible_update.calls)
+
+
+@pytest.mark.asyncio
 async def test_proactive_presence_prefers_visible_primary(monkeypatch):
     _simulate_idle_background_runtime(monkeypatch)
     orchestrator = SimpleNamespace(
