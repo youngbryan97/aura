@@ -196,7 +196,9 @@ def test_the_cache_is_keyed_on_the_checkpoint_not_an_address():
 def test_the_same_checkpoint_gives_the_same_key_every_time():
     from core.brain.llm.mlx_worker import _prompt_cache_model_key
 
-    path = "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
+    # A checkpoint path, not this machine's: the key is derived from the
+    # last segment and nothing here needs the file to exist.
+    path = "/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
     assert _prompt_cache_model_key(path) == _prompt_cache_model_key(path)
     assert _prompt_cache_model_key(path) == "Aura-Qwen3.8-27B-persona-crsm-7f6a2e83"
     # A trailing separator is the same checkpoint.

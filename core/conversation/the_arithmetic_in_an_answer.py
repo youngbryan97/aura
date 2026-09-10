@@ -26,8 +26,10 @@ the error it is guessing about.
 
 from __future__ import annotations
 
+import ast
+import operator
 import re
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 #: `926 - 720 = 206`, `15.43 x 60 = 926`, `2 x 115.7 / 15 = 15.43`.
 #:
@@ -119,7 +121,6 @@ def _value_of(expression: str) -> float | None:
     only numbers and arithmetic operators. A reply is untrusted text.
     """
 
-    import ast
 
     plain = str(expression or "").replace(",", "")
     for written, python in _AS_PYTHON_WRITES_IT.items():
@@ -141,10 +142,47 @@ def _value_of(expression: str) -> float | None:
         if isinstance(node, ast.Constant) and not isinstance(node.value, (int, float)):
             return None
     try:
-        value = eval(compile(tree, "<the reply's own sum>", "eval"))  # noqa: S307
+        value = _work_it_out(tree.body)
     except (ArithmeticError, ValueError, TypeError, OverflowError):
         return None
     return float(value) if isinstance(value, (int, float)) else None
+
+
+#: What each operator does, so the sum can be worked out rather than executed.
+_ARITHMETIC: dict[type, Any] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
+
+
+def _work_it_out(node: ast.AST) -> float | int:
+    """Evaluate an arithmetic tree by walking it.
+
+    The tree above is already restricted to five operators and numeric
+    constants, so handing it to `eval` was safe — and it was still an `eval`,
+    which is a thing this repository does not have and should not acquire for
+    four lines of arithmetic. Walking it is the same result with nothing
+    compiled and nothing executed.
+    """
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            raise TypeError("only numbers")
+        return node.value
+    if isinstance(node, ast.UnaryOp):
+        apply = _ARITHMETIC.get(type(node.op))
+        if apply is None:
+            raise TypeError("operator not allowed here")
+        return apply(_work_it_out(node.operand))
+    if isinstance(node, ast.BinOp):
+        apply = _ARITHMETIC.get(type(node.op))
+        if apply is None:
+            raise TypeError("operator not allowed here")
+        return apply(_work_it_out(node.left), _work_it_out(node.right))
+    raise TypeError("not an arithmetic tree")
 
 
 def _is_wrong(expected: float, said: float, *, hedged: bool) -> bool:

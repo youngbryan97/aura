@@ -136,7 +136,10 @@ def _reading_probes() -> list[Any]:
     for package in _READING_PACKAGES:
         try:
             found = importlib.import_module(package)
-        except BaseException:  # noqa: BLE001 - a package that will not import is skipped
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            # A package that will not import here is one this recording cannot
+            # drive; naming the kinds says which failures are expected instead
+            # of catching everything including a KeyboardInterrupt.
             continue
         modules.append(package)
         path = getattr(found, "__path__", None)
@@ -150,7 +153,7 @@ def _reading_probes() -> list[Any]:
     for name in modules:
         try:
             module = importlib.import_module(name)
-        except BaseException:  # noqa: BLE001
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             continue
         for attribute in sorted(dir(module)):
             if attribute.startswith("_") or attribute.startswith(_REFUSED):
@@ -191,7 +194,20 @@ def _read_like(text: str) -> None:
     for probe in _reading_probes():
         try:
             probe(text)
-        except BaseException:  # noqa: BLE001 - a probe must never end the run
+        except (
+            ArithmeticError,
+            AttributeError,
+            IndexError,
+            KeyError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            UnicodeError,
+            ValueError,
+        ):
+            # A probe must never end the run, and the kinds are named so an
+            # interrupt still stops it.
             continue
 
 

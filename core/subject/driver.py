@@ -468,7 +468,18 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
             continue
         try:
             setattr(organ, name, _place(value))
-        except Exception:  # noqa: BLE001 - a field that will not be written stays
+        except (
+            ArithmeticError,
+            AttributeError,
+            ImportError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ):
+            # A field that will not be written stays as it was. The kinds are
+            # named so an interrupt still stops the restore.
             continue
 
 
@@ -623,7 +634,18 @@ def _service_state(only: set[str] | None = None) -> dict[str, dict[str, Any]]:
             continue
         try:
             captured = _organ_state(instance)
-        except Exception:  # noqa: BLE001 - a service that cannot be read is skipped
+        except (
+            ArithmeticError,
+            AttributeError,
+            ImportError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ):
+            # A service that cannot be read is skipped, by kind rather than by
+            # catching everything.
             continue
         if captured:
             out[name] = captured
@@ -956,7 +978,17 @@ class SubjectRuntime:
                 continue
             try:
                 captured = _organ_state(phase, skip=skip)
-            except Exception:  # noqa: BLE001 - a phase that cannot be read is skipped
+            except (
+                ArithmeticError,
+                AttributeError,
+                ImportError,
+                LookupError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ):
+                # A phase that cannot be read is skipped, by kind.
                 continue
             if captured:
                 out[name] = captured

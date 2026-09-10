@@ -69,7 +69,7 @@ def test_the_detector_can_see_a_new_one():
         "The user asked how many minutes of daylight are lost at 45 degrees north.",
         "prompt_cache miss; prefilling all 2483 tokens",
         "Episodic memory returned four episodes from this conversation.",
-        "A path to a file on disk, /Users/x/y.py, and nothing else.",
+        "A path to a file on disk, /srv/notes/y.py, and nothing else.",
     ],
 )
 def test_the_detector_leaves_the_input_alone(not_an_instruction):
