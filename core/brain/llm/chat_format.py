@@ -1063,7 +1063,14 @@ def thinking_enabled_for_generation(
         model_name,
         cognitive_mode=cognitive_mode,
     )
-    if answer_is_derived_here and resolved is not True:
+    # A False here has two very different authors, and treating them alike
+    # forced a private channel onto a model pinned shut. Ask the same question
+    # with no mode: if the model would think when nothing asked it to be fast,
+    # the mode is what closed the channel and may be overruled below. If the
+    # model says no on its own — the pinned fast lane, a template with no
+    # channel — that is not a depth setting and stands.
+    model_would_think = thinking_enabled_for_request(model_name) is not False
+    if answer_is_derived_here and resolved is not True and model_would_think:
         # The mode says how deep to think. It does not say WHERE.
         #
         # `fast` resolves to False, and on a turn whose answer is worked out
@@ -1118,40 +1125,36 @@ def answer_is_derived_for_generation(
     """
 
     try:
-        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+        from core.brain.llm.thinking_reserve import (
+            proved_insufficient,
+            seconds_to_decode,
+        )
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         floor = int(completion_floor or 0)
         budget = int(budget_tokens or 0)
         remaining = float(seconds_remaining or 0.0)
+        proved = int(proved_insufficient(str(model_name or "")))
     except (ImportError, TypeError, ValueError):
         return False
+    # Whether the answer is worked out here is a property of the REQUEST. A
+    # closed question answered once carries the base floor; anything above it
+    # is work the request named and nothing upstream has done.
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    # The same question the bound asks, asked by its one owner.
-    #
-    # These two decisions have to agree or the worst case happens: thinking
-    # switched on and no budget to bound it with. What the channel may take is
-    # the tokens the clock can decode in the time this turn has, less the room
-    # the answer needs — and zero is a real answer, meaning this turn cannot
-    # afford to think privately and nothing should open the channel.
-    #
-    # Two earlier versions of this question were unanswerable. It first
-    # compared the budget against the largest budget any generation had ever
-    # run out of while thinking — a number that only ever rose, standing at
-    # 6,322 for the 27B against turns budgeted at 512 to 1,345. Comparing
-    # against the measured cost instead was a deadlock: the answer clock added
-    # the reserve only once this returned True, and this returned False
-    # because the budget held no reserve.
-    return (
-        the_channel_budget_for(
-            max_tokens=budget,
-            seconds_left=remaining,
-            answer_floor=floor,
-            model=str(model_name or ""),
-        )
-        > 0
-    )
+    # Three vetoes over that, and no more. Sizing the channel is a different
+    # question with a different owner (``the_channel_budget_for``), and asking
+    # it here was a deadlock: the channel is reserved out of the same budget
+    # the answer is written from, and the answer clock only adds that reserve
+    # once this has already said yes. A budget equal to its own floor then
+    # left nothing over, so the channel could never open on any turn.
+    if 0 < budget <= proved:
+        return False
+    if remaining > 0.0 and budget > 0:
+        needed = float(seconds_to_decode(budget, str(model_name or "")))
+        if 0.0 < remaining < needed:
+            return False
+    return True
 
 
 class NativeThinkingChannels(NamedTuple):

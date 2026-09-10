@@ -40,6 +40,7 @@ the document.
 
 from __future__ import annotations
 
+import json
 import logging
 import pathlib
 import threading
@@ -697,7 +698,34 @@ class ValidationSuite:
                 continue
             relevant = [r for (test, _model), r in last.items() if test == claim.test]
             if not relevant:
-                out.append({**claim.to_dict(), "reason": "never run"})
+                # A suite that has not run cannot have run THIS test, and every
+                # claim in it reads "never run" at once. The desktop defers the
+                # empirical run on purpose — several tests monopolize the
+                # interpreter for tens of seconds and belong to an explicit
+                # validation process — and reporting the consequence of that
+                # decision as a hundred structural errors raised an emergency
+                # incident on every verifier pass, tainted the runtime, and
+                # drove the resilience layer to full depletion. LIVE,
+                # 2026-09-10: "100 invariants: 105 error(s)", 35 times.
+                #
+                # Unrun is unevidenced. A test the suite DID run and that
+                # produced nothing for this claim is a different fact and
+                # keeps its error.
+                out.append(
+                    {
+                        **claim.to_dict(),
+                        "reason": (
+                            "the validation suite has not run in this process"
+                            if self.runs == 0
+                            else "never run"
+                        ),
+                        **(
+                            {"outcome": str(Outcome.NOT_MEASURED)}
+                            if self.runs == 0
+                            else {}
+                        ),
+                    }
+                )
                 continue
             if any(r.score.outcome in self._UNSUPPORTING for r in relevant):
                 worst = next(
@@ -6773,6 +6801,106 @@ def validation_report() -> dict[str, Any]:
     return _SUITE.report()
 
 
+def _recorded_verdict() -> dict[str, Any] | None:
+    """The verdict an explicit validation process left, if there is one."""
+    path = pathlib.Path(__file__).resolve().parents[2] / "artifacts" / "validation" / "last_run.json"
+    try:
+        verdict = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return verdict if isinstance(verdict, dict) else None
+
+
+def _source_now() -> dict[str, Any]:
+    """What source is running, through the one function that already knows.
+
+    Shelling out to git from here was an ungoverned subprocess and a worse
+    answer: a "dirty" boolean says a tree has uncommitted work, not WHICH,
+    so two different edited trees compare equal. The workspace digest does
+    not have that problem.
+    """
+    from core.runtime.launch_provenance import collect_source_identity
+
+    identity = collect_source_identity(pathlib.Path(__file__).resolve().parents[2])
+    return {
+        "commit": str(identity.get("commit_sha") or ""),
+        "workspace": str(identity.get("workspace_state_sha256") or ""),
+    }
+
+
+def adopt_recorded_validation() -> dict[str, Any]:
+    """Seed the suite with a verdict measured over exactly this source.
+
+    The desktop cannot run these tests itself — several hold the interpreter
+    for tens of seconds and it is serving a person. What it can do is read a
+    verdict a validation process recorded, and only where the commit matches
+    and neither tree was dirty. A recorded pass over different code is a
+    record; treating it as evidence is the decay this registry exists to
+    catch, so the stamp is checked before a single result is adopted.
+
+    Returns what happened, always. "No verdict" and "a verdict for other
+    source" are different facts and both are worth reading in a health report.
+    """
+    verdict = _recorded_verdict()
+    if verdict is None:
+        return {"adopted": 0, "reason": "no validation process has recorded a verdict"}
+    if str(verdict.get("schema") or "") != "aura.validation.verdict.v1":
+        return {"adopted": 0, "reason": "recorded verdict is not a verdict this runtime reads"}
+    try:
+        recorded = dict(verdict.get("source") or {})
+        running = _source_now()
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        return {"adopted": 0, "reason": f"the running source could not be identified: {exc}"}
+    if not recorded.get("commit") or not running.get("commit"):
+        return {"adopted": 0, "reason": "the source of one side or the other is unidentifiable"}
+    if recorded.get("commit") != running.get("commit"):
+        return {
+            "adopted": 0,
+            "reason": (
+                f"the verdict was measured over {str(recorded.get('commit'))[:12]} and "
+                f"{str(running.get('commit'))[:12]} is running"
+            ),
+        }
+    if not recorded.get("workspace") or recorded.get("workspace") != running.get("workspace"):
+        return {
+            "adopted": 0,
+            "reason": "the working tree is not the one the verdict was measured over",
+        }
+
+    adopted = 0
+    for row in verdict.get("results") or []:
+        try:
+            score = dict(row["score"])
+            result = TestResult(
+                test=str(row["test"]),
+                model=str(row["model"]),
+                score=Score(
+                    kind=str(score.get("kind") or "recorded"),
+                    value=float(score.get("value") or 0.0),
+                    outcome=Outcome(str(score.get("outcome"))),
+                    interpretation=str(score.get("interpretation") or ""),
+                    detail=dict(score.get("detail") or {}),
+                ),
+                prediction=row.get("prediction"),
+                duration_s=float(row.get("duration_ms") or 0.0) / 1000.0,
+                at=float(row.get("at") or 0.0),
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        with _SUITE._lock:  # noqa: SLF001 — the suite's own module owns its store
+            _SUITE._last[(result.test, result.model)] = result
+        adopted += 1
+    if adopted:
+        _SUITE.runs += 1
+    return {
+        "adopted": adopted,
+        "reason": "",
+        "measured_at": verdict.get("finished_at"),
+        "commit": recorded.get("commit"),
+        "include_expensive": verdict.get("include_expensive"),
+    }
+
+
 def run_validation(*, include_expensive: bool = True) -> dict[str, Any]:
     """Run the suite. ``include_expensive=False`` is the boot's posture.
 
@@ -6789,6 +6917,7 @@ def reset_validation_for_test() -> None:
 
 __all__ = [
     "Claim",
+    "adopt_recorded_validation",
     "Model",
     "Observation",
     "Outcome",

@@ -316,8 +316,13 @@ def test_unsupported_claims_are_the_machine_checked_version_of_the_document():
     )
     suite.add_model(RuntimeModel(name="m").declare("cap"))
 
+    # Before any run, the claim is listed and its outcome says why: the suite
+    # has not run here. That is unevidenced, not contradicted — the desktop
+    # defers the empirical run on purpose, and calling its own decision a
+    # failure raised an emergency on every verifier pass.
     unsupported = suite.unsupported_claims()
-    assert unsupported[0]["reason"] == "never run"
+    assert unsupported[0]["reason"] == "the validation suite has not run in this process"
+    assert unsupported[0]["outcome"] == str(Outcome.NOT_MEASURED)
 
     suite.run()
     unsupported = suite.unsupported_claims()

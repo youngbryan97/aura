@@ -1307,13 +1307,30 @@ async def _activate_cognition(*, foreground_only: bool) -> ActivationResult:
     # process, not the serving process. Foreground-only proof boots retain the
     # synchronous verdict they explicitly requested.
     if not foreground_only:
+        # The deferral named a validation process, and for a long time there
+        # was none: every claim read "never run", the verifier reported the
+        # runtime's own decision as a hundred structural errors, and the
+        # incident that raised ran on every pass. `tools/run_model_validation.py`
+        # is that process now, and this reads back what it measured — but only
+        # where the stamp says it measured THIS source.
+        from core.organism.model_validation import adopt_recorded_validation
+
+        adopted = adopt_recorded_validation()
         _set_cognition_validation_status(
-            state="deferred_to_validation_process",
+            state=(
+                "adopted_recorded_verdict"
+                if adopted.get("adopted")
+                else "deferred_to_validation_process"
+            ),
             started_at=None,
-            finished_at=None,
+            finished_at=adopted.get("measured_at"),
             duration_s=None,
-            outcome=None,
-            error="",
+            outcome=(
+                {"adopted": adopted.get("adopted"), "commit": adopted.get("commit")}
+                if adopted.get("adopted")
+                else None
+            ),
+            error=str(adopted.get("reason") or ""),
         )
         return ActivationResult(
             name="cognition",
@@ -1321,13 +1338,25 @@ async def _activate_cognition(*, foreground_only: bool) -> ActivationResult:
             detail=(
                 f"{len(rules)} MeTTa rules over {metta_report()['grounded_ops'].__len__()} "
                 f"grounded ops; {validation['claims']} claims bound to "
-                f"{len(validation['tests'])} validation tests; empirical run deferred "
-                "to an explicit validation process"
+                f"{len(validation['tests'])} validation tests; "
+                + (
+                    f"{adopted['adopted']} results adopted from the validation "
+                    f"process that measured {str(adopted.get('commit') or '')[:12]}"
+                    if adopted.get("adopted")
+                    else f"empirical run deferred: {adopted.get('reason')}"
+                )
             ),
             data={
                 "metta_rules": rules,
                 "validation": validation,
-                "suite_outcome": {"state": "deferred_to_validation_process"},
+                "recorded_verdict": adopted,
+                "suite_outcome": {
+                    "state": (
+                        "adopted_recorded_verdict"
+                        if adopted.get("adopted")
+                        else "deferred_to_validation_process"
+                    )
+                },
                 "problem_tests": [],
                 "unsupported_claims": [
                     c["statement"] for c in get_suite().unsupported_claims()

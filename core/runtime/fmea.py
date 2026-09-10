@@ -69,7 +69,7 @@ FMEA_REGISTRY: tuple[FailureMode, ...] = (
         id="FM-LANE-001",
         subsystem="core/brain/llm/mlx_client.py (cortex lane)",
         mode="First-token stall under memory pressure → force-kill → cold reload doom loop",
-        cause="Concurrent lanes over-commit host RAM; the resident 32B loses first-token "
+        cause="Concurrent lanes over-commit host RAM; the resident cortex loses first-token "
         "bandwidth; every spawn succeeds so spawn-failure backoff never engages",
         effect="Every turn pinned ~200s; each cycle burns a 20GB cold reload; latency unusable "
         "while deaths=0 (ladder answers)",
@@ -85,7 +85,7 @@ FMEA_REGISTRY: tuple[FailureMode, ...] = (
     FailureMode(
         id="FM-LANE-002",
         subsystem="core/brain/llm/mlx_client.py + core/learning/weight_compounding.py",
-        mode="OOM SIGKILL with empty stderr on over-committed spawn (72B solver / fuse beside resident 32B)",
+        mode="OOM SIGKILL with empty stderr on over-committed spawn (72B solver / fuse beside the resident cortex)",
         cause="Model load or dequant-fuse transient (~2.5x base) requested beside a committed host; "
         "the OS kills the child with no diagnostic",
         effect="20GB worker dies mid-load; 'fuse_failed:' with empty detail; autonomous learning "
@@ -103,7 +103,7 @@ FMEA_REGISTRY: tuple[FailureMode, ...] = (
     FailureMode(
         id="FM-LANE-003",
         subsystem="launcher + core/brain/llm/mlx_client.py",
-        mode="Duplicate heavy runtime: a second 32B spawns beside a wedged one",
+        mode="Duplicate heavy runtime: a second cortex spawns beside a wedged one",
         cause="False-death verdict (mind_tick declared dead under load) → launcher respawn "
         "without killing the wedged process",
         effect="Memory doubling → worse false-death → cascade; host near-exhaustion",
