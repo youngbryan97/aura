@@ -348,6 +348,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-09, 18:15: a source-matched reboot succeeded, but the live
+  replay lost its completed model answer when actor-monitor cancellation
+  unwound the desktop. Unavailable probe results now retain service custody
+  without reporting readiness; the root shutdown owner, not a replaceable
+  monitor task, owns desktop lifetime. Focused tests pass, resident replay
+  pending. Fresh-window durable bootstrap is also open. See
+  [service and desktop lifetimes](evidence/R09_SERVICE_AND_DESKTOP_LIFETIMES_2026-09-09.md).
   UPDATE 2026-09-08. Reconnect restored the pending live turn, but a complete
   footer after its numbered list was misclassified as truncation and triggered
   repeated model repairs. The structural classifier is repaired with 64 focused

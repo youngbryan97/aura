@@ -3456,7 +3456,7 @@ async def run_desktop(
                         # Watch for exit
                         while proc.returncode is None:
                             # Check for system-wide shutdown
-                            if not getattr(supervisor, "_is_running", True):
+                            if is_shutdown_requested():
                                 try:
                                     proc.terminate()
                                 except ProcessLookupError:
@@ -3481,11 +3481,7 @@ async def run_desktop(
                             # which is how "multiple versions in the background"
                             # happens.
                             logger.info("🎨 GUI closed by user — initiating full shutdown.")
-                            try:
-                                supervisor._is_running = False
-                            except AttributeError as exc:
-                                record_degradation("aura_main", exc)
-                                logger.debug("GUI supervisor did not expose running flag: %s", exc)
+                            request_shutdown("desktop_gui_closed")
                             return
 
                         if is_shutdown_requested() or proc.returncode in {-signal.SIGTERM, -signal.SIGINT}:
@@ -3521,10 +3517,9 @@ async def run_desktop(
             if launch_gui:
                 logger.info("🎨 Desktop GUI Actor launched and supervised (WebView-only mode).")
 
-            # Wait until the supervisor sees shutdown. The explicit finalizer
-            # below owns teardown so SIGTERM cannot leave API/model/GUI workers
-            # alive behind the desktop process.
-            await supervisor.wait_forever()
+            # Monitor replacement is service recovery, not a desktop quit.
+            # The root signal owner and shutdown latch own this lifetime.
+            await supervisor.wait_forever(until=owner.event)
         except asyncio.CancelledError:
             if not owner.requested:
                 shutdown_reason = "desktop_cancelled"
