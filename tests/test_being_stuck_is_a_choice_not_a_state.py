@@ -155,7 +155,12 @@ async def test_when_nothing_works_she_can_begin_again(screen, monkeypatch):
         success_when="never happens",
         think=_thinks("up", "up", "up", "start over"),
         max_cycles=6,
-        max_seconds=10.0,
+        # Enough clock for the cycles this needs. A move whose verification
+        # fails is retried with a growing backoff, which is the executor
+        # working, and six of those do not fit in ten seconds — so the run
+        # ended `out_of_time` after three cycles and never reached the
+        # decision being tested. The budget was gating the thing under test.
+        max_seconds=40.0,
         narrate=False,
         lived=False,
         spine=_Store(),
@@ -176,7 +181,7 @@ async def test_she_can_decide_to_play_it_out_instead(screen, monkeypatch):
         success_when="never happens",
         think=_thinks("up", "up", "up", "see it through", "up"),
         max_cycles=7,
-        max_seconds=10.0,
+        max_seconds=45.0,
         narrate=False,
         lived=False,
         spine=_Store(),

@@ -37,6 +37,7 @@ from core.governance.will import ActionDomain
 from core.governance_context import local_internal_governed_scope
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
+from core.runtime.proof_policy import proof_run_active
 from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.security.execution_authority import (
@@ -1440,8 +1441,28 @@ class HostAutomationProvider:
         return receipt
 
     async def scroll(self, dx: int = 0, dy: int = 0) -> AutomationReceipt:
-        """Scroll by delta amounts."""
+        """Scroll by delta amounts.
+
+        Refused under a proof run, because this one moves the person's own
+        screen. Measured 2026-09-09: two offline tests of the stuck-detector
+        drove six real scrolls each — every other input in the run was
+        substituted and this one was not, so a test suite was scrolling the
+        machine it was running on, and pyautogui's own pauses made a cycle
+        four seconds long, which is why those tests ran out of time before
+        they reached what they were testing.
+        """
         start = time.time()
+        if proof_run_active():
+            receipt = AutomationReceipt(
+                action="scroll",
+                target=f"dx={dx},dy={dy}",
+                adapter="refused",
+                success=False,
+                error="scroll_refused_under_proof_run",
+                duration_ms=(time.time() - start) * 1000,
+            )
+            self._log_receipt(receipt)
+            return receipt
         try:
             import pyautogui
             pyautogui.scroll(dy, _pause=False)

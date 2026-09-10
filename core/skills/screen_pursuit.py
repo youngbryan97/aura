@@ -1311,9 +1311,20 @@ async def _bring_it_into_view(look: Any, read: Any, cannot_see: dict[str, str] |
             here.occupied(),
         )
         try:
-            await hands.scroll(dy=-_a_screenful(hands))
+            moved = await hands.scroll(dy=-_a_screenful(hands))
         except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("screen_pursuit", exc, action="scroll to find the thing")
+            return down
+        # A scroll that did not happen will not have moved the page, so the
+        # next read is the same read and the wait before it buys nothing. The
+        # receipt was discarded, so a refused scroll cost the full six
+        # screenfuls and six settles — measured at 2.1 seconds a cycle with
+        # nothing to show for it.
+        if getattr(moved, "success", True) is False:
+            logger.info(
+                "the page did not scroll (%s); reading what is here instead",
+                getattr(moved, "error", "") or "no reason given",
+            )
             return down
         await asyncio.sleep(SETTLE_AFTER_SCROLL_S)
     return SCREENFULS_TO_LOOK
