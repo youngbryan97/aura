@@ -73,3 +73,39 @@ def test_a_reading_with_no_grid_still_finds_the_thing_by_cropping():
 
 def test_nothing_dropped_changes_nothing():
     assert EMPTY_TOP.without(set()) is EMPTY_TOP
+
+
+# ── and a row that is furniture plus nothing at all is not a row ─────────
+
+def test_a_row_of_furniture_and_places_nothing_has_ever_held_goes():
+    """A score above a board holds one place in its row; the rest are empty.
+
+    "Every place on it is furniture" left that row standing, so the cropped
+    thing kept a top row that does not exist and every upward move predicted
+    tiles sliding into it. The true rule was wrong on a quarter of all acts
+    and never reached the share it needed to be trusted.
+    """
+    ever_held = {(row, column) for row in range(1, 4) for column in range(4)}
+    ever_held.add((0, 0))
+    left = EMPTY_TOP.without({(0, 0)}, ever_held)
+    assert left.rows == 3
+
+
+def test_a_row_that_merely_emptied_this_frame_stays():
+    """The lattice is what keeps two readings in one frame of reference."""
+    ever_held = {(row, column) for row in range(4) for column in range(4)}
+    left = EMPTY_TOP.without({(0, 0)}, ever_held)
+    assert left.rows == 4
+
+
+def test_a_line_with_no_furniture_on_it_is_never_dropped():
+    """Otherwise a sparse reading loses lines for having been sparse.
+
+    Only the row and column carrying the furniture go. The two rows that hold
+    nothing and never have are still rows, because nothing on them was ever
+    called furniture and being empty is not the same as not existing.
+    """
+    sparse = _board([["", "", "", ""], ["2", "", "", ""], ["", "", "", ""], ["", "", "", "4"]])
+    left = sparse.without({(1, 0)}, {(1, 0), (3, 3)})
+    assert (left.rows, left.columns) == (3, 3)
+    assert [(cell.row, cell.column) for cell in left.cells] == [(2, 2)]

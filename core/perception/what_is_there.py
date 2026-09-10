@@ -216,6 +216,7 @@ class Arrangement:
             #
             # Only a line that was ENTIRELY dropped goes, which is what the
             # cropping was for: a row nothing ever moves into.
+            #
             # A place that has never held anything is not evidence that the
             # line survives. ``places`` names the cells found to be furniture,
             # and a score sitting alone above a board occupies one of the four
@@ -244,12 +245,14 @@ class Arrangement:
                 row
                 for row in range(self.rows)
                 if row not in occupied_rows
+                and any((row, column) in places for column in range(self.columns))
                 and all(_gone((row, column)) for column in range(self.columns))
             }
             gone_across = {
                 column
                 for column in range(self.columns)
                 if column not in occupied_columns
+                and any((row, column) in places for row in range(self.rows))
                 and all(_gone((row, column)) for row in range(self.rows))
             }
             rows = [row for row in range(self.rows) if row not in gone_down]

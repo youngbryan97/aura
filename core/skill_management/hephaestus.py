@@ -46,6 +46,9 @@ from core.skill_management.skill_verification import (
     render_skill_module,
     verify_draft,
 )
+from core.skill_management.what_the_probes_were_held_to import (
+    TheTargetForOneForge,
+)
 
 #: Attempts before the forge gives up on a capability.
 #:
@@ -198,6 +201,11 @@ class HephaestusEngine(AuraBaseModule):
         feedback = ""
         last_signature = ""
         last_report: VerificationReport | None = None
+        # The probes are what the candidate is judged against, and until now a
+        # redraft returned new ones. A drafter that could not satisfy an
+        # expectation could rewrite it instead, and the attempt that passed
+        # was scored against a question the failing attempt never faced.
+        target = TheTargetForOneForge(skill=capability_name)
 
         for attempt in range(1, max_attempts + 1):
             drafted = await self._draft_logic(capability_name, objective, feedback=feedback)
@@ -221,7 +229,7 @@ class HephaestusEngine(AuraBaseModule):
                     name=capability_name,
                     description=drafted["description"],
                     source=source,
-                    probes=drafted["probes"],
+                    probes=target.admit(attempt, drafted["probes"]),
                     objective=objective,
                     deterministic=drafted["deterministic"],
                 )

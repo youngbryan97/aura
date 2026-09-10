@@ -38,10 +38,18 @@ def test_every_degraded_reply_goes_through_it():
     # This read `interface.routes.chat`, and the mood prefix moved to
     # `chat_lane_bookkeeping` when that module was split out — so the test
     # failed with `ValueError: substring not found`, which says nothing about
-    # moods and sends the reader to the wrong file.
-    from interface.routes import chat_lane_bookkeeping as chat
+    # moods and sends the reader to the wrong file. The owning module is asked
+    # of the function itself, so the next split does not break this again.
+    import importlib
 
-    source = inspect.getsource(chat)
+    from interface.routes import chat
+
+    # Where the sentences live, not where they were written. They moved to
+    # chat_lane_bookkeeping in a decomposition and this read chat.py, so a
+    # test about seven degraded replies failed over a file that no longer
+    # holds them. The owning module is asked of the function itself.
+    chat_lane = importlib.import_module(chat._with_mood.__module__)
+    source = inspect.getsource(chat_lane)
     where = source.index("# Build a mood-aware prefix for softer messages")
     block = source[where : where + 3000]
     assert block.count("_with_mood(_mood_prefix,") >= 7

@@ -3061,6 +3061,7 @@ class InferenceGate:
     #: told it none of this: policy deferral, a lane that could not be
     #: reached, a proof contract that names a model, and resource exhaustion
     #: all arrived as the same value the model returns when it says nothing.
+    REFUSAL_HALTED = "halted"
     REFUSAL_DEFERRED = "deferred"
     REFUSAL_PROOF_LANE = "proof_lane_required"
     REFUSAL_RESOURCE = "resource_exhausted"
@@ -11858,7 +11859,7 @@ class InferenceGate:
                 # carry a typed refusal to the caller's context, to the gate
                 # for health, and to the turn ledger; this one is a fifth.
                 return self._refuse_generation(
-                    "halted",
+                    self.REFUSAL_HALTED,
                     str(halt.why or "the runtime is stopping"),
                     context=context if isinstance(context, dict) else None,
                     origin=str((context or {}).get("origin") or ""),

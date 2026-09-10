@@ -21,7 +21,6 @@ import pytest
 from core.language.formed_constraints import (
     FormedConstraint,
     asks_for_a_role,
-    cluster_by_signature,
     form_constraints,
     harvest_recorded_failures,
     span_local,

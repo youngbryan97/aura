@@ -46,6 +46,11 @@ def test_the_clock_runs_for_either_entitlement() -> None:
     gate = _the_clock_gate()
     # Either, not both: an `or` at the top, so one entitlement is enough.
     assert isinstance(gate.test, ast.BoolOp) and isinstance(gate.test.op, ast.Or)
+    # And each one is a disjunct in its own right. Naming them somewhere under
+    # the `or` is not the same as either of them opening the gate alone.
+    said = {ast.unparse(one) for one in gate.test.values}
+    assert "0 < _answer_floor_final" in said
+    assert "_generations > 1" in said
 
 
 def test_the_phase_count_is_decided_before_the_clock_is_gated() -> None:

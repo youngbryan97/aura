@@ -23,9 +23,9 @@ import itertools
 import pytest
 
 from core.cognition.the_floor_she_stands_on import (
-    L,
     MINUS,
     PLUS,
+    L,
     V,
     build,
     every_code,
