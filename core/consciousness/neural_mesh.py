@@ -196,6 +196,24 @@ class MeshConfig:
     #: The table is in core/connectome/types.py and this reads it rather than
     #: repeating a rounded 0.20 that nothing could check.
     inhibitory_fraction: float = field(default_factory=_cortical_inhibitory_fraction)
+    #: How many columns are wired from the H01 human reconstruction instead of
+    #: from a Gaussian.
+    #:
+    #: The mesh draws every connection strength from the same normal
+    #: distribution, which says a connection is a continuous quantity centred
+    #: on zero with no heavy tail. H01 measured the thing itself in a cubic
+    #: millimetre of human temporal cortex, and it is a COUNT: 96.5% of
+    #: connected pairs are joined by one contact, 0.092% by four or more, and
+    #: the heaviest pair carries about fifty. Those are different objects, and
+    #: only one of them was measured in a person.
+    #:
+    #: An island rather than the whole mesh, because what H01 measured is local
+    #: wiring in one volume. Claiming it for long-range structure that came from
+    #: nowhere near a microscope would be borrowing its authority.
+    #:
+    #: The count is what it is because of what happens when it changes; see
+    #: `tools/measure_h01_island.py`.
+    human_island_columns: int = 0
 
     # Dynamics
     #
@@ -268,18 +286,28 @@ class CorticalColumn:
     """
 
     __slots__ = ("index", "tier", "n", "x", "W", "inh_mask", "last_spike_time",
-                 "_lateral_inh_strength")
+                 "_lateral_inh_strength", "human_island")
 
     def __init__(self, index: int, tier: CorticalTier, n: int, cfg: MeshConfig,
-                 rng: np.random.Generator):
+                 rng: np.random.Generator, human_island: bool = False):
         self.index = index
         self.tier = tier
         self.n = n
+        self.human_island = bool(human_island)
         self.x = rng.standard_normal(n).astype(np.float32) * 0.05
 
         # Intra-column connectivity (dense)
-        mask = rng.random((n, n)) < cfg.intra_column_density
-        self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
+        if self.human_island:
+            # Strengths are contact counts drawn from what H01 measured in
+            # human cortex, not Gaussian draws. Same density, same sign
+            # convention, different distribution of strength: almost every
+            # connection is worth one contact and a rare one is worth fifty.
+            from core.connectome.island import wire_island
+
+            self.W = wire_island(n, cfg.intra_column_density, rng, contact_strength=0.1)
+        else:
+            mask = rng.random((n, n)) < cfg.intra_column_density
+            self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
 
         # Dale's law: mark inhibitory neurons, flip their outgoing weights negative
         num_inh = max(1, int(n * cfg.inhibitory_fraction))
@@ -400,7 +428,14 @@ class NeuralMesh:
         self.columns: list[CorticalColumn] = []
         for i in range(self.cfg.columns):
             tier = self._tier_for(i)
-            col = CorticalColumn(i, tier, self.cfg.neurons_per_column, self.cfg, self._rng)
+            col = CorticalColumn(
+                i,
+                tier,
+                self.cfg.neurons_per_column,
+                self.cfg,
+                self._rng,
+                human_island=i < int(getattr(self.cfg, "human_island_columns", 0) or 0),
+            )
             self.columns.append(col)
 
         #: Which tier each column belongs to, as a name, so a per-tier multiplier
