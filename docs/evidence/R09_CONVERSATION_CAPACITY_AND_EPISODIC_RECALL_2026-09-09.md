@@ -64,3 +64,35 @@ At 19:35 the actual neural feed also showed autonomous behavioral-gate clone
 calls outside governed context, Pyright offline-scope denial, deferred episodic
 writes, and diagnostic scheduler slips. These remain R08/R06 obligations;
 the memory bridge alone does not establish successful durable capture.
+
+## Post-Restart Replay and Recall Contract
+
+At 19:59 the supported desktop Reboot action replaced PID 34020 with PID
+58112. The boot endpoint measured expected and actual commit
+`eb81668465ac0a6ab8045a853ebfb688305fb6ff` and matching workspace/source
+hashes. Conversation history survived. Readiness was not stable: subsequent
+health probes timed out while the model repeatedly ran readiness probes.
+
+The actual neural feed showed deferred episodic capacity reaching 256 and
+dropping pending writes (23 shed before restart). This is a durable-capture
+failure, not evidence that recall alone repairs memory. The replacement also
+reported conversation-history read timeouts on its reserved receipt executor.
+
+The desktop correction replay was submitted at 20:00:44, delivery key
+`aura-chat-3bb1aa28-2292-4a87-8922-5d0e36eccd34`, turn
+`8aa47014253a44119d1cb9aa7597a45e`. It remained pending at 20:04:45.
+R09 is not closed by this replay.
+
+Temporal recall now consumes the facade's `score` and nested timestamp and
+reinforcement fields without mutating retrieved records. Unknown timestamps
+are labeled unknown rather than today. The focused facade/temporal suite
+passed 37 tests; smoke passed 164 with one skipped in 180.49 seconds. This
+formatter repair is not yet deployed to the live process.
+
+At 20:05:16 the replay returned an incorrect attribution to
+`core/science/environment_bench.py:313` / `RecoveryScore`. The terminal
+receipt was failed, with `desktop_cognitive_engine_required_no_reply`,
+`engine_think_invoked=false`, `recent_context_exchanges=0`, and no foreground
+generation. The displayed reply identified a smaller-model fallback. This
+does not measure the repaired engine history path: admission never invoked
+that engine. It does expose incorrect evidence substitution in the fallback.

@@ -10,7 +10,7 @@
 # today" — and would widen the moment somebody added an import, which is the
 # direction this rule exists to hold.
 
-description = "core.subject: may read and restore measured organism state, including effort; the organism may not read it."
+description = "core.subject: may read, restore and perturb measured organism state using its world-model observation contract; the organism may not read it."
 
 include_rules = [
     "+core.motivation",
@@ -47,6 +47,8 @@ include_rules = [
     "+core.runtime.service_registry",
     "+core.service_registration",
     "+core.soma.effort",
+    # Construct the same observation/action vectors the measured cycle uses.
+    "+core.world_model.observe_cycle",
 
     # Everything else.
     "+core.world_model",
