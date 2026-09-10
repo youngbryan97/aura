@@ -243,3 +243,113 @@ def test_a_sensory_signal_reaches_every_executive_column(seed, monkeypatch):
     assert report["executive_reached_from_sensory"] == report["executive_columns"]
     assert report["components"] == 1
     assert report["isolated_columns"] == 0
+
+
+# ── Dale's law, on the axis a synapse actually has ─────────────────────────
+
+
+def test_a_cell_sends_one_sign():
+    """`recurrent = W @ x` makes a cell's output its COLUMN, not its row.
+
+    The mesh negated the row, which is a cell's input, so every inhibitory cell
+    received nothing but inhibition and sent whichever sign the draw gave it.
+    Measured on column 0 before the fix: 71.7% of what inhibitory cells sent
+    was negative and 64.4% of what excitatory cells sent was negative too.
+    """
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    for column in NeuralMesh(MeshConfig()).columns[:8]:
+        outgoing = column.W[:, column.inh_mask]
+        assert np.all(outgoing[outgoing != 0] < 0)
+        outgoing = column.W[:, ~column.inh_mask]
+        assert np.all(outgoing[outgoing != 0] > 0)
+
+
+def test_an_inhibitory_synapse_is_stronger_than_an_excitatory_one():
+    """Potjans and Diesmann's g, and the reason the mesh does not saturate."""
+    from core.consciousness.neural_mesh import MeshConfig
+
+    assert MeshConfig().relative_inhibitory_strength == pytest.approx(4.0)
+
+
+def test_dale_survives_plasticity():
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    width = mesh.cfg.sensory_end * mesh.cfg.neurons_per_column
+    rng = np.random.default_rng(2)
+    for _ in range(120):
+        mesh.inject_sensory(rng.standard_normal(width).astype(np.float32) * 0.3)
+        mesh._tick_inner()
+    column = mesh.columns[0]
+    outgoing = column.W[:, column.inh_mask]
+    assert np.all(outgoing[outgoing != 0] <= 0)
+    outgoing = column.W[:, ~column.inh_mask]
+    assert np.all(outgoing[outgoing != 0] >= 0)
+
+
+# ── Two plasticity rules, not one ──────────────────────────────────────────
+
+
+def test_the_inhibitory_rule_has_its_own_window_and_depression():
+    from core.consciousness.neural_mesh import MeshConfig
+
+    config = MeshConfig()
+    assert config.inhibitory_stdp_window == pytest.approx(0.020)
+    assert config.stdp_window == pytest.approx(0.0168)
+    # alpha = 2 * rho * tau, with rho 5 Hz and tau 20 ms.
+    assert config.inhibitory_stdp_depression == pytest.approx(0.2)
+
+
+def test_plasticity_does_not_grow_synapses():
+    """It changes synapses that exist. Density is measured at construction."""
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    before = [int(np.count_nonzero(column.W)) for column in mesh.columns]
+    width = mesh.cfg.sensory_end * mesh.cfg.neurons_per_column
+    rng = np.random.default_rng(4)
+    for _ in range(200):
+        mesh.inject_sensory(rng.standard_normal(width).astype(np.float32) * 0.3)
+        mesh._tick_inner()
+    after = [int(np.count_nonzero(column.W)) for column in mesh.columns]
+    assert all(later <= earlier for earlier, later in zip(before, after, strict=True))
+
+
+# ── A unit rests at its drive ──────────────────────────────────────────────
+
+
+def test_the_mesh_does_not_run_to_its_ceiling():
+    """`dx = (-decay*x + drive)*dt` rests at drive/decay, which is forty times
+    the drive. Every unit ran to its clip and stayed there."""
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    width = mesh.cfg.sensory_end * mesh.cfg.neurons_per_column
+    drive = np.random.default_rng(3).standard_normal(width).astype(np.float32)
+    saturated = []
+    for _ in range(600):
+        mesh.inject_sensory(drive)
+        mesh._tick_inner()
+        state = np.concatenate([column.x for column in mesh.columns])
+        saturated.append(float(np.mean(np.abs(state) > 0.99)))
+    assert max(saturated[-100:]) < 0.05, "the mesh is pinned against its clip"
+
+
+def test_a_driven_column_settles_rather_than_drifting():
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    mesh = NeuralMesh(MeshConfig())
+    width = mesh.cfg.sensory_end * mesh.cfg.neurons_per_column
+    drive = np.random.default_rng(3).standard_normal(width).astype(np.float32)
+    trace = []
+    for _ in range(600):
+        mesh.inject_sensory(drive)
+        mesh._tick_inner()
+        sensory = np.concatenate(
+            [column.x for column in mesh.columns[: mesh.cfg.sensory_end]]
+        )
+        trace.append(float(np.mean(np.abs(sensory))))
+    early, late = np.mean(trace[100:200]), np.mean(trace[500:600])
+    assert late > 0.05, "a driven tier that carries nothing"
+    assert abs(late - early) < 0.1, "a driven tier that never settles"

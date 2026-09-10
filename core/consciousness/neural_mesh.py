@@ -255,14 +255,11 @@ class MeshConfig:
     #: wiring in one volume. Claiming it for long-range structure that came from
     #: nowhere near a microscope would be borrowing its authority.
     #:
-    #: Measured over 400 ticks with the same seed and the same drive, as the
+    #: Measured over 600 ticks with the same seed and the same drive, as the
     #: cortical densities were: the multistep-regression branching ratio goes
-    #: from 1.0058 to 1.0041 when every column takes the human wiring, which is
-    #: 31% of the distance to the critical 1.0 the regulator steers for. The
-    #: regression's own fit holds and the regime stays critical. The heaviest
-    #: connection goes from 6.3 times the median to 10.0, which is the tail
-    #: arriving. With each tier on its own layers' density the same change is
-    #: worth 1.0060 to 1.0047.
+    #: from 0.9923 to 0.9932 when every column takes the human wiring, and the
+    #: regression's own fit from 0.996 to 0.999. The heaviest connection goes
+    #: from 16.5 times the median to 56.0, which is the tail arriving.
     #:
     #: -1 means every column. Intra-column wiring is local wiring, which is
     #: what H01 measured; the inter-column matrices are long-range and keep
@@ -295,6 +292,33 @@ class MeshConfig:
     stdp_window: float = field(default_factory=_cortical_stdp_window)
     stdp_potentiation: float = 1.0       # A+
     stdp_depression: float = field(default_factory=_cortical_stdp_asymmetry)
+    #: Inhibitory synapses do not learn by the excitatory rule.
+    #:
+    #: Vogels et al. measured a SYMMETRIC window for inhibitory plasticity —
+    #: either order of firing strengthens the synapse — against a standing
+    #: depression on every presynaptic spike. The pair holds the postsynaptic
+    #: cell near a target rate, which is what makes inhibition track excitation
+    #: rather than drift under a rule derived from excitatory pairs.
+    #:
+    #: The depression constant is their own arithmetic: alpha = 2 * rho * tau,
+    #: with rho the target rate of 5 Hz and tau the 20 ms window. Nothing here
+    #: is a third number.
+    inhibitory_stdp_window: float = field(
+        default_factory=lambda: _from_cortex("inhibitory_stdp_window", 0.02)
+    )
+    inhibitory_stdp_depression: float = field(
+        default_factory=lambda: _from_cortex("inhibitory_stdp_depression", 0.2)
+    )
+    #: How fast inhibitory synapses learn relative to excitatory ones. One,
+    #: because no measurement here separates them and inventing a ratio would
+    #: be the thing this file exists to stop.
+    inhibitory_stdp_rate_ratio: float = 1.0
+    #: How much stronger one inhibitory synapse is than one excitatory one.
+    #: Potjans & Diesmann's g, and the reason a network with one inhibitory
+    #: cell in five does not saturate.
+    relative_inhibitory_strength: float = field(
+        default_factory=lambda: _from_cortex("relative_inhibitory_strength", 4.0)
+    )
 
     # Lateral inhibition
     lateral_inhibition_strength: float = 0.25
@@ -355,13 +379,12 @@ class CorticalColumn:
         # inhibitory at density 0.106, layers 2/3 are 22.0% at 0.135, and the
         # output layers are 17.3% at 0.091.
         #
-        # This costs a little on the one dynamical measure and is kept anyway.
-        # Measured against the global figures on the same seed and drive, the
-        # branching ratio sits 0.0006 further from critical, the regime is
-        # unchanged and the fit is unchanged. What it buys is the constraint
-        # the global figures cannot satisfy at all: her three bands now carry
-        # the composition their cortical layers were measured to have. A model
-        # is not judged on one recording.
+        # Measured against the global figures on the same seed and drive, with
+        # every column on the human wiring: the branching ratio is 0.9932
+        # either way and the fit is 0.999 against 1.000. The dynamics do not
+        # care, and the anatomy does — her three bands now carry the
+        # composition their cortical layers were measured to have, which the
+        # global figures cannot express at all.
         density = _for_tier(tier, "intra_column_density", cfg.intra_column_density)
         inhibitory_fraction = _for_tier(
             tier, "inhibitory_fraction", cfg.inhibitory_fraction
@@ -378,13 +401,33 @@ class CorticalColumn:
             self.W = wire_island(n, density, rng, contact_strength=0.1)
         else:
             mask = rng.random((n, n)) < density
-            self.W = (rng.standard_normal((n, n)).astype(np.float32) * 0.1) * mask
+            self.W = np.abs(
+                rng.standard_normal((n, n)).astype(np.float32) * 0.1
+            ) * mask
 
-        # Dale's law: mark inhibitory neurons, flip their outgoing weights negative
+        # Dale's law, on the presynaptic axis.
+        #
+        # `recurrent = W @ x` makes W[i, j] the weight FROM j INTO i, so a
+        # cell's output is its COLUMN. This negated the ROW, which is a cell's
+        # input: every inhibitory cell was receiving nothing but inhibition
+        # while sending whatever sign the draw happened to give it. Measured on
+        # column 0 before the fix: 100% of what inhibitory cells received was
+        # negative, 71.7% of what they sent was, and 64.4% of what EXCITATORY
+        # cells sent was negative too. There was no Dale's law in the mesh.
+        #
+        # And an inhibitory synapse is stronger than an excitatory one. Potjans
+        # and Diesmann's g is 4, and it is not an independent choice: with one
+        # cell in five inhibitory, 0.801 of unit excitation meets 0.199 * 4 =
+        # 0.794 of inhibition and the network sits at balance. Without it the
+        # mesh runs away — measured over 1,200 ticks with Dale's law applied
+        # and g left at 1, mean activity went from 0.385 to 0.978 and 95% of
+        # units pinned against their ceiling by tick 300.
         num_inh = max(1, int(n * inhibitory_fraction))
         self.inh_mask = np.zeros(n, dtype=bool)
         self.inh_mask[rng.choice(n, size=num_inh, replace=False)] = True
-        self.W[self.inh_mask, :] = -np.abs(self.W[self.inh_mask, :])
+        self.W[:, self.inh_mask] = -cfg.relative_inhibitory_strength * self.W[
+            :, self.inh_mask
+        ]
 
         # Zero diagonal (no self-connection)
         np.fill_diagonal(self.W, 0.0)
@@ -457,7 +500,18 @@ class CorticalColumn:
         inhibition[~self.inh_mask] = -self._lateral_inh_strength * inh_activity
 
         noise = np.random.standard_normal(self.n).astype(np.float32) * noise_sigma
-        dx = (-decay * self.x + activity + inhibition + noise) * dt
+        # A leaky integrator leaks its state toward its drive. This leaked the
+        # state and added the drive, which is a different equation: the resting
+        # point of `dx = (-decay*x + drive)*dt` is drive/decay, and with the
+        # cortical leak of 0.025 that is forty times whatever the unit is being
+        # driven by. Every unit ran to its clip and stayed there, which is why
+        # 95% of the mesh sat pinned at |x| > 0.99 after three hundred ticks
+        # once Dale's law was applied and the drive stopped cancelling itself.
+        #
+        # In this form the resting point is the drive itself, bounded by the
+        # tanh that produced it, and `decay` finally means what the constants
+        # file says it means: the fraction of its state a unit loses each step.
+        dx = (-self.x + activity + inhibition + noise) * decay
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         self.x = np.clip(self.x + dx, -1.0, 1.0).astype(np.float32)
 
@@ -1193,7 +1247,10 @@ class NeuralMesh:
             * noise_sigma
             * self._tier_vector(1)[:, None]
         )
-        dx = (-cfg.decay * x_matrix + activity + inhibition + noise) * dt
+        # The same leaky integrator as CorticalColumn.step, and for the same
+        # reason: the resting point of a unit is its drive, not its drive
+        # divided by the leak.
+        dx = (-x_matrix + activity + inhibition + noise) * cfg.decay
         dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
 
@@ -1468,6 +1525,33 @@ class NeuralMesh:
             return
 
         lr = self.cfg.stdp_lr * self._modulatory_state[1]
+        inhibitory_lr = lr * self.cfg.inhibitory_stdp_rate_ratio
+        inhibitory_window, inhibitory_window_valid = _finite_float(
+            self.cfg.inhibitory_stdp_window, 0.02
+        )
+        inhibitory_window, inhibitory_window_unchanged = _clamp_float(
+            inhibitory_window, lower=1e-6, upper=5.0
+        )
+        if not (inhibitory_window_valid and inhibitory_window_unchanged):
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh inhibitory plasticity window was out of bounds"),
+                action="normalized the inhibitory plasticity window",
+                severity="warning",
+                extra={"window": inhibitory_window},
+            )
+        inhibitory_alpha, alpha_valid = _finite_float(
+            self.cfg.inhibitory_stdp_depression, 0.2
+        )
+        inhibitory_alpha, alpha_unchanged = _clamp_float(
+            inhibitory_alpha, lower=0.0, upper=10.0
+        )
+        if not (alpha_valid and alpha_unchanged):
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh inhibitory plasticity constant was out of bounds"),
+                action="normalized the inhibitory depression constant",
+                severity="warning",
+                extra={"alpha": inhibitory_alpha},
+            )
         lr, lr_valid = _finite_float(lr, self.cfg.stdp_lr)
         lr, lr_unchanged = _clamp_float(lr, lower=0.0, upper=0.05)
         window, window_valid = _finite_float(self.cfg.stdp_window, 0.02)
@@ -1503,35 +1587,68 @@ class NeuralMesh:
             if not np.any(active):
                 continue
 
-            # Pairwise time differences (pre_i - post_j)
-            dt_matrix = t[:, None] - t[None, :]  # (n, n)
-
-            # Potentiation: pre fires before post (dt < 0 means pre was earlier)
-            # Clamp dt_matrix/window to prevent overflow in exp()
-            clamped_pos = np.clip(dt_matrix / window, -20.0, 20.0)
-            clamped_neg = np.clip(-dt_matrix / window, -20.0, 20.0)
-
-            potentiate = np.where(
-                (dt_matrix < 0) & (dt_matrix > -window) & active[:, None] & active[None, :],
-                a_plus * np.exp(clamped_pos),
-                0.0
+            # `recurrent = W @ x` makes W[i, j] the weight FROM j INTO i, so
+            # row i is the postsynaptic cell and column j the presynaptic one.
+            # This is the axis the whole rule hangs off, and it was read the
+            # other way round: the code potentiated on t_i < t_j, which under
+            # this convention is POST before PRE. The mesh was running
+            # anti-Hebbian, strengthening exactly the pairs a causal rule
+            # weakens.
+            delay = t[None, :] - t[:, None]  # pre minus post, so causal is < 0
+            both = active[:, None] & active[None, :]
+            causal = (delay < 0) & (delay > -window) & both
+            acausal = (delay > 0) & (delay < window) & both
+            near = np.clip(-np.abs(delay) / window, -20.0, 20.0)
+            # The inhibitory window is its own, 20 ms against the excitatory
+            # 16.8, and both come from the papers rather than from each other.
+            inhibitory_near = np.clip(
+                -np.abs(delay) / inhibitory_window, -20.0, 20.0
             )
-            # Depression: post fires before pre
-            depress = np.where(
-                (dt_matrix > 0) & (dt_matrix < window) & active[:, None] & active[None, :],
-                -a_minus * np.exp(clamped_neg),
-                0.0
-            )
+            inhibitory_paired = (np.abs(delay) < inhibitory_window) & both
 
-            dw = lr * (potentiate + depress).astype(np.float32)
+            # The excitatory rule, from Bi and Poo: pre before post strengthens,
+            # post before pre weakens, and the two halves are not the same size.
+            excitatory_dw = lr * (
+                np.where(causal, a_plus * np.exp(near), 0.0)
+                - np.where(acausal, a_minus * np.exp(near), 0.0)
+            ).astype(np.float32)
+
+            # The inhibitory rule, from Vogels et al. One rule for every synapse
+            # was the last plasticity assumption left in the mesh, and it is not
+            # what was measured: inhibitory synapses learn over a SYMMETRIC
+            # window — either order of firing strengthens them — against a
+            # standing depression on every presynaptic spike. What that pair of
+            # terms does is hold the cell being inhibited near a target rate, so
+            # inhibition tracks excitation instead of being learned by a rule
+            # derived from excitatory pairs.
+            presynaptic_fired = np.broadcast_to(active[None, :], both.shape)
+            inhibitory_dw = inhibitory_lr * (
+                np.where(inhibitory_paired, np.exp(inhibitory_near), 0.0)
+                - np.where(presynaptic_fired, inhibitory_alpha, 0.0)
+            ).astype(np.float32)
+
+            # Presynaptic cell class picks the rule, because that is what the
+            # synapse belongs to. Columns are presynaptic here.
+            dw = np.where(col.inh_mask[None, :], inhibitory_dw, excitatory_dw)
             dw = np.nan_to_num(dw, nan=0.0, posinf=0.0, neginf=0.0)
+            # Plasticity changes synapses that exist. It does not grow them.
+            #
+            # There was no such mask, so any two units that fired inside the
+            # window acquired a synapse whether or not one had ever been wired,
+            # and a column's density climbed toward full the longer it ran. All
+            # the measured densities above describe the mesh at construction and
+            # nothing was holding them there.
+            dw = dw * (col.W != 0)
 
-            # Respect Dale's law: don't flip inhibitory→excitatory
-            # Only modify magnitude, preserve sign
+            # Both rules change a synapse's STRENGTH; neither may change what it
+            # does. An inhibitory synapse is negative, so strengthening it means
+            # subtracting.
             col.W = np.nan_to_num(col.W, nan=0.0, posinf=1.0, neginf=-1.0)
+            polarity = np.where(col.inh_mask[None, :], -1.0, 1.0).astype(np.float32)
             old_sign = np.sign(col.W)
-            col.W += dw
-            # Where sign flipped, reset to zero (hard Dale's law)
+            col.W = col.W + dw * polarity
+            # A synapse that would change sign has been driven to nothing, which
+            # is where it stops.
             sign_flipped = (np.sign(col.W) != old_sign) & (old_sign != 0)
             col.W[sign_flipped] = 0.0
 
