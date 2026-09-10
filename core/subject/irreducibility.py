@@ -249,7 +249,14 @@ def phi_do(
     domains: tuple[str, ...] | None = None,
 ) -> PartitionReport:
     """The minimum over bipartitions of the loss the cut costs."""
-    live = domains if domains is not None else recording.live_domains()
+    # Every declared domain, not only the ones that moved. A domain that never
+    # moves is a domain the system can be cut away from for free, and that is a
+    # fact about the system rather than a nuisance in the recording: the
+    # frozen-slow null scored 0.022 with its four frozen domains dropped from
+    # the search and exactly zero with them in it, which is what "frozen slow"
+    # means. Scoring a null on the subsystem that happens to be alive measures
+    # a different system from the one under test.
+    live = domains if domains is not None else DOMAINS
     live = tuple(key for key in DOMAINS if key in live)
     now, nxt = transition_rows(recording, condition)
     where = _transition_index(recording, condition)

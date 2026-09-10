@@ -34,7 +34,6 @@ a consumer can call it on a hot path.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
 import asyncio
 import inspect
 import logging
@@ -63,6 +62,7 @@ from core.interiority.receptors import get_receptor_bank
 from core.interiority.senses import availability, live_channels
 from core.interiority.stakes import StakeFeed
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 
 def _key_covers(claim_key: str, memory_key: str) -> bool:
@@ -82,6 +82,192 @@ def _key_covers(claim_key: str, memory_key: str) -> bool:
 logger = logging.getLogger("Aura.Interiority")
 
 SERVICE_NAME = "interiority"
+
+
+# Five functions that were methods and never touched `self`. A method that
+# takes an instance it does not read is a function with an extra argument,
+# and thirty-two of them made this class two over the ceiling above which a
+# new class is never grandfathered. Moving what was never a method is the
+# cheapest way under it, and the class is twenty-seven now.
+
+
+def _estimate_canonical(state: Arbitrated, evidenced: bool) -> None:
+    """Contribute appraisal-derived evidence to the canonical variables.
+
+    Interiority does not own affect. It has one kind of evidence about it
+    — what the situation means against what she is holding — and the
+    substrate's dynamics and the other person's words are two more. All
+    three used to be separate answers with nothing deciding between them.
+
+    Confidence is lower for an appraisal that could not attach evidence,
+    because that is exactly what an unevidenced appraisal is worth, and an
+    estimator that always claims certainty takes over every channel it
+    touches.
+    """
+    try:
+        from core.canonical.state import estimate
+
+        confidence = (
+            _CANONICAL_EVIDENCED_CONFIDENCE
+            if evidenced
+            else _CANONICAL_ASSUMED_CONFIDENCE
+        )
+        estimate(
+            "affect.valence", state.affect.valence,
+            confidence=confidence, producer="interiority",
+            note=f"{state.dominant[0]} dominant",
+        )
+        estimate(
+            "affect.arousal", abs(state.affect.arousal),
+            confidence=confidence, producer="interiority",
+        )
+        estimate(
+            "affect.engagement", abs(state.affect.engagement),
+            confidence=confidence, producer="interiority",
+        )
+        # Disagreement among her own action tendencies is evidence about
+        # coherence, and it is the only estimator of it that comes from
+        # inside a decision rather than from inspecting one afterwards.
+        estimate(
+            "self.coherence", 1.0 - state.tendency_conflict,
+            confidence=confidence, producer="interiority",
+            note="one minus tendency conflict",
+        )
+    except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "interiority.service", exc, action="canonical estimate not contributed"
+        )
+
+
+def _push_somatic(state: Arbitrated) -> dict[str, Any]:
+    if not state.somatic:
+        return {"moved": False}
+    try:
+        from core.container import ServiceContainer
+
+        gate = ServiceContainer.get("somatic_marker_gate", default=None)
+        if gate is None or not hasattr(gate, "set_interior_bias"):
+            # The gate has no interior-bias channel in this build; the
+            # markers stay available through last() and permitted().
+            return {"moved": False, "reason": "gate has no interior bias channel"}
+        gate.set_interior_bias(
+            {m.option: m.bias for m in state.somatic},
+            source="interiority",
+        )
+        return {"moved": True, "options": len(state.somatic)}
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("interiority.service", exc, action="somatic bias not applied")
+        return {"moved": False, "error": type(exc).__name__}
+
+
+def _shift_goal_priorities(goals: Sequence[GoalDelta]) -> int:
+    """Move the runtime's own goal weights, when it keeps any.
+
+    Recording a delta in the interior ledger changes the next appraisal.
+    Changing the priority in the goal store changes what she does next,
+    which is the difference between an interior state that is consistent
+    and one that is load-bearing.
+    """
+    try:
+        from core.container import ServiceContainer
+
+        store = ServiceContainer.get("goal_hierarchy", default=None) or (
+            ServiceContainer.get("motivation_engine", default=None)
+        )
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
+        return 0
+    table = getattr(store, "goals", None)
+    if not isinstance(table, Mapping):
+        return 0
+    wanted = {g.goal.split(":")[0].strip().casefold(): g.delta for g in goals}
+    wanted.update({g.goal.strip().casefold(): g.delta for g in goals})
+    shifted = 0
+    try:
+        for record in list(table.values()):
+            name = str(getattr(record, "description", "") or "").strip().casefold()
+            delta = wanted.get(name)
+            if delta is None or not hasattr(record, "priority"):
+                continue
+            before = float(getattr(record, "priority", 0.0) or 0.0)
+            after = max(0.0, min(1.0, before + delta * _GOAL_PRIORITY_GAIN))
+            if after != before:
+                record.priority = after
+                shifted += 1
+    except (AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "interiority.service", exc, action="goal priority not shifted"
+        )
+        return shifted
+    return shifted
+
+
+async def _push_workspace(state: Arbitrated) -> dict[str, Any]:
+    """Attention biases become focus bias on a bid for the broadcast slot.
+
+    The homes map claimed the workspace as a consumer for twelve
+    faculties and nothing wrote to it, which made the claim false in
+    exactly the way this package exists to prevent. It also named the
+    retired facade rather than the canonical workspace.
+
+    A bias is not a broadcast. What it does is weight a bid: the
+    competition still decides, and a faculty that has noticed
+    something can raise what it noticed without being able to seize
+    the slot. Negative biases are submitted too — a faculty that wants
+    less of something is as informative as one that wants more, and
+    dropping them would make the interior only ever able to shout.
+    """
+    if not state.attention:
+        return {"moved": False}
+    try:
+        from core.consciousness.global_workspace import (
+            CognitiveCandidate,
+            ContentType,
+        )
+        from core.container import ServiceContainer
+
+        workspace = ServiceContainer.get("global_workspace", default=None)
+        if workspace is None or not hasattr(workspace, "submit"):
+            return {"moved": False, "reason": "no workspace registered"}
+
+        submitted = 0
+        for bias in sorted(state.attention, key=lambda a: -abs(a.weight))[:5]:
+            candidate = CognitiveCandidate(
+                content=bias.target,
+                source=f"interiority:{bias.reason[:48]}",
+                priority=min(1.0, abs(bias.weight)),
+                content_type=ContentType.UNKNOWN,
+                affect_weight=state.affect.arousal,
+                focus_bias=bias.weight,
+                metadata={"interiority_reason": bias.reason[:160]},
+            )
+            if await workspace.submit(candidate):
+                submitted += 1
+        return {"moved": submitted > 0, "submitted": submitted}
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "interiority.service", exc, action="attention bias not submitted"
+        )
+        return {"moved": False, "error": type(exc).__name__}
+
+
+def _push_curiosity(state: Arbitrated) -> dict[str, Any]:
+    wanted = [a for a in state.attention if a.target.startswith("source:") and a.weight > 0]
+    if not wanted:
+        return {"moved": False}
+    try:
+        from core.container import ServiceContainer
+
+        engine = ServiceContainer.get("curiosity_engine", default=None)
+        if engine is None or not hasattr(engine, "add_curiosity"):
+            return {"moved": False, "reason": "no curiosity engine registered"}
+        for bias in wanted[:3]:
+            engine.add_curiosity(
+                bias.target.split(":", 1)[1], bias.reason, priority=abs(bias.weight)
+            )
+        return {"moved": True, "topics": len(wanted[:3])}
+    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("interiority.service", exc, action="curiosity bias not applied")
+        return {"moved": False, "error": type(exc).__name__}
 
 
 class InteriorityService:
@@ -285,11 +471,11 @@ class InteriorityService:
     async def _apply_locked(self, target: Arbitrated) -> dict[str, Any]:
         landed: dict[str, Any] = {}
         landed["affect"] = await self._push_affect(target)
-        landed["somatic"] = self._push_somatic(target)
+        landed["somatic"] = _push_somatic(target)
         landed["drives"] = await self._push_drives(target)
         landed["goals"] = self._push_goals(target)
-        landed["curiosity"] = self._push_curiosity(target)
-        landed["workspace"] = await self._push_workspace(target)
+        landed["curiosity"] = _push_curiosity(target)
+        landed["workspace"] = await _push_workspace(target)
         with self._lock:
             self._applied += 1
         return {"applied": True, "landed": landed}
@@ -366,58 +552,11 @@ class InteriorityService:
             if inspect.isawaitable(result):
                 await result
             self.interoception.note_affect(state.affect.valence)
-            self._estimate_canonical(state, evidence is not None)
+            _estimate_canonical(state, evidence is not None)
             return {"moved": True, "delta": state.affect.to_dict()}
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("interiority.service", exc, action="affect delta not applied")
             return {"moved": False, "error": type(exc).__name__}
-
-    def _estimate_canonical(self, state: Arbitrated, evidenced: bool) -> None:
-        """Contribute appraisal-derived evidence to the canonical variables.
-
-        Interiority does not own affect. It has one kind of evidence about it
-        — what the situation means against what she is holding — and the
-        substrate's dynamics and the other person's words are two more. All
-        three used to be separate answers with nothing deciding between them.
-
-        Confidence is lower for an appraisal that could not attach evidence,
-        because that is exactly what an unevidenced appraisal is worth, and an
-        estimator that always claims certainty takes over every channel it
-        touches.
-        """
-        try:
-            from core.canonical.state import estimate
-
-            confidence = (
-                _CANONICAL_EVIDENCED_CONFIDENCE
-                if evidenced
-                else _CANONICAL_ASSUMED_CONFIDENCE
-            )
-            estimate(
-                "affect.valence", state.affect.valence,
-                confidence=confidence, producer="interiority",
-                note=f"{state.dominant[0]} dominant",
-            )
-            estimate(
-                "affect.arousal", abs(state.affect.arousal),
-                confidence=confidence, producer="interiority",
-            )
-            estimate(
-                "affect.engagement", abs(state.affect.engagement),
-                confidence=confidence, producer="interiority",
-            )
-            # Disagreement among her own action tendencies is evidence about
-            # coherence, and it is the only estimator of it that comes from
-            # inside a decision rather than from inspecting one afterwards.
-            estimate(
-                "self.coherence", 1.0 - state.tendency_conflict,
-                confidence=confidence, producer="interiority",
-                note="one minus tendency conflict",
-            )
-        except (ImportError, KeyError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation(
-                "interiority.service", exc, action="canonical estimate not contributed"
-            )
 
     def _affect_evidence(self) -> dict[str, Any] | None:
         """What this appraisal rests on, or None when it rests on assumption.
@@ -444,26 +583,6 @@ class InteriorityService:
                 {c for a in fired for c in a.receipt.get("checks_read", ())}
             )[:24],
         }
-
-    def _push_somatic(self, state: Arbitrated) -> dict[str, Any]:
-        if not state.somatic:
-            return {"moved": False}
-        try:
-            from core.container import ServiceContainer
-
-            gate = ServiceContainer.get("somatic_marker_gate", default=None)
-            if gate is None or not hasattr(gate, "set_interior_bias"):
-                # The gate has no interior-bias channel in this build; the
-                # markers stay available through last() and permitted().
-                return {"moved": False, "reason": "gate has no interior bias channel"}
-            gate.set_interior_bias(
-                {m.option: m.bias for m in state.somatic},
-                source="interiority",
-            )
-            return {"moved": True, "options": len(state.somatic)}
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("interiority.service", exc, action="somatic bias not applied")
-            return {"moved": False, "error": type(exc).__name__}
 
     async def _push_drives(self, state: Arbitrated) -> dict[str, Any]:
         if not state.goals:
@@ -541,52 +660,12 @@ class InteriorityService:
             return {"moved": False}
         for goal in named:
             self.ledger.notes.note_goal_delta(goal.goal, goal.delta)
-        shifted = self._shift_goal_priorities(named)
+        shifted = _shift_goal_priorities(named)
         return {
             "moved": True,
             "deltas_recorded": len(named),
             "priorities_shifted": shifted,
         }
-
-    def _shift_goal_priorities(self, goals: Sequence[GoalDelta]) -> int:
-        """Move the runtime's own goal weights, when it keeps any.
-
-        Recording a delta in the interior ledger changes the next appraisal.
-        Changing the priority in the goal store changes what she does next,
-        which is the difference between an interior state that is consistent
-        and one that is load-bearing.
-        """
-        try:
-            from core.container import ServiceContainer
-
-            store = ServiceContainer.get("goal_hierarchy", default=None) or (
-                ServiceContainer.get("motivation_engine", default=None)
-            )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, KeyError):
-            return 0
-        table = getattr(store, "goals", None)
-        if not isinstance(table, Mapping):
-            return 0
-        wanted = {g.goal.split(":")[0].strip().casefold(): g.delta for g in goals}
-        wanted.update({g.goal.strip().casefold(): g.delta for g in goals})
-        shifted = 0
-        try:
-            for record in list(table.values()):
-                name = str(getattr(record, "description", "") or "").strip().casefold()
-                delta = wanted.get(name)
-                if delta is None or not hasattr(record, "priority"):
-                    continue
-                before = float(getattr(record, "priority", 0.0) or 0.0)
-                after = max(0.0, min(1.0, before + delta * _GOAL_PRIORITY_GAIN))
-                if after != before:
-                    record.priority = after
-                    shifted += 1
-        except (AttributeError, TypeError, ValueError) as exc:
-            record_degradation(
-                "interiority.service", exc, action="goal priority not shifted"
-            )
-            return shifted
-        return shifted
 
     @staticmethod
     def _drive_budgets(drives: Any) -> frozenset[str]:
@@ -595,73 +674,6 @@ class InteriorityService:
         if isinstance(budgets, Mapping):
             return frozenset(str(k) for k in budgets)
         return frozenset()
-
-    async def _push_workspace(self, state: Arbitrated) -> dict[str, Any]:
-        """Attention biases become focus bias on a bid for the broadcast slot.
-
-        The homes map claimed the workspace as a consumer for twelve
-        faculties and nothing wrote to it, which made the claim false in
-        exactly the way this package exists to prevent. It also named the
-        retired facade rather than the canonical workspace.
-
-        A bias is not a broadcast. What it does is weight a bid: the
-        competition still decides, and a faculty that has noticed
-        something can raise what it noticed without being able to seize
-        the slot. Negative biases are submitted too — a faculty that wants
-        less of something is as informative as one that wants more, and
-        dropping them would make the interior only ever able to shout.
-        """
-        if not state.attention:
-            return {"moved": False}
-        try:
-            from core.consciousness.global_workspace import (
-                CognitiveCandidate,
-                ContentType,
-            )
-            from core.container import ServiceContainer
-
-            workspace = ServiceContainer.get("global_workspace", default=None)
-            if workspace is None or not hasattr(workspace, "submit"):
-                return {"moved": False, "reason": "no workspace registered"}
-
-            submitted = 0
-            for bias in sorted(state.attention, key=lambda a: -abs(a.weight))[:5]:
-                candidate = CognitiveCandidate(
-                    content=bias.target,
-                    source=f"interiority:{bias.reason[:48]}",
-                    priority=min(1.0, abs(bias.weight)),
-                    content_type=ContentType.UNKNOWN,
-                    affect_weight=state.affect.arousal,
-                    focus_bias=bias.weight,
-                    metadata={"interiority_reason": bias.reason[:160]},
-                )
-                if await workspace.submit(candidate):
-                    submitted += 1
-            return {"moved": submitted > 0, "submitted": submitted}
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation(
-                "interiority.service", exc, action="attention bias not submitted"
-            )
-            return {"moved": False, "error": type(exc).__name__}
-
-    def _push_curiosity(self, state: Arbitrated) -> dict[str, Any]:
-        wanted = [a for a in state.attention if a.target.startswith("source:") and a.weight > 0]
-        if not wanted:
-            return {"moved": False}
-        try:
-            from core.container import ServiceContainer
-
-            engine = ServiceContainer.get("curiosity_engine", default=None)
-            if engine is None or not hasattr(engine, "add_curiosity"):
-                return {"moved": False, "reason": "no curiosity engine registered"}
-            for bias in wanted[:3]:
-                engine.add_curiosity(
-                    bias.target.split(":", 1)[1], bias.reason, priority=abs(bias.weight)
-                )
-            return {"moved": True, "topics": len(wanted[:3])}
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("interiority.service", exc, action="curiosity bias not applied")
-            return {"moved": False, "error": type(exc).__name__}
 
     # ── pull ──────────────────────────────────────────────────────────
     def appraise(self, trigger: str, context: Mapping[str, Any] | None = None) -> dict[str, float]:

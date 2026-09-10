@@ -49,21 +49,47 @@ __all__ = [
 # ── surrogates over the real recording ───────────────────────────────────
 
 
-def replay_surrogate(recording: Recording, *, seed: int = 0) -> Recording:
-    """Every domain replayed from its own time origin. Marginals kept, coupling gone."""
+#: The largest share of a recording a replay offset may consume. The window
+#: every domain is read through is the rest of it, so a quarter buys eight
+#: distinct offsets on a run of eight conditions while keeping three quarters
+#: of the rows.
+REPLAY_MARGIN: float = 0.25
+
+
+def replay_surrogate(recording: Recording, *, seed: int = 0, cycle: int = 0) -> Recording:
+    """Every domain replayed from its own time origin. Marginals kept, coupling gone.
+
+    Read through a window rather than rolled. `np.roll` is circular, so each
+    domain acquired one discontinuity where its end met its beginning — and the
+    intact model, seeing every domain at once, can locate that jump from the
+    other domains' positions and predict it, which is real cross-domain
+    information the cut models lack. The surrogate scored 0.12 against a real
+    system's 0.03 for that reason alone: the artifact was the signal.
+
+    The offsets are whole multiples of the condition cycle, so every domain
+    still sees the same condition at the same row. Otherwise the surrogate also
+    destroys the alignment between a domain and its own condition, which is
+    structure the real system is entitled to and the null is not meant to take.
+    """
     rng = np.random.default_rng(seed)
-    x = recording.x.copy()
     span = recording.frames
+    margin = max(1, int(span * REPLAY_MARGIN))
+    keep = span - margin
+    if keep < 8:
+        return recording
+    step = max(1, cycle or len({*recording.conditions}) or 1)
+    offsets = max(1, margin // step)
+    x = np.empty((keep, recording.width), dtype=recording.x.dtype)
     for key in DOMAINS:
         block = recording.slices[key]
-        shift = int(rng.integers(span // 8 or 1, max(2, span - span // 8)))
-        x[:, block] = np.roll(recording.x[:, block], shift, axis=0)
+        start = int(rng.integers(0, offsets)) * step
+        x[:, block] = recording.x[start : start + keep, block]
     return Recording(
         x=x,
-        conditions=recording.conditions,
-        tags=recording.tags,
-        times=recording.times,
-        env=recording.env,
+        conditions=recording.conditions[:keep],
+        tags=recording.tags[:keep],
+        times=recording.times[:keep],
+        env=recording.env[:keep],
         env_names=recording.env_names,
         columns=recording.columns,
         slices=recording.slices,
