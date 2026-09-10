@@ -205,10 +205,16 @@ class HomeostaticCoupling:
                     # Also blend volatility and phi into cognitive parameters
                     volatility = substrate_state.get('volatility', 0.0)
                     phi = substrate_state.get('phi', 0.0)
-                    if volatility > 0.5:
-                        affect['arousal'] = min(1.0, affect['arousal'] + volatility * 0.1)
-                    if phi > 0.6:
-                        affect.setdefault('integration', phi)
+                    # Ungated. The contribution is already proportional to
+                    # the volatility, so the threshold only deleted the lower
+                    # half of the range: a substrate settling from 0.4 to 0.1
+                    # reached affect through nothing at all, and this is the
+                    # channel recurrent cognition has into feeling.
+                    affect['arousal'] = min(1.0, affect['arousal'] + volatility * 0.1)
+                    # And the integration reading goes in whatever it is.
+                    # Recorded only above 0.6, a reader could not tell a low
+                    # value from an absent one.
+                    affect['integration'] = phi
                 except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('homeostatic_coupling', e)
                     logger.debug("Substrate blending failed: %s", e)

@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .self_prediction import SelfPredictionLoop
     from .temporal_binding import TemporalBindingEngine
 
+from core.consciousness.workspace_feed import FLOOR as WORKSPACE_BID_FLOOR
 from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.schemas import TelemetryPayload
@@ -22,6 +23,12 @@ from core.schemas import TelemetryPayload
 from .global_workspace import CognitiveCandidate
 
 logger = logging.getLogger("Consciousness.Heartbeat")
+
+#: Below this a bid is not worth the competition's time — the same floor the
+#: cycle's own candidate builder uses, read from there rather than repeated as
+#: a different number in each subsystem.
+_BID_FLOOR: float = WORKSPACE_BID_FLOOR
+
 
 # How much the existential threat must RISE before it is signalled as acute,
 # and the level at which it is always signalled regardless of trend. A steady
@@ -840,26 +847,25 @@ class CognitiveHeartbeat:
         """
         affect_weight = abs(state.get("affect_valence", 0.0)) * 0.5
 
+        # Every bid below used to carry a gate of its own — a drive that could
+        # only speak above seventy percent urgency and no more than once every
+        # five minutes, a feeling that needed three tenths of arousal, a body
+        # that had to be thirty percent gone, a prediction error that had to
+        # pass 0.35. Each priority is already proportional to the reading, so
+        # the gate added nothing but a dead zone: a domain could not reach the
+        # workspace at all until it was already loud, and a small displacement
+        # of it reached nothing by construction.
+        #
+        # Deciding which bids are worth hearing is the competition's job, and
+        # it is better at it than a constant. A bid enters when there is
+        # something to say and the competition decides.
+
         # --- Drive candidate ---
         dominant_drive = state.get("dominant_drive", "curiosity")
         drive_urgency = state.get("drive_urgency", 0.3)
-
-        # Nag Suppression
-        # Only alert if urgency is high enough AND (time since last alert > 60s OR urgency spiked)
-        current_time = time.time()
-        last_alert = self._last_alert_times.get(dominant_drive, 0)
-        should_alert = False
-
-        if drive_urgency > 0.7:
-            if current_time - last_alert > 300:
-                should_alert = True
-            elif drive_urgency > self._last_alert_urgency.get(dominant_drive, 0) + 0.2:
-                should_alert = True  # Breakthrough alert if urgency spikes
-
-        if should_alert:
-            self._last_alert_times[dominant_drive] = current_time
+        if drive_urgency > _BID_FLOOR:
+            self._last_alert_times[dominant_drive] = time.time()
             self._last_alert_urgency[dominant_drive] = drive_urgency
-
             await self.workspace.submit(
                 CognitiveCandidate(
                     content=f"Drive alert: {dominant_drive} is depleted ({drive_urgency:.0%} urgency)",
@@ -872,31 +878,33 @@ class CognitiveHeartbeat:
         # --- Affect candidate ---
         emotion = state.get("affect_emotion", "Neutral")
         arousal = state.get("affect_arousal", 0.0)
-        if arousal > 0.3 or abs(state.get("affect_valence", 0.0)) > 0.3:
+        felt = min(1.0, arousal + abs(state.get("affect_valence", 0.0)))
+        if felt > _BID_FLOOR:
             await self.workspace.submit(
                 CognitiveCandidate(
                     content=f"Affective state: {emotion} (arousal={arousal:.2f})",
                     source="affect_engine",
-                    priority=min(1.0, arousal + abs(state.get("affect_valence", 0.0))),
+                    priority=felt,
                     affect_weight=affect_weight * 1.5,
                 )
             )
 
         # --- Embodiment candidate ---
         integrity = state.get("body_integrity", 100.0)
-        if integrity < 70.0:
+        wear = max(0.0, 1.0 - (integrity / 100.0))
+        if wear > _BID_FLOOR:
             await self.workspace.submit(
                 CognitiveCandidate(
                     content=f"Body integrity alert: {integrity:.1f}% (heat={state.get('body_heat', 30):.1f}°)",
                     source="embodiment",
-                    priority=max(0.3, 1.0 - (integrity / 100.0)),
+                    priority=wear,
                     affect_weight=0.3,
                 )
             )
 
         # --- Prediction surprise candidate ---
         surprise = self.predictor.get_surprise_signal()
-        if surprise > 0.35:
+        if surprise > _BID_FLOOR:
             unpredictable = self.predictor.get_most_unpredictable_dimension()
             await self.workspace.submit(
                 CognitiveCandidate(
@@ -921,23 +929,25 @@ class CognitiveHeartbeat:
             )
 
         # --- Qualia Impulse (Phase XVI) ---
-        # When ||q|| is high, Aura feels a strong "urge" to act or explore.
-        # Nag Suppression: Only fire if >60s since last alert or q_norm spikes by >0.15
+        # A surge is a rise, not a level. `q_norm` is a vector norm, unbounded
+        # above and running around five, and it was multiplied by 0.8 and used
+        # as a priority — so this bid arrived clamped at one on every tick it
+        # was allowed to speak, and won everything. Against its own previous
+        # reading it is a half when nothing changed and higher when the norm is
+        # climbing, which needs no scale to be chosen and cannot saturate.
         qualia_synthesizer = ServiceContainer.get("qualia_synthesizer", default=None)
-        if qualia_synthesizer and qualia_synthesizer.q_norm > 0.8:
-            last_q_alert = self._last_alert_times.get("qualia_surge", 0)
-            last_q_value = self._last_alert_urgency.get("qualia_surge", 0)
-            q_should_alert = (
-                current_time - last_q_alert > 600 or qualia_synthesizer.q_norm > last_q_value + 0.25
-            )
-            if q_should_alert:
-                self._last_alert_times["qualia_surge"] = current_time
-                self._last_alert_urgency["qualia_surge"] = qualia_synthesizer.q_norm
+        if qualia_synthesizer is not None:
+            now_norm = max(0.0, float(getattr(qualia_synthesizer, "q_norm", 0.0) or 0.0))
+            was_norm = max(0.0, float(self._last_alert_urgency.get("qualia_surge", 0.0) or 0.0))
+            self._last_alert_urgency["qualia_surge"] = now_norm
+            total = now_norm + was_norm
+            rise = 0.0 if total <= 1e-9 else now_norm / total
+            if rise > _BID_FLOOR and now_norm > 0.0:
                 await self.workspace.submit(
                     CognitiveCandidate(
-                        content=f"Phenomenal Surge: High qualia intensity (||q||={qualia_synthesizer.q_norm:.2f})",
+                        content=f"Phenomenal surge: qualia intensity ||q||={now_norm:.2f}",
                         source="qualia_synthesizer",
-                        priority=qualia_synthesizer.q_norm * 0.8,
+                        priority=rise,
                         affect_weight=affect_weight * 2.0,
                     )
                 )
@@ -948,15 +958,17 @@ class CognitiveHeartbeat:
         try:
             drive_engine = ServiceContainer.get("drive_engine", default=None)
             if drive_engine and getattr(drive_engine, "seek_novelty", False):
-                boredom_lvl = drive_engine.boredom_level
-                last_boredom_alert = self._last_alert_times.get("boredom_seek", 0)
-                if current_time - last_boredom_alert > 120:  # max once per 2 min
-                    self._last_alert_times["boredom_seek"] = current_time
+                boredom_lvl = max(0.0, min(1.0, float(drive_engine.boredom_level or 0.0)))
+                # At what it is, with no clock. Gated to once every two minutes
+                # it also made two arms of a paired trial differ by whether the
+                # window had elapsed between them, which is the wall clock
+                # entering a measurement of the organism.
+                if boredom_lvl > _BID_FLOOR:
                     await self.workspace.submit(
                         CognitiveCandidate(
                             content=f"Boredom: prediction landscape stale ({boredom_lvl:.0%}). Seeking novelty.",
                             source="boredom_accumulator",
-                            priority=min(0.85, 0.5 + boredom_lvl * 0.4),
+                            priority=boredom_lvl,
                             affect_weight=affect_weight * 1.5,
                         )
                     )
@@ -972,7 +984,7 @@ class CognitiveHeartbeat:
         # When FE is notable, its dominant_action competes for workspace attention
         try:
             fe_engine = ServiceContainer.get("free_energy_engine", default=None)
-            if fe_engine and fe_engine.current and fe_engine.current.free_energy > 0.35:
+            if fe_engine and fe_engine.current and fe_engine.current.free_energy > _BID_FLOOR:
                 fe = fe_engine.current
                 urgency = fe_engine.get_action_urgency()
                 await self.workspace.submit(

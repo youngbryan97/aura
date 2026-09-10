@@ -51,6 +51,7 @@ include_rules = [
     "+core.world_model.observe_cycle",
 
     # Everything else.
+    "+core.world_model",
     "-core",
     "-interface",
     "-skills",
