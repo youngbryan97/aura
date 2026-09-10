@@ -195,3 +195,58 @@ def test_a_world_model_column_carries_the_quantity_it_is_named_for(leaf: str, co
         f"{column} says it carries {leaf}; changing {leaf} moved "
         f"{[columns[i] for i in moved]}"
     )
+
+
+def test_no_two_domains_read_the_same_field() -> None:
+    """A shared column manufactures coupling between the domains that share it.
+
+    Perception and the world model both read `world.known_entities`, so who is
+    in the room appeared in two domains at once and every displacement of
+    either moved both. An edge between two domains that share a column is an
+    edge to a column, not to a domain.
+    """
+    from collections import defaultdict
+
+    from core.subject.state import _SCHEMAS
+
+    readers = defaultdict(set)
+    for domain, schema in _SCHEMAS.items():
+        for source in schema.sources:
+            readers[source].add(domain)
+    shared = {source: sorted(names) for source, names in readers.items() if len(names) > 1}
+    assert not shared, f"fields read by more than one domain: {shared}"
+
+
+def test_the_world_model_displacement_reaches_the_forward_model() -> None:
+    """A dict went in where an observation vector was expected."""
+    import asyncio
+
+    from core.subject.state import Organs, perturb_organs
+
+    seen = []
+
+    class _Model:
+        def observe(self, observation, action=None, *, learn=True):
+            seen.append((observation, action, learn))
+            return {}
+
+    state = AuraState.default()
+    assert asyncio.run(perturb_organs(Organs(world_model=_Model()), "W", 0.15, state=state))
+    assert seen, "the forward model was never shown anything"
+    observation, action, learn = seen[0]
+    assert hasattr(observation, "shape"), f"not a vector: {type(observation).__name__}"
+    assert observation.size > 4
+    assert learn is True
+
+
+def test_displacing_the_world_model_without_a_situation_is_refused() -> None:
+    """Silently succeeding on nothing is how the dict went unnoticed."""
+    import asyncio
+
+    from core.subject.state import Organs, perturb_organs
+
+    class _Model:
+        def observe(self, *args, **kwargs):
+            raise AssertionError("should not be reached")
+
+    assert not asyncio.run(perturb_organs(Organs(world_model=_Model()), "W", 0.15))

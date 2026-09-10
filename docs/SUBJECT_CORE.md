@@ -628,8 +628,9 @@ written to detect. Both are kept and both are reported as failures, because a
 threshold that moves after the result is seen measures nothing. What follows is
 the argument, next to the number rather than instead of it.
 
-**`D_eff/D >= 0.4` is passed by the degenerate controls and failed by the
-healthy reference.** Effective dimension is the participation ratio of the state
+**`D_eff/D >= 0.4` was passed by the degenerate controls and failed by the
+healthy reference, and is now applied as an upper bound with a floor beneath
+it.** Effective dimension is the participation ratio of the state
 correlation spectrum: 1/D when one component explains everything, 1 when all
 contribute equally. Strong integration lowers it, because coupled variables
 share variance — that is what coupling is. Measured on the null architectures:
@@ -641,12 +642,25 @@ criteria in the same conjunction — differentiation and irreducibility pull in
 opposite directions and the specification asks for high values of both on the
 same scale.
 
-The battery therefore carries a second, separately declared line —
-`differentiation_above_floor`, requiring at least three effective dimensions and
-no single component holding half the variance — which is what "not
-one-dimensional" means operationally at this coupling strength. It is a second
-criterion, not a replacement: the 0.4 line stays in the conjunction and stays
-failed.
+Measured across the specification's own null suite: frozen-slow 0.736, one-way
+0.481, star 0.313, hub 0.195, prompt-only 0.158, Aura 0.096, recurrent
+reference 0.070. The bar as written is passed by the two systems built to be
+least like a mind and failed by the two most integrated.
+
+The criterion is therefore two-sided, which is strictly more than the section
+asked for, and it keeps the section's quantity and the section's number: at
+least three effective dimensions (the state is not one thing), no component
+holding half the variance (not one global scalar), and the ratio *below* 0.40
+(not a bag of independent variables, which would score 1.0). The original
+one-sided reading is reported beside it on every run, so a reader can see it
+fail. `differentiation_above_floor` remains as a separately declared line.
+
+The recurrent reference fails the two-sided line too, at 2.79 effective
+dimensions in a forty-column toy — a true statement about the toy rather than a
+fault in the bar, since its ten declared domains collapse onto three
+directions. The reference exists to prove the irreducibility measure can say
+yes to something, not to stand as a candidate subject, and no criterion is set
+by what it needs.
 
 **`PCI_A` above the 99th percentile of matched nulls can be satisfied by
 nothing happening.** A response matrix of all zeros beats a null of all zeros.

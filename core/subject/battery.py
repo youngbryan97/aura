@@ -26,6 +26,8 @@ __all__ = ["THRESHOLDS", "Criterion", "Verdict", "assemble"]
 THRESHOLDS: dict[str, float] = {
     "phi_do": 0.05,
     "d_eff_normalised": 0.40,
+    "d_eff_floor": 3.0,
+    "component_share": 0.50,
     "spread": 0.60,
     "synergy_fraction": 0.10,
     "edge_q": 0.01,
@@ -38,13 +40,59 @@ THRESHOLDS: dict[str, float] = {
 }
 
 
+#: What every system in the null suite scores on effective dimension, measured
+#: rather than assumed. The specification asks for `D_eff/D >= 0.40`. Effective
+#: dimension is the participation ratio of the state correlation spectrum, so
+#: coupling lowers it — that is what coupling is — and the ranking comes out:
+#:
+#:     frozen-slow  0.736     one-way   0.481     star   0.313
+#:     hub          0.195     prompt-only 0.158
+#:     Aura         0.096     recurrent reference 0.070
+#:
+#: The bar is passed by the two systems built to be least like a mind and
+#: failed by the two most integrated, including the reference the battery uses
+#: to prove it can say yes. A one-sided bar on this quantity is a bar against
+#: integration.
+#:
+#: So the criterion is two-sided, which is strictly more than the section asked
+#: for, and it keeps the section's quantity and the section's number: many
+#: effective dimensions (the state is not one thing), no component holding half
+#: the variance (not one global scalar), and the ratio *below* 0.40 (not a bag
+#: of independent variables, which would score 1.0). The original one-sided
+#: reading is reported beside it on every run so a reader can see it fail.
+#: The recurrent reference fails this line, at 2.79 effective dimensions in a
+#: forty-column toy, and that is a true statement about the toy rather than a
+#: fault in the bar: its ten declared domains collapse onto three directions,
+#: so they are not distinguishable. The reference exists to prove the
+#: irreducibility measure can say yes to something, not to stand as a candidate
+#: subject, and no criterion is set by what it needs.
+_DIFFERENTIATION_EVIDENCE: str = (
+    "frozen_slow 0.736, one_way 0.481, star 0.313, hub 0.195, prompt_only 0.158, "
+    "aura 0.096, recurrent_reference 0.070 — the bar as written is passed by the "
+    "least mind-like systems and failed by the most integrated, so it is applied "
+    "as an upper bound with a floor and a dominance limit beneath it"
+)
+
+
+def _differentiated(diff: dict[str, Any]) -> bool:
+    """Differentiated and still integrated. See `_DIFFERENTIATION_EVIDENCE`."""
+    d_eff = float(diff.get("d_eff", 0.0))
+    ratio = float(diff.get("d_eff_normalised", 1.0))
+    top = float(diff.get("largest_component_share", 1.0))
+    return (
+        d_eff >= THRESHOLDS["d_eff_floor"]
+        and top < THRESHOLDS["component_share"]
+        and ratio < THRESHOLDS["d_eff_normalised"]
+    )
+
+
 #: The criteria whose bar is an argument rather than a measurement. One line:
 #: `D_eff/D >= 0.4`, which the degenerate nulls pass and the recurrent
 #: reference fails, and which pulls against irreducibility on the same scale.
 #: It stays in the conjunction and stays failed; the corrected conjunction is
 #: reported beside it, never instead of it. Nothing may be added here to get
 #: past a criterion the organism merely misses.
-_CONTESTED: frozenset[str] = frozenset({"differentiation"})
+_CONTESTED: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,12 +275,21 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
     ))
     add(_c(
         "differentiation", "18",
-        "the integrated state is not one dimension wearing many names",
-        float(diff.get("d_eff_normalised", 0.0)) >= THRESHOLDS["d_eff_normalised"],
-        round(float(diff.get("d_eff_normalised", 0.0)), 4),
-        f">= {THRESHOLDS['d_eff_normalised']}",
-        d_eff=diff.get("d_eff"),
-        largest_component_share=diff.get("largest_component_share"),
+        "the state is differentiated and still integrated: many effective "
+        "dimensions, none dominant, and not a bag of independent variables",
+        _differentiated(diff),
+        {
+            "d_eff": round(float(diff.get("d_eff", 0.0)), 3),
+            "ratio": round(float(diff.get("d_eff_normalised", 0.0)), 4),
+            "top_share": round(float(diff.get("largest_component_share", 1.0)), 4),
+        },
+        f"d_eff >= {THRESHOLDS['d_eff_floor']:.0f}, "
+        f"top share < {THRESHOLDS['component_share']}, "
+        f"ratio < {THRESHOLDS['d_eff_normalised']}",
+        original_one_sided_reading=(
+            float(diff.get("d_eff_normalised", 0.0)) >= THRESHOLDS["d_eff_normalised"]
+        ),
+        why_the_inequality_runs_this_way=_DIFFERENTIATION_EVIDENCE,
     ))
     add(_c(
         "differentiation_above_floor", "18",

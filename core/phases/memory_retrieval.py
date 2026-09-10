@@ -594,6 +594,12 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 logger.debug("Failed to push memory affect: %s", exc)
 
+        # Recall costs the search, not the finding. Reported after the early
+        # return below, a recall that came back empty cost nothing — so the
+        # body could not feel a fruitless search, and the column that carries
+        # this was constant for the whole of every recording.
+        note_effort("recall", max(1, len(memory_candidates)))
+
         scores: list[float] = []
         if memory_candidates:
             memory_candidates.sort(key=lambda item: item[0], reverse=True)
@@ -612,9 +618,6 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
-        # Recall costs something, and a body that cannot feel its own exertion
-        # cannot notice that thinking harder was expensive.
-        note_effort("recall", len(memory_candidates))
         new_state.response_modifiers["memory_retrieval_signature"] = {
             "query": query[:160],
             "retrieval_limit": retrieval_limit,

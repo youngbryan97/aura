@@ -193,3 +193,41 @@ def test_the_deliberation_probe_reaches_the_drive_that_decides() -> None:
     moved = {names[i] for i in range(len(names)) if abs(after[i] - before[i]) > 1e-9}
     assert "D.drive_growth" in moved
     assert state.motivation.budgets["growth"]["level"] > 50.0
+
+
+def test_deliberation_has_a_column_for_how_hard_it_is_pressing() -> None:
+    """The load is a count, and an intention every turn left it flat.
+
+    Its urgency tracked the coherence, the surprise, the distress, the strain
+    and the novelty of the moment, and none of that could reach deliberation's
+    own state — so every edge into this domain measured zero while five domains
+    were changing what it decided.
+    """
+    from core.subject.state import feature_names, read_core_state
+
+    names = feature_names()
+    assert "D.initiative_urgency" in names
+    index = names.index("D.initiative_urgency")
+
+    phase = _phase()
+    calm = AuraState.default()
+    rough = AuraState.default()
+    rough.cognition.coherence_score = 0.2
+    for state in (calm, rough):
+        state.cognition.pending_initiatives = [dict(phase._assess_needs(state))]
+
+    quiet = read_core_state(calm).vector()[index]
+    pressed = read_core_state(rough).vector()[index]
+    assert pressed > quiet > 0.0
+
+
+def test_a_fruitless_recall_still_cost_the_search() -> None:
+    """Reported after the early return, an empty recall cost nothing at all."""
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "core" / "phases" / "memory_retrieval.py"
+    ).read_text()
+    at_report = source.index('note_effort("recall"')
+    at_return = source.index("if not memories:")
+    assert at_report < at_return, "the recall effort is reported only on success again"
