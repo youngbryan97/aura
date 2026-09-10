@@ -115,6 +115,19 @@ class MeshLayer:
         }
 
 
+def _mesh_seed(mesh: Any, fallback: int = 42) -> int:
+    """The seed a mesh was built from, whatever shape its generator takes."""
+    generator = getattr(mesh, "_rng", None)
+    entropy = getattr(getattr(generator, "bit_generator", None), "seed_seq", None)
+    entropy = getattr(entropy, "entropy", None)
+    if isinstance(entropy, list | tuple) and entropy:
+        entropy = entropy[0]
+    try:
+        return int(entropy)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return fallback
+
+
 def build_mesh_layer(mesh: Any = None, *, threshold: float = 0.0) -> MeshLayer:
     """Read the mesh's own wiring, or build one exactly as the runtime would.
 
@@ -160,9 +173,11 @@ def build_mesh_layer(mesh: Any = None, *, threshold: float = 0.0) -> MeshLayer:
         columns=columns,
         tiers=tiers,
         edges=edges,
-        seed=int(getattr(mesh, "_rng", None).bit_generator.seed_seq.entropy)
-        if hasattr(getattr(mesh, "_rng", None), "bit_generator")
-        else 42,
+        # The mesh derives a stream per structure from one seed, so the
+        # entropy is a list rather than a number. What identifies this graph is
+        # the seed, not the stream, and reading the first element gets it for
+        # both shapes.
+        seed=_mesh_seed(mesh),
         density=len(edges) / possible if possible else 0.0,
         note=(
             "built offline from NeuralMesh() with its own seed; a live mesh's "

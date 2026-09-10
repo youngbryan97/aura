@@ -178,6 +178,63 @@ STILL_CHOSEN: dict[str, str] = {
 }
 
 
+#: Which cortical populations stand behind each of the mesh's three tiers.
+#:
+#: The mesh has a sensory band, an association band and an executive band, and
+#: cortex has four laminar ones. The mapping is the standard cortical
+#: feedforward account and not a choice about Aura: layer 4 is where thalamic
+#: input arrives, layers 2/3 are where it is elaborated and passed sideways,
+#: and layers 5 and 6 are the output layers, 5 projecting subcortically and 6
+#: back to the thalamus.
+#:
+#: Indices are into POPULATIONS, so the arithmetic below reads the same table
+#: the densities came from.
+TIER_POPULATIONS: dict[str, tuple[int, ...]] = {
+    "sensory": (2, 3),
+    "association": (0, 1),
+    "executive": (4, 5, 6, 7),
+}
+
+
+def derived_tier_constants() -> dict[str, dict[str, Any]]:
+    """What differs between the mesh's tiers, from the layers behind them.
+
+    One set of dynamics ran all 4,096 units. Cortex does not work that way, and
+    the table that supplied the mesh's global density says so directly: the
+    inhibitory share is 22.0% in layers 2/3, 20.0% in layer 4 and 17.3% in the
+    output layers, and the wiring inside a band is 0.135 dense in layers 2/3,
+    0.106 in layer 4 and 0.091 in the output layers. The single global figures
+    the mesh has been using, 0.1986 and 0.1288, are averages of things that
+    were never the same.
+
+    Nothing here is chosen. Each number is the mean of the entries of Potjans
+    and Diesmann's matrix that fall inside the band, or that band's inhibitory
+    headcount over its total.
+    """
+    from core.connectome.microcircuit import CORTICAL_CONN_PROBS, CORTICAL_SIZES, POPULATIONS
+
+    tiers: dict[str, dict[str, Any]] = {}
+    for tier, indices in TIER_POPULATIONS.items():
+        inhibitory = sum(
+            CORTICAL_SIZES[index] for index in indices if POPULATIONS[index].endswith("I")
+        )
+        total = sum(CORTICAL_SIZES[index] for index in indices)
+        probabilities = [
+            CORTICAL_CONN_PROBS[row][column] for row in indices for column in indices
+        ]
+        tiers[tier] = {
+            "inhibitory_fraction": round(inhibitory / total, 6) if total else 0.0,
+            "intra_column_density": round(sum(probabilities) / len(probabilities), 6),
+            "populations": tuple(POPULATIONS[index] for index in indices),
+            "cells": total,
+            "arithmetic": (
+                f"{inhibitory} inhibitory of {total}; "
+                f"{len(probabilities)} matrix entries inside the band"
+            ),
+        }
+    return tiers
+
+
 def derived_mesh_constants() -> dict[str, Any]:
     """The mesh constants that follow from published cortical measurements.
 
