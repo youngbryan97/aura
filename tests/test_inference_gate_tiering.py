@@ -622,6 +622,67 @@ async def test_inference_gate_passes_repairable_self_reflection_to_downstream_re
 
 
 @pytest.mark.asyncio
+async def test_inference_gate_assesses_recollection_against_supplied_transcript():
+    gate = InferenceGate()
+    recalled = "We were discussing database recovery and idempotent redo operations."
+    client = _FakeClient(recalled)
+
+    result = await gate._generate_with_client(
+        client,
+        "What topic were we discussing before I asked where it came from?",
+        "",
+        [],
+        get_deadline(10.0),
+        "Cortex",
+        messages=[
+            {"role": "user", "content": "How does database recovery safely redo changes?"},
+            {
+                "role": "assistant",
+                "content": "It uses idempotent redo operations to recover committed changes.",
+            },
+            {
+                "role": "user",
+                "content": "What topic were we discussing before I asked where it came from?",
+            },
+        ],
+        origin="desktop_quick_user",
+        foreground_request=True,
+    )
+
+    assert result == recalled
+    client.generate_text_async.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_inference_gate_still_rejects_unsupported_shared_history():
+    gate = InferenceGate()
+    invented = "We were discussing your prison sentence and the moonlit courtyard."
+    client = _FakeClient(invented)
+
+    result = await gate._generate_with_client(
+        client,
+        "What topic were we discussing?",
+        "",
+        [],
+        get_deadline(10.0),
+        "Cortex",
+        messages=[
+            {"role": "user", "content": "How does database recovery safely redo changes?"},
+            {
+                "role": "assistant",
+                "content": "It uses idempotent redo operations to recover committed changes.",
+            },
+            {"role": "user", "content": "What topic were we discussing?"},
+        ],
+        origin="desktop_quick_user",
+        foreground_request=True,
+    )
+
+    assert result is None
+    client.generate_text_async.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_inference_gate_passes_repairable_reliability_draft_downstream():
     gate = InferenceGate()
     draft = (

@@ -9149,9 +9149,24 @@ class InferenceGate:
                 )
                 return None
             if is_user_visible:
+                # Judge recalled conversation against the same transcript
+                # supplied to the generator, not only the current question.
+                prior_messages = llm_messages[:-1]
+                recent_user_messages = [
+                    str(message.get("content") or "")
+                    for message in prior_messages
+                    if message.get("role") == "user"
+                ]
+                conversation_grounding = [
+                    f"Aura previously replied: {message.get('content') or ''}"
+                    for message in prior_messages
+                    if message.get("role") == "assistant"
+                ]
                 assessment = assess_user_facing_reply(
                     user_input_for_eval,
                     cleaned,
+                    recent_user_messages=recent_user_messages,
+                    grounding=conversation_grounding,
                     generation_stop_reason=generation_stop_reason,
                 )
                 if assessment.retryable:

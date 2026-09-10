@@ -96,3 +96,13 @@ receipt was failed, with `desktop_cognitive_engine_required_no_reply`,
 generation. The displayed reply identified a smaller-model fallback. This
 does not measure the repaired engine history path: admission never invoked
 that engine. It does expose incorrect evidence substitution in the fallback.
+
+The next foreground replay reached the 27B Cortex with five recent exchanges,
+but its draft was rejected as `fabricated_shared_history`. The assessment
+boundary had passed only the current question to the shared-history checker,
+even though generation received the transcript. It now supplies both prior
+user turns and prior Aura replies from that exact message sequence. A grounded
+"we were discussing database recovery" reply passes; an invented prison and
+moonlit-courtyard recollection remains rejected. The focused inference and
+shared-history suites passed 233 tests. This repair still requires deployment
+and a successful live replay before R09 can close.
