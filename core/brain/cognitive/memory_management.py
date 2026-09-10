@@ -113,6 +113,39 @@ class _UnionFind:
             self.rank[left_root] += 1
 
 
+# Four statics that were never about this class: a metadata lookup, a
+# finite-number check, a rank, and whether an object has some methods.
+# Thirty-two of them made the class two over the ceiling above which a new
+# class is never grandfathered, and a static method is a function that has
+# been filed under a class. Twenty-eight now.
+
+
+def _metadata_value(metadata: Mapping[str, Any], keys: Sequence[str]) -> str:
+    for key in keys:
+        value = str(metadata.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _finite_number(value: Any, default: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return number if math.isfinite(number) else default
+
+
+def _winner_rank(record: MemoryRecord) -> tuple[int, float, float, str]:
+    importance = _finite_number(record.metadata.get("importance"), 0.5)
+    timestamp = _finite_number(record.metadata.get("timestamp"), 0.0)
+    return (len(record.content), importance, timestamp, record.id)
+
+
+def _has_methods(candidate: Any, *names: str) -> bool:
+    return all(callable(getattr(candidate, name, None)) for name in names)
+
+
 class MemoryConsolidator:
     """Consolidate duplicate memories without crossing evidence or owner boundaries."""
 
@@ -231,7 +264,7 @@ class MemoryConsolidator:
             return "unsupported"
 
         sqlite = getattr(self.vector_memory, "_sqlite_vectors", None)
-        if sqlite is not None and self._has_methods(
+        if sqlite is not None and _has_methods(
             sqlite,
             "count",
             "iter_records",
@@ -239,7 +272,7 @@ class MemoryConsolidator:
         ):
             return "sqlite"
         collection = getattr(self.vector_memory, "_collection", None)
-        if collection is not None and self._has_methods(
+        if collection is not None and _has_methods(
             collection,
             "count",
             "get",
@@ -249,10 +282,6 @@ class MemoryConsolidator:
         ):
             return "chroma"
         return "unsupported"
-
-    @staticmethod
-    def _has_methods(candidate: Any, *names: str) -> bool:
-        return all(callable(getattr(candidate, name, None)) for name in names)
 
     def _fetch_memories(self, report: ConsolidationReport) -> list[MemoryRecord]:
         report.backend = self._backend_kind()
@@ -416,17 +445,17 @@ class MemoryConsolidator:
         metadata = dict(metadata_raw)
         if metadata.get("legal_hold") is True or metadata.get("consolidation_allowed") is False:
             raise ValueError("governance_hold")
-        memory_class = self._metadata_value(metadata, _CLASS_KEYS) or "general"
+        memory_class = _metadata_value(metadata, _CLASS_KEYS) or "general"
         sensitivity = str(metadata.get("sensitivity") or "").strip().casefold()
         if memory_class.casefold() in _SENSITIVE_CLASSES or sensitivity in _SENSITIVE_CLASSES:
             raise ValueError("sensitive_memory_class")
 
         collection = self._collection_name()
-        record_namespace = self._metadata_value(metadata, _NAMESPACE_KEYS)
+        record_namespace = _metadata_value(metadata, _NAMESPACE_KEYS)
         if self.namespace and record_namespace and self.namespace != record_namespace:
             raise ValueError("namespace_scope_mismatch")
         namespace = self.namespace or record_namespace or collection
-        record_principal = self._metadata_value(metadata, _PRINCIPAL_KEYS)
+        record_principal = _metadata_value(metadata, _PRINCIPAL_KEYS)
         if self.principal_id and record_principal and self.principal_id != record_principal:
             raise ValueError("principal_scope_mismatch")
         principal = self.principal_id or record_principal
@@ -465,14 +494,6 @@ class MemoryConsolidator:
             revision=revision,
             backend_revision=float(backend_revision) if backend_revision is not None else None,
         )
-
-    @staticmethod
-    def _metadata_value(metadata: Mapping[str, Any], keys: Sequence[str]) -> str:
-        for key in keys:
-            value = str(metadata.get(key) or "").strip()
-            if value:
-                return value
-        return ""
 
     def _collection_name(self) -> str:
         return str(getattr(self.vector_memory, "collection_name", "default") or "default")
@@ -559,7 +580,7 @@ class MemoryConsolidator:
         return sorted(clusters, key=lambda cluster: tuple(item.id for item in cluster))
 
     def _merge_cluster(self, cluster: list[MemoryRecord]) -> dict[str, Any]:
-        winner = max(cluster, key=self._winner_rank)
+        winner = max(cluster, key=_winner_rank)
         losers = sorted((item for item in cluster if item.id != winner.id), key=lambda item: item.id)
         receipt_id = hashlib.sha256(
             "|".join(sorted(item.revision for item in cluster)).encode("ascii")
@@ -606,20 +627,6 @@ class MemoryConsolidator:
             "content_sha256": hashlib.sha256(merged_content.encode("utf-8")).hexdigest(),
             "verified": True,
         }
-
-    @staticmethod
-    def _winner_rank(record: MemoryRecord) -> tuple[int, float, float, str]:
-        importance = MemoryConsolidator._finite_number(record.metadata.get("importance"), 0.5)
-        timestamp = MemoryConsolidator._finite_number(record.metadata.get("timestamp"), 0.0)
-        return (len(record.content), importance, timestamp, record.id)
-
-    @staticmethod
-    def _finite_number(value: Any, default: float) -> float:
-        try:
-            number = float(value)
-        except (TypeError, ValueError, OverflowError):
-            return default
-        return number if math.isfinite(number) else default
 
     @staticmethod
     def _merged_content(winner: MemoryRecord, losers: list[MemoryRecord]) -> str:
@@ -701,10 +708,10 @@ class MemoryConsolidator:
                 }
             )
         importance = max(
-            self._finite_number(record.metadata.get("importance"), 0.5)
+            _finite_number(record.metadata.get("importance"), 0.5)
             for record in records
         )
-        previous_merged = int(max(0.0, self._finite_number(winner.metadata.get("merged_count"), 0.0)))
+        previous_merged = int(max(0.0, _finite_number(winner.metadata.get("merged_count"), 0.0)))
         metadata = deepcopy(winner.metadata)
         metadata.update(
             {
