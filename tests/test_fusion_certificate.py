@@ -165,3 +165,32 @@ def test_the_measured_reflex_certificate_is_on_disk():
         assert certificate.prompts_that_change * 2 > certificate.prompts
         assert certificate.state_separation >= MIN_STATE_SEPARATION
         assert certificate.quality_delta >= 0.0
+
+
+def test_certificates_are_found_from_the_repository_not_the_working_directory(
+    tmp_path, monkeypatch
+):
+    """The worker is a forked child of a desktop app and its cwd is not this repo.
+
+    A relative path would write the certificate somewhere and look for it
+    somewhere else, and the channel would stay shut with no error anywhere.
+    """
+    from core.consciousness import fusion_certificate
+
+    home = tmp_path / "repo"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.setattr(fusion_certificate, "_REPO_ROOT", home)
+    monkeypatch.chdir(elsewhere)
+
+    write_certificate(_certificate(model_identity="9" * 64))
+    assert certified_alpha("9" * 64) > 0.0
+    assert (home / "artifacts" / "fusion").exists()
+    assert not (elsewhere / "artifacts").exists()
+
+
+def test_the_repository_root_holds_the_package():
+    """A wrong number of parents would point at a directory that always reads empty."""
+    from core.consciousness import fusion_certificate
+
+    assert (fusion_certificate._REPO_ROOT / "core" / "consciousness").is_dir()

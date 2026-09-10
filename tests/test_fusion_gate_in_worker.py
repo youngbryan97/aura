@@ -9,7 +9,13 @@ from __future__ import annotations
 import pytest
 
 from core.brain.llm import mlx_worker
+from core.consciousness import fusion_certificate
 from core.consciousness.fusion_certificate import FusionCertificate, write_certificate
+
+
+def _point_the_lookup_at(monkeypatch, root):
+    """Certificates are found from the repository, not from the cwd."""
+    monkeypatch.setattr(fusion_certificate, "_REPO_ROOT", root)
 
 
 @pytest.fixture
@@ -33,22 +39,22 @@ def certified(tmp_path, monkeypatch):
         prompts=8,
         steps=24,
     )
+    _point_the_lookup_at(monkeypatch, tmp_path)
     write_certificate(certificate, root=tmp_path)
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", identity)
     monkeypatch.delenv("AURA_USER_SURFACE_STEERING_ALPHA", raising=False)
     return certificate
 
 
 def test_an_uncertified_checkpoint_gets_no_steering(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+    _point_the_lookup_at(monkeypatch, tmp_path)
     monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", "d" * 64)
     monkeypatch.delenv("AURA_USER_SURFACE_STEERING_ALPHA", raising=False)
     assert mlx_worker._surface_control_alpha({}, None) == 0.0
 
 
 def test_a_worker_that_never_attached_gets_no_steering(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+    _point_the_lookup_at(monkeypatch, tmp_path)
     monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", "")
     monkeypatch.delenv("AURA_USER_SURFACE_STEERING_ALPHA", raising=False)
     assert mlx_worker._surface_control_alpha({}, None) == 0.0
@@ -90,7 +96,7 @@ def test_a_failing_certificate_keeps_the_channel_shut(monkeypatch, tmp_path):
         ),
         root=tmp_path,
     )
-    monkeypatch.chdir(tmp_path)
+    _point_the_lookup_at(monkeypatch, tmp_path)
     monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", identity)
     monkeypatch.delenv("AURA_USER_SURFACE_STEERING_ALPHA", raising=False)
     assert mlx_worker._surface_control_alpha({}, None) == 0.0

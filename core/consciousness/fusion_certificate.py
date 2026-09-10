@@ -75,6 +75,17 @@ __all__ = [
 #: point is that the evidence is about the model actually loaded.
 CERTIFICATE_DIR = Path("artifacts/fusion")
 
+#: The repository, found from this file rather than from the process's working
+#: directory.
+#:
+#: `Path("artifacts/fusion")` resolves against wherever a process happens to
+#: have been started, and the worker is a forked child of a desktop app. A
+#: certificate written from one cwd and looked for from another is a mechanism
+#: that cannot fire while every part of it passes its own tests: the write
+#: succeeds somewhere, the read finds nothing, and the channel stays shut with
+#: no error anywhere.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 #: How far the next-token distribution has to move before the channel counts as
 #: arriving at all. Symmetric KL in nats, per decode step, averaged over the
 #: probe prompts. This is a floor under the behavioural test rather than the
@@ -232,7 +243,7 @@ def write_certificate(certificate: FusionCertificate, *, root: Path | None = Non
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
-    directory = (root or Path(".")) / CERTIFICATE_DIR
+    directory = (root or _REPO_ROOT) / CERTIFICATE_DIR
     path = directory / f"{_slug(certificate.model_identity)}.json"
     with local_internal_governed_scope("fusion_certificate.write", domain="file_write"):
         get_file_write_gateway().write_text(
@@ -249,7 +260,7 @@ def write_certificate(certificate: FusionCertificate, *, root: Path | None = Non
 
 def load_certificates(*, root: Path | None = None) -> dict[str, FusionCertificate]:
     """Every certificate on disk, by model identity."""
-    directory = (root or Path(".")) / CERTIFICATE_DIR
+    directory = (root or _REPO_ROOT) / CERTIFICATE_DIR
     found: dict[str, FusionCertificate] = {}
     if not directory.exists():
         return found
