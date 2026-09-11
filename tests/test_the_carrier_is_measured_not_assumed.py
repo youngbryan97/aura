@@ -346,3 +346,36 @@ def test_a_rank_at_the_anchor_ceiling_refuses_the_run() -> None:
     source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
     assert "rank_is_at_the_ceiling" in source
     assert "is a reading of the bank" in source or "rather than of the system" in source
+
+
+def test_a_sweep_with_too_few_anchors_refuses_rather_than_measuring_nothing() -> None:
+    """The first quick run came back "0 of 12 decided" with nothing saying why.
+
+    The estimator cross-fits over five folds and needs a row per fold on each
+    side, so four anchors score no cut at all. An empty table is not a
+    measurement of zero.
+    """
+    import asyncio
+
+    from core.subject.v25_cut import MINIMUM_ANCHORS, sweep_cuts
+
+    with pytest.raises(ValueError, match="fewer than"):
+        asyncio.run(
+            sweep_cuts(
+                object(), [object()] * (MINIMUM_ANCHORS - 1), [object()],
+                tau_frames=1, tau_seconds=1.0,
+            )
+        )
+
+
+def test_a_sweep_that_scored_nothing_says_so() -> None:
+    from core.subject.v25_cut import CutVerdict, SweepReport
+
+    blank = SweepReport(
+        tau_seconds=1.0,
+        verdicts=[CutVerdict(left=("A",), right=("B",), anchors_used=8)],
+        unscorable=1,
+    )
+    row = blank.as_dict()
+    assert row["measured_nothing"] is True
+    assert row["cuts_unscorable"] == 1

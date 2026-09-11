@@ -440,7 +440,7 @@ async def main() -> int:
     args = parser.parse_args()
 
     if args.quick:
-        args.rounds, args.anchors, args.cut_rounds = 3, 4, 1
+        args.rounds, args.anchors, args.cut_rounds = 3, 8, 1
         args.history_turns = 2
         args.screen = args.screen or 12
         args.conditions = args.conditions or 2
@@ -735,6 +735,11 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
             f"{evidence['conditions_used']} of {evidence['conditions_available']} conditions, "
             "so the environment could still be defining the causal state"
         )
+    if any(
+        isinstance(block, dict) and block.get("measured_nothing")
+        for block in cuts.values()
+    ):
+        blockers.append("a horizon scored no cut at all, so nothing was measured there")
     if any(
         isinstance(block, dict) and block.get("screened")
         for block in cuts.values()

@@ -61,6 +61,13 @@ ANCHOR_STEP: int = 8
 #: Cuts that cannot be run at all. A cut is never removed for scoring badly.
 EXCLUDED: frozenset[tuple[tuple[str, ...], tuple[str, ...]]] = frozenset()
 
+#: The fewest anchors a cut can be scored from. The estimator cross-fits over
+#: five folds and needs at least one row per fold on each side, so four anchors
+#: produce no score at all — the first quick run came back "0 of 12 decided"
+#: with nothing saying why. Below this the sweep refuses rather than running and
+#: reporting nothing.
+MINIMUM_ANCHORS: int = 5
+
 
 @dataclass
 class CutVerdict:
@@ -104,6 +111,10 @@ class SweepReport:
     #: found it.
     screened: bool = False
     cuts_in_full: int = 0
+    #: Cuts the estimator could not score at all. Not the same as a cut that
+    #: scored badly, and a sweep where this equals the cut count measured
+    #: nothing rather than measuring zero.
+    unscorable: int = 0
     verdicts: list[CutVerdict] = field(default_factory=list)
     #: Cuts still compatible with zero when the budget ran out. While this is
     #: not empty the irreducibility claim is UNRESOLVED, not false.
@@ -143,6 +154,10 @@ class SweepReport:
             "cuts_in_full": self.cuts_in_full,
             "screened": self.screened,
             "cuts_decided": sum(1 for v in self.verdicts if v.decided),
+            "cuts_unscorable": self.unscorable,
+            "measured_nothing": bool(
+                self.verdicts and not any(v.estimate is not None for v in self.verdicts)
+            ),
             "undecided": list(self.undecided),
             "anchors_spent": self.anchors_spent,
             "irreducible": self.irreducible,
@@ -235,6 +250,12 @@ async def sweep_cuts(
     `ANCHOR_STEP` anchors to the cuts that are still compatible with zero and
     leaves the decided ones alone.
     """
+    if len(anchors) < MINIMUM_ANCHORS:
+        raise ValueError(
+            f"{len(anchors)} anchors is fewer than the {MINIMUM_ANCHORS} the "
+            "cross-fitted estimator needs; a sweep from this many scores no cut "
+            "at all and would report an empty result as a measurement"
+        )
     cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
     every_cut = len(cuts)
     screened = False
@@ -260,6 +281,7 @@ async def sweep_cuts(
         verdicts[f"{''.join(left)}|{''.join(right)}"] = CutVerdict(left=left, right=right, anchors_used=0)
 
     budget = OPENING_ANCHORS
+    unscorable = 0
     for round_index in range(max(1, rounds)):
         pending = [v for v in verdicts.values() if not v.decided]
         if not pending:
@@ -289,7 +311,11 @@ async def sweep_cuts(
                     alpha=alpha,
                 )
             except ValueError as exc:
+                # Recorded on the verdict AND counted, so a sweep where every
+                # cut failed for the same reason says so instead of coming back
+                # with an empty table.
                 verdict.note = f"not enough matched contexts: {exc}"
+                unscorable += 1
                 continue
             verdict.estimate = estimate
             verdict.excess = excess
@@ -302,4 +328,10 @@ async def sweep_cuts(
 
     report.verdicts = list(verdicts.values())
     report.undecided = sorted(v.name for v in report.verdicts if not v.decided)
+    report.unscorable = unscorable
+    if unscorable and not any(v.estimate is not None for v in report.verdicts):
+        logger.warning(
+            "every one of %d cuts was unscorable; the sweep measured nothing",
+            unscorable,
+        )
     return report
