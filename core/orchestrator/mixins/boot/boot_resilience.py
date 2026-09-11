@@ -193,9 +193,27 @@ class BootResilienceMixin:
         self.swarm = AgentDelegator(self)
 
         # Phase XI: Liquid Substrate Continuous Consciousness
+        #
+        # Adopted if one is already here, built only if none is. This used to
+        # construct one unconditionally and publish it under both names, which
+        # clobbered whatever the consciousness system had already published:
+        # the process then held two substrates, `conscious_substrate` resolved
+        # to the orchestrator's and `liquid_substrate` to the consciousness
+        # system's, and which one a subsystem got was decided by which name it
+        # happened to use. Only one of them is ever stepped. The other reports
+        # an infinitely old snapshot, zero volatility and zero phi for the life
+        # of the process — so the workspace's bid for the substrate never once
+        # entered the competition, and the attention gate, somatic qualia,
+        # temporal continuity, the predictive hierarchy and the aesthetic
+        # engine were all reading a substrate with no dynamics behind it.
         from core.consciousness.liquid_substrate import LiquidSubstrate
 
-        self.substrate = LiquidSubstrate()
+        self.substrate = (
+            ServiceContainer.get("liquid_substrate", default=None)
+            or ServiceContainer.get("conscious_substrate", default=None)
+            or LiquidSubstrate()
+        )
+        # Both names, always, so they cannot come apart again.
         ServiceContainer.register_instance("liquid_substrate", self.substrate)
         ServiceContainer.register_instance("conscious_substrate", self.substrate)
 

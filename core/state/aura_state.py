@@ -539,6 +539,11 @@ class CognitiveContext:
     # that answered the question from one that barely matched, and the
     # workspace had to bid every memory at the same flat priority.
     memory_scores: list[float] = field(default_factory=list)
+    # What the recalled set above was recalled for. Asking the same question
+    # twice is the cost retrieval was avoiding when it only ran on new user
+    # input, and it is avoidable without making recall something that can only
+    # happen when somebody speaks.
+    last_retrieval_query: str = ""
     active_goals: list[dict] = field(default_factory=list)
     pending_initiatives: list[dict] = field(default_factory=list)
     attention_focus: str | None = None   # What is Aura attending to right now

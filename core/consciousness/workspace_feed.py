@@ -397,7 +397,21 @@ def build_candidates(state: Any) -> list[Any]:
         substrate = get_runtime_service("conscious_substrate", default=None)
         reading = substrate.get_state_summary_nowait() if substrate is not None else None
         if isinstance(reading, dict) and not reading.get("snapshot_stale"):
-            level = _clamp(float(reading.get("volatility", 0.0)) / 100.0)
+            # How fast the substrate is moving against how far it is from rest,
+            # which is a reading of the same kind as the world model's surprise
+            # beside it: scale-free, and sensitive wherever this substrate's
+            # own amplitude happens to sit.
+            #
+            # It was the summary's `volatility` divided by a hundred — and the
+            # summary multiplies the mean velocity by a hundred to make it
+            # readable, so the two cancelled and the bid was the raw mean
+            # velocity, about two thousandths. The floor every bid has to clear
+            # is five hundredths. Recurrent cognition could not reach attention
+            # by any route, on any turn, at any speed.
+            speed = max(0.0, float(reading.get("volatility", 0.0)) / 100.0)
+            amplitude = max(0.0, float(reading.get("global_energy", 0.0)))
+            total = speed + amplitude
+            level = _clamp(0.0 if total <= 1e-9 else speed / total)
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(

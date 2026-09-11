@@ -97,3 +97,20 @@ Standing notes for any future receipt-store work:
 - Collection leaves the store `None` (no import-time construction).
 - Lesson: a "who closed X" symptom can have a root in an unrelated
   singleton — chase the earliest corrupted state, not the loudest error.
+
+## Sampled 2026-09-10, while repairing the subject-core harness
+
+Three victims found in selections run for other reasons, all with the shape
+this register is about: green alone, red in company. Recorded here rather than
+fixed in passing, because the root is in shared process state somewhere in the
+selection and a drive-by patch to the victim would hide it.
+
+| Victim | Selection that reproduces it | What is different in company |
+|---|---|---|
+| `test_core_affect_models::test_narrative_thread_start_seeds_snapshot_and_falls_back_task_tracker` | `pytest tests/ -k affect` | a degradation receipt is recorded where the test asserts none |
+| `test_core_affect_models::test_narrative_thread_refresh_failure_writes_degraded_snapshot` | `pytest tests/ -k affect` | `NarrativeThread.get_current_snapshot()` returns the pending fallback, so `_current_narrative` is None where the refresh loop should have written a degraded snapshot |
+| `test_cognitive_routing_runtime::test_substrate_handoff_failure_records_keyword_fallback` | `pytest tests/ -k "workspace or substrate or orchestrator_boot or consciousness_system"` | `_should_allow_deep_handoff` never calls the substrate extractor, so something earlier left the decision cached or the module stubbed |
+
+Both files pass alone and pass as a pair, so the root is further up the
+selection. `pytest tests/test_affect_behavioral.py tests/test_core_affect_models.py`
+is green, which rules out the nearest suspect.

@@ -720,3 +720,40 @@ async def test_a_restored_arm_starts_where_the_snapshot_was(tmp_path):
     finally:
         if runtime.clock is not None:
             runtime.clock.uninstall()
+
+
+async def test_every_name_for_the_substrate_reaches_one_substrate(tmp_path):
+    """Three of them existed, and only one was ever stepped.
+
+    The consciousness system built one and published it as
+    `conscious_substrate` and `liquid_state`; the orchestrator's boot mixin
+    built another and published that as `liquid_substrate` and
+    `conscious_substrate`, clobbering the first under the shared name; the
+    organism then republished the consciousness system's under
+    `liquid_substrate`. So `conscious_substrate` resolved to one object and
+    `liquid_substrate` to another, and which one a subsystem got was decided by
+    which name it happened to use.
+
+    The one nothing steps reports an infinitely old snapshot, zero volatility
+    and zero phi for the life of the process.
+    """
+    from core.container import ServiceContainer
+    from core.subject.driver import build_runtime, start_organism
+
+    runtime = build_runtime(tmp_path / "runtime", seed=13)
+    await start_organism(runtime, quiet=True)
+    names = (
+        "conscious_substrate",
+        "liquid_substrate",
+        "liquid_state",
+        "liquid_neural_network",
+    )
+    resolved = {name: ServiceContainer.get(name, default=None) for name in names}
+    present = {name: value for name, value in resolved.items() if value is not None}
+    assert present, "no substrate is registered at all"
+    identities = {id(value) for value in present.values()}
+    assert len(identities) == 1, {
+        name: id(value) for name, value in present.items()
+    }
+    if runtime.organs.substrate is not None:
+        assert id(runtime.organs.substrate) in identities
