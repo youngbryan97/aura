@@ -118,3 +118,34 @@ def test_every_priced_kind_of_work_has_something_that_reports_it():
     }
     missing = sorted(set(UNIT_COST) - reported)
     assert not missing, f"priced but never reported: {missing}"
+
+
+def test_an_unremarkable_turn_does_not_read_as_maximum_exertion():
+    """The aggregate contradicted its own calibration.
+
+    Each unit cost is defined as the amount an unremarkable turn produces, so
+    an unremarkable turn makes every ratio one and the mean one — and the mean
+    was clipped at one. Measured across four rounds of the eight ordinary
+    conditions, exertion's median came back at exactly 1.000 and its minimum at
+    0.848: her sense of her own exertion was a constant pinned at the top, and
+    it was the term that won the workspace competition on nineteen turns in
+    twenty-four.
+    """
+    from core.soma.effort import UNIT_COST, EffortLedger
+
+    unremarkable = dict(UNIT_COST)
+    reading = EffortLedger.exertion(unremarkable)
+    assert reading == pytest.approx(0.5), reading
+
+    twice = {kind: value * 2.0 for kind, value in UNIT_COST.items()}
+    assert EffortLedger.exertion(twice) > reading
+    half = {kind: value * 0.5 for kind, value in UNIT_COST.items()}
+    assert EffortLedger.exertion(half) < reading
+
+
+def test_exertion_stays_inside_its_bounds_however_hard_the_turn():
+    from core.soma.effort import UNIT_COST, EffortLedger
+
+    assert EffortLedger.exertion({}) == pytest.approx(0.0)
+    enormous = {kind: value * 10_000.0 for kind, value in UNIT_COST.items()}
+    assert 0.0 <= EffortLedger.exertion(enormous) <= 1.0
