@@ -156,7 +156,11 @@ methodological defect was removed and each channel repaired:
 | | **-0.0777** | the same code, run again |
 | | **-0.0010** | the self-prediction loop attached, memory read by content |
 | | **-0.0071** | 480 turns, the max-based edge statistic, six trials |
-| latest | **-0.0007** | the weakest cut chosen on folds the score is not read from |
+| | **-0.0007** | the weakest cut chosen on folds the score is not read from |
+| | **-0.047** | the same instrument, months of organism repair later |
+| | **-0.0066** | the sham floor taken from 2.0 standard deviations to 0.06 |
+| | **-0.020** | the counted schedule running each layer's whole loop body at its own rate |
+| latest | **+0.0221** | attention biasing perception, the drive competition, a bid's own charge |
 
 Three of those rows are the same instrument on the same organism, and they are
 the honest measure of how much of this is noise: the score moves by 0.08
@@ -164,6 +168,19 @@ between runs, against a preregistered bar of 0.05 and a matched surrogate floor
 of -0.011. What can be said is that the score is no longer reliably negative
 and is nowhere near the bar. What cannot be said, at 960 turns, is which side
 of zero it sits on.
+
+The last row is the first positive score the instrument has produced, and it is
+not yet a result. Read across the two runs that share its fingerprint, phi moves
+between -0.020 and +0.022 with a median of 0.001 — a spread of 0.042 against a
+bar of 0.05. The matched surrogate floor is what changed most: it was 0.12 when
+the sham floor was two standard deviations wide and is 0.003 to 0.015 now, so a
+margin over the floor is finally a number that can be read at all.
+
+The edge graph over the same runs: 18 kept, then 30 once the counted schedule
+ran the whole of each loop body, then 36, then 40. Perception and the body
+entered the strongly connected component for the first time in the program at
+36, and the component reached seven of ten domains. Recurrent cognition,
+deliberation and the developmental state remain outside it.
 
 The last row is not a repair to the organism. A minimum over five hundred and
 eleven noisy estimates sits about three standard errors below the truth however
