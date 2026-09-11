@@ -18,7 +18,7 @@ Check kinds:
     criterion   the newest battery report passes a named criterion
     report      a Python expression over the newest report is true
     scorecard   a criterion holds on every run the scorecard read
-    command     a command exits zero
+    command     a command exits zero (`{python}` is this interpreter)
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -127,8 +128,13 @@ class Checker:
         return row.get("standing") == want, f"{check['criterion']} standing {row.get('standing')!r}"
 
     def _check_command(self, check: dict[str, Any]) -> tuple[bool, str]:
-        done = subprocess.run(check["command"], cwd=REPO, shell=True, capture_output=True, text=True, timeout=check.get("timeout", 600))
-        return done.returncode == 0, f"exit {done.returncode}: {check['command']}"
+        # `{python}` is whatever interpreter is running this, because a
+        # worktree has no `.venv` of its own and a hard-coded `.venv/bin/python`
+        # turns every command check into a silent failure there — which reads
+        # as an item that is not done rather than as a check that could not run.
+        command = check["command"].format(python=shlex.quote(sys.executable))
+        done = subprocess.run(command, cwd=REPO, shell=True, capture_output=True, text=True, timeout=check.get("timeout", 600))
+        return done.returncode == 0, f"exit {done.returncode}: {command}"
 
 
 def evaluate() -> tuple[list[dict[str, Any]], Checker]:

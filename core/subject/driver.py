@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import importlib
 import hashlib
 import inspect
 import logging
@@ -898,6 +899,59 @@ def _restore_effort(saved: dict[str, float] | None) -> None:
         return
 
 
+#: Module-level singletons the fork has to carry, named by where they live.
+#:
+#: A service in the container is carried under its name and a phase's own
+#: attributes are carried with the phase. What is left is state that lives at
+#: module scope and is reachable from neither: an accessor returns the one
+#: object and nothing holds a reference to it. The interiority layer publishes
+#: every faculty through a synaptic cleft got this way, and that cleft carries
+#: facilitation per channel and a receptor bank that adapts — so an arm that
+#: felt something left the medium more excitable for the arm that followed it,
+#: under every domain the interiority layer touches.
+#:
+#: Each entry is a name and a zero-argument accessor. Adding one is the whole
+#: cost of bringing a new module singleton into the fork.
+_MODULE_SINGLETONS: tuple[tuple[str, str, str], ...] = (
+    ("interiority.cleft", "core.interiority.cleft", "get_cleft"),
+    ("interiority.receptors", "core.interiority.receptors", "get_receptor_bank"),
+)
+
+
+def _singleton_state() -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for name, module_name, accessor in _MODULE_SINGLETONS:
+        try:
+            module = importlib.import_module(module_name)
+            instance = getattr(module, accessor)()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+        try:
+            captured = _organ_state(instance)
+        except (
+            ArithmeticError, AttributeError, ImportError, LookupError,
+            OSError, RuntimeError, TypeError, ValueError,
+        ):
+            continue
+        if captured:
+            out[name] = captured
+    return out
+
+
+def _restore_singletons(saved: Mapping[str, dict[str, Any]]) -> None:
+    if not saved:
+        return
+    for name, module_name, accessor in _MODULE_SINGLETONS:
+        fields = saved.get(name)
+        if not fields:
+            continue
+        try:
+            module = importlib.import_module(module_name)
+            _restore_organ(getattr(module, accessor)(), fields)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+
+
 def _torch_random_state() -> Any:
     try:
         import torch
@@ -1131,6 +1185,10 @@ class Snapshot:
     #: arm to drain — six tenths of a standard deviation of the body's newest
     #: channel, before either arm had been displaced.
     effort: dict[str, float] | None = None
+
+    #: Module-level singletons the container does not hold. See
+    #: `_MODULE_SINGLETONS`.
+    singletons: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     #: Where the experiment clock stood. Restoring rewinds the state, and the
     #: clock the phases read is part of the state as far as they are concerned:
@@ -1457,6 +1515,7 @@ class SubjectRuntime:
             last_displacement=float(getattr(self.ontogeny, "last_displacement", 0.0)),
             lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
+            singletons=_singleton_state(),
             services=_service_state(self.forked_services),
             effort=_effort_state(),
             taken_at=time.time(),
@@ -1495,6 +1554,7 @@ class SubjectRuntime:
             np.random.set_state(snapshot.numpy_random)
         _restore_torch_random(snapshot.torch_random)
         self._restore_phases(snapshot.phases)
+        _restore_singletons(snapshot.singletons)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index

@@ -217,3 +217,53 @@ def test_two_arms_step_the_same_layers_the_same_number_of_times() -> None:
 
     assert schedule(0, 40) == schedule(0, 40)
     assert schedule(0, 40) != schedule(7, 40), "the schedule does not depend on the count"
+
+
+def test_the_fork_carries_the_module_singletons_nothing_holds() -> None:
+    """State at module scope that no container and no phase can reach.
+
+    A service is carried under its name; a phase's own attributes go with the
+    phase. What is left is an accessor that returns the one object and nobody
+    keeping a reference — and the interiority layer publishes every faculty
+    through a synaptic cleft got exactly that way. It holds a readiness per
+    channel and its receptor bank adapts, so an arm that felt something left the
+    medium more excitable for the arm after it, under every domain it touches.
+    """
+    from core.interiority.cleft import get_cleft
+    from core.subject.driver import _restore_singletons, _singleton_state
+
+    before = _singleton_state()
+    assert before, "the fork carries no module singletons at all"
+    for _ in range(24):
+        get_cleft().release("a_fork_probe", 0.7, dt=0.05)
+    assert _singleton_state() != before, "the probe moved nothing the fork is watching"
+    _restore_singletons(before)
+    assert _singleton_state() == before, "a restored singleton is not the one saved"
+
+
+def test_the_synaptic_medium_rewinds_with_the_process_generator() -> None:
+    """Release is probabilistic, so the draw has to be one the fork can rewind.
+
+    The cleft held a `random.Random()` of its own. `random.seed()` did not
+    reach it and a snapshot could not put it back, so two arms of a paired
+    trial started from one state and drew different quanta — unseeded
+    randomness inside the cognitive path, under every number measured through
+    the interiority layer.
+    """
+    import random as _random
+
+    from core.interiority.cleft import SynapticCleft
+    from core.interiority.receptors import ReceptorBank
+
+    def run() -> list[float]:
+        cleft = SynapticCleft(bank=ReceptorBank())
+        return [
+            round(cleft.release("rewind_probe", 0.6, dt=0.1).postsynaptic, 9)
+            for _ in range(10)
+        ]
+
+    saved = _random.getstate()
+    first = run()
+    _random.setstate(saved)
+    assert run() == first, "the medium does not rewind with the process generator"
+    assert run() != first, "the medium draws nothing, so nothing was being measured"

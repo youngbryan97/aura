@@ -387,7 +387,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("conversation_energy", "cognition.conversation_energy"),
             ("discourse_depth", "cognition.discourse_depth"),
             ("branch_load", "cognition.discourse_branches"),
-            ("phi", "phi"),
+            # `phi` is not here. Executive closure assigns `state.phi` and
+            # `state.phi_estimate` the same number in the same statement, and
+            # the second of them is recurrent cognition's column — so the two
+            # domains were reading one variable and any displacement of either
+            # arrived in both with nothing in between. Integrated information
+            # is a property of the recurrent system, not of what has attention,
+            # so it stays with C and leaves here.
             ("selfhood_readings", "cognition.selfhood_reading"),
             ("ignition", "organ:workspace.ignition_level"),
             ("ignited", "organ:workspace.ignited"),
@@ -420,16 +426,24 @@ _SCHEMAS: dict[str, Schema] = {
             *((f"mode_{name}", "cognition.current_mode") for name in _MODES),
             ("loop_cycle", "loop_cycle"),
             ("phi_estimate", "phi_estimate"),
-            ("phenomenal_valence", "cognition.phenomenal_state.valence"),
-            ("phenomenal_arousal", "cognition.phenomenal_state.arousal"),
-            ("phenomenal_coherence", "cognition.phenomenal_state.coherence"),
-            ("phenomenal_energy", "cognition.phenomenal_state.energy"),
-            # `cognition.phenomenal_state.latent_snapshot` is deliberately not
-            # here. It is 128 numbers built by hashing the phenomenal claim, so
-            # two nearby states produce unrelated vectors and the distance
-            # between them means nothing; and grepping the runtime finds it
-            # written once and read by nowhere, which fails the test at the top
-            # of this file — a number nothing computes from is not state. In
+            # The phenomenal field's four numbers are deliberately not here,
+            # and neither is its latent snapshot.
+            #
+            # `make_phenomenal_field` builds valence and arousal from
+            # `affect.*`, energy from the energy budget and coherence from
+            # `cognition.coherence_score`. They are copies, made once a turn,
+            # of three other domains' state, and grepping the runtime finds
+            # nothing that reads any of them — only the claim, and whether a
+            # field is there at all. So they failed the test at the top of this
+            # file twice over: a number nothing computes from is not state, and
+            # a verbatim copy of another domain's column is that domain being
+            # read through this one. Four of recurrent cognition's nineteen
+            # features were affect, deliberation and attention wearing its
+            # name, and every edge into C was partly that copy arriving.
+            #
+            # The snapshot went for the first of those reasons alone: 128
+            # numbers built by hashing the claim, so two nearby states produce
+            # unrelated vectors and the distance between them means nothing. In
             # the schema it contributed a third of a standard deviation to the
             # floor between two untouched runs and no signal at all.
             ("substrate_valence", "organ:substrate.valence"),
@@ -951,7 +965,6 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.conversation_energy"), 0.5),
             _sat(_f(_dig(state, "cognition.discourse_depth")), 8.0),
             _sat(_dig(state, "cognition.discourse_branches", []) or [], 4.0),
-            math.tanh(_f(_dig(state, "phi"))),
             _sat(_dig(state, "cognition.selfhood_reading", {}) or {}, 4.0),
             _f(workspace.get("ignition_level")),
             1.0 if workspace.get("ignited") else 0.0,
@@ -995,10 +1008,6 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
         [
             _sat(_f(_dig(state, "loop_cycle")), 100.0),
             math.tanh(_f(_dig(state, "phi_estimate"))),
-            _f(_dig(state, "cognition.phenomenal_state.valence")),
-            _f(_dig(state, "cognition.phenomenal_state.arousal")),
-            _f(_dig(state, "cognition.phenomenal_state.coherence"), 1.0),
-            _f(_dig(state, "cognition.phenomenal_state.energy")),
         ]
     )
     affect = _call(organs.substrate, "get_substrate_affect", {}, source="organ:substrate.get_substrate_affect") or {}
@@ -1460,19 +1469,18 @@ def _perturb_G(state: Any, delta: float, ontogeny: Any) -> bool:
 
 
 def _perturb_C(state: Any, delta: float, ontogeny: Any) -> bool:
+    """The recurrent estimate, and nothing else in the state.
+
+    This also rewrote `cognition.phenomenal_state`'s valence, arousal and
+    latent snapshot. That field is rebuilt once a turn from `affect.*`, the
+    energy budget and the coherence score, and nothing in the runtime reads any
+    of its numbers — so those writes were erased before anything could have
+    used them and would have reached nobody if they had survived. Recurrent
+    cognition's own state is the liquid substrate and the closed loop, and
+    `perturb_organs` is where it is displaced.
+    """
     del ontogeny
-    hit = _bump(state, "phi_estimate", delta, -10.0, 10.0)
-    node = _dig(state, "cognition.phenomenal_state", None)
-    if node is not None and hasattr(node, "valence"):
-        node.valence = min(1.0, max(-1.0, _f(node.valence) + delta))
-        node.arousal = min(1.0, max(0.0, _f(node.arousal) + delta))
-        snapshot = list(getattr(node, "latent_snapshot", []) or [])
-        if snapshot:
-            node.latent_snapshot = [
-                min(1.0, max(-1.0, _f(v) + delta)) for v in snapshot
-            ]
-        hit = True
-    return hit
+    return _bump(state, "phi_estimate", delta, -10.0, 10.0)
 
 
 def _perturb_S(state: Any, delta: float, ontogeny: Any) -> bool:
