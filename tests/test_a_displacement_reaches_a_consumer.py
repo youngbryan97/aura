@@ -547,3 +547,32 @@ def test_the_sustained_write_reaches_every_frame_after_the_injection() -> None:
     source = inspect.getsource(SubjectRuntime.turn_once)
     assert "sustain" in source
     assert "len(frames) - 1 > perturb_at" in source
+
+
+def test_curiosity_is_read_from_both_channels_not_the_larger_one() -> None:
+    """A max is not a derivation.
+
+    `affect.curiosity` was `max(curiosity, anticipation or 0.5)`. Whichever
+    channel is higher owns the readout outright and the other is invisible, and
+    anticipation sits near a half — so the curiosity channel had to beat it
+    before anything written there could be read at all. The developmental
+    state's only route out of itself writes exactly that channel.
+    """
+    from core.phases.affect_update import AffectUpdatePhase
+    from core.state.aura_state import AuraState
+
+    phase = AffectUpdatePhase(None)
+
+    def curiosity_at(value: float) -> float:
+        state = AuraState.default()
+        affect = state.affect
+        affect.emotions["anticipation"] = 0.5
+        affect.emotions["curiosity"] = value
+        phase._derive_metrics(affect)
+        return float(affect.curiosity)
+
+    low, high = curiosity_at(0.1), curiosity_at(0.4)
+    assert high > low, (
+        "the curiosity channel moved and the readout did not, so whatever "
+        "writes it cannot be read"
+    )

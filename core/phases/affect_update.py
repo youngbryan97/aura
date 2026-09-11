@@ -57,6 +57,14 @@ _POSITIVE_AFFECT_WEIGHTS = {
     "admiration": 0.45,
 }
 
+#: What `affect.curiosity` is derived from. Both channels at the weights they
+#: already carry in the positive vocabulary, so the readout is a reading of
+#: them rather than of whichever happens to be larger.
+_CURIOSITY_WEIGHTS = {
+    "curiosity": 0.55,
+    "anticipation": 0.35,
+}
+
 _NEGATIVE_AFFECT_WEIGHTS = {
     "fear": 1.0,
     "sadness": 0.85,
@@ -840,7 +848,22 @@ class AffectUpdatePhase(Phase):
             affect.dominant_emotion = "neutral"
         else:
             affect.dominant_emotion = dominant_by_activation
-        affect.curiosity = max(e.get("curiosity", 0.0), e.get("anticipation", 0.5))
+        # Curiosity from the channels curiosity is made of, at the weights
+        # this file already declares for them.
+        #
+        # It was `max(curiosity, anticipation or 0.5)`. A max is not a
+        # derivation: whichever channel is higher owns the readout outright and
+        # the other one is invisible, and anticipation sits near a half — so
+        # the curiosity channel had to beat it before anything written there
+        # could be read at all. The developmental state's only route out of
+        # itself writes exactly that channel, and it was being swallowed.
+        #
+        # The same shape as valence and arousal above: a weighted mean of
+        # activations, so both channels contribute in the proportions they
+        # already carry and neither can hide the other.
+        affect.curiosity = float(
+            max(0.0, min(1.0, _weighted_mean(activation, _CURIOSITY_WEIGHTS)))
+        )
 
     def _apply_conversation_feedback(self, affect: AffectVector, state: AuraState):
         """
