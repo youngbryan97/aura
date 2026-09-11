@@ -110,6 +110,14 @@ class TestEmptinessIsCountedNotRead:
         )
         assert result.returncode == 0, result.stdout + result.stderr
 
+    @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+    def test_workload_changes_cannot_starve_transcript_polling(self):
+        result = subprocess.run(
+            [shutil.which("node"), str(PROJECT_ROOT / "tests/js/bootstrap_poll_fairness.mjs"), str(AURA_JS)],
+            capture_output=True, text=True, timeout=15,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
 
 class TestTheOverlayIsStyled:
     def test_the_placeholder_has_its_own_rule(self):

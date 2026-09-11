@@ -11,6 +11,7 @@ const messages = { children: [], innerHTML: '' };
 const state = { isSubmitting: false, activeChatRequest: null, chatSendQueue: [] };
 const appendMsg = (role, text, html, metadata, beforeNode = null) => {
     const node = { role, text, dataset: { historyTurnId: metadata.historyTurnId || '', historyRole: role } };
+    if (metadata.transcriptEvent) node.dataset.transcriptEvent = 'true';
     messages.children.push(node);
     if (beforeNode) messages.insertBefore(node, beforeNode);
     return node;
@@ -73,6 +74,17 @@ hydrate([{ id: 'later', user: 'later?', aura: 'later answer' },
     { id: 'newer', user: 'early?', aura: 'new answer' }]);
 assert.equal(messages.children.length, 6);
 messages.children.splice(-2);
+
+// Unsolicited narration is not an unbound reply. It cannot freeze history.
+appendMsg('aura', 'unsolicited observation', false, { transcriptEvent: true });
+hydrate([{ id: 'later', user: 'later?', aura: 'later answer' },
+    { id: 'event-following', user: 'new question', aura: '' }]);
+assert.equal(messages.children.at(-1).dataset.historyTurnId, 'event-following');
+appendMsg('aura', 'second observation', false, { transcriptEvent: true });
+hydrate([{ id: 'event-following', user: 'new question', aura: 'new answer' }]);
+assert.deepEqual(messages.children.slice(-3).map(node => node.text),
+    ['new question', 'new answer', 'second observation']);
+messages.children.splice(-5);
 
 // A timed-out bootstrap can show RAM history first, then receive older disk rows.
 hydrate([{ id: 'old', user: 'older question', aura: 'older answer' },

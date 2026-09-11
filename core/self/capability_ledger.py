@@ -127,6 +127,9 @@ class LiveCapability:
     name: str
     subjects: tuple[str, ...]
     probe: Callable[[], Availability]
+    # Topic cues may be verbs or adverbs. Only entity names can ground an
+    # impersonal denial; sharing a predicate is not sharing a capability.
+    denial_subjects: tuple[str, ...] | None = None
 
     def measure(self) -> Availability:
         try:
@@ -288,8 +291,23 @@ class CapabilityLedger:
             sentence = sentence.strip()
             if not sentence:
                 continue
-            framed = bool(_DENIAL_FRAME.search(sentence))
+            denial = _DENIAL_FRAME.search(sentence)
+            framed = denial is not None
+            self_denial = bool(
+                denial and denial.start() == 0
+                and denial.group().lower().startswith("i ")
+            )
             for capability in self.capabilities_named_in(sentence):
+                referents = capability.denial_subjects
+                direct_self_predicate = self_denial and any(
+                    re.match(rf"\s*{re.escape(term)}\b", sentence[denial.end():], re.IGNORECASE)
+                    for term in capability.subjects
+                )
+                if referents is not None and not direct_self_predicate and not any(
+                    _names_as_the_subject(sentence.lower(), term)
+                    for term in referents
+                ):
+                    continue
                 # Bare noun-phrase negation, with no pronoun and no verb.
                 # Asked "do you have a camera? and can you run code?" the whole
                 # reply was "No camera. No code execution." — as complete a
@@ -298,7 +316,10 @@ class CapabilityLedger:
                 # It has to bind to THIS capability's own noun, not merely
                 # share a sentence with it: "No problem, I can run that code"
                 # opens the same way and denies nothing.
-                bare = _negates_directly(sentence, capability.subjects)
+                bare = _negates_directly(
+                    sentence,
+                    referents if referents is not None else capability.subjects,
+                )
                 if not framed and not bare:
                     continue
                 denies_possession = bare or bool(_POSSESSION_FRAME.search(sentence))
@@ -1108,14 +1129,19 @@ def _default_ledger() -> CapabilityLedger:
             "conversation_memory",
             ("memory", "remember", "recall", "conversation", "recollection"),
             _probe_conversation_memory,
+            denial_subjects=("memory", "conversation", "recollection"),
         )
     )
     ledger.register(
         LiveCapability(
             "deferred_action",
             ("intention", "intentions", "reminder", "reminders", "later",
-             "persist", "afterwards", "follow-up"),
+             "persist", "afterwards", "follow-up", "request", "instruction"),
             _probe_deferred_action,
+            denial_subjects=(
+                "intention", "intentions", "reminder", "reminders",
+                "follow-up", "request", "instruction",
+            ),
         )
     )
     ledger.register(

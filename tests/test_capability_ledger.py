@@ -457,11 +457,14 @@ def test_a_setting_is_not_the_thing_being_denied():
     assert "conversation_memory" not in flagged
 
 
-def test_the_real_false_claim_in_that_reply_is_caught():
+def test_the_real_false_claim_in_that_reply_is_caught(monkeypatch):
     """She said she cannot reach the world, with three ways to reach it."""
+    monkeypatch.setattr(cl, "_probe_world_access", lambda: cl.Availability(
+        name="world_access", present=True, usable_now=True, summary="Web available."
+    ))
     flagged = {
         claim.availability.name
-        for claim in cl.get_capability_ledger().contradicted_claims(LIVE_WORLD_DENIAL)
+        for claim in cl._default_ledger().contradicted_claims(LIVE_WORLD_DENIAL)
     }
     assert "world_access" in flagged
 
@@ -487,7 +490,7 @@ LIVE_DEFERRAL_DENIAL = (
 )
 
 
-def test_borrowed_human_psychology_is_caught_as_a_false_self_claim():
+def test_borrowed_human_psychology_is_caught_as_a_false_self_claim(monkeypatch):
     """LIVE 2026-08-10: "approximately 18 seconds".
 
     That is Peterson and Peterson's figure for human short-term memory, not a
@@ -495,9 +498,13 @@ def test_borrowed_human_psychology_is_caught_as_a_false_self_claim():
     rows at the moment she said it, with "IntentionLoop online — 1133 active"
     in that session's boot log.
     """
+    monkeypatch.setattr(cl, "_probe_deferred_action", lambda: cl.Availability(
+        name="deferred_action", present=True, usable_now=True,
+        summary="Intention store available.",
+    ))
     flagged = {
         claim.availability.name
-        for claim in cl.get_capability_ledger().contradicted_claims(LIVE_DEFERRAL_DENIAL)
+        for claim in cl._default_ledger().contradicted_claims(LIVE_DEFERRAL_DENIAL)
     }
     assert "deferred_action" in flagged
 
@@ -507,6 +514,42 @@ def test_a_denial_with_no_first_person_pronoun_is_still_a_denial():
     ledger = _ledger(_fixed("reminder"))
     assert ledger.contradicted_claims("The reminder would not persist.")
     assert ledger.contradicted_claims("No action would be taken on that reminder.")
+
+
+@pytest.mark.parametrize("sentence", [
+    "The ship does not persist as the same material object.",
+    "A temporary file would not persist after shutdown.",
+    "Their arrangement won't persist afterwards.",
+    "The sample is discarded later.",
+    "No later version is available.",
+    "I cannot explain why the pattern does not persist.",
+])
+def test_predicate_overlap_cannot_authorize_capability_replacement(sentence):
+    live = cl.get_capability_ledger().get("deferred_action")
+    probe = mock.Mock(return_value=cl.Availability(
+        name="deferred_action", present=True, usable_now=True,
+        summary="I have a durable intention store.",
+    ))
+    ledger = _ledger(cl.LiveCapability(
+        live.name, live.subjects, probe, denial_subjects=live.denial_subjects,
+    ))
+    claims = ledger.contradicted_claims(sentence)
+    assert claims == []
+    assert cl.reconcile_contradicted_claims(sentence, claims) == sentence
+    probe.assert_not_called()
+
+
+def test_declared_referents_work_for_new_capabilities_without_ledger_rules():
+    availability = cl.Availability(
+        name="storage", present=True, usable_now=True, summary="Storage works."
+    )
+    ledger = _ledger(cl.LiveCapability(
+        "storage", ("durable", "persist", "archive"), lambda: availability,
+        denial_subjects=("archive",),
+    ))
+    assert not ledger.contradicted_claims("The pattern does not persist.")
+    assert ledger.contradicted_claims("The archive does not persist.")
+    assert ledger.contradicted_claims("I cannot persist anything.")
 
 
 @pytest.mark.parametrize(

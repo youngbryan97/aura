@@ -1567,12 +1567,14 @@ function hydrateRecentConversation(entries) {
             const successor = children[at + 1] || null;
             // An unbound live bubble belongs to another delivery path. Do not
             // duplicate it while its identity has not reached this snapshot.
-            if (successor && !successor.dataset.historyTurnId) continue;
+            if (successor && !successor.dataset.historyTurnId
+                && successor.dataset.transcriptEvent !== 'true') continue;
             appendMsg(item.role, item.text, false, item.metadata, successor);
         }
         // A passive pane can lag behind a turn opened by another window.
         // Extend only from an exact shared exchange, never from matching text.
-        const children = Array.from(messages.children);
+        const children = Array.from(messages.children)
+            .filter(node => node.dataset.transcriptEvent !== 'true');
         const lastId = children.at(-1)?.dataset.historyTurnId;
         const tailAt = lastId && children.every(node => node.dataset.historyTurnId)
             ? restored.findLastIndex(item => item.metadata.historyTurnId === lastId) : -1;
@@ -2196,15 +2198,22 @@ async function hydrateBootstrap({ hydrateConversationHistory = true, quiet = tru
 }
 
 function scheduleBootstrapPoll(delayMs = null) {
-    if (state.bootstrapTimer) clearTimeout(state.bootstrapTimer);
     const delay = delayMs == null
         ? optionalSurfacePollDelay(BOOTSTRAP_POLL_MS, {
             foregroundFactor: 3,
             hiddenFactor: 6,
         })
         : Math.max(0, Number(delayMs) || 0);
+    const dueAt = performance.now() + delay;
+    // Workload changes may bring reconciliation forward, never postpone an
+    // already scheduled refresh. Repeated short generations otherwise starve
+    // passive windows even while every individual request completes.
+    if (state.bootstrapTimer && state.bootstrapPollDueAt <= dueAt) return;
+    if (state.bootstrapTimer) clearTimeout(state.bootstrapTimer);
+    state.bootstrapPollDueAt = dueAt;
     state.bootstrapTimer = setTimeout(async () => {
         state.bootstrapTimer = null;
+        state.bootstrapPollDueAt = null;
         if (!document.hidden) await hydrateBootstrap({ quiet: true });
         scheduleBootstrapPoll();
     }, delay);
@@ -2998,7 +3007,9 @@ function handleWsEvent(data) {
             }
 
             const role = meta && meta.system ? 'system' : 'aura';
-            appendMsg(role, msg, false, meta);
+            appendMsg(role, msg, false, {
+                ...meta, transcriptEvent: type === 'aura_message',
+            });
             $('typing-ind').classList.remove('show');
             setChatPanelState('idle');
             if (role === 'aura') triggerVoiceOrb('speaking');
@@ -6150,6 +6161,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
+    if (metadata.transcriptEvent === true) div.dataset.transcriptEvent = 'true';
     if (metadata.deliveryTurnId) div.dataset.deliveryTurnId = String(metadata.deliveryTurnId);
     if (metadata.historyTurnId) {
         div.dataset.historyTurnId = String(metadata.historyTurnId);

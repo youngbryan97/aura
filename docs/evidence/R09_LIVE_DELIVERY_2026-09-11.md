@@ -84,3 +84,44 @@ terminal custody, social receipts and conscience regressions passed 76 cases
 in 6.11 seconds. Smoke passed 164 with one skipped in 42.05 seconds. The
 aggregate lint found an inherited import-order defect in bonding_phase;
 its imports were sorted without changing behavior. Live replay remains due.
+
+## Completed preflight replay and passive-window defects
+
+Supported reboot loaded PID 52242 with verified source snapshot
+`d059007f9f8a0ec5381f3a20ac3c3b1c19e92b7988e4329f45045ececb7b44d1`.
+The unchanged Ship of Theseus question at 01:58:40 passed conscience and
+completed one generation. Delivery
+`aura-chat-f5857e9a-c720-4567-bb64-11773526c032` opened transcript exchange
+`c18d566eeb6a4166946c6e5ca96351d9` before generation. The initial pending
+question was present in the bootstrap API. This closes that preflight replay,
+not R09.
+
+The delivered answer contained an unrelated intention-store sentence. Its
+receipt identified one measured_sentence_replacement at
+`chat.capability_claim_reconciliation`, for deferred_action. The impersonal
+claim that the ship does not persist shared a predicate with the capability
+catalog. It did not deny Aura's ability. Catalog entries now separate topic
+cues from the entity names required to ground impersonal denials; direct
+self-predicates remain eligible. Tests cover several unrelated subjects and a
+new capability declared through the same interface. This is a bounded repair
+of predicate/entity confusion, not proof of complete semantic attribution.
+
+A passive window remained stale despite the current bootstrap API. Code and
+deterministic timer tests exposed refresh starvation: workload changes reset
+the next poll. An earlier scheduled refresh now retains its deadline. A live
+unsolicited message also had no exchange identity and prevented transcript
+suffix reconciliation. Such events now carry a distinct transcript-event
+marker. They remain visible without being mistaken for unbound turn replies.
+The active-delivery protection is unchanged.
+
+Focused capability, transcript and cancellation checks passed 96 tests with
+three skips in 11.18 seconds. Smoke passed 164 tests with one skip in 69.50
+seconds. An earlier smoke attempt was interrupted after 282.59 seconds with
+73 passed and one skipped while calibration tests were computing under host
+load; it is not counted as a pass. Lint, compile, governance-lint and layering
+passed. Deployment and live replay of these latest repairs remain pending.
+
+The neural feed also recorded event-loop lag and lease-renewal delays during
+concurrent tests and two rendered chat windows. Health recovered after the
+extra windows closed. This observation is retained for R06/R08; it does not
+establish that rendering was the sole cause.
