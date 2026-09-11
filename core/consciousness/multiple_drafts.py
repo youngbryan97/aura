@@ -137,6 +137,10 @@ class DraftCompetition:
     decisive: bool = True
     decision_z: float = 0.0
     decision_reason: str = ""
+    #: What the spend decision said when the lead sat inside the spread, and
+    #: why. Empty when the drafts separated and the question did not arise.
+    thought_again: str = ""
+    thought_again_because: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +202,10 @@ class MultipleDraftsEngine:
         self._input_time: float = 0.0
         self._last_winner: Draft | None = None
         self._last_divergence: float = 0.0
+        #: How many times the current competition has been held open because
+        #: another round was judged worth its cost, and the last such verdict.
+        self._extensions: int = 0
+        self._last_judgement: Any = None
         self._competition_history: deque[DraftCompetition] = deque(maxlen=self._MAX_HISTORY)
         self._mesh_ref: Any = None  # Set externally or lazily resolved
         self._rng = np.random.default_rng(seed=7)
@@ -290,6 +298,9 @@ class MultipleDraftsEngine:
         self._current_input = text
         self._input_time = time.time()
         self._current_drafts = []
+        # A new input is a new decision; whatever the last one was waiting for
+        # has been overtaken by it.
+        self._extensions = 0
 
         # Extract affective context from state if available
         base_valence = 0.0
@@ -633,6 +644,37 @@ class MultipleDraftsEngine:
             decision_z=decision_z,
             decision_reason=decision_reason,
         )
+        # A lead inside the spread is the case the value-of-computation module
+        # was written for, and nothing had ever asked it. `worth_continuing`
+        # answers whether another round could change what she does; its only
+        # caller in the tree called nothing, so the whole spend decision sat
+        # unused while a tie was settled by list order on every turn.
+        #
+        # The verdict is not advice. When more thought is worth what it costs
+        # the drafts are kept rather than resolved, so the next probe decides
+        # with more evidence — and when it is not, the tie is settled now and
+        # said to have been settled by order.
+        if not decisive:
+            judgement = self._worth_another_round(decision_z, self._current_drafts)
+            competition.thought_again = judgement.worth if judgement else ""
+            competition.thought_again_because = judgement.because if judgement else ""
+            if judgement is not None and str(judgement.worth) == "worth":
+                if self._extensions < self._MAX_EXTENSIONS:
+                    self._extensions += 1
+                    logger.info(
+                        "MultipleDrafts probe [%s]: the drafts did not separate "
+                        "(lead %.3f standard errors, %s) and another round is "
+                        "worth %.3f, so they are kept for the next probe (%d of %d)",
+                        source,
+                        decision_z,
+                        decision_reason,
+                        judgement.expected_value or 0.0,
+                        self._extensions,
+                        self._MAX_EXTENSIONS,
+                    )
+                    self._last_judgement = judgement
+                    return winner
+        self._extensions = 0
         self._competition_history.append(competition)
         if not decisive:
             logger.info(
@@ -661,6 +703,78 @@ class MultipleDraftsEngine:
         )
 
         return winner
+
+    #: How many times one competition may be held open. A decision that can be
+    #: deferred without limit is not a decision; three probes is the same bound
+    #: the stream ring keeps on everything else here.
+    _MAX_EXTENSIONS: int = 3
+
+    def _worth_another_round(self, lead_z: float, drafts: list[Draft]) -> Any:
+        """Whether another round of drafting is worth what it would cost her.
+
+        Both numbers are readings rather than constants. What the decision is
+        worth is what the drafts themselves say is at stake — the urgency of
+        the strongest one. What a round costs is what a cycle of thinking took
+        out of her, against how much of the energy budget is left to take it
+        out of: the same exertion at a quarter of her energy costs four times
+        what it costs at full.
+
+        That is the loop this closes. She has paid for thinking since the
+        effort ledger got its reporters; the payment had nowhere to arrive.
+        """
+        try:
+            from core.cognition.value_of_computation import worth_continuing
+
+            stakes = max(
+                (float(getattr(draft, "urgency", 0.0) or 0.0) for draft in drafts),
+                default=0.0,
+            )
+            if stakes <= 0.0:
+                return None
+            return worth_continuing(
+                margin=abs(float(lead_z)), cost=self._round_cost(), stakes=stakes
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "multiple_drafts",
+                exc,
+                severity="debug",
+                action="settled the tie by order without asking what another round was worth",
+            )
+            return None
+
+    @staticmethod
+    def _round_cost() -> float:
+        """What one more round of thinking costs, in the drafts' own units.
+
+        Exertion is what the last cycle took; the energy budget is what there
+        is to take it from. A depleted system pays more for the same work,
+        which is the whole content of a metabolic constraint.
+        """
+        spent = 0.0
+        energy = 1.0
+        try:
+            from core.soma.effort import EffortLedger, get_effort_ledger
+
+            spent = EffortLedger.exertion(get_effort_ledger().peek())
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            spent = 0.0
+        try:
+            from core.container import ServiceContainer
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            state = getattr(repo, "_current", None) if repo is not None else None
+            budgets = getattr(getattr(state, "motivation", None), "budgets", {}) or {}
+            entry = budgets.get("energy") or {}
+            capacity = float(entry.get("capacity", 100.0) or 100.0) or 100.0
+            energy = max(0.05, min(1.0, float(entry.get("level", capacity)) / capacity))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            energy = 1.0
+        return float(spent) / energy
+
+    def last_spend_decision(self) -> Any:
+        """The most recent answer to whether another round was worth it."""
+        return self._last_judgement
 
     def _winner_margin(self) -> tuple[bool, float, str]:
         """Measure whether the leading draft leads by more than the noise.

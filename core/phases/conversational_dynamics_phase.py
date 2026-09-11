@@ -183,6 +183,19 @@ class ConversationalDynamicsPhase(Phase):
                     new_state.response_modifiers["multiple_drafts"] = md_block
                 if divergence > 0.15:
                     cog.modifiers["draft_divergence"] = f"{divergence:.2f}"
+                # What the spend decision said when the drafts tied, so the
+                # verdict is visible where the turn is read rather than only in
+                # a log line. It is already acted on inside the engine, which
+                # holds the competition open for one more probe when another
+                # round is worth what it costs her.
+                judgement = md_engine.last_spend_decision()
+                if judgement is not None:
+                    new_state.response_modifiers["worth_more_thought"] = {
+                        "worth": str(judgement.worth),
+                        "margin": round(float(judgement.margin), 4),
+                        "cost": round(float(judgement.cost), 4),
+                        "because": judgement.because,
+                    }
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _record_conversational_degradation(
                     exc,
