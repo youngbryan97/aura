@@ -1,0 +1,155 @@
+{
+  "frozen": {
+    "thresholds": {
+      "component_share": 0.5,
+      "cycles_per_node": 2.0,
+      "d_eff_floor": 3.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2
+    },
+    "seconds_per_turn": 1.0,
+    "layer_rates": {
+      "NeuralMesh": 10.0,
+      "Neurochemical": 2.0,
+      "EmbodiedInteroception": 1.0,
+      "OscillatoryBinding": 100.0,
+      "UnifiedField": 20.0,
+      "SubstrateEvolution": 0.0033333333333333335,
+      "ConsciousnessBridge": 10.0,
+      "ClosedCausalLoop": 0.4,
+      "StreamOfBeing": 0.4
+    },
+    "layer_body": {
+      "NeuralMesh": [
+        "_tick"
+      ],
+      "Neurochemical": [
+        "_metabolic_tick",
+        "_push_modulation"
+      ],
+      "EmbodiedInteroception": [
+        "_sample_hardware",
+        "_push_to_mesh",
+        "_trigger_neurochemical_events"
+      ],
+      "OscillatoryBinding": [
+        "_oscillator_step",
+        "_compute_synchronization/10",
+        "_emit_binding_moment/10"
+      ],
+      "UnifiedField": [
+        "_tick"
+      ],
+      "SubstrateEvolution": [
+        "_run_generation"
+      ],
+      "ConsciousnessBridge": [
+        "_integration_tick"
+      ],
+      "ClosedCausalLoop": [
+        "step"
+      ],
+      "StreamOfBeing": [
+        "step"
+      ]
+    },
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "lesion": {
+      "rounds": 16
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "one_way",
+        "prompt_only",
+        "frozen_slow"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 209,
+      "hash": "dbde92a630c32905077ea8d1e814213e"
+    },
+    "seed": 7
+  },
+  "fingerprint": "d50b4b69ca1bfb3f4eb0a3d732f05873",
+  "run_fingerprint": "ebe1f886594c696574aa5f03b80fbf8d",
+  "commit": "66b500117d018b95d5316487660bc602cc38053c",
+  "commit_subject": "fix(subject): a counted iteration ran the first line of the loop, not the loop",
+  "tree_hash": "01f1d2d26fcbae494c6cd0a23c3b1d79",
+  "dirty": false,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1789084264.743436
+}

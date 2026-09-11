@@ -13,7 +13,7 @@ reverts to open by itself.
 
 **121 done, 0 blocked, 0 not applicable, 661 open, of 782.**
 
-Newest run with a report: `run_015` — 11/24 criteria, commit `d3d77f9fd4dc`.
+Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 
 ## Phase 0 — Freeze what “passing” means
