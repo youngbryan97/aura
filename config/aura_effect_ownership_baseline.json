@@ -6817,6 +6817,22 @@
       "scope": "<module>.SubjectRuntime._act"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/driver.py",
+      "scope": "<module>._restore_world"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>._restore_world"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -15198,6 +15214,14 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/perception/app_dictionary.py",
+      "scope": "<module>._read_an_old_plist"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/perception/app_dictionary.py",
       "scope": "<module>._run_sdef"
     },
     {
@@ -16442,6 +16466,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "1191fad05eefc0db43e139ae128376275b8a392648baf3d7c8dd4b30db9a8fc8",
+  "inventory_sha256": "2984734d0d3cf13d42025fe3437c96ee3c97a76a1d33c5525ced2c986cf46668",
   "schema_version": 1
 }

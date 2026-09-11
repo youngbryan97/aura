@@ -657,38 +657,47 @@ def _world_state(root: Path | None) -> dict[str, Any] | None:
 
 
 def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
-    """Put the scratch root back to the bytes it held, and nothing else."""
+    """Put the scratch root back to the bytes it held, and nothing else.
+
+    Through the write gateway, like every other consequential write in the
+    tree. A fork that rewinds the filesystem is exactly the kind of write the
+    gateway exists to govern, and reaching past it for `unlink`, `mkdir`,
+    `rmtree` and `write_bytes` put five raw mutations into the governance
+    ledger's regression list the first time the gate ran after it landed.
+    """
     if root is None or saved is None:
         return
-    import shutil
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
 
     root = Path(root)
+    gateway = get_file_write_gateway()
     keep = set(saved["files"]) | set(saved["directories"])
-    for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
-        name = str(item.relative_to(root))
-        if name in keep:
-            continue
-        try:
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink()
-        except OSError:
-            continue
-    for name in saved["directories"]:
-        (root / name).mkdir(parents=True, exist_ok=True)
-    for name, payload in saved["files"].items():
-        target = root / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            if not target.exists() or target.read_bytes() != payload:
-                target.write_bytes(payload)
-            # An arm reading a modification time would be reading which arm it
-            # is. Nothing in the probe does today; putting the stamp back costs
-            # nothing and stops that from becoming true by accident.
-            os.utime(target, (0, 0))
-        except OSError:
-            continue
+    with local_internal_governed_scope("subject_core.fork"):
+        for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
+            name = str(item.relative_to(root))
+            if name in keep:
+                continue
+            try:
+                gateway.delete_path(
+                    item, recursive=item.is_dir(), source="subject_core.fork"
+                )
+            except OSError:
+                continue
+        for name in saved["directories"]:
+            gateway.ensure_directory(root / name, source="subject_core.fork")
+        for name, payload in saved["files"].items():
+            target = root / name
+            gateway.ensure_directory(target.parent, source="subject_core.fork")
+            try:
+                if not target.exists() or target.read_bytes() != payload:
+                    gateway.write_bytes(target, payload, source="subject_core.fork")
+                # An arm reading a modification time would be reading which arm
+                # it is. Nothing in the probe does today; putting the stamp back
+                # costs nothing and stops that from becoming true by accident.
+                os.utime(target, (0, 0))
+            except OSError:
+                continue
 
 
 def _intentions_state(loop: Any) -> list[tuple] | None:

@@ -158,30 +158,62 @@ def test_every_live_cognitive_loop_can_be_advanced_by_a_count() -> None:
     from core.subject.organism import bring_up, quiesce
     from core.subject.steppable import missing_entry_points, step_once
 
-    async def run() -> tuple[dict[str, str], dict[str, int], dict[str, str]]:
+    from core.subject.steppable import LAYERS, layers_of
+
+    #: Long enough for every layer down to one step every two and a half
+    #: seconds to take one. A generation of substrate evolution is five
+    #: minutes apart and is not expected inside it.
+    seconds = 0.05
+    frames = int(round(3.0 / seconds))
+
+    async def run() -> tuple[dict[str, str], dict[str, int], dict[str, str], set[str]]:
         organism = await bring_up(quiet=False)
         await quiesce()
         missing = missing_entry_points(organism)
         steps = None
-        for frame in range(4):
-            steps = await step_once(organism, frame, steps)
-        return missing, dict(steps.counts), dict(steps.failures)
+        for frame in range(frames):
+            steps = await step_once(organism, frame, steps, seconds=seconds)
+        return missing, dict(steps.counts), dict(steps.failures), set(layers_of(organism))
 
-    missing, counts, failures = asyncio.run(run())
+    missing, counts, failures, present = asyncio.run(run())
     assert not missing, f"a live layer has no entry point: {missing}"
     assert not failures, f"a layer raised while being stepped: {failures}"
-    assert len(counts) >= 8, f"only {len(counts)} layers were advanced: {sorted(counts)}"
+
+    # Every layer fast enough to come round inside the window did, and the ones
+    # that did not are exactly the ones whose own period is longer than it.
+    window = frames * seconds
+    due = {layer.name for layer in LAYERS if layer.name in present and 1.0 / layer.hz <= window}
+    assert due <= set(counts), f"a layer that was due did not advance: {sorted(due - set(counts))}"
+    assert set(counts) <= present, f"a layer advanced that is not here: {sorted(set(counts) - present)}"
+
+    # And each one took about the number of iterations its own rate calls for.
+    for layer in LAYERS:
+        if layer.name not in counts:
+            continue
+        expected = layer.hz * window
+        assert abs(counts[layer.name] - expected) <= 1.0, (
+            f"{layer.name} took {counts[layer.name]} iterations where its "
+            f"{layer.hz} Hz calls for about {expected:.1f}"
+        )
 
 
 def test_two_arms_step_the_same_layers_the_same_number_of_times() -> None:
-    """Which layer steps on a frame is a function of the frame count, and the
-    frame count is carried in the snapshot — so a restore puts both arms at the
-    same place in the schedule rather than sixty-six frames apart."""
-    from core.subject.steppable import LAYERS
+    """Which layer steps on a frame, and how often, is a function of the frame
+    count — and the frame count is carried in the snapshot, so a restore puts
+    both arms at the same place in the schedule rather than sixty-six frames
+    apart."""
+    from core.subject.steppable import LAYERS, iterations_at
 
-    schedule = lambda start, length: [  # noqa: E731 - a table, not a policy
-        sorted(layer.name for layer in LAYERS if (start + step) % layer.every == 0)
-        for step in range(length)
-    ]
-    assert schedule(0, 12) == schedule(0, 12)
-    assert schedule(0, 12) != schedule(1, 12), "the schedule does not depend on the count"
+    seconds = 0.03
+
+    def schedule(start: int, length: int) -> list[list[tuple[str, int]]]:
+        return [
+            [
+                (layer.name, iterations_at(layer, start + step, seconds)[1])
+                for layer in LAYERS
+            ]
+            for step in range(length)
+        ]
+
+    assert schedule(0, 40) == schedule(0, 40)
+    assert schedule(0, 40) != schedule(7, 40), "the schedule does not depend on the count"
