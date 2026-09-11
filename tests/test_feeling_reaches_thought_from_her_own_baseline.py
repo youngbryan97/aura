@@ -108,3 +108,55 @@ def test_the_modifiers_move_when_the_substrate_does() -> None:
     assert brighter.temperature_mod > ordinary.temperature_mod + 0.01, (
         "a displaced substrate does not reach the temperature the head runs at"
     )
+
+
+def test_an_absent_substrate_is_asked_for_again(monkeypatch) -> None:
+    """A link that resolves to nothing must not stay dead for the process.
+
+    Resolving in the constructor made the link depend on boot order. Resolving
+    lazily and caching the answer had the same defect with one more step: the
+    first caller to touch it before the substrate was registered wrote None
+    into the cache, and `None is not _UNRESOLVED`, so the substrate's third of
+    her felt state silently did not happen for the rest of the run.
+    """
+    import core.consciousness.homeostatic_coupling as module
+
+    registered: dict[str, object] = {}
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            return registered.get(name, default)
+
+    monkeypatch.setattr(module, "ServiceContainer", _Container)
+    coupling = module.HomeostaticCoupling(orchestrator=None)
+    assert coupling.substrate is None, "there is no substrate yet"
+
+    substrate = object()
+    registered["liquid_substrate"] = substrate
+    assert coupling.substrate is substrate, (
+        "the coupling never asked again, so a substrate registered after boot "
+        "is a substrate it will never see"
+    )
+
+
+def test_a_caller_who_says_there_is_none_is_believed(monkeypatch) -> None:
+    """The other half of the rule above.
+
+    A caller assigning None has decided there is none; a lookup that found none
+    has only failed to find one. Retrying the second must not overrule the
+    first, or a test harness that detaches the substrate gets it back.
+    """
+    import types
+
+    import core.consciousness.homeostatic_coupling as module
+
+    monkeypatch.setattr(
+        module.ServiceContainer,
+        "get",
+        lambda *_args, **_kwargs: types.SimpleNamespace(name="a substrate"),
+    )
+    coupling = module.HomeostaticCoupling(orchestrator=None)
+    assert coupling.substrate is not None
+    coupling.substrate = None
+    assert coupling.substrate is None

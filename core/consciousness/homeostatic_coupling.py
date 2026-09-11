@@ -121,6 +121,11 @@ class HomeostaticCoupling:
     _arousal_scatter: float = 0.0
     _felt_seen: float = 0.0
 
+    #: Whether a caller has assigned `substrate` outright. Declared on the
+    #: class so an object built through `__new__` — the recovery-path tests do
+    #: that — answers the question rather than raising.
+    _substrate_decided: bool = False
+
     def __init__(self, orchestrator):
         self.orch = orchestrator
         self._modifiers = CognitiveModifiers()
@@ -161,7 +166,18 @@ class HomeostaticCoupling:
         desktop boot and `conscious_substrate` from the consciousness system.
         Asking for both is what makes this work in either.
         """
-        if self._substrate is _UNRESOLVED:
+        if self._substrate is _UNRESOLVED or (
+            self._substrate is None and not self._substrate_decided
+        ):
+            # Asking again while it is absent, not once and for ever.
+            #
+            # Resolving in the constructor made the link depend on boot order.
+            # Resolving lazily and caching the answer had the same defect with
+            # one more step: the first caller to touch this before the substrate
+            # is registered wrote None into the cache, and `None is not
+            # _UNRESOLVED`, so the link stayed dead for the life of the process
+            # and the substrate's third of her felt state silently did not
+            # happen. An absent organ is a fact about now.
             try:
                 self._substrate = ServiceContainer.get(
                     "liquid_substrate", default=None
@@ -174,7 +190,11 @@ class HomeostaticCoupling:
 
     @substrate.setter
     def substrate(self, value):
+        # A caller assigning None has decided there is none; a lookup that
+        # found none has only failed to find one. The two are not the same
+        # fact and the getter treats them differently.
         self._substrate = value
+        self._substrate_decided = True
 
     def _get_mycelium(self):
         """Lazy-resolve Mycelial Network."""

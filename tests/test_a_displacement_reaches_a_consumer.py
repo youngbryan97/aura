@@ -128,15 +128,35 @@ def test_the_substrate_writer_moves_the_dimensions_the_readout_reports() -> None
         world_model=None, ontogeny=None, agency=None, self_prediction=None,
         comparator=None, soma=None,
     )
+    import numpy as np
+
+    before_state = np.array(substrate.x, copy=True)
     before = dict(substrate.get_substrate_affect())
     assert asyncio.run(perturb_organs(organs, "C", DELTA, state=None)) is True
     after = dict(substrate.get_substrate_affect())
     moved = [
         key
-        for key in ("valence", "arousal", "dominance")
+        for key in ("valence", "arousal", "dominance", "energy")
         if abs(float(after[key]) - float(before[key])) > 1e-6
     ]
-    assert len(moved) >= 2, f"only {moved} moved in the substrate's own readout"
+    assert len(moved) >= 3, f"only {moved} moved in the substrate's own readout"
+
+    # And the recurrent state itself, not five readouts on top of it.
+    #
+    # The five named psychological dimensions are five of five hundred and
+    # twelve, and `get_substrate_affect` takes x[0], x[1], x[2] and two means
+    # over the whole vector. Writing only those moved recurrent cognition's own
+    # reading to the clipping ceiling and moved the state the dynamics carry by
+    # almost nothing — which is why C could be displaced hardest of the ten
+    # domains and reach a tenth of a standard deviation anywhere else.
+    spread = float(np.mean(np.abs(np.asarray(substrate.x) - before_state)))
+    assert spread > DELTA * 0.5, (
+        f"the whole recurrent state moved by {spread:.4f}; the intervention is "
+        "still on the readouts rather than on the system"
+    )
+    assert abs(float(after["energy"]) - float(before["energy"])) > 1e-6, (
+        "the energy readout is a mean over every unit and it did not move"
+    )
 
 
 def test_a_bumped_phi_estimate_is_not_a_displacement_of_anything() -> None:

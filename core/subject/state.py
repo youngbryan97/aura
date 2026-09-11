@@ -1657,10 +1657,34 @@ async def perturb_organs(
     hit = False
     if domain == "C" and organs.substrate is not None:
         try:
-            # Displace the dimensions anything downstream reads. Frustration
-            # and curiosity alone moved indices that the homeostatic blend does
-            # not look at, so the perturbation was real, gated, applied — and
-            # invisible to every consumer of the substrate.
+            # The recurrent state first, then the readouts on top of it.
+            #
+            # The five named psychological dimensions are five of five hundred
+            # and twelve, and they are readouts: `get_substrate_affect` takes
+            # x[0], x[1], x[2] and two means over the whole vector. Writing
+            # only those moved recurrent cognition's own reading by ten
+            # standard deviations — the clipping ceiling — and moved the state
+            # the dynamics carry by almost nothing, which is why C could be
+            # displaced hardest of all ten domains and reach a tenth of a
+            # standard deviation anywhere else. An intervention on the readout
+            # of a recurrent system is not an intervention on the system.
+            #
+            # `inject_stimulus` is the organ's own gated path into the state
+            # vector, and it applies a tenth of what it is given, so the vector
+            # carries ten times the displacement to land on `delta`. The
+            # authority may constrain the weight, which makes the intervention
+            # smaller and is a refusal the measurement has to live with.
+            await organs.substrate.inject_stimulus(
+                np.full(
+                    int(getattr(getattr(organs.substrate, "config", None), "neuron_count", 512)),
+                    delta * 10.0,
+                    dtype=np.float64,
+                ),
+                weight=1.0,
+            )
+            # And the dimensions the named consumers read, which the state
+            # injection moves too but which the blend and the modifiers take
+            # from the readout rather than from x.
             reading = organs.substrate.get_substrate_affect() or {}
             await organs.substrate.update(
                 delta_frustration=delta,

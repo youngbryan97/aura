@@ -546,14 +546,16 @@ class AffectUpdatePhase(Phase):
                 )
                 return
             keep = 1.0 - SUBSTRATE_SHARE
+            substrate_valence = float(reading.get("valence", 0.0))
             affect.valence = max(
                 -1.0,
-                min(1.0, affect.valence * keep + float(reading.get("valence", 0.0)) * SUBSTRATE_SHARE),
+                min(1.0, affect.valence * keep + substrate_valence * SUBSTRATE_SHARE),
             )
             affect.arousal = max(
                 0.0,
                 min(1.0, affect.arousal * keep + float(reading.get("arousal", 0.0)) * SUBSTRATE_SHARE),
             )
+            self._fold_substrate_into_emotions(affect, substrate_valence)
             state.response_modifiers["substrate_share_of_affect"] = SUBSTRATE_SHARE
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
@@ -563,6 +565,40 @@ class AffectUpdatePhase(Phase):
                 action="kept affect state without the substrate's contribution",
                 severity="warning",
             )
+
+    @staticmethod
+    def _fold_substrate_into_emotions(affect: AffectVector, valence: float) -> None:
+        """Put the substrate's valence where valence is kept.
+
+        `_derive_metrics` recomputes `affect.valence` from the emotion
+        dictionary at the top of every turn, so the blend above lived until the
+        next turn began and was then gone. The continuous substrate is, in the
+        homeostatic coupling's own words, the ground truth for her felt state —
+        and it could colour one turn and never two, which is most of why
+        recurrent cognition can be moved nine standard deviations and reach a
+        tenth of one anywhere else.
+
+        The direction and the proportions are the readout's own, inverted: the
+        channels valence is derived from, each moved by its own weight in that
+        derivation. Nothing new is decided here about what counts as feeling
+        good.
+        """
+        emotions = getattr(affect, "emotions", None)
+        if not isinstance(emotions, dict):
+            return
+        share = SUBSTRATE_SHARE * max(-1.0, min(1.0, float(valence)))
+        if abs(share) < 1e-9:
+            return
+        heaviest = max(
+            max(_POSITIVE_AFFECT_WEIGHTS.values(), default=1.0),
+            max(_NEGATIVE_AFFECT_WEIGHTS.values(), default=1.0),
+        ) or 1.0
+        for weights, sign in ((_POSITIVE_AFFECT_WEIGHTS, 1.0), (_NEGATIVE_AFFECT_WEIGHTS, -1.0)):
+            for name, weight in weights.items():
+                if name not in emotions:
+                    continue
+                step = sign * share * (weight / heaviest)
+                emotions[name] = max(0.0, min(1.0, float(emotions[name] or 0.0) + step))
 
     async def _push_to_substrate(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
         """Push felt state into the continuous substrate, and wait for it.
