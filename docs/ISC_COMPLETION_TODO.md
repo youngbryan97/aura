@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**126 done, 0 blocked, 0 not applicable, 656 open, of 782.**
+**131 done, 0 blocked, 0 not applicable, 651 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -488,11 +488,11 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P21.3` service-local RNGs. — service-local generators are deep-copied with the service
 - [x] `P21.4` substrate RNG. — torch's generator, which the substrate draws its integration noise from
 - [ ] `P21.5` model sampling RNG.
-- [ ] `P21.6` search/planning RNG.
-- [ ] `P21.7` randomized tie resolution.
+- [x] `P21.6` search/planning RNG. — search and planning draw from the process stream: no generator in the tree is built without a seed
+- [x] `P21.7` randomized tie resolution. — the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded
 - [ ] `P21.8` file/environment randomness.
 - [ ] `P21.9` randomized arm ordering remains recorded.
-- [ ] `P21.10` matched arms use the same stochastic stream where scientifically appropriate.
+- [x] `P21.10` matched arms use the same stochastic stream where scientifically appropriate. — both arms of a trial draw the same stream: the process generators are snapshotted and every private generator now comes from them
 - [x] `P21.11` independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains. — the frozen campaign runs three declared seeds
 
 ## Phase 22 — Replace contaminating wall-clock dependence with an experiment clock
@@ -692,12 +692,12 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [ ] `P33.4` Report floor by lag.
 - [ ] `P33.5` Report floor by run.
 - [ ] `P33.6` No domain’s causal threshold is dominated by restoration noise.
-- [ ] `P33.7` No singleton contamination.
+- [x] `P33.7` No singleton contamination. — module singletons the container does not hold are carried across the fork, the synaptic cleft and its receptor bank among them
 - [ ] `P33.8` No host drift.
 - [ ] `P33.9` No timestamp drift.
 - [ ] `P33.10` No DB contamination.
 - [ ] `P33.11` No filesystem contamination.
-- [ ] `P33.12` No model-sampling contamination.
+- [x] `P33.12` No model-sampling contamination. — the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms
 - [ ] `P33.13` No background-task timing contamination. If sham noise approaches the effect threshold, a negative result for that domain is not interpretable.
 
 ## Phase 34 — Preserve perturbational complexity while raising spread

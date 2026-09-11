@@ -779,6 +779,27 @@
     "note": "`random.getstate` carried and restored",
     "status": "done"
   },
+  "P21.10": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_no_generator_escapes_the_seed.py::test_the_laboratory_hands_out_a_generator_a_snapshot_can_rewind -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_fork_leaves_nothing_behind.py::test_the_synaptic_medium_rewinds_with_the_process_generator -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "global_random=random\\.getstate\\(\\)"
+      }
+    ],
+    "note": "both arms of a trial draw the same stream: the process generators are snapshotted and every private generator now comes from them",
+    "status": "done"
+  },
   "P21.11": {
     "checks": [
       {
@@ -821,6 +842,43 @@
       }
     ],
     "note": "torch's generator, which the substrate draws its integration noise from",
+    "status": "done"
+  },
+  "P21.6": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_unseeded_randomness.py --check",
+        "kind": "command",
+        "timeout": 180
+      },
+      {
+        "command": "{python} -m pytest tests/test_no_generator_escapes_the_seed.py::test_nothing_holds_a_generator_the_process_cannot_reach -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "search and planning draw from the process stream: no generator in the tree is built without a seed",
+    "status": "done"
+  },
+  "P21.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/global_workspace.py",
+        "pattern": "def _resolve_tie"
+      },
+      {
+        "kind": "grep",
+        "path": "core/consciousness/global_workspace.py",
+        "pattern": "seeded\\(\\\"global_workspace\\\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/consciousness/global_workspace.py",
+        "pattern": "neither can see when a bid arrived"
+      }
+    ],
+    "note": "the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded",
     "status": "done"
   },
   "P22.1": {
@@ -1335,6 +1393,38 @@
       }
     ],
     "note": "the probe intention states an urgency the competition can price, and the displaced budgets change which need is worst",
+    "status": "done"
+  },
+  "P33.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def mind_identity"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "class DeterministicMind"
+      }
+    ],
+    "note": "the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms",
+    "status": "done"
+  },
+  "P33.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "_MODULE_SINGLETONS"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_fork_leaves_nothing_behind.py::test_the_fork_carries_the_module_singletons_nothing_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "module singletons the container does not hold are carried across the fork, the synaptic cleft and its receptor bank among them",
     "status": "done"
   },
   "P47.1": {
