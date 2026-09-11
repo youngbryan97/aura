@@ -293,6 +293,21 @@ async def main() -> int:
     # measurement, so a run that has one says so in the report rather than
     # reporting numbers taken while it was stopped.
     evidence["notes"]["layers"] = runtime.layer_steps.summary()
+    # Who bid for attention and who ever got it. A bid type that never wins is
+    # a channel into the workspace that cannot fire, and the winner alone
+    # cannot show it: every source that lost looks the same as one that never
+    # spoke.
+    try:
+        workspace = runtime.organs.workspace
+        snapshot = workspace.get_snapshot() if workspace is not None else {}
+        evidence["notes"]["attention"] = {
+            "bids_by_source": dict(snapshot.get("bids_by_source", {}) or {}),
+            "wins_by_source": dict(snapshot.get("wins_by_source", {}) or {}),
+            "sources_that_never_won": list(snapshot.get("sources_that_never_won", []) or []),
+            "tie_impasses": snapshot.get("tie_impasses", 0),
+        }
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _log(f"  the workspace could not say who won: {exc}")
     _log(f"stopped {len(stopped)} background loops for the paired arms")
 
     # An authoritative run refuses rather than reports.

@@ -462,6 +462,12 @@ class GlobalWorkspace:
         self._tick: int = 0
         self.attention_schema: Any = attention_schema
         self.last_winner: CognitiveCandidate | None = None
+        #: How often each source has bid and how often it has won, for the life
+        #: of this workspace. A bid type that never wins is a channel into
+        #: attention that cannot fire, and the winner alone cannot show it:
+        #: every source that lost looks the same as a source that never spoke.
+        self._bids_by_source: dict[str, int] = {}
+        self._wins_by_source: dict[str, int] = {}
         
         # [UNITY] Global Inhibition Link
         self._global_inhibition: InhibitionManager | None = None
@@ -895,6 +901,12 @@ class GlobalWorkspace:
             self._lock = asyncio.Lock()
             
         async with self._lock:
+            # Counted before any gate, because a source refused every time is
+            # as dead a channel as one that never wins, and the two are told
+            # apart by whether it ever got in.
+            offered = str(getattr(candidate, "source", "") or "")
+            self._bids_by_source[offered] = self._bids_by_source.get(offered, 0) + 1
+
             # Check internal inhibition
             if candidate.source in self._inhibited and self._inhibited[candidate.source] > 0:
                 logger.debug("GW: %s is internal-inhibited (%d ticks)", candidate.source, self._inhibited[candidate.source])
@@ -1284,6 +1296,9 @@ class GlobalWorkspace:
             self._history.append(record)
 
             self.last_winner = winner
+            if winner is not None:
+                name = str(getattr(winner, "source", "") or "")
+                self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
 
         # --- Peripheral Awareness (Attention/Consciousness Dissociation) ---
         # Feed losers into the peripheral field so content that didn't win
@@ -1469,6 +1484,11 @@ class GlobalWorkspace:
             "last_tie": list(self._last_tie),
             "fatigue_recovery_rate": round(self._fatigue_recovery(), 5),
             "broadcast_history_len": len(self._history),
+            "bids_by_source": dict(sorted(self._bids_by_source.items())),
+            "wins_by_source": dict(sorted(self._wins_by_source.items())),
+            "sources_that_never_won": sorted(
+                name for name in self._bids_by_source if name not in self._wins_by_source
+            ),
             "ignition_level": round(self.ignition_level, 3),
             "ignited": self.ignited,
             "ignition_count": self._ignition_count,

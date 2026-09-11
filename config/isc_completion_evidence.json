@@ -4102,6 +4102,16 @@
     "note": "the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent",
     "status": "done"
   },
+  "P45.13": {
+    "checks": [
+      {
+        "expr": "'liquid_substrate_alias' in report['organism']['up']",
+        "kind": "report"
+      }
+    ],
+    "note": "the substrate is published under every name its consumers ask for, and the run records that the alias went up",
+    "status": "done"
+  },
   "P45.14": {
     "checks": [
       {
@@ -4135,6 +4145,45 @@
       }
     ],
     "note": "a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one",
+    "status": "done"
+  },
+  "P45.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/global_workspace.py",
+        "pattern": "sources_that_never_won"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_bid_type_that_never_wins.py::test_a_source_that_never_wins_is_named -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_bid_type_that_never_wins.py::test_bids_are_counted_before_any_gate -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "len(report['notes']['attention']['sources_that_never_won']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke",
+    "status": "done"
+  },
+  "P45.8": {
+    "checks": [
+      {
+        "expr": "'flat_column_names' in report['recording']",
+        "kind": "report"
+      },
+      {
+        "expr": "not [c for c in report['recording']['flat_column_names'] if c.startswith('S.')]",
+        "kind": "report"
+      }
+    ],
+    "note": "a self-model field that never changes is a flat column, and the recording names every one",
     "status": "done"
   },
   "P45.9": {
@@ -4728,6 +4777,16 @@
       }
     ],
     "note": "each of them in at least three conditions",
+    "status": "done"
+  },
+  "P5.5": {
+    "checks": [
+      {
+        "expr": "len(report['notes']['attention']['wins_by_source']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "the workspace's own tally says which sources reached attention, run by run, so a criterion holding on one run and not the next is visible",
     "status": "done"
   },
   "P5.6": {
