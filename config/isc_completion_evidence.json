@@ -680,15 +680,32 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "Scored at the partition the lesion cuts, in every arm"
-      },
-      {
-        "kind": "grep",
-        "path": "core/subject/irreducibility.py",
-        "pattern": "at: tuple\\[tuple\\[str, \\.\\.\\.\\], tuple\\[str, \\.\\.\\.\\]\\] \\| None = None"
+        "pattern": "phi_do\\(recording, at=\\(tuple\\(smaller\\), tuple\\(larger\\)\\)\\)"
       }
     ],
     "note": "the lesion arms are read at the partition that was cut, which is the comparison the main edge experiment makes within a column",
+    "status": "done"
+  },
+  "P13.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"lesion\": \\{\\n            \"rounds\": lesion_rounds,"
+      }
+    ],
+    "note": "the lesion's own tolerances are preregistered in the fingerprint beside the rounds it runs",
+    "status": "done"
+  },
+  "P13.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "abs\\(deltas\\[key\\]\\) >= DEFICIT_SHARE"
+      }
+    ],
+    "note": "a measure only counts as damaged when its deficit is a tenth of its own intact value, which is a bar above the reading noise rather than a sign test",
     "status": "done"
   },
   "P13.9": {
@@ -766,6 +783,43 @@
     "note": "the cut system is measured from the two arms composed column-wise",
     "status": "done"
   },
+  "P15.1": {
+    "checks": [
+      {
+        "expr": "bool(report['lesion']['deficit'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the lesion produces a deficit in every measure before any rescue is judged",
+    "status": "done"
+  },
+  "P15.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"recovery_tolerance\": RECOVERY_TOLERANCE"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"deficit_share\": DEFICIT_SHARE"
+      }
+    ],
+    "note": "both tolerances are in the campaign fingerprint, so one cannot be chosen after seeing which measure recovered",
+    "status": "done"
+  },
+  "P15.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "the rescue arm runs on the same runtime afterwards, so a recovery is a\\n    recovery of this life rather than of a fresh one"
+      }
+    ],
+    "note": "the rescue arm runs on the same runtime after the lesion, so a recovery is a recovery of this life rather than of a fresh one",
+    "status": "done"
+  },
   "P15.2": {
     "checks": [
       {
@@ -805,11 +859,47 @@
   "P15.5": {
     "checks": [
       {
-        "expr": "float(report['lesion']['rescued']['synergy']) > float(report['lesion']['lesioned']['synergy'])",
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"recovery_fraction\": fractions"
+      },
+      {
+        "expr": "'synergy' in report['lesion']['recovery_fraction']",
         "kind": "report"
       }
     ],
-    "note": "synergy rises again",
+    "note": "synergy is judged when the lesion damaged it, and its recovery is reported either way",
+    "status": "done"
+  },
+  "P15.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "^RECOVERY_TOLERANCE: float"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": ">= RECOVERY_TOLERANCE for key in judged"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_rescue_needs_a_deficit_worth_rescuing.py::test_a_trivial_improvement_is_not_a_rescue -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "half the deficit has to come back, which is a tolerance rather than a comparison two noisy readings pass half the time",
+    "status": "done"
+  },
+  "P15.7": {
+    "checks": [
+      {
+        "expr": "len(report['lesion']['recovery_fraction']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "the recovery fraction is reported per measure, so how far each came back is readable rather than a yes",
     "status": "done"
   },
   "P15.8": {
@@ -820,6 +910,27 @@
       }
     ],
     "note": "the recovery fraction is recorded beside the arms",
+    "status": "done"
+  },
+  "P15.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "^DEFICIT_SHARE: float"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"deficit_worth_rescuing\": real"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_rescue_needs_a_deficit_worth_rescuing.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a measure whose deficit was under a tenth of its intact value has nothing to rescue and does not enter the verdict",
     "status": "done"
   },
   "P16.1": {

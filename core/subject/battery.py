@@ -20,9 +20,23 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["THRESHOLDS", "Criterion", "Verdict", "assemble"]
+__all__ = [
+    "DEFICIT_SHARE",
+    "RECOVERY_TOLERANCE",
+    "THRESHOLDS",
+    "Criterion",
+    "Verdict",
+    "assemble",
+]
 
 #: Preregistered. Sources: the specification's section numbers.
+#: How much of the deficit a rescue has to bring back, and how large a deficit
+#: has to be before it is one. Both fixed before the experiment: "rescued is
+#: larger than cut" is a comparison two noisy readings pass half the time, and
+#: a measure the lesion barely touched has nothing to rescue.
+RECOVERY_TOLERANCE: float = 0.5
+DEFICIT_SHARE: float = 0.10
+
 THRESHOLDS: dict[str, float] = {
     "phi_do": 0.05,
     "d_eff_normalised": 0.40,

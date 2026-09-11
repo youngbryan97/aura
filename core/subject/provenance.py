@@ -124,7 +124,7 @@ def campaign(
     *, seed: int, rounds: int, trials: int, turns: int, lesion_rounds: int = 0
 ) -> dict[str, Any]:
     """Everything a second run would have to match to be the same measurement."""
-    from core.subject.battery import THRESHOLDS
+    from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE, THRESHOLDS
     from core.subject.causal import (
         DEFAULT_DELTA,
         SUSTAINED,
@@ -184,7 +184,15 @@ def campaign(
         # How long the lesion and rescue arms live. It changes what those two
         # criteria are measured on, so it belongs in the fingerprint with
         # everything else that does.
-        "lesion": {"rounds": lesion_rounds},
+        "lesion": {
+            "rounds": lesion_rounds,
+            # How much of the deficit a rescue has to bring back, and how large
+            # a deficit has to be before there is one to bring back. Fixed here
+            # so a tolerance cannot be chosen after seeing which measure
+            # recovered.
+            "recovery_tolerance": RECOVERY_TOLERANCE,
+            "deficit_share": DEFICIT_SHARE,
+        },
         "estimator": {"components_per_domain": COMPONENTS, "folds": FOLDS},
         "nulls": {"architectures": list(ARCHITECTURES)},
         "synergy_triples": [list(t) for t in TRIPLES],

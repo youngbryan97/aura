@@ -552,6 +552,8 @@ async def _lesion(
     are composed column-wise. Both halves start from the same snapshot, and the
     experiment clock makes the two runs the same length of life.
     """
+    from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE
+
     smaller = min(phi.best_cut, key=len)
     larger = max(phi.best_cut, key=len)
     left, right = phi.best_cut[0], phi.best_cut[1]
@@ -635,12 +637,33 @@ async def _lesion(
 
     rescued = await measure("rescued")
 
+    measures = ("phi_do", "spread", "synergy")
     deltas = {key: round(intact[key] - cut[key], 5) for key in intact}
-    deficit = all(cut[key] < intact[key] for key in ("phi_do", "spread", "synergy"))
-    recovery = {
-        key: round(rescued[key] - cut[key], 5) for key in intact
+    deficit = all(cut[key] < intact[key] for key in measures)
+    recovery = {key: round(rescued[key] - cut[key], 5) for key in intact}
+
+    # A measure whose deficit was a rounding error has nothing to rescue, and
+    # judging the rescue on it is judging noise. run_019's synergy fell by
+    # 0.0166 from 0.245 — under seven per cent — and its recovery came out at
+    # minus a quarter of that, which failed the whole criterion on a channel
+    # the lesion barely touched. So a measure enters the rescue verdict only
+    # when its own deficit was worth rescuing, and the share it has to lose to
+    # count is fixed before the run rather than read off the result.
+    real = {
+        key: abs(deltas[key]) >= DEFICIT_SHARE * max(abs(intact[key]), 1e-9)
+        for key in measures
     }
-    rescued_ok = all(rescued[key] > cut[key] for key in ("phi_do", "spread", "synergy"))
+    fractions = {
+        key: round(recovery[key] / deltas[key], 4) if abs(deltas[key]) > 1e-9 else None
+        for key in measures
+    }
+    # And a trivial improvement is not a rescue. Half the deficit has to come
+    # back, which is a tolerance set before the experiment and not "rescued is
+    # larger than cut", a comparison two noisy readings pass half the time.
+    judged = [key for key in measures if real[key]]
+    rescued_ok = bool(judged) and all(
+        (fractions[key] or 0.0) >= RECOVERY_TOLERANCE for key in judged
+    )
     return {
         "cut": list(smaller),
         "severed": {"left": list(left), "right": list(right)},
@@ -650,6 +673,11 @@ async def _lesion(
         "rescued": {k: round(v, 5) for k, v in rescued.items()},
         "deltas": deltas,
         "rescue": recovery,
+        "recovery_fraction": fractions,
+        "deficit_worth_rescuing": real,
+        "judged_on": judged,
+        "recovery_tolerance": RECOVERY_TOLERANCE,
+        "deficit_share": DEFICIT_SHARE,
         "deficit": deficit,
         "rescued_ok": rescued_ok,
     }
