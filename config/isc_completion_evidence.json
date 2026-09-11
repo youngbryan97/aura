@@ -298,6 +298,151 @@
     "note": "the state schema's width and hash are in the frozen block",
     "status": "done"
   },
+  "P1.10": {
+    "checks": [
+      {
+        "expr": "len(report['perturbation']['spread_by_source']) >= 8",
+        "kind": "report"
+      }
+    ],
+    "note": "perturbational spread is recomputed per source on every run",
+    "status": "done"
+  },
+  "P1.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "^SYNERGY_TRIPLES: tuple\\[str, \\.\\.\\.\\]"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_says_what_moved.py::test_the_triples_are_keyed_by_name_not_by_position -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "all four synergy triples are recomputed and tracked by name across runs",
+    "status": "done"
+  },
+  "P1.12": {
+    "checks": [
+      {
+        "expr": "len(report['per_condition']) >= 8",
+        "kind": "report"
+      }
+    ],
+    "note": "per-condition graphs are recomputed on every run",
+    "status": "done"
+  },
+  "P1.13": {
+    "checks": [
+      {
+        "expr": "'recovery_fraction' in report['lesion'] or 'rescue' in report['lesion']",
+        "kind": "report"
+      }
+    ],
+    "note": "lesion and rescue are recomputed on every run, with the recovery fraction per measure",
+    "status": "done"
+  },
+  "P1.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "Makefile",
+        "pattern": "subject_core_scorecard\\.py --latest 3 artifacts/subject_core"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "def scorecard\\(reports: list\\[dict\\[str, Any\\]\\]\\)"
+      }
+    ],
+    "note": "every run keeps its own complete report, and the scorecard reads several at once rather than the newest",
+    "status": "done"
+  },
+  "P1.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"unresolved\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_says_what_moved.py::test_a_criterion_that_changed_answer_is_unresolved -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "each criterion is recorded as holding, failing, or changing answer between runs",
+    "status": "done"
+  },
+  "P1.5": {
+    "checks": [
+      {
+        "expr": "len(report['edges']) >= 80",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/archive.py",
+        "pattern": "def save_edge_table"
+      }
+    ],
+    "note": "the retained-edge graph is recomputed on every run and the edges are archived beside it",
+    "status": "done"
+  },
+  "P1.6": {
+    "checks": [
+      {
+        "expr": "'components' in report['graph']",
+        "kind": "report"
+      }
+    ],
+    "note": "the strongly connected components are recomputed on every run",
+    "status": "done"
+  },
+  "P1.7": {
+    "checks": [
+      {
+        "expr": "'best_cut' in report['phi']",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "def side_detail"
+      }
+    ],
+    "note": "the cheapest cut is named on every run, and now one side at a time",
+    "status": "done"
+  },
+  "P1.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"weakest_outgoing\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_says_what_moved.py::test_each_domain_gets_its_thinnest_channel_in_and_out -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the weakest outgoing channel is named per domain rather than pooled",
+    "status": "done"
+  },
+  "P1.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"weakest_incoming\""
+      }
+    ],
+    "note": "and the weakest incoming one",
+    "status": "done"
+  },
   "P10.1": {
     "checks": [
       {
@@ -6205,6 +6350,44 @@
     "note": "seeds 7, 11 and 13, declared in the target",
     "status": "done"
   },
+  "P49.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"synergy_triples\": triples"
+      }
+    ],
+    "note": "synergy especially, per triple and by name",
+    "status": "done"
+  },
+  "P49.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"spread\", \\(\"perturbation\", \"mean_spread\"\\)\\)"
+      }
+    ],
+    "note": "spread especially",
+    "status": "done"
+  },
+  "P49.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"lesion_deficit_phi\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"rescue_phi\""
+      }
+    ],
+    "note": "lesion deficit especially, per measure, with the rescue beside it",
+    "status": "done"
+  },
   "P49.2": {
     "checks": [
       {
@@ -6236,6 +6419,48 @@
       }
     ],
     "note": "the seeds are in the target, chosen before any result",
+    "status": "done"
+  },
+  "P49.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"holds\": sum\\(1 for row in rows"
+      },
+      {
+        "expr": "card.get('runs', 0) >= 1",
+        "kind": "scorecard"
+      }
+    ],
+    "note": "per-criterion pass frequency is what the scorecard reports, rather than a total",
+    "status": "done"
+  },
+  "P49.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\"sd\": round\\(statistics\\.stdev\\(values\\), 5\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_says_what_moved.py::test_every_continuous_measure_carries_its_spread -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "every tracked continuous measure carries its mean, spread, standard deviation and range",
+    "status": "done"
+  },
+  "P49.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"phi_lower_bound\", \\(\"phi\", \"lower_bound\"\\)\\)"
+      }
+    ],
+    "note": "irreducibility especially, with its own lower bound and standard error beside it",
     "status": "done"
   },
   "P5.1": {

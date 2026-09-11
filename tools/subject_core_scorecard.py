@@ -38,7 +38,70 @@ TRACKED: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("spread", ("perturbation", "mean_spread")),
     ("pci", ("perturbation", "mean_pci")),
     ("surrogate_floor", ("nulls", "surrogate_floor")),
+    # The ones a criterion can pass or fail on while the number underneath it
+    # barely moves, or moves a great deal. A per-criterion yes hides both.
+    ("phi_lower_bound", ("phi", "lower_bound")),
+    ("phi_standard_error", ("phi", "standard_error")),
+    ("d_eff", ("differentiation", "d_eff")),
+    ("largest_component_share", ("differentiation", "largest_component_share")),
+    ("vertex_connectivity", ("graph", "vertex_connectivity")),
+    ("edges_kept", ("graph", "edge_count")),
+    ("lesion_deficit_phi", ("lesion", "deltas", "phi_do")),
+    ("lesion_deficit_spread", ("lesion", "deltas", "spread")),
+    ("lesion_deficit_synergy", ("lesion", "deltas", "synergy")),
+    ("rescue_phi", ("lesion", "rescue", "phi_do")),
+    ("ownership", ("agency", "ownership_divergence")),
+    ("ownership_floor", ("agency", "ownership_floor")),
+    ("self_to_action", ("agency", "self_to_action")),
+    ("global_access_consumers", ("global_access", "consumers")),
+    ("metastability_regimes", ("metastability", "regimes")),
+    ("closure_leak", ("closure", "leak")),
 )
+
+#: The four synergy triples, tracked by name so a run that reordered them
+#: cannot be read as a run that changed their values.
+SYNERGY_TRIPLES: tuple[str, ...] = ("A+S->G", "P+M->W", "W+A->D", "S+D->C")
+
+
+def _synergy(report: dict[str, Any]) -> dict[str, float]:
+    """Each triple's fraction, keyed by the triple rather than by position."""
+    out: dict[str, float] = {}
+    for row in report.get("synergy", []) or []:
+        if not isinstance(row, dict):
+            continue
+        name = "+".join(row.get("sources", [])) + "->" + str(row.get("target", ""))
+        value = row.get("synergy_fraction")
+        if isinstance(value, (int, float)):
+            out[name] = float(value)
+    return out
+
+
+def _couplings(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Per domain, the weakest channel in and the weakest channel out.
+
+    A domain can be inside the component and still be hanging off one thin
+    edge, and the graph alone does not say which. Reported per domain because
+    the weakest one is the one to strengthen and a pooled figure names none.
+    """
+    edges = [e for e in report.get("edges", []) or [] if isinstance(e, dict)]
+    kept = [e for e in edges if e.get("kept")]
+    out: dict[str, dict[str, Any]] = {}
+    for domain in sorted({e["source"] for e in edges} | {e["target"] for e in edges}):
+        outgoing = [e for e in kept if e.get("source") == domain]
+        incoming = [e for e in kept if e.get("target") == domain]
+        weakest_out = min(outgoing, key=lambda e: float(e.get("effect", 0.0)), default=None)
+        weakest_in = min(incoming, key=lambda e: float(e.get("effect", 0.0)), default=None)
+        out[domain] = {
+            "outgoing": len(outgoing),
+            "incoming": len(incoming),
+            "weakest_outgoing": None if weakest_out is None else {
+                "to": weakest_out["target"], "effect": round(float(weakest_out["effect"]), 4)
+            },
+            "weakest_incoming": None if weakest_in is None else {
+                "from": weakest_in["source"], "effect": round(float(weakest_in["effect"]), 4)
+            },
+        }
+    return out
 
 
 def _dig(blob: Any, path: tuple[str, ...]) -> Any:
@@ -103,6 +166,26 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "values": [round(v, 5) for v in values],
             "spread": round(max(values) - min(values), 5) if len(values) > 1 else 0.0,
             "median": round(statistics.median(values), 5),
+            "mean": round(statistics.fmean(values), 5),
+            "sd": round(statistics.stdev(values), 5) if len(values) > 1 else 0.0,
+            "min": round(min(values), 5),
+            "max": round(max(values), 5),
+        }
+
+    # The four triples by name rather than by position, so a run that reordered
+    # them cannot read as a run that changed them.
+    triples: dict[str, dict[str, Any]] = {}
+    per_run = [_synergy(r) for r in reports]
+    for name in sorted({key for row in per_run for key in row}):
+        values = [row[name] for row in per_run if name in row]
+        if not values:
+            continue
+        triples[name] = {
+            "values": [round(v, 5) for v in values],
+            "mean": round(statistics.fmean(values), 5),
+            "sd": round(statistics.stdev(values), 5) if len(values) > 1 else 0.0,
+            "min": round(min(values), 5),
+            "max": round(max(values), 5),
         }
 
     campaigns: dict[str, list[str]] = {}
@@ -129,6 +212,11 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         ],
         "criteria": rows,
         "numbers": numbers,
+        "synergy_triples": triples,
+        # Per domain, the weakest channel in and the weakest channel out, on
+        # the newest run. A domain can sit inside the component hanging off one
+        # thin edge, and the component alone does not say which one.
+        "couplings": _couplings(reports[-1]) if reports else {},
     }
 
 
@@ -143,7 +231,7 @@ def _edge_lines(reports: list[dict[str, Any]]) -> list[str]:
             if record.get("kept"):
                 held[key] = held.get(key, 0) + 1
     runs = len(reports)
-    lines = [f"| edge | kept in | effect across runs |", "|---|---|---|"]
+    lines = ["| edge | kept in | effect across runs |", "|---|---|---|"]
     for key in sorted(held, key=lambda k: (-held[k], -max(effects[k]))):
         values = ", ".join(f"{value:.2f}" for value in effects[key])
         lines.append(f"| `{key}` | {held[key]}/{runs} | {values} |")
