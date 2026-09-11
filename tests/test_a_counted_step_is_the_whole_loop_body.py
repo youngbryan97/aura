@@ -191,3 +191,56 @@ def test_no_layer_is_scheduled_by_a_second_constant():
 
 def test_step_once_is_a_coroutine():
     assert inspect.iscoroutinefunction(step_once)
+
+
+def test_the_substrate_takes_its_whole_loop_body_too() -> None:
+    """The substrate is scheduled by the driver, not through LAYERS.
+
+    It got one line of its loop: `_step_dynamics`, which is a single Euler step
+    and is marked deprecated in the substrate itself. The loop it stands in for
+    also settles the psych state every iteration, computes the recurrent
+    self-model every fifth and applies Hebbian plasticity every hundredth. So
+    across a whole recording the substrate's energy channel had a standard
+    deviation of seven ten-thousandths — a dead column — its
+    integrated-information estimate never advanced, and its connectivity never
+    learned. The counted schedule was measuring a different organism.
+    """
+    import asyncio
+
+    import numpy as np
+
+    from core.consciousness.liquid_substrate import LiquidSubstrate
+    from core.subject.driver import SUBSTRATE_BODY, SubjectRuntime
+    from core.subject.state import Organs
+
+    async def run() -> tuple[dict, dict, bool, bool, dict]:
+        substrate = LiquidSubstrate()
+        runtime = SubjectRuntime.__new__(SubjectRuntime)
+        runtime.organs = Organs(substrate=substrate)
+        runtime.failures = {}
+        runtime.failure_notes = {}
+        before = dict(substrate.get_substrate_affect())
+        weights = np.array(substrate.W, copy=True)
+        phi = float(getattr(substrate, "_current_phi", 0.0))
+        for frame in range(240):
+            await runtime._integrate_substrate(frame)
+        after = dict(substrate.get_substrate_affect())
+        return (
+            before,
+            after,
+            float(getattr(substrate, "_current_phi", 0.0)) != phi,
+            not np.allclose(weights, substrate.W),
+            dict(runtime.failures),
+        )
+
+    before, after, phi_moved, learned, failures = asyncio.run(run())
+    assert not failures, f"a part of the substrate's body raised: {failures}"
+    assert abs(after["energy"] - before["energy"]) > 1e-6, (
+        "the psych-state settling did not run, so energy is a dead channel"
+    )
+    assert phi_moved, "the recurrent self-model did not run"
+    assert learned, "Hebbian plasticity did not run"
+
+    # And persistence stays out: a save that lands in one arm and not the other
+    # is a difference between the arms that nothing thought.
+    assert not any(name.startswith("_save") for name, _, _ in SUBSTRATE_BODY)

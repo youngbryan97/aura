@@ -899,6 +899,30 @@ def _restore_effort(saved: dict[str, float] | None) -> None:
         return
 
 
+#: The substrate's own loop body, and how often each part of it comes round.
+#:
+#: Its loop steps the dynamics and settles the psych state every iteration,
+#: computes the recurrent self-model every fifth and applies Hebbian plasticity
+#: every hundredth. The harness called `_step_dynamics`, which is the first of
+#: those and is marked deprecated in the substrate itself, so the energy channel
+#: never regenerated, the integrated-information estimate never advanced and the
+#: connectivity never learned — in any run.
+#:
+#: Persistence is deliberately absent. Writing the state to disk is not
+#: cognition, and a save that lands in one arm and not the other is a difference
+#: between the arms that nothing thought.
+#:
+#: Each entry is a method, how many of the substrate's own ticks apart it runs,
+#: and whether it takes the step size. It is hashed into the campaign like every
+#: other layer's body, because it decides what organism the run measured.
+SUBSTRATE_BODY: tuple[tuple[str, int, bool], ...] = (
+    ("_step_torch_math", 1, True),
+    ("_stabilize_psych_state", 1, True),
+    ("_recurrent_self_model", 5, True),
+    ("_apply_plasticity", 100, False),
+)
+
+
 #: Module-level singletons the fork has to carry, named by where they live.
 #:
 #: A service in the container is carried under its name and a phase's own
@@ -1741,6 +1765,21 @@ class SubjectRuntime:
 
         Scheduled off the frame index like every other layer, so nothing is
         carried across the fork and two arms integrate identically.
+
+        And the whole loop body, not one line of it. This called
+        `_step_dynamics`, which is one Euler step and is marked deprecated in
+        the substrate itself; the loop it stands in for also settles the psych
+        state every iteration, computes the recurrent self-model every fifth
+        and applies Hebbian plasticity every hundredth. So the substrate's
+        energy regenerated in no run — a standard deviation of seven
+        ten-thousandths across a whole recording, which is a dead channel — its
+        integrated-information estimate never advanced, and its connectivity
+        never learned. A counted schedule that runs a fraction of a layer's
+        body measures a different organism from the one that lives here.
+
+        Persistence is left out on purpose. Writing the state to disk is not
+        cognition, and a save that lands in one arm and not the other is a
+        difference between the arms that nothing thought.
         """
         substrate = self.organs.substrate
         if substrate is None:
@@ -1748,8 +1787,7 @@ class SubjectRuntime:
         config = getattr(substrate, "config", None)
         rate = float(getattr(config, "update_rate", 20.0) or 20.0)
         dt = float(getattr(config, "time_constant", 0.1) or 0.1)
-        step = getattr(substrate, "_step_dynamics", None)
-        if not callable(step):
+        if not callable(getattr(substrate, "_step_torch_math", None)):
             return
         from core.subject.steppable import Layer, frame_seconds, iterations_at
 
@@ -1757,12 +1795,30 @@ class SubjectRuntime:
             Layer("substrate", "", "", rate, ()), frame, frame_seconds()
         )
         for _ in range(count):
-            try:
-                await asyncio.wait_for(step(dt), timeout=PHASE_TIMEOUT)
-            except BaseException as exc:  # noqa: BLE001
-                self.failures["substrate"] = self.failures.get("substrate", 0) + 1
-                self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
-                return
+            tick = int(getattr(substrate, "tick_count", 0) or 0)
+            body = [
+                (name, dt if takes_dt else None)
+                for name, every, takes_dt in SUBSTRATE_BODY
+                if tick % every == 0
+            ]
+            for name, argument in body:
+                # The `_sync` twin where the substrate has one. Each of these
+                # is awaited anyway, so the thread hop buys nothing and its
+                # scheduling is one more thing that can differ between arms.
+                call = getattr(substrate, f"{name}_sync", None)
+                if not callable(call):
+                    call = getattr(substrate, name, None)
+                if not callable(call):
+                    continue
+                try:
+                    outcome = call() if argument is None else call(argument)
+                    if inspect.isawaitable(outcome):
+                        await asyncio.wait_for(outcome, timeout=PHASE_TIMEOUT)
+                except BaseException as exc:  # noqa: BLE001
+                    self.failures["substrate"] = self.failures.get("substrate", 0) + 1
+                    self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
+                    return
+            substrate.tick_count = tick + 1
 
     def _train_world_model(self) -> None:
         """The gradient steps the training lane would have taken, on this clock.

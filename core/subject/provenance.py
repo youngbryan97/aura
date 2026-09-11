@@ -131,7 +131,7 @@ def campaign(
         EDGE_REPLICATION,
         SIGN_FLIP_DRAWS,
     )
-    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN
+    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN, SUBSTRATE_BODY
     from core.subject.irreducibility import COMPONENTS, FOLDS
     from core.subject.nulls import ARCHITECTURES
     from core.subject.state import DOMAINS, feature_names
@@ -168,6 +168,12 @@ def campaign(
             ]
             for layer in LAYERS
         },
+        # The substrate is scheduled by the driver rather than through LAYERS,
+        # and its body decides what organism the run measured just as much.
+        "substrate_body": [
+            name if every == 1 else f"{name}/{every}"
+            for name, every, _ in SUBSTRATE_BODY
+        ],
         "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
         # How long the lesion and rescue arms live. It changes what those two
         # criteria are measured on, so it belongs in the fingerprint with
