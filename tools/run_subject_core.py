@@ -308,6 +308,15 @@ async def main() -> int:
         }
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
         _log(f"  the workspace could not say who won: {exc}")
+    # And which broadcast consumers ever did anything. A consumer that returns
+    # early every time is a registered processor with no effect, and the list
+    # of what is wired looks the same either way.
+    try:
+        from core.consciousness.broadcast_consumers import consumer_activity
+
+        evidence["notes"]["broadcast_consumers"] = consumer_activity()
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        _log(f"  the broadcast consumers could not say what they did: {exc}")
     _log(f"stopped {len(stopped)} background loops for the paired arms")
 
     # An authoritative run refuses rather than reports.

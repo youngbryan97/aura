@@ -333,3 +333,62 @@ def test_attention_cannot_push_salience_past_one():
         assert record["salience"] <= 1.0
     finally:
         register_runtime_service("global_workspace", None, required=False)
+
+
+def test_a_consumer_that_never_does_anything_is_named() -> None:
+    """A registered processor with no effect looks exactly like a working one.
+
+    The list of what is wired is the same either way, so a run where a consumer
+    returns early every time is a run where global access is narrower than the
+    report says and nothing in the report says so.
+    """
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.consciousness.broadcast_consumers import (
+        _counted,
+        consumer_activity,
+        reset_consumer_activity,
+    )
+
+    reset_consumer_activity()
+
+    async def does_nothing(event) -> None:
+        return
+
+    async def go() -> None:
+        wrapped = _counted("nowhere", does_nothing)
+        for _ in range(3):
+            await wrapped(SimpleNamespace(winners=[]))
+
+    asyncio.run(go())
+    activity = consumer_activity()
+    assert activity["called"]["nowhere"] == 3
+    assert "nowhere" in activity["never_wrote"]
+    reset_consumer_activity()
+
+
+def test_a_consumer_with_a_winner_to_act_on_counts_as_working() -> None:
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.consciousness.broadcast_consumers import (
+        _counted,
+        consumer_activity,
+        reset_consumer_activity,
+    )
+
+    reset_consumer_activity()
+
+    async def does_something(event) -> None:
+        return
+
+    winner = SimpleNamespace(source="perception", content="x", effective_priority=0.7)
+
+    async def go() -> None:
+        wrapped = _counted("somewhere", does_something)
+        await wrapped(SimpleNamespace(winners=[winner]))
+
+    asyncio.run(go())
+    assert "somewhere" not in consumer_activity()["never_wrote"]
+    reset_consumer_activity()

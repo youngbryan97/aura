@@ -4127,6 +4127,21 @@
     "note": "how far each domain was displaced and how far its largest outgoing effect reached, per domain, in every run",
     "status": "done"
   },
+  "P45.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/broadcast_consumers.py",
+        "pattern": "A consumer that returns early every time is a registered processor"
+      },
+      {
+        "expr": "len(report['notes']['broadcast_consumers']['called']) >= 5",
+        "kind": "report"
+      }
+    ],
+    "note": "a registered processor that returns early every time is named rather than counted as wired",
+    "status": "done"
+  },
   "P45.3": {
     "checks": [
       {
@@ -4170,6 +4185,36 @@
       }
     ],
     "note": "the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke",
+    "status": "done"
+  },
+  "P45.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/broadcast_consumers.py",
+        "pattern": "def consumer_activity"
+      },
+      {
+        "command": "{python} -m pytest tests/test_broadcast_consumers.py::test_a_consumer_that_never_does_anything_is_named -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "len(report['notes']['broadcast_consumers']['never_wrote']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "every broadcast consumer reports whether it ever did anything, and none of them never did",
+    "status": "done"
+  },
+  "P45.7": {
+    "checks": [
+      {
+        "expr": "'W.model_steps' not in report['recording']['flat_column_names']",
+        "kind": "report"
+      }
+    ],
+    "note": "the world model's own step count moves across a run, so it received the observations the cycle sends it",
     "status": "done"
   },
   "P45.8": {

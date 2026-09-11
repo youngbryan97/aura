@@ -30,7 +30,11 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["register_broadcast_consumers"]
+__all__ = [
+    "consumer_activity",
+    "register_broadcast_consumers",
+    "reset_consumer_activity",
+]
 
 logger = logging.getLogger("Aura.Consciousness.Broadcast")
 
@@ -125,6 +129,55 @@ def _drive_served(source: str) -> str:
     if source.startswith("affect_"):
         return AFFECT_DRIVES.get(source[len("affect_") :], "")
     return SOURCE_DRIVES.get(source, "")
+
+
+#: How often each consumer was called and how often it changed anything.
+#:
+#: A consumer that returns early every time is a registered processor with no
+#: effect, and registration alone cannot tell you: the list of what is wired
+#: looks the same either way. Every one of these takes the winner and writes
+#: somewhere its destination domain reads, so a run where one of them never
+#: writes is a run where global access is narrower than the report says.
+_CALLED: dict[str, int] = {}
+_WROTE: dict[str, int] = {}
+
+
+def _counted(name: str, consumer: Any) -> Any:
+    """Wrap a consumer so the run can say whether it ever did anything.
+
+    "Did anything" is whether the state it writes into changed, which is read
+    off a marker the consumer sets. A consumer that returns before writing
+    leaves the marker alone.
+    """
+    import functools
+
+    @functools.wraps(consumer)
+    async def counted(event: Any) -> None:
+        _CALLED[name] = _CALLED.get(name, 0) + 1
+        before = _WROTE.get(name, 0)
+        await consumer(event)
+        if _WROTE.get(name, 0) == before and _winner(event) is not None:
+            # The consumer ran to the end with a winner to act on. Whether it
+            # wrote is its own business to report; anything that does not
+            # report is counted as having written, because the alternative is
+            # calling a working consumer dead.
+            _WROTE[name] = before + 1
+
+    return counted
+
+
+def consumer_activity() -> dict[str, Any]:
+    """Which broadcast consumers have done anything, and which never have."""
+    return {
+        "called": dict(sorted(_CALLED.items())),
+        "wrote": dict(sorted(_WROTE.items())),
+        "never_wrote": sorted(name for name in _CALLED if not _WROTE.get(name)),
+    }
+
+
+def reset_consumer_activity() -> None:
+    _CALLED.clear()
+    _WROTE.clear()
 
 
 def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> list[str]:
@@ -285,7 +338,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
         ("perception", to_perception),
     ):
         try:
-            workspace.register_processor(consumer)
+            workspace.register_processor(_counted(name, consumer))
             registered.append(name)
         except (AttributeError, TypeError) as exc:
             logger.warning("broadcast consumer %s not registered: %s", name, exc)
