@@ -1676,15 +1676,49 @@ async def perturb_organs(
         try:
             from core.consciousness.global_workspace import CognitiveCandidate, ContentType
 
-            await workspace.submit(
-                CognitiveCandidate(
-                    content=f"subject core probe {delta:+.4f}",
-                    source="subject_core_probe",
-                    priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
-                    content_type=ContentType.META,
-                    affect_weight=abs(delta),
+            # The runner-up, raised until it wins. A displacement of attention
+            # is a change in what wins the competition among what is actually
+            # competing — and the first version submitted a candidate of its
+            # own under a probe's name, which nothing downstream can interpret:
+            # the action she takes is chosen by the source of what she is
+            # attending to, and a source no action table knows falls through to
+            # the same action the sham took. So displacing the workspace could
+            # not change what she did, and the whole route from attention
+            # through action to the world and back to perception was closed to
+            # the one domain that should open it.
+            # Read off what has already been submitted rather than rebuilding
+            # the bids: building them reports the work of building them, and a
+            # displacement that costs the body something the sham did not pay
+            # would manufacture the very edge it is measuring.
+            runner_up = None
+            lead = 0.0
+            pending = list(getattr(workspace, "_candidates", ()) or ())
+            if len(pending) >= 2:
+                ranked = sorted(
+                    pending, key=lambda bid: bid.effective_priority, reverse=True
                 )
-            )
+                runner_up = ranked[1]
+                lead = ranked[0].effective_priority
+            if runner_up is not None:
+                await workspace.submit(
+                    CognitiveCandidate(
+                        content=runner_up.content,
+                        source=runner_up.source,
+                        priority=min(1.0, max(0.0, lead + abs(delta))),
+                        content_type=runner_up.content_type,
+                        affect_weight=runner_up.affect_weight,
+                    )
+                )
+            else:
+                await workspace.submit(
+                    CognitiveCandidate(
+                        content=f"subject core probe {delta:+.4f}",
+                        source="subject_core_probe",
+                        priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
+                        content_type=ContentType.META,
+                        affect_weight=abs(delta),
+                    )
+                )
             hit = True
         except Exception:  # noqa: BLE001
             hit = False
