@@ -47,7 +47,13 @@ __all__ = ["SynergyReport", "synergy", "synergy_suite"]
 COMPONENTS: int = 3
 
 #: Shifts used for the null. Each one is a whole-trajectory circular slide.
-NULL_DRAWS: int = 200
+#:
+#: A quantile is read off this, and the ninety-ninth percentile of two hundred
+#: draws is the second-largest of them — an estimate with the shape of a
+#: maximum, which moves by more between two runs than the quantity it is the
+#: bar for. Each draw is two Gaussian mutual informations over a covariance
+#: matrix of nine columns, so a thousand costs milliseconds.
+NULL_DRAWS: int = 1000
 
 
 def _components(block: np.ndarray, k: int = COMPONENTS) -> np.ndarray:
@@ -92,6 +98,10 @@ class SynergyReport:
     null_q99: float
     interaction_gain: float
     rows: int
+    #: How many shifts the bar was read from, and the bar's own spread.
+    null_draws: int = 0
+    null_median: float = 0.0
+    null_spread: float = 0.0
 
     @property
     def passes(self) -> bool:
@@ -109,6 +119,10 @@ class SynergyReport:
             "null_q99_fraction": round(self.null_q99, 4),
             "interaction_gain": round(self.interaction_gain, 4),
             "rows": self.rows,
+            "null_draws": self.null_draws,
+            "null_median_fraction": round(self.null_median, 4),
+            "null_spread": round(self.null_spread, 5),
+            "margin_over_null": round(self.normalised - self.null_q99, 5),
             "passes": self.passes,
         }
 
@@ -171,6 +185,12 @@ def synergy(
         null_value = null_joint - null_red - (mi_a - null_red) - (null_b - null_red)
         nulls[draw] = null_value / null_joint if null_joint > 1e-9 else 0.0
 
+    # The bar's own uncertainty. A synergy a hundredth above a null estimated
+    # to within two hundredths has not cleared it, and a report carrying only
+    # the quantile cannot say so.
+    null_spread = float(np.std(nulls, ddof=1)) if nulls.size > 1 else 0.0
+    null_median = float(np.median(nulls))
+
     return SynergyReport(
         sources=(source_a, source_b),
         target=target,
@@ -183,6 +203,9 @@ def synergy(
         null_q99=float(np.quantile(nulls, 0.99)),
         interaction_gain=_interaction_gain(a, b, y),
         rows=rows,
+        null_draws=int(nulls.size),
+        null_median=null_median,
+        null_spread=null_spread,
     )
 
 

@@ -439,6 +439,57 @@
     "note": "self beliefs are a profile",
     "status": "done"
   },
+  "P12.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "^NULL_DRAWS: int = 1000"
+      },
+      {
+        "expr": "all(int(r['null_draws']) >= 1000 for r in report['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "a thousand shifts, not two hundred: the ninety-ninth percentile of two hundred draws is the second-largest of them",
+    "status": "done"
+  },
+  "P12.14": {
+    "checks": [
+      {
+        "expr": "all('null_spread' in r and 'margin_over_null' in r for r in report['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "with the bar's own spread and the margin over it beside each triple",
+    "status": "done"
+  },
+  "P12.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "def _interaction_gain"
+      },
+      {
+        "expr": "all('interaction_gain' in r for r in report['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "a second measurement asks the question a different way: whether the products of the two sources improve held-out prediction over the two side by side",
+    "status": "done"
+  },
+  "P12.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "The linear estimator cannot see an interaction"
+      }
+    ],
+    "note": "and the interaction term has to be there for the triple to mean anything",
+    "status": "done"
+  },
   "P13.10": {
     "checks": [
       {
