@@ -348,6 +348,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-10, model handoff: the fallback ladder now receives the
+  primary turn's admitted structured transcript. Cold-start fallback uses
+  the same scoped durable reader. 58 focused tests pass; source-matched
+  live replay remains open. See [fallback transcript](evidence/R09_FALLBACK_TRANSCRIPT_2026-09-10.md).
   UPDATE 2026-09-10: the 27B recalled the corrected reading-group title across
   restart and an intervening topic; browser reload retained the answer.
   A paraphrased follow-up failed because quotation splitting misidentified

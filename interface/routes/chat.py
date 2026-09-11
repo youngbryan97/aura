@@ -4504,8 +4504,13 @@ async def _run_cognitive_engine_chat_turn(
     )
     # Outer delivery gates run after this helper returns. Bind the authenticated
     # transcript to turn custody so each gate judges against the same evidence.
-    from core.conversation.turn_evidence_custody import record_turn_grounding
+    from core.conversation.turn_evidence_custody import (
+        record_turn_grounding,
+        record_turn_transcript,
+    )
 
+    if not state_native_output_owner and recent_context_limit > 0:
+        record_turn_transcript(recent_exchanges)
     for transcript_evidence in route_assessment_grounding:
         record_turn_grounding(transcript_evidence)
     recent_conversation_context = (
@@ -8014,6 +8019,38 @@ async def _anything_better_than_giving_up(
     return said
 
 
+async def _fallback_conversation_messages(text: str) -> list[dict[str, str]]:
+    """A smaller model inherits the turn's dialogue, not an empty session."""
+
+    from core.conversation.delivered_history import (
+        VISIBLE_CONVERSATION_EXCHANGES,
+        delivered_exchange_messages,
+    )
+    from core.conversation.session_scope import current_conversation_session
+    from core.conversation.turn_evidence_custody import (
+        record_turn_transcript,
+        turn_transcript,
+    )
+
+    admitted = turn_transcript()
+    if admitted is not None:
+        return list(admitted)
+    session_id = current_conversation_session()
+    if not session_id:
+        return []
+    # Cold-start fallback can precede the engine's history read. Use its same
+    # principal-scoped durable reader and retain that snapshot for every retry.
+    exchanges = await _chat_memory_state._recent_completed_conversation_exchanges(
+        current_user_message=text,
+        session_id=session_id,
+        limit=VISIBLE_CONVERSATION_EXCHANGES,
+        allow_cross_session=True,
+    )
+    record_turn_transcript(exchanges)
+    snapshot = turn_transcript()
+    return list(snapshot) if snapshot is not None else delivered_exchange_messages(exchanges)
+
+
 async def _answer_from_fallback_ladder(
     user_message: object, *, reason: str, budget_s: float | None = None
 ) -> str:
@@ -8102,6 +8139,12 @@ async def _answer_from_fallback_ladder(
         # distribution of tokens learned from a static dataset", with the
         # register of tested claims sitting unread.
         identity = _with_the_same_readings(identity, readings)
+        dialogue = await _fallback_conversation_messages(text)
+        messages = [
+            {"role": "system", "content": identity},
+            *dialogue,
+            {"role": "user", "content": text},
+        ]
         ladder_chain: list = []
         raw = ""
         stop_reason = ""
@@ -8128,6 +8171,7 @@ async def _answer_from_fallback_ladder(
                         router.think(
                             text,
                             system_prompt=identity,
+                            messages=[dict(message) for message in messages],
                             prefer_tier="tertiary",
                             prefer_endpoint=endpoint,
                             foreground_request=True,

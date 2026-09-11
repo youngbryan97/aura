@@ -15576,7 +15576,7 @@ async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypat
 @pytest.mark.asyncio
 async def test_route_assessment_hears_the_assistant_history_given_to_the_model(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
-    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, turn_transcript
     from interface.routes import chat as chat_routes
 
     answer = (
@@ -15652,6 +15652,11 @@ async def test_route_assessment_hears_the_assistant_history_given_to_the_model(m
         # Its independent reliability pass must still see the assistant-side
         # transcript that licensed this recollection.
         delivery_quality = await chat_routes._measure_reply_quality_candidate(question, reply)
+        assert turn_transcript() == (
+            {"role": "user", "content": preceding["user"]},
+            {"role": "assistant", "content": preceding["aura"]},
+        )
+        assert await chat_routes._fallback_conversation_messages(question) == list(turn_transcript())
 
     assert reply == answer
     assert len(calls) == 1
