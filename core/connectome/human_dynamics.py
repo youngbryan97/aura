@@ -57,7 +57,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from core.connectome.criticality import MINIMUM_DECADES
+from core.connectome.criticality import MINIMUM_DECADES, cascades_beyond_rate
 
 logger = logging.getLogger("Aura.Connectome.HumanDynamics")
 
@@ -225,6 +225,46 @@ class Verdict:
         }
 
 
+def _why_not_usable(report: Any, beyond_rate: dict[str, Any]) -> str:
+    """Which of the three conditions failed, because they want different answers.
+
+    Too few large cascades wants a longer recording. A bad KS wants a different
+    model. Too little scaling wants a wider one. And a distribution the shuffle
+    control reproduces wants a sparser recording, not any of those.
+    """
+    reasons: list[str] = []
+    if float(report.size_exponent.get("ks", 1.0)) >= 0.2 or float(
+        report.duration_exponent.get("ks", 1.0)
+    ) >= 0.2:
+        reasons.append(
+            f"the fit is poor (KS {float(report.size_exponent.get('ks', 1.0)):.3f} "
+            f"on size, {float(report.duration_exponent.get('ks', 1.0)):.3f} on duration)"
+        )
+    if int(report.size_exponent.get("tail_n", 0)) < 32:
+        reasons.append(
+            f"only {int(report.size_exponent.get('tail_n', 0))} cascades in the "
+            "fitted tail"
+        )
+    thin = [
+        f"{float(report.size_exponent.get('decades', 0.0)):.2f} decades of size",
+        f"{float(report.duration_exponent.get('decades', 0.0)):.2f} of duration",
+    ]
+    if (
+        float(report.size_exponent.get("decades", 0.0)) < MINIMUM_DECADES
+        or float(report.duration_exponent.get("decades", 0.0)) < MINIMUM_DECADES
+    ):
+        reasons.append("too little room to scale: " + " and ".join(thin))
+    if "not a cascade measurement" in str(beyond_rate.get("verdict", "")):
+        reasons.append(
+            f"units fire together only "
+            f"{beyond_rate.get('sigmas_above_independence')} sigma above what "
+            f"their own rates explain, at "
+            f"{float(beyond_rate.get('active_fraction', 0.0)):.0%} bin occupancy, "
+            "so this is the firing rate arriving in bins"
+        )
+    return "; ".join(reasons) or "the avalanche fits are not usable"
+
+
 def expected_through_this_window(
     published: float,
     *,
@@ -311,16 +351,31 @@ def compare_to_human_cortex(
         "branching_parameter": float(report.branching.m),
     }
 
-    # The same gate the criticality report uses, including the decades of
-    # scaling the fitted tail covers. An exponent read off half a decade is a
-    # cutoff slope, and a cutoff slope is always steeper than the exponent it
-    # sits on top of -- which is the direction every miss here has been in.
+    # Three things have to be true before an exponent here means anything.
+    #
+    # The fit has to be good, which is the KS distance and the tail count. The
+    # tail has to run far enough to show scaling, which is the decades: read
+    # off half a decade an exponent is the slope of a cutoff, and a cutoff
+    # slope is always steeper than the exponent underneath it. And the runs
+    # being fitted have to be cascades rather than a busy recording, which is
+    # what the shuffle control asks -- shift every unit against every other one
+    # and the firing rates survive while every coincidence between units does
+    # not, so a distribution that comes through unchanged was the occupancy.
+    beyond_rate = (
+        cascades_beyond_rate(per_unit, percentile=per_unit_percentile)
+        if per_unit is not None
+        else {}
+    )
     usable = (
         float(report.size_exponent.get("ks", 1.0)) < 0.2
         and float(report.duration_exponent.get("ks", 1.0)) < 0.2
         and int(report.size_exponent.get("tail_n", 0)) >= 32
         and float(report.size_exponent.get("decades", 0.0)) >= MINIMUM_DECADES
         and float(report.duration_exponent.get("decades", 0.0)) >= MINIMUM_DECADES
+        and (
+            "shuffled_exponent" not in beyond_rate
+            or "not a cascade measurement" not in str(beyond_rate.get("verdict", ""))
+        )
     )
 
     # What a genuinely cortical system would MEASURE on this recording.
@@ -374,8 +429,7 @@ def compare_to_human_cortex(
                     statistic,
                     value,
                     False,
-                    "the avalanche fits are too poor to compare; too few cascades or "
-                    "a distribution that is not a power law",
+                    _why_not_usable(report, beyond_rate),
                     target=statistic.value,
                 )
             )
@@ -442,6 +496,7 @@ def compare_to_human_cortex(
             key: round(float(value), 4) for key, value in report.duration_exponent.items()
         },
         "predicted_crackling": round(float(report.predicted_gamma), 4),
+        "beyond_rate": beyond_rate,
         # The published numbers and what they become on this instrument. When
         # these two converge, the window has stopped being part of the answer.
         "through_this_window": {

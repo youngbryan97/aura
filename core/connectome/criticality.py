@@ -50,6 +50,7 @@ __all__ = [
     "MINIMUM_DECADES",
     "assess",
     "branching_ratio_mr",
+    "cascades_beyond_rate",
     "exponent_against_recording_width",
     "extract_avalanches",
     "naive_branching_ratio",
@@ -365,6 +366,78 @@ class CriticalityReport:
         }
 
 
+def cascades_beyond_rate(
+    spikes: Any,
+    *,
+    shuffles: int = 8,
+    seed: int = 11,
+    percentile: float = 0.0,
+) -> dict[str, Any]:
+    """Are these cascades, or is this the firing rate arriving in bins?
+
+    Shift each unit's own spike train by its own random amount. Every firing
+    rate survives untouched and every coincidence between units is destroyed,
+    so what separates the real recording from the shifted one is exactly the
+    coincidence. Beggs and Plenz ran this control against their own arrays.
+
+    What gets compared is how much the number of units active in a bin varies.
+    Independent units make that variance the sum of their own, which is what
+    the shuffled ensemble measures, and units that recruit each other push it
+    above that. Comparing the avalanche exponent instead does not work and was
+    tried first: at high occupancy the avalanches are separated by whichever
+    bins happen to be silent, so rolling the units moves the largest cascade
+    around for reasons that have nothing to do with recruitment, and the test
+    called independent Poisson structured and real recruitment flat.
+    """
+    import numpy as np
+
+    values = np.asarray(spikes, dtype=np.float64)
+    if values.ndim != 2 or values.size == 0:
+        return {"verdict": "no recording"}
+    magnitude = np.abs(values)
+    thresholds = np.percentile(magnitude, percentile, axis=0)
+    active = (magnitude > thresholds[None, :]).astype(np.float64)
+    real_counts = active.sum(axis=1)
+    real_spread = float(real_counts.var())
+
+    rng = np.random.default_rng(seed)
+    ticks = active.shape[0]
+    spreads: list[float] = []
+    for _ in range(max(2, shuffles)):
+        rolled = np.empty_like(active)
+        for unit in range(active.shape[1]):
+            rolled[:, unit] = np.roll(active[:, unit], int(rng.integers(0, ticks)))
+        spreads.append(float(rolled.sum(axis=1).var()))
+    null_mean = sum(spreads) / len(spreads)
+    null_sd = (sum((value - null_mean) ** 2 for value in spreads) / len(spreads)) ** 0.5
+    # Three sigma, the same threshold this module already uses to call an
+    # excursion a spike.
+    excess = (real_spread - null_mean) / null_sd if null_sd > 0 else 0.0
+    coincident = excess >= 3.0
+
+    cascades = extract_avalanches_per_unit(values, percentile=percentile)
+    fit = power_law_fit(cascades.sizes)
+    return {
+        "active_fraction": round(cascades.active_fraction, 4),
+        "exponent": round(float(fit.get("alpha", 0.0)), 4),
+        "population_variance": round(real_spread, 4),
+        "shuffled_variance": round(null_mean, 4),
+        "shuffled_spread": round(null_sd, 6),
+        "sigmas_above_independence": round(float(excess), 3),
+        "shuffles": max(2, shuffles),
+        "verdict": (
+            f"units fire together {excess:.1f} sigma more than their own rates "
+            "explain, so these runs are cascades"
+            if coincident
+            else (
+                "shifting every unit against every other one leaves the same "
+                f"spread ({excess:.1f} sigma), so this is the firing rate "
+                "arriving in bins and not a cascade measurement"
+            )
+        ),
+    }
+
+
 def exponent_against_recording_width(
     spikes: Any,
     *,
@@ -403,7 +476,14 @@ def exponent_against_recording_width(
             if bin_ticks > 1 and usable
             else sub
         )
-        cascades = extract_avalanches_per_unit(folded, percentile=0.0)
+        # A unit is active in a wide bin if it fired at all in it. Summing
+        # leaves a count, and the extractor's per-unit threshold is that
+        # unit's own minimum, so a unit that fired in every wide bin would
+        # have its quietest bins counted as silence -- which at these bin
+        # widths is most of them.
+        cascades = extract_avalanches_per_unit(
+            (folded > 0).astype(float) if bin_ticks > 1 else folded, percentile=0.0
+        )
         fit = power_law_fit(cascades.sizes)
         duration = power_law_fit(cascades.durations)
         rows.append(

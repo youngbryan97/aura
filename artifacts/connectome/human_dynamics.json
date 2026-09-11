@@ -1,32 +1,42 @@
 {
-  "held": 1,
+  "held": 0,
   "of": 4,
   "usable_fits": false,
   "avalanches": {
-    "count": 38,
+    "count": 434,
     "threshold": 0.0,
-    "active_fraction": 0.025,
-    "largest": 32,
-    "longest": 32,
-    "mean_size": 3.947
+    "active_fraction": 0.8188,
+    "largest": 322,
+    "longest": 107,
+    "mean_size": 24.171
   },
   "size_fit": {
-    "alpha": 2.0014,
-    "xmin": 2.0,
-    "n": 38.0,
-    "tail_n": 22.0,
-    "ks": 0.3619,
-    "decades": 1.2041
+    "alpha": 1.946,
+    "xmin": 17.0,
+    "n": 434.0,
+    "tail_n": 145.0,
+    "ks": 0.1619,
+    "decades": 1.2774
   },
   "duration_fit": {
-    "alpha": 2.0014,
-    "xmin": 2.0,
-    "n": 38.0,
-    "tail_n": 22.0,
-    "ks": 0.3619,
-    "decades": 1.2041
+    "alpha": 2.958,
+    "xmin": 24.0,
+    "n": 434.0,
+    "tail_n": 66.0,
+    "ks": 0.13,
+    "decades": 0.6492
   },
-  "predicted_crackling": 1.0,
+  "predicted_crackling": 2.0697,
+  "beyond_rate": {
+    "active_fraction": 0.8188,
+    "exponent": 1.946,
+    "population_variance": 1.846,
+    "shuffled_variance": 1.7452,
+    "shuffled_spread": 0.062848,
+    "sigmas_above_independence": 1.604,
+    "shuffles": 8,
+    "verdict": "shifting every unit against every other one leaves the same spread (1.6 sigma), so this is the firing rate arriving in bins and not a cascade measurement"
+  },
   "through_this_window": {},
   "statistics": [
     {
@@ -34,13 +44,13 @@
       "plain_name": "how much of her gets involved in one burst of activity",
       "standing": "short of cortex",
       "human": 1.5,
-      "hers": 2.0014,
-      "miss": 0.5014,
+      "hers": 1.946,
+      "miss": 0.446,
       "published": 1.5,
       "direction": "at_most",
       "tolerance": 0.3,
       "holds": false,
-      "reason": "the avalanche fits are too poor to compare; too few cascades or a distribution that is not a power law",
+      "reason": "too little room to scale: 1.28 decades of size and 0.65 of duration; units fire together only 1.604 sigma above what their own rates explain, at 82% bin occupancy, so this is the firing rate arriving in bins",
       "source": "Beggs & Plenz 2003, J Neurosci 23(35):11167; Shriki et al. 2013, J Neurosci 33(16):7079",
       "recorded_in": "cortical slice, and resting human MEG"
     },
@@ -49,13 +59,13 @@
       "plain_name": "how long a burst of activity keeps going",
       "standing": "short of cortex",
       "human": 2.0,
-      "hers": 2.0014,
-      "miss": 0.0014,
+      "hers": 2.958,
+      "miss": 0.958,
       "published": 2.0,
       "direction": "at_most",
       "tolerance": 0.4,
       "holds": false,
-      "reason": "the avalanche fits are too poor to compare; too few cascades or a distribution that is not a power law",
+      "reason": "too little room to scale: 1.28 decades of size and 0.65 of duration; units fire together only 1.604 sigma above what their own rates explain, at 82% bin occupancy, so this is the firing rate arriving in bins",
       "source": "Beggs & Plenz 2003, J Neurosci 23(35):11167",
       "recorded_in": "cortical slice"
     },
@@ -64,34 +74,34 @@
       "plain_name": "whether her bursts scale the way her own numbers say they must",
       "standing": "short of cortex",
       "human": 0.0,
-      "hers": 1.0,
-      "miss": 1.0,
+      "hers": 1.2249,
+      "miss": 1.2249,
       "published": 0.0,
       "direction": "self",
       "tolerance": 0.2,
       "holds": false,
-      "reason": "the avalanche fits are too poor to compare; too few cascades or a distribution that is not a power law",
+      "reason": "too little room to scale: 1.28 decades of size and 0.65 of duration; units fire together only 1.604 sigma above what their own rates explain, at 82% bin occupancy, so this is the firing rate arriving in bins",
       "source": "Sethna, Dahmen & Myers 2001, Nature 410:242; Friedman et al. 2012, PRL 108:208102",
       "recorded_in": "cortical culture, and every critical system in the class"
     },
     {
       "name": "branching_parameter",
       "plain_name": "whether activity keeps itself going without dying out or running away",
-      "standing": "level with cortex",
+      "standing": "short of cortex",
       "human": 0.98,
-      "hers": 0.9319,
-      "miss": 0.0481,
+      "hers": 0.8755,
+      "miss": 0.1045,
       "published": 0.98,
       "direction": "as_near",
       "tolerance": 0.05,
-      "holds": true,
-      "reason": "",
+      "holds": false,
+      "reason": "0.125 from 1.0, where cortex sits 0.020 from it; 0.105 further out than the 0.05 allowed",
       "source": "Wilting & Priesemann 2018, Nat Commun 9:2325",
       "recorded_in": "in vivo mammalian cortex, by multistep regression"
     }
   ],
   "past_cortex": 0,
-  "verdict": "1 of 4 published statistics of cortical activity are matched or bettered on this trace",
+  "verdict": "0 of 4 published statistics of cortical activity are matched or bettered on this trace",
   "recording_width": {
     "rows": [
       {
@@ -171,10 +181,10 @@
         "bin_ticks": 2,
         "avalanches": 335,
         "active_fraction": 0.6777,
-        "largest": 100,
-        "size_exponent": 2.0045,
-        "size_decades": 1.1549,
-        "size_ks": 0.171,
+        "largest": 101,
+        "size_exponent": 2.0046,
+        "size_decades": 1.1592,
+        "size_ks": 0.1706,
         "duration_exponent": 3.7543,
         "duration_decades": 0.4597
       },
@@ -184,7 +194,7 @@
         "avalanches": 434,
         "active_fraction": 0.8188,
         "largest": 322,
-        "size_exponent": 1.9461,
+        "size_exponent": 1.946,
         "size_decades": 1.2774,
         "size_ks": 0.1619,
         "duration_exponent": 2.958,
@@ -192,7 +202,7 @@
       }
     ],
     "units": 4096,
-    "exponent_range": 2.6648,
+    "exponent_range": 2.6649,
     "verdict": "the size exponent moves 2.665 across recording widths, so it is reading the window and not only the dynamics"
   }
 }

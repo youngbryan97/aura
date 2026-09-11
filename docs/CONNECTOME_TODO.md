@@ -58,14 +58,25 @@ Working list. Deleted when every line is done and green.
       measurement — to 1.946 at all 4,096, where the largest is 322. An
       exponent that moves with the recording was reading the recording.
 
-      `power_law_fit` now reports the decades its tail covers and the
-      comparison refuses a fit under one, so the old number would not have
-      been published. What is left genuinely open: at 4,096 units 82% of bins
-      carry a spike and the analysis bin cannot go below one tick, so cascades
-      merge and 1.946 is biased the other way. No setting yet gives a decade
-      of scaling and a sparse raster at once. That is the next lever, and it
-      is about the recording's time resolution, not about the regulator's
-      clamps
+      `power_law_fit` now reports the decades its tail covers, and the
+      comparison refuses a fit under one and a recording whose runs the
+      shuffle control reproduces from the firing rates alone. The old number
+      would not have been published through either gate.
+
+      One route out of it has been tried and does not work. `decay` is
+      `dt_ms / tau_m`, a normalised step, so refining it should buy time
+      resolution for nothing. It does not, because the mesh's statistics move
+      with it: an eight-fold refinement at constant integrated time moves the
+      spike rate 3.40x and the state's standard deviation 1.41x. The noise
+      increment carrying `decay` to the first power rather than its square
+      root — the whole content of Euler-Maruyama — looked like the reason, and
+      the measurement says it is not: the square-rooted arm moves the rate
+      4.97x and the deviation 1.37x, which is no better. That experiment is
+      also confounded, and says so: `inject_sensory` takes a fresh independent
+      vector every tick, so refining the step also multiplies the external
+      drive's power per unit time. The drive needs the same treatment before
+      the mesh's own discretisation can be read off this at all. Nothing in
+      her dynamics was changed on it
 
 - [ ] the regulator's two chosen ceilings. The rich club is real and does not
       close the cascade gap (3.117 to 3.060 as the coupling goes 1 to 20).

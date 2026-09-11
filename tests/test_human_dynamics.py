@@ -110,19 +110,38 @@ def test_the_recorded_comparison_is_on_disk_and_says_what_it_measured():
     assert report["avalanches"]["count"] > 100, "too few cascades to have measured anything"
     assert report["size_fit"]["tail_n"] >= 32, "the size fit was never usable"
     assert report["size_fit"]["ks"] < 0.2
+    # The control that says whether these runs are cascades at all. Without it
+    # the record can hold a well-fitted exponent of the recording's occupancy.
+    assert report["beyond_rate"], "the shuffle control was never run"
+    assert report["beyond_rate"]["shuffles"] >= 1
     for entry in report["statistics"]:
         assert entry["source"].strip()
 
 
 def test_the_recorded_result_is_not_quietly_a_pass():
-    """The mesh does not match cortex's exponents, and the record has to show it."""
+    """The mesh does not match cortex's exponents, and the record has to show it.
+
+    This used to assert the size exponent stayed above 2.0, which it no longer
+    does: reading every unit rather than sixty of them drops it to 1.95. That
+    number is not a pass either, because the shuffle control reproduces the
+    same distribution from the firing rates alone at that occupancy, so the
+    comparison refuses it. A number that cannot be compared must never be
+    recorded as holding.
+    """
     report = json.loads(
         Path("artifacts/connectome/human_dynamics.json").read_text(encoding="utf-8")
     )
     by_name = {entry["name"]: entry for entry in report["statistics"]}
-    assert by_name["avalanche_size_exponent"]["hers"] > 2.0, (
-        "her size exponent has moved into cortex's range; update this test and say why"
+    size = by_name["avalanche_size_exponent"]
+    assert not size["holds"], (
+        "her size exponent is being recorded as matching cortex; if that is real, "
+        "update this test and say which recording earned it"
     )
+    if report["usable_fits"]:
+        assert size["hers"] > 2.0, (
+            "the fits are usable and her size exponent is inside cortex's range; "
+            "update this test and say why"
+        )
 
 
 def test_a_target_cannot_be_widened_without_this_failing():

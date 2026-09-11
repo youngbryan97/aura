@@ -35,8 +35,14 @@ def main() -> int:
     parser.add_argument(
         "--units",
         type=int,
-        default=60,
-        help="how many units the recording reads, as an electrode array reads a slice",
+        default=0,
+        help=(
+            "how many units the recording reads; 0 reads all of them. Sixty was "
+            "the default, by analogy to Beggs and Plenz's sixty electrodes, and "
+            "an LFP electrode integrates thousands of cells rather than one. "
+            "Sixty of her 4,096 gives 38 cascades over 6,000 ticks, which "
+            "measures nothing"
+        ),
     )
     parser.add_argument(
         "--unit-percentile",
@@ -176,6 +182,16 @@ def main() -> int:
                 f"{row['duration_exponent']:>9.3f}"
             )
         print(f"{sweep['verdict']}")
+
+    rate_control = report["beyond_rate"]
+    print(
+        f"\nshuffle control: population variance "
+        f"{rate_control['population_variance']} against "
+        f"{rate_control['shuffled_variance']} shuffled, "
+        f"{rate_control['sigmas_above_independence']} sigma, "
+        f"{rate_control['active_fraction']:.1%} of bins active"
+    )
+    print(f"  {rate_control['verdict']}")
 
     print(f"\n{report['verdict']}")
     print(f"cascades: {report['avalanches']}")
