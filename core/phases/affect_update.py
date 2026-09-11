@@ -910,13 +910,18 @@ class AffectUpdatePhase(Phase):
             affect.social_hunger = min(1.0, affect.social_hunger + 0.06)
 
         # ── Discourse depth → curiosity satisfaction ──────────────────────
+        #
+        # Into the channel, not the readout. `_derive_metrics` recomputes
+        # `affect.curiosity` from the emotions later in the same turn, so every
+        # discourse pressure on curiosity here lasted until that line and no
+        # further — three nudges that could not be felt.
         depth = getattr(cognition, "discourse_depth", 0)
         if depth > 4:
             # Deep in a topic → curiosity is being exercised and partially satisfied
-            affect.curiosity = max(0.2, affect.curiosity - 0.03)
+            self._bump_emotion(affect, "curiosity", -0.03)
         elif depth == 0 and energy is not None and energy < 0.2:
             # Idle with no conversation → curiosity builds
-            affect.curiosity = min(1.0, affect.curiosity + 0.02)
+            self._bump_emotion(affect, "curiosity", 0.02)
 
         # ── Dialogue quality → social reward or friction ─────────────────
         contract = dict(getattr(state, "response_modifiers", {}) or {}).get("response_contract", {}) or {}
@@ -934,7 +939,7 @@ class AffectUpdatePhase(Phase):
                 if "missing_first_person_stance" in violations:
                     self._bump_emotion(affect, "anger", 0.03)
                 if "failed_to_offer_own_question" in violations:
-                    affect.curiosity = min(1.0, affect.curiosity + 0.04)
+                    self._bump_emotion(affect, "curiosity", 0.04)
 
     def _apply_system_pressures(self, affect: AffectVector, state: AuraState):
         """Whole-system degradation and re-entry burden should change the lived affective field."""
@@ -961,7 +966,11 @@ class AffectUpdatePhase(Phase):
             self._bump_emotion(affect, "anticipation", (0.04 * continuity_pressure))
             self._bump_emotion(affect, "sadness", (0.04 * continuity_pressure))
             self._bump_emotion(affect, "fear", (0.05 * continuity_pressure))
-            affect.curiosity = min(1.0, affect.curiosity + (0.03 * continuity_pressure))
+            # Into the channel, like every other line here. Writing the readout
+            # put it where `_derive_metrics` recomputes it from the emotions
+            # three steps later, so the one pressure in this method that
+            # reached curiosity reached it until the next statement.
+            self._bump_emotion(affect, "curiosity", (0.03 * continuity_pressure))
             if reentry_required:
                 affect.social_hunger = min(1.0, affect.social_hunger + (0.02 * continuity_pressure))
 

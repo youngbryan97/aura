@@ -134,6 +134,8 @@ subject-core-integrity:
 	@$(PYTHON) tools/audit_no_battery_shortcuts.py --check
 	@echo "🔬 Checking that no generator escapes the process seed..."
 	@$(PYTHON) tools/audit_unseeded_randomness.py --check
+	@echo "🔬 Checking that nothing is written and replaced in one cycle..."
+	@$(PYTHON) tools/audit_overwritten_in_the_same_cycle.py --check
 	@echo "🔬 Checking the completion tracker against what actually passes..."
 	@$(PYTHON) tools/isc_completion_status.py --check
 

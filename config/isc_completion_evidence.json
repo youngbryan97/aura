@@ -4137,6 +4137,27 @@
     "note": "a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one",
     "status": "done"
   },
+  "P45.9": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_overwritten_in_the_same_cycle.py --check",
+        "kind": "command",
+        "timeout": 180
+      },
+      {
+        "command": "{python} -m pytest tests/test_nothing_is_written_and_replaced_in_one_cycle.py::test_nothing_in_the_tree_writes_a_field_and_then_replaces_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_nothing_is_written_and_replaced_in_one_cycle.py::test_the_rule_can_fire -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no field is written by one step of a turn and replaced by a later one without reading what was there",
+    "status": "done"
+  },
   "P47.1": {
     "checks": [
       {
@@ -4728,17 +4749,17 @@
   "P5.7": {
     "checks": [
       {
-        "kind": "grep",
-        "path": "core/phases/affect_update.py",
-        "pattern": "def _fold_substrate_into_emotions"
+        "command": "{python} tools/audit_overwritten_in_the_same_cycle.py --check",
+        "kind": "command",
+        "timeout": 180
       },
       {
         "kind": "grep",
         "path": "core/phases/affect_update.py",
-        "pattern": "And into the channel curiosity is kept in"
+        "pattern": "def _fold_substrate_into_emotions"
       }
     ],
-    "note": "what a consumer writes lands in the channel the readout is derived from, so the next turn does not erase it",
+    "note": "what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again",
     "status": "done"
   },
   "P5.8": {
