@@ -246,3 +246,41 @@ The receipt records 40 context exchanges, one generation, 63 generated tokens,
 zero completion or repair retries, zero text mutations, and cognitive_engine
 delivery. No answer hint was inserted into the question. The initiating
 browser tab was subsequently closed; restored-window inspection is separate.
+
+## Multipart delivery and worker loss
+
+The evaporation/boiling request at 16:02:05, delivery
+`aura-chat-72009182-ab5d-435f-9359-9d973416756b`, returned all three numbered
+points and both examples, but carried a PARTIAL badge after an unnecessary
+retry. The comparison parser had included the formatting and delivery clause
+in its second subject. Checkpoint `d6ad63b32` separates that clause in the
+shared relational parser. The focused checks passed 46 cases, and 93 related
+request-coverage tests passed. Smoke passed 164 with one skipped; lint,
+compile and layering passed.
+
+After supported reboot, the identical request at 16:18:35, delivery
+`aura-chat-daa4f339-566f-4281-b705-b8a2edb92764`, returned three points and
+two examples, with one generation, zero retries, zero mutations, and an
+answer-delivery proof. Reload during generation retained the question. A
+restored window displayed one complete answer without the PARTIAL badge.
+This passes multipart delivery; it does not make the observed 28.7- and
+52.1-second event-loop stalls acceptable. Those remain R06/R08/R11 failures.
+
+The follow-up at 16:25:23, "Which of those processes cools the remaining
+liquid, and why?", delivery
+`aura-chat-1d8f2f5d-ed9b-4c0b-8a8e-7973cf2e46a3`, failed. The resident
+worker PID 97442 disappeared during prefill. State-vault and sensory actors
+also exited with signal 9, and the Phi process pool broke. macOS recorded the
+worker's death at 16:27:02.9 but the inspected log did not identify the killer.
+There is no basis to label this an OOM or a successful contextual answer.
+Runtime PID 97264 later received SIGTERM at 16:32:25 and exited cleanly.
+
+The stall dump `stall_1789169179.txt` places the event-loop thread inside
+StabilityGuardian -> RuntimeHygiene.audit -> capture_sample -> process_table
+-> psutil.parents. This synchronous host-wide scan now runs in the existing
+worker executor. Registry eviction also snapshots finished records before
+resource owners can add or retire entries; it no longer sorts through keys
+that another owner may have removed. The 44 focused hygiene checks passed;
+smoke passed 164 with one skipped in 56.82 seconds. Lint, compile and layering
+passed. These repairs still require live replay at this entry. R09 remains
+open rather than treating the earlier multipart pass as a complete sequence.

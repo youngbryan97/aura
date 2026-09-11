@@ -1537,17 +1537,21 @@ class RuntimeHygieneManager:
         bounded to the most recent finished entries so a long-lived runtime
         cannot accumulate one record per subprocess it ever ran.
         """
+        # Resource owners can register or retire handles during an audit.
         finished = [
-            key for key, record in records.items()
+            (key, record, record.finished_at)
+            for key, record in list(records.items())
             if record.finished_at is not None
         ]
-        for key in finished:
-            refs.pop(key, None)
+        for key, record, _finished_at in finished:
+            if records.get(key) is record:
+                refs.pop(key, None)
         overflow = len(finished) - self._FINISHED_RECORD_RETENTION
         if overflow > 0:
-            finished.sort(key=lambda key: records[key].finished_at)
-            for key in finished[:overflow]:
-                records.pop(key, None)
+            finished.sort(key=lambda item: item[2])
+            for key, record, _finished_at in finished[:overflow]:
+                if records.get(key) is record:
+                    records.pop(key, None)
 
     def _refresh_thread_records(self) -> None:
         now = time.monotonic()
