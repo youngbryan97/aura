@@ -214,6 +214,11 @@ class ProprioceptiveLoop(BasePhase):
             ("focus_mod", getattr(mods, "focus_mod", None)),
             ("overall_vitality", getattr(mods, "overall_vitality", None)),
             ("urgency_flag", getattr(mods, "urgency_flag", None)),
+            # How hot and how deep, which is where felt state actually lands:
+            # valence and arousal shape these two and reach the other four
+            # barely or not at all.
+            ("temperature_mod", getattr(mods, "temperature_mod", None)),
+            ("depth_mod", getattr(mods, "depth_mod", None)),
         ):
             if value is None:
                 continue

@@ -370,8 +370,40 @@ class HomeostaticCoupling:
             logger.debug("Could not read homeostasis drives: %s", e)
             return {}
 
+
+    @staticmethod
+    def _settled_affect() -> dict[str, float]:
+        """`AuraState.affect`, or empty when there is no state to read."""
+        try:
+            from core.container import ServiceContainer
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            affect = getattr(current, "affect", None)
+            if affect is None:
+                return {}
+            return {
+                "valence": float(getattr(affect, "valence", 0.0) or 0.0),
+                "arousal": float(getattr(affect, "arousal", 0.0) or 0.0),
+                "engagement": float(getattr(affect, "engagement", 0.0) or 0.0),
+            }
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return {}
+
     async def _read_affect(self) -> dict[str, float]:
-        """Read current affect state from existing AffectEngine."""
+        """What she feels, from the state the phases settle.
+
+        `AffectUpdatePhase` writes `AuraState.affect` — the emotion channels,
+        the substrate blend, the lifetime's novelty — and every other consumer
+        of felt state reads it. The affect engine is one estimator among the
+        inputs to that, and it reported a valence of exactly 0.0 on every tick
+        measured this session while the state's moved: so the felt state this
+        object blends the substrate into, and computes how hot and how deep she
+        may think from, was a constant zero with a third of a substrate added.
+        """
+        settled = self._settled_affect()
+        if settled:
+            return settled
         try:
             affect_engine = getattr(self.orch, 'affect_engine', None)
             if affect_engine is None:
@@ -449,22 +481,32 @@ class HomeostaticCoupling:
         arousal = affect.get('arousal', 0.0)
         engagement = affect.get('engagement', 0.5)
 
-        # Negative valence + high arousal = distressed = worse reasoning
-        if valence < -0.5 and arousal > 0.6:
-            temp_mod *= 0.75
-            depth_mod *= 0.8
-            if not m.mood_prefix:
+        # How she feels, shaping how she thinks, proportionally.
+        #
+        # These were three corner branches — valence below minus a half with
+        # arousal above six tenths, and two more like it — with nothing at all
+        # in between. Her valence sits around a fifth and her arousal around a
+        # half, which is in none of them, so the channel this whole blend
+        # exists for reached the modifiers on no ordinary turn: the substrate
+        # is a third of the affect above, and a third of a number that is then
+        # tested against a corner is a third of nothing.
+        #
+        # Same three effects, same strengths where they were: each coefficient
+        # below is exactly what the branch it replaces applied at its own
+        # extreme, and between the extremes the effect is the fraction of the
+        # way there. The prose keeps its thresholds, because a sentence about
+        # being distressed is a statement rather than a dial.
+        distress = max(0.0, -valence) * max(0.0, min(1.0, arousal))
+        dejection = max(0.0, -valence) * max(0.0, 1.0 - min(1.0, arousal))
+        lift = max(0.0, valence) * max(0.0, min(1.0, arousal))
+        temp_mod *= (1.0 - 0.25 * distress) * (1.0 - 0.35 * dejection) * (1.0 + 0.15 * lift)
+        depth_mod *= (1.0 - 0.20 * distress) * (1.0 - 0.30 * dejection)
+        if not m.mood_prefix:
+            if valence < -0.5 and arousal > 0.6:
                 m.mood_prefix = "You are distressed. This colors your thinking."
-        # Negative valence + low arousal = depressed = very flat output
-        elif valence < -0.4 and arousal < 0.3:
-            temp_mod *= 0.65
-            depth_mod *= 0.7
-            if not m.mood_prefix:
+            elif valence < -0.4 and arousal < 0.3:
                 m.mood_prefix = "I feel low energy and sad. Be honest about this."
-        # Positive + high arousal = excited/joyful = more creative
-        elif valence > 0.4 and arousal > 0.5:
-            temp_mod = min(1.25, temp_mod * 1.15)
-            if not m.mood_prefix:
+            elif valence > 0.4 and arousal > 0.5:
                 m.mood_prefix = "I feel energized and positive. Let this come through."
 
         # Engagement directly scales creativity
