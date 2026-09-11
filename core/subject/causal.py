@@ -191,9 +191,9 @@ def _divergence(
     single-channel effect halves, though nothing about the organism changed.
     An existence claim must not be a function of the schema's granularity.
 
-    The floor is computed the same way from two sham arms, so the maximum's
-    optimism — it is a maximum over the same columns in both — cancels in the
-    comparison the edge rule actually makes.
+    The floor is computed the same way from two sham arms. See
+    `_paired_divergence` for why the two must be maximised over the same
+    column rather than over the domain independently.
     """
     peak: dict[str, float] = {}
     trace: dict[str, list[float]] = {}
@@ -213,6 +213,66 @@ def _divergence(
         trace[domain] = series
         peak[domain] = max(series) if series else 0.0
     return peak, trace
+
+
+def _paired_divergence(
+    pert: Sequence[CoreState],
+    sham_a: Sequence[CoreState],
+    sham_b: Sequence[CoreState],
+    scale: dict[str, np.ndarray],
+) -> tuple[dict[str, float], dict[str, float], dict[str, list[float]], dict[str, list[float]]]:
+    """The effect and the floor, read off the same column.
+
+    Both were a maximum over the domain's live columns, taken independently —
+    the largest effect anywhere against the largest sham wobble anywhere. When
+    the two maxima land on different columns the subtraction the edge rule
+    makes is not a comparison at all, and it is biased in one direction: the
+    effect has to beat a floor set by a column it never touched.
+
+    It bites hardest on columns that barely move. Recurrent cognition's
+    frustration channel has a standard deviation of 0.0019 across a recording,
+    the fourth smallest of the live columns, so an absolute difference of three
+    ten-thousandths between two identical arms reads as a seventh of a standard
+    deviation — and that was the number every effect into that domain had to
+    clear, whichever column carried it.
+
+    So the column is chosen once, by the margin, and both numbers are read off
+    it. The choice is still a maximum over columns, which is what keeps the
+    answer from depending on how finely the domain was written down; what it no
+    longer does is let one column's noise stand in front of another column's
+    signal.
+    """
+    effect: dict[str, float] = {}
+    floor: dict[str, float] = {}
+    trace: dict[str, list[float]] = {}
+    floor_trace: dict[str, list[float]] = {}
+    span = min(len(pert), len(sham_a), len(sham_b))
+    for domain in DOMAINS:
+        unit = scale.get(domain)
+        if unit is None:
+            continue
+        live = unit > SCALE_FLOOR
+        if not live.any() or span == 0:
+            continue
+        scaled = unit[live]
+        moved = np.zeros((span, int(live.sum())), dtype=np.float64)
+        wobble = np.zeros_like(moved)
+        for index in range(span):
+            here = pert[index].domain(domain)[live]
+            there = sham_a[index].domain(domain)[live]
+            other = sham_b[index].domain(domain)[live]
+            moved[index] = np.clip(np.abs(here - there) / scaled, 0.0, DIVERGENCE_CEILING)
+            wobble[index] = np.clip(np.abs(there - other) / scaled, 0.0, DIVERGENCE_CEILING)
+        # Each column's own peak over the lags, then the column whose margin
+        # over its own floor is largest.
+        column_effect = moved.max(axis=0)
+        column_floor = wobble.max(axis=0)
+        best = int(np.argmax(column_effect - column_floor))
+        effect[domain] = float(column_effect[best])
+        floor[domain] = float(column_floor[best])
+        trace[domain] = [float(value) for value in moved[:, best]]
+        floor_trace[domain] = [float(value) for value in wobble[:, best]]
+    return effect, floor, trace, floor_trace
 
 
 async def _arm(
@@ -331,8 +391,9 @@ async def run_interventions(
                     unwritable.add(source)
                     logger.debug("%s has no writer that bit in %s", source, condition.name)
                     continue
-                effect, trace = _divergence(runs["pert"], runs["sham_a"], scale)
-                floor, floor_trace = _divergence(runs["sham_a"], runs["sham_b"], scale)
+                effect, floor, trace, floor_trace = _paired_divergence(
+                    runs["pert"], runs["sham_a"], runs["sham_b"], scale
+                )
                 out.trials.append(
                     Trial(
                         source=source,

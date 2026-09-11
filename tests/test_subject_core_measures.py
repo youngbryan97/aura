@@ -757,3 +757,62 @@ async def test_every_name_for_the_substrate_reaches_one_substrate(tmp_path):
     }
     if runtime.organs.substrate is not None:
         assert id(runtime.organs.substrate) in identities
+
+
+def test_the_effect_and_the_floor_are_read_off_the_same_column():
+    """Two independent maxima are not a comparison.
+
+    The effect was the largest standardized displacement anywhere in the
+    target domain and the floor was the largest sham wobble anywhere in it,
+    taken separately. When the two land on different columns the subtraction
+    the edge rule makes is biased in one direction: a real effect on one
+    column has to beat noise on a column it never touched.
+
+    Here the second column carries the signal and the first carries the noise.
+    Read independently the domain reports an effect of 1.0 against a floor of
+    1.0 and the edge dies; read off one column it reports the truth.
+    """
+    import numpy as np
+
+    from core.subject.causal import _paired_divergence
+
+    class _Row:
+        def __init__(self, values):
+            self._values = np.asarray(values, dtype=float)
+
+        def domain(self, _name):
+            return self._values
+
+    unit = {"A": np.array([1.0, 1.0])}
+    # column 0: the shams disagree by one and the displacement does nothing.
+    # column 1: the shams agree and the displacement moves it by two.
+    pert = [_Row([0.0, 2.0])]
+    sham_a = [_Row([0.0, 0.0])]
+    sham_b = [_Row([1.0, 0.0])]
+
+    effect, floor, trace, floor_trace = _paired_divergence(pert, sham_a, sham_b, unit)
+    assert effect["A"] == pytest.approx(2.0)
+    assert floor["A"] == pytest.approx(0.0)
+    assert trace["A"] == [pytest.approx(2.0)]
+    assert floor_trace["A"] == [pytest.approx(0.0)]
+
+
+def test_a_domain_whose_only_movement_is_noise_reports_no_margin():
+    """The rule must not manufacture a margin where there is none."""
+    import numpy as np
+
+    from core.subject.causal import _paired_divergence
+
+    class _Row:
+        def __init__(self, values):
+            self._values = np.asarray(values, dtype=float)
+
+        def domain(self, _name):
+            return self._values
+
+    unit = {"A": np.array([1.0, 1.0])}
+    pert = [_Row([0.0, 0.0])]
+    sham_a = [_Row([0.0, 0.0])]
+    sham_b = [_Row([1.0, 1.0])]
+    effect, floor, _, _ = _paired_divergence(pert, sham_a, sham_b, unit)
+    assert effect["A"] <= floor["A"]
