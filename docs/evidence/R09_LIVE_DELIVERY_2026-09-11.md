@@ -125,3 +125,63 @@ The neural feed also recorded event-loop lag and lease-renewal delays during
 concurrent tests and two rendered chat windows. Health recovered after the
 extra windows closed. This observation is retained for R06/R08; it does not
 establish that rendering was the sole cause.
+
+## Afternoon replay and cancelled-latent follow-up
+
+Supported reboot loaded PID 32432 at 14:55:46 PDT with source snapshot
+`4f87d82184345f6e2ba8073f5ab7f517261012f4a6bd2611987e1eb051299432`.
+Boot reported source_current/source_verified true and no revision issues.
+The deployed capability and browser files matched checkpoint `e378f2e18`.
+
+The unchanged Ship of Theseus question, delivery
+`aura-chat-1b048c6f-a8fb-4ca6-b685-2e1b80b1c425`, turn
+`439b1e0de010487ca2a0440b4bf412e7`, produced a complete 2,980-character
+answer with no capability-text replacement. The first generation measured
+667 decode tokens, 45.31 seconds of prefill and 65.95 seconds of decode.
+It was nevertheless rejected as an unsupported screen reading because the
+sentence put a quoted ship in a dock. Mere co-occurrence of a quotation and
+a display-related noun is not attribution. Screen-reading detection now
+requires an actual display reading relation; attributed quotes still require
+capture evidence. Its 49 focused tests passed in 5.54 seconds.
+
+The unnecessary retry failed with no public answer; the original draft was
+preserved and delivered at 15:01:17. A reconnected window recovered the pending
+question and subsequently received exactly one complete answer without a
+manual reload. This is a passing reconnect subcase, not a clean-generation
+pass. A separate passive window opened earlier was closed by the browser
+session boundary and is not counted as observed live completion.
+
+The shorter recurrent-verification question reached the actual latent worker.
+Delivery `aura-chat-ee07f429-5fd6-4c3b-b266-2d0202993856`, turn
+`bfaa9f403a6b4bc8b7ae6f5b5c449ea4`, requested Stop at about 15:05:40.
+Job sequence 8 received `latent_reason_caller_cancelled`; request
+`2873b71e4abb48e38bc70a95509fb263` reported verified cleanup with the resident
+lane preserved. The UI displayed one cancellation acknowledgement at 15:05:41.
+
+The following reading-group question completed at 15:06:54, but incorrectly
+denied any record of the selected novel. Delivery
+`aura-chat-b563f056-8df7-4c8a-bc5d-df250ccf88df`, turn
+`9432fe63bbfa44868931c04bb76646f8`, is therefore a semantic failure despite
+its delivery contract reporting success. It does not close Stop/next-turn
+acceptance.
+
+The worker's 10,240-token window was not evidence of leaked latent settings:
+it was the qualified simple lane's 8,192-token input limit plus 2,048 reserved
+output tokens. The short question carried an 84-message prompt, but lane
+selection considered only the question. Admission rejected the remaining
+9,024 prompt tokens; the fallback silently retained only five dialogue
+messages. A shared-history probe also supplied an unsupported no-agreement
+assertion. Foreground lane selection now considers assembled input against
+existing qualified envelopes, without expanding explicit caller contracts or
+requested output. Retries retain the already admitted dialogue, exact current
+input, and evidence rather than applying a second count/character window.
+The context/inference regressions passed 255 tests in 65.70 seconds.
+Live validation of these repairs remains required.
+
+The shared-history reader now uses the foreground turn's existing evidence
+custody, including its scoped durable transcript. An empty or unread admitted
+snapshot cannot fall through to another RAM conversation. Topic overlap only
+selects excerpts; it cannot establish agreement or absence. Corrections and
+adjacent replies remain together. The shared-history, custody and screen
+regressions passed 89 tests in 7.03 seconds. Final smoke passed 164 tests with
+one skip in 67.60 seconds; lint, compile, governance-lint and layering passed.

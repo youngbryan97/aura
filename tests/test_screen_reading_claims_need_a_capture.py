@@ -420,3 +420,34 @@ class TestDesktopCanNameASoftwareLane:
     def test_actual_desktop_readings_still_require_evidence(self, invented):
         assert quotes_screen_content(invented, display_binding_required=True)
         assert screen_reading_claim_is_unsupported(self.QUESTION, invented, None)
+
+
+@pytest.mark.parametrize("reply", [
+    'At some point, "the ship" in the dock shares nothing physical with the original.',
+    'The phrase "the same ship" is an identity criterion, even beside a monitor.',
+    'Calling the object "the original" does not depend on the screen nearby.',
+    'The word "continuity" appears in this explanation, not the window beside it.',
+])
+def test_a_quotation_near_a_display_noun_is_not_a_reading(reply):
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    prompt = "Analyze the strongest argument on each side of the Ship of Theseus paradox."
+    assert not quotes_screen_content(reply, display_binding_required=True)
+    assert not screen_reading_claim_is_unsupported(prompt, reply)
+    assert "unsupported_screen_reading_claim" not in assess_user_facing_reply(prompt, reply).reasons
+
+
+@pytest.mark.parametrize("reply", [
+    'The screen: "Access denied".',
+    'Your window: "Private Account".',
+    'The tabs say "Private Account".',
+    'I can see your screen has "Private Account" open.',
+])
+def test_attributed_display_quotations_still_need_their_capture(reply):
+    prompt = "How is your day going?"
+    assert quotes_screen_content(reply, display_binding_required=True)
+    assert screen_reading_claim_is_unsupported(prompt, reply)
+    assert not screen_reading_claim_is_unsupported(
+        prompt, reply,
+        ScreenReadingEvidence(captured=True, text="Access denied Private Account"),
+    )

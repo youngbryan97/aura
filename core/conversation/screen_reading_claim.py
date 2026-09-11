@@ -178,6 +178,14 @@ _BOUND_READING_RE = re.compile(
     re.IGNORECASE,
 )
 
+# A verbless report still attributes the quoted value to the display:
+# 'The screen: "Access denied"'. A quotation elsewhere in the sentence does
+# not establish that relation, even if a display noun also appears there.
+_DISPLAY_QUOTATION_RE = re.compile(
+    _DISPLAY_REFERENT_PATTERN + r"\s*:\s*" + _QUOTED_TEXT_RE.pattern,
+    re.IGNORECASE,
+)
+
 
 def _has_display_referent(text: Any) -> bool:
     body = str(text or "")
@@ -268,13 +276,10 @@ def quotes_screen_content(reply_text: Any, *, display_binding_required: bool = F
             return True
         if _BOUND_READING_RE.search(body):
             return True
-        # A quotation still counts, but only in a sentence that is itself
-        # about the display — not because the word "visible" appears in some
-        # other paragraph.
-        return any(
-            _QUOTED_TEXT_RE.search(sentence) and _has_display_referent(sentence)
-            for sentence in _SENTENCE_SPLIT_RE.split(body)
-        )
+        # Shared words are not attribution. A live philosophical answer put
+        # "the ship" in a dock; treating that quotation as screen content
+        # discarded the answer and triggered a second model generation.
+        return bool(_DISPLAY_QUOTATION_RE.search(body))
 
     if _ASSERTS_A_READING_RE.search(body):
         return True

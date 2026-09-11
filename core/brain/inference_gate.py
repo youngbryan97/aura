@@ -8118,8 +8118,10 @@ class InferenceGate:
         cls,
         prompt: str,
         context: dict[str, Any] | None = None,
+        *,
+        input_tokens: int = 0,
     ) -> str:
-        """Map the typed turn contract to one qualified serving lane."""
+        """Match both the answer contract and the assembled input to a lane."""
 
         context = context or {}
         allowed = {
@@ -8146,10 +8148,32 @@ class InferenceGate:
             return "deep_reasoning"
         profile = cls._foreground_prompt_profile(prompt, context)
         if profile == "extended":
-            return "foreground_extended"
-        if profile == "simple":
-            return "foreground_simple"
-        return "foreground_standard"
+            selected = "foreground_extended"
+        elif profile == "simple":
+            selected = "foreground_simple"
+        else:
+            selected = "foreground_standard"
+        if input_tokens > 0:
+            limits = get_active_cortex_serving_limits()
+            if limits is not None and limits.qualified:
+                lane = limits.lane(selected)
+                if lane is not None and input_tokens > lane.max_input_tokens:
+                    # A short follow-up can carry a long conversation. Use a
+                    # measured foreground envelope that fits it, without
+                    # changing explicit caller lanes or the requested output.
+                    candidates = [
+                        candidate
+                        for name in ("foreground_simple", "foreground_standard", "foreground_extended")
+                        if (candidate := limits.lane(name)) is not None
+                        and candidate.max_input_tokens >= input_tokens
+                        and candidate.max_output_tokens >= lane.max_output_tokens
+                    ]
+                    if candidates:
+                        selected = min(
+                            candidates,
+                            key=lambda candidate: (candidate.max_input_tokens, candidate.max_output_tokens),
+                        ).name
+        return selected
 
     @classmethod
     def _foreground_prebuilt_history_limit(
@@ -10728,9 +10752,10 @@ class InferenceGate:
         results — and then invite an answer about tools and agency from a
         prompt with no record of what was actually run. That is the shape that
         produces a confident answer about an action nobody can show happened.
-        Telemetry goes; grounding stays.
+        Telemetry goes; grounding and admitted dialogue stay. A second history
+        window here silently erased the very exchange a follow-up referred to.
         """
-        current_user = cls._current_user_text_from_messages(prompt, messages)
+        current_user = str(prompt or "")
         system = (
             "You are Aura's primary Cortex foreground response lane. The previous "
             "draft for this user turn failed the reliability gate, so answer the "
@@ -10742,29 +10767,31 @@ class InferenceGate:
             "personhood or proven consciousness."
         )
         retry_messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-        dialogue_tail: list[dict[str, str]] = []
+        dialogue: list[dict[str, str]] = []
         grounding: list[dict[str, str]] = []
         if isinstance(messages, list):
             for msg in messages:
                 if not isinstance(msg, dict):
                     continue
                 if cls._is_grounding_system_message(msg):
-                    content = cls._trim_retry_message_content(msg.get("content"), 2000)
+                    content = str(msg.get("content") or "")
                     if content:
                         grounding.append({"role": "runtime_evidence", "content": content})
                     continue
                 role = str(msg.get("role", "") or "").strip().lower()
                 if role not in {"user", "assistant"}:
                     continue
-                content = cls._trim_retry_message_content(msg.get("content"))
+                content = str(msg.get("content") or "")
                 if content:
-                    dialogue_tail.append({"role": role, "content": content})
+                    dialogue.append({"role": role, "content": content})
+                    if role == "user":
+                        current_user = content
         # Evidence first so it is behind the dialogue and immediately before
         # the question, which is where the grounding path already puts it.
         if grounding:
-            retry_messages.extend(grounding[-3:])
-        if dialogue_tail:
-            retry_messages.extend(dialogue_tail[-5:])
+            retry_messages.extend(grounding)
+        if dialogue:
+            retry_messages.extend(dialogue)
         if not retry_messages or retry_messages[-1].get("role") != "user":
             retry_messages.append({"role": "user", "content": current_user})
         elif retry_messages[-1].get("content") != current_user:
@@ -14558,6 +14585,14 @@ class InferenceGate:
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
             context,
+            input_tokens=(
+                estimate_context_tokens(str(system_prompt or ""))
+                + sum(
+                    estimate_context_tokens(str(message.get("content") or "")) + 12
+                    for message in messages
+                    if isinstance(message, dict)
+                )
+            ),
         )
         serving_limits = get_active_cortex_serving_limits()
         if serving_limits is not None and serving_limits.qualified:

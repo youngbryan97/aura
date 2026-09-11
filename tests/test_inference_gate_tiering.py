@@ -50,6 +50,45 @@ def test_cortex_serving_lane_uses_typed_turn_contracts():
     ) == "deep_reasoning"
 
 
+@pytest.mark.parametrize("qualified", [True, False])
+def test_short_followup_uses_a_qualified_envelope_for_its_whole_input(monkeypatch, qualified):
+    from core.brain import inference_gate
+
+    lanes = {
+        "foreground_simple": SimpleNamespace(
+            name="foreground_simple", max_input_tokens=8192, max_output_tokens=2048,
+        ),
+        "foreground_standard": SimpleNamespace(
+            name="foreground_standard", max_input_tokens=16384, max_output_tokens=4096,
+        ),
+        "foreground_extended": SimpleNamespace(
+            name="foreground_extended", max_input_tokens=24576, max_output_tokens=8192,
+        ),
+    }
+    monkeypatch.setattr(
+        inference_gate, "get_active_cortex_serving_limits",
+        lambda: SimpleNamespace(qualified=qualified, lane=lanes.get),
+    )
+    context = {"max_tokens": 512}
+    question = "Which one did we choose?"
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=8000) == "foreground_simple"
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=9090) == (
+        "foreground_standard" if qualified else "foreground_simple"
+    )
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=20000) == (
+        "foreground_extended" if qualified else "foreground_simple"
+    )
+    # A count beyond all measured envelopes cannot manufacture qualification.
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=30000) == "foreground_simple"
+    assert context == {"max_tokens": 512}
+    assert InferenceGate._cortex_serving_lane(
+        question, {"serving_lane": "foreground_simple"}, input_tokens=9090,
+    ) == "foreground_simple"
+    assert InferenceGate._cortex_serving_lane(
+        question, {"coding_request": True}, input_tokens=9090,
+    ) == "code"
+
+
 def test_qualified_profile_supplies_default_foreground_context(monkeypatch):
     from core.brain.llm import model_registry
 
