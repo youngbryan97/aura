@@ -412,3 +412,77 @@ def test_no_writer_consults_the_measurement() -> None:
             if name in source:
                 guilty.append(f"{domain}'s writer mentions {name}")
     assert not guilty, "; ".join(guilty)
+
+
+# ── G: the workspace ─────────────────────────────────────────────────────
+
+
+def test_displacing_the_workspace_changes_which_bid_wins() -> None:
+    """A displacement of attention is a change in what wins the competition.
+
+    Writing `ignition_level` moved the number the schema reads and nothing
+    downstream, because every consumer fires on a broadcast and a broadcast
+    comes from a competition. And a candidate submitted under a probe's own
+    name falls through every action table to whatever the sham did, so the
+    route from attention through action to the world was closed to the one
+    domain that should open it. The writer raises the runner-up under its own
+    source until it wins.
+    """
+    from core.consciousness.global_workspace import (
+        CognitiveCandidate,
+        ContentType,
+        GlobalWorkspace,
+    )
+    from core.subject.state import Organs
+
+    async def run(delta: float) -> tuple[str, str]:
+        workspace = GlobalWorkspace()
+        for source, priority in (("perception", 0.70), ("memory", 0.55)):
+            await workspace.submit(
+                CognitiveCandidate(
+                    content=f"{source} has something to say",
+                    source=source,
+                    priority=priority,
+                    content_type=ContentType.PERCEPTUAL,
+                )
+            )
+        organs = Organs(workspace=workspace)
+        if delta:
+            assert await perturb_organs(organs, "G", delta, state=None) is True
+        winner = await workspace.run_competition()
+        return (getattr(winner, "source", ""), getattr(winner, "content", ""))
+
+    sham_source, _ = asyncio.run(run(0.0))
+    moved_source, _ = asyncio.run(run(DELTA * 2.0))
+    assert sham_source == "perception"
+    assert moved_source == "memory", (
+        f"displacing the workspace left {moved_source!r} winning, so both arms "
+        "attend to the same thing and act the same way"
+    )
+
+
+# ── S: the self model ────────────────────────────────────────────────────
+
+
+def test_displacing_the_self_model_changes_the_beliefs_it_holds() -> None:
+    """The self model's beliefs are what the self-state reading is built from.
+
+    The writer goes through `update_belief`, which is the organ's own governed
+    path, so a write its authority would refuse is not made — reaching past it
+    into the dict would measure a state the runtime can never reach.
+    """
+    from core.self_model import SelfModel
+    from core.subject.state import Organs
+
+    async def run() -> tuple[dict, dict]:
+        model = SelfModel(id="a-displacement-probe")
+        organs = Organs(self_model=model)
+        before = dict(getattr(model, "beliefs", {}) or {})
+        assert await perturb_organs(organs, "S", DELTA, state=None) is True
+        return before, dict(getattr(model, "beliefs", {}) or {})
+
+    before, after = asyncio.run(run())
+    assert after != before, "the self model's beliefs did not move"
+    assert "subject_core_probe" in after, (
+        f"the displacement was accepted and left no belief: {sorted(after)[:8]}"
+    )

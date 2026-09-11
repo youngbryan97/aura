@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**131 done, 0 blocked, 0 not applicable, 651 open, of 782.**
+**138 done, 0 blocked, 0 not applicable, 644 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -659,15 +659,15 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P31.1` State-level writer/read consistency tests have begun. — a writer moves its own domain, and a displacement reaches a named consumer
 - [x] `P31.2` C perturbation verified against actual live substrate features. — the substrate readout every consumer calls moves, and the modifiers cognition runs under move with it
 - [x] `P31.3` N perturbation verified against the actual lifetime reservoir. — the reservoir N reads is the organ's shared lifetime state, and displacing it moves the novelty every consumer reads
-- [ ] `P31.4` S organ perturbation hits actual self-model/self-prediction state.
-- [ ] `P31.5` W perturbation hits learned world-model state that consumers read.
-- [ ] `P31.6` G perturbation changes actual workspace state.
+- [x] `P31.4` S organ perturbation hits actual self-model/self-prediction state. — the displacement goes through the self model's own governed update and leaves a belief behind
+- [x] `P31.5` W perturbation hits learned world-model state that consumers read. — an observation of a world she is not in moves the surprise every consumer reads
+- [x] `P31.6` G perturbation changes actual workspace state. — the runner-up is raised under its own source until it wins, so both arms attend to different things and act differently
 - [x] `P31.7` D perturbation changes actual deliberative inputs. — the probe intention states an urgency the competition can price, and the displaced budgets change which need is worst
-- [ ] `P31.8` I perturbation survives host-freeze matching correctly.
-- [ ] `P31.9` Every perturbation moves multiple meaningful features rather than one decorative scalar.
-- [ ] `P31.10` Magnitude remains inside normal operating range.
+- [x] `P31.8` I perturbation survives host-freeze matching correctly. — the host freeze is re-taken from the displaced state, and the body keeps a channel the freeze does not overwrite
+- [x] `P31.9` Every perturbation moves multiple meaningful features rather than one decorative scalar. — every domain's displacement moves at least two of its own features, counting both halves of the intervention
+- [x] `P31.10` Magnitude remains inside normal operating range. — every state write in a writer states its own bounds, so four times the campaign's displacement is still a state she could be in
 - [x] `P31.11` Intervention does not directly write downstream domains. — no writer bumps a state path another domain's schema owns
-- [ ] `P31.12` Intervention does not inject the expected answer into the system.
+- [x] `P31.12` Intervention does not inject the expected answer into the system. — no writer names the recording, the edge test, the thresholds or a reading function
 
 ## Phase 32 — Establish dose-response
 

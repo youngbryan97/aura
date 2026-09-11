@@ -1331,6 +1331,17 @@
     "note": "a writer moves its own domain, and a displacement reaches a named consumer",
     "status": "done"
   },
+  "P31.10": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_every_state_write_in_a_writer_is_clamped -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "every state write in a writer states its own bounds, so four times the campaign's displacement is still a state she could be in",
+    "status": "done"
+  },
   "P31.11": {
     "checks": [
       {
@@ -1340,6 +1351,17 @@
       }
     ],
     "note": "no writer bumps a state path another domain's schema owns",
+    "status": "done"
+  },
+  "P31.12": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_no_writer_consults_the_measurement -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no writer names the recording, the edge test, the thresholds or a reading function",
     "status": "done"
   },
   "P31.2": {
@@ -1379,6 +1401,39 @@
     "note": "the reservoir N reads is the organ's shared lifetime state, and displacing it moves the novelty every consumer reads",
     "status": "done"
   },
+  "P31.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_displacing_the_self_model_changes_the_beliefs_it_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the displacement goes through the self model's own governed update and leaves a belief behind",
+    "status": "done"
+  },
+  "P31.5": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_displacing_the_world_model_changes_what_it_is_surprised_by -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "an observation of a world she is not in moves the surprise every consumer reads",
+    "status": "done"
+  },
+  "P31.6": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_displacing_the_workspace_changes_which_bid_wins -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the runner-up is raised under its own source until it wins, so both arms attend to different things and act differently",
+    "status": "done"
+  },
   "P31.7": {
     "checks": [
       {
@@ -1393,6 +1448,33 @@
       }
     ],
     "note": "the probe intention states an urgency the competition can price, and the displaced budgets change which need is worst",
+    "status": "done"
+  },
+  "P31.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "rt\\.freeze_host\\(\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_the_body_displacement_survives_the_host_freeze -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the host freeze is re-taken from the displaced state, and the body keeps a channel the freeze does not overwrite",
+    "status": "done"
+  },
+  "P31.9": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_every_displacement_moves_more_than_one_column -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "every domain's displacement moves at least two of its own features, counting both halves of the intervention",
     "status": "done"
   },
   "P33.12": {
