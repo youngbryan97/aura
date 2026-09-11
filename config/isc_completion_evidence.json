@@ -1439,7 +1439,7 @@
   "P2.36": {
     "checks": [
       {
-        "expr": "any(r['source'] == 'P' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "expr": "any(e['source'] == 'P' and e['target'] == 'C' and e['kept'] for e in report['edges'])",
         "kind": "report"
       }
     ],
@@ -1521,6 +1521,11 @@
       {
         "expr": "any(e['source'] == 'C' and e['target'] == 'G' for e in [e for e in report['edges'] if e['kept']])",
         "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/state/percepts.py",
+        "pattern": "def reweight_stream"
       }
     ],
     "note": "C->G is a retained edge in the newest run",
@@ -4682,11 +4687,16 @@
   "P45.3": {
     "checks": [
       {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\\(\"percept_profile_0\", \"world\\.recent_percepts\\[\\*\\]\\.content\"\\)|percept_profile_\\{i\\}"
+      },
+      {
         "expr": "'flat_column_names' in report['recording']",
         "kind": "report"
       }
     ],
-    "note": "a reader with no writer shows up as a column that never moves, and the recording names them",
+    "note": "a reader with no writer shows up as a column that never moves, and the recording names them; perception's own columns read what the senses said rather than only the stream's metadata",
     "status": "done"
   },
   "P45.4": {

@@ -23,7 +23,6 @@ rather than a round-robin over ten fixed sources.
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -522,6 +521,19 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     # both of them saw None for the life of the process while the attention
     # schema beside them held the answer.
     cognition.attention_focus = f"{winner.source}: {str(winner.content)[:120]}"
+    # And the perceptual systems, which is the other half of biased competition.
+    # `_attend` biases a percept as it arrives; this biases the ones already in
+    # the stream, so a shift of attention reaches what she is already looking
+    # at rather than only what happens to arrive next.
+    try:
+        from core.state.percepts import reweight_stream
+
+        reweight_stream(
+            getattr(state, "world", None),
+            {"content": str(winner.content), "priority": float(getattr(winner, "priority", 0.0) or 0.0)},
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.debug("attention could not reach the percept stream: %s", exc)
     if not ignited:
         return
     line = f"{_BROADCAST_MARK}{winner.source}] {str(winner.content)[:180]}"

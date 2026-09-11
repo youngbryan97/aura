@@ -31,6 +31,7 @@ __all__ = [
     "emit_percept",
     "fresh_for",
     "mark_consumed",
+    "reweight_stream",
     "read_percept",
 ]
 
@@ -201,6 +202,45 @@ def _overlap(text: str, attended: str) -> float:
     if not theirs:
         return 0.0
     return len(words & theirs) / len(words)
+
+
+def reweight_stream(world: Any, attention: Any) -> int:
+    """Re-weight the live stream against what is being attended to now.
+
+    `_attend` raises the salience of a percept as it arrives, which covers
+    onset and nothing after it. Attention is not an onset effect: what wins the
+    competition keeps biasing the perceptual systems for as long as it holds,
+    and a percept already in the stream when attention shifts should feel the
+    shift too. Without this, the only way the workspace could reach perception
+    was by a percept happening to arrive in the same tick as the broadcast,
+    which made the whole channel fire on a coincidence — measured at an effect
+    of 0.17 against a bar of 0.30, replicating in three conditions of eight.
+
+    The gain carries no constant of its own, and it only ever closes the gap
+    towards full salience in proportion to the overlap and the broadcast's
+    strength. A percept with nothing in common with what is attended comes back
+    exactly as it was. Returns how many percepts moved.
+    """
+    percepts = getattr(world, "recent_percepts", None)
+    if not isinstance(percepts, list) or not isinstance(attention, Mapping):
+        return 0
+    priority = max(0.0, min(1.0, float(attention.get("priority", 0.0) or 0.0)))
+    if priority <= 0.0:
+        return 0
+    content = str(attention.get("content", ""))
+    moved = 0
+    for item in percepts:
+        if not isinstance(item, MutableMapping):
+            continue
+        overlap = _overlap(str(item.get("content", "")), content)
+        if overlap <= 0.0:
+            continue
+        salience = max(0.0, min(1.0, float(item.get("salience", 0.0) or 0.0)))
+        gained = salience + (1.0 - salience) * overlap * priority
+        if abs(gained - salience) > 1e-9:
+            item["salience"] = max(0.0, min(1.0, gained))
+            moved += 1
+    return moved
 
 
 def emit_percept(
