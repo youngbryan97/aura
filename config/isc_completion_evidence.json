@@ -81,6 +81,43 @@
     "note": "no threshold has moved; the contested line is reported failed beside its argument",
     "status": "done"
   },
+  "P0.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def fingerprint"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "Two runs with the same fingerprint were measured the same way"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "fingerprint"
+      }
+    ],
+    "note": "the fingerprint is a hash over every frozen value, so a methodological change produces a different campaign by construction and the scorecard refuses to read across two",
+    "status": "done"
+  },
+  "P0.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "while \\(root / f\\\"run_\\{index:03d\\}\\\"\\)\\.exists\\(\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "the run that did not come out well is the one a reader"
+      }
+    ],
+    "note": "a run directory is never reused, so a run that came out badly is still there",
+    "status": "done"
+  },
   "P0.19": {
     "checks": [
       {
@@ -111,6 +148,38 @@
       }
     ],
     "note": "`next_run_directory` never returns a name that already holds a report",
+    "status": "done"
+  },
+  "P0.21": {
+    "checks": [
+      {
+        "expr": "float(report['recording']['frames']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['edges']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['nulls']['detail']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['lesion']) > 0",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/archive.py",
+        "pattern": "intervention_arms\\.jsonl"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def manifest"
+      }
+    ],
+    "note": "the recording, every intervention arm, the edge table, the null draws and the lesion arms are written beside the report, with a hash for each",
     "status": "done"
   },
   "P0.3": {
@@ -581,6 +650,576 @@
     "note": "the probe reads its outcome off the filesystem it just wrote",
     "status": "done"
   },
+  "P2.1": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.10": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'I' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "I->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.11": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'I' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "I->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.12": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'I' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "I->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.13": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'I' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "I->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.17": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.18": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.19": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.2": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.20": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'N' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->N is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.21": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.22": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.23": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'I' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "I->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.24": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'C' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.28": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'S' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->S is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.29": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.3": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.30": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.31": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.35": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.36": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.37": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.38": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.39": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'C' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.4": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.40": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'C' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.41": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'C' and r['target'] == 'S' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->S is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.42": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'C' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.5": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.51": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.52": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.53": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'S' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "S->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.54": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'N' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "N->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.55": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.56": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'S' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->S is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.57": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.58": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.6": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.60": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'P' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "P->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.62": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.63": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.64": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.65": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.66": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'C' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->C is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.68": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'S' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "S->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.69": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'W' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "W->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.70": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'A' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "A->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.71": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'G' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.72": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'M' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.73": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'D' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "D->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.74": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'D' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "D->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.75": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'D' and r['target'] == 'P' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "D->P is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.76": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'D' and r['target'] == 'S' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "D->S is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.81": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'N' and r['target'] == 'A' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "N->A is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.82": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'N' and r['target'] == 'G' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "N->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.83": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'N' and r['target'] == 'M' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "N->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.84": {
+    "checks": [
+      {
+        "expr": "any(r['source'] == 'N' and r['target'] == 'D' and r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "N->D is a retained edge in the newest run",
+    "status": "done"
+  },
   "P20.1": {
     "checks": [
       {
@@ -844,6 +1483,26 @@
     "note": "torch's generator, which the substrate draws its integration noise from",
     "status": "done"
   },
+  "P21.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "class DeterministicMind"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def mind_identity"
+      },
+      {
+        "expr": "report['campaign']['mind']['deterministic'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms",
+    "status": "done"
+  },
   "P21.6": {
     "checks": [
       {
@@ -879,6 +1538,21 @@
       }
     ],
     "note": "the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded",
+    "status": "done"
+  },
+  "P21.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "order = \\[|shuffle\\(order\\)|injected_at"
+      },
+      {
+        "expr": "all('injected_at' in r or 'peak_lag' in r for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the order the three arms run in is drawn from the seeded generator and recorded with the trial",
     "status": "done"
   },
   "P22.1": {
@@ -1029,6 +1703,59 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P23.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "^SUBSTRATE_BODY: tuple"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_counted_step_is_the_whole_loop_body.py::test_the_substrate_takes_its_whole_loop_body_too -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the substrate takes its whole loop body on a count: dynamics and psych settling every iteration, the recurrent self-model every fifth, plasticity every hundredth",
+    "status": "done"
+  },
+  "P23.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/heartbeat.py",
+        "pattern": "_TICK_RATE_HZ = 1\\.0"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "self\\.heartbeat\\._tick\\(\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "SECONDS_PER_TURN"
+      }
+    ],
+    "note": "the heartbeat is called once a turn, which is its own declared one hertz against a turn worth one second",
+    "status": "done"
+  },
+  "P23.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/steppable.py",
+        "pattern": "def missing_entry_points"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_fork_leaves_nothing_behind.py::test_every_live_cognitive_loop_can_be_advanced_by_a_count -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a layer with no entry point is named rather than skipped, and the check runs over whatever the organism brought up",
+    "status": "done"
+  },
   "P23.13": {
     "checks": [
       {
@@ -1056,6 +1783,16 @@
       {
         "kind": "grep",
         "path": "core/subject/steppable.py",
+        "pattern": "def iterations_at"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/steppable.py",
+        "pattern": "^LAYERS: tuple\\[Layer"
+      },
+      {
+        "kind": "absent",
+        "path": "core/subject/steppable.py",
         "pattern": "def _every"
       }
     ],
@@ -1082,6 +1819,32 @@
       }
     ],
     "note": "a layer with no entry point is named rather than passed over",
+    "status": "done"
+  },
+  "P23.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _authority_blockers"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "this run is not authoritative"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_loop_that_cannot_be_counted_blocks_the_run -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_clean_run_is_authoritative -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a run whose cognitive loops cannot all be advanced by a count refuses rather than reporting",
     "status": "done"
   },
   "P23.2": {
@@ -1215,6 +1978,57 @@
     "note": "every reading carries the sources it could not read and why",
     "status": "done"
   },
+  "P30.10": {
+    "checks": [
+      {
+        "expr": "len(report['notes']['unwritable_domains']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "a domain whose writer did not bite is named, and the newest run names none",
+    "status": "done"
+  },
+  "P30.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "^REQUIRED_PHASES: tuple"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_required_phase_that_raised_blocks_the_run -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_phase_that_needs_a_cortex_does_not_block_the_run -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a required phase that raised blocks the run; a phase absent by design does not",
+    "status": "done"
+  },
+  "P30.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "def _miss"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "def _invalidate_on_missing_readings"
+      },
+      {
+        "expr": "'misses' in report['recording']",
+        "kind": "report"
+      }
+    ],
+    "note": "a source that could not be read is recorded as a miss rather than as a zero, and a criterion resting on it is invalidated",
+    "status": "done"
+  },
   "P30.13": {
     "checks": [
       {
@@ -1289,6 +2103,22 @@
     "note": "'organ absent', 'reader absent' and 'reader raised' are three states, not one zero",
     "status": "done"
   },
+  "P30.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "snapshot_stale"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "is not a reading of now"
+      }
+    ],
+    "note": "a substrate reading older than its own freshness bound is a miss, not the safe defaults it returns",
+    "status": "done"
+  },
   "P30.6": {
     "checks": [
       {
@@ -1314,6 +2144,32 @@
       }
     ],
     "note": "a criterion resting on an organ that was absent for most of the run is invalid",
+    "status": "done"
+  },
+  "P30.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "a reader failed for most of the run"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_reader_that_failed_for_most_of_the_run_blocks_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a reader that failed for most of the run makes the run unauthoritative, beside the per-criterion invalidation",
+    "status": "done"
+  },
+  "P30.9": {
+    "checks": [
+      {
+        "expr": "len(report['organism']['down']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "the run records which layers came up and which did not, and the newest run has none down",
     "status": "done"
   },
   "P31.1": {
@@ -1673,6 +2529,100 @@
     "note": "the stopped and live loop lists, and the layer step counts beside them",
     "status": "done"
   },
+  "P47.22": {
+    "checks": [
+      {
+        "expr": "int(report['recording']['frames']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "frame count",
+    "status": "done"
+  },
+  "P47.23": {
+    "checks": [
+      {
+        "expr": "int(report['phi']['pairs']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "turn count",
+    "status": "done"
+  },
+  "P47.24": {
+    "checks": [
+      {
+        "expr": "all(int(r['trials']) > 0 for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "intervention count",
+    "status": "done"
+  },
+  "P47.25": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "SIGN_FLIP_DRAWS: int"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "smallest p this can return"
+      },
+      {
+        "expr": "all('q' in r for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the smallest q the sign-flip test can return, beside the draws that set it",
+    "status": "done"
+  },
+  "P47.26": {
+    "checks": [
+      {
+        "expr": "len(report['edges']) == 90",
+        "kind": "report"
+      },
+      {
+        "expr": "any(not r['kept'] for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "every ordered pair is in the table with its effect, its q and whether it was kept",
+    "status": "done"
+  },
+  "P47.27": {
+    "checks": [
+      {
+        "expr": "all('draws' in row for row in report['nulls']['detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "every null draw, not the summary",
+    "status": "done"
+  },
+  "P47.28": {
+    "checks": [
+      {
+        "expr": "'lesioned' in report['lesion'] and 'intact' in report['lesion']",
+        "kind": "report"
+      }
+    ],
+    "note": "the lesion arms as measured",
+    "status": "done"
+  },
+  "P47.29": {
+    "checks": [
+      {
+        "expr": "'rescued' in report['lesion']",
+        "kind": "report"
+      }
+    ],
+    "note": "the rescue arm as measured",
+    "status": "done"
+  },
   "P47.3": {
     "checks": [
       {
@@ -1682,6 +2632,16 @@
       }
     ],
     "note": "commit, tree hash and dirty flag",
+    "status": "done"
+  },
+  "P47.30": {
+    "checks": [
+      {
+        "expr": "all('redundancy' in r and 'null_q99_fraction' in r for r in report['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "each synergy triple with its joint information, its redundancy, its unique terms and its null",
     "status": "done"
   },
   "P47.31": {
@@ -1709,6 +2669,32 @@
       }
     ],
     "note": "the exact command that regenerates the report",
+    "status": "done"
+  },
+  "P47.33": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "hashlib\\.sha256"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def manifest"
+      }
+    ],
+    "note": "a SHA-256 for every file the run wrote",
+    "status": "done"
+  },
+  "P47.34": {
+    "checks": [
+      {
+        "expr": "len(report['campaign']['command']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "the command that produced the run, recorded with it",
     "status": "done"
   },
   "P47.4": {

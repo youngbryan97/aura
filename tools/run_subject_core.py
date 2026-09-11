@@ -120,6 +120,14 @@ async def main() -> int:
         help="leave the lesion and rescue unmeasured; they read as failures, which is what an unmeasured criterion is",
     )
     parser.add_argument("--quick", action="store_true", help="a short run for wiring checks")
+    parser.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help=(
+            "record the run even when a cognitive loop could not be advanced by a "
+            "count or a required phase raised; the run is marked unauthoritative"
+        ),
+    )
     args = parser.parse_args()
 
     if args.quick:
@@ -267,6 +275,32 @@ async def main() -> int:
     # reporting numbers taken while it was stopped.
     evidence["notes"]["layers"] = runtime.layer_steps.summary()
     _log(f"stopped {len(stopped)} background loops for the paired arms")
+
+    # An authoritative run refuses rather than reports.
+    #
+    # A live cognitive loop that cannot be advanced by a count cannot be inside
+    # a paired measurement, and a required phase that raised was not run in
+    # either arm — both leave the numbers below describing a different organism
+    # from the one that lives here. Saying so in the report is not enough: a
+    # reader who takes a scorecard at face value has no reason to look, and an
+    # unauthoritative run is exactly the one somebody quotes.
+    #
+    # `--allow-degraded` exists because a diagnostic run during repair work is
+    # a legitimate thing to want, and it is recorded on the run so a reader can
+    # tell which kind they are holding.
+    blocking = _authority_blockers(runtime, evidence)
+    evidence["campaign"]["authoritative"] = not blocking
+    evidence["campaign"]["authority_blockers"] = blocking
+    if blocking and not args.allow_degraded:
+        for line in blocking:
+            _log(f"  REFUSED: {line}")
+        raise SystemExit(
+            "this run is not authoritative: "
+            + "; ".join(blocking)
+            + " — rerun with --allow-degraded to record it anyway"
+        )
+    if blocking:
+        _log(f"  running degraded on purpose: {'; '.join(blocking)}")
     _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
     results = await run_interventions(
         runtime,
@@ -570,6 +604,68 @@ async def _lesion(
         "deficit": deficit,
         "rescued_ok": rescued_ok,
     }
+
+
+#: Phases whose failure makes a run unauthoritative. Not every phase: the
+#: response phase needs a cortex this run deliberately does not have, and a
+#: phase that is absent by design is a different fact from one that raised.
+#: These are the ones the domains are read from.
+REQUIRED_PHASES: tuple[str, ...] = (
+    "ProprioceptiveLoop",
+    "SensoryIngestionPhase",
+    "MemoryRetrievalPhase",
+    "AffectUpdatePhase",
+    "MotivationUpdatePhase",
+    "CognitiveIntegrationPhase",
+    "ExecutiveClosurePhase",
+    "ConsciousnessPhase",
+)
+
+
+def _authority_blockers(runtime: Any, evidence: dict[str, Any]) -> list[str]:
+    """Everything that makes the numbers below describe a different organism."""
+    blocking: list[str] = []
+
+    layers = evidence.get("notes", {}).get("layers", {}) or {}
+    unsteppable = layers.get("unsteppable") or layers.get("missing") or {}
+    if unsteppable:
+        blocking.append(
+            f"a live cognitive loop cannot be advanced by a count: {sorted(unsteppable)}"
+        )
+    failed_layers = layers.get("failures") or {}
+    if failed_layers:
+        blocking.append(f"a layer raised while being stepped: {sorted(failed_layers)}")
+
+    down = (evidence.get("organism", {}) or {}).get("down") or {}
+    if down:
+        blocking.append(f"a declared layer did not come up: {sorted(down)}")
+
+    # A source that could not be read for most of the run is a subsystem that
+    # was not there, and every column declaring it was a default. One
+    # criterion at a time is already invalidated by the battery; a reader that
+    # failed across the run is a fact about the whole of it.
+    from core.subject.battery import MISSING_SHARE
+
+    misses = (evidence.get("recording", {}) or {}).get("misses") or {}
+    persistent = sorted(
+        source
+        for source, row in misses.items()
+        if isinstance(row, dict) and float(row.get("share", 0.0)) >= MISSING_SHARE
+    )
+    if persistent:
+        blocking.append(f"a reader failed for most of the run: {persistent}")
+
+    failures = dict(getattr(runtime, "failures", {}) or {})
+    notes = dict(getattr(runtime, "failure_notes", {}) or {})
+    hurt = {name: count for name, count in failures.items() if name in REQUIRED_PHASES}
+    if hurt:
+        blocking.append(
+            "a required phase raised: "
+            + ", ".join(f"{name} x{count} ({notes.get(name, '')})" for name, count in sorted(hurt.items()))
+        )
+    evidence.setdefault("notes", {})["phase_failures"] = failures
+    evidence["notes"]["phase_failure_notes"] = notes
+    return blocking
 
 
 def _nulls(

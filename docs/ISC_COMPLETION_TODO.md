@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**138 done, 0 blocked, 0 not applicable, 644 open, of 782.**
+**184 done, 0 blocked, 0 not applicable, 598 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -34,11 +34,11 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P0.14` Freeze the eight evaluation conditions. — the eight conditions are in the frozen block
 - [ ] `P0.15` Freeze the model version for the full-cortex experiment.
 - [x] `P0.16` Do not move thresholds because Aura narrowly misses one. — no threshold has moved; the contested line is reported failed beside its argument
-- [ ] `P0.17` Any methodological change after seeing a result begins a new evaluation campaign.
-- [ ] `P0.18` Keep all old failed runs permanently available.
+- [ ] `P0.17` Any methodological change after seeing a result begins a new evaluation campaign. — the fingerprint is a hash over every frozen value, so a methodological change produces a different campaign by construction and the scorecard refuses to read across two
+- [x] `P0.18` Keep all old failed runs permanently available. — a run directory is never reused, so a run that came out badly is still there
 - [x] `P0.19` Generate human-readable scorecards from raw artifacts instead of manual transcription. — the scorecard is generated from the reports
 - [x] `P0.20` Never overwrite prior runs; retain run_001, run_002, and so on. — `next_run_directory` never returns a name that already holds a report
-- [ ] `P0.21` Archive recordings, intervention arms, edge tables, null draws, lesion arms, rescue arms, and logs for every run.
+- [x] `P0.21` Archive recordings, intervention arms, edge tables, null draws, lesion arms, rescue arms, and logs for every run. — the recording, every intervention arm, the edge table, the null draws and the lesion arms are written beside the report, with a hash for each
 
 ## Phase 1 — Rerun current Aura before adding more architecture
 
@@ -64,48 +64,48 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 **Perception (P)**
 
-- [ ] `P2.1` P -> W: perception changes the learned world model.
-- [ ] `P2.2` P -> A: perceptual content changes appraisal/affect.
-- [ ] `P2.3` P -> G: salient perception changes attention competition.
-- [ ] `P2.4` P -> C: sensory content changes recurrent cognition/substrate state.
-- [ ] `P2.5` P -> M: perception changes active/episodic memory.
-- [ ] `P2.6` P -> D: perception can alter intention/planning.
+- [ ] `P2.1` P -> W: perception changes the learned world model. — P->W is a retained edge in the newest run
+- [x] `P2.2` P -> A: perceptual content changes appraisal/affect. — P->A is a retained edge in the newest run
+- [x] `P2.3` P -> G: salient perception changes attention competition. — P->G is a retained edge in the newest run
+- [ ] `P2.4` P -> C: sensory content changes recurrent cognition/substrate state. — P->C is a retained edge in the newest run
+- [ ] `P2.5` P -> M: perception changes active/episodic memory. — P->M is a retained edge in the newest run
+- [ ] `P2.6` P -> D: perception can alter intention/planning. — P->D is a retained edge in the newest run
 - [ ] `P2.7` Demonstrate a return route to perception through action/environment: D/S -> Act -> E -> P.
 - [ ] `P2.8` The return must be genuinely environmental, not a harness directly copying deliberation into perception.
 - [ ] `P2.9` Generalize the current file-action reafference probe beyond one scratch-file pathway. Interoception/body (I)
-- [ ] `P2.10` I -> A: sustained load/body state changes affect.
-- [ ] `P2.11` I -> G: bodily pressure can compete for attention.
-- [ ] `P2.12` I -> C: body state changes cognitive depth, temperature, focus, or recurrent dynamics.
-- [ ] `P2.13` I -> D: resource state changes planning/action selection.
+- [x] `P2.10` I -> A: sustained load/body state changes affect. — I->A is a retained edge in the newest run
+- [x] `P2.11` I -> G: bodily pressure can compete for attention. — I->G is a retained edge in the newest run
+- [ ] `P2.12` I -> C: body state changes cognitive depth, temperature, focus, or recurrent dynamics. — I->C is a retained edge in the newest run
+- [ ] `P2.13` I -> D: resource state changes planning/action selection. — I->D is a retained edge in the newest run
 - [ ] `P2.14` Establish at least one legitimate route back into I.
 - [ ] `P2.15` Cognition/action must be capable of changing some sensed bodily/computational state.
 - [ ] `P2.16` The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A)
-- [ ] `P2.17` A -> G: feelings genuinely affect attention.
-- [ ] `P2.18` A -> D: affect changes motivation/intention.
-- [ ] `P2.19` A -> C: affect changes cognitive dynamics.
-- [ ] `P2.20` A -> N: affectively significant experience changes development where justified.
-- [ ] `P2.21` G -> A: broadcast/ignition changes later affect.
-- [ ] `P2.22` W -> A: prediction error/surprise changes affect.
-- [ ] `P2.23` I -> A: bodily state changes affect.
-- [ ] `P2.24` C -> A: continuous recurrent/substrate state returns into canonical affect.
+- [x] `P2.17` A -> G: feelings genuinely affect attention. — A->G is a retained edge in the newest run
+- [ ] `P2.18` A -> D: affect changes motivation/intention. — A->D is a retained edge in the newest run
+- [x] `P2.19` A -> C: affect changes cognitive dynamics. — A->C is a retained edge in the newest run
+- [x] `P2.20` A -> N: affectively significant experience changes development where justified. — A->N is a retained edge in the newest run
+- [x] `P2.21` G -> A: broadcast/ignition changes later affect. — G->A is a retained edge in the newest run
+- [x] `P2.22` W -> A: prediction error/surprise changes affect. — W->A is a retained edge in the newest run
+- [x] `P2.23` I -> A: bodily state changes affect. — I->A is a retained edge in the newest run
+- [ ] `P2.24` C -> A: continuous recurrent/substrate state returns into canonical affect. — C->A is a retained edge in the newest run
 - [ ] `P2.25` Prove these as retained intervention edges rather than source-level wiring. Global workspace/attention (G)
 - [ ] `P2.26` At least 3 heterogeneous outgoing retained causal edges on every successful replicate.
 - [ ] `P2.27` Preferably preserve/establish G -> C.
-- [ ] `P2.28` G -> S.
-- [ ] `P2.29` G -> M.
-- [ ] `P2.30` G -> A.
-- [ ] `P2.31` G -> D.
+- [x] `P2.28` G -> S. — G->S is a retained edge in the newest run
+- [x] `P2.29` G -> M. — G->M is a retained edge in the newest run
+- [x] `P2.30` G -> A. — G->A is a retained edge in the newest run
+- [ ] `P2.31` G -> D. — G->D is a retained edge in the newest run
 - [ ] `P2.32` Multiple domains must return into G.
 - [ ] `P2.33` G must not become the mandatory hidden broker for the entire architecture.
 - [ ] `P2.34` Registered processors only count if destination-domain state actually changes. Recurrent cognition/substrate (C)
-- [ ] `P2.35` G -> C: broadcast changes substrate/recurrent state.
-- [ ] `P2.36` P -> C: perception enters continuous cognition.
-- [ ] `P2.37` A -> C: affect changes recurrent dynamics.
-- [ ] `P2.38` W -> C: prediction/world-state changes recurrent processing.
-- [ ] `P2.39` C -> G: substrate activity/volatility changes attention.
-- [ ] `P2.40` C -> A: recurrent state changes affect.
-- [ ] `P2.41` C -> S: recurrent processing affects self-prediction/self-model where justified.
-- [ ] `P2.42` C -> D: recurrent computation changes deliberation.
+- [x] `P2.35` G -> C: broadcast changes substrate/recurrent state. — G->C is a retained edge in the newest run
+- [ ] `P2.36` P -> C: perception enters continuous cognition. — P->C is a retained edge in the newest run
+- [x] `P2.37` A -> C: affect changes recurrent dynamics. — A->C is a retained edge in the newest run
+- [ ] `P2.38` W -> C: prediction/world-state changes recurrent processing. — W->C is a retained edge in the newest run
+- [ ] `P2.39` C -> G: substrate activity/volatility changes attention. — C->G is a retained edge in the newest run
+- [ ] `P2.40` C -> A: recurrent state changes affect. — C->A is a retained edge in the newest run
+- [ ] `P2.41` C -> S: recurrent processing affects self-prediction/self-model where justified. — C->S is a retained edge in the newest run
+- [ ] `P2.42` C -> D: recurrent computation changes deliberation. — C->D is a retained edge in the newest run
 - [ ] `P2.43` Verify the new substrate-volatility workspace bid earns a real retained edge. Self-state (S)
 - [ ] `P2.44` Preserve S -> G.
 - [ ] `P2.45` Preserve S -> D/action.
@@ -114,40 +114,40 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [ ] `P2.48` Add or retain additional independent incoming paths so S is not connected only through G/M.
 - [ ] `P2.49` Add or retain independent outgoing paths that do not all require G.
 - [ ] `P2.50` Generalize self-causation beyond one file task. Active memory (M)
-- [ ] `P2.51` G -> M: attended material changes active memory.
-- [ ] `P2.52` P -> M: perception enters memory.
-- [ ] `P2.53` S -> M: self-state changes retrieval/consolidation where appropriate.
-- [ ] `P2.54` N -> M: developmental state changes retrieval policy.
-- [ ] `P2.55` M -> G: recalled material can win attention.
-- [ ] `P2.56` M -> S: memory changes the self.
-- [ ] `P2.57` M -> W: recalled context contributes to world inference.
-- [ ] `P2.58` M -> D: relevant memory changes planning.
+- [x] `P2.51` G -> M: attended material changes active memory. — G->M is a retained edge in the newest run
+- [ ] `P2.52` P -> M: perception enters memory. — P->M is a retained edge in the newest run
+- [ ] `P2.53` S -> M: self-state changes retrieval/consolidation where appropriate. — S->M is a retained edge in the newest run
+- [ ] `P2.54` N -> M: developmental state changes retrieval policy. — N->M is a retained edge in the newest run
+- [x] `P2.55` M -> G: recalled material can win attention. — M->G is a retained edge in the newest run
+- [ ] `P2.56` M -> S: memory changes the self. — M->S is a retained edge in the newest run
+- [ ] `P2.57` M -> W: recalled context contributes to world inference. — M->W is a retained edge in the newest run
+- [ ] `P2.58` M -> D: relevant memory changes planning. — M->D is a retained edge in the newest run
 - [ ] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W)
-- [ ] `P2.60` P -> W: actual observations update W.
+- [ ] `P2.60` P -> W: actual observations update W. — P->W is a retained edge in the newest run
 - [ ] `P2.61` Action consequences update W.
-- [ ] `P2.62` M -> W: remembered evidence helps construct/predict the world.
-- [ ] `P2.63` W -> G: surprise/prediction error changes attention.
-- [ ] `P2.64` W -> A: prediction error changes affect/free energy.
-- [ ] `P2.65` W -> D: predictions affect plans.
-- [ ] `P2.66` W -> C: predictive discrepancies can alter ongoing cognition.
+- [ ] `P2.62` M -> W: remembered evidence helps construct/predict the world. — M->W is a retained edge in the newest run
+- [x] `P2.63` W -> G: surprise/prediction error changes attention. — W->G is a retained edge in the newest run
+- [x] `P2.64` W -> A: prediction error changes affect/free energy. — W->A is a retained edge in the newest run
+- [ ] `P2.65` W -> D: predictions affect plans. — W->D is a retained edge in the newest run
+- [ ] `P2.66` W -> C: predictive discrepancies can alter ongoing cognition. — W->C is a retained edge in the newest run
 - [ ] `P2.67` Demonstrate multiple return routes rather than one brokered channel. Deliberation/intention (D)
-- [ ] `P2.68` S -> D.
-- [ ] `P2.69` W -> D.
-- [ ] `P2.70` A -> D.
-- [ ] `P2.71` G -> D.
-- [ ] `P2.72` M -> D.
-- [ ] `P2.73` D -> G: goals/urgency enter attention.
-- [ ] `P2.74` D -> W: chosen action produces evidence that changes the world model.
-- [ ] `P2.75` D -> P: through real action/environment/reafference.
-- [ ] `P2.76` D -> S: actions and commitments feed future self-state.
+- [x] `P2.68` S -> D. — S->D is a retained edge in the newest run
+- [ ] `P2.69` W -> D. — W->D is a retained edge in the newest run
+- [ ] `P2.70` A -> D. — A->D is a retained edge in the newest run
+- [ ] `P2.71` G -> D. — G->D is a retained edge in the newest run
+- [ ] `P2.72` M -> D. — M->D is a retained edge in the newest run
+- [ ] `P2.73` D -> G: goals/urgency enter attention. — D->G is a retained edge in the newest run
+- [ ] `P2.74` D -> W: chosen action produces evidence that changes the world model. — D->W is a retained edge in the newest run
+- [ ] `P2.75` D -> P: through real action/environment/reafference. — D->P is a retained edge in the newest run
+- [ ] `P2.76` D -> S: actions and commitments feed future self-state. — D->S is a retained edge in the newest run
 - [ ] `P2.77` D must not be merely a text field containing a goal. Ontogenetic/developmental state (N)
 - [ ] `P2.78` Retain fast-to-slow causal influence.
 - [ ] `P2.79` Retain slow-to-fast causal influence.
 - [ ] `P2.80` A/C/G/P -> N through meaningful experience.
-- [ ] `P2.81` N -> A: novelty/development changes affect.
-- [ ] `P2.82` N -> G: developmental novelty changes attention.
-- [ ] `P2.83` N -> M: development changes retrieval breadth/policy.
-- [ ] `P2.84` N -> D: accumulated development alters priorities/decisions.
+- [ ] `P2.81` N -> A: novelty/development changes affect. — N->A is a retained edge in the newest run
+- [ ] `P2.82` N -> G: developmental novelty changes attention. — N->G is a retained edge in the newest run
+- [ ] `P2.83` N -> M: development changes retrieval breadth/policy. — N->M is a retained edge in the newest run
+- [ ] `P2.84` N -> D: accumulated development alters priorities/decisions. — N->D is a retained edge in the newest run
 - [ ] `P2.85` N must not be a terminal accumulator.
 - [ ] `P2.86` N must not feed only one other node.
 - [ ] `P2.87` Specifically target information escaping N, C, I, and D if their attenuation remains high in the new run.
@@ -487,11 +487,11 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P21.2` NumPy RNG. — numpy's global state carried and restored
 - [x] `P21.3` service-local RNGs. — service-local generators are deep-copied with the service
 - [x] `P21.4` substrate RNG. — torch's generator, which the substrate draws its integration noise from
-- [ ] `P21.5` model sampling RNG.
+- [x] `P21.5` model sampling RNG. — the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms
 - [x] `P21.6` search/planning RNG. — search and planning draw from the process stream: no generator in the tree is built without a seed
 - [x] `P21.7` randomized tie resolution. — the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded
 - [ ] `P21.8` file/environment randomness.
-- [ ] `P21.9` randomized arm ordering remains recorded.
+- [x] `P21.9` randomized arm ordering remains recorded. — the order the three arms run in is drawn from the seeded generator and recorded with the trial
 - [x] `P21.10` matched arms use the same stochastic stream where scientifically appropriate. — both arms of a trial draw the same stream: the process generators are snapshotted and every private generator now comes from them
 - [x] `P21.11` independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains. — the frozen campaign runs three declared seeds
 
@@ -518,15 +518,15 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P23.7` ConsciousnessBridge. — core/subject/steppable.py calls each layer's own loop body on a count
 - [x] `P23.8` ClosedCausalLoop prediction. — core/subject/steppable.py calls each layer's own loop body on a count
 - [x] `P23.9` StreamOfBeing. — core/subject/steppable.py calls each layer's own loop body on a count
-- [ ] `P23.10` LiquidConsciousness/substrate.
-- [ ] `P23.11` heartbeat.
-- [ ] `P23.12` every newly discovered free-running cognitive loop.
+- [x] `P23.10` LiquidConsciousness/substrate. — the substrate takes its whole loop body on a count: dynamics and psych settling every iteration, the recurrent self-model every fifth, plasticity every hundredth
+- [x] `P23.11` heartbeat. — the heartbeat is called once a turn, which is its own declared one hertz against a turn worth one second
+- [x] `P23.12` every newly discovered free-running cognitive loop. — a layer with no entry point is named rather than skipped, and the check runs over whatever the organism brought up
 - [x] `P23.13` Desktop runtime timers call these exact functions. — the harness calls the same methods the loops call; nothing here is a second implementation
 - [x] `P23.14` Battery calls these exact functions in fixed sequence/count. — the harness calls the same methods the loops call; nothing here is a second implementation
-- [ ] `P23.15` No separate test-only implementation of cognition. — each layer steps at its own declared rate against the experiment's clock
+- [x] `P23.15` No separate test-only implementation of cognition. — each layer steps at its own declared rate against the experiment's clock
 - [x] `P23.16` All arms receive exactly the same number of steps. — the counts are in the report
 - [x] `P23.17` Report the count. — a layer with no entry point is named rather than passed over
-- [ ] `P23.18` Fail an authoritative run if an active cognitive loop cannot be deterministically advanced. This would let the experiment test much more of Aura without sacrificing causal comparability.
+- [x] `P23.18` Fail an authoritative run if an active cognitive loop cannot be deterministically advanced. This would let the experiment test much more of Aura without sacrificing causal comparability. — a run whose cognitive loops cannot all be advanced by a count refuses rather than reporting
 
 ## Phase 24 — Include the real cortex
 
@@ -644,14 +644,14 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P30.2` Distinguish genuine zero. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
 - [x] `P30.3` Distinguish absent organ. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
 - [x] `P30.4` Distinguish failed reader. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
-- [ ] `P30.5` Distinguish stale reading.
+- [x] `P30.5` Distinguish stale reading. — a substrate reading older than its own freshness bound is a miss, not the safe defaults it returns
 - [x] `P30.6` Count failures per feature. — the recording counts every miss over the run
 - [x] `P30.7` Required-organ failure invalidates affected criteria. — a criterion resting on an organ that was absent for most of the run is invalid
-- [ ] `P30.8` Repeated reader error invalidates the run.
-- [ ] `P30.9` organism.down is empty for required layers.
-- [ ] `P30.10` unwritable_domains is empty.
-- [ ] `P30.11` Required phase failures are zero.
-- [ ] `P30.12` No final artifact silently encodes failed reads as ordinary zero.
+- [x] `P30.8` Repeated reader error invalidates the run. — a reader that failed for most of the run makes the run unauthoritative, beside the per-criterion invalidation
+- [x] `P30.9` organism.down is empty for required layers. — the run records which layers came up and which did not, and the newest run has none down
+- [x] `P30.10` unwritable_domains is empty. — a domain whose writer did not bite is named, and the newest run names none
+- [x] `P30.11` Required phase failures are zero. — a required phase that raised blocks the run; a phase absent by design does not
+- [x] `P30.12` No final artifact silently encodes failed reads as ordinary zero. — a source that could not be read is recorded as a miss rather than as a zero, and a criterion resting on it is invalidated
 - [x] `P30.13` Export a missingness/validity matrix. — the validity matrix is in the recording summary
 
 ## Phase 31 — Verify every perturbation moves what the domain’s consumers use
@@ -898,19 +898,19 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P47.19` organ-availability report. — the organ-availability report is the missingness matrix
 - [x] `P47.20` stopped-loop list. — the stopped and live loop lists, and the layer step counts beside them
 - [x] `P47.21` live-loop list. — the stopped and live loop lists, and the layer step counts beside them
-- [ ] `P47.22` frame count.
-- [ ] `P47.23` turn count.
-- [ ] `P47.24` intervention count.
-- [ ] `P47.25` q-value resolution/power note.
-- [ ] `P47.26` every tested edge, not only retained edges.
-- [ ] `P47.27` all raw null draws.
-- [ ] `P47.28` raw lesion arms.
-- [ ] `P47.29` raw rescue arms.
-- [ ] `P47.30` raw synergy reports.
+- [x] `P47.22` frame count. — frame count
+- [x] `P47.23` turn count. — turn count
+- [x] `P47.24` intervention count. — intervention count
+- [x] `P47.25` q-value resolution/power note. — the smallest q the sign-flip test can return, beside the draws that set it
+- [x] `P47.26` every tested edge, not only retained edges. — every ordered pair is in the table with its effect, its q and whether it was kept
+- [x] `P47.27` all raw null draws. — every null draw, not the summary
+- [x] `P47.28` raw lesion arms. — the lesion arms as measured
+- [x] `P47.29` raw rescue arms. — the rescue arm as measured
+- [x] `P47.30` raw synergy reports. — each synergy triple with its joint information, its redundancy, its unique terms and its null
 - [x] `P47.31` all partition-cut scores. — a SHA-256 for every file the run wrote
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
-- [ ] `P47.33` SHA-256 artifact manifest.
-- [ ] `P47.34` exact command that regenerates the report.
+- [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
+- [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
 - [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries.
 
 ## Phase 48 — Protect the evaluation commit

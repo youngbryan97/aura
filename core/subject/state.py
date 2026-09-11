@@ -1012,6 +1012,18 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     )
     affect = _call(organs.substrate, "get_substrate_affect", {}, source="organ:substrate.get_substrate_affect") or {}
     status = _call(organs.substrate, "get_status", {}, source="organ:substrate.get_status") or {}
+    # A reading from a snapshot older than the substrate's own freshness bound
+    # is not a reading of now. The substrate publishes how old its snapshot is
+    # and returns its safe defaults when it cannot answer — plausible numbers
+    # that are indistinguishable from a settled state, so nine of recurrent
+    # cognition's columns would read as a calm organism whenever the dynamics
+    # had stopped. Recorded as a miss, which is what the battery invalidates a
+    # criterion on.
+    if float(affect.get("snapshot_stale", 0.0) or 0.0) >= 1.0:
+        _miss(
+            "organ:substrate.get_substrate_affect",
+            f"snapshot {float(affect.get('snapshot_age_s', 0.0)):.3g}s old",
+        )
     head.extend(
         [
             _f(affect.get("valence")),

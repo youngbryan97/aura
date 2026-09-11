@@ -114,7 +114,19 @@ class Checker:
     def _check_report(self, check: dict[str, Any]) -> tuple[bool, str]:
         if not self.report:
             return False, "no report to read"
-        value = eval(check["expr"], {"__builtins__": {}}, {"report": self.report, "len": len, "any": any, "all": all, "sum": sum, "float": float, "int": int, "str": str, "abs": abs})
+        # In the globals, not the locals. A comprehension body is its own
+        # scope and resolves names against globals, so `any(int(r) ...)` raised
+        # NameError while `int(report[...])` worked — and a check that raises
+        # reads as an item that is not done rather than as a check that could
+        # not run.
+        names = {
+            "__builtins__": {},
+            "report": self.report,
+            "len": len, "any": any, "all": all, "sum": sum, "min": min, "max": max,
+            "float": float, "int": int, "str": str, "abs": abs, "round": round,
+            "sorted": sorted, "set": set, "list": list, "bool": bool,
+        }
+        value = eval(check["expr"], names, {})
         return bool(value), f"{check['expr']} -> {value!r}"
 
     def _check_scorecard(self, check: dict[str, Any]) -> tuple[bool, str]:
