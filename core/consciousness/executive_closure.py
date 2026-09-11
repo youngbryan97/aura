@@ -246,6 +246,7 @@ class ExecutiveClosureEngine:
             state,
             selected_objective,
             persist_selected=not foreground_chat_active,
+            pressure=need_pressure,
         )
 
         if is_actionable_goal_text(selected_objective) and not getattr(state.cognition, "current_objective", None):
@@ -673,6 +674,7 @@ class ExecutiveClosureEngine:
         selected_objective: str,
         *,
         persist_selected: bool = True,
+        pressure: float = 0.0,
     ) -> int:
         active = [
             goal
@@ -691,6 +693,16 @@ class ExecutiveClosureEngine:
             record = {
                 "description": selected_objective,
                 "priority": 1.0,
+                # And what it is asking to be thought about now, which is not
+                # the same thing and which this record did not state. The very
+                # next statement proposes the same objective as an initiative
+                # carrying the need pressure that selected it; the goal record
+                # of the same decision carried a flat priority and no urgency
+                # at all. The workspace prices deliberation's bid on urgency,
+                # so the thing she had just chosen to work on entered attention
+                # at the neutral default every turn, and two records of one
+                # decision disagreed about how much it mattered.
+                "urgency": round(max(0.0, min(1.0, float(pressure))), 4),
                 "source": "executive_closure",
                 "timestamp": time.time(),
             }

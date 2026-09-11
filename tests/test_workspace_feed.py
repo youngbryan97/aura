@@ -488,3 +488,40 @@ def test_what_just_won_does_not_bid_itself_back():
     assert not any(b.source == "memory" for b in build_candidates(state))
     # It is still in mind for the reply.
     assert any("a window moved" in str(line) for line in state.cognition.long_term_memory)
+
+
+def test_the_selected_objective_states_what_it_is_asking_for():
+    """Two records of one decision disagreed about how much it mattered.
+
+    `ExecutiveClosure` writes the objective it has selected twice: as an
+    initiative carrying the need pressure that selected it, and as a goal
+    record two lines above carrying a flat priority of one and no urgency at
+    all. The workspace prices deliberation's bid on urgency, so the thing she
+    had just chosen to work on entered attention at the neutral default on
+    every turn, and nothing about what she was trying to do could change what
+    she attended to.
+    """
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [
+        {"description": "finish the migration", "priority": 1.0, "urgency": 0.82},
+        {"description": "tidy the notes", "priority": 1.0, "urgency": 0.21},
+    ]
+    bids = {
+        bid.content: bid.priority
+        for bid in build_candidates(state)
+        if bid.source == "deliberation"
+    }
+    assert bids["finish the migration"] == pytest.approx(0.82)
+    assert bids["tidy the notes"] == pytest.approx(0.21)
+
+
+def test_a_goal_that_states_no_urgency_still_enters_at_neutral():
+    """Silence is not a claim, and it is not a refusal either."""
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [{"description": "something unpriced", "priority": 1.0}]
+    bid = next(b for b in build_candidates(state) if b.source == "deliberation")
+    assert bid.priority == pytest.approx(0.5)
