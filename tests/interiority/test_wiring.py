@@ -25,6 +25,19 @@ def _loaded() -> None:
 
 @pytest.fixture()
 def service() -> InteriorityService:
+    """A fresh layer on a fixed stream.
+
+    Release through the synaptic cleft is probabilistic and the cleft draws
+    from the process generator, so whether a faculty transmits on any one tick
+    depends on where that stream happens to be — and a test that asserts
+    something fired is then a test of what ran before it. Seeding makes the
+    medium's own dynamics part of what is being tested rather than part of the
+    weather; the cleft had a generator of its own that nothing could seed, and
+    this is what that was costing.
+    """
+    import random
+
+    random.seed(20260911)
     return InteriorityService()
 
 
