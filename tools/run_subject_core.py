@@ -20,6 +20,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -471,31 +472,30 @@ async def _lesion(
     smaller = min(phi.best_cut, key=len)
     left, right = phi.best_cut[0], phi.best_cut[1]
 
-    async def _live(label: str) -> list[Any]:
+    #: The sources perturbational spread is read from in a lesion arm. Three
+    #: rather than ten, because each arm pays for its own intervention sweep
+    #: and the lesion is run five times now.
+    watched = ("A", "G", "S")
+
+    async def _live() -> tuple[list[Any], Any]:
+        """One arm's life, and the interventions run inside whatever holds it."""
         frames: list[Any] = []
         for _ in range(args.lesion_rounds):
             for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
-        del label
-        return frames
-
-    async def measure(label: str, frames: list[Any] | None = None) -> dict[str, Any]:
-        if frames is None:
-            frames = await _live(label)
-        recording = build_recording(frames, notes={"arm": label}).by_turn()
         results = await run_interventions(
             runtime,
             conditions[:3],
             scale=scale,
+            sources=watched,
             trials=max(2, args.trials // 3),
             turns=1,
             seed=args.seed + 11,
         )
-        spread = float(
-            np.mean(
-                [perturbational_complexity(results, source=key).spread for key in ("A", "G", "S")]
-            )
-        )
+        return frames, results
+
+    def _read(label: str, frames: list[Any], spread: float) -> dict[str, Any]:
+        recording = build_recording(frames, notes={"arm": label}).by_turn()
         synergies = [item.normalised for item in synergy_suite(recording, seed=args.seed)]
         return {
             "phi_do": phi_do(recording).phi,
@@ -503,19 +503,35 @@ async def _lesion(
             "synergy": float(np.mean(synergies)) if synergies else 0.0,
         }
 
+    def _spread(results: Any, only: Sequence[str] = watched) -> float:
+        return float(
+            np.mean([perturbational_complexity(results, source=key).spread for key in only])
+        )
+
+    async def measure(label: str) -> dict[str, Any]:
+        frames, results = await _live()
+        return _read(label, frames, _spread(results))
+
     from core.subject.clamp import compose
 
     intact = await measure("intact")
 
     # Each side once, with the other held at the cut. Both start from the same
-    # place, so the two recordings are the same life with the crossing removed.
+    # place, so the two recordings are the same life with the crossing removed
+    # — and each side's spread is read from the arm in which that side was
+    # free, because a displacement of a held domain is a displacement of
+    # nothing.
     start = runtime.snapshot()
     with clamped(runtime, right):
-        left_frames = await _live("cut_left")
+        left_frames, left_results = await _live()
     runtime.restore(start)
     with clamped(runtime, left):
-        right_frames = await _live("cut_right")
-    cut = await measure("cut", compose(left_frames, right_frames, left))
+        right_frames, right_results = await _live()
+    cut_spread = []
+    for key in watched:
+        source = left_results if key in set(left) else right_results
+        cut_spread.append(perturbational_complexity(source, source=key).spread)
+    cut = _read("cut", compose(left_frames, right_frames, left), float(np.mean(cut_spread)))
 
     # And the node clamp beside it, kept because it is a useful ablation and
     # reported as what it is rather than as the partition lesion.
