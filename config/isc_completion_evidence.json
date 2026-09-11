@@ -4596,6 +4596,140 @@
     "note": "every domain's displacement moves at least two of its own features, counting both halves of the intervention",
     "status": "done"
   },
+  "P32.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "^DELTAS: tuple\\[float, \\.\\.\\.\\] = \\(0\\.05"
+      }
+    ],
+    "note": "delta 0.05 is the first size on the curve",
+    "status": "done"
+  },
+  "P32.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "0\\.10, 0\\.15"
+      }
+    ],
+    "note": "delta 0.10",
+    "status": "done"
+  },
+  "P32.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "The battery's own\\n#: displacement is in the middle of them so the curve brackets it"
+      }
+    ],
+    "note": "delta 0.15, which is the battery's own, in the middle so the curve brackets it",
+    "status": "done"
+  },
+  "P32.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "0\\.15, 0\\.20\\)"
+      }
+    ],
+    "note": "delta 0.20",
+    "status": "done"
+  },
+  "P32.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "def _direction"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "--both-signs"
+      },
+      {
+        "command": "{python} -m pytest tests/test_an_edge_is_not_an_artefact_of_one_dose.py::test_a_channel_answering_the_same_way_either_way_is_named -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "both signs, so a channel that answers the same way either way is visible",
+    "status": "done"
+  },
+  "P32.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"grows_with_dose\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"dose_correlation\""
+      }
+    ],
+    "note": "whether the effect grows with the dose is reported per edge, with the correlation beside it",
+    "status": "done"
+  },
+  "P32.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"one_direction_only\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"kept_either_way\""
+      }
+    ],
+    "note": "a channel that answers only one way and one that answers both are named apart",
+    "status": "done"
+  },
+  "P32.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"only_at_one_dose\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "The failure this experiment exists to find"
+      },
+      {
+        "command": "{python} -m pytest tests/test_an_edge_is_not_an_artefact_of_one_dose.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "an edge present at exactly one dose and absent either side is the finding this exists to catch",
+    "status": "done"
+  },
+  "P32.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_dose_response.py",
+        "pattern": "\"flat_across_the_range\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_an_edge_is_not_an_artefact_of_one_dose.py::test_an_edge_flat_across_a_fourfold_change_is_named -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "and an edge the same size across a fourfold change in dose is carrying a flag rather than a quantity",
+    "status": "done"
+  },
   "P33.1": {
     "checks": [
       {
@@ -5301,6 +5435,81 @@
       }
     ],
     "note": "D lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P40.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "^STRENGTHS: tuple\\[float, \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "def sweep"
+      }
+    ],
+    "note": "irreducibility against normalised effective dimension, swept through the recurrent reference at ten coupling strengths",
+    "status": "done"
+  },
+  "P40.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "\"clears_the_one_sided_reading\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "\"clears_the_two_sided_reading\""
+      }
+    ],
+    "note": "the curve is the map, with both readings of the differentiation bar marked at every point",
+    "status": "done"
+  },
+  "P40.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "\"a_point_clears_both_one_sided\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "def _verdict"
+      }
+    ],
+    "note": "whether any coupling strength clears both at once is a measurement rather than an argument",
+    "status": "done"
+  },
+  "P40.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/map_integration_against_differentiation.py",
+        "pattern": "internally impossible for the architecture"
+      }
+    ],
+    "note": "and if none does, the run says the conjunction is internally impossible for the architecture the test was designed around",
+    "status": "done"
+  },
+  "P40.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "original_one_sided_reading"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "_DIFFERENTIATION_EVIDENCE"
+      }
+    ],
+    "note": "the original one-sided reading is kept and reported beside the two-sided one on every run, rather than replaced",
     "status": "done"
   },
   "P41.1": {
