@@ -305,7 +305,9 @@ async def main() -> int:
     # `--allow-degraded` exists because a diagnostic run during repair work is
     # a legitimate thing to want, and it is recorded on the run so a reader can
     # tell which kind they are holding.
-    blocking = _authority_blockers(runtime, evidence)
+    blocking = _authority_blockers(
+        runtime, evidence, turns=args.rounds * len(CONDITIONS)
+    )
     evidence["campaign"]["authoritative"] = not blocking
     evidence["campaign"]["authority_blockers"] = blocking
     if blocking and not args.allow_degraded:
@@ -639,8 +641,17 @@ REQUIRED_PHASES: tuple[str, ...] = (
 )
 
 
-def _authority_blockers(runtime: Any, evidence: dict[str, Any]) -> list[str]:
-    """Everything that makes the numbers below describe a different organism."""
+def _authority_blockers(
+    runtime: Any, evidence: dict[str, Any], *, turns: int = 0
+) -> list[str]:
+    """Everything that makes the numbers below describe a different organism.
+
+    A required phase is judged on the share of turns it failed, not on whether
+    it ever did. A phase that raised once in four hundred and eighty turns lost
+    one turn's worth of that domain; a phase that raised on a fifth of them was
+    not running. The share is the one the battery already uses to decide that a
+    reader was absent rather than unlucky, so there is no second number.
+    """
     blocking: list[str] = []
 
     layers = evidence.get("notes", {}).get("layers", {}) or {}
@@ -674,11 +685,20 @@ def _authority_blockers(runtime: Any, evidence: dict[str, Any]) -> list[str]:
 
     failures = dict(getattr(runtime, "failures", {}) or {})
     notes = dict(getattr(runtime, "failure_notes", {}) or {})
-    hurt = {name: count for name, count in failures.items() if name in REQUIRED_PHASES}
+    bound = max(1, int(turns)) * MISSING_SHARE if turns else 0.0
+    hurt = {
+        name: count
+        for name, count in failures.items()
+        if name in REQUIRED_PHASES and float(count) > bound
+    }
     if hurt:
         blocking.append(
-            "a required phase raised: "
-            + ", ".join(f"{name} x{count} ({notes.get(name, '')})" for name, count in sorted(hurt.items()))
+            "a required phase raised on more than "
+            f"{MISSING_SHARE:.0%} of {turns or 'the'} turns: "
+            + ", ".join(
+                f"{name} x{count} ({notes.get(name, '')})"
+                for name, count in sorted(hurt.items())
+            )
         )
     evidence.setdefault("notes", {})["phase_failures"] = failures
     evidence["notes"]["phase_failure_notes"] = notes

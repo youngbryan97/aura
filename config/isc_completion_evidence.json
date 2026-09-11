@@ -2722,7 +2722,7 @@
         "pattern": "^REQUIRED_PHASES: tuple"
       },
       {
-        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_required_phase_that_raised_blocks_the_run -q -p no:randomly",
+        "command": "{python} -m pytest tests/test_a_run_that_is_not_authoritative_refuses.py::test_a_required_phase_that_raised_on_most_turns_blocks_the_run -q -p no:randomly",
         "kind": "command",
         "timeout": 300
       },

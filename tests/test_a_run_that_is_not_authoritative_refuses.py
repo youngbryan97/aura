@@ -63,12 +63,23 @@ def test_a_layer_that_did_not_come_up_blocks_the_run() -> None:
     assert any("did not come up" in line for line in blockers)
 
 
-def test_a_required_phase_that_raised_blocks_the_run() -> None:
+def test_a_required_phase_that_raised_on_most_turns_blocks_the_run() -> None:
     module = _runner()
     blockers = module._authority_blockers(
-        _runtime(AffectUpdatePhase=3), _clean_evidence()
+        _runtime(AffectUpdatePhase=200), _clean_evidence(), turns=480
     )
     assert any("required phase raised" in line for line in blockers)
+
+
+def test_a_required_phase_that_raised_once_does_not_block_the_run() -> None:
+    """A phase that raised once in four hundred and eighty turns lost one turn's
+    worth of that domain. A phase that raised on a fifth of them was not
+    running, and the share between them is the one the battery already uses to
+    decide that a reader was absent rather than unlucky."""
+    module = _runner()
+    assert module._authority_blockers(
+        _runtime(AffectUpdatePhase=1), _clean_evidence(), turns=480
+    ) == []
 
 
 def test_a_phase_that_needs_a_cortex_does_not_block_the_run() -> None:
@@ -79,7 +90,7 @@ def test_a_phase_that_needs_a_cortex_does_not_block_the_run() -> None:
     """
     module = _runner()
     assert module._authority_blockers(
-        _runtime(ResponseGenerationPhase=40), _clean_evidence()
+        _runtime(ResponseGenerationPhase=480), _clean_evidence(), turns=480
     ) == []
 
 
