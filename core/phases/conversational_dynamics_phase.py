@@ -164,6 +164,32 @@ class ConversationalDynamicsPhase(Phase):
                 "association_chain": dynamics.association_chain,
             }
 
+            # ── Discourse threading, energy and the user's trend ──
+            #
+            # `DiscourseTracker` is constructed and registered in
+            # `core/social/presence_integration.py` and its `update` was called
+            # by nothing in the tree. It is the only writer of
+            # `cognition.conversation_energy`, `cognition.discourse_depth` and
+            # `cognition.user_emotional_trend`, so all three were constants for
+            # the whole of every life — and the workspace prices the exchange's
+            # claim on attention from the first of them, so what had just been
+            # said always asked for attention by exactly the same amount.
+            #
+            # "Call this after each incoming user message", says the method.
+            # This is the phase that has the message.
+            try:
+                from core.container import ServiceContainer
+
+                tracker = ServiceContainer.get("discourse_tracker", default=None)
+                if tracker is not None and objective:
+                    await tracker.update(new_state, str(objective))
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_conversational_degradation(
+                    exc,
+                    action="continued without discourse threading for this turn",
+                    severity="degraded",
+                )
+
             # ── Multiple Drafts (Dennett): parallel interpretation streams ──
             # Submit the user's input to spawn competing drafts FIRST.
             # If there are unresolved drafts from the PREVIOUS input, probe

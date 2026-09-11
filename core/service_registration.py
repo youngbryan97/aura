@@ -509,6 +509,17 @@ def _register_all_services_body(container, is_proxy: bool):
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )
+    # Discourse threading — the only writer of conversation energy, discourse
+    # depth and the user's emotional trend. It was constructed inside the
+    # presence integration, which is optional and does not run in every
+    # runtime, so in most of them the service did not exist and all three
+    # fields were constants for the life of the state.
+    container.register(
+        'discourse_tracker',
+        lambda: __import__('core.brain.discourse_tracker', fromlist=['DiscourseTracker']).DiscourseTracker(),
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
     # Drive-integration volition — temporal accumulation + competition + hysteresis, replacing
     # the legacy instantaneous-VAD-threshold + flat-refractory volition path.
     container.register(
