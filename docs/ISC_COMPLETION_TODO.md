@@ -11,9 +11,9 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**122 done, 0 blocked, 0 not applicable, 660 open, of 782.**
+**121 done, 0 blocked, 0 not applicable, 661 open, of 782.**
 
-Newest run with a report: `run_006` — 10/24 criteria, commit `728161952e25`.
+Newest run with a report: `run_015` — 11/24 criteria, commit `d3d77f9fd4dc`.
 
 
 ## Phase 0 — Freeze what “passing” means
@@ -523,7 +523,7 @@ Newest run with a report: `run_006` — 10/24 criteria, commit `728161952e25`.
 - [ ] `P23.12` every newly discovered free-running cognitive loop.
 - [x] `P23.13` Desktop runtime timers call these exact functions. — the harness calls the same methods the loops call; nothing here is a second implementation
 - [x] `P23.14` Battery calls these exact functions in fixed sequence/count. — the harness calls the same methods the loops call; nothing here is a second implementation
-- [x] `P23.15` No separate test-only implementation of cognition. — each layer steps at its own declared rate against the experiment's clock
+- [ ] `P23.15` No separate test-only implementation of cognition. — each layer steps at its own declared rate against the experiment's clock
 - [x] `P23.16` All arms receive exactly the same number of steps. — the counts are in the report
 - [x] `P23.17` Report the count. — a layer with no entry point is named rather than passed over
 - [ ] `P23.18` Fail an authoritative run if an active cognitive loop cannot be deterministically advanced. This would let the experiment test much more of Aura without sacrificing causal comparability.

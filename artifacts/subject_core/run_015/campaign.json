@@ -1,0 +1,109 @@
+{
+  "frozen": {
+    "thresholds": {
+      "component_share": 0.5,
+      "cycles_per_node": 2.0,
+      "d_eff_floor": 3.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2,
+      "substrate_step_seconds": 0.5
+    },
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "lesion": {
+      "rounds": 16
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "one_way",
+        "prompt_only",
+        "frozen_slow"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 184,
+      "hash": "72ab950edd73d568eaf497ced75f5547"
+    },
+    "seed": 7
+  },
+  "fingerprint": "ebee263d1236b5cf781462df53ea134a",
+  "commit": "d3d77f9fd4dcc894d201972cf61d3eb6d1312a14",
+  "commit_subject": "feat(subject): a clock the arms share, and a fork that stops guessing what to carry",
+  "tree_hash": "da410f69ecc37933c1e6bdb077250bf8",
+  "dirty": false,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1789054153.140318
+}
