@@ -8404,6 +8404,169 @@
     "note": "CORTEX_UNSTEPPABLE rather than substituting the stub",
     "status": "done"
   },
+  "P65.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^CLASSES: dict\\[str, tuple\\[str, \\.\\.\\.\\]\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^KIND: str"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^SOURCE: str"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "a class list\\n#: chosen after seeing which pairs came out close would be drawing the map"
+      }
+    ],
+    "note": "three content classes with three contents each, all arriving through the same channel so the class is the content and not the route, fixed before the run",
+    "status": "done"
+  },
+  "P65.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "One sample block per class, every block taken from the same fork"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "runtime\\.restore\\(snapshot\\)"
+      }
+    ],
+    "note": "each class's samples are taken from one fork, so what differs between two classes is the content",
+    "status": "done"
+  },
+  "P65.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "crossfit_fisher_rao"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^FLOOR_DRAWS: int"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^FLOOR_QUANTILE: float"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "Three samples of a spread like that bound\\n    # nothing"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_content_geometry_is_not_a_claim_about_feeling.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "Fisher-Rao between every pair, against a floor built by splitting a class against itself many times",
+    "status": "done"
+  },
+  "P65.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "What the system does with each class, read off the state rather than words"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "Two classes that leave the same trace are two classes\\n    the system did not discriminate"
+      }
+    ],
+    "note": "the discrimination is read off the state each class left rather than off anything the system said about it",
+    "status": "done"
+  },
+  "P65.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "Rank agreement rather than a fit"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_content_geometry_is_not_a_claim_about_feeling.py::test_agreement_is_an_ordering_and_not_a_fit -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "the causal distances and the traces are compared as an ordering, because three pairs is too few for a slope",
+    "status": "done"
+  },
+  "P65.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "^PREREGISTERED: str"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "def _prediction"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "The control pair involves neither attended class"
+      }
+    ],
+    "note": "the manifold is perturbed in a direction written down before it is applied, with a control pair that involves neither attended class",
+    "status": "done"
+  },
+  "P65.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "evidence that the geometry is felt"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "\"what_this_is\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_content_geometry_is_not_a_claim_about_feeling.py::test_the_report_says_it_is_not_evidence_about_feeling -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "the report says in its own words that none of it is evidence the geometry is felt",
+    "status": "done"
+  },
+  "P65.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "absolute quale labels are gauge"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_content_geometry.py",
+        "pattern": "identifiable only up to\\nstructure-preserving isomorphism"
+      }
+    ],
+    "note": "and that a relabelling preserving every relation produces identical observations, so absolute quale labels are gauge",
+    "status": "done"
+  },
   "P66.1": {
     "checks": [
       {
