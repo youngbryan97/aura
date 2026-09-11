@@ -46,6 +46,7 @@ class FeatureToggles(BaseModel):
     autonomous_impulses: bool = True
 
 
+
 class Paths(BaseModel):
     """
     Centralized path configuration with platform-aware resolution.
@@ -54,7 +55,32 @@ class Paths(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     _runtime_home_cache: ClassVar[Path | None] = None
 
-    home_dir: Path = Field(default_factory=lambda: Path.home().expanduser().resolve() / ".aura")
+    #: Set explicitly by a caller that wants a particular world. Left unset,
+    #: `home_dir` below resolves the same way `data_dir` and `log_dir` do.
+    home_dir_override: Path | None = Field(default=None, alias="home_dir")
+
+    @property
+    def home_dir(self) -> Path:
+        """Where this runtime keeps its state.
+
+        `data_dir` and `log_dir` have always resolved through
+        `_effective_home_dir()`, so they land in the right world for a test or
+        bench run. This was the raw field beneath them, fixed at construction
+        and defaulting to the real `~/.aura` — and thirty-seven call sites read
+        it directly: the engram store, the episodic database, the key
+        directory, the tool-learning file. Each of those wrote at the live root
+        whatever profile the process was running under. The write gateway
+        refuses them, which is the guard working, and the subsystem is then
+        degraded for the whole run rather than redirected — the engram store
+        was blocked on every turn of every battery run for exactly that reason.
+
+        Resolved at access rather than at import, because a run that chooses
+        its own root does so after this module is imported, and a home fixed at
+        import disagrees with the `data_dir` beneath it.
+        """
+        if self.home_dir_override is not None:
+            return Path(self.home_dir_override)
+        return self._effective_home_dir()
 
     def _effective_home_dir(self) -> Path:
         """Where THIS runtime keeps its state.
