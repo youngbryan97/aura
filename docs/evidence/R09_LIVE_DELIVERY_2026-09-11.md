@@ -221,3 +221,28 @@ generation was stopped at 15:41:46 and the one cancellation acknowledgement
 was delivered. This replay fails R09; the retained title result does not
 override it. Repairs and focused regressions for the shared validators are
 in progress, with 50 direct tests and 32 related reliability tests passing.
+# Exact paraphrased follow-up passes after validator repair
+
+The restored browser displayed the successful answer. A subsequent latent
+request, delivery `aura-chat-ca9c69dd-ddc2-4966-9d07-4817c503559f`, was
+stopped at 15:59:07. The worker logged soft cancellation of job 5 with
+`latent_reason_caller_cancelled`; the desktop displayed one Stop acknowledgement.
+The next delivery `aura-chat-86c2700a-f0c1-445f-8c1e-9cd1b34e5dd4`
+completed at approximately 16:00:38, correctly recalling Gone Girl and the
+short-story correction. This validates post-latent-Stop history continuity.
+
+The supported reboot replaced PID 59679 with PID 78712. Competing native
+launcher and detached waiter attempts again appeared before the sole surviving
+replacement; this remains a restart-ownership defect, not clean R02 evidence.
+The surviving runtime verified workspace
+`d22545ad3642e755da84469375b999d0c1a1aa6e6ab47d257bdb01091df00b6d`.
+Both changed validators matched checkpoint `5e601d4f6` before launch.
+
+At 15:55:41 PDT the unchanged desktop question was submitted: "What did you
+get wrong before that, and what was my reason for correcting you?" Delivery
+`aura-chat-c32f4d8b-5235-4761-bee1-0967cc3018a3` completed with the correct
+short-story versus novel correction, original title and replacement title.
+The receipt records 40 context exchanges, one generation, 63 generated tokens,
+zero completion or repair retries, zero text mutations, and cognitive_engine
+delivery. No answer hint was inserted into the question. The initiating
+browser tab was subsequently closed; restored-window inspection is separate.
