@@ -889,12 +889,43 @@ class OntogenyCore(AuthorityObservationMixin):
                 )
 
     def stop(self) -> None:
+        """Bring this organ down without bringing the spine down with it.
+
+        The spine is a process-wide singleton this organ did not build. Closing
+        it stopped the flusher for every other holder, so after any reset every
+        episode recorded in the process sat in a queue nothing would write —
+        a developmental shutdown with no error in it. What is owed a store you
+        borrow is a flush.
+        """
         self._stopped.set()
         if self._sweeper is not None:
             self._sweeper.stop()
         if self._state is not None:
             self._state.save()
-        self._spine.close()
+        self._spine.off_resolve(self._note_resolution)
+        self._spine.flush()
+
+    def dispose(self) -> None:
+        """Undo what building this one did, for a core that never started.
+
+        The loser of a construction race has already reached two shared
+        singletons on its way past: it subscribed to the spine's resolutions,
+        and it handed the authority ledger its own calibration monitor. Neither
+        undoes itself, and the second one is why a ledger can end up judging a
+        head from a monitor nothing feeds.
+        """
+        self._stopped.set()
+        self._spine.off_resolve(self._note_resolution)
+
+    def recommission(self) -> None:
+        """Re-assert this core's claim on the singletons it shares.
+
+        Idempotent on both: subscribing twice subscribes once, and attaching a
+        calibration monitor replaces whatever was there with the one whose
+        measurements the trainer is actually recording.
+        """
+        self._authority.attach_calibration(self._candidate_calibration)
+        self._spine.on_resolve(self._note_resolution)
 
     # ── head persistence ─────────────────────────────────────────────────
 
@@ -1136,12 +1167,22 @@ def get_ontogeny() -> OntogenyCore:
     #
     # A race builds two and keeps one. That costs an extra open and a close;
     # holding a lock across an fsync costs the loop.
-    built: OntogenyCore | None = OntogenyCore()
+    # And built without starting. A candidate that loses the race had already
+    # started a sweeper thread and a maintenance loop before anyone looked, and
+    # stopping them afterwards is a race of its own: the winner publishes, the
+    # loser's maintenance loop wakes on the shared spine, and the organ that
+    # nothing holds a reference to is still writing checkpoints.
+    built: OntogenyCore | None = OntogenyCore(autostart=False)
     with _core_lock:
         if _core is None:
             _core, built = built, None
     if built is not None:
-        built.stop()
+        built.dispose()
+        # The loser reached the spine and the authority ledger on its way past.
+        # Disposing takes its subscription off; this puts the ledger back on
+        # the monitor the winner is feeding.
+        _core.recommission()
+    _core.start()
     return _core
 
 

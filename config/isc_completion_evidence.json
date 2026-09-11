@@ -298,6 +298,109 @@
     "note": "the state schema's width and hash are in the frozen block",
     "status": "done"
   },
+  "P10.1": {
+    "checks": [
+      {
+        "criterion": "differentiation",
+        "kind": "criterion"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "_DIFFERENTIATION_EVIDENCE"
+      }
+    ],
+    "note": "the criterion is two-sided: many effective dimensions, no component holding half the variance, and the ratio below the bar rather than above it \u2014 the one-sided reading is passed by the least mind-like nulls and reported beside it on every run",
+    "status": "done"
+  },
+  "P10.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "<!-- generated: subject-core evidence -->"
+      },
+      {
+        "command": "{python} tools/subject_core_evidence_doc.py --check",
+        "kind": "command",
+        "timeout": 120
+      }
+    ],
+    "note": "every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all",
+    "status": "done"
+  },
+  "P10.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"thresholds\": dict\\(sorted\\(THRESHOLDS\\.items\\(\\)\\)\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "^THRESHOLDS: dict\\[str, float\\]"
+      }
+    ],
+    "note": "the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them",
+    "status": "done"
+  },
+  "P10.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "\"independent\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "not a bag\\n#: of independent variables, which would score 1\\.0"
+      }
+    ],
+    "note": "independent noise scores at the top of the one-sided reading and is what the two-sided one excludes; the independent null measures it",
+    "status": "done"
+  },
+  "P10.3": {
+    "checks": [
+      {
+        "expr": "int(report['differentiation']['live_width']) < 209",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['recording']['flat_column_names']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "a column that never moves is named and excluded from the live width, so a filler variable cannot inflate the dimension",
+    "status": "done"
+  },
+  "P10.7": {
+    "checks": [
+      {
+        "expr": "float(report['differentiation']['largest_component_share']) < 0.5",
+        "kind": "report"
+      }
+    ],
+    "note": "no single component holds half the variance, which is the dominance limit under the bar",
+    "status": "done"
+  },
+  "P10.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "a number nothing computes from is not state"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "a verbatim copy of another domain's column"
+      }
+    ],
+    "note": "columns are removed for failing the schema's own rule \u2014 nothing reads them, or they are another domain's column under this one's name \u2014 and the reason is written beside each removal",
+    "status": "done"
+  },
   "P11.1": {
     "checks": [
       {
@@ -1039,6 +1142,74 @@
     "note": "I->D is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/proprioceptive_loop.py",
+        "pattern": "soma\\.exertion = EffortLedger\\.exertion\\(spent\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/agency/intention_loop.py",
+        "pattern": "note_effort\\(\"tool_calls\", 1\\.0\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/consciousness/liquid_substrate.py",
+        "pattern": "note_effort\\(\"substrate_steps\", 1\\.0\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/world_model/learned_world_model.py",
+        "pattern": "note_effort\\(\"train_steps\", 1\\.0\\)"
+      }
+    ],
+    "note": "the effort ledger is the route back into the body: five places in cognition report what they spent, the proprioceptive loop drains the ledger at the top of the turn, and exertion is what it computes",
+    "status": "done"
+  },
+  "P2.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\\(\"exertion\", \"soma\\.exertion\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\\(\"recall_effort\", \"soma\\.effort\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/consciousness/workspace_feed.py",
+        "pattern": "note_effort\\(\"candidates\", len\\(bids\\)\\)"
+      }
+    ],
+    "note": "acting spends effort through the intention loop, and the interoception domain reads that spend as its own column",
+    "status": "done"
+  },
+  "P2.16": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "ledger\\.note\\(kind, step\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "derives that from the ledger at the top of every turn"
+      },
+      {
+        "kind": "grep",
+        "path": "core/consciousness/multiple_drafts.py",
+        "pattern": "spent = EffortLedger\\.exertion\\(get_effort_ledger\\(\\)\\.peek\\(\\)\\)"
+      }
+    ],
+    "note": "the I displacement moves a share of what she has already spent through the ledger rather than writing a temperature; the readout the harness could have written is derived from the ledger at the top of every turn and would not have survived one",
+    "status": "done"
+  },
   "P2.17": {
     "checks": [
       {
@@ -1129,6 +1300,41 @@
     "note": "C->A is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.25": {
+    "checks": [
+      {
+        "expr": "all(float(e['q']) < 0.01 and int(e['replication']) >= 3 for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "def _paired_divergence"
+      }
+    ],
+    "note": "every retained edge is a displaced arm against two sham arms, kept on a corrected q and a replication count rather than on the existence of a call between two modules",
+    "status": "done"
+  },
+  "P2.26": {
+    "checks": [
+      {
+        "expr": "len({e['target'] for e in [e for e in report['edges'] if e['kept']] if e['source'] == 'G'}) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "the workspace reaches three or more different domains on the newest run",
+    "status": "done"
+  },
+  "P2.27": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'G' and e['target'] == 'C' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "G->C is a retained edge in the newest run",
+    "status": "done"
+  },
   "P2.28": {
     "checks": [
       {
@@ -1177,6 +1383,47 @@
       }
     ],
     "note": "G->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.32": {
+    "checks": [
+      {
+        "expr": "len({e['source'] for e in [e for e in report['edges'] if e['kept']] if e['target'] == 'G'}) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "two or more domains reach the workspace on the newest run",
+    "status": "done"
+  },
+  "P2.33": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['vertex_connectivity']) >= 2",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "\"hidden_broker\""
+      }
+    ],
+    "note": "the graph survives the removal of any one node, so no single domain brokers it; and the architecture where one does is a null the battery separates by closure",
+    "status": "done"
+  },
+  "P2.34": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "best = int\\(np\\.argmax\\(column_effect - column_floor\\)\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "_ABSENT_IS_AN_ANSWER"
+      }
+    ],
+    "note": "an edge is scored on the destination domain's own columns, and a column whose reader failed is recorded as a miss rather than as a zero",
     "status": "done"
   },
   "P2.35": {
@@ -1269,6 +1516,81 @@
     "note": "C->D is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.43": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'C' and e['target'] == 'G' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "C->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.44": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'S' and e['target'] == 'G' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "S->G is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.45": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'S' and e['target'] == 'D' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "S->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.46": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "get_agency_ledger\\(\\)\\.observe\\("
+      },
+      {
+        "expr": "float(report['agency']['ownership_divergence']) > float(report['agency']['ownership_floor'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the two arms of the ownership experiment differ only in who is named as the author, and the self model is handed that attribution through the agency ledger",
+    "status": "done"
+  },
+  "P2.47": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'M' and e['target'] == 'S' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "M->S is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.48": {
+    "checks": [
+      {
+        "expr": "bool({e['source'] for e in [e for e in report['edges'] if e['kept']] if e['target'] == 'S'} - {'G', 'M'})",
+        "kind": "report"
+      }
+    ],
+    "note": "the self is reached by something other than the workspace and memory",
+    "status": "done"
+  },
+  "P2.49": {
+    "checks": [
+      {
+        "expr": "bool({e['target'] for e in [e for e in report['edges'] if e['kept']] if e['source'] == 'S'} - {'G'})",
+        "kind": "report"
+      }
+    ],
+    "note": "the self reaches something other than the workspace",
+    "status": "done"
+  },
   "P2.5": {
     "checks": [
       {
@@ -1277,6 +1599,21 @@
       }
     ],
     "note": "P->M is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.50": {
+    "checks": [
+      {
+        "expr": "bool(report['agency'].get('ownership_generalises'))",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "ownership_by_action"
+      }
+    ],
+    "note": "ownership is measured over four action kinds rather than one, and it has to clear its own floor on more than one of them",
     "status": "done"
   },
   "P2.51": {
@@ -1359,6 +1696,21 @@
     "note": "M->D is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.59": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "the workspace prices its memory bid from it"
+      },
+      {
+        "expr": "any(e['source'] == 'M' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "the memory displacement moves the retrieved items themselves, which is what the consumers read",
+    "status": "done"
+  },
   "P2.6": {
     "checks": [
       {
@@ -1377,6 +1729,16 @@
       }
     ],
     "note": "P->W is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.61": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'D' and e['target'] == 'W' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "D->W is a retained edge in the newest run \u2014 what she did changes what she predicts",
     "status": "done"
   },
   "P2.62": {
@@ -1429,6 +1791,16 @@
     "note": "W->C is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.67": {
+    "checks": [
+      {
+        "expr": "len({e['source'] for e in [e for e in report['edges'] if e['kept']] if e['target'] == 'W'}) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "two or more domains reach the world model on the newest run",
+    "status": "done"
+  },
   "P2.68": {
     "checks": [
       {
@@ -1447,6 +1819,27 @@
       }
     ],
     "note": "W->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "self\\._through_the_intention_loop\\(intended, ok, actor, kind\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"goal_achieved\" if ok else \"error\",\\n            \"filesystem\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "elif condition\\.after == \\\"act\\\" or self\\._intends_to_act\\(\\)"
+      }
+    ],
+    "note": "she acts on her own intention, the action writes the filesystem, and what the filesystem then holds is read back in through the senses in the same call",
     "status": "done"
   },
   "P2.70": {
@@ -1519,6 +1912,73 @@
     "note": "D->S is a retained edge in the newest run",
     "status": "done"
   },
+  "P2.77": {
+    "checks": [
+      {
+        "command": "{python} -c \"from core.subject.state import domain_width; raise SystemExit(0 if domain_width('D') >= 12 else 1)\"",
+        "kind": "command",
+        "timeout": 120
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "def _chosen_action"
+      }
+    ],
+    "note": "the deliberation domain is eighteen numbers \u2014 budgets, urgencies, the initiative count, what the will deferred \u2014 and displacing them changes what she does",
+    "status": "done"
+  },
+  "P2.78": {
+    "checks": [
+      {
+        "expr": "bool(report['timescale']['fast_to_slow'])",
+        "kind": "report"
+      }
+    ],
+    "note": "fast domains reach slow ones on the newest run",
+    "status": "done"
+  },
+  "P2.79": {
+    "checks": [
+      {
+        "expr": "bool(report['timescale']['slow_to_fast'])",
+        "kind": "report"
+      }
+    ],
+    "note": "slow domains reach fast ones on the newest run",
+    "status": "done"
+  },
+  "P2.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "observed = f\"the log holds \\{len\\(lines\\)\\} lines\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "observed = f\"\\{len\\(rooms\\)\\} rooms exist\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "rooms = sorted\\(p\\.name for p in room\\.glob\\(\\\"room_\\*\\\"\\) if p\\.is_dir\\(\\)\\)"
+      }
+    ],
+    "note": "the percept carries what was read off the disk \u2014 a line count, a room count, what a room holds \u2014 and never the objective or the intention text",
+    "status": "done"
+  },
+  "P2.80": {
+    "checks": [
+      {
+        "expr": "len({e['source'] for e in [e for e in report['edges'] if e['kept']] if e['target'] == 'N'} & {'A', 'C', 'G', 'P'}) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "development is reached by more than one of the domains that carry experience",
+    "status": "done"
+  },
   "P2.81": {
     "checks": [
       {
@@ -1557,6 +2017,62 @@
       }
     ],
     "note": "N->D is a retained edge in the newest run",
+    "status": "done"
+  },
+  "P2.85": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'N' for e in [e for e in report['edges'] if e['kept']])",
+        "kind": "report"
+      }
+    ],
+    "note": "development reaches something; it is not the end of the line",
+    "status": "done"
+  },
+  "P2.86": {
+    "checks": [
+      {
+        "expr": "len({e['target'] for e in [e for e in report['edges'] if e['kept']] if e['source'] == 'N'}) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "development reaches two or more domains",
+    "status": "done"
+  },
+  "P2.87": {
+    "checks": [
+      {
+        "expr": "all(any(e['source'] == dom for e in [e for e in report['edges'] if e['kept']]) for dom in ('N', 'C', 'I', 'D'))",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "SUSTAINED: frozenset\\[str\\]"
+      }
+    ],
+    "note": "each of the four domains whose information was trapped now has an outgoing retained edge; the clamp for the layer that runs fastest and the dose matched to each domain's own variation are what freed them",
+    "status": "done"
+  },
+  "P2.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "ACTIONS: ClassVar\\[tuple\\[str, \\.\\.\\.\\]\\] = \\(\\n        \"write_notes\",\\n        \"append_log\",\\n        \"make_room\",\\n        \"read_room\",\\n    \\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "ATTENTION_ACTIONS: ClassVar\\[dict\\[str, str\\]\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "DRIVE_ACTIONS: ClassVar\\[dict\\[str, str\\]\\]"
+      }
+    ],
+    "note": "four action kinds over three different filesystem structures, chosen by what won attention and then by which drive is most depleted; one of them can fail, and fails for a reason of her own making",
     "status": "done"
   },
   "P20.1": {
@@ -4071,6 +4587,27 @@
     "note": "services asked for through the read-only seam that are only built on demand are listed",
     "status": "done"
   },
+  "P45.10": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_return_paths_into_local_dicts.py --check",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_return_path_does_not_end_in_a_local_dict.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "kind": "grep",
+        "path": "tools/audit_return_paths_into_local_dicts.py",
+        "pattern": "def _read\\(function"
+      }
+    ],
+    "note": "a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one",
+    "status": "done"
+  },
   "P45.11": {
     "checks": [
       {
@@ -4250,6 +4787,128 @@
       }
     ],
     "note": "no field is written by one step of a turn and replaced by a later one without reading what was there",
+    "status": "done"
+  },
+  "P46.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/service.py",
+        "pattern": "Built outside the lock, published under it"
+      },
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/experience.py",
+        "pattern": "Built outside the lock, published under it"
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py::test_eight_threads_asking_at_once_get_one_organ -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "both singletons build outside the lock and publish under it, so a race builds two and keeps one rather than holding a process-wide lock across an fsync",
+    "status": "done"
+  },
+  "P46.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/service.py",
+        "pattern": "built: OntogenyCore \\| None = OntogenyCore\\(autostart=False\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py::test_a_loser_does_not_start_anything tests/test_two_threads_building_one_organ.py::test_the_organ_is_started_after_it_is_published -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the candidate is built without starting, and the winner is started after it is published",
+    "status": "done"
+  },
+  "P46.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/service.py",
+        "pattern": "self\\._spine\\.flush\\(\\)"
+      },
+      {
+        "kind": "absent",
+        "path": "core/ontogeny/service.py",
+        "pattern": "self\\._spine\\.close\\(\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py::test_stopping_the_organ_does_not_stop_the_spine -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the organ flushes the spine rather than closing it; closing a singleton it did not build stopped the flusher for every other holder",
+    "status": "done"
+  },
+  "P46.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/experience.py",
+        "pattern": "def off_resolve"
+      },
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/service.py",
+        "pattern": "def dispose"
+      },
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py::test_a_loser_does_not_leave_a_subscriber_behind tests/test_two_threads_building_one_organ.py::test_subscribing_twice_subscribes_once -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the spine's resolution subscribers can be taken off, subscribing twice subscribes once, and the losing candidate takes its own off",
+    "status": "done"
+  },
+  "P46.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/experience.py",
+        "pattern": "Ownership: whoever built this instance closes it, and nobody else"
+      },
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/experience.py",
+        "pattern": "self\\.shared = False"
+      },
+      {
+        "kind": "grep",
+        "path": "core/ontogeny/experience.py",
+        "pattern": "_spine\\.shared = True"
+      }
+    ],
+    "note": "whoever builds the spine closes it and nobody else; the shared instance is marked, a holder owes it a flush, and a close on a shared one is recorded rather than silent",
+    "status": "done"
+  },
+  "P46.6": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "eight threads on a barrier ask at once and get one organ",
+    "status": "done"
+  },
+  "P46.7": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_two_threads_building_one_organ.py::test_stopping_the_organ_does_not_stop_the_spine tests/test_two_threads_building_one_organ.py::test_the_ledger_keeps_the_monitor_that_is_being_fed -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the organ coming down leaves the spine's flusher running, and the ledger keeps the calibration monitor the trainer is feeding",
     "status": "done"
   },
   "P47.1": {

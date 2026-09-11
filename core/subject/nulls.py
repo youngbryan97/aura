@@ -39,7 +39,7 @@ from typing import Any
 import numpy as np
 
 from core.subject.recording import Recording
-from core.subject.state import DOMAINS
+from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
 
 __all__ = [
     "ARCHITECTURES",
@@ -176,6 +176,13 @@ def _matrix(rng: np.random.Generator, rows: int, cols: int, strength: float) -> 
     return rng.normal(scale=strength / max(1.0, np.sqrt(cols)), size=(rows, cols))
 
 
+def _rank_one(rng: np.random.Generator, rows: int, cols: int, strength: float) -> np.ndarray:
+    """One outer product. Every domain it drives moves along the same line."""
+    left = rng.normal(size=(rows, 1))
+    right = rng.normal(size=(1, cols))
+    return (left @ right) * (strength / max(1.0, np.sqrt(cols)))
+
+
 def architecture(
     name: str,
     *,
@@ -240,6 +247,125 @@ def architecture(
                 other = order[(index + offset) % len(order)]
                 coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
         frozen = ("S", "M", "W", "N")
+    elif name == "ring":
+        # The smallest thing that is still one cycle: each domain reads the one
+        # before it and the last reads the first. It is strongly connected and
+        # every node re-enters, so the coarse graph questions all say yes —
+        # and cutting any single node splits it, which is what connectivity
+        # is for.
+        for index, key in enumerate(order):
+            other = order[index - 1]
+            coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    elif name == "common_driver":
+        # No domain touches any other. One drifting variable outside them all
+        # reaches every one of them, so every pair moves together and no pair
+        # moves the other. Correlation of exactly the kind an observational
+        # measure cannot tell from coupling, and the reason the battery
+        # intervenes rather than observing.
+        hub_width = 4
+        for key in order:
+            hub_out[key] = _matrix(rng, widths[key], hub_width, strength)
+    elif name == "all_to_all":
+        # Everything reaches everything directly. Maximally integrated and
+        # maximally redundant: the domains converge on one trajectory, so the
+        # differentiation measure has to report a system with almost no
+        # repertoire even though the graph is complete.
+        for key in order:
+            for other in order:
+                if other != key:
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    elif name == "memory_only":
+        # The only thing that persists is the memory domain. Every other
+        # domain is memoryless and reads M; M accumulates and reads nothing.
+        # A system can look continuous over time with no recurrence at all if
+        # one store carries the past and hands it back.
+        decay = {key: np.zeros(width) for key, width in widths.items()}
+        decay["M"] = np.full(widths["M"], 0.95)
+        for key in order:
+            if key != "M":
+                coupling[key]["M"] = _matrix(rng, widths[key], widths["M"], strength)
+    elif name == "fake_self":
+        # S reads every other domain and nothing reads S. A running commentary
+        # on a system, computed from it, causing none of it. Its columns move
+        # with everything, which is what makes it convincing, and displacing it
+        # changes nothing downstream.
+        for other in order:
+            if other != "S":
+                coupling["S"][other] = _matrix(rng, widths["S"], widths[other], strength)
+        for index, key in enumerate(order):
+            if key == "S":
+                continue
+            for offset in (1, -1):
+                other = order[(index + offset) % len(order)]
+                if other != "S":
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    elif name == "agency_without_ownership":
+        # D reaches the rest of the system and the rest of the system runs on
+        # it; nothing comes back into S. Actions happen, they have consequences,
+        # and the self never registers having been the one who took them.
+        for index, key in enumerate(order):
+            for offset in (1, -1):
+                other = order[(index + offset) % len(order)]
+                if other != "S" or key == "S":
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+        for other in order:
+            if other != "D":
+                coupling[other].pop("S", None)
+        for key in order:
+            if key != "S":
+                coupling[key]["D"] = _matrix(rng, widths[key], widths["D"], strength)
+        coupling["S"].pop("D", None)
+    elif name == "ownership_label_without_action_causation":
+        # The mirror case. D reaches S and nothing else, so the self is told
+        # what was decided and the decision moves nothing in the world. The
+        # label is faithful; the agency behind it is inert.
+        for index, key in enumerate(order):
+            if key in {"S", "D"}:
+                continue
+            for offset in (1, -1):
+                other = order[(index + offset) % len(order)]
+                if other != "D":
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+        coupling["S"]["D"] = _matrix(rng, widths["S"], widths["D"], strength)
+    elif name == "fast_only":
+        # Fast domains write the slow ones and the slow ones write nothing
+        # back. A system can accumulate a history of itself and never be
+        # changed by it.
+        for key in FAST_DOMAINS:
+            for other in FAST_DOMAINS:
+                if other != key:
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+        for key in SLOW_DOMAINS:
+            for other in FAST_DOMAINS:
+                coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    elif name == "slow_only":
+        # And the mirror: slow state drives the fast domains and nothing the
+        # fast domains do reaches it. A disposition that shapes everything and
+        # learns nothing.
+        for key in SLOW_DOMAINS:
+            for other in SLOW_DOMAINS:
+                if other != key:
+                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+        for key in FAST_DOMAINS:
+            for other in SLOW_DOMAINS:
+                coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    elif name == "low_rank":
+        # Recurrent, reciprocal, one strongly connected component — and every
+        # coupling matrix is rank one, so the whole system rides on a single
+        # latent. Integration without a repertoire: the differentiation
+        # measure is what has to catch this one.
+        for index, key in enumerate(order):
+            for offset in (1, 2, -1):
+                other = order[(index + offset) % len(order)]
+                coupling[key][other] = _rank_one(rng, widths[key], widths[other], strength)
+    elif name == "high_dimensional_independent":
+        # The opposite failure. Each domain mixes richly inside itself and
+        # nothing crosses between domains, so the effective dimension is as
+        # high as a system this size can make it and there is nothing to
+        # integrate. A differentiation bar read one-sidedly gives this its best
+        # score of all.
+        for key in order:
+            coupling[key][key] = _matrix(rng, widths[key], widths[key], strength)
     else:
         raise ValueError(f"no architecture called {name!r}")
 
@@ -273,6 +399,17 @@ ARCHITECTURES: tuple[str, ...] = (
     "one_way",
     "prompt_only",
     "frozen_slow",
+    "ring",
+    "common_driver",
+    "all_to_all",
+    "memory_only",
+    "fake_self",
+    "agency_without_ownership",
+    "ownership_label_without_action_causation",
+    "fast_only",
+    "slow_only",
+    "low_rank",
+    "high_dimensional_independent",
 )
 
 

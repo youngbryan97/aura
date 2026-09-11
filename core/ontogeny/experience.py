@@ -285,6 +285,10 @@ class ExperienceSpine:
         self._queue: deque[Episode] = deque()
         self._pending_resolutions: deque[tuple[str, Outcome]] = deque()
         self._repeat_increments: deque[str] = deque()
+        #: True only for the instance :func:`get_experience_spine` published.
+        #: Set there rather than here, because an instance is not shared until
+        #: something shares it.
+        self.shared = False
         self._resolve_callbacks: list[Callable[[str, Outcome], None]] = []
         self._dedup: dict[str, tuple[str, float]] = {}
         self._burst: dict[str, int] = {}
@@ -438,13 +442,37 @@ class ExperienceSpine:
         return original_id
 
     def on_resolve(self, callback: Callable[[str, Outcome], None]) -> None:
-        """Subscribe to outcomes as they land.
+        """Subscribe to outcomes as they land. Subscribing twice subscribes once.
 
         Every resolution in the system passes through :meth:`resolve`, which
         makes this the one place a live tally can be kept honest without
         polling the database from a decision path.
+
+        The spine outlives the things that listen to it, so a subscriber that
+        registers again — a rebuilt organ, a recommissioned one — would have
+        every outcome counted twice for the rest of the process. There is no
+        use for the same callback twice, so the second registration is the
+        first one.
         """
+        if callback in self._resolve_callbacks:
+            return
         self._resolve_callbacks.append(callback)
+
+    def off_resolve(self, callback: Callable[[str, Outcome], None]) -> None:
+        """Unsubscribe. Silent when the callback was never subscribed.
+
+        A subscriber with no way off the list is a leak with a voice: the organ
+        that lost a construction race keeps receiving every outcome in the
+        system and tallying it into state nothing will ever read.
+        """
+        try:
+            self._resolve_callbacks.remove(callback)
+        except ValueError:
+            return
+
+    def subscriber_count(self) -> int:
+        """How many callbacks are listening. For tests and the health report."""
+        return len(self._resolve_callbacks)
 
     def resolve(self, episode_id: str, outcome: Outcome) -> None:
         """Attach an outcome. Queued like a record — resolution is never urgent."""
@@ -784,6 +812,23 @@ class ExperienceSpine:
             return 0
 
     def close(self) -> None:
+        """Stop the flusher and write what is queued.
+
+        Ownership: whoever built this instance closes it, and nobody else. The
+        process-wide spine is built and owned by :func:`get_experience_spine`,
+        so a subsystem holding a reference to it owes it a :meth:`flush` at
+        shutdown and must not close it — closing stops the flusher thread for
+        every other holder, and every episode recorded after that sits in the
+        queue until the process ends. ``shared`` says which kind of instance
+        this is, and a close on a shared spine is recorded rather than silent.
+        """
+        if self.shared:
+            record_degradation(
+                "ontogeny_experience",
+                RuntimeError("the shared experience spine was closed by a holder"),
+                severity="warning",
+                action="stopped the flusher for every holder; flush() was what was owed",
+            )
         self._stopped.set()
         try:
             self.flush()
@@ -879,6 +924,7 @@ def get_experience_spine() -> ExperienceSpine:
     with _spine_lock:
         if _spine is None:
             _spine, built = built, None
+            _spine.shared = True
     if built is not None:
         built.close()
     return _spine
