@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 import logging
 from typing import Any
 
@@ -82,6 +83,12 @@ def _bounded_float(
     return max(lower, min(upper, number))
 
 
+#: Where bonding sits when nothing has happened for a long time. The value
+#: `IdentityKernel` is created with, so the resting point of the quantity and
+#: its declared default are the same number rather than two.
+_BONDING_BASELINE: float = 0.05
+
+
 class BondingPhase(Phase):
     """
     Phase to handle long-term personality evolution and user bonding.
@@ -91,6 +98,51 @@ class BondingPhase(Phase):
     def __init__(self, container: Any = None):
         super().__init__(kernel=container)
         self.container = container
+        #: How far apart their exchanges usually fall, how long this
+        #: relationship has been running, and when the last one was. Bonding
+        #: settles between exchanges: see `_settle_toward`.
+        self._usual_gap_s = 0.0
+        self._engaged_span_s = 0.0
+        self._exchanges_seen = 0.0
+        self._last_exchange_at = 0.0
+
+    def _settle_toward(self, bonding: float, baseline: float) -> float:
+        """Let an absence give back what the exchanges built.
+
+        Bonding rose by a fixed amount on every user-facing turn and by
+        nothing on any other, so it could only ever increase. A quantity that
+        cannot fall is a turn counter, and it measured as one: across a
+        480-turn recording of the subject core it correlated with the frame
+        index to four decimal places, and at one with every other counter in
+        every other domain. A relationship that never cools is not a
+        relationship.
+
+        What gives it back is silence beyond their own rhythm, weighed against
+        the span the relationship has been running. A gap inside the rhythm
+        costs nothing and extends the span; an absence as long as everything
+        that built this returns it to the baseline; half as long returns half.
+        The rhythm and the span are both learned here, so there is no decay
+        constant to pick, and a relationship of ten thousand exchanges settles
+        far more slowly than one of ten — which is the thing a fixed half-life
+        would get wrong.
+        """
+        now = time.time()
+        gap = now - self._last_exchange_at if self._last_exchange_at else 0.0
+        self._last_exchange_at = now
+        self._exchanges_seen += 1.0
+
+        usual = self._usual_gap_s
+        if gap > 0.0:
+            rate = max(1.0 / self._exchanges_seen, 0.01)  # never freezes
+            self._usual_gap_s = usual + rate * (gap - usual)
+        if gap <= 0.0 or usual <= 0.0 or gap <= usual:
+            self._engaged_span_s += max(0.0, gap)
+            return bonding
+
+        absence = gap - usual
+        span = max(self._engaged_span_s, 1e-9)
+        share = min(1.0, absence / max(span, absence))
+        return baseline + (bonding - baseline) * (1.0 - share)
 
     async def execute(
         self,
@@ -129,9 +181,12 @@ class BondingPhase(Phase):
 
             # This is Aura's own bounded social-plasticity state, not a claim
             # about rapport, intimacy, or trust with whichever user is cached.
+            # It moves in the direction this exchange compares with theirs, so
+            # it can settle as well as build.
             increment = 0.0001 * multiplier
             current_bonding = _bounded_float(getattr(identity, "bonding_level", 0.0), 0.0)
-            identity.bonding_level = min(1.0, current_bonding + increment)
+            settled = self._settle_toward(current_bonding, _BONDING_BASELINE)
+            identity.bonding_level = max(0.0, min(1.0, settled + increment))
 
             growth = getattr(identity, "personality_growth", None)
             if not isinstance(growth, dict):

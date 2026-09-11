@@ -1476,10 +1476,10 @@ class AffectEngineV2:
         the appraisal changes — which is the property that makes it an
         appraisal rather than a classifier.
 
-        The word scan is kept below as the last resort, reached only when
-        the interiority layer is unavailable, because an affect engine
-        that returns nothing is worse than one that returns something
-        crude. Which path answered is recorded in the receipt.
+        The word scan is kept as `_lexical_appraisal`, the last resort,
+        reached only when the interiority layer is unavailable, because an
+        affect engine that returns nothing is worse than one that returns
+        something crude. Which path answered is recorded in the receipt.
         """
         try:
             from core.interiority.service import get_interiority
@@ -1491,7 +1491,17 @@ class AffectEngineV2:
                 exc,
                 action="fell back to the lexical appraisal; relational meaning unavailable",
             )
+        return AffectEngineV2._lexical_appraisal(trigger, context)
 
+    @staticmethod
+    def _lexical_appraisal(trigger: str, context: dict | None) -> dict[str, float]:
+        """The word scan: thirty words, and whatever is at stake ignored.
+
+        Kept because an affect engine that returns nothing is worse than one
+        that returns something crude, and named because the difference between
+        it and the relational appraisal is a claim worth measuring rather than
+        a branch worth hiding.
+        """
         trigger_text = str(trigger or "").lower()
         base = _finite_clamp((context or {}).get("intensity", 1.0), 0.0, 1.0, default=0.0)
 

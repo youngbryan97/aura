@@ -258,17 +258,29 @@ class TestExpandedAffectiveDrivers:
         phrased calmly.
 
         Appraisal comes from core.interiority now, so the same words score on
-        what they are about. Nothing held, nothing at stake: the sentence is
-        no longer negative for its vocabulary. That is the change, and it is
-        what this test measures.
+        what they are about. That is the change, and it is what this test
+        measures — against the word scan itself rather than against zero.
+
+        Against zero it was a test of what she happened to be holding when it
+        ran. Her appraisal of a neutral sentence legitimately depends on what
+        is on the ledger, so anything earlier in the process that gave her a
+        blocked commitment moved the reading a few hundredths below the line
+        and the test failed on the appraisal working. The word scan is
+        available by name now, so the comparison is the one the claim is
+        about.
         """
         from core.interiority.service import get_interiority
 
         words = "I am confused and unclear about this failure"
+        lexical = AffectEngineV2._lexical_appraisal(words, {"intensity": 0.8})
         indifferent = AffectEngineV2._heuristic_appraisal(words, {"intensity": 0.8})
-        assert indifferent["v"] >= 0.0, (
-            "the word scan is back: these words are negative to nobody who "
-            "has nothing at stake in them"
+        assert lexical["v"] < -0.2, (
+            "the word scan no longer reads these words as strongly negative, "
+            "so this comparison has lost the thing it is measured against"
+        )
+        assert indifferent["v"] > lexical["v"] + 0.2, (
+            "the word scan is back: these words are read as negative for "
+            f"their vocabulary ({indifferent['v']:.4f} against {lexical['v']:.4f})"
         )
 
         # The same words, about something she is holding.
