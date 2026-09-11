@@ -104,8 +104,19 @@ async def main() -> int:
         "--null-draws",
         type=int,
         default=8,
-        help="instantiations of each null and surrogate, so a null is a "
-        "distribution rather than one draw",
+        help="instantiations of each synthetic architecture, so a null is a "
+        "distribution rather than one draw of a weight matrix",
+    )
+    parser.add_argument(
+        "--surrogate-draws",
+        type=int,
+        default=64,
+        help=(
+            "surrogate recordings of the real run. Each one costs a phi_do over "
+            "the same recording rather than a whole simulated system, so the "
+            "floor the score is read against can be estimated far more finely "
+            "than the architectures can"
+        ),
     )
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core")
     parser.add_argument("--skip-nulls", action="store_true")
@@ -702,17 +713,25 @@ def _nulls(
         maker = replay_surrogate if name == "replay" else shuffle_surrogate
         draws = [
             round(phi_do(maker(turns, seed=args.seed + draw)).phi, 5)
-            for draw in range(args.null_draws)
+            for draw in range(args.surrogate_draws)
         ]
         # The bar the real score has to clear is the top of the surrogate's
-        # distribution, not its middle — but a maximum over a handful of draws
-        # is an unstable bar, so the distribution goes in the report and the
-        # comparison is against a stated quantile of it.
+        # distribution, not its middle — but a quantile read off a handful of
+        # draws is an unstable bar, so the distribution goes in the report and
+        # the comparison is against a stated quantile of it.
+        #
+        # A surrogate costs one phi_do over the recording the score is computed
+        # on, where an architecture costs a whole simulated system, so the
+        # floor is estimated an order of magnitude more finely than the
+        # architectures are — which is the right place to spend it, because the
+        # floor is what the margin is measured against.
         table[name] = {
             "phi_do": round(float(np.quantile(draws, 0.95)), 5),
             "draws": draws,
             "max": max(draws),
             "median": round(float(np.median(draws)), 5),
+            "q99": round(float(np.quantile(draws, 0.99)), 5),
+            "spread": round(float(np.std(draws, ddof=1)) if len(draws) > 1 else 0.0, 5),
             "quantile": 0.95,
             "kind": "surrogate",
         }
@@ -826,6 +845,20 @@ def _nulls(
         "detail": table,
         "surrogate_floor": floor,
         "phi_above_floor": None if floor is None else round(real_phi - floor, 5),
+        # And the floor's own uncertainty, so a margin can be read as a margin.
+        # A score a hundredth above a floor estimated to within two hundredths
+        # has not cleared it, and reporting only the difference hides that.
+        "surrogate_floor_detail": {
+            name: {
+                "draws": len(row["draws"]),
+                "q95": row["phi_do"],
+                "q99": row.get("q99"),
+                "median": row["median"],
+                "spread": row.get("spread"),
+            }
+            for name, row in table.items()
+            if row.get("kind") == "surrogate"
+        },
         "phi_beats_all": all(beaten.values()) if beaten else False,
         "all_nulls_fail": bool(nulls_fail and reference_passes),
         "nulls_fail_the_bar": nulls_fail,

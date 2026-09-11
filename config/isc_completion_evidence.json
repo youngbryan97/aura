@@ -330,6 +330,22 @@
     "note": "`_one_hot` over declared vocabularies; `_ACTORS` and the unpredictable dimensions",
     "status": "done"
   },
+  "P11.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "scale = _scales\\(recording\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"schema\": \\{\"width\": len\\(schema\\)"
+      }
+    ],
+    "note": "the scales are recomputed from the recording each run, so a schema change cannot leave a stale unit behind",
+    "status": "done"
+  },
   "P11.12": {
     "checks": [
       {
@@ -3469,6 +3485,202 @@
     "note": "D lies on at least two directed cycles",
     "status": "done"
   },
+  "P41.1": {
+    "checks": [
+      {
+        "expr": "all(int(row['draws']) >= 32 for row in report['nulls']['surrogate_floor_detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "many matched surrogate recordings, not a handful",
+    "status": "done"
+  },
+  "P41.10": {
+    "checks": [
+      {
+        "expr": "all(row.get('spread') is not None for row in report['nulls']['surrogate_floor_detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "with the floor's own spread beside it, so a margin can be read as a margin",
+    "status": "done"
+  },
+  "P41.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "default=64"
+      }
+    ],
+    "note": "sixty-four draws by default, not a handful",
+    "status": "done"
+  },
+  "P41.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def replay_surrogate"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "Read through a window rather than rolled"
+      }
+    ],
+    "note": "same duration: a surrogate is the recording itself, resampled",
+    "status": "done"
+  },
+  "P41.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "Surrogates are built from the real recording"
+      }
+    ],
+    "note": "same dimensionality, for the same reason",
+    "status": "done"
+  },
+  "P41.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "keeps every marginal, every autocorrelation"
+      }
+    ],
+    "note": "every autocorrelation kept",
+    "status": "done"
+  },
+  "P41.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "keeps every marginal"
+      }
+    ],
+    "note": "every marginal kept",
+    "status": "done"
+  },
+  "P41.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "deletes the alignment between domains"
+      }
+    ],
+    "note": "and only the alignment between domains destroyed",
+    "status": "done"
+  },
+  "P41.7": {
+    "checks": [
+      {
+        "expr": "all(len(row['draws']) > 1 for row in report['nulls']['detail'].values() if row['kind'] == 'surrogate')",
+        "kind": "report"
+      }
+    ],
+    "note": "a distribution of the minimum, not one draw",
+    "status": "done"
+  },
+  "P41.8": {
+    "checks": [
+      {
+        "expr": "all(row.get('q99') is not None for row in report['nulls']['surrogate_floor_detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "the ninety-fifth and ninety-ninth percentiles of it",
+    "status": "done"
+  },
+  "P41.9": {
+    "checks": [
+      {
+        "expr": "report['nulls']['phi_above_floor'] is not None",
+        "kind": "report"
+      }
+    ],
+    "note": "and Aura's margin over it",
+    "status": "done"
+  },
+  "P42.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "effect_min: float = 0\\.3"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "EDGE_EFFECT: float = 0\\.3"
+      }
+    ],
+    "note": "the same effect threshold on the nulls as on the real system",
+    "status": "done"
+  },
+  "P42.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^NULL_HORIZON: int = 66"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "The real run reads a\\n#: displaced arm for two turns, which is sixty-six frames"
+      }
+    ],
+    "note": "and the same number of frames to reach it",
+    "status": "done"
+  },
+  "P42.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "noise: float = 0\\.05"
+      }
+    ],
+    "note": "comparable noise, declared with the architecture",
+    "status": "done"
+  },
+  "P42.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^SELF_EFFECT_TARGET: float"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def toy_doses"
+      }
+    ],
+    "note": "and a matched dose, so what differs is what escapes rather than how hard each was hit",
+    "status": "done"
+  },
+  "P42.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "The two arms share a noise stream, so the sham floor is exactly\\n    zero"
+      }
+    ],
+    "note": "the null's two arms share a noise stream, so its floor is exactly zero, and that is stated where the comparison is made",
+    "status": "done"
+  },
   "P44.1": {
     "checks": [
       {
@@ -4228,6 +4440,393 @@
       }
     ],
     "note": "a consumer that raised is recorded as a degradation rather than swallowed",
+    "status": "done"
+  },
+  "P52.1": {
+    "checks": [
+      {
+        "criterion": "differentiation_above_floor",
+        "kind": "criterion"
+      }
+    ],
+    "note": "differentiation_above_floor holds on the newest run",
+    "status": "done"
+  },
+  "P52.10": {
+    "checks": [
+      {
+        "criterion": "slow_to_fast",
+        "kind": "criterion"
+      }
+    ],
+    "note": "slow_to_fast holds on the newest run",
+    "status": "done"
+  },
+  "P52.11": {
+    "checks": [
+      {
+        "criterion": "beats_every_null",
+        "kind": "criterion"
+      }
+    ],
+    "note": "beats_every_null holds on the newest run",
+    "status": "done"
+  },
+  "P52.12": {
+    "checks": [
+      {
+        "criterion": "global_access",
+        "kind": "criterion"
+      }
+    ],
+    "note": "global_access holds on the newest run",
+    "status": "done"
+  },
+  "P52.13": {
+    "checks": [
+      {
+        "criterion": "lesion_deficit",
+        "kind": "criterion"
+      }
+    ],
+    "note": "lesion_deficit holds on the newest run",
+    "status": "done"
+  },
+  "P52.2": {
+    "checks": [
+      {
+        "criterion": "intrinsic_persistence",
+        "kind": "criterion"
+      }
+    ],
+    "note": "intrinsic_persistence holds on the newest run",
+    "status": "done"
+  },
+  "P52.3": {
+    "checks": [
+      {
+        "criterion": "causal_closure_of_the_core",
+        "kind": "criterion"
+      }
+    ],
+    "note": "causal_closure_of_the_core holds on the newest run",
+    "status": "done"
+  },
+  "P52.4": {
+    "checks": [
+      {
+        "criterion": "perturbational_complexity",
+        "kind": "criterion"
+      }
+    ],
+    "note": "perturbational_complexity holds on the newest run",
+    "status": "done"
+  },
+  "P52.5": {
+    "checks": [
+      {
+        "criterion": "metastability",
+        "kind": "criterion"
+      }
+    ],
+    "note": "metastability holds on the newest run",
+    "status": "done"
+  },
+  "P52.6": {
+    "checks": [
+      {
+        "criterion": "recurrent_global_access",
+        "kind": "criterion"
+      }
+    ],
+    "note": "recurrent_global_access holds on the newest run",
+    "status": "done"
+  },
+  "P52.7": {
+    "checks": [
+      {
+        "criterion": "self_drives_action",
+        "kind": "criterion"
+      }
+    ],
+    "note": "self_drives_action holds on the newest run",
+    "status": "done"
+  },
+  "P52.8": {
+    "checks": [
+      {
+        "criterion": "ownership",
+        "kind": "criterion"
+      }
+    ],
+    "note": "ownership holds on the newest run",
+    "status": "done"
+  },
+  "P52.9": {
+    "checks": [
+      {
+        "criterion": "fast_to_slow",
+        "kind": "criterion"
+      }
+    ],
+    "note": "fast_to_slow holds on the newest run",
+    "status": "done"
+  },
+  "P54.1": {
+    "checks": [
+      {
+        "expr": "len(report['campaign']['tree_hash']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "report['campaign']['dirty'] is False",
+        "kind": "report"
+      }
+    ],
+    "note": "one run on a head whose tree hash is recorded",
+    "status": "done"
+  },
+  "P54.10": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_fork_leaves_nothing_behind.py::test_the_fork_carries_the_module_singletons_nothing_holds tests/test_a_fork_leaves_nothing_behind.py::test_two_arms_step_the_same_layers_the_same_number_of_times -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a restored arm is the arm that was taken, in the reading and in the world it acted in",
+    "status": "done"
+  },
+  "P54.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "a live cognitive loop cannot be advanced by a count"
+      },
+      {
+        "expr": "len(report['notes']['layers'].get('unsteppable', {})) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "every live cognitive loop advances on a count, and a run whose loops cannot refuses",
+    "status": "done"
+  },
+  "P54.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "with clamped\\(runtime, right\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "def compose"
+      }
+    ],
+    "note": "the lesion severs the channels across the partition rather than clamping a side",
+    "status": "done"
+  },
+  "P54.15": {
+    "checks": [
+      {
+        "expr": "len(report['nulls']['detail']) >= 8",
+        "kind": "report"
+      },
+      {
+        "expr": "'hidden_broker' in report['nulls']['detail']",
+        "kind": "report"
+      },
+      {
+        "expr": "'independent' in report['nulls']['detail']",
+        "kind": "report"
+      }
+    ],
+    "note": "eight nulls including a hidden broker and independent noise",
+    "status": "done"
+  },
+  "P54.16": {
+    "checks": [
+      {
+        "expr": "len(report['nulls'].get('conjunction', {})) >= 8",
+        "kind": "report"
+      }
+    ],
+    "note": "each null is put through the conjunction, not one line of it",
+    "status": "done"
+  },
+  "P54.2": {
+    "checks": [
+      {
+        "expr": "report['verdict']['isc'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "all(c['passed'] for c in report['verdict']['criteria'])",
+        "kind": "report"
+      }
+    ],
+    "note": "every criterion passes",
+    "status": "done"
+  },
+  "P54.24": {
+    "checks": [
+      {
+        "expr": "report['nulls']['reference_architecture_passes'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['nulls']['summary']['nulls_that_pass']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "a positive control that must pass and nulls that must fail",
+    "status": "done"
+  },
+  "P54.3": {
+    "checks": [
+      {
+        "expr": "int(report['recording']['frames']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['edges']) == 90",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['nulls']['detail']) >= 8",
+        "kind": "report"
+      },
+      {
+        "expr": "'lesioned' in report['lesion'] and 'rescued' in report['lesion']",
+        "kind": "report"
+      }
+    ],
+    "note": "the recording, the arms, the edges, the nulls and the lesion are all on disk",
+    "status": "done"
+  },
+  "P54.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "a required phase raised"
+      },
+      {
+        "expr": "len([k for k in report['notes'].get('phase_failures', {}) if k in ('ProprioceptiveLoop','SensoryIngestionPhase','MemoryRetrievalPhase','AffectUpdatePhase','MotivationUpdatePhase','CognitiveIntegrationPhase','ExecutiveClosurePhase','ConsciousnessPhase')]) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "no required phase raised, and a run with one refuses",
+    "status": "done"
+  },
+  "P54.8": {
+    "checks": [
+      {
+        "expr": "len(report['notes']['unwritable_domains']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "every domain had a writer that bit",
+    "status": "done"
+  },
+  "P54.9": {
+    "checks": [
+      {
+        "expr": "'organs_mostly_unread' not in report['verdict'].get('notes', {})",
+        "kind": "report"
+      }
+    ],
+    "note": "no criterion was invalidated for an organ that was never read",
+    "status": "done"
+  },
+  "P6.11": {
+    "checks": [
+      {
+        "expr": "all('peak_lag' in r and 'at_the_horizon' in r for r in report['edges'])",
+        "kind": "report"
+      },
+      {
+        "expr": "not any(r['at_the_horizon'] for r in report['edges'] if r['kept'])",
+        "kind": "report"
+      }
+    ],
+    "note": "each edge records the lag its effect peaked at, so an effect at the horizon is visible",
+    "status": "done"
+  },
+  "P6.12": {
+    "checks": [
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "no single domain brokers the graph: vertex connectivity of at least two means removing any one leaves the rest connected",
+    "status": "done"
+  },
+  "P6.4": {
+    "checks": [
+      {
+        "expr": "len(report['perturbation']['spread_by_source']) == 10",
+        "kind": "report"
+      }
+    ],
+    "note": "spread is reported per source and the weak ones are visible",
+    "status": "done"
+  },
+  "P7.12": {
+    "checks": [
+      {
+        "expr": "report['phi'].get('standard_error') is not None",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['phi'].get('held_out', [])) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "the score carries its own uncertainty, read off folds it was not chosen on",
+    "status": "done"
+  },
+  "P7.13": {
+    "checks": [
+      {
+        "expr": "float(report['phi'].get('lower_bound', -1.0)) > 0.0",
+        "kind": "report"
+      }
+    ],
+    "note": "and its lower bound is above zero",
+    "status": "done"
+  },
+  "P7.14": {
+    "checks": [
+      {
+        "expr": "float(report['phi'].get('lower_bound', -1.0)) > 0.05",
+        "kind": "report"
+      }
+    ],
+    "note": "with the lower bound itself clearing the bar",
+    "status": "done"
+  },
+  "P7.2": {
+    "checks": [
+      {
+        "expr": "len(report['phi']['best_cut']) == 2",
+        "kind": "report"
+      }
+    ],
+    "note": "the cheapest cut is named in every run",
+    "status": "done"
+  },
+  "P7.7": {
+    "checks": [
+      {
+        "criterion": "partition_irreducibility",
+        "kind": "criterion"
+      }
+    ],
+    "note": "the cheapest cut, not the average, clears the bar",
     "status": "done"
   },
   "P8.1": {
