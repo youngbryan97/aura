@@ -51,6 +51,14 @@ def main() -> int:
         action="store_true",
         help="run the criticality regulator alongside, as the live mesh does",
     )
+    parser.add_argument(
+        "--widths",
+        action="store_true",
+        help=(
+            "refit the exponents while reading more and more of the mesh; the "
+            "curve says whether the number was reading the window"
+        ),
+    )
     parser.add_argument("--json", default="")
     arguments = parser.parse_args()
 
@@ -149,6 +157,26 @@ def main() -> int:
         per_unit=spikes,
         per_unit_percentile=arguments.unit_percentile,
     )
+    if arguments.widths:
+        from core.connectome.criticality import exponent_against_recording_width
+
+        # The full raster, not the subsample the comparison above reads. The
+        # point of the sweep is what happens as the window widens.
+        sweep = exponent_against_recording_width(np.vstack(raster), seed=arguments.seed)
+        report["recording_width"] = sweep
+        print(
+            f"\n{'units':>6} {'dT':>3} {'aval':>6} {'active':>7} {'largest':>8} "
+            f"{'decades':>8} {'size':>7} {'duration':>9}"
+        )
+        for row in sweep["rows"]:
+            print(
+                f"{row['units_recorded']:>6} {row['bin_ticks']:>3} {row['avalanches']:>6} "
+                f"{row['active_fraction']:>7.3f} {row['largest']:>8} "
+                f"{row['size_decades']:>8.3f} {row['size_exponent']:>7.3f} "
+                f"{row['duration_exponent']:>9.3f}"
+            )
+        print(f"{sweep['verdict']}")
+
     print(f"\n{report['verdict']}")
     print(f"cascades: {report['avalanches']}")
     print(f"size fit: {report['size_fit']}")

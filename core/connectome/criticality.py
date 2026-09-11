@@ -44,13 +44,15 @@ from .topology import power_law_fit
 logger = logging.getLogger("Aura.Connectome.Criticality")
 
 __all__ = [
-    "BranchingEstimate",
-    "branching_ratio_mr",
-    "naive_branching_ratio",
     "Avalanches",
-    "extract_avalanches",
+    "BranchingEstimate",
     "CriticalityReport",
+    "MINIMUM_DECADES",
     "assess",
+    "branching_ratio_mr",
+    "exponent_against_recording_width",
+    "extract_avalanches",
+    "naive_branching_ratio",
 ]
 
 
@@ -363,6 +365,91 @@ class CriticalityReport:
         }
 
 
+def exponent_against_recording_width(
+    spikes: Any,
+    *,
+    widths: Sequence[int] = (30, 60, 120, 240, 480, 960, 1920, 0),
+    seed: int = 1000,
+) -> dict[str, Any]:
+    """Refit the avalanche exponents while reading more and more of the system.
+
+    An exponent is a claim about scaling and does not care how much of a system
+    a recording reads. The slope of a finite window's cutoff does, and it gets
+    steeper as the window narrows, so a curve that moves is the answer to
+    whether a number was ever a measurement.
+
+    Each width takes its own subsample, sets the analysis bin to that
+    subsample's mean inter-event interval the way Beggs and Plenz set theirs,
+    and refits. A width of 0 means every unit.
+    """
+    import numpy as np
+
+    values = np.asarray(spikes, dtype=np.float64)
+    if values.ndim != 2 or values.size == 0:
+        return {"rows": [], "verdict": "no recording"}
+    ticks, units = values.shape
+    rows: list[dict[str, Any]] = []
+    for width in widths:
+        keep = units if width <= 0 else min(int(width), units)
+        chosen = np.sort(
+            np.random.default_rng(seed + keep).choice(units, size=keep, replace=False)
+        )
+        sub = values[:, chosen]
+        events = int((sub.sum(axis=1) > 0).sum())
+        bin_ticks = max(1, round(ticks / max(1, events)))
+        usable = (ticks // bin_ticks) * bin_ticks
+        folded = (
+            sub[:usable].reshape(usable // bin_ticks, bin_ticks, keep).sum(axis=1)
+            if bin_ticks > 1 and usable
+            else sub
+        )
+        cascades = extract_avalanches_per_unit(folded, percentile=0.0)
+        fit = power_law_fit(cascades.sizes)
+        duration = power_law_fit(cascades.durations)
+        rows.append(
+            {
+                "units_recorded": keep,
+                "bin_ticks": bin_ticks,
+                "avalanches": len(cascades.sizes),
+                "active_fraction": round(cascades.active_fraction, 4),
+                "largest": max(cascades.sizes) if cascades.sizes else 0,
+                "size_exponent": round(float(fit.get("alpha", 0.0)), 4),
+                "size_decades": round(float(fit.get("decades", 0.0)), 4),
+                "size_ks": round(float(fit.get("ks", 1.0)), 4),
+                "duration_exponent": round(float(duration.get("alpha", 0.0)), 4),
+                "duration_decades": round(float(duration.get("decades", 0.0)), 4),
+            }
+        )
+    fitted = [row for row in rows if row["size_exponent"] > 0.0]
+    moved = (
+        max(row["size_exponent"] for row in fitted) - min(row["size_exponent"] for row in fitted)
+        if fitted
+        else 0.0
+    )
+    return {
+        "rows": rows,
+        "units": units,
+        "exponent_range": round(moved, 4),
+        "verdict": (
+            f"the size exponent moves {moved:.3f} across recording widths, so it is "
+            "reading the window and not only the dynamics"
+            if moved > 0.5
+            else f"the size exponent holds within {moved:.3f} across recording widths"
+        ),
+    }
+
+
+#: How far a fitted tail has to run before an exponent means anything.
+#:
+#: Clauset, Shalizi and Newman put the floor above a decade: under that a power
+#: law is not separable from a lognormal, an exponential, or the shoulder of a
+#: finite system's cutoff, whatever the KS distance says. Beggs and Plenz fitted
+#: theirs over nearly two decades of avalanche size. Fitting through a cutoff
+#: returns an exponent STEEPER than the real one, so a system measured over half
+#: a decade will look like its cascades are smaller than they are.
+MINIMUM_DECADES: float = 1.0
+
+
 def assess(
     activity: Sequence[float],
     *,
@@ -413,9 +500,17 @@ def assess(
         size_fit.get("ks", 1.0) < 0.2
         and duration_fit.get("ks", 1.0) < 0.2
         and size_fit.get("tail_n", 0) >= 32
+        and size_fit.get("decades", 0.0) >= MINIMUM_DECADES
+        and duration_fit.get("decades", 0.0) >= MINIMUM_DECADES
     )
     if not fits_are_usable:
-        verdict = "avalanche exponents are not reliable enough to test criticality"
+        verdict = (
+            "avalanche exponents are not reliable enough to test criticality: "
+            f"{size_fit.get('decades', 0.0):.2f} decades of size and "
+            f"{duration_fit.get('decades', 0.0):.2f} of duration, "
+            f"KS {size_fit.get('ks', 1.0):.3f} and {duration_fit.get('ks', 1.0):.3f}, "
+            f"{int(size_fit.get('tail_n', 0))} in the fitted tail"
+        )
     elif error < 0.2:
         verdict = f"consistent with criticality: exponents satisfy the scaling relation, m={branching.m:.3f}"
     else:

@@ -40,16 +40,43 @@ Working list. Deleted when every line is done and green.
 
 ## Open
 
-- [ ] close the cascade gap. Her bursts are smaller and shorter than a human's
-      — burst size exponent 3.36 against cortex's 1.5 — and three things have
-      been tried against it. The rich club is real and does not close it
-      (3.117 to 3.060 as the coupling goes 1 to 20). Fixing the criticality
-      regulator's dead sensor moves it 3.53 to 3.36 and the branching ratio
-      0.908 to 0.931. The regulator is then pinned at every one of its clamps
-      — gain 2.0, noise 2.0, E/I 1.3 — asking for more than it is allowed, and
-      the mesh's own `set_criticality_adjustment` refuses anything above 2.0
-      as well. Two chosen ceilings, both binding, and neither has a
-      measurement behind it. That is the next lever
+- [ ] close the cascade gap — most of it was the window, and the rest is still
+      open. The exponent had been read off a recording of sixty of her 4,096
+      units, chosen by analogy to Beggs and Plenz's sixty electrodes. An LFP
+      electrode integrates thousands of cells, so that analogy undercounted by
+      three orders of magnitude, and the fit it produced ran from 18 to 66 —
+      0.56 of a decade, ending at the largest cascade sixty units can make. A
+      power law fitted through a finite window's cutoff always comes out
+      steeper than the exponent underneath it.
+
+      Two controls, both now in the tree. A true 1.5 law drawn 2,810 times and
+      cut at 66 measures 2.07 +/- 0.17, and a true 2.0 duration law cut at 45
+      measures 2.87 +/- 0.35, so a system that genuinely was cortical would
+      not read 1.5 and 2.0 on this instrument either. And refitting the same
+      recording while reading more of it moves the size exponent from 3.70 at
+      960 units — where the largest cascade is 65, which is the old
+      measurement — to 1.946 at all 4,096, where the largest is 322. An
+      exponent that moves with the recording was reading the recording.
+
+      `power_law_fit` now reports the decades its tail covers and the
+      comparison refuses a fit under one, so the old number would not have
+      been published. What is left genuinely open: at 4,096 units 82% of bins
+      carry a spike and the analysis bin cannot go below one tick, so cascades
+      merge and 1.946 is biased the other way. No setting yet gives a decade
+      of scaling and a sparse raster at once. That is the next lever, and it
+      is about the recording's time resolution, not about the regulator's
+      clamps
+
+- [ ] the regulator's two chosen ceilings. The rich club is real and does not
+      close the cascade gap (3.117 to 3.060 as the coupling goes 1 to 20).
+      Fixing the criticality regulator's dead sensor moves it 3.53 to 3.36 and
+      the branching ratio 0.908 to 0.931. The regulator is then pinned at
+      every one of its clamps — gain 2.0, noise 2.0, E/I 1.3 — asking for more
+      than it is allowed, and the mesh's own `set_criticality_adjustment`
+      refuses anything above 2.0 as well. Both ceilings are chosen and
+      symmetric around 1.0, and neither has a measurement behind it. Worth
+      doing after the recording can support an exponent, because until then
+      there is nothing to tune against
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run and 56
       distinct failures have surfaced. Every one traced so far is either fixed

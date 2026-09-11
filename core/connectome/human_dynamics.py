@@ -57,6 +57,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from core.connectome.criticality import MINIMUM_DECADES
+
 logger = logging.getLogger("Aura.Connectome.HumanDynamics")
 
 __all__ = [
@@ -64,6 +66,7 @@ __all__ = [
     "HumanStatistic",
     "Verdict",
     "compare_to_human_cortex",
+    "expected_through_this_window",
 ]
 
 
@@ -222,6 +225,55 @@ class Verdict:
         }
 
 
+def expected_through_this_window(
+    published: float,
+    *,
+    largest: int,
+    samples: int,
+    trials: int = 8,
+    seed: int = 100,
+) -> tuple[float, float]:
+    """What a system that really had ``published`` would MEASURE here.
+
+    A power-law exponent fitted over a range that ends at a finite system's
+    cutoff comes out steeper than the exponent underneath it, and the shorter
+    the range the steeper it comes out. Comparing a measurement taken through a
+    narrow window against a published number fitted through a wide one charges
+    the system for the window.
+
+    So the published number is pushed through this recording's own window
+    first: draw ``samples`` avalanches from a truncated power law of exponent
+    ``published``, cut at ``largest``, and fit them with the same fitter. The
+    mean and spread of that are what a genuinely cortical system would look
+    like on this instrument. A true 1.5 read through 2,810 avalanches cut at 66
+    measures 2.07.
+    """
+    import random
+
+    from core.connectome.topology import power_law_fit
+
+    if published <= 1.0 or largest < 2 or samples < 16:
+        return 0.0, 0.0
+    fits: list[float] = []
+    for trial in range(max(1, trials)):
+        rng = random.Random(seed + trial)
+        drawn: list[int] = []
+        guard = 0
+        while len(drawn) < samples and guard < samples * 200:
+            guard += 1
+            value = int((1.0 - rng.random()) ** (-1.0 / (published - 1.0)))
+            if 1 <= value <= largest:
+                drawn.append(value)
+        fit = power_law_fit(drawn)
+        if fit["alpha"] > 0.0:
+            fits.append(float(fit["alpha"]))
+    if not fits:
+        return 0.0, 0.0
+    mean = sum(fits) / len(fits)
+    spread = (sum((value - mean) ** 2 for value in fits) / len(fits)) ** 0.5
+    return round(mean, 4), round(spread, 4)
+
+
 def _statistic(name: str) -> HumanStatistic:
     for entry in HUMAN_STATISTICS:
         if entry.name == name:
@@ -259,20 +311,50 @@ def compare_to_human_cortex(
         "branching_parameter": float(report.branching.m),
     }
 
+    # The same gate the criticality report uses, including the decades of
+    # scaling the fitted tail covers. An exponent read off half a decade is a
+    # cutoff slope, and a cutoff slope is always steeper than the exponent it
+    # sits on top of -- which is the direction every miss here has been in.
     usable = (
         float(report.size_exponent.get("ks", 1.0)) < 0.2
         and float(report.duration_exponent.get("ks", 1.0)) < 0.2
         and int(report.size_exponent.get("tail_n", 0)) >= 32
+        and float(report.size_exponent.get("decades", 0.0)) >= MINIMUM_DECADES
+        and float(report.duration_exponent.get("decades", 0.0)) >= MINIMUM_DECADES
     )
+
+    # What a genuinely cortical system would MEASURE on this recording.
+    #
+    # Both exponents are fitted over a range that ends at this recording's own
+    # cutoff, and a fit through a cutoff is steeper than the exponent under it.
+    # Charging her the whole distance to a number fitted over two decades is
+    # charging her for the window, so the published value is pushed through the
+    # window first and the miss is taken from there.
+    counts = report.avalanches
+    windowed: dict[str, tuple[float, float]] = {}
+    if usable:
+        windowed["avalanche_size_exponent"] = expected_through_this_window(
+            _statistic("avalanche_size_exponent").value,
+            largest=int(counts.get("largest", 0)),
+            samples=int(counts.get("count", 0)),
+        )
+        windowed["avalanche_duration_exponent"] = expected_through_this_window(
+            _statistic("avalanche_duration_exponent").value,
+            largest=int(counts.get("longest", 0)),
+            samples=int(counts.get("count", 0)),
+        )
 
     verdicts: list[Verdict] = []
     for name, value in observed.items():
         statistic = _statistic(name)
         # The crackling relation is a self-consistency test, so its target is
         # whatever this system's own exponents predict.
+        expected, spread = windowed.get(name, (0.0, 0.0))
         target = (
             float(report.predicted_gamma)
             if name == "crackling_relation"
+            else expected
+            if expected > 0.0
             else statistic.value
         )
         if value <= 0.0:
@@ -309,11 +391,18 @@ def compare_to_human_cortex(
             # amount of being worse.
             miss = max(0.0, value - target)
             holds = miss <= statistic.tolerance
+            through = (
+                f" ({statistic.value:.3f} published, {target:.3f} +/- {spread:.3f} "
+                f"once read through a window that stops at "
+                f"{int(counts.get('largest', 0))})"
+                if expected > 0.0
+                else ""
+            )
             reason = (
                 ""
                 if holds
-                else f"{miss:.3f} above cortex's {target:.3f}, which is smaller cascades "
-                f"than a human's by more than the {statistic.tolerance} allowed"
+                else f"{miss:.3f} above cortex's {target:.3f}{through}, which is smaller "
+                f"cascades than a human's by more than the {statistic.tolerance} allowed"
             )
         elif statistic.direction == "as_near":
             hers = abs(value - statistic.ideal)
@@ -353,6 +442,13 @@ def compare_to_human_cortex(
             key: round(float(value), 4) for key, value in report.duration_exponent.items()
         },
         "predicted_crackling": round(float(report.predicted_gamma), 4),
+        # The published numbers and what they become on this instrument. When
+        # these two converge, the window has stopped being part of the answer.
+        "through_this_window": {
+            name: {"published": _statistic(name).value, "expected": mean, "spread": spread}
+            for name, (mean, spread) in sorted(windowed.items())
+            if mean > 0.0
+        },
         "statistics": [verdict.as_json() for verdict in verdicts],
         "past_cortex": len(past),
         "verdict": (
