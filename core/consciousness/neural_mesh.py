@@ -363,6 +363,19 @@ class MeshConfig:
     noise_sigma: float = 0.008           # stochastic drive
     activation_gain: float = 1.0         # tanh gain
 
+    #: Ceiling on the total inter-column coupling, as the Frobenius norm of the
+    #: whole matrix, re-imposed every ten ticks.
+    #:
+    #: A choice with no measurement behind it, and an inert one: the matrix this
+    #: mesh builds has a norm of 0.65, so the ceiling has never once fired.
+    #: Worth knowing before reading it as a cap on recruitment -- it is not one,
+    #: and a sweep of the coupling that assumed it was would have been chasing a
+    #: guard that does nothing. It was an unnamed 15.0 inside the tick, where
+    #: nothing sweeping the mesh's coupling could see it. Naming it changes no
+    #: behaviour; the per-weight clip beside it, to [-1, 1], is the constraint
+    #: that does bite once a weight is scaled far enough.
+    inter_column_weight_norm: float = 15.0
+
     # STDP
     #
     # The window and the asymmetry are Bi and Poo's, measured in hippocampal
@@ -1261,8 +1274,8 @@ class NeuralMesh(MeshWiring):
         # Only recompute norm every 10 ticks (weights change slowly)
         if self._tick_count % 10 == 0:
             norm = np.linalg.norm(self._inter_W)
-            if norm > 15.0:
-                self._inter_W *= 15.0 / norm
+            if norm > cfg.inter_column_weight_norm:
+                self._inter_W *= cfg.inter_column_weight_norm / norm
             self._inter_W = np.nan_to_num(
                 np.clip(self._inter_W, -1.0, 1.0),
                 nan=0.0,
