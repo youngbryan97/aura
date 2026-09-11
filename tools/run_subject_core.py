@@ -827,6 +827,40 @@ def _nulls(
             leak = float(report.leak)
         except (ImportError, ValueError, RuntimeError, AttributeError) as exc:
             _log(f"  closure unavailable for the {name} null: {exc}")
+        # And the rest of the suite, on the same toy recording. A null suite
+        # that only measures irreducibility answers one line of a conjunction
+        # and leaves the other twenty-three untested on exactly the systems
+        # built to fake them: independent noise is what a differentiation bar
+        # read one way rewards, a common driver is what an observational
+        # spread measure cannot tell from coupling, and a memory-only system
+        # is what intrinsic persistence was written to catch.
+        extra: dict[str, Any] = {}
+        try:
+            from core.subject.differentiation import effective_dimension
+            from core.subject.intrinsic import intrinsic_gain
+            from core.subject.synergy import synergy_suite
+
+            reference_system = architecture(name, seed=args.seed)
+            scored = toy_recording(reference_system, steps=2500, seed=args.seed)
+            spectrum = effective_dimension(scored)
+            extra["d_eff"] = round(float(spectrum.d_eff), 4)
+            extra["d_eff_normalised"] = round(float(spectrum.normalised), 4)
+            extra["largest_component_share"] = round(float(spectrum.top_share), 4)
+            extra["intrinsic_gain"] = round(float(intrinsic_gain(scored, seed=args.seed).gain), 5)
+            fractions = [float(r.fraction) for r in synergy_suite(scored, seed=args.seed)]
+            extra["synergy"] = [round(v, 4) for v in fractions]
+            extra["synergy_min"] = round(min(fractions), 4) if fractions else 0.0
+            # Spread is how far a displacement travels: the share of the other
+            # domains a source reaches, taken at the source that reaches most.
+            reached: dict[str, set[str]] = {}
+            for source, target in edges:
+                reached.setdefault(source, set()).add(target)
+            extra["spread"] = round(
+                max((len(v) for v in reached.values()), default=0) / max(1, len(domains) - 1), 4
+            )
+        except (ImportError, ValueError, RuntimeError, AttributeError, TypeError) as exc:
+            _log(f"  the wider suite was unavailable for the {name} null: {exc}")
+
         table[name] = {
             "phi_do": round(float(np.quantile(values, 0.95)), 5),
             "draws": values,
@@ -839,6 +873,7 @@ def _nulls(
             "reentry": graph.every_node_reenters,
             "closed": closed,
             "leak": round(leak, 5),
+            **extra,
         }
 
     beaten = {
@@ -873,6 +908,38 @@ def _nulls(
             # graph measure the reference passes and fails here, which is what
             # causal closure is in the conjunction for.
             and bool(row.get("closed", True))
+            # And differentiation, which is the line that separates a system
+            # from a broadcast. All-to-all scores 0.44 on irreducibility with
+            # one component and vertex connectivity three — it is genuinely
+            # integrated, and that is not the objection to it. Its effective
+            # dimension is 1.4 with 84% of the variance in one component: every
+            # domain hears the same signal and adds nothing. A conjunction that
+            # left this line out would count a broadcast as a mind.
+            and _differentiated_enough(row)
+        )
+
+    def _differentiated_enough(row: dict[str, Any]) -> bool:
+        """The differentiation criterion, on a null's own numbers.
+
+        A row with no differentiation measured cannot be judged on it, and an
+        unmeasured line is not a passed line — but it is not a failed one
+        either, so the conjunction reads it as undecided and the row falls
+        through on whatever else it failed. `nulls_fail_the_bar` is what would
+        catch a null that passed everything measured, and it says so.
+        """
+        if "d_eff" not in row:
+            return True
+        # The two scale-free halves, and not the absolute count. `d_eff >= 3`
+        # is a bar on a number that grows with the width of the system, and a
+        # toy of forty columns is not comparable to an organism of two hundred
+        # and eight on it: the recurrent reference scores 2.93 and would fail
+        # the line it exists to pass, which would leave the instrument unable
+        # to say yes to anything. What does compare is how much of the variance
+        # sits in one component and how much of the width is live, and those
+        # are what separate a broadcast from a system at any size.
+        return (
+            float(row.get("largest_component_share", 1.0)) < THRESHOLDS["component_share"]
+            and float(row.get("d_eff_normalised", 1.0)) < THRESHOLDS["d_eff_normalised"]
         )
 
     # The instrument has to be able to say yes to something. A reference

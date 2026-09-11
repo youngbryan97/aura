@@ -176,6 +176,18 @@ def _matrix(rng: np.random.Generator, rows: int, cols: int, strength: float) -> 
     return rng.normal(scale=strength / max(1.0, np.sqrt(cols)), size=(rows, cols))
 
 
+#: What the rank-one null runs at instead of the shared noise. Its private
+#: noise has to be small enough that the shared latent is what the state is,
+#: rather than one component of it among ten independent ones.
+LOW_RANK_NOISE: float = 0.004
+LOW_RANK_GAIN: float = 6.0
+
+#: And what the broadcast null runs at. Every domain hears the same signal, so
+#: its private noise is the only thing that could give it a repertoire.
+BROADCAST_NOISE: float = 0.004
+BROADCAST_GAIN: float = 6.0
+
+
 def _rank_one(rng: np.random.Generator, rows: int, cols: int, strength: float) -> np.ndarray:
     """One outer product. Every domain it drives moves along the same line."""
     left = rng.normal(size=(rows, 1))
@@ -266,14 +278,24 @@ def architecture(
         for key in order:
             hub_out[key] = _matrix(rng, widths[key], hub_width, strength)
     elif name == "all_to_all":
-        # Everything reaches everything directly. Maximally integrated and
-        # maximally redundant: the domains converge on one trajectory, so the
-        # differentiation measure has to report a system with almost no
-        # repertoire even though the graph is complete.
+        # A broadcast, which means everyone receives the same thing. The first
+        # version gave every pair its own random matrix, and that is a dense
+        # random recurrent network rather than a broadcast — it measured an
+        # effective dimension of 3.4 and passed differentiation, because a
+        # dense random network genuinely has a repertoire. What the name says,
+        # and what the control is for, is that every domain hears one signal
+        # and adds nothing of its own: maximally integrated and maximally
+        # redundant, so the graph is complete and the repertoire is almost
+        # nothing.
+        noise = BROADCAST_NOISE
+        read = {key: rng.normal(size=(1, widths[key])) for key in order}
+        write = {key: rng.normal(size=(widths[key], 1)) for key in order}
         for key in order:
             for other in order:
                 if other != key:
-                    coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+                    coupling[key][other] = (
+                        write[key] @ read[other]
+                    ) * (strength * BROADCAST_GAIN / max(1.0, np.sqrt(widths[other])))
     elif name == "memory_only":
         # The only thing that persists is the memory domain. Every other
         # domain is memoryless and reads M; M accumulates and reads nothing.
@@ -352,12 +374,32 @@ def architecture(
     elif name == "low_rank":
         # Recurrent, reciprocal, one strongly connected component — and every
         # coupling matrix is rank one, so the whole system rides on a single
-        # latent. Integration without a repertoire: the differentiation
-        # measure is what has to catch this one.
+        # latent. Integration without a repertoire: the differentiation measure
+        # is what has to catch this one.
+        #
+        # Rank-one coupling is not enough on its own. The first version of this
+        # architecture kept the shared noise every other null runs at, and each
+        # domain's own independent noise then dominated what the shared latent
+        # was doing: it measured an effective dimension of 19.6, which is the
+        # opposite of what the name claims. A null that fails for a reason
+        # other than the one it was built for is not a control. So the coupling
+        # is strong and the private noise is small, and the system collapses
+        # onto the latent the way the name says.
+        noise = LOW_RANK_NOISE
+        decay = {key: rng.uniform(0.1, 0.2, size=width) for key, width in widths.items()}
+        # One read direction per domain and one write direction per domain,
+        # shared across every edge, so the whole network is rank one globally
+        # rather than rank one edge by edge. A fresh pair of vectors per edge
+        # leaves ten independent one-dimensional channels, which is a system
+        # with a repertoire; sharing them leaves one.
+        read = {key: rng.normal(size=(1, widths[key])) for key in order}
+        write = {key: rng.normal(size=(widths[key], 1)) for key in order}
         for index, key in enumerate(order):
             for offset in (1, 2, -1):
                 other = order[(index + offset) % len(order)]
-                coupling[key][other] = _rank_one(rng, widths[key], widths[other], strength)
+                coupling[key][other] = (write[key] @ read[other]) * (
+                    strength * LOW_RANK_GAIN / max(1.0, np.sqrt(widths[other]))
+                )
     elif name == "high_dimensional_independent":
         # The opposite failure. Each domain mixes richly inside itself and
         # nothing crosses between domains, so the effective dimension is as

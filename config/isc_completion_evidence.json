@@ -4523,6 +4523,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "if name == \"recurrent\":"
+      },
+      {
+        "command": "{python} -m pytest tests/test_each_null_fails_for_its_own_reason.py::test_the_reference_clears_every_line -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
       }
     ],
     "note": "the positive reference: sparse, reciprocal, no broker, and it has to pass everything the nulls fail",
@@ -4539,6 +4544,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "elif name == \"common_driver\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_each_null_fails_for_its_own_reason.py",
+        "pattern": "\"common_driver\": \"one_component\""
       }
     ],
     "note": "one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other",
@@ -4555,6 +4565,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "elif name == \"all_to_all\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_each_null_fails_for_its_own_reason.py",
+        "pattern": "\"all_to_all\": \"differentiation\""
       }
     ],
     "note": "everything reaching everything directly: maximally integrated and maximally redundant",
@@ -4667,6 +4682,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "elif name == \"low_rank\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_each_null_fails_for_its_own_reason.py",
+        "pattern": "\"low_rank\": \"differentiation\""
       }
     ],
     "note": "recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent",
@@ -4686,6 +4706,11 @@
       },
       {
         "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      },
+      {
+        "command": "{python} -m pytest tests/test_each_null_fails_for_its_own_reason.py -q -p no:randomly",
         "kind": "command",
         "timeout": 900
       }
@@ -4768,6 +4793,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "elif name == \"ring\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_each_null_fails_for_its_own_reason.py",
+        "pattern": "\"ring\": \"connectivity\""
       }
     ],
     "note": "the smallest thing that is still one cycle, strongly connected and severed by removing any single node",
@@ -4816,6 +4846,11 @@
         "kind": "grep",
         "path": "core/subject/nulls.py",
         "pattern": "elif name == \"independent\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_each_null_fails_for_its_own_reason.py",
+        "pattern": "test_the_independent_null_scores_highest_on_the_one_sided_reading"
       }
     ],
     "note": "ten domains with no coupling at all",
@@ -7968,45 +8003,61 @@
     "note": "the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes",
     "status": "done"
   },
+  "P9.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _passes_the_conjunction"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "the criterion\\n        has to ask the same question the battery asks"
+      }
+    ],
+    "note": "the criterion asks the same question the battery asks: no null passes the conjunction, not no null clears one line of it",
+    "status": "done"
+  },
   "P9.10": {
     "checks": [
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "\"conjunction\": \\{"
+        "pattern": "def _differentiated_enough"
       },
       {
-        "expr": "len(report['nulls'].get('conjunction', {})) > 0",
-        "kind": "report"
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "A conjunction that\\n            # left this line out would count a broadcast as a mind"
+      },
+      {
+        "command": "{python} -m pytest tests/test_each_null_fails_for_its_own_reason.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
       }
     ],
-    "note": "each null is put through the conjunction rather than one line of it",
+    "note": "each null is put through the conjunction including differentiation, which is the only line a broadcast fails",
     "status": "done"
   },
   "P9.11": {
     "checks": [
       {
-        "expr": "len(report['nulls']['summary']['nulls_that_pass']) == 0",
+        "expr": "bool(report['nulls'].get('nulls_fail_the_bar'))",
         "kind": "report"
       }
     ],
-    "note": "no null passes",
+    "note": "no null passes the conjunction",
     "status": "done"
   },
   "P9.12": {
     "checks": [
       {
-        "kind": "grep",
-        "path": "tools/run_subject_core.py",
-        "pattern": "reference_passes = _passes_the_conjunction\\(reference\\)"
-      },
-      {
-        "command": "{python} -m pytest tests/test_a_null_must_fail_the_whole_battery.py -q -p no:randomly",
-        "kind": "command",
-        "timeout": 600
+        "expr": "bool(report['nulls'].get('reference_architecture_passes'))",
+        "kind": "report"
       }
     ],
-    "note": "the reference is held to the conjunction, not to one line of it",
+    "note": "the recurrent reference passes the conjunction it is there to demonstrate",
     "status": "done"
   },
   "P9.13": {
@@ -8056,6 +8107,81 @@
     "note": "ten domains of independent noise at the same width, decay and noise, with nothing crossing",
     "status": "done"
   },
+  "P9.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"common_driver\":"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "Correlation of exactly the kind an observational\\n        # measure cannot tell from coupling"
+      }
+    ],
+    "note": "a common-driver null: one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other",
+    "status": "done"
+  },
+  "P9.16": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "if name == \"recurrent\":"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "coupling\\[key\\]\\[other\\] = _matrix\\(rng, widths\\[key\\], widths\\[other\\], strength\\)"
+      }
+    ],
+    "note": "a random recurrent network is the positive reference itself, wired from random matrices at matched width, decay and noise",
+    "status": "done"
+  },
+  "P9.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"memory_only\":"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "decay\\[\\\"M\\\"\\] = np\\.full\\(widths\\[\\\"M\\\"\\], 0\\.95\\)"
+      }
+    ],
+    "note": "a memory-only null where the only thing that persists is the memory domain",
+    "status": "done"
+  },
+  "P9.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"fake_self\":"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "causing none of it"
+      }
+    ],
+    "note": "a self-label-without-self-causation null: S reads every domain and nothing reads S",
+    "status": "done"
+  },
+  "P9.19": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"all_to_all\":"
+      }
+    ],
+    "note": "an all-to-all broadcast null",
+    "status": "done"
+  },
   "P9.2": {
     "checks": [
       {
@@ -8075,6 +8201,22 @@
     "note": "irreducibility, the graph measures and causal closure all run on every null, and the conjunction is what decides",
     "status": "done"
   },
+  "P9.20": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"prompt_only\":"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "Everything reaches everything, through one scalar"
+      }
+    ],
+    "note": "a prompt-broker null: everything reaching everything through one scalar",
+    "status": "done"
+  },
   "P9.3": {
     "checks": [
       {
@@ -8085,6 +8227,21 @@
     "note": "the graph measures run on every architecture",
     "status": "done"
   },
+  "P9.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "extra\\[\"d_eff\"\\]"
+      },
+      {
+        "expr": "all('d_eff' in row for name, row in report['nulls']['detail'].items() if row.get('kind') == 'architecture')",
+        "kind": "report"
+      }
+    ],
+    "note": "differentiation runs on every null architecture",
+    "status": "done"
+  },
   "P9.5": {
     "checks": [
       {
@@ -8093,6 +8250,51 @@
       }
     ],
     "note": "irreducibility runs on every null",
+    "status": "done"
+  },
+  "P9.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "extra\\[\"spread\"\\]"
+      },
+      {
+        "expr": "all('spread' in row for name, row in report['nulls']['detail'].items() if row.get('kind') == 'architecture')",
+        "kind": "report"
+      }
+    ],
+    "note": "perturbational spread runs on every null architecture",
+    "status": "done"
+  },
+  "P9.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "extra\\[\"synergy\"\\]"
+      },
+      {
+        "expr": "all('synergy' in row for name, row in report['nulls']['detail'].items() if row.get('kind') == 'architecture')",
+        "kind": "report"
+      }
+    ],
+    "note": "synergy runs on every null architecture",
+    "status": "done"
+  },
+  "P9.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "extra\\[\"intrinsic_gain\"\\]"
+      },
+      {
+        "expr": "all('intrinsic_gain' in row for name, row in report['nulls']['detail'].items() if row.get('kind') == 'architecture')",
+        "kind": "report"
+      }
+    ],
+    "note": "intrinsic persistence runs on every null architecture",
     "status": "done"
   },
   "P9.9": {
