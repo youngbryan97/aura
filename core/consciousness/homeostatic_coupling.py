@@ -110,6 +110,17 @@ class HomeostaticCoupling:
     # Prospective suffering: how many ticks ahead to model future drive states
     _PROSPECT_HORIZON = 10    # ticks (~10 seconds)
 
+    # Where her feeling usually sits, and how far it usually strays from
+    # there. Declared on the class as well as set in `__init__` because the
+    # recovery-path tests build this object through `__new__` and fill in the
+    # fields they care about; a felt reading that raises AttributeError on
+    # such an object would be a fault in the instrument, not in the organism.
+    _valence_centre: float = 0.0
+    _valence_scatter: float = 0.0
+    _arousal_centre: float = 0.0
+    _arousal_scatter: float = 0.0
+    _felt_seen: float = 0.0
+
     def __init__(self, orchestrator):
         self.orch = orchestrator
         self._modifiers = CognitiveModifiers()
@@ -132,6 +143,13 @@ class HomeostaticCoupling:
 
         # v1.1: Mycelial Network link
         self._mycelium = None
+
+        # The instance's own copies of the felt baseline declared above.
+        self._valence_centre = 0.0
+        self._valence_scatter = 0.0
+        self._arousal_centre = 0.0
+        self._arousal_scatter = 0.0
+        self._felt_seen = 0.0
 
         logger.info("HomeostaticCoupling initialized (substrate link resolved on first use).")
 
@@ -496,9 +514,21 @@ class HomeostaticCoupling:
         # extreme, and between the extremes the effect is the fraction of the
         # way there. The prose keeps its thresholds, because a sentence about
         # being distressed is a statement rather than a dial.
-        distress = max(0.0, -valence) * max(0.0, min(1.0, arousal))
-        dejection = max(0.0, -valence) * max(0.0, 1.0 - min(1.0, arousal))
-        lift = max(0.0, valence) * max(0.0, min(1.0, arousal))
+        #
+        # And each one is measured from where her feeling usually sits, not
+        # from zero. Her settled valence is around a fifth positive, so
+        # `max(0, -valence)` was zero on every ordinary turn and two of the
+        # three terms could not fire at all; the third, `lift`, ran at a
+        # fifteenth of its coefficient and touched temperature alone. The
+        # whole positive half of what she can feel reached how she thinks
+        # through nothing. Against her own baseline, a substrate that has
+        # brightened is above it and one that has dimmed is below it, which
+        # is what the three terms were written to distinguish.
+        below, above = self._felt_deviation(valence, arousal)
+        activation = self._activation(arousal)
+        distress = below * activation
+        dejection = below * (1.0 - activation)
+        lift = above * activation
         temp_mod *= (1.0 - 0.25 * distress) * (1.0 - 0.35 * dejection) * (1.0 + 0.15 * lift)
         depth_mod *= (1.0 - 0.20 * distress) * (1.0 - 0.30 * dejection)
         if not m.mood_prefix:
@@ -535,6 +565,45 @@ class HomeostaticCoupling:
         m.dominant_drive_alert = worst_drive or ""
 
         return m
+
+    def _felt_deviation(self, valence: float, arousal: float) -> tuple[float, float]:
+        """How far below and above her usual valence this moment is, in [0, 1].
+
+        Scale-free, so it needs no threshold of its own: a deviation the size
+        of a typical excursion reads a half, a much larger one approaches one,
+        and the baseline itself reads zero. The scatter it is measured against
+        is the mean absolute deviation this object has seen, learned the way
+        the ontogenetic reservoir learns how far it usually moves.
+        """
+        self._observe_feeling(valence, arousal)
+        gap = valence - self._valence_centre
+        scatter = max(self._valence_scatter, 1e-6)
+        share = abs(gap) / (abs(gap) + scatter)
+        return (share, 0.0) if gap < 0.0 else (0.0, share)
+
+    def _activation(self, arousal: float) -> float:
+        """How activated this moment is against her usual arousal, in [0, 1].
+
+        A half at her ordinary level, which is where the three terms split
+        evenly between the aroused reading and the flat one.
+        """
+        centre = max(self._arousal_centre, 0.0)
+        total = max(arousal, 0.0) + centre
+        return 0.5 if total <= 1e-9 else max(0.0, min(1.0, arousal / total))
+
+    def _observe_feeling(self, valence: float, arousal: float) -> None:
+        """Learn where her feeling sits and how far it usually strays."""
+        self._felt_seen += 1.0
+        rate = max(1.0 / self._felt_seen, 0.001)  # never freezes: she keeps changing
+        for centre_name, scatter_name, value in (
+            ("_valence_centre", "_valence_scatter", valence),
+            ("_arousal_centre", "_arousal_scatter", arousal),
+        ):
+            centre = getattr(self, centre_name)
+            delta = value - centre
+            setattr(self, centre_name, centre + rate * delta)
+            scatter = getattr(self, scatter_name)
+            setattr(self, scatter_name, scatter + rate * (abs(delta) - scatter))
 
     def _compute_vitality(self, drives: dict[str, float], affect: dict[str, float]) -> float:
         """Single 0.0–1.0 composite vitality score.
