@@ -250,7 +250,13 @@ def build_candidates(state: Any) -> list[Any]:
     # intention is projected into both `active_goals` and
     # `pending_initiatives`, and bid twice it competes with itself.
     spoken: set[str] = set()
-    for goal in goals[-2:]:
+    # The two that are asking hardest, not the two that happen to be last in
+    # the list. Position in `active_goals` is the order things were written,
+    # and a goal appended this turn because a need just became pressing sat at
+    # the end behind five older ones — so the slice read whichever two the
+    # bookkeeping had left there. An intention's claim on attention is what it
+    # states, and that is what decides which two get to make it.
+    for goal in sorted(goals, key=_goal_priority, reverse=True)[:2]:
         # `priority` is what the goal engine writes; `urgency` is what this bid
         # read, and no producer in the tree has ever written it. So every real
         # goal bid zero and deliberation never once reached the workspace. A

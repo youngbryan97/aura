@@ -271,7 +271,16 @@ class ExecutiveAuthority:
                 if not isinstance(item, dict):
                     continue
                 if _normalize_text(item.get("goal", "")) == goal:
-                    item["urgency"] = max(float(item.get("urgency", 0.0) or 0.0), _clamp01(urgency))
+                    # What it is asking for now, not the loudest it has ever
+                    # asked. This was a max, so an intention's claim on
+                    # attention could only ratchet up: the motivation phase
+                    # reproposes the same goal for the same drive every turn it
+                    # runs, and once a need had been at its most depleted it
+                    # went on pressing at that level after it was met. The one
+                    # number deliberation writes into the workspace was latched
+                    # at its own maximum, and a displacement that lowered it
+                    # reached nothing.
+                    item["urgency"] = _clamp01(urgency)
                     item["timestamp"] = now
                     item["source"] = item.get("source") or source
                     item.setdefault("triggered_by", triggered_by or source)

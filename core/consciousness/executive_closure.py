@@ -24,6 +24,32 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ExecutiveClosure")
 
+
+def _stated_urgency(goal: Any) -> float:
+    """What a goal says it is asking to be thought about now.
+
+    The same rule the workspace prices a deliberation bid by, so the goals
+    kept here are the goals that would have competed. A goal that states
+    nothing has made no claim and sits at neutral.
+    """
+    if not isinstance(goal, dict):
+        return 0.5
+    stated = goal.get("urgency")
+    if stated is None:
+        return 0.5
+    if isinstance(stated, str):
+        named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
+        return named.get(stated.strip().lower(), 0.5)
+    try:
+        return max(0.0, min(1.0, float(stated)))
+    except (TypeError, ValueError):
+        return 0.5
+
+
+def _by_pressure(goals: list[Any]) -> list[Any]:
+    """Hardest-pressing first, ties in the order they were written."""
+    return sorted(goals, key=_stated_urgency, reverse=True)
+
 _EXECUTIVE_CLOSURE_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -684,6 +710,7 @@ class ExecutiveClosureEngine:
         persist_selected: bool = True,
         pressure: float = 0.0,
     ) -> int:
+        head: list[Any] = []
         active = [
             goal
             for goal in list(getattr(state.cognition, "active_goals", []) or [])
@@ -715,8 +742,16 @@ class ExecutiveClosureEngine:
                 "timestamp": time.time(),
             }
             if not any(goal.get("description") == selected_objective for goal in active if isinstance(goal, dict)):
-                active.insert(0, record)
-        state.cognition.active_goals = active[:5]
+                head = [record]
+        # Five goals, and the five that are pressing hardest. This was
+        # `active[:5]` over a list in the order things had been written to it,
+        # so an intention formed this turn because a need had just become
+        # urgent was dropped in favour of five older ones that were not. What
+        # is kept is what each one states it is asking for; the objective
+        # executive closure has just chosen keeps its place at the head,
+        # because dropping the decision this method exists to record would be
+        # a different defect.
+        state.cognition.active_goals = (head + _by_pressure(active))[:5]
         return len(getattr(state.cognition, "active_goals", []) or [])
 
     async def _get_homeostasis_status(self, *, warmup: bool = False) -> dict[str, float]:
