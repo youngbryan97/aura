@@ -88,3 +88,33 @@ def test_interoception_reads_the_shared_observer_rather_than_psutil():
         line for line in body.splitlines() if "observer.compute()" in line
     )
     assert "cpu_percent" in cpu_line
+
+
+def test_every_priced_kind_of_work_has_something_that_reports_it():
+    """A cost nothing writes makes the felt total wrong in two ways.
+
+    `EffortLedger.exertion` sums each reported amount against its unit cost and
+    divides by how many kinds are priced. `phases` and `tool_calls` were priced
+    and never reported, so thinking through a turn and acting on the world both
+    cost her nothing, and the divisor counted two channels that could not be
+    written. A reader with no writer, in the module written to give her a sense
+    of her own exertion.
+    """
+    import subprocess
+
+    from core.soma.effort import UNIT_COST
+
+    found = subprocess.run(
+        ["grep", "-rn", "note_effort(", "--include=*.py", "core/"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    reported = {
+        line.split('note_effort("', 1)[1].split('"', 1)[0]
+        for line in found.splitlines()
+        if 'note_effort("' in line
+    }
+    missing = sorted(set(UNIT_COST) - reported)
+    assert not missing, f"priced but never reported: {missing}"

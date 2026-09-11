@@ -51,13 +51,47 @@ def test_a_faint_percept_does_not_bid_at_all():
     assert not any(bid.source == "perception" for bid in build_candidates(state))
 
 
-def test_the_feeling_carries_arousal_as_its_affect_weight():
+def test_the_feeling_carries_its_own_charge_not_the_moment_s_arousal():
+    """`priority_at` adds three tenths of the affect weight to a bid's claim.
+
+    The weight used to be the moment's global arousal — a quantity belonging to
+    the whole moment, handed to one competitor as a private advantage that no
+    other domain could earn. Affect won ninety-six competitions in a hundred
+    because of it, so attention was `affect_*` whatever else was happening and
+    the action chosen by what she was attending to was the same every turn.
+
+    A bid's affect weight is a property of that bid: how far this feeling is
+    above where it usually sits.
+    """
     state = AuraState.default()
     state.affect.arousal = 0.9
     state.affect.emotions["fear"] = 0.8
+    state.affect.mood_baselines["fear"] = 0.3
     feeling = next(bid for bid in build_candidates(state) if bid.source.startswith("affect_"))
     assert feeling.source == "affect_fear"
-    assert feeling.affect_weight == pytest.approx(0.9)
+    assert feeling.priority == pytest.approx(0.8)
+    assert feeling.affect_weight == pytest.approx(0.5)
+
+
+def test_a_feeling_at_its_own_baseline_carries_no_charge():
+    state = AuraState.default()
+    state.affect.arousal = 0.9
+    state.affect.emotions["fear"] = 0.4
+    state.affect.mood_baselines["fear"] = 0.4
+    feeling = next(bid for bid in build_candidates(state) if bid.source.startswith("affect_"))
+    assert feeling.affect_weight == pytest.approx(0.0)
+
+
+def test_no_other_bid_claims_an_affect_weight():
+    """The bonus must be earned by the content, not by being the affect bid."""
+    state = AuraState.default()
+    state.affect.emotions["fear"] = 0.8
+    state.world.recent_percepts.append(
+        {"source": "chat", "content": "someone spoke", "salience": 0.62, "timestamp": time.time()}
+    )
+    for bid in build_candidates(state):
+        if not bid.source.startswith("affect_"):
+            assert bid.affect_weight == pytest.approx(0.0), bid.source
 
 
 def test_the_memory_bid_is_a_recollection_not_the_turn_just_finished():

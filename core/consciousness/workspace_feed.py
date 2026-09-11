@@ -160,16 +160,25 @@ def build_candidates(state: Any) -> list[Any]:
             name = max(emotions, key=lambda key: _clamp(emotions[key]))
             intensity = _clamp(emotions[name])
             if intensity > FLOOR:
+                # How far this feeling is above where it usually sits, which is
+                # a property of the bid. It was the moment's global arousal —
+                # and `priority_at` adds three tenths of the affect weight to
+                # every candidate's claim, so a quantity belonging to the whole
+                # moment became one competitor's private advantage. Nothing
+                # else in the tree sets the field, so affect carried a bonus no
+                # other domain could earn and won the competition on ninety-six
+                # turns in a hundred: attention was `affect_*` whatever else
+                # was happening, and the action chosen by what she was
+                # attending to was the same action every turn.
+                baselines = getattr(affect, "mood_baselines", {}) or {}
+                charge = _clamp(intensity - _clamp(baselines.get(name, 0.0)))
                 bids.append(
                     CognitiveCandidate(
                         content=f"feeling {name}",
                         source=f"affect_{name}",
                         priority=intensity,
                         content_type=ContentType.AFFECTIVE,
-                        # The affect weight the competition was designed around
-                        # and almost never received: arousal is how urgent a
-                        # feeling is, which is exactly what this field is for.
-                        affect_weight=_clamp(getattr(affect, "arousal", 0.0)),
+                        affect_weight=charge,
                     )
                 )
 

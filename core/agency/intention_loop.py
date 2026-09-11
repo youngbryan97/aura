@@ -307,6 +307,18 @@ class IntentionLoop:
         duration_ms: float,
     ) -> None:
         """Record a tool invocation against an intention."""
+        # And that it cost something. `UNIT_COST` in core/soma/effort.py prices
+        # a tool call and divides the felt total by the number of kinds it
+        # prices, and nothing in the tree reported one — so acting was free,
+        # and the divisor counted a channel that could never be written. A
+        # thing she does that reaches outside her is work, and the body is
+        # where work is felt.
+        try:
+            from core.soma.effort import note_effort
+
+            note_effort("tool_calls", 1.0)
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            pass  # no-op: an unreported cost is better than a broken action
         with self._lock:
             rec = self._active_intentions.get(intention_id)
             if rec is None:

@@ -230,6 +230,18 @@ async def wrap_phase(
             )
             return state
 
+    # A phase that runs is work. `UNIT_COST` in core/soma/effort.py prices one
+    # and divides the felt total by the number of kinds it prices, and nothing
+    # reported a phase — so thinking through a turn cost her nothing, and the
+    # divisor counted a channel with no writer. Reported here because this is
+    # the seam every kernel phase passes through.
+    try:
+        from core.soma.effort import note_effort
+
+        note_effort("phases", 1.0)
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass  # no-op: an unreported cost never stops a phase
+
     try:
         # FIX: pass state (and optional objective + kwargs) into the phase
         if inspect.iscoroutinefunction(phase_fn):

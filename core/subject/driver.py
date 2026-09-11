@@ -44,6 +44,7 @@ from typing import Any, ClassVar
 import numpy as np
 
 from core.subject.clock import real_time
+from core.soma.effort import note_effort
 from core.subject.steppable import Steps, missing_entry_points, step_once
 from core.subject.state import (
     FAST_DOMAINS,
@@ -1545,6 +1546,11 @@ class SubjectRuntime:
         await capture("open")
         for phase in self.kernel._phases:
             name = phase.__class__.__name__
+            # The same cost the production seam reports. This driver runs the
+            # phases directly rather than through `wrap_phase`, so without this
+            # a turn here cost her nothing where a turn in the runtime costs
+            # her thirty phases of work.
+            note_effort("phases", 1.0)
             try:
                 result = await asyncio.wait_for(
                     phase.execute(self.state, objective=condition.objective),
