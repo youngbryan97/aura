@@ -60,6 +60,7 @@ from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from core.runtime.the_laboratory import seeded_generator
 
 logger = logging.getLogger("Consciousness.ALifeExtensions")
 
@@ -198,7 +199,7 @@ class PatternReplicator:
         self._n_columns = n_columns
         self._torus = torus or ToroidalTopology(n_columns)
         self._lock = threading.Lock()
-        self._rng = np.random.default_rng()
+        self._rng = seeded_generator("alife")
 
         # Per-column 4-bit markers (0-15).  Initialized randomly.
         self._markers = self._rng.integers(0, 16, size=n_columns).astype(np.int8)
@@ -474,7 +475,7 @@ class ColumnSpeciation:
         self._n_columns = n_columns
         self._n_dims = n_specialization_dims
         self._lock = threading.Lock()
-        self._rng = np.random.default_rng()
+        self._rng = seeded_generator("alife")
 
         # Current species assignments
         self._species_ids = np.zeros(n_columns, dtype=np.int32)
@@ -508,7 +509,7 @@ class ColumnSpeciation:
             labels:    (n_samples,) int array of cluster assignments.
             centroids: (k, n_features) float array.
         """
-        rng = rng or np.random.default_rng()
+        rng = rng or seeded_generator("alife")
         n = data.shape[0]
         if k >= n:
             return np.arange(n, dtype=np.int32), data.copy()

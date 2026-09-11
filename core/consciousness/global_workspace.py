@@ -21,6 +21,7 @@ from core.runtime.errors import Severity, record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.receipts import WorkspaceGateReceipt, get_receipt_store
 from core.utils.task_tracker import get_task_tracker
+from core.runtime.the_laboratory import seeded
 
 if TYPE_CHECKING:
     from core.resilience.inhibition_manager import InhibitionManager
@@ -331,7 +332,7 @@ class SomaticNoiseInjector:
         max_priority: float | None = None,
         min_ticks_between: int | None = None,
     ) -> None:
-        self.rng = rng or random.Random()
+        self.rng = rng or seeded("global_workspace")
         self.rate = self._bounded_float(
             os.environ.get("AURA_SOMATIC_NOISE_RATE"),
             0.035 if rate is None else rate,

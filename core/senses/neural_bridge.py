@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.the_laboratory import seeded_generator
 
 logger = logging.getLogger("Aura.NeuralBridge")
 
@@ -159,7 +160,7 @@ class NeuralBridge:
         self._worker_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._event_bus = None
-        self._rng = np.random.default_rng()
+        self._rng = seeded_generator("neural_bridge")
         self._lightweight_mode = lightweight_mode
         self._poll_interval_range = (8.0, 18.0) if lightweight_mode else (5.0, 15.0)
         self._consecutive_failures = 0

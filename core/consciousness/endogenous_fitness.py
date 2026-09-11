@@ -36,6 +36,7 @@ Integration:
         result = await ef.evaluate_fitness(genome_params)
 """
 from __future__ import annotations
+from core.runtime.the_laboratory import seeded_generator
 
 __all__ = [
     "EndogenousFitness",
@@ -250,7 +251,7 @@ class BehavioralGenome:
 
     def __init__(self, weights: np.ndarray | None = None,
                  rng: np.random.Generator | None = None):
-        self._rng = rng or np.random.default_rng()
+        self._rng = rng or seeded_generator("endogenous_fitness")
         if weights is not None:
             if weights.shape != (NUM_ACTIONS, STATE_DIM):
                 raise ValueError(
@@ -420,7 +421,7 @@ def _kmeans(data: np.ndarray, k: int, max_iter: int = 50,
     Returns:
         Integer array of cluster labels, shape (n_samples,).
     """
-    rng = rng or np.random.default_rng()
+    rng = rng or seeded_generator("endogenous_fitness")
     n, d = data.shape
     if n <= k:
         return np.arange(n, dtype=np.int32)
@@ -497,7 +498,7 @@ class EndogenousFitness:
 
     def __init__(self, cfg: EndogenousFitnessConfig | None = None):
         self.cfg = cfg or EndogenousFitnessConfig()
-        self._rng = np.random.default_rng()
+        self._rng = seeded_generator("endogenous_fitness")
 
         # Thread-safe lock for all mutable state
         self._lock = threading.Lock()

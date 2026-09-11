@@ -27,6 +27,7 @@ import logging
 import random
 from dataclasses import dataclass
 from enum import Enum
+from core.runtime.the_laboratory import seeded
 
 logger = logging.getLogger("Aura.Voice.Filler")
 
@@ -134,7 +135,7 @@ class FillerReflex:
     """
 
     def __init__(self, rng: random.Random | None = None) -> None:
-        self._rng = rng or random.Random()
+        self._rng = rng or seeded("voice.fillers")
         self._fired: set[int] = set()
         self._cause = ThinkingCause.UNKNOWN
         self._recent: list[str] = []

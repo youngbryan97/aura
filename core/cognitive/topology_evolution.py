@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from core.runtime.the_laboratory import seeded_generator
 
 __all__ = [
     "TopologyEvolution",
@@ -199,7 +200,7 @@ class TopologyEvolution:
 
     def __init__(self, cfg: TopologyConfig | None = None):
         self.cfg = cfg or TopologyConfig()
-        self._rng = np.random.default_rng()
+        self._rng = seeded_generator("topology_evolution")
         self._lock = threading.Lock()
 
         # -- Activation history (ring buffer) --

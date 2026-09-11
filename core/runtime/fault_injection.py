@@ -29,6 +29,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, Union
+from core.runtime.the_laboratory import seeded
 
 logger = logging.getLogger("Aura.FaultInjection")
 
@@ -72,7 +73,7 @@ class FaultInjector:
         self._handlers: Dict[str, FaultHandler] = {}
         self._events: List[FaultEvent] = []
         self._probabilities: Dict[str, float] = {name: 0.0 for name in FAULT_CLASSES}
-        self._rng = rng or random.Random()
+        self._rng = rng or seeded("fault_injection")
 
     # --- configuration -----------------------------------------------------
 

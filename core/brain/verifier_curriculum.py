@@ -51,6 +51,7 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
+from core.runtime.the_laboratory import seeded
 
 logger = logging.getLogger("Aura.VerifierCurriculum")
 
@@ -97,7 +98,7 @@ class VerifierCurriculumLoop:
     """Propose → solve → verify → compound, at the edge of competence."""
 
     def __init__(self, *, rng: random.Random | None = None) -> None:
-        self._rng = rng or random.Random()
+        self._rng = rng or seeded("verifier_curriculum")
         self._last_gap_report: dict[str, Any] | None = None
 
     # ── proposal ─────────────────────────────────────────────────────────

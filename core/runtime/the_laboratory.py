@@ -49,6 +49,7 @@ __all__ = [
     "the_laboratory",
     "now",
     "seeded",
+    "seeded_generator",
     "what_still_reads_the_wall_clock",
 ]
 
@@ -196,16 +197,39 @@ def what_still_reads_the_wall_clock() -> dict[str, int]:
 
 
 def seeded(salt: str = "") -> random.Random:
-    """A generator fixed by the laboratory's seed, or an ordinary one outside.
+    """A generator fixed by the laboratory's seed, or by the process's outside.
 
     Salted per caller so two subsystems drawing from "the seed" do not draw
     the same numbers — which is a bug that looks like a coincidence.
+
+    Outside a laboratory this returned `random.Random()`, which is a generator
+    nothing can seed and nothing can rewind: `random.seed()` did not reach it,
+    and a paired experiment that saves and restores the process generators
+    could not put it back, so two arms started from one state drew different
+    numbers. Drawing the seed from the process generator fixes both — a seeded
+    process makes the run reproducible, and a restored process generator hands
+    the next arm the same stream the last one had.
     """
 
     lab = _ACTIVE
     if lab is None:
-        return random.Random()
+        return random.Random(random.randrange(1 << 62))
     return random.Random(f"{lab.seed}:{salt}")
+
+
+def seeded_generator(salt: str = "") -> Any:
+    """The same contract for numpy's generator.
+
+    Its seed comes from numpy's own legacy global, which is the stream a
+    harness saves beside `random`, so a restored process gives the same
+    generator back.
+    """
+    import numpy as np
+
+    lab = _ACTIVE
+    if lab is None:
+        return np.random.default_rng(int(np.random.randint(0, 1 << 31)))
+    return np.random.default_rng(abs(hash(f"{lab.seed}:{salt}")) % (1 << 31))
 
 
 @contextmanager

@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from core.runtime.errors import record_degradation
 from core.voice.duplex.config import BackchannelConfig
+from core.runtime.the_laboratory import seeded
 
 logger = logging.getLogger("Aura.Voice.Backchannel")
 
@@ -70,7 +71,7 @@ class BackchannelReflex:
 
     def __init__(self, config: BackchannelConfig | None = None, rng: random.Random | None = None) -> None:
         self._config = config or BackchannelConfig()
-        self._rng = rng or random.Random()
+        self._rng = rng or seeded("voice.backchannel")
         self._last_emit_at = 0.0
         self._floor_started_at = 0.0
         self._emitted_this_turn = 0
