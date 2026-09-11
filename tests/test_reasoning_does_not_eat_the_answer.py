@@ -375,12 +375,20 @@ def test_answer_clock_prices_only_the_private_channel_worker_will_open() -> None
     )
     # A generation that actually owns unresolved computation opens the channel
     # and receives this checkpoint's measured reserve.
+    #
+    # The zero is stated rather than defaulted, because it stopped meaning what
+    # it meant when this was written. It read "no deadline, so the time veto
+    # does not apply"; affordability now has one owner, and that owner refuses
+    # a channel it cannot price, so zero reads "no clock". This call site is
+    # the estimate that computes the deadline and therefore cannot be given
+    # one — the case the role question has to answer on its own.
     assert (
         InferenceGate._reasoning_reserve_for_generation(
             model=cortex,
             final_user_surface=True,
             completion_floor=A_CLOSED_QUESTIONS_FLOOR + 1,
             budget_tokens=2048,
+            seconds_remaining=0.0,
         )
         == 1024
     )

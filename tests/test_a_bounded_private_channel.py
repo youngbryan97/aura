@@ -214,6 +214,36 @@ def test_a_budget_too_small_for_both_halves_still_refuses():
     ) is False
 
 
+def test_with_no_clock_the_role_is_answered_and_the_size_is_not():
+    """A deadline is what makes affordability a question at all.
+
+    Every caller that can open a channel states a deadline: the gate floors
+    its request timeout at one second, and the worker reads what is left on
+    the job. One caller cannot — `_time_the_answer_needs` is computing the
+    deadline, so there is none to hand it — and refusing there drops the
+    thinking reserve out of the estimate and under-prices exactly the turns
+    that will think.
+
+    So with no clock this answers the role question and nothing more. It
+    cannot open a channel with the answer: only the worker does that, and the
+    worker sizes through `the_channel_budget_for`, which refuses a channel it
+    cannot price. A budget far too small for both halves is still True here,
+    because without a clock nothing has asked the affordability question.
+    """
+    from core.brain.llm.chat_format import answer_is_derived_for_generation
+
+    assert answer_is_derived_for_generation(
+        completion_floor=1024, budget_tokens=200, seconds_remaining=0.0
+    ) is True
+    # The role question still holds, and still refuses a closed question.
+    assert answer_is_derived_for_generation(
+        completion_floor=16, budget_tokens=4096, seconds_remaining=0.0
+    ) is False
+    # The live consequence is pinned beside the clock that depends on it, in
+    # test_reasoning_does_not_eat_the_answer.py::
+    # test_answer_clock_prices_only_the_private_channel_worker_will_open.
+
+
 def test_the_worker_bounds_the_channel_on_both_generation_paths():
     """One path bounded and one not is the same defect with a longer name."""
     import inspect
