@@ -136,9 +136,12 @@ def build_adaptive_compute_plan(
     foreground_request: bool,
     model_parameter_count: int,
     requested_decode_tokens: int,
+    isolation_steps: int = 1,
 ) -> dict[str, Any]:
     if type(foreground_request) is not bool:
         raise ValueError("foreground_request must be boolean")
+    if type(isolation_steps) is not int or isolation_steps < 1:
+        raise ValueError("isolation_steps must be a positive integer")
     if (
         isinstance(model_parameter_count, bool)
         or not isinstance(model_parameter_count, int)
@@ -179,12 +182,29 @@ def build_adaptive_compute_plan(
     if resident_scale and foreground_request:
         resident_cap = 2 if deadline_s < 105.0 else 3 if deadline_s < 180.0 else 4
         max_steps = min(max_steps, resident_cap)
-    min_steps = min(2, max_steps)
     branches = (1, 2, 2, 3)[level]
     if capacity < 0.3:
         branches = 1
     elif stakes >= 0.75 and level >= 1:
         branches = max(branches, 2)
+    if branches > 1:
+        # A second branch that cannot be integrated is a second branch spent
+        # for nothing. Cross-branch exchange is the only edge in the latent
+        # workspace that runs backwards -- the consensus is written into slot
+        # 0, ahead of the evidence prefix -- and the ensemble blocks it until
+        # every branch has taken its isolation steps. A depth equal to that
+        # isolation therefore leaves the only exchange on the final step,
+        # where the consensus lands in the mailbox and no recurrent step
+        # remains to carry it forward. Swept over this allocator before the
+        # floor existed: 14 of 14 multi-branch allocations had a return that
+        # could not travel, the resident interactive profile included.
+        #
+        # The fix is a step, not a branch. One more window pass over nine
+        # slots and the middle half of a 64-layer decoder is 9 * 32 = 288
+        # layer applications against the 4,719,333 that profile is granted,
+        # which is six thousandths of one percent.
+        max_steps = max(max_steps, isolation_steps + 1)
+    min_steps = min(2, max_steps)
 
     tree_nodes = (2, 3, 5, 8)[level]
     tree_depth = (1, 1, 2, 3)[level]

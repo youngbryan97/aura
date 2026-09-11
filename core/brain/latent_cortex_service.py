@@ -53,6 +53,41 @@ class _ActionSelectionNeverRanError(Exception):
 _GENERAL_LATENT_UNMEASURED_FLOOR_SECONDS = 120.0
 
 
+def _an_interval_a_return_can_travel(config: Mapping[str, Any]) -> int:
+    """The exchange interval, pulled in until a return has somewhere to go.
+
+    An interval at or above the allocated depth leaves the only eligible
+    exchange on the last recurrent step, where the consensus reaches the answer
+    through the persisted cache and no further thinking at all. Pulling it in
+    costs nothing: the exchange spends no layer applications -- it is a mean
+    over the private slots, a softmax over K agreements, and one blend -- so an
+    earlier exchange is the same work at a point where its result can be read.
+    """
+    from core.brain.llm.latent_cortex.branch_exchange import (
+        exchange_steps_a_return_can_travel,
+    )
+    from core.brain.llm.latent_cortex.types import BranchConfig
+
+    interval = int(config.get("exchange_interval", BranchConfig().exchange_interval))
+    branches = int(config.get("n_branches") or 1)
+    if branches <= 1:
+        return interval
+    depth = int(config["max_steps"])
+    isolation = int(config.get("isolation_steps") or 1)
+    pulled = max(1, min(interval, depth - 1))
+    if exchange_steps_a_return_can_travel(
+        n_branches=branches,
+        max_steps=depth,
+        isolation_steps=isolation,
+        exchange_interval=pulled,
+    ):
+        return pulled
+    # Depth, not the interval, is the binding constraint here: the episode
+    # stops at or before the step isolation seals. Leave the interval alone
+    # rather than pretend a shorter one buys anything.
+    return interval
+
+
 def _input_prompt_tokens(messages: list | None, objective: str) -> int:
     """Price the supplied context, retaining the cold-start minimum."""
     from core.brain.memory_guard import estimate_tokens
@@ -1143,8 +1178,10 @@ class LatentCortexService:
             foreground_request=foreground_request,
             model_parameter_count=model_parameter_count,
             requested_decode_tokens=int(config["decode_max_tokens"]),
+            isolation_steps=int(config["isolation_steps"]),
         )
         config, budget = apply_adaptive_compute_plan(config, budget, adaptive_plan)
+        config["exchange_interval"] = _an_interval_a_return_can_travel(config)
         # CP126 8a7e39cc: the coefficients and thresholds below are a fixed
         # heuristic with no model-specific calibration, no uncertainty
         # interval, no control-policy comparison and no safety-outcome
