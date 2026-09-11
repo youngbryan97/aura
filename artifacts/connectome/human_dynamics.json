@@ -1,0 +1,79 @@
+{
+  "held": 1,
+  "of": 4,
+  "usable_fits": true,
+  "avalanches": {
+    "count": 2810,
+    "threshold": 0.0,
+    "active_fraction": 0.0681,
+    "largest": 66,
+    "longest": 45,
+    "mean_size": 3.788
+  },
+  "size_fit": {
+    "alpha": 3.6948,
+    "xmin": 18.0,
+    "n": 2810.0,
+    "tail_n": 85.0,
+    "ks": 0.1422
+  },
+  "duration_fit": {
+    "alpha": 3.7195,
+    "xmin": 16.0,
+    "n": 2810.0,
+    "tail_n": 91.0,
+    "ks": 0.1614
+  },
+  "predicted_crackling": 1.0092,
+  "statistics": [
+    {
+      "name": "avalanche_size_exponent",
+      "human": 1.5,
+      "hers": 3.6948,
+      "miss": 2.1948,
+      "published": 1.5,
+      "tolerance": 0.3,
+      "holds": false,
+      "reason": "2.195 away from 1.500, past the 0.3 allowed",
+      "source": "Beggs & Plenz 2003, J Neurosci 23(35):11167; Shriki et al. 2013, J Neurosci 33(16):7079",
+      "recorded_in": "cortical slice, and resting human MEG"
+    },
+    {
+      "name": "avalanche_duration_exponent",
+      "human": 2.0,
+      "hers": 3.7195,
+      "miss": 1.7195,
+      "published": 2.0,
+      "tolerance": 0.4,
+      "holds": false,
+      "reason": "1.719 away from 2.000, past the 0.4 allowed",
+      "source": "Beggs & Plenz 2003, J Neurosci 23(35):11167",
+      "recorded_in": "cortical slice"
+    },
+    {
+      "name": "crackling_relation",
+      "human": 1.0092,
+      "hers": 1.039,
+      "miss": 0.0299,
+      "published": 0.0,
+      "tolerance": 0.2,
+      "holds": true,
+      "reason": "",
+      "source": "Sethna, Dahmen & Myers 2001, Nature 410:242; Friedman et al. 2012, PRL 108:208102",
+      "recorded_in": "cortical culture, and every critical system in the class"
+    },
+    {
+      "name": "branching_parameter",
+      "human": 0.98,
+      "hers": 0.8833,
+      "miss": 0.0967,
+      "published": 0.98,
+      "tolerance": 0.05,
+      "holds": false,
+      "reason": "0.097 away from 0.980, past the 0.05 allowed",
+      "source": "Wilting & Priesemann 2018, Nat Commun 9:2325",
+      "recorded_in": "in vivo mammalian cortex, by multistep regression"
+    }
+  ],
+  "verdict": "1 of 4 published statistics of cortical activity hold on this trace"
+}

@@ -1,0 +1,60 @@
+{
+  "compared": 30,
+  "agreed": 26,
+  "rate": 0.8667,
+  "both_say_influence": 26,
+  "neither_says_influence": 0,
+  "disagreed": [
+    {
+      "stations": "higher_order -> planning",
+      "domains": "C -> D",
+      "connectome_carries": true,
+      "connectome_gain": 0.0028,
+      "battery_carries": false,
+      "battery_effect": 0.0,
+      "battery_q": 0.113531,
+      "agree": false
+    },
+    {
+      "stations": "higher_order -> interoception",
+      "domains": "C -> I",
+      "connectome_carries": true,
+      "connectome_gain": 0.00354,
+      "battery_carries": false,
+      "battery_effect": 0.0486,
+      "battery_q": 0.570825,
+      "agree": false
+    },
+    {
+      "stations": "planning -> interoception",
+      "domains": "D -> I",
+      "connectome_carries": true,
+      "connectome_gain": 0.00557,
+      "battery_carries": false,
+      "battery_effect": 0.0,
+      "battery_q": 1.0,
+      "agree": false
+    },
+    {
+      "stations": "workspace -> interoception",
+      "domains": "G -> I",
+      "connectome_carries": true,
+      "connectome_gain": 0.00681,
+      "battery_carries": false,
+      "battery_effect": 0.0123,
+      "battery_q": 0.570825,
+      "agree": false
+    }
+  ],
+  "holds": true,
+  "unmatched_stations": [
+    "action"
+  ],
+  "unmatched_domains": [
+    "M",
+    "N",
+    "P",
+    "W"
+  ],
+  "verdict": "26 of 30 ordered pairs are seen the same way by two instruments that share no code, no recording and no null"
+}
