@@ -196,3 +196,27 @@ cause: conversation_history_read exceeded its 1,500 ms wait and discarded the
 result. A read-only query of the 3,002-row conversation database returned the
 requested 600 rows in 9.8 ms outside the live executor. Older history is still
 stored; the saturated read path, not retention, is the remaining defect.
+
+## Retained read ownership and late history merge
+
+The reader now owns one in-flight load per store/principal/surface/session/
+window scope. A caller timeout or cancellation leaves that load intact. A
+later poll consumes its result, retained for 30 seconds; at most 16 scopes
+can be retained, and an in-flight owner cannot be evicted for another read.
+Failures are reported even after the initiating waiter has gone away.
+
+The browser also needed a merge repair. A bootstrap that first restored four
+RAM exchanges ignored older durable rows on subsequent polls. Passive panes
+now prepend missing older exchanges before their first known turn, without
+replacing existing bubbles or adopting an unbound active delivery. Insertion
+happens before pruning, and restored messages render whole without animation.
+
+The delayed-read, scope, UI merge and rendering suites passed 31 tests in
+11.62 seconds before the late-failure reporting test was added. Smoke passed
+164 with one skipped in 191.47 seconds; lint, compile and layering passed.
+A fresh live window on the prior revision restored all 100 exchanges at
+21:47, confirming the reported failure is intermittent rather than data loss.
+These new changes still require deployment and live replay.
+
+The final focused run, including late-failure reporting and both recovery
+ownership cases, passed 34 tests in 15.14 seconds.

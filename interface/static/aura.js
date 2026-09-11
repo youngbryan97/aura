@@ -1536,9 +1536,25 @@ function hydrateRecentConversation(entries) {
     if (!restored.length) return;
 
     if (!transcriptIsEmpty(messages)) {
-        // An active delivery owns its bubbles. Passive windows reconcile only
-        // known durable exchanges, without replacing or replaying the pane.
+        // An active delivery owns its bubbles. A late history read may add
+        // older exchanges before the first known turn without replaying it.
         if (state.isSubmitting || state.activeChatRequest || state.chatSendQueue.length) return;
+        const first = messages.children[0];
+        const anchor = first && first.dataset.historyTurnId;
+        const anchorAt = anchor ? restored.findIndex(item =>
+            item.metadata.historyTurnId === anchor) : -1;
+        if (anchorAt > 0) {
+            const knownIds = new Set(Array.from(messages.children)
+                .map(node => node.dataset.historyTurnId).filter(Boolean));
+            const capacity = Math.max(0, VISIBLE_CHAT_EXCHANGES * 2 - messages.children.length);
+            const older = restored.slice(0, anchorAt).filter(item =>
+                item.metadata.historyTurnId && !knownIds.has(item.metadata.historyTurnId));
+            const prefix = capacity ? older.slice(-capacity) : [];
+            if (prefix[0] && prefix[0].role === 'aura') prefix.shift();
+            for (const item of prefix) {
+                appendMsg(item.role, item.text, false, item.metadata, first);
+            }
+        }
         for (const item of restored) {
             const id = item.metadata.historyTurnId;
             if (item.role !== 'aura' || !id) continue;
@@ -1552,9 +1568,7 @@ function hydrateRecentConversation(entries) {
             // An unbound live bubble belongs to another delivery path. Do not
             // duplicate it while its identity has not reached this snapshot.
             if (successor && !successor.dataset.historyTurnId) continue;
-            appendMsg(item.role, item.text, false, item.metadata);
-            const added = messages.children[messages.children.length - 1];
-            messages.insertBefore(added, successor);
+            appendMsg(item.role, item.text, false, item.metadata, successor);
         }
         updateLanePlaceholder();
         return;
@@ -6121,7 +6135,7 @@ $('chat-form').onsubmit = async e => {
     if (requestPromise) await requestPromise;
 };
 
-async function appendMsg(role, text, isHtml = false, metadata = {}) {
+async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode = null) {
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
@@ -6133,7 +6147,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
     const isAura = role === 'aura';
     const badgeHtml = isAura ? messageBadgeHtml(metadata) : '';
 
-    messages.appendChild(div);
+    messages.insertBefore(div, beforeNode);
     pruneVisibleMessages(messages);
 
     const render = (t) => {
@@ -6236,6 +6250,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
         isAura
         && text.length > 5
         && !isHtml
+        && !metadata.historyTurnId
         && !prefersReducedMotion
         && words.length <= 180
         // requestAnimationFrame does not run while the document is hidden, so a

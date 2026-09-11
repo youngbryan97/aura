@@ -9,9 +9,10 @@ const end = source.indexOf('\nfunction applyVoiceSummary', start);
 assert(start >= 0 && end > start);
 const messages = { children: [], innerHTML: '' };
 const state = { isSubmitting: false, activeChatRequest: null, chatSendQueue: [] };
-const appendMsg = (role, text, html, metadata) => {
+const appendMsg = (role, text, html, metadata, beforeNode = null) => {
     const node = { role, text, dataset: { historyTurnId: metadata.historyTurnId || '', historyRole: role } };
     messages.children.push(node);
+    if (beforeNode) messages.insertBefore(node, beforeNode);
     return node;
 };
 messages.insertBefore = (node, successor) => {
@@ -59,11 +60,37 @@ hydrate([{ id: 'unknown', user: 'early?', aura: 'unrelated' }]);
 assert.equal(messages.children.length, 4);
 assert(!source.includes('hydrateConversationHistory: !state.bootstrapLoaded'));
 
+// A timed-out bootstrap can show RAM history first, then receive older disk rows.
+hydrate([{ id: 'old', user: 'older question', aura: 'older answer' },
+    { id: 'early', user: 'early?', aura: 'early answer' },
+    { id: 'later', user: 'later?', aura: 'later answer' }]);
+assert.deepEqual(messages.children.map(node => node.text),
+    ['older question', 'older answer', 'early?', 'early answer', 'later?', 'later answer']);
+hydrate([{ id: 'old', user: 'older question', aura: 'older answer' },
+    { id: 'early', user: 'early?', aura: 'early answer' }]);
+assert.equal(messages.children.length, 6);
+
+// Never insert older rows ahead of an unbound live delivery or an active reply.
+messages.children[0].dataset.historyTurnId = '';
+hydrate([{ id: 'older', user: 'not yet', aura: 'not yet' },
+    { id: 'early', user: 'early?', aura: 'early answer' }]);
+assert.equal(messages.children.length, 6);
+messages.children[0].dataset.historyTurnId = 'old';
+state.activeChatRequest = {};
+hydrate([{ id: 'older', user: 'not yet', aura: 'not yet' },
+    { id: 'old', user: 'older question', aura: 'older answer' }]);
+assert.equal(messages.children.length, 6);
+state.activeChatRequest = null;
+
 messages.children.length = 0;
 hydrate(Array.from({ length: 110 }, (_, i) => ({ id: String(i), user: `question ${i}`, aura: `answer ${i}` })));
 assert.equal(messages.children.length, 200);
 assert.equal(messages.children[0].text, 'question 10');
 assert.equal(messages.children.at(-1).text, 'answer 109');
+hydrate([{ id: 'older', user: 'too old', aura: 'too old' },
+    { id: '10', user: 'question 10', aura: 'answer 10' }]);
+assert.equal(messages.children.length, 200);
+assert.equal(messages.children[0].text, 'question 10');
 const pruneStart = source.indexOf('function pruneVisibleMessages(');
 const pruneEnd = source.indexOf('\nfunction renderRetryPanel', pruneStart);
 const prune = new Function('VISIBLE_CHAT_EXCHANGES', 'updateLanePlaceholder',
