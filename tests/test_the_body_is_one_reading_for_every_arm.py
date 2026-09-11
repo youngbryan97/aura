@@ -177,3 +177,25 @@ def test_how_hard_she_may_think_reaches_the_state():
     for key in ("creativity_mod", "focus_mod", "overall_vitality", "urgency_flag"):
         assert key in body, key
     assert "cognition" in body and "modifiers" in body
+
+
+def test_energy_is_spent_by_work_and_recovered_by_rest():
+    """Time does not deplete energy, and nothing else did either.
+
+    Every other drive decays with the clock. Energy's stated decay is zero,
+    correctly — what depletes it is work — and in a runtime without the will
+    engine, which is every runtime but the full desktop one, nothing spent it.
+    It sat at capacity for the life of the state, so the branch of the
+    intention assessment that fires on a depleted energy could never fire and
+    the column carrying it was a constant in every recording.
+    """
+    from core.phases.motivation_update import MotivationUpdatePhase
+
+    spend = MotivationUpdatePhase._spend_energy
+    # The pivot is the unremarkable half, which is what the exertion aggregate
+    # returns for an ordinary turn, so neither direction is a threshold chosen
+    # here.
+    assert spend(100.0, 100.0, 1.0) <= 100.0
+    assert spend(50.0, 100.0, 0.0) == pytest.approx(50.0), "no time, no change"
+    assert 0.0 <= spend(0.0, 100.0, 10_000.0) <= 100.0
+    assert 0.0 <= spend(100.0, 100.0, 10_000.0) <= 100.0

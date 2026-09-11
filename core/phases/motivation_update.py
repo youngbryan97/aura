@@ -81,6 +81,8 @@ class MotivationUpdatePhase(Phase):
 
             # Decay: level = current - (decay * dt)
             new_level = max(0.0, min(capacity, level - (effective_decay * dt)))
+            if name == "energy":
+                new_level = self._spend_energy(level, capacity, dt)
             budget["level"] = float(new_level)
 
         # A drive that won the workspace was attended to, and attention
@@ -332,6 +334,44 @@ class MotivationUpdatePhase(Phase):
 
         return None
 
+
+
+    #: What a day of unremitting full-tilt work costs the energy budget. Time
+    #: does not deplete energy — the constants table states its decay as zero,
+    #: correctly — and work does, so the rate here is a statement about work
+    #: rather than about the clock: at full exertion a day empties the budget,
+    #: at the unremarkable half it holds level, and below that it recovers.
+    _ENERGY_PER_DAY_AT_FULL_EXERTION: float = 100.0
+
+    @staticmethod
+    def _spend_energy(level: float, capacity: float, dt: float) -> float:
+        """Energy follows what the work cost, because nothing else moved it.
+
+        Every other drive decays with time. Energy's stated decay is zero, and
+        in a runtime where the will engine is absent — which is every runtime
+        but the full desktop one — that left it pinned at capacity for the life
+        of the state. So the branch of the intention assessment that fires on a
+        depleted energy could never fire, the column that carries it was a
+        constant in every recording, and whatever reads how much she has left
+        to spend was reading a hundred.
+
+        Exertion is the reading: what the last cycle took out of her, with a
+        half meaning an unremarkable turn. Above that she spends, below it she
+        recovers, and the pivot is the same half rather than a threshold chosen
+        here.
+        """
+        exertion = 0.0
+        try:
+            from core.container import ServiceContainer
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            exertion = float(getattr(getattr(current, "soma", None), "exertion", 0.0) or 0.0)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            exertion = 0.0
+        rate = MotivationUpdatePhase._ENERGY_PER_DAY_AT_FULL_EXERTION / 86400.0
+        moved = level - (exertion - 0.5) * 2.0 * rate * capacity * dt / 100.0
+        return max(0.0, min(capacity, moved))
 
     async def _integrate_drives(self, state: AuraState) -> AuraState:
         """Step the drive competition and let its winner ask for attention.
