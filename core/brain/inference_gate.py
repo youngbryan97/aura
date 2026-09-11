@@ -8705,7 +8705,10 @@ class InferenceGate:
                 # producing 0.2s earlier, LIVE 2026-08-29.
                 person_is_waiting=True,
             )
-        except (TimeoutError, asyncio.CancelledError) as exc:
+        except asyncio.CancelledError:
+            # Stop belongs to the whole turn, including its fallback path.
+            raise
+        except TimeoutError as exc:
             record_degradation(
                 "inference_gate.tool_grounded_answer",
                 exc,

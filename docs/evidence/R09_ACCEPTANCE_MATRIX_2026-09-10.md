@@ -116,3 +116,42 @@ The neural feed at 20:39 also showed event-loop lag (1.123 seconds), deferred
 background model admission, a stale circadian refresh, and an unrated
 autonomous refactor refusal. These are not evidence of an R09 delivery loss;
 they remain observations for the runtime-warning and scheduler obligations.
+
+## Repeated-answer live result
+
+Checkpoint `5dae3420b` was applied to the launch checkout and the supported
+restart replaced PID 4082 with PID 10940. The predecessor completed service
+teardown, waited in asyncio runner closure, and exited without forced
+termination. Boot verified workspace
+`1e4d7251003b9edec3175adfadef4271157a51963951cb18a25036ce34d9edae`.
+
+Two consecutive identical desktop requests, "Reply with just OK.", both
+returned `OK`. The DOM retained both answers, each beside its own request.
+Deliveries `aura-chat-32b22782-ce68-4038-94e1-edba6908d8c0` and
+`aura-chat-bbfb9792-e117-4742-b377-c9a07e9cf280` have distinct turns
+`33cdcd953d494664a6aabd5494135fe3` and
+`98dc0ded7be649b4aab4cc78966cea8b`. The second took about 21 seconds.
+This passes repeated-answer delivery on the resident cortex.
+
+The follow-up `d7d916288` separates delivery IDs from saved history exchange
+IDs. They are distinct server namespaces, so the UI must not label a delivery
+as an exchange. The Node regression verifies that separation as well as same
+turn replay, different-turn identical text, draft replacement, and late
+confidence. Ninety-four confidence/runtime regressions passed in 18.59 seconds.
+This follow-up is pushed but not yet loaded by the live window.
+
+## Stop must cover fallback generation
+
+The next reasoning request selected the tool-capable ordinary route, not the
+latent route. Delivery `aura-chat-9c61053a-0277-4b9a-84c4-3ac1e277efcb`
+accepted Stop. Worker job 20 acknowledged at 20:56:40.495, but a new ordinary
+generation started at 20:56:40.707. The desktop did not receive its terminal
+Stop acknowledgement until 20:58:01.
+
+The tool-answer wrapper caught CancelledError with TimeoutError and returned
+None, authorizing ordinary fallback after the owner had stopped. Cancellation
+now propagates separately. The MLX generation entry also checks the existing
+execution owner's stopping token before any worker or client mutation, so
+other fallback callers cannot admit work for a stopped owner. The focused
+tool/client suites passed 113 tests in 31.96 seconds. This is a new live
+cancellation defect with a tested repair; it is not yet a passing live replay.

@@ -74,6 +74,23 @@ def test_a_request_needing_no_capability_never_reaches_the_tool_loop(gate, monke
     assert client.calls == []
 
 
+def test_cancelled_tool_answer_cannot_start_ordinary_fallback(gate, monkeypatch):
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"code_repl": {"name": "code_repl"}},
+    )
+
+    class CancelledClient:
+        async def think_and_act(self, **kwargs):
+            raise asyncio.CancelledError("user_requested_stop")
+
+    with pytest.raises(asyncio.CancelledError, match="user_requested_stop"):
+        _answer(gate, CancelledClient(), "Run Python to compute 2 + 2")
+
+
 def test_runtime_stamped_completed_capability_is_not_executed_twice(gate, monkeypatch):
     from core.utils.injected_blocks import stamp_runtime_payload
 

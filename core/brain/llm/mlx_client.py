@@ -15833,6 +15833,11 @@ class MLXLocalClient:
         died between the alive-check and the queue write, we reboot and
         retry once before giving up.
         """
+        from core.runtime.what_stops_it import current as current_execution
+
+        stopping = current_execution(whose="mlx_generation").stopping
+        if stopping.stopped:
+            raise asyncio.CancelledError(stopping.why or "execution_owner_stopped")
         generation_result_sink = kwargs.pop("_generation_result_sink", None)
         progress_owned_completion = bool(kwargs.pop("_progress_owned_completion", False))
         self._set_task_surface_control_receipt({})
