@@ -247,8 +247,16 @@ def phi_do(
     *,
     condition: str | None = None,
     domains: tuple[str, ...] | None = None,
+    at: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
 ) -> PartitionReport:
-    """The minimum over bipartitions of the loss the cut costs."""
+    """The minimum over bipartitions of the loss the cut costs.
+
+    ``at`` scores one named bipartition instead of searching for the weakest.
+    A lesion needs that: the intact arm and the cut arm each searched for their
+    own cheapest cut, so the difference between their scores was the difference
+    between two minima taken over different partitions, which is not a
+    comparison. Severing a partition is evaluated at that partition.
+    """
     # Every declared domain, not only the ones that moved. A domain that never
     # moves is a domain the system can be cut away from for free, and that is a
     # fact about the system rather than a nuisance in the recording: the
@@ -349,14 +357,20 @@ def phi_do(
         return (loss_cut - loss_full) / loss_cut
 
     cuts: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    index = list(range(len(live)))
-    for size in range(1, len(live) // 2 + 1):
-        for chosen in itertools.combinations(index, size):
-            side_a = tuple(live[i] for i in chosen)
-            side_b = tuple(live[i] for i in index if i not in set(chosen))
-            if size == len(live) - size and side_a > side_b:
-                continue  # each cut once, not twice with the halves swapped
-            cuts.append((side_a, side_b))
+    if at is not None:
+        left = tuple(key for key in live if key in set(at[0]))
+        right = tuple(key for key in live if key not in set(at[0]))
+        if left and right:
+            cuts.append((left, right))
+    if not cuts:
+        index = list(range(len(live)))
+        for size in range(1, len(live) // 2 + 1):
+            for chosen in itertools.combinations(index, size):
+                side_a = tuple(live[i] for i in chosen)
+                side_b = tuple(live[i] for i in index if i not in set(chosen))
+                if size == len(live) - size and side_a > side_b:
+                    continue  # each cut once, not twice with the halves swapped
+                cuts.append((side_a, side_b))
 
     everything = np.ones(len(folds), dtype=bool)
     scores: dict[str, float] = {}

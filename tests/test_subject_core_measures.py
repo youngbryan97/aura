@@ -816,3 +816,36 @@ def test_a_domain_whose_only_movement_is_noise_reports_no_margin():
     sham_b = [_Row([1.0, 1.0])]
     effect, floor, _, _ = _paired_divergence(pert, sham_a, sham_b, unit)
     assert effect["A"] <= floor["A"]
+
+
+def test_a_named_partition_is_the_one_scored():
+    """A lesion of a partition has to be read at that partition.
+
+    Each arm of the lesion searched for its own cheapest cut, so the intact
+    score and the cut score were two minima taken over different partitions and
+    their difference was not a comparison of anything. Measured that way,
+    spread and synergy both fell when the system was cut and both returned when
+    it was restored, while irreducibility moved the wrong way twice — which is
+    what two independent minima over five hundred and eleven noisy estimates
+    will do.
+    """
+    from core.subject.irreducibility import phi_do
+    from core.subject.nulls import architecture, toy_recording
+
+    recording = toy_recording(architecture("recurrent", seed=3), steps=1500, seed=3)
+    named = ("P", "I", "A")
+    scored = phi_do(recording, at=(named, tuple(k for k in DOMAINS if k not in named)))
+    assert scored.best_cut[0] == named
+    # And the search still finds something no worse, which is what makes the
+    # searched score the minimum it claims to be.
+    assert phi_do(recording).phi <= scored.phi + 1e-9
+
+
+def test_an_unknown_partition_falls_back_to_the_search():
+    """A cut naming domains that are not live must not silently score nothing."""
+    from core.subject.irreducibility import phi_do
+    from core.subject.nulls import architecture, toy_recording
+
+    recording = toy_recording(architecture("recurrent", seed=3), steps=1200, seed=3)
+    empty = phi_do(recording, at=((), tuple(DOMAINS)))
+    assert empty.best_cut[0], "an empty side left the report with no cut at all"

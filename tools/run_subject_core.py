@@ -470,6 +470,7 @@ async def _lesion(
     experiment clock makes the two runs the same length of life.
     """
     smaller = min(phi.best_cut, key=len)
+    larger = max(phi.best_cut, key=len)
     left, right = phi.best_cut[0], phi.best_cut[1]
 
     #: The sources perturbational spread is read from in a lesion arm. Three
@@ -497,8 +498,18 @@ async def _lesion(
     def _read(label: str, frames: list[Any], spread: float) -> dict[str, Any]:
         recording = build_recording(frames, notes={"arm": label}).by_turn()
         synergies = [item.normalised for item in synergy_suite(recording, seed=args.seed)]
+        # Scored at the partition the lesion cuts, in every arm.
+        #
+        # Each arm searched for its own cheapest cut, so the intact score and
+        # the cut score were two minima taken over different partitions and the
+        # difference between them was not a comparison of anything. Measured
+        # that way, spread and synergy both fell when the system was cut and
+        # both returned when it was restored, while irreducibility moved the
+        # wrong way twice — which is what two independent minima over five
+        # hundred and eleven noisy estimates will do. Severing a partition is
+        # evaluated at that partition.
         return {
-            "phi_do": phi_do(recording).phi,
+            "phi_do": phi_do(recording, at=(tuple(smaller), tuple(larger))).phi,
             "spread": spread,
             "synergy": float(np.mean(synergies)) if synergies else 0.0,
         }
