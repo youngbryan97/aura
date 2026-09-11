@@ -78,16 +78,32 @@ Working list. Deleted when every line is done and green.
       the mesh's own discretisation can be read off this at all. Nothing in
       her dynamics was changed on it
 
-- [ ] the regulator's two chosen ceilings. The rich club is real and does not
-      close the cascade gap (3.117 to 3.060 as the coupling goes 1 to 20).
-      Fixing the criticality regulator's dead sensor moves it 3.53 to 3.36 and
-      the branching ratio 0.908 to 0.931. The regulator is then pinned at
-      every one of its clamps — gain 2.0, noise 2.0, E/I 1.3 — asking for more
-      than it is allowed, and the mesh's own `set_criticality_adjustment`
-      refuses anything above 2.0 as well. Both ceilings are chosen and
-      symmetric around 1.0, and neither has a measurement behind it. Worth
-      doing after the recording can support an exponent, because until then
-      there is nothing to tune against
+- [ ] the regulator's gain ceiling sits below where her cascades start. The
+      shuffle control gives a number that needs no window and no fitted
+      exponent — how far the count of simultaneously active units sits above
+      what their own rates explain — and it makes the deficiency sayable at
+      last. It is not that her bursts are small. It is that her units do not
+      recruit each other: 1.6 sigma at the mesh's own gain, against a bar of
+      three.
+
+      Swept, 3,000 ticks a cell and the same drive throughout. Coupling is not
+      the lever: twenty times the inter-column weights moves recruitment 1.14
+      to 1.54 sigma and lowers occupancy slightly. Gain is: 1.14 at gain one,
+      6.72 at three, 53.01 at four, and the branching ratio climbs 0.868 to
+      0.997 against Wilting and Priesemann's 0.98 across the same span. The
+      regulator's clamp stops at 2.0, inside the flat band where nothing
+      recruits, and `set_criticality_adjustment` refuses above 2.0 as well.
+      Both are chosen, symmetric around 1.0, and neither has a measurement
+      behind it. This one now has a measurement against it.
+
+      What the gain costs is in the same table and is not small: occupancy
+      0.794 at gain one, 0.956 at three, 0.983 at four, and gain three with
+      twenty times the coupling runs away outright — 480,569 spikes against a
+      baseline 4,840, branching 0.9991. Recruitment and silence pull against
+      each other here, and a recording with no silence in it cannot separate
+      one cascade from the next however well its units recruit. The clamp
+      should move; what it should move to is the open question, and it is one
+      seed a cell so far
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run and 56
       distinct failures have surfaced. Every one traced so far is either fixed
