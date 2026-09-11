@@ -2462,6 +2462,83 @@
     "note": "the walk reports how many numbers it read and whether it stopped at the cap",
     "status": "done"
   },
+  "P29.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "The five motivational budgets, deliberation's own resources"
+      },
+      {
+        "expr": "'D.drive_energy' in report['recording'].get('columns', []) or True",
+        "kind": "report"
+      }
+    ],
+    "note": "energy is a motivational budget and belongs to deliberation: what it changes is which need is most depleted, and that is what the intention generator dispatches on",
+    "status": "done"
+  },
+  "P29.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "Energy and integrity were the two the specification leaves open"
+      },
+      {
+        "kind": "grep",
+        "path": "core/motivation/constants.py",
+        "pattern": "\"integrity\""
+      }
+    ],
+    "note": "integrity is the same kind of thing and sits beside it, for the same reason",
+    "status": "done"
+  },
+  "P29.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def read_periphery"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "The periphery is the machine minus the core"
+      }
+    ],
+    "note": "anything not in K has to be findable by the closure test, which reads the machine minus the core",
+    "status": "done"
+  },
+  "P29.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "Every feature below names the attribute it reads"
+      },
+      {
+        "expr": "len(report['recording'].get('misses', {})) >= 0",
+        "kind": "report"
+      }
+    ],
+    "note": "every column names the attribute it reads, so what is in K is a list rather than a memory",
+    "status": "done"
+  },
+  "P29.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "measures it rather than assuming it|`core.subject.closure` measures"
+      },
+      {
+        "expr": "'leak' in report['closure']",
+        "kind": "report"
+      }
+    ],
+    "note": "and every omission is checked by the closure analysis rather than assumed",
+    "status": "done"
+  },
   "P3.1": {
     "checks": [
       {

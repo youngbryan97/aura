@@ -601,6 +601,16 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"action_source_{i}", "cognition.last_action_source")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # The five motivational budgets, deliberation's own resources.
+            #
+            # Energy and integrity were the two the specification leaves open,
+            # and they are here for the same reason as the other three: what
+            # they change is which need is most depleted, and which need is most
+            # depleted is what the intention generator dispatches on. They are
+            # not felt states — the body's own load is I and how it feels is A —
+            # and they are not periphery, because the closure test has to be
+            # able to find a variable the core's future depends on, and these
+            # decide what she does next.
             *((f"drive_{name}", f"motivation.budgets.{name}") for name in _DRIVES),
         ),
     ),
