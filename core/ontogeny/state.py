@@ -90,13 +90,20 @@ class StateReading:
     #: 0..1. How much the state moved on this step — the size of the update
     #: the episode caused. High surprise on a familiar state is a jolt.
     displacement: float
-    steps: int
-    era: int
+    #: 0..1. That same movement against how much this reservoir usually moves,
+    #: with a half meaning an ordinary step. The raw norm is a distance in a
+    #: sixty-four unit space with a leak, so it sits around five hundredths
+    #: whatever happens — and a consumer that uses it as a fraction of
+    #: something is using a quantity on a scale it was never measured in.
+    relative_displacement: float = 0.5
+    steps: int = 0
+    era: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "novelty": round(self.novelty, 4),
             "displacement": round(self.displacement, 4),
+            "relative_displacement": round(self.relative_displacement, 4),
             "steps": self.steps,
             "era": self.era,
             "norm": round(float(np.linalg.norm(self.hidden)), 4),
@@ -139,6 +146,12 @@ class OntogeneticState:
         self._centre_n = 0.0
         self._born_at = time.time()
         self._last_saved = 0.0
+        #: How much this reservoir usually moves in a step, and how many steps
+        #: that average is over. Carried across a fork with the rest of the
+        #: state, because a relative reading against a mean the other arm never
+        #: saw is not a relative reading.
+        self._displacement_mean: float = 0.0
+        self._displacement_seen: float = 0.0
 
     # ── the step ─────────────────────────────────────────────────────────
 
@@ -155,15 +168,36 @@ class OntogeneticState:
             self.steps += 1
             displacement = float(np.linalg.norm(self.h - previous) / np.sqrt(self.units))
             novelty = self._novelty(self.h)
+            relative = self._relative_displacement(displacement, learn=learn_distribution)
             if learn_distribution:
                 self._observe_distribution(self.h)
             return StateReading(
                 hidden=self.h.copy(),
                 novelty=novelty,
                 displacement=min(1.0, displacement),
+                relative_displacement=relative,
                 steps=self.steps,
                 era=self.era,
             )
+
+    def _relative_displacement(self, displacement: float, *, learn: bool) -> float:
+        """This step's movement against how much this reservoir usually moves.
+
+        Half is an ordinary step. The raw norm is a distance in a space of
+        `units` dimensions with a leak on it, so it sits at a few hundredths
+        whatever happens, and every consumer that read it as a fraction was
+        weighting by a number that could not reach the scale it was being used
+        on: the blend that carries novelty into affect gave the developmental
+        state five percent of a say on its loudest step.
+        """
+        usual = float(self._displacement_mean)
+        total = displacement + usual
+        relative = 0.5 if total <= 1e-9 else displacement / total
+        if learn:
+            self._displacement_seen += 1.0
+            rate = max(1.0 / self._displacement_seen, 0.001)
+            self._displacement_mean += rate * (displacement - usual)
+        return float(min(1.0, max(0.0, relative)))
 
     def _novelty(self, h: np.ndarray) -> float:
         """Normalised distance from the centre of her lived state distribution.

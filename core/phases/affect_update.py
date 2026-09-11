@@ -381,7 +381,14 @@ class AffectUpdatePhase(Phase):
             reading = advance(features)
             if reading is None:
                 return
-            weight = max(0.0, min(1.0, float(reading.displacement)))
+            # Against how much this reservoir usually moves, not the raw norm.
+            # The norm is a distance in a sixty-four unit space with a leak, so
+            # it sits at a few hundredths whatever happens — the developmental
+            # state got five percent of a say on its loudest step, and the one
+            # channel it writes into was the only route it had out.
+            weight = max(0.0, min(1.0, float(
+                getattr(reading, "relative_displacement", reading.displacement)
+            )))
             affect.curiosity = max(
                 0.0,
                 min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),

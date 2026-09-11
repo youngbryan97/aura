@@ -493,6 +493,11 @@ _RESERVOIR_FIELDS: tuple[str, ...] = (
     "_centre",
     "_scatter",
     "_centre_n",
+    # How much it usually moves, which the relative displacement is read
+    # against. A relative reading against a mean the other arm never saw is
+    # not a relative reading.
+    "_displacement_mean",
+    "_displacement_seen",
 )
 
 
@@ -1765,6 +1770,9 @@ class SubjectRuntime:
             return
         self.ontogeny.last_novelty = float(step.novelty)
         self.ontogeny.last_displacement = float(step.displacement)
+        self.ontogeny.last_relative_displacement = float(
+            getattr(step, "relative_displacement", step.displacement)
+        )
 
     def _retrieve(self, query: str) -> None:
         """Run the real retriever over her own memory, ontogeny included.
