@@ -686,6 +686,11 @@ def _attach_http_chat_delivery_receipt(
     terminal_at = float(
         getattr(record, "terminal_at", 0.0) or getattr(record, "updated_at", 0.0) or time.time()
     )
+    # A successful status poll can carry a failed turn. The immutable
+    # answer receipt keeps the original turn's status across transports.
+    answer_status_code = getattr(record, "http_status", None)
+    if answer_status_code is None:
+        answer_status_code = response.status_code
 
     async def _after_send() -> None:
         try:
@@ -696,7 +701,7 @@ def _attach_http_chat_delivery_receipt(
                 response_text,
                 principal=principal,
                 session_key=session_key,
-                status_code=response.status_code,
+                status_code=answer_status_code,
                 status=status,
                 turn_id=turn_id,
                 terminal_at=terminal_at,

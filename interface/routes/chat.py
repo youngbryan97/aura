@@ -14912,7 +14912,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     try:
         from core.ethics.conscience import Verdict, get_conscience
 
-        _conscience_decision = get_conscience().evaluate(
+        _conscience_decision = await asyncio.to_thread(
+            get_conscience().evaluate,
             action="user_chat",
             domain="external_communication",
             intent=_semantic_user_message[:240],

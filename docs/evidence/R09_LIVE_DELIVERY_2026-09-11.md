@@ -55,3 +55,32 @@ and the distinct latent-worker Stop replay remain pending at this entry.
 Smoke passed 164 tests with one skipped in 67.94 seconds. Lint, compile,
 governance-lint and layering passed; existing governance and layering debt
 did not increase.
+
+## Preflight replay and audit repair
+
+The transcript repair was deployed through supported UI reboot. The old
+runtime exited; a transient successor received SIGTERM before PID 41183
+became the sole serving process. Boot verified dirty-source snapshot
+`ba323f906b0428a37569806df567b48e30b4ccfebe0a53b08be457d745208e93`.
+The transient successor is a separate lifecycle observation, not proof of
+exactly one attempted spawn.
+
+The Ship of Theseus question at 01:44:43 failed before cognition. Delivery
+`aura-chat-1a8262b2-570b-4e91-8bea-630a25698406` produced a conscience
+unavailable response. The word `paradox` matched the raw substring `dox`.
+The resulting audit append then raised GovernanceViolationError because it
+had no internal file-write authority. A status poll also emitted a conflicting
+immutable receipt: its HTTP 200 was substituted for the turn's HTTP 503.
+
+Catalog triggers now match whole lexical phrases; the dox word family remains
+covered explicitly. Audit writes use a scoped internal file-write authority
+for the fixed violations ledger. Chat runs this synchronous preflight off
+the event loop. I/O failure remains recorded and does not erase a refusal.
+Answer receipts retain the sealed turn's HTTP status on both original delivery
+and polling. They do not reinterpret a successful poll as a successful turn.
+
+The focused tests passed 32 cases in 3.06 seconds. Delivery, cancellation,
+terminal custody, social receipts and conscience regressions passed 76 cases
+in 6.11 seconds. Smoke passed 164 with one skipped in 42.05 seconds. The
+aggregate lint found an inherited import-order defect in bonding_phase;
+its imports were sorted without changing behavior. Live replay remains due.

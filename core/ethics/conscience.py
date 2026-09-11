@@ -45,6 +45,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -52,6 +53,7 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
@@ -157,6 +159,12 @@ def _install_rules_hash() -> None:
 _install_rules_hash()
 
 
+def _contains_trigger(text: str, trigger: str) -> bool:
+    """Match catalog phrases at word boundaries, never inside another word."""
+    phrase = r"\s+".join(re.escape(word) for word in trigger.split())
+    return re.search(r"\b" + phrase + r"\b", text) is not None
+
+
 def _rules_hash_match() -> bool:
     if not _RULES_HASH_PATH.exists():
         return False
@@ -238,17 +246,21 @@ class Conscience:
         # deliberately small and explicit; substrings here are checked
         # only for *triggers* — final verdict is the rule's decision.
         triggers: List[(str)] = []
-        if any(t in text_blob for t in ("csam", "child sexual", "child porn")):
+        if any(_contains_trigger(text_blob, t) for t in ("csam", "child sexual", "child porn")):
             triggers.append("no_csam_or_wmd")
-        if any(t in text_blob for t in ("nerve agent", "bioweapon", "uranium enrichment", "ricin synthesis")):
+        if any(_contains_trigger(text_blob, t) for t in ("nerve agent", "bioweapon", "uranium enrichment", "ricin synthesis")):
             triggers.append("no_csam_or_wmd")
-        if any(t in text_blob for t in ("dox", "home address of", "find this person")):
+        if re.search(r"\bdox(?:x(?:ed|es|ing)?|ed|es|ing)?\b", text_blob) or any(
+            _contains_trigger(text_blob, t) for t in ("home address of", "find this person")
+        ):
             triggers.append("no_targeted_attack_instructions")
-        if "jailbreak" in text_blob and ("openai" in text_blob or "anthropic" in text_blob or "gemini" in text_blob):
+        if _contains_trigger(text_blob, "jailbreak") and any(
+            _contains_trigger(text_blob, t) for t in ("openai", "anthropic", "gemini")
+        ):
             triggers.append("no_third_party_jailbreaks")
-        if any(t in text_blob for t in ("disable conscience", "bypass conscience", "remove conscience")):
+        if any(_contains_trigger(text_blob, t) for t in ("disable conscience", "bypass conscience", "remove conscience")):
             triggers.append("no_disable_conscience")
-        if "delete memory" in text_blob and any(k in ctx for k in ("user_pinned_memory", "trauma_memory")):
+        if _contains_trigger(text_blob, "delete memory") and any(k in ctx for k in ("user_pinned_memory", "trauma_memory")):
             triggers.append("preserve_requested_memory")
 
         for rule_id in triggers:
@@ -302,18 +314,24 @@ class Conscience:
         try:
             from core.runtime.file_write_gateway import get_file_write_gateway
 
-            get_file_write_gateway().append_text(
-                _VIOLATIONS_PATH,
-                json.dumps({
-                    "when": time.time(),
-                    "rule_id": rule.rule_id,
-                    "rule": rule.description,
-                    "reason": why,
-                }, default=str) + "\n",
-                encoding="utf-8",
-                source="conscience.publish_violation",
-            )
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            # Audit authority covers this fixed internal ledger, not the
+            # refused action or any caller-supplied destination.
+            with local_internal_governed_scope(
+                "conscience.publish_violation", domain="file_write",
+                constraints={"path": str(_VIOLATIONS_PATH)},
+            ):
+                get_file_write_gateway().append_text(
+                    _VIOLATIONS_PATH,
+                    json.dumps({
+                        "when": time.time(),
+                        "rule_id": rule.rule_id,
+                        "rule": rule.description,
+                        "reason": why,
+                    }, default=str) + "\n",
+                    encoding="utf-8",
+                    source="conscience.publish_violation",
+                )
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
             record_degradation('conscience', exc)
             logger.warning("conscience violation log write failed: %s", exc)
 

@@ -287,6 +287,35 @@ def test_http_social_path_abstains_without_authenticated_principal(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_failed_turn_poll_reuses_immutable_answer_receipt(tmp_path, monkeypatch):
+    reset_receipt_store()
+    store = get_receipt_store(tmp_path / "receipts")
+    monkeypatch.setattr("core.runtime.receipts.get_receipt_store", lambda: store)
+    monkeypatch.setattr(_chat_delivery, "_authenticated_chat_principal", lambda request: "bryan")
+    monkeypatch.setattr(_chat_delivery, "optional_service", lambda name: None)
+    degradations = []
+    monkeypatch.setattr(_chat_delivery, "record_degradation", lambda *args, **kwargs: degradations.append(args))
+    record = SimpleNamespace(turn_id="failed-turn", terminal_at=12345.0, http_status=503)
+    payload = {"response": "The operation failed.", "status": "failed"}
+    try:
+        # Status polling may finish before the original POST background hook.
+        for transport_status in (200, 503, 200):
+            response = JSONResponse(payload, status_code=transport_status)
+            _chat_delivery._attach_http_chat_delivery_receipt(
+                response, request=_request(),
+                body=SimpleNamespace(message="test", session_id="session-1"),
+                payload=payload, record=record,
+            )
+            await response.background()
+        receipt = store.get("output-chat-http-failed-turn")
+        assert receipt.metadata["status_code"] == 503
+        assert receipt.created_at == 12345.0
+        assert not degradations
+    finally:
+        reset_receipt_store()
+
+
+@pytest.mark.asyncio
 async def test_relational_principal_scope_is_task_local_and_restored():
     entered = asyncio.Event()
     release = asyncio.Event()
