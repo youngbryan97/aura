@@ -241,6 +241,34 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="deliberation did not take the broadcast")
 
+    async def to_perception(event: Any) -> None:
+        """What is globally available biases what is noticed next.
+
+        The one coupling the theory is most explicit about, and the one this
+        file did not have: the broadcast reached recurrent cognition, the self
+        model, affect and deliberation, and perception was not among them. So
+        nothing she was attending to could change what she noticed, and the
+        only route into perception at all was the readback of a file she had
+        just written.
+
+        Left on the workspace, where `core.state.percepts.emit_percept` reads
+        it as an arriving percept is stamped — the same device the affect
+        consumer uses, and for the same reason: a consumer that writes where
+        its destination cannot look is a consumer that does not count.
+        """
+        winner = _winner(event)
+        if winner is None:
+            return
+        try:
+            workspace.last_broadcast_attention = {
+                "source": str(winner.source)[:64],
+                "content": str(winner.content)[:512],
+                "priority": max(0.0, min(1.0, float(winner.effective_priority))),
+            }
+        except (AttributeError, TypeError, ValueError) as exc:
+            record_degradation("broadcast_consumers", exc, severity="debug",
+                               action="perception did not take the broadcast")
+
     # No memory consumer. There was one, and it appended a bounded trace to an
     # attribute on the workspace that nothing anywhere reads — a writer with no
     # reader, inside the file written to remove writers with no readers. What
@@ -254,6 +282,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
         ("self_model", to_self_model),
         ("affect", to_affect),
         ("deliberation", to_deliberation),
+        ("perception", to_perception),
     ):
         try:
             workspace.register_processor(consumer)

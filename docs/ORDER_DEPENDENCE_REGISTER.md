@@ -111,6 +111,10 @@ selection and a drive-by patch to the victim would hide it.
 | `test_core_affect_models::test_narrative_thread_refresh_failure_writes_degraded_snapshot` | `pytest tests/ -k affect` | `NarrativeThread.get_current_snapshot()` returns the pending fallback, so `_current_narrative` is None where the refresh loop should have written a degraded snapshot |
 | `test_cognitive_routing_runtime::test_substrate_handoff_failure_records_keyword_fallback` | `pytest tests/ -k "workspace or substrate or orchestrator_boot or consciousness_system"` | `_should_allow_deep_handoff` never calls the substrate extractor, so something earlier left the decision cached or the module stubbed |
 
-Both files pass alone and pass as a pair, so the root is further up the
+| `test_perception_keeps_up_while_she_acts` ×3 | `pytest tests/ -k "percept or broadcast"` | the perceptual compute budget reads 0.1 Hz where the test asks for 2.0, so an earlier test leaves the lane or generation state that `_compute_budget` consults |
+
+Both affect files pass alone and pass as a pair, so that root is further up the
 selection. `pytest tests/test_affect_behavioral.py tests/test_core_affect_models.py`
-is green, which rules out the nearest suspect.
+is green, which rules out the nearest suspect. The perception trio passes alone
+and passes beside `tests/test_broadcast_consumers.py`, so the same is true of
+it.

@@ -154,6 +154,55 @@ def drop_consumed(world: Any, by: str) -> int:
     return dropped
 
 
+
+def _attend(record: dict[str, Any]) -> None:
+    """Raise the salience of an arriving percept that matches what won attention.
+
+    Biased competition, and the one coupling global workspace theory is most
+    explicit about: what is globally available biases the perceptual systems.
+    The broadcast reached recurrent cognition, the self model, affect and
+    deliberation, and perception was not among its consumers — so nothing she
+    was attending to could change what she noticed next, and the only route
+    into perception at all was the readback of a file she had just written.
+
+    The gain carries no constant of its own. Attention can at most close the
+    gap to full salience, in proportion to how much of the percept the
+    broadcast shares and how strongly the broadcast won: a percept with nothing
+    in common with what is attended is left exactly as it arrived.
+    """
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        workspace = get_runtime_service("global_workspace", default=None)
+        attention = getattr(workspace, "last_broadcast_attention", None)
+        if not isinstance(attention, Mapping):
+            return
+        priority = max(0.0, min(1.0, float(attention.get("priority", 0.0) or 0.0)))
+        if priority <= 0.0:
+            return
+        overlap = _overlap(str(record.get("content", "")), str(attention.get("content", "")))
+        if overlap <= 0.0:
+            return
+        salience = max(0.0, min(1.0, float(record.get("salience", 0.0) or 0.0)))
+        gained = salience + (1.0 - salience) * overlap * priority
+        record["salience"] = max(0.0, min(1.0, gained))
+        record["attended"] = round(gained - salience, 4)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # A percept that cannot be biased is still a percept.
+        return
+
+
+def _overlap(text: str, attended: str) -> float:
+    """The share of this percept's words that the broadcast also carries."""
+    words = {word for word in text.lower().split() if len(word) > 2}
+    if not words:
+        return 0.0
+    theirs = {word for word in attended.lower().split() if len(word) > 2}
+    if not theirs:
+        return 0.0
+    return len(words & theirs) / len(words)
+
+
 def emit_percept(
     world: Any,
     kind: str,
@@ -175,6 +224,7 @@ def emit_percept(
         "timestamp": time.time(),
     }
     record.update(extra)
+    _attend(record)
     percepts.append(record)
     trim = getattr(world, "trim_percepts", None)
     if callable(trim):

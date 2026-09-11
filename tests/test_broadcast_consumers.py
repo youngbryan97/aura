@@ -55,6 +55,7 @@ def test_every_consumer_is_registered():
         "self_model",
         "affect",
         "deliberation",
+        "perception",
     }
 
 
@@ -218,6 +219,10 @@ def test_every_registered_consumer_changes_something_its_domain_reads():
         "self_model": "self_model.beliefs, which the self-state domain reads",
         "affect": "workspace.last_broadcast_arousal, which AffectUpdatePhase reads",
         "deliberation": "workspace.last_drive_attention, which MotivationUpdatePhase reads",
+        "perception": (
+            "workspace.last_broadcast_attention, which core.state.percepts.emit_percept "
+            "reads as an arriving percept is stamped"
+        ),
     }
     assert set(registered) == set(lands_in), (
         f"a consumer was registered or removed without saying where it lands: {registered}"
@@ -266,3 +271,65 @@ def test_an_attended_feeling_credits_the_need_it_is_about():
     register_broadcast_consumers(workspace, substrate=_Substrate())
     asyncio.run(workspace.broadcast(_winner(source="affect_frustration", priority=0.7)))
     assert workspace.last_drive_attention["drive"] == "growth"
+
+
+def test_what_won_attention_biases_what_arrives_next():
+    """Biased competition: the coupling the theory is most explicit about.
+
+    The broadcast reached recurrent cognition, the self model, affect and
+    deliberation, and perception was not among its consumers — so nothing she
+    was attending to could change what she noticed next, and the only route
+    into perception at all was the readback of a file she had just written.
+    """
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.percepts import emit_percept
+
+    class _World:
+        def __init__(self) -> None:
+            self.recent_percepts: list[dict] = []
+
+    class _Attended:
+        last_broadcast_attention = {
+            "source": "memory",
+            "content": "the migration deadline moved to Friday",
+            "priority": 0.8,
+        }
+
+    register_runtime_service("global_workspace", _Attended(), required=False)
+    try:
+        world = _World()
+        matched = emit_percept(
+            world, "chat", content="Friday deadline again", intensity=0.2
+        )
+        unmatched = emit_percept(
+            world, "chat", content="unrelated weather chatter", intensity=0.2
+        )
+        assert matched is not None and unmatched is not None
+        assert matched["salience"] > 0.2, "what she is attending to did not bias arrival"
+        assert unmatched["salience"] == pytest.approx(0.2), (
+            "a percept sharing nothing with the broadcast was biased anyway"
+        )
+        assert matched["attended"] > 0.0
+        assert "attended" not in unmatched
+    finally:
+        register_runtime_service("global_workspace", None, required=False)
+
+
+def test_attention_cannot_push_salience_past_one():
+    from core.runtime.service_registry import register_runtime_service
+    from core.state.percepts import emit_percept
+
+    class _World:
+        def __init__(self) -> None:
+            self.recent_percepts: list[dict] = []
+
+    class _Attended:
+        last_broadcast_attention = {"source": "s", "content": "alarm alarm", "priority": 1.0}
+
+    register_runtime_service("global_workspace", _Attended(), required=False)
+    try:
+        record = emit_percept(_World(), "chat", content="alarm", intensity=0.9)
+        assert record is not None
+        assert record["salience"] <= 1.0
+    finally:
+        register_runtime_service("global_workspace", None, required=False)
