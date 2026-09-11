@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from contextlib import nullcontext
 
 import pytest
 from fastapi.responses import JSONResponse
@@ -95,3 +96,54 @@ async def test_cancelled_turn_finishes_its_pending_history_without_learning_a_dr
     assert writes[0]["aura_response"] == response["response"]
     assert writes[0]["enqueue_memory_log"] is False
     assert chat_preflight._conversation_log[0]["status"] == "complete"
+
+
+@pytest.mark.asyncio
+async def test_rerouting_reuses_the_admitted_exchange_and_preserves_wire_text(custody):
+    _journal, writes = custody
+
+    @chat_delivery._paired_chat_response_boundary
+    async def handler(*, body, request):
+        first = await chat_preflight._begin_logged_exchange(body.message, session_id=body.session_id)
+        second = await chat_preflight._begin_logged_exchange("semantic rewrite", session_id=body.session_id)
+        assert first == second
+        await chat_preflight._log_exchange("recovery question", "draft", session_id=body.session_id)
+        assert len(chat_preflight._conversation_log) == 1
+        return JSONResponse({"response": "One public answer."})
+
+    await handler(body=chat.ChatRequest(message="The original question", session_id="session-1"),
+                  request=_request("rerouting"))
+    assert len(writes) == 1
+    assert writes[0]["user_message"] == "The original question"
+
+
+@pytest.mark.asyncio
+async def test_api_ingress_opens_history_before_any_answer_route(custody, monkeypatch):
+    _journal, writes = custody
+    capture, token = chat_preflight.bind_terminal_exchanges()
+
+    async def answer(body, request):
+        assert len(capture.exchanges) == 1
+        pending = chat_preflight._conversation_log[0]
+        assert pending["user"] == body.message
+        assert pending["aura"] == ""
+        assert pending["status"] == "pending"
+        return JSONResponse({"response": "Early answer."})
+
+    async def unchanged(message, response):
+        return response
+
+    monkeypatch.setattr(chat, "_api_chat_turn", answer)
+    monkeypatch.setattr(chat, "_apply_recorded_answer", unchanged)
+    monkeypatch.setattr(chat, "_bound_http_turn", lambda _: nullcontext(None))
+    monkeypatch.setattr(chat, "_mark_http_turn_served", lambda *_: None)
+    monkeypatch.setattr(chat._chat_desktop_repair, "_runtime_tool_governance_available", lambda: False)
+    try:
+        await chat.api_chat.__wrapped__(
+            body=chat.ChatRequest(message="An early recovery question", session_id="session-1"),
+            request=_request("early-recovery"),
+        )
+        assert len(capture.exchanges) == 1
+        assert writes == []
+    finally:
+        chat_preflight.reset_terminal_exchanges(token)

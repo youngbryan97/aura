@@ -60,6 +60,20 @@ hydrate([{ id: 'unknown', user: 'early?', aura: 'unrelated' }]);
 assert.equal(messages.children.length, 4);
 assert(!source.includes('hydrateConversationHistory: !state.bootstrapLoaded'));
 
+// Another window can open the same words as a fresh turn while this pane is idle.
+hydrate([{ id: 'later', user: 'later?', aura: 'later answer' },
+    { id: 'newer', user: 'early?', aura: '' }]);
+assert.equal(messages.children.at(-1).dataset.historyTurnId, 'newer');
+assert.equal(messages.children.at(-1).text, 'early?');
+hydrate([{ id: 'later', user: 'later?', aura: 'later answer' },
+    { id: 'newer', user: 'early?', aura: 'new answer' }]);
+assert.equal(messages.children.at(-1).text, 'new answer');
+assert.equal(messages.children.length, 6);
+hydrate([{ id: 'later', user: 'later?', aura: 'later answer' },
+    { id: 'newer', user: 'early?', aura: 'new answer' }]);
+assert.equal(messages.children.length, 6);
+messages.children.splice(-2);
+
 // A timed-out bootstrap can show RAM history first, then receive older disk rows.
 hydrate([{ id: 'old', user: 'older question', aura: 'older answer' },
     { id: 'early', user: 'early?', aura: 'early answer' },

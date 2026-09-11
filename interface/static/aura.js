@@ -1570,6 +1570,17 @@ function hydrateRecentConversation(entries) {
             if (successor && !successor.dataset.historyTurnId) continue;
             appendMsg(item.role, item.text, false, item.metadata, successor);
         }
+        // A passive pane can lag behind a turn opened by another window.
+        // Extend only from an exact shared exchange, never from matching text.
+        const children = Array.from(messages.children);
+        const lastId = children.at(-1)?.dataset.historyTurnId;
+        const tailAt = lastId && children.every(node => node.dataset.historyTurnId)
+            ? restored.findLastIndex(item => item.metadata.historyTurnId === lastId) : -1;
+        if (tailAt >= 0) {
+            for (const item of restored.slice(tailAt + 1)) {
+                appendMsg(item.role, item.text, false, item.metadata);
+            }
+        }
         updateLanePlaceholder();
         return;
     }

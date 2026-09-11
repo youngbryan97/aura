@@ -13005,6 +13005,11 @@ async def api_chat(
     turn_started = time.perf_counter()
     visible_user_message = str(body.message or "")
     try:
+        # Recovery and computed answers can return before the normal generation
+        # branch. The admitted turn owns its transcript before choosing a route.
+        await _chat_preflight._begin_logged_exchange(
+            visible_user_message, session_id=conversation_session,
+        )
         # One turn, spanning generation AND delivery.
         #
         # The ledger used to be opened inside cognitive_engine.think() and
