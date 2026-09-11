@@ -20,8 +20,8 @@ from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import Severity, record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.receipts import WorkspaceGateReceipt, get_receipt_store
-from core.utils.task_tracker import get_task_tracker
 from core.runtime.the_laboratory import seeded
+from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
     from core.resilience.inhibition_manager import InhibitionManager

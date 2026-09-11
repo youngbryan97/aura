@@ -36,6 +36,7 @@ Integration:
         result = await ef.evaluate_fitness(genome_params)
 """
 from __future__ import annotations
+
 from core.runtime.the_laboratory import seeded_generator
 
 __all__ = [

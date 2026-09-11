@@ -35,8 +35,12 @@ Architecture:
 Key properties:
   1. Non-decomposable: removing any input stream changes the field's
      eigenstructure, not just the missing component
-  2. Self-sustaining: the field has its own recurrent dynamics (it doesn't
-     go silent when inputs stop — it has its own intrinsic activity)
+  2. Self-sustaining, in the sense a loop gain just under one gives: the
+     field's own recurrence carries its state past the end of its input
+     rather than replacing it. Measured, the response outlasts the drive by
+     about the leak's own time constant and then fades — it does not hold a
+     pattern forever, which would be a loop gain above one and a field that
+     runs away from whatever it was told.
   3. Phase-locked: the field's oscillation phase is coupled to the
      OscillatoryBinding gamma rhythm, providing temporal unity
   4. History-sensitive: recurrent connections + plasticity mean the field
@@ -138,11 +142,29 @@ class FieldConfig:
     substrate_input_dim: int = 64      # from LiquidSubstrate
 
     # Dynamics
-    dt: float = 0.05                   # integration timestep
-    decay: float = 0.02                # field leak rate
+    dt: float = 0.05                   # integration timestep, 20 Hz
+    #: How many of its own steps the field keeps, and judges itself over.
+    history_ticks: int = 200           # 10s at 20Hz
+    #: Leak rate, 1/s. The field's memory is `1 / decay` seconds, and it is
+    #: set to the window the field keeps of itself: a leak slower than that
+    #: window means every measure it takes of its own coherence is taken over
+    #: a stretch inside which nothing it did could have decayed. It was 0.02,
+    #: a fifty-second memory on a field that keeps ten seconds and calls
+    #: itself phase-locked to gamma.
+    decay: float = 1.0 / (history_ticks * dt)
     noise_sigma: float = 0.005         # intrinsic noise
     activation_gain: float = 1.2       # tanh gain
     recurrent_sparsity: float = 0.15   # fraction of non-zero recurrent weights
+    #: Loop gain of the recurrent field, `activation_gain` included. Just
+    #: under one is the edge of stability: below it the field decays to
+    #: silence whenever its inputs stop, above it the field runs away. The
+    #: ontogenetic reservoir is drawn by the same rule and the same number.
+    #:
+    #: The weights were scaled by a flat 0.05, which gave a loop gain of 0.40 —
+    #: a field that cannot sustain its own activity, against a docstring that
+    #: claims it does not go silent when inputs stop. It looked self-sustaining
+    #: because it was pinned to the rails.
+    spectral_radius: float = 0.95
 
     # Plasticity
     hebbian_rate: float = 0.0002       # slow field plasticity
@@ -202,8 +224,11 @@ class UnifiedField:
         # Recurrent connectivity (sparse — use scipy.sparse.csr_matrix for
         # 15% density, which is ~6x faster than dense matmul at this size)
         mask = self._rng.random((self.cfg.dim, self.cfg.dim)) < self.cfg.recurrent_sparsity
-        field_weights = (self._rng.standard_normal((self.cfg.dim, self.cfg.dim)).astype(np.float32) * 0.05) * mask
+        field_weights = self._rng.standard_normal(
+            (self.cfg.dim, self.cfg.dim)
+        ).astype(np.float32) * mask
         np.fill_diagonal(field_weights, 0.0)
+        field_weights = self._scaled_to_loop_gain(field_weights)
         self.W_field = field_weights  # keep dense for plasticity updates
         self._W_field_sparse = self._to_sparse(field_weights)  # sparse for tick matmul
 
@@ -247,7 +272,7 @@ class UnifiedField:
         self._substrate_input: np.ndarray | None = None
 
         # History for PCA mode extraction
-        self._history: deque[np.ndarray] = deque(maxlen=200)
+        self._history: deque[np.ndarray] = deque(maxlen=int(self.cfg.history_ticks))
 
         # Coherence tracking
         self._coherence: float = 0.5
@@ -337,6 +362,26 @@ class UnifiedField:
             value, valid = _finite_float(raw, lower)
             if not valid or value < lower or value > upper:
                 raise ValueError(f"UnifiedField {name} must be finite in [{lower}, {upper}]")
+
+    def _scaled_to_loop_gain(self, weights: np.ndarray) -> np.ndarray:
+        """Scale the recurrent weights so the loop gain is the declared one.
+
+        The loop gain is the spectral radius of the weights times the tanh
+        gain they are fed through, because that product is what decides
+        whether a disturbance grows or dies. Scaling the weights alone and
+        leaving the tanh out of the arithmetic is how a field written to sit
+        at the edge of stability ends up at four tenths of it.
+        """
+        try:
+            radius = float(np.max(np.abs(np.linalg.eigvals(weights))))
+        except np.linalg.LinAlgError:
+            return weights
+        gain = float(self.cfg.activation_gain) or 1.0
+        if radius <= 1e-9:
+            return weights
+        return (weights * (float(self.cfg.spectral_radius) / (radius * gain))).astype(
+            np.float32
+        )
 
     def _to_sparse(self, weights: np.ndarray) -> object:
         if sp is None:
@@ -578,7 +623,29 @@ class UnifiedField:
         # next = clip(F + (-decay*F + activity + noise)*dt, -1, 1). The NumPy
         # fallback is byte-identical to the prior inline expression.
         self._prev_F = self.F.copy()
-        next_field = _field_integrate(self.F, activity, noise, cfg.decay, dt)
+        # The leak and the drive in the same units.
+        #
+        # The integrator is `F + (-decay*F + drive)*dt`, so the field settles
+        # where `decay*F = drive` — at `drive / decay`. With a leak of a
+        # fiftieth and a drive that is a tanh, that equilibrium was fifty times
+        # outside the range the field is clipped to, so the field sat on the
+        # rails from the first seconds of every run: mean |F| of 0.906, sixty-
+        # nine percent of its dimensions pinned, and an anti-degeneracy rescue
+        # firing a thousand times a run into a field the dynamics re-saturate
+        # on the next tick. Its own degradation record says so — "the rescue is
+        # not restoring the field and its state carries little information".
+        #
+        # Scaling the drive by the same rate makes it `decay*(drive - F)*dt`:
+        # a leaky integrator that relaxes toward what drives it, on the
+        # timescale `decay` declares, inside the range it is clipped to.
+        leak = float(cfg.decay)
+        next_field = _field_integrate(
+            self.F,
+            (activity * leak).astype(np.float32),
+            (noise * leak).astype(np.float32),
+            leak,
+            dt,
+        )
 
         # Non-finite guard
         if not np.all(np.isfinite(next_field)):

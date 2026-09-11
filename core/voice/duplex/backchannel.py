@@ -31,8 +31,8 @@ import time
 from dataclasses import dataclass
 
 from core.runtime.errors import record_degradation
-from core.voice.duplex.config import BackchannelConfig
 from core.runtime.the_laboratory import seeded
+from core.voice.duplex.config import BackchannelConfig
 
 logger = logging.getLogger("Aura.Voice.Backchannel")
 

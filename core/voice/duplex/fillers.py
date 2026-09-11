@@ -27,6 +27,7 @@ import logging
 import random
 from dataclasses import dataclass
 from enum import Enum
+
 from core.runtime.the_laboratory import seeded
 
 logger = logging.getLogger("Aura.Voice.Filler")
