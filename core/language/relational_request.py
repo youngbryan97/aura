@@ -65,6 +65,14 @@ _INSTRUCTION_SIDE_RE = re.compile(
     r"recommend|prefer|tell|show|why|how|what|give|walk)\b",
     re.IGNORECASE,
 )
+_DELIVERY_SUFFIX_RE = re.compile(
+    r"\s+(?:in|using|with)\s+(?:(?:exactly|at\s+most|at\s+least)\s+)?"
+    r"(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a|an)\s+"
+    r"(?:(?:short|brief|numbered|bullet|bulleted)\s+)*"
+    r"(?:points?|sentences?|paragraphs?|bullets?|steps?|table|list)\b"
+    r"|\s*,?\s+(?:and\s+)?then\s+(?:give|explain|describe|show|list)\b",
+    re.IGNORECASE,
+)
 _SUBJECT_STOPWORDS = frozenset(
     {
         "a",
@@ -148,6 +156,9 @@ def compared_subjects(
             continue
         left_text = match.group("left").strip()
         right_text = match.group("right").strip()
+        # Presentation and subsequent commands modify the requested answer,
+        # not the second entity being compared.
+        right_text = _DELIVERY_SUFFIX_RE.split(right_text, maxsplit=1)[0].strip()
         if reject_instruction_sides and (
             _INSTRUCTION_SIDE_RE.search(left_text) or _INSTRUCTION_SIDE_RE.search(right_text)
         ):
