@@ -28,7 +28,7 @@ from typing import Any
 
 from core.subject.state import DOMAINS
 
-__all__ = ["CLAMPED_FIELDS", "Clamp", "clamped"]
+__all__ = ["CLAMPED_FIELDS", "Clamp", "clamped", "compose"]
 
 #: What holding a domain still means, field by field. These are the same
 #: attributes the readers read and the writers write, so a clamped domain
@@ -166,3 +166,27 @@ def clamped(runtime: Any, domains: Sequence[str]) -> Iterator[Clamp]:
         yield clamp
     finally:
         runtime.after_phase = previous
+
+
+def compose(left_rows: Sequence[Any], right_rows: Sequence[Any], left: Sequence[str]) -> list[Any]:
+    """One recording of the cut system, from the two halves that ran apart.
+
+    `left_rows` is the run in which the right-hand side was held still, so its
+    left-hand columns are the left side evolving with no information from the
+    right; `right_rows` is the mirror of that. Taking each side's columns from
+    the run where it was free gives the system with `E(A*, B*)` and `E(B*, A*)`
+    removed and both sides' internal dynamics intact — which is the lesion the
+    equation states, rather than the node clamp that reads as one.
+    """
+    import dataclasses
+
+    side = set(left)
+    out: list[Any] = []
+    for a, b in zip(left_rows, right_rows, strict=False):
+        values = {
+            key: (a.values[key] if key in side else b.values[key]) for key in DOMAINS
+        }
+        misses = dict(getattr(a, "misses", {}) or {})
+        misses.update(getattr(b, "misses", {}) or {})
+        out.append(dataclasses.replace(a, values=values, misses=misses))
+    return out

@@ -451,19 +451,37 @@ async def _lesion(
     run_interventions: Any,
     scale: Any,
 ) -> dict[str, Any]:
-    """Clamp the cheapest side, measure, release, measure again.
+    """Cut the channels across the cheapest partition, measure, restore, measure.
 
     The cut is the one the irreducibility search found, not one chosen here,
-    and the rescue arm runs after the clamp is released on the same runtime, so
-    a recovery is a recovery of this life rather than of a fresh one.
+    and the rescue arm runs on the same runtime afterwards, so a recovery is a
+    recovery of this life rather than of a fresh one.
+
+    The equation says to remove `E(A*, B*)` and `E(B*, A*)` and leave each
+    side's internal dynamics alone. Holding one side still does not do that: it
+    severs every edge out of those domains and destroys their own dynamics
+    too, which is a node lesion and reads as a much larger intervention than
+    the one written down.
+
+    Each side is run once with the other held at the cut, so it evolves with no
+    information crossing and its own pipeline intact, and the two recordings
+    are composed column-wise. Both halves start from the same snapshot, and the
+    experiment clock makes the two runs the same length of life.
     """
     smaller = min(phi.best_cut, key=len)
+    left, right = phi.best_cut[0], phi.best_cut[1]
 
-    async def measure(label: str) -> dict[str, Any]:
+    async def _live(label: str) -> list[Any]:
         frames: list[Any] = []
         for _ in range(args.lesion_rounds):
             for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
+        del label
+        return frames
+
+    async def measure(label: str, frames: list[Any] | None = None) -> dict[str, Any]:
+        if frames is None:
+            frames = await _live(label)
         recording = build_recording(frames, notes={"arm": label}).by_turn()
         results = await run_interventions(
             runtime,
@@ -485,9 +503,26 @@ async def _lesion(
             "synergy": float(np.mean(synergies)) if synergies else 0.0,
         }
 
+    from core.subject.clamp import compose
+
     intact = await measure("intact")
+
+    # Each side once, with the other held at the cut. Both start from the same
+    # place, so the two recordings are the same life with the crossing removed.
+    start = runtime.snapshot()
+    with clamped(runtime, right):
+        left_frames = await _live("cut_left")
+    runtime.restore(start)
+    with clamped(runtime, left):
+        right_frames = await _live("cut_right")
+    cut = await measure("cut", compose(left_frames, right_frames, left))
+
+    # And the node clamp beside it, kept because it is a useful ablation and
+    # reported as what it is rather than as the partition lesion.
+    runtime.restore(start)
     with clamped(runtime, smaller):
-        cut = await measure("cut")
+        clamped_side = await measure("clamped_side")
+
     rescued = await measure("rescued")
 
     deltas = {key: round(intact[key] - cut[key], 5) for key in intact}
@@ -498,6 +533,8 @@ async def _lesion(
     rescued_ok = all(rescued[key] > cut[key] for key in ("phi_do", "spread", "synergy"))
     return {
         "cut": list(smaller),
+        "severed": {"left": list(left), "right": list(right)},
+        "node_clamp": {k: round(v, 5) for k, v in clamped_side.items()},
         "intact": {k: round(v, 5) for k, v in intact.items()},
         "lesioned": {k: round(v, 5) for k, v in cut.items()},
         "rescued": {k: round(v, 5) for k, v in rescued.items()},
