@@ -128,8 +128,17 @@ class MotivationUpdatePhase(Phase):
         next_state = await self._integrate_drives(next_state)
 
         # 2. Intention Assessment (The "Will")
-        # Only assess if we are not already in its own autonomous thought or deliberate mode
-        if next_state.cognition.current_mode.value != "deliberate":
+        #
+        # Skipped while one of her own motivational intentions is already open
+        # and unaddressed, which is what "already in its own autonomous
+        # thought" means. It used to be skipped whenever the cognitive mode was
+        # DELIBERATE — and DELIBERATE is the careful governed route for an
+        # ordinary user-facing turn, four turns in five. So the route from a
+        # depleted need, and from what she had just recalled, into an intention
+        # was closed on almost every turn she was thinking carefully: the guard
+        # tested a mode that means she is concentrating and read it as meaning
+        # she is already busy with herself.
+        if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
                 logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
@@ -175,6 +184,27 @@ class MotivationUpdatePhase(Phase):
             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    @staticmethod
+    def _own_intention_is_open(state: AuraState) -> bool:
+        """Whether one of her own motivational intentions is still waiting.
+
+        Read from the intentions themselves rather than from the cognitive
+        mode. A second intention about the same need, while the first is
+        unaddressed, is a louder version of what she has already decided —
+        which is the thing the guard was for.
+        """
+        cognition = getattr(state, "cognition", None)
+        pending = list(getattr(cognition, "pending_initiatives", []) or []) if cognition else []
+        for item in pending:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("source", "")) != "motivation_update":
+                continue
+            if str(item.get("status", "pending")).lower() in {"done", "complete", "completed", "cancelled"}:
+                continue
+            return True
+        return False
 
     @staticmethod
     def _credit_attended_drive(mot: Any, dt: float) -> None:
