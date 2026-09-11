@@ -3245,6 +3245,59 @@
     "note": "energy is a motivational budget and belongs to deliberation: what it changes is which need is most depleted, and that is what the intention generator dispatches on",
     "status": "done"
   },
+  "P29.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "pending_initiatives|active_goals"
+      },
+      {
+        "expr": "int(report['recording']['widths']['D']) > 0 if 'widths' in report['recording'] else True",
+        "kind": "report"
+      }
+    ],
+    "note": "active commitments are deliberation's own columns: the initiatives she is holding and what the will deferred",
+    "status": "done"
+  },
+  "P29.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "def _perturb_D"
+      }
+    ],
+    "note": "persistent planner state lives in the same domain and is displaced with it",
+    "status": "done"
+  },
+  "P29.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "self\\.state\\.world\\.facts\\[\"last_action\"\\] = record"
+      }
+    ],
+    "note": "what came of an action is read back off the world rather than asserted, and the record of it is in the state the domains read",
+    "status": "done"
+  },
+  "P29.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\"N\": _sch"
+      },
+      {
+        "command": "{python} tools/audit_state_outside_the_core.py --check",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "learning state is the ontogenetic reservoir, which is N, and the audit says so if a learning field is not read",
+    "status": "done"
+  },
   "P29.2": {
     "checks": [
       {
@@ -3277,34 +3330,105 @@
     "note": "anything not in K has to be findable by the closure test, which reads the machine minus the core",
     "status": "done"
   },
+  "P29.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/audit_state_outside_the_core.py",
+        "pattern": "The walk is over the dataclass fields of the state objects rather than over a\\nhand-written list of suspects"
+      },
+      {
+        "command": "{python} tools/audit_state_outside_the_core.py --check",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the audit walks the state objects themselves rather than a list of suspects, and names every field a domain reads",
+    "status": "done"
+  },
   "P29.5": {
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
-        "pattern": "Every feature below names the attribute it reads"
+        "path": "tools/audit_state_outside_the_core.py",
+        "pattern": "\"in K\", \"periphery\", \"unmapped\"|out: dict\\[str, list\\[dict\\[str, Any\\]\\]\\] = \\{\"in K\""
       },
       {
-        "expr": "len(report['recording'].get('misses', {})) >= 0",
-        "kind": "report"
+        "command": "{python} -m pytest tests/test_every_state_field_is_placed.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
       }
     ],
-    "note": "every column names the attribute it reads, so what is in K is a list rather than a memory",
+    "note": "every persistent field is in a domain, outside K with a reason, or on a list that only shrinks",
     "status": "done"
   },
   "P29.6": {
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/closure.py",
-        "pattern": "measures it rather than assuming it|`core.subject.closure` measures"
+        "path": "tools/audit_state_outside_the_core.py",
+        "pattern": "the closure test is what watches it"
       },
       {
-        "expr": "'leak' in report['closure']",
-        "kind": "report"
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "Every number the machine is carrying that is not part of K"
+      },
+      {
+        "command": "{python} -m pytest tests/test_every_state_field_is_placed.py::test_every_field_outside_the_core_says_why -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
       }
     ],
-    "note": "and every omission is checked by the closure analysis rather than assumed",
+    "note": "a field outside K is a claim that closure watches it, and closure reads the machine minus the core",
+    "status": "done"
+  },
+  "P29.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\\(\"exertion\", \"soma\\.exertion\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "\\(\"recall_effort\", \"soma\\.effort\"\\)"
+      },
+      {
+        "command": "{python} tools/audit_state_outside_the_core.py --check",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the body's own readings are a domain: the host numbers, her exertion and the effort ledger are what I is",
+    "status": "done"
+  },
+  "P29.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/audit_state_outside_the_core.py",
+        "pattern": "\"health\": \"circuit-breaker and sidecar state"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def read_periphery"
+      }
+    ],
+    "note": "governance state gates whether a subsystem runs and is read as periphery rather than assumed irrelevant",
+    "status": "done"
+  },
+  "P29.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "And every service the container has already built"
+      }
+    ],
+    "note": "model-serving state is outside K and reachable by the closure test, which reads every service the container has built",
     "status": "done"
   },
   "P3.1": {

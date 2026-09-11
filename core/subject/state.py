@@ -385,6 +385,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("action_urgency", "organ:free_energy.get_action_urgency"),
             ("surprise_trend", "organ:free_energy.get_trend"),
             ("surprise_trend_known", "organ:free_energy.get_trend"),
+            # What she has come to expect of each feeling, which is what an
+            # arriving one is priced against. The workspace bids a feeling on
+            # `intensity - baseline`, so the same intensity claims more or less
+            # of her attention depending on this — a persistent variable
+            # deciding what wins the competition, and no column read it.
+            ("mood_baseline", "affect.mood_baselines"),
+            ("mood_baseline_spread", "affect.mood_baselines"),
         ),
     ),
     "G": _sch(
@@ -999,6 +1006,13 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
             *_ladder(_call(organs.free_energy, "get_trend", "", source="organ:free_energy.get_trend"), _FREE_ENERGY_TREND_LADDER),
         ]
     )
+    # What she has come to expect of each feeling. The workspace prices an
+    # arriving feeling at `intensity - baseline`, so this decides what wins
+    # attention, and it was persistent state no column read.
+    baselines = _dig(state, "affect.mood_baselines", {}) or {}
+    values = [_f(v) for v in baselines.values()] if isinstance(baselines, dict) else []
+    head.append(float(np.mean(values)) if values else 0.0)
+    head.append(float(np.std(values)) if len(values) > 1 else 0.0)
     return np.array(head, dtype=np.float64)
 
 
