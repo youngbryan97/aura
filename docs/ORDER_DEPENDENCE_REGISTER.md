@@ -128,7 +128,7 @@ between tests, so the per-test half of this was covered and the leak could only
 ever have come from collection. `tests/conftest.py` now takes a snapshot of the
 proof-run variables before the first module is imported, and after each
 collected file puts back anything that changed and records which file changed
-it. `tests/test_proof_run_signal_stays_off.py` is where the run then goes red,
+it. `tests/test_no_module_changes_a_switch_on_import.py` is where the run then goes red,
 naming the module; `tests/order_dependence_leak_example.py` is the file that
 makes it fire, run in a subprocess, so the guard cannot report green forever.
 

@@ -1615,12 +1615,18 @@ class SubjectRuntime:
         on_frame: Callable[[CoreState], None] | None = None,
         perturb_at: int | None = None,
         perturb: Callable[[SubjectRuntime], None] | None = None,
+        sustain: Callable[[SubjectRuntime], None] | None = None,
     ) -> list[CoreState]:
         """Run every phase once over the carried state, reading K after each.
 
         ``perturb_at`` is a frame index; the displacement is applied after that
         frame is read, so the arms share every reading before it and differ
         only from the next one on.
+
+        ``sustain`` is applied after every frame from then on. `do(X)` holds X
+        where it was put, and a domain whose own dynamics pull it back faster
+        than its consumers sample it cannot be measured any other way: see
+        `core.subject.causal.SUSTAINED`.
         """
         engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
         mind = getattr(engine, "instance", None) if engine is not None else None
@@ -1653,8 +1659,13 @@ class SubjectRuntime:
             frames.append(reading)
             if on_frame is not None:
                 on_frame(reading)
-            if perturb_at is not None and perturb is not None and len(frames) - 1 == perturb_at:
+            landed = perturb_at is not None and len(frames) - 1 == perturb_at
+            if landed and perturb is not None:
                 outcome = perturb(self)
+                if inspect.isawaitable(outcome):
+                    await outcome
+            elif sustain is not None and perturb_at is not None and len(frames) - 1 > perturb_at:
+                outcome = sustain(self)
                 if inspect.isawaitable(outcome):
                     await outcome
 

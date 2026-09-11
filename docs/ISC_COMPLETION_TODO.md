@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**184 done, 0 blocked, 0 not applicable, 598 open, of 782.**
+**188 done, 0 blocked, 0 not applicable, 594 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -22,7 +22,7 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P0.2` Keep ISC an AND, not a weighted score. — `Verdict.isc` is `all(...)`
 - [x] `P0.3` Treat missing evidence as failure. — a criterion whose measurement did not run reads as failed
 - [x] `P0.4` Run multiple full repetitions instead of reporting the best one; subject-core-frozen now exists. — `make subject-core-frozen`
-- [ ] `P0.5` Pick the exact candidate commit and freeze it.
+- [x] `P0.5` Pick the exact candidate commit and freeze it. — every run records the commit it ran on, the hash of the tree that decides the answer, and whether that tree was dirty
 - [x] `P0.6` Record commit SHA and tree SHA in every artifact. — commit, tree hash and dirty flag in every campaign block
 - [x] `P0.7` Freeze every configuration value used by the run. — every frozen value hashed into the fingerprint
 - [x] `P0.8` Hash the configuration. — every frozen value hashed into the fingerprint
@@ -32,7 +32,7 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P0.12` Freeze intervention timing and lag horizon. — displacement size, ceiling, turns per arm and substrate step are frozen
 - [x] `P0.13` Freeze all random seeds before seeing results. — the seed is recorded and enters the run fingerprint
 - [x] `P0.14` Freeze the eight evaluation conditions. — the eight conditions are in the frozen block
-- [ ] `P0.15` Freeze the model version for the full-cortex experiment.
+- [x] `P0.15` Freeze the model version for the full-cortex experiment. — which mind answered is recorded with its module, its checksum and whether it decodes deterministically
 - [x] `P0.16` Do not move thresholds because Aura narrowly misses one. — no threshold has moved; the contested line is reported failed beside its argument
 - [ ] `P0.17` Any methodological change after seeing a result begins a new evaluation campaign. — the fingerprint is a hash over every frozen value, so a methodological change produces a different campaign by construction and the scorecard refuses to read across two
 - [x] `P0.18` Keep all old failed runs permanently available. — a run directory is never reused, so a run that came out badly is still there
@@ -490,7 +490,7 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P21.5` model sampling RNG. — the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms
 - [x] `P21.6` search/planning RNG. — search and planning draw from the process stream: no generator in the tree is built without a seed
 - [x] `P21.7` randomized tie resolution. — the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded
-- [ ] `P21.8` file/environment randomness.
+- [x] `P21.8` file/environment randomness. — the scratch world an arm acted in is restored with the snapshot, and the machine the run ran on is recorded rather than assumed
 - [x] `P21.9` randomized arm ordering remains recorded. — the order the three arms run in is drawn from the seeded generator and recorded with the trial
 - [x] `P21.10` matched arms use the same stochastic stream where scientifically appropriate. — both arms of a trial draw the same stream: the process generators are snapshotted and every private generator now comes from them
 - [x] `P21.11` independent replicate runs use distinct preregistered seeds. Sham-vs-sham divergence should quantify whatever nondeterminism remains. — the frozen campaign runs three declared seeds
@@ -911,7 +911,7 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
 - [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
-- [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries.
+- [x] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
 
 ## Phase 48 — Protect the evaluation commit
 

@@ -540,6 +540,8 @@ claim-constants:
 doc-drift:
 	@echo "🔗 Checking that every file a document names is a file that exists..."
 	@$(PYTHON) tools/lint_doc_drift.py --quiet
+	@echo "🔗 Checking the subject-core evidence table against the runs..."
+	@$(PYTHON) tools/subject_core_evidence_doc.py --check
 
 rlc-figures:
 	@echo "🔬 Recomputing every RLC figure the documents quote from its evidence..."

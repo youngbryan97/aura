@@ -44,6 +44,7 @@ __all__ = [
     "power_note",
     "EDGE_QVALUE",
     "EDGE_REPLICATION",
+    "SUSTAINED",
     "Edge",
     "InterventionSet",
     "Trial",
@@ -64,6 +65,27 @@ EDGE_REPLICATION: int = 3
 #: than its ordinary within-turn wobble, small enough to leave the state in
 #: the operating range every writer clamps to.
 DEFAULT_DELTA: float = 0.15
+
+#: Domains whose displacement is held for the arm rather than delivered once.
+#:
+#: `do(X)` holds X at the value it was set to; a single push is not that. It
+#: makes no difference to a domain whose state persists — a goal stays on the
+#: list, a budget stays where it was filled to — and all the difference to one
+#: whose own dynamics pull it back faster than its consumers look at it.
+#:
+#: Recurrent cognition is the case. The substrate integrates at twenty hertz
+#: with a time constant of a tenth of a second, and the homeostatic coupling
+#: that carries it into how hot and how deep she may think runs on the
+#: heartbeat, once a second. So a push delivered early in a turn had decayed by
+#: five e-foldings before anything downstream looked, and C measured as a
+#: domain that can be moved ten standard deviations and reach a tenth of one
+#: anywhere else. Held, the consumers see the displacement whenever they
+#: sample.
+#:
+#: Membership follows from the layer rates the campaign already freezes, not
+#: from which domains came out badly: a domain backed by a layer whose period
+#: is shorter than a turn cannot deliver a pulse to a once-a-turn consumer.
+SUSTAINED: frozenset[str] = frozenset({"C"})
 
 #: A column with less spread than this during ordinary operation has no scale
 #: to be measured against and is left out of every distance.
@@ -297,10 +319,11 @@ async def _arm(
     held_latency = None if runtime.frozen_latency is None else dict(runtime.frozen_latency)
     frames: list[CoreState] = []
     applied = {"done": displace is None}
+    sustained = displace is not None and displace[0] in SUSTAINED
 
     async def hit(rt: SubjectRuntime) -> None:
         """Write to both halves of the domain: the state fields and the organ."""
-        if displace is None or applied["done"]:
+        if displace is None or (applied["done"] and not sustained):
             return
         domain, delta = displace
         in_state = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
@@ -314,15 +337,20 @@ async def _arm(
             # of overwriting it — which is what a sustained interoceptive
             # perturbation is.
             rt.freeze_host()
-        applied["done"] = bool(in_state or in_organ)
+        applied["done"] = applied["done"] or bool(in_state or in_organ)
 
     try:
         for turn in range(turns):
             frames.extend(
                 await runtime.turn_once(
                     condition,
-                    perturb_at=at if (turn == 0 and displace is not None) else None,
+                    perturb_at=(
+                        at
+                        if (turn == 0 and displace is not None)
+                        else (0 if sustained else None)
+                    ),
                     perturb=hit,
+                    sustain=hit if sustained else None,
                 )
             )
     finally:

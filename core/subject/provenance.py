@@ -125,6 +125,7 @@ def campaign(
     from core.subject.battery import THRESHOLDS
     from core.subject.causal import (
         DEFAULT_DELTA,
+        SUSTAINED,
         DIVERGENCE_CEILING,
         EDGE_EFFECT,
         EDGE_QVALUE,
@@ -152,6 +153,9 @@ def campaign(
             "divergence_ceiling": DIVERGENCE_CEILING,
             "trials": trials,
             "turns_per_arm": turns,
+            # Which domains are held at the displacement rather than pushed
+            # once. `do(X)` holds X, and a pulse is a different intervention.
+            "sustained": sorted(SUSTAINED),
         },
         # What the free-running layers run at, which is what makes a counted
         # schedule the same organism as a timed one. The rates are each

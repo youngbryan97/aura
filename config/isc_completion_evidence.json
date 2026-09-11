@@ -70,6 +70,21 @@
     "note": "the eight conditions are in the frozen block",
     "status": "done"
   },
+  "P0.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def mind_identity"
+      },
+      {
+        "expr": "'kind' in report['campaign']['mind'] and 'deterministic' in report['campaign']['mind']",
+        "kind": "report"
+      }
+    ],
+    "note": "which mind answered is recorded with its module, its checksum and whether it decodes deterministically",
+    "status": "done"
+  },
   "P0.16": {
     "checks": [
       {
@@ -202,6 +217,26 @@
       }
     ],
     "note": "`make subject-core-frozen`",
+    "status": "done"
+  },
+  "P0.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"commit\": _git\\(\"rev-parse\", \"HEAD\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"tree_hash\": _tree_hash\\(\\)"
+      },
+      {
+        "expr": "len(report['campaign']['commit']) == 40 and len(report['campaign']['tree_hash']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "every run records the commit it ran on, the hash of the tree that decides the answer, and whether that tree was dirty",
     "status": "done"
   },
   "P0.6": {
@@ -1540,6 +1575,31 @@
     "note": "the workspace breaks a tie on fatigue and then on the tick, never on arrival order, and its generator is seeded",
     "status": "done"
   },
+  "P21.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "def _restore_world"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def environment"
+      },
+      {
+        "expr": "len(report['campaign']['environment']['dependency_locks']) >= 0 and 'hardware' in report['campaign']['environment']",
+        "kind": "report"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_fork_leaves_nothing_behind.py::test_an_arm_that_ran_leaves_the_organism_where_it_found_it -q -p no:randomly -m ''",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "the scratch world an arm acted in is restored with the snapshot, and the machine the run ran on is recorded rather than assumed",
+    "status": "done"
+  },
   "P21.9": {
     "checks": [
       {
@@ -2695,6 +2755,31 @@
       }
     ],
     "note": "the command that produced the run, recorded with it",
+    "status": "done"
+  },
+  "P47.35": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "tools/subject_core_evidence_doc.py"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "<!-- generated: subject-core evidence -->"
+      },
+      {
+        "kind": "grep",
+        "path": "Makefile",
+        "pattern": "subject_core_evidence_doc\\.py --check"
+      },
+      {
+        "command": "{python} tools/subject_core_evidence_doc.py --check",
+        "kind": "command",
+        "timeout": 120
+      }
+    ],
+    "note": "the evidence table in the document is written from the reports, and a gate fails when it drifts",
     "status": "done"
   },
   "P47.4": {

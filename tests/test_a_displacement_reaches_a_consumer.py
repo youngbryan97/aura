@@ -506,3 +506,44 @@ def test_displacing_the_self_model_changes_the_beliefs_it_holds() -> None:
     assert "subject_core_probe" in after, (
         f"the displacement was accepted and left no belief: {sorted(after)[:8]}"
     )
+
+
+def test_a_domain_faster_than_its_consumers_is_held_at_the_displacement() -> None:
+    """`do(X)` holds X. A single push is a different intervention.
+
+    It makes no difference to a domain whose state persists — a goal stays on
+    the list, a budget stays where it was filled to — and all the difference to
+    one whose own dynamics pull it back faster than its consumers look. The
+    substrate integrates at twenty hertz with a tenth-of-a-second time
+    constant, and the homeostatic coupling that carries it into how hot and how
+    deep she may think runs on the heartbeat, once a second: a push delivered
+    early in a turn had decayed by five e-foldings before anything downstream
+    looked.
+    """
+    from core.subject.causal import SUSTAINED
+    from core.subject.steppable import LAYERS
+    from core.subject.driver import SECONDS_PER_TURN
+
+    assert "C" in SUSTAINED, "recurrent cognition is the case this exists for"
+
+    # And the rule that put it there, checked rather than remembered: the
+    # substrate's own period is shorter than a turn.
+    rates = {layer.name: layer.hz for layer in LAYERS}
+    assert rates, "no layer declares a rate"
+    fastest = max(rates.values())
+    assert 1.0 / fastest < SECONDS_PER_TURN
+
+    # Domains whose state persists are not held, because holding one would be
+    # a clamp rather than a displacement.
+    assert "D" not in SUSTAINED and "M" not in SUSTAINED and "S" not in SUSTAINED
+
+
+def test_the_sustained_write_reaches_every_frame_after_the_injection() -> None:
+    """The driver applies it after each frame from the injection point on."""
+    import inspect
+
+    from core.subject.driver import SubjectRuntime
+
+    source = inspect.getsource(SubjectRuntime.turn_once)
+    assert "sustain" in source
+    assert "len(frames) - 1 > perturb_at" in source

@@ -143,6 +143,27 @@ The life is short. A few hundred turns is not an ontogeny.
 
 ## What the numbers say so far
 
+Every run that carries a report, read off the artifacts rather than retyped.
+`tools/subject_core_evidence_doc.py --check` fails when this table and the
+reports disagree, so the numbers in the prose below cannot outlive the run they
+came from.
+
+<!-- generated: subject-core evidence -->
+
+| run | commit | campaign | criteria | phi | edges | component | vertex | spread |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| run_000 | `` | `` | 12/24 | -0.0938 | 9 | 3/10 | 0 | 0.100 |
+| run_001 | `0fb6fdd1cda0` | `cd87b540` | 11/24 | -0.0071 | 18 | 4/10 | 0 | 0.100 |
+| run_002 | `4bfa7fbbd3ed` | `58e895f1` | 12/24 | +0.0156 | 19 | 5/10 | 0 | 0.130 |
+| run_006 | `728161952e25` | `8ab7d7e5` | 10/24 | +0.0116 | 13 | 1/10 | 0 | 0.156 |
+| run_009 | `e9a44796010b` | `ed8c83f9` | 11/24 | +0.0326 | 20 | 4/10 | 0 | 0.211 |
+| run_014 | `36174cd12c1e` | `ebee263d` | 11/24 | -0.0470 | 18 | 4/10 | 0 | 0.233 |
+| run_015 | `d3d77f9fd4dc` | `ebee263d` | 11/24 | -0.0066 | 24 | 7/10 | 0 | 0.378 |
+| run_016 | `66b500117d01` | `d50b4b69` | 11/24 | -0.0202 | 30 | 6/10 | 0 | 0.411 |
+| run_017 | `da4f931353c9` | `d50b4b69` | 12/24 | +0.0221 | 36 | 7/10 | 0 | 0.400 |
+
+<!-- end generated -->
+
 The partition score across the session, on the same organism, as each
 methodological defect was removed and each channel repaired:
 
@@ -661,7 +682,7 @@ competitor. Affect won ninety-six competitions in a hundred, so attention was
 attending to was the same action every turn.
 
 **The objective she had just chosen made no claim on attention.**
-`ExecutiveClosure` writes it twice, two lines apart: as an initiative carrying
+`ExecutiveClosureEngine` writes it twice, two lines apart: as an initiative carrying
 the need pressure that selected it, and as a goal record carrying a flat
 priority and no urgency. The workspace prices deliberation on urgency.
 
