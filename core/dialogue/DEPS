@@ -12,6 +12,7 @@ description = "core.dialogue: may import only what it already imports; every new
 
 include_rules = [
     "+core.dialogue",
+    "+core.language",
 
     # Everything else.
     "-core",

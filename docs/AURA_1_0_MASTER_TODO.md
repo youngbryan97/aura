@@ -348,6 +348,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-10: the 27B recalled the corrected reading-group title across
+  restart and an intervening topic; browser reload retained the answer.
+  A paraphrased follow-up failed because quotation splitting misidentified
+  its grounded correction as invented history. Continuations now retain the
+  admitted transcript, and quoted attribution has 119 focused passing tests.
+  Live replay remains required. See [continuation history](evidence/R09_CONTINUATION_HISTORY_2026-09-10.md)
+  and [quoted recall](evidence/R09_QUOTED_RECALL_2026-09-10.md).
   UPDATE 2026-09-09, conversation capacity: removed independent foreground
   history-count cuts, retained complete repeated exchanges, and connected
   episodic recall through the memory facade. Focused route checks pass;

@@ -60,6 +60,8 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
+from core.language.typography import quotation_spans
+
 __all__ = [
     "fabricated_shared_history",
     "has_fabricated_shared_history",
@@ -226,7 +228,34 @@ def _sentences(text: Any) -> list[str]:
     raw = " ".join(str(text or "").split())
     if not raw:
         return []
-    return [part.strip() for part in re.split(r"(?<=[.!?…])\s+", raw) if part.strip()]
+    quotes = quotation_spans(raw)
+    boundaries = [
+        match
+        for match in re.finditer(r"(?<=[.!?…])\s+|(?<=[\"'\u201d\u2019])\s+", raw)
+        if not any(start < match.start() < end for start, end in quotes)
+        and (
+            raw[match.start() - 1] in ".!?…"
+            or (match.start() > 1 and raw[match.start() - 2] in ".!?…")
+        )
+    ]
+    result: list[str] = []
+    start = 0
+    for boundary in boundaries:
+        result.append(raw[start:boundary.start()].strip())
+        start = boundary.end()
+    result.append(raw[start:].strip())
+    return [part for part in result if part]
+
+
+# A demonstrative object can point forward to direct speech: "you said it
+# in your message: '...'". These are grammatical framing words, never facts
+# supplied as grounding. A substantive complement outside this class remains
+# independently subject to the ordinary check.
+_REPORTING_FRAME_WORDS = frozenset(
+    "it this that here there right just exactly explicitly literally clearly "
+    "in on at from with your the a an last previous earlier first message "
+    "response reply question answer note words writing".split()
+)
 
 
 def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
@@ -252,6 +281,15 @@ def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
     # clause: nothing precedes it that he said, and the claim IS the predicate.
     if matched.startswith("your"):
         return sentence
+    tail = sentence[attribution.end() :].strip()
+    quotes = quotation_spans(tail)
+    if quotes:
+        start, end = quotes[0]
+        framing = set(word.lower() for word in _WORD_RE.findall(tail[:start]))
+        if (not framing or framing <= _REPORTING_FRAME_WORDS) and not _content_words(tail[end:]):
+            # Keep every quoted sentence. Splitting before this step erased
+            # the object of "said" and judged its reporting frame instead.
+            return tail[start + 1:end - 1]
     head = sentence[: attribution.start()].strip()
     # A relative clause attaches directly to the noun it modifies. Anything
     # ending in punctuation is a separate clause — "Right — you just said ..."
@@ -266,7 +304,6 @@ def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
     # about my response", only the part before the comma is his; the rest is
     # hers, and counting it dilutes the invented content below the threshold
     # that catches it.
-    tail = sentence[attribution.end() :].strip()
     clause = re.split(r"[,;:\u2014\u2013]| - ", tail, maxsplit=1)[0].strip()
     if _content_words(clause):
         return clause
