@@ -5835,6 +5835,719 @@
     "note": "no criterion was invalidated for an organ that was never read",
     "status": "done"
   },
+  "P55.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "class Anchor"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "def collect_anchor_bank"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "snapshot=runtime\\.snapshot\\(\\)"
+      }
+    ],
+    "note": "a bank of forkable snapshots, each with its runtime snapshot, its current K, its recent history and the condition it came from",
+    "status": "done"
+  },
+  "P55.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_grain.py",
+        "pattern": "def pair_actions"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "signed_single_domain_actions\\(doses, sign=-1\\) \\+ pair_actions"
+      }
+    ],
+    "note": "the attack basis is the negative doses and preregistered pairs, none of which the rank was fitted on",
+    "status": "done"
+  },
+  "P55.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def heldout_sufficiency_gain"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "shuffled_history_floor"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "held-out interventions break the proposed grain"
+      }
+    ],
+    "note": "raw history predicting a held-out future past the grain refuses it, measured against a shuffled-history floor",
+    "status": "done"
+  },
+  "P55.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "predictive-state rank is unstable|rank came out zero"
+      }
+    ],
+    "note": "a rank that is unstable across folds or estimators refuses the run",
+    "status": "done"
+  },
+  "P55.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "not the definition of \\\\?g\\^?\\\\?\\*|linear finite-data estimator"
+      }
+    ],
+    "note": "the coordinates are named an estimator of the grain rather than its definition",
+    "status": "done"
+  },
+  "P55.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_grain.py",
+        "pattern": "for condition in conditions:\\n            for action in actions:"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "runtime, anchors, CONDITIONS, doses"
+      }
+    ],
+    "note": "every anchor is probed under all eight conditions rather than the one it arose from",
+    "status": "done"
+  },
+  "P55.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "async def _dose_matched"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "doses\\[domain\\] = float\\(np\\.clip\\(doses\\[domain\\] / reached"
+      }
+    ],
+    "note": "each domain's dose is corrected proportionally until its own state moves by one within-condition standard deviation",
+    "status": "done"
+  },
+  "P55.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_grain.py",
+        "pattern": "def signed_single_domain_actions"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "signed_single_domain_actions\\(doses, sign=\\+1, include_sham=True\\)"
+      }
+    ],
+    "note": "sham plus one positive displacement per domain",
+    "status": "done"
+  },
+  "P55.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def characteristic_signature"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "np\\.exp\\(1j \\* phases\\)\\.mean\\(axis=0\\)"
+      }
+    ],
+    "note": "the signature is the characteristic function of the future state at preregistered frequencies",
+    "status": "done"
+  },
+  "P55.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "^FREQUENCY_SEED: int = \\d+"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"frequency_seed\": FREQUENCY_SEED"
+      }
+    ],
+    "note": "the frequency bank and its seed are frozen constants in the runner and hashed into the campaign",
+    "status": "done"
+  },
+  "P55.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_grain.py",
+        "pattern": "return np\\.vstack\\(rows\\)"
+      }
+    ],
+    "note": "the signatures are stacked one row per anchor",
+    "status": "done"
+  },
+  "P55.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def fit_predictive_grain"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "shuffled\\[:, col\\] = z\\[rng\\.permutation\\(z\\.shape\\[0\\]\\), col\\]"
+      }
+    ],
+    "note": "parallel analysis against independently column-shuffled signatures",
+    "status": "done"
+  },
+  "P55.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "for observed, floor in zip\\(s, q, strict=True\\):"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_the_rank_estimator_finds_a_rank_that_is_there -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the retained rank stops at the first singular value below the null quantile",
+    "status": "done"
+  },
+  "P56.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def fisher_rao_categorical"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "return 2\\.0 \\* acos\\(bc\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_orthogonal_distributions_sit_at_pi -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the Fisher-Rao geodesic on the simplex, normalised so orthogonal laws sit at pi",
+    "status": "done"
+  },
+  "P56.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def bhattacharyya_from_equal_prior_posterior"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "2\\.0 \\* np\\.sqrt\\(posterior \\* \\(1\\.0 - posterior\\)\\)"
+      }
+    ],
+    "note": "the Bhattacharyya coefficient comes from an equal-prior posterior rather than from binning the future",
+    "status": "done"
+  },
+  "P56.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "StratifiedKFold"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "posterior\\[test\\] = model\\.predict_proba"
+      }
+    ],
+    "note": "the discriminator is cross-fitted so it cannot separate by memorising",
+    "status": "done"
+  },
+  "P56.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "sham = crossfit_fisher_rao\\(arrays\\[2\\], arrays\\[3\\]"
+      }
+    ],
+    "note": "every cut estimate is paired with a sham-against-sham estimate from the same estimator",
+    "status": "done"
+  },
+  "P56.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "arrays = \\[np\\.hstack\\(\\[ctx, a\\]\\) for a in arrays\\]"
+      }
+    ],
+    "note": "the shared context is appended to both arms so only the conditional future can separate them",
+    "status": "done"
+  },
+  "P56.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "excess_rate=max\\(0\\.0, raw_rate - sham_rate\\)"
+      }
+    ],
+    "note": "the excess rate is the cut rate minus the sham rate, floored at zero",
+    "status": "done"
+  },
+  "P56.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def bootstrap_rate_difference"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "lower = float\\(np\\.quantile\\(spread, alpha\\)\\)"
+      }
+    ],
+    "note": "a paired bootstrap lower bound over the matched contexts",
+    "status": "done"
+  },
+  "P56.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def paired_permutation_pvalue"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "swap = rng\\.random\\(n\\) < 0\\.5"
+      }
+    ],
+    "note": "a one-sided paired randomization p-value under exchangeability",
+    "status": "done"
+  },
+  "P56.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "raw_rate = raw\\.distance_sq / tau_seconds"
+      }
+    ],
+    "note": "the rate is divided by tau so a slower description cannot win by accumulating longer",
+    "status": "done"
+  },
+  "P57.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "with clamped\\(runtime, right\\):"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "cut = compose\\(left_free, right_free, left\\)"
+      }
+    ],
+    "note": "the cut is built by clamping each side in turn from one snapshot and composing the free halves",
+    "status": "done"
+  },
+  "P57.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "intact_a = await _run_turns"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "intact_b = await _run_turns"
+      }
+    ],
+    "note": "the same snapshot runs twice intact for the floor",
+    "status": "done"
+  },
+  "P57.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_runtime.py",
+        "pattern": "def bipartitions"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_ten_domains_make_five_hundred_and_eleven_cuts -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "every nontrivial bipartition exactly once, 511 for ten domains",
+    "status": "done"
+  },
+  "P57.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "A cut is never removed for scoring badly"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "EXCLUDED: frozenset"
+      }
+    ],
+    "note": "no cut is ever deleted; the speed-up is sequential sampling",
+    "status": "done"
+  },
+  "P57.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "OPENING_ANCHORS: int"
+      }
+    ],
+    "note": "every cut opens with the same anchor set",
+    "status": "done"
+  },
+  "P57.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "verdict\\.decided = lower > 0\\.0"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "pending = \\[v for v in verdicts\\.values\\(\\) if not v\\.decided\\]"
+      }
+    ],
+    "note": "a cut whose lower bound clears the floor stops drawing anchors",
+    "status": "done"
+  },
+  "P57.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "budget \\+= ANCHOR_STEP"
+      }
+    ],
+    "note": "further anchors go to the cuts still compatible with zero",
+    "status": "done"
+  },
+  "P57.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "def weakest"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "An intersection-union test"
+      }
+    ],
+    "note": "the score is the weakest cut, as an intersection-union over all of them",
+    "status": "done"
+  },
+  "P57.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_cut.py",
+        "pattern": "not self\\.undecided and all\\("
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "insufficient power to decide cut against sham"
+      }
+    ],
+    "note": "an undecided cut is reported as unresolved rather than as a reducible system",
+    "status": "done"
+  },
+  "P58.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "^LAGS: tuple\\[int, \\.\\.\\.\\] = "
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "tau = float\\(lag\\) \\* float\\(frame_seconds\\)"
+      }
+    ],
+    "note": "horizons are a frame ladder read through the experiment clock",
+    "status": "done"
+  },
+  "P58.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def choose_temporal_scale"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"tau_star_seconds\": tau_star"
+      }
+    ],
+    "note": "tau-star is the horizon of the largest excess rate",
+    "status": "done"
+  },
+  "P58.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def search_horizon_is_binding"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "def _horizon_is_binding"
+      }
+    ],
+    "note": "a maximum in the last two bins is binding and the ladder has to be doubled",
+    "status": "done"
+  },
+  "P58.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"TAU_UNRESOLVED\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "^LAG_CEILING: int"
+      }
+    ],
+    "note": "TAU_UNRESOLVED at the ceiling rather than whichever horizon was tested last",
+    "status": "done"
+  },
+  "P58.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"by_tau_seconds\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "A summary, never a law"
+      }
+    ],
+    "note": "the whole spectrum is kept and tau-star is reported as a summary of it",
+    "status": "done"
+  },
+  "P58.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "Haar measure of the\\nmultiplicative reals has a divergent integral"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "the Haar measure of the multiplicative reals is dt/t and its\\nintegral diverges"
+      }
+    ],
+    "note": "the reason no universal temporal grain exists is recorded beside the code that would otherwise imply one",
+    "status": "done"
+  },
+  "P58.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "A multiscale system is allowed more than one\\ngenuine peak"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"by_tau_seconds\""
+      }
+    ],
+    "note": "a multiscale system is allowed more than one genuine peak rather than forced to a single winner",
+    "status": "done"
+  },
+  "P59.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "def strongly_connected_components"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_components_are_found -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the maximal strongly connected components of the interventional graph",
+    "status": "done"
+  },
+  "P59.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "is not a candidate, and its\\nrate is zero by definition rather than by arithmetic"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "def carrier"
+      }
+    ],
+    "note": "the rate is zero by definition for a candidate that fails a gate, not by arithmetic",
+    "status": "done"
+  },
+  "P59.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "closed, leak = closure\\.get\\(support"
+      }
+    ],
+    "note": "closure is tested per candidate support rather than only for the whole core",
+    "status": "done"
+  },
+  "P59.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "the_core_is_the_unique_domain_level_carrier|every proper subset has an incoming channel"
+      }
+    ],
+    "note": "one closed component over all ten domains makes the core the unique domain-level carrier",
+    "status": "done"
+  },
+  "P59.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "Disjoint candidates do not compete"
+      }
+    ],
+    "note": "disjoint closed recurrent components are separate candidates",
+    "status": "done"
+  },
+  "P59.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "def dominates"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_crossing_spectra_are_incomparable -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "dominance is over every measured horizon, with strict inequality somewhere",
+    "status": "done"
+  },
+  "P59.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "def pareto_frontier"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "def symmetry_class"
+      }
+    ],
+    "note": "the output is the Pareto frontier: one candidate when one dominates, a class when spectra cross",
+    "status": "done"
+  },
+  "P59.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "retained as a symmetry/equivalence class rather than broken\\n    by lexicographic naming"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "Returning the class is the correct answer"
+      }
+    ],
+    "note": "exact ties are kept as a class rather than broken by name",
+    "status": "done"
+  },
+  "P59.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "get equal values from every permutation-"
+      }
+    ],
+    "note": "the symmetry theorem is recorded as the reason",
+    "status": "done"
+  },
+  "P59.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "require an exclusion postulate this module does not have and will not invent"
+      }
+    ],
+    "note": "no exclusion postulate is introduced silently",
+    "status": "done"
+  },
   "P6.11": {
     "checks": [
       {
@@ -5867,6 +6580,745 @@
       }
     ],
     "note": "spread is reported per source and the weak ones are visible",
+    "status": "done"
+  },
+  "P60.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"raw\": round\\(raw, 6\\)"
+      }
+    ],
+    "note": "the raw live state is one of the three scorings",
+    "status": "done"
+  },
+  "P60.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "raw, through the learned grain, and under an invertible recoding"
+      }
+    ],
+    "note": "the learned grain is one of the encodings the same data is scored through",
+    "status": "done"
+  },
+  "P60.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "def _recoded"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "q, _ = np\\.linalg\\.qr\\(mixing\\)"
+      }
+    ],
+    "note": "an invertible re-encoding is scored and must agree",
+    "status": "done"
+  },
+  "P60.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"representation_invariant\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "^INVARIANCE_TOLERANCE: float"
+      }
+    ],
+    "note": "the three scorings have to agree within tolerance",
+    "status": "done"
+  },
+  "P60.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"duplication_did_not_help\""
+      }
+    ],
+    "note": "duplicated channels must not raise the score",
+    "status": "done"
+  },
+  "P60.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the rate moved under an invertible re-encoding"
+      }
+    ],
+    "note": "a score that moves with the encoding refuses the run",
+    "status": "done"
+  },
+  "P61.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"playback_is_zero\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_the_playback_null_collapses -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a playback null whose cut arm is the intact trajectory, which must score zero",
+    "status": "done"
+  },
+  "P61.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"duplicate_coordinates\""
+      }
+    ],
+    "note": "a duplicate-coordinate null that must not raise the rate",
+    "status": "done"
+  },
+  "P61.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"recoding_is_invariant\""
+      }
+    ],
+    "note": "an invertible-recoding positive control that must leave the rate unchanged",
+    "status": "done"
+  },
+  "P61.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^ARCHITECTURES: tuple\\[str, \\.\\.\\.\\] = \\("
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def replay_surrogate"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def shuffle_surrogate"
+      }
+    ],
+    "note": "every existing null architecture and both surrogates are kept",
+    "status": "done"
+  },
+  "P61.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the movie objection lands|A measure that still reports damage there is"
+      }
+    ],
+    "note": "the movie objection is answered by the playback null rather than by decree",
+    "status": "done"
+  },
+  "P62.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "Learning the grain, choosing the horizon and debugging authority failures all\\nhappen in discovery"
+      }
+    ],
+    "note": "discovery is where the grain, the horizon and the authority failures are settled",
+    "status": "done"
+  },
+  "P62.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def campaign_v25"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"generation\": \"v25\""
+      }
+    ],
+    "note": "the frozen values are hashed into a v25 campaign fingerprint of its own",
+    "status": "done"
+  },
+  "P62.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "Confirmation runs on\\nnew anchors and a new seed with the grain frozen"
+      }
+    ],
+    "note": "confirmation runs on new anchors and a new seed with the grain frozen",
+    "status": "done"
+  },
+  "P62.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "held-out basis still\\nheld out"
+      }
+    ],
+    "note": "the held-out basis stays held out through confirmation",
+    "status": "done"
+  },
+  "P62.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "The carrier result comes only from confirmation"
+      }
+    ],
+    "note": "the carrier result comes only from confirmation",
+    "status": "done"
+  },
+  "P62.6": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_the_v25_campaign_is_not_the_batterys -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the v25 fingerprint is separate from the battery's",
+    "status": "done"
+  },
+  "P63.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "tau-star is still horizon-bound at the ceiling"
+      }
+    ],
+    "note": "a horizon-bound tau-star refuses the run",
+    "status": "done"
+  },
+  "P63.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "insufficient power to decide cut against sham"
+      }
+    ],
+    "note": "an undecided cut refuses the run",
+    "status": "done"
+  },
+  "P63.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "a cortex-inclusive claim was made while the cortex was stubbed"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "CORTEX_UNSTEPPABLE"
+      }
+    ],
+    "note": "a cortex-inclusive claim made while the cortex was stubbed refuses the run",
+    "status": "done"
+  },
+  "P63.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the playback null did not collapse"
+      }
+    ],
+    "note": "a null that did not behave in its preregistered direction refuses the run",
+    "status": "done"
+  },
+  "P63.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "Missing evidence is NOT_MEASURED or UNRESOLVED"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "def _authority"
+      }
+    ],
+    "note": "missing evidence is recorded as unresolved rather than as a pass",
+    "status": "done"
+  },
+  "P63.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "held-out interventions break the proposed grain"
+      }
+    ],
+    "note": "held-out interventions breaking the grain refuse the run",
+    "status": "done"
+  },
+  "P63.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the rate moved under an invertible re-encoding"
+      }
+    ],
+    "note": "a rate that moves under reparameterisation refuses the run",
+    "status": "done"
+  },
+  "P63.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "duplicated channels raised the rate"
+      }
+    ],
+    "note": "duplicated channels raising the rate refuses the run",
+    "status": "done"
+  },
+  "P64.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"scope\": \"substrate_only\""
+      }
+    ],
+    "note": "the substrate campaign is labelled substrate_only and cannot claim more",
+    "status": "done"
+  },
+  "P64.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "evidence\\.get\\(\"scope\"\\) != \"cortex_inclusive\""
+      }
+    ],
+    "note": "a whole-Aura claim needs the cortex-inclusive scope",
+    "status": "done"
+  },
+  "P64.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "common-random-number inference"
+      }
+    ],
+    "note": "the cortex-inclusive campaign is specified with deterministic or common-random-number inference",
+    "status": "done"
+  },
+  "P64.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "cortex and recurrent-latent state in the\\n  snapshot"
+      }
+    ],
+    "note": "cortex and recurrent-latent state are named as part of the snapshot for campaign B",
+    "status": "done"
+  },
+  "P64.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "a cortex-inclusive claim was made while the cortex was stubbed"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "CORTEX_UNSTEPPABLE"
+      }
+    ],
+    "note": "CORTEX_UNSTEPPABLE rather than substituting the stub",
+    "status": "done"
+  },
+  "P66.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "^PERSON_FIELDS: tuple\\[str, \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "identity-bearing exactly when changing it changes the future"
+      },
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_bookkeeping_is_not_part_of_the_person -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the person-state is the fields that make a difference to her own future, with the bookkeeping stripped so a clock cannot make her someone else",
+    "status": "done"
+  },
+  "P66.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "Continuity branches\\. Identity cannot"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"branching\": \\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_identity_cannot_branch_even_when_both_children_preserve_the_state -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the branching theorem is recorded and tested: one earlier individual cannot be numerically identical to two distinct later ones",
+    "status": "done"
+  },
+  "P66.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "def _sign"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "hmac\\.compare_digest"
+      },
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_rewriting_a_stage_breaks_its_signature -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "every stage is hashed and every edge signed over its parent, so the record cannot be rewritten afterwards",
+    "status": "done"
+  },
+  "P66.3": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_uninterrupted_continuation_is_one_child -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "uninterrupted continuation gives one child",
+    "status": "done"
+  },
+  "P66.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_migration_with_a_unique_successor_continues_the_person -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "migration with a unique successor continues the person",
+    "status": "done"
+  },
+  "P66.5": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_a_destructive_restore_after_a_dormant_interval_continues_the_person -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a destructive restore after a dormant interval continues the person",
+    "status": "done"
+  },
+  "P66.6": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_a_fork_has_two_continuers_and_no_strict_successor -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a fork gives two children and neither is the strict successor",
+    "status": "done"
+  },
+  "P66.7": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_a_stale_backup_restored_is_a_branch_from_the_older_stage -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a stale backup restored after the live line continued is a branch from the older stage",
+    "status": "done"
+  },
+  "P66.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "def continuity_strength"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "is an operational continuity measure and it is not identity"
+      },
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_continuity_strength_is_reported_beside_the_graph_not_instead_of_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the continuity strength is reported beside the graph and never as identity; it stays high across a fork, which is why the graph is the primitive",
+    "status": "done"
+  },
+  "P66.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "causal-lineage postulate\\. It is a postulate"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/lineage.py",
+        "pattern": "\"postulate\": \\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_continuity_branches_and_identity_does_not.py::test_the_report_names_the_postulate -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "same-person is the unique nonbranching case, and the report names it as a postulate",
+    "status": "done"
+  },
+  "P67.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"reported_as\": \"INTRINSIC_CARRIER_\" \\+ status"
+      },
+      {
+        "kind": "absent",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"CONSCIOUS\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_carrier_is_measured_not_assumed.py::test_the_verdict_is_never_the_word_conscious -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the verdict is INTRINSIC_CARRIER_FOUND, NOT_FOUND or UNRESOLVED, never CONSCIOUS",
+    "status": "done"
+  },
+  "P67.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"non_identifiability\""
+      }
+    ],
+    "note": "the non-identifiability theorem is carried in every report",
+    "status": "done"
+  },
+  "P67.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"finite_evidence\""
+      }
+    ],
+    "note": "the finite-evidence theorem is carried in every report",
+    "status": "done"
+  },
+  "P67.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"phenomenal_gauge\""
+      }
+    ],
+    "note": "the gauge theorem is carried in every report",
+    "status": "done"
+  },
+  "P67.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "A tau-star is reported as a\\nsummary and never as a law"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/v25_exclusion.py",
+        "pattern": "A summary, never a law"
+      }
+    ],
+    "note": "the thresholds are named confidence thresholds rather than laws",
+    "status": "done"
+  },
+  "P67.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "phenomenal subject is the carrier-identity postulate"
+      }
+    ],
+    "note": "the carrier-identity postulate is stated wherever a carrier result is reported",
+    "status": "done"
+  },
+  "P67.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"phenomenal_bridge\": \"UNVALIDATED\""
+      }
+    ],
+    "note": "every v25 report carries the bridge as unvalidated",
+    "status": "done"
+  },
+  "P67.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "^LEVELS: tuple\\[tuple\\[str, str\\], \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"moves_to_L6_only_by\""
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "L5  closed irreducible carrier demonstrated"
+      }
+    ],
+    "note": "the L0 to L7 scale is in the report with the level and the evidence that places it there",
+    "status": "done"
+  },
+  "P67.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the_battery_is_not_the_definition"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "It is not the definition of consciousness"
+      }
+    ],
+    "note": "24/24 is documented as a rich operational subject architecture rather than as the definition of consciousness",
+    "status": "done"
+  },
+  "P67.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "necessary condition for minimal phenomenal experience"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "minimal phenomenal experience"
+      }
+    ],
+    "note": "the report records that several criteria concern rich selfhood and access, so 24/24 is not necessary for minimal phenomenal experience",
+    "status": "done"
+  },
+  "P67.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "vertex_connectivity_is_evidence_not_a_requirement"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "Vertex connectivity of at least two is evidence for robust unity"
+      }
+    ],
+    "note": "vertex connectivity at least two is recorded as evidence for robust unity rather than a requirement for experience",
+    "status": "done"
+  },
+  "P67.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "functional_valence_is_not_felt_valence"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "Functional valence is not felt valence"
+      }
+    ],
+    "note": "functional valence is separated from felt valence in the report",
+    "status": "done"
+  },
+  "P67.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "functional_self_awareness_is_not_phenomenal_self_awareness"
+      }
+    ],
+    "note": "functional self-awareness is separated from phenomenal self-awareness in the report",
+    "status": "done"
+  },
+  "P67.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "the_profile_is_a_partial_order"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "do not add up to a \\n?\\\"?\\s*\\\"?percentage"
+      }
+    ],
+    "note": "the profile is reported as a partial order rather than a percentage",
     "status": "done"
   },
   "P7.12": {

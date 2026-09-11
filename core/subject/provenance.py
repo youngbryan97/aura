@@ -29,12 +29,14 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 from core.subject.clock import real_time
 
 __all__ = [
     "campaign",
+    "campaign_v25",
     "environment",
     "fingerprint",
     "run_fingerprint",
@@ -204,6 +206,105 @@ def campaign(
         "platform": platform.platform(),
         # The machine's clock, not the experiment's: how long a run took is a
         # question about the host, and the experiment's clock is stopped.
+        "started_at": real_time(),
+    }
+
+
+def campaign_v25(
+    *,
+    seed: int,
+    rounds: int,
+    anchors: int,
+    history_turns: int,
+    turns: int,
+    cut_rounds: int,
+    support: Sequence[str],
+) -> dict[str, Any]:
+    """The v25 fingerprint, which is a different campaign from the battery's.
+
+    A methodological change after seeing a result has to start a new campaign
+    or the scorecard is reading across two experiments. That rule applies to
+    v25 on its own terms: what it freezes is the action basis, the frequency
+    bank the signatures are read through, the horizon ladder and the rule for
+    extending it, the estimator, the sequential stopping rule and the
+    tolerances. Move any of them and the hash moves with it.
+    """
+    from core.subject.causal import SUSTAINED
+    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN
+    from core.subject.state import DOMAINS, feature_names
+    from core.subject.steppable import LAYERS
+
+    # Imported from the runner so the frozen values are the ones in force
+    # rather than a second copy that can drift away from them.
+    from tools.run_subject_core_v25 import (  # noqa: PLC0415
+        FREQUENCIES,
+        FREQUENCY_SEED,
+        INVARIANCE_TOLERANCE,
+        LAG_CEILING,
+        LAGS,
+        SUFFICIENCY_TOLERANCE,
+    )
+    from core.subject.v25_cut import ANCHOR_STEP, OPENING_ANCHORS
+
+    schema = feature_names()
+    frozen: dict[str, Any] = {
+        "generation": "v25",
+        "target": "F_intrinsic = Phi_FR / tau, gated on closure and recurrence",
+        "grain": {
+            "signature": "characteristic function at preregistered frequencies",
+            "frequencies_per_test": FREQUENCIES,
+            "frequency_seed": FREQUENCY_SEED,
+            "rank_rule": "parallel analysis against column-shuffled signatures",
+            "sufficiency_tolerance": SUFFICIENCY_TOLERANCE,
+            "history_turns": history_turns,
+        },
+        "metric": {
+            "name": "Fisher-Rao",
+            "estimator": "cross-fitted k-NN posterior -> Bhattacharyya -> 2 arccos",
+            "floor": "sham against sham, same estimator",
+            "lower_bound": "paired bootstrap, alpha 0.05",
+            "p_value": "paired randomization over common forks",
+        },
+        "horizons": {
+            "lags_frames": list(LAGS),
+            "ceiling_frames": LAG_CEILING,
+            "extension_rule": "double while the maximum sits in the last two bins",
+            "reported": "the whole spectrum; tau-star is a summary, not a law",
+        },
+        "cuts": {
+            "enumeration": "every bipartition, first domain fixed left",
+            "opening_anchors": OPENING_ANCHORS,
+            "anchor_step": ANCHOR_STEP,
+            "rounds": cut_rounds,
+            "stopping_rule": "a cut stops drawing once its lower bound clears zero",
+            "score": "the weakest cut, as an intersection-union over all of them",
+            "cut_construction": "clamp both sides in turn, compose the free halves",
+        },
+        "invariance_tolerance": INVARIANCE_TOLERANCE,
+        "nulls": ["playback", "duplicate_coordinates", "invertible_recoding"],
+        "intervention": {"sustained": sorted(SUSTAINED), "turns_per_arm": turns},
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "layer_rates": {layer.name: layer.hz for layer in LAYERS},
+        "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
+        "anchors": anchors,
+        "support": list(support),
+        "domains": list(DOMAINS),
+        "schema": {
+            "width": len(schema),
+            "hash": hashlib.blake2b("|".join(schema).encode(), digest_size=16).hexdigest(),
+        },
+        "seed": seed,
+    }
+    return {
+        "frozen": frozen,
+        "fingerprint": fingerprint(frozen),
+        "run_fingerprint": run_fingerprint(frozen),
+        "commit": _git("rev-parse", "HEAD"),
+        "commit_subject": _git("log", "-1", "--format=%s"),
+        "tree_hash": _tree_hash(),
+        "dirty": bool(_git("status", "--porcelain", "core", "tools")),
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
         "started_at": real_time(),
     }
 

@@ -331,6 +331,20 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"objective_profile_{i}", "cognition.current_objective")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # What the senses actually said, as a coordinate. Every other
+            # column here is metadata about the stream — how many, how strong,
+            # what type, how much is unfelt — and none of them carry what came
+            # back. The return route the specification asks for runs
+            # deliberation -> action -> filesystem -> percept, and the only
+            # thing that differs between an arm that made a room and an arm
+            # that wrote a note is the sentence the world handed back. With no
+            # column reading it, that whole loop was invisible: perception had
+            # five retained outgoing edges and not one coming in, and it was
+            # the one domain outside the strongly connected component.
+            *[
+                (f"percept_profile_{i}", "world.recent_percepts[*].content")
+                for i in range(CONTENT_BUCKETS)
+            ],
         ),
     ),
     "I": _sch(
@@ -934,6 +948,10 @@ def _read_P(state: Any, now: float) -> np.ndarray:
             1.0 if _dig(state, "world.spatial_context") else 0.0,
             _sat(str(objective), 64.0),
             *_content_buckets(objective),
+            # The stream's own words, over the window a percept lives in. The
+            # newest four rather than all sixteen: what the world just said is
+            # perception, and an average over the whole window is a history.
+            *_content_buckets(" ".join(item.content for item in tail[-4:])),
         ],
         dtype=np.float64,
     )

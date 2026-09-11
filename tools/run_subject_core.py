@@ -749,7 +749,12 @@ def _nulls(
     from core.subject.battery import THRESHOLDS
 
     table: dict[str, Any] = {}
-    real_phi = float(evidence["phi"]["phi_do"])
+    # The bound, to match what the criterion asks of the same number. Comparing
+    # a point estimate whose interval contains zero against a null's upper
+    # quantile is comparing noise against a ceiling, and it can come out either
+    # way for reasons that are about the estimator.
+    real_phi = float(evidence["phi"].get("lower_bound", evidence["phi"]["phi_do"]))
+    real_point = float(evidence["phi"]["phi_do"])
 
     # Surrogates of the series the score is actually computed on. Building them
     # from the frame-level recording would compare a number measured on one
@@ -906,6 +911,9 @@ def _nulls(
             if row.get("kind") == "surrogate"
         },
         "phi_beats_all": all(beaten.values()) if beaten else False,
+        "compared_on": "lower_bound",
+        "real_lower_bound": round(real_phi, 5),
+        "real_point_estimate": round(real_point, 5),
         "all_nulls_fail": bool(nulls_fail and reference_passes),
         "nulls_fail_the_bar": nulls_fail,
         "reference_architecture_passes": reference_passes,
