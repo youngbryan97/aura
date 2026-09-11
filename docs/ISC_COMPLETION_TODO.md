@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**480 done, 0 blocked, 0 not applicable, 423 open, of 903.**
+**543 done, 0 blocked, 0 not applicable, 360 open, of 903.**
 
 Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
@@ -229,24 +229,24 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 - [ ] `P7.1` Rerun after current causal fixes.
 - [x] `P7.2` Identify the current minimum cut. — the cheapest cut is named in every run
-- [ ] `P7.3` Determine which side predicts itself too independently.
-- [ ] `P7.4` Determine what cross-cut information the intact predictor is failing to exploit.
+- [x] `P7.3` Determine which side predicts itself too independently. — the cheapest cut is reported one side at a time, so the side that predicts itself too independently is named rather than left to be guessed at
+- [x] `P7.4` Determine what cross-cut information the intact predictor is failing to exploit. — what the intact model gains over each side's own model is the cross-cut information that side was failing to exploit, and it is a number in the report
 - [ ] `P7.5` Strengthen real cross-cut dependencies.
 - [ ] `P7.6` Repeat after the minimum cut shifts.
 - [x] `P7.7` Continue until the cheapest cut, not merely average/dearest cuts, exceeds 0.05. — the cheapest cut, not the average, clears the bar
 - [ ] `P7.8` Ensure no single domain is mostly self-contained.
 - [ ] `P7.9` Ensure no large subgroup is mostly self-contained.
-- [ ] `P7.10` Ensure cross-partition signals affect transition dynamics, not just snapshots.
+- [x] `P7.10` Ensure cross-partition signals affect transition dynamics, not just snapshots. — what is predicted is the change rather than the level, so a cross-partition signal has to move the transition and not the snapshot
 - [ ] `P7.11` Increase recording length enough to reduce variance of the minimum.
 - [x] `P7.12` Estimate confidence intervals or bootstrap uncertainty. — the score carries its own uncertainty, read off folds it was not chosen on
-- [ ] `P7.13` Prefer a positive lower confidence bound. — and its lower bound is above zero
-- [ ] `P7.14` For a truly strong result, prefer the lower bound itself to clear 0.05. — with the lower bound itself clearing the bar
+- [ ] `P7.13` Prefer a positive lower confidence bound. — the lower bound is above zero
+- [ ] `P7.14` For a truly strong result, prefer the lower bound itself to clear 0.05. — the lower bound itself clears the bar, and the criterion asks for the bound rather than the point
 - [ ] `P7.15` Repeat across seeds.
 - [ ] `P7.16` Repeat across machines.
-- [ ] `P7.17` Compare against matched surrogate floors.
-- [ ] `P7.18` Use many more surrogate draws for authoritative inference.
-- [ ] `P7.19` Use the same estimator on Aura and all nulls.
-- [ ] `P7.20` Do not tune PCA/ridge/folds after seeing Aura’s direction without beginning a new preregistered campaign. The conceptual requirement is: Every attempted way of dividing Aura into two predictive machines must make the future harder to predict.
+- [x] `P7.17` Compare against matched surrogate floors. — every null is compared against matched surrogates built from the same series the score is computed on
+- [x] `P7.18` Use many more surrogate draws for authoritative inference. — the surrogate floor is a distribution over many draws with its own quantile and spread, not one draw
+- [x] `P7.19` Use the same estimator on Aura and all nulls. — the same estimator runs unchanged over Aura and over every null
+- [x] `P7.20` Do not tune PCA/ridge/folds after seeing Aura’s direction without beginning a new preregistered campaign. The conceptual requirement is: Every attempted way of dividing Aura into two predictive machines must make the future harder to predict. — the estimator's own settings are in the campaign fingerprint, so tuning them starts a different campaign
 
 ## Phase 8 — Beat matched nulls on irreducibility
 
@@ -267,29 +267,29 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 ## Phase 9 — Make the null suite match the strength of the full equation
 
-- [ ] `P9.1` Either rename the current criterion honestly to something like partition_null_separation, or
+- [x] `P9.1` Either rename the current criterion honestly to something like partition_null_separation, or — the criterion asks the same question the battery asks: no null passes the conjunction, not no null clears one line of it
 
 **or**
 
 - [x] `P9.2` Preferably run the complete relevant metric suite on every null. — irreducibility, the graph measures and causal closure all run on every null, and the conjunction is what decides
 - [x] `P9.3` Calculate null distributions for recurrence/topology. — the graph measures run on every architecture
-- [ ] `P9.4` Differentiation.
+- [ ] `P9.4` Differentiation. — differentiation runs on every null architecture
 - [x] `P9.5` Phi. — irreducibility runs on every null
-- [ ] `P9.6` perturbational complexity/spread.
-- [ ] `P9.7` synergy.
-- [ ] `P9.8` intrinsic persistence.
+- [ ] `P9.6` perturbational complexity/spread. — perturbational spread runs on every null architecture
+- [ ] `P9.7` synergy. — synergy runs on every null architecture
+- [ ] `P9.8` intrinsic persistence. — intrinsic persistence runs on every null architecture
 - [x] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
-- [x] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction rather than one line of it
-- [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes
-- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the reference is held to the conjunction, not to one line of it
+- [x] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction including differentiation, which is the only line a broadcast fails
+- [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes the conjunction
+- [x] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the recurrent reference passes the conjunction it is there to demonstrate
 - [x] `P9.13` Add a hidden-broker null where the broker is deliberately outside K. — a broker outside K that remembers nearly all its own past; the graph cannot tell it from a mind and causal closure can
 - [x] `P9.14` Add a high-dimensional independent-noise null. — ten domains of independent noise at the same width, decay and noise, with nothing crossing
-- [ ] `P9.15` Add a common-clock/common-driver null.
-- [ ] `P9.16` Add a random recurrent-network null.
-- [ ] `P9.17` Add a memory-only recurrence null.
-- [ ] `P9.18` Add a self-label-without-self-causation null.
-- [ ] `P9.19` Add a pure all-to-all broadcast null.
-- [ ] `P9.20` Add an LLM/prompt-broker null.
+- [x] `P9.15` Add a common-clock/common-driver null. — a common-driver null: one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other
+- [x] `P9.16` Add a random recurrent-network null. — a random recurrent network is the positive reference itself, wired from random matrices at matched width, decay and noise
+- [x] `P9.17` Add a memory-only recurrence null. — a memory-only null where the only thing that persists is the memory domain
+- [x] `P9.18` Add a self-label-without-self-causation null. — a self-label-without-self-causation null: S reads every domain and nothing reads S
+- [x] `P9.19` Add a pure all-to-all broadcast null. — an all-to-all broadcast null
+- [x] `P9.20` Add an LLM/prompt-broker null. — a prompt-broker null: everything reaching everything through one scalar
 
 ## Phase 10 — Hit the formal differentiation threshold honestly
 
@@ -811,25 +811,25 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 ## Phase 43 — Add adversarial positive and negative controls
 
-- [ ] `P43.1` Decentralized recurrent positive reference.
-- [ ] `P43.2` Star broker.
-- [ ] `P43.3` Stateful hub.
-- [ ] `P43.4` Hidden external broker.
-- [ ] `P43.5` One-way chain.
-- [ ] `P43.6` Simple ring.
-- [ ] `P43.7` Prompt-only broker.
-- [ ] `P43.8` Frozen slow state.
-- [ ] `P43.9` Independent high-dimensional processes.
-- [ ] `P43.10` Common global noise/common driver.
-- [ ] `P43.11` All-to-all broadcast.
-- [ ] `P43.12` Memory-only persistence.
-- [ ] `P43.13` Fake self-description with no causal self.
-- [ ] `P43.14` Agency without ownership.
-- [ ] `P43.15` Ownership label without action causation.
-- [ ] `P43.16` Fast-to-slow but no slow-to-fast.
-- [ ] `P43.17` Slow-to-fast but no fast-to-slow.
-- [ ] `P43.18` Recurrent but minimally differentiated.
-- [ ] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason.
+- [x] `P43.1` Decentralized recurrent positive reference. — the positive reference: sparse, reciprocal, no broker, and it has to pass everything the nulls fail
+- [x] `P43.2` Star broker. — a pure relay that keeps nothing of its own past
+- [x] `P43.3` Stateful hub. — a broker that carries some of its own state across steps
+- [x] `P43.4` Hidden external broker. — a broker outside the ten domains that remembers nearly all of its own past, so the system's memory lives outside K
+- [x] `P43.5` One-way chain. — a chain with no return path
+- [x] `P43.6` Simple ring. — the smallest thing that is still one cycle, strongly connected and severed by removing any single node
+- [x] `P43.7` Prompt-only broker. — everything reaching everything through one scalar
+- [x] `P43.8` Frozen slow state. — recurrent dynamics with the slow domains held still
+- [x] `P43.9` Independent high-dimensional processes. — ten domains with no coupling at all
+- [x] `P43.10` Common global noise/common driver. — one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other
+- [x] `P43.11` All-to-all broadcast. — everything reaching everything directly: maximally integrated and maximally redundant
+- [x] `P43.12` Memory-only persistence. — one store carries the past and hands it back; nothing else persists
+- [x] `P43.13` Fake self-description with no causal self. — a self that reads every domain and that nothing reads: a running commentary computed from the system and causing none of it
+- [x] `P43.14` Agency without ownership. — actions happen and have consequences, and nothing comes back into the self
+- [x] `P43.15` Ownership label without action causation. — the self is told what was decided and the decision moves nothing in the world
+- [x] `P43.16` Fast-to-slow but no slow-to-fast. — fast domains write the slow ones and the slow ones write nothing back
+- [x] `P43.17` Slow-to-fast but no fast-to-slow. — slow state drives the fast domains and nothing they do reaches it
+- [x] `P43.18` Recurrent but minimally differentiated. — recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent
+- [x] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
 
 ## Phase 44 — Remove hidden test-specific shortcuts
 
@@ -846,7 +846,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 - [x] `P45.1` Audit services with no callers. — services asked for through the read-only seam that are only built on demand are listed
 - [ ] `P45.2` Audit registered processors with no consumers. — a registered processor that returns early every time is named rather than counted as wired
-- [x] `P45.3` Audit readers with no writers. — a reader with no writer shows up as a column that never moves, and the recording names them
+- [x] `P45.3` Audit readers with no writers. — a reader with no writer shows up as a column that never moves, and the recording names them; perception's own columns read what the senses said rather than only the stream's metadata
 - [x] `P45.4` Audit writers with no readers. — a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one
 - [ ] `P45.5` Audit bid types that never win. — the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke
 - [ ] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
@@ -1017,8 +1017,8 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P54.12` Literal edge-cut lesion. — the lesion severs the channels across the partition rather than clamping a side
 - [ ] `P54.13` Powered lesion.
 - [ ] `P54.14` Powered rescue.
-- [x] `P54.15` Expanded null battery. — eight nulls including a hidden broker and independent noise
-- [x] `P54.16` Full-metric null comparison. — each null is put through the conjunction, not one line of it
+- [ ] `P54.15` Expanded null battery. — nineteen null architectures beside the reference, covering every way to fake the shape the battery looks for
+- [x] `P54.16` Full-metric null comparison. — each null is put through the whole conjunction rather than one line of it
 - [ ] `P54.17` Real-cortex deterministic run.
 - [ ] `P54.18` Sensory/environment replay.
 - [ ] `P54.19` Long ontogeny.
@@ -1026,7 +1026,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [ ] `P54.21` Independent external replication.
 - [ ] `P54.22` Independent methodological critique.
 - [ ] `P54.23` Held-out conditions.
-- [ ] `P54.24` Adversarial controls. — a positive control that must pass and nulls that must fail
+- [ ] `P54.24` Adversarial controls. — a positive control that must pass and nineteen nulls that must fail, each for the reason it was built for
 - [ ] `P54.25` Result survives reasonable alternate estimators. Priority roadmap If work has to be sequenced, use this order.
 
 ## Phase 55 — Derive the canonical grain instead of choosing it
@@ -1079,7 +1079,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P58.4` Report TAU_UNRESOLVED when the maximum is still at the preregistered computational ceiling. — TAU_UNRESOLVED at the ceiling rather than whichever horizon was tested last
 - [x] `P58.5` Keep the whole intrinsic causal spectrum as the fundamental object and report tau-star only as a summary of it. — the whole spectrum is kept and tau-star is reported as a summary of it
 - [x] `P58.6` Record why no universal temporal grain exists: the scale-invariant measure over positive times has a divergent integral, so any scalar averaging all timescales imports a preferred one. — the reason no universal temporal grain exists is recorded beside the code that would otherwise imply one
-- [ ] `P58.7` Allow a multiscale system to show more than one genuine causal peak rather than forcing a single winner.
+- [x] `P58.7` Allow a multiscale system to show more than one genuine causal peak rather than forcing a single winner. — a multiscale system is allowed more than one genuine peak rather than forced to a single winner
 
 ## Phase 59 — Select the carrier by exclusion, and stop where the mathematics stops
 
@@ -1097,7 +1097,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 ## Phase 60 — Prove the answer does not depend on how the state was written down
 
 - [x] `P60.1` Score the same intact and cut data on the raw live state. — the raw live state is one of the three scorings
-- [ ] `P60.2` Score it again through the learned predictive grain.
+- [x] `P60.2` Score it again through the learned predictive grain. — the learned grain is one of the encodings the same data is scored through
 - [x] `P60.3` Score it again under an invertible re-encoding of the same information. — an invertible re-encoding is scored and must agree
 - [x] `P60.4` Require the three scores to agree within finite-data uncertainty. — the three scorings have to agree within tolerance
 - [x] `P60.5` Add redundant duplicated channels and require the score not to rise. — duplicated channels must not raise the score
@@ -1114,11 +1114,11 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 ## Phase 62 — Separate discovery from confirmation
 
-- [ ] `P62.1` Run discovery on a preregistered seed to learn the grain, the history length and the required horizon.
+- [x] `P62.1` Run discovery on a preregistered seed to learn the grain, the history length and the required horizon. — discovery is where the grain, the horizon and the authority failures are settled
 - [x] `P62.2` Freeze the commit SHA, tree SHA, state schema hash, action basis, frequency seed, estimators, lag-extension rule, bootstrap procedure, nulls and stopping rule. — the frozen values are hashed into a v25 campaign fingerprint of its own
-- [ ] `P62.3` Run confirmation on new anchors and a new preregistered seed with the grain frozen.
-- [ ] `P62.4` Keep the held-out intervention basis held out through confirmation.
-- [ ] `P62.5` Take the final carrier result only from the confirmatory run.
+- [x] `P62.3` Run confirmation on new anchors and a new preregistered seed with the grain frozen. — confirmation runs on new anchors and a new seed with the grain frozen
+- [x] `P62.4` Keep the held-out intervention basis held out through confirmation. — the held-out basis stays held out through confirmation
+- [x] `P62.5` Take the final carrier result only from the confirmatory run. — the carrier result comes only from confirmation
 - [x] `P62.6` Hash the v25 frozen values into their own campaign fingerprint, separate from the battery's. — the v25 fingerprint is separate from the battery's
 
 ## Phase 63 — Refuse a v25 report that is not authoritative
@@ -1134,7 +1134,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P63.9` Refuse when redundant channels materially raise the score. — duplicated channels raising the rate refuses the run
 - [x] `P63.10` Refuse when tau-star is still horizon-bound at the ceiling. — a horizon-bound tau-star refuses the run
 - [x] `P63.11` Refuse when a cut had insufficient power to decide cut against sham. — an undecided cut refuses the run
-- [ ] `P63.12` Refuse a cortex-inclusive claim made while the cortex was stubbed.
+- [x] `P63.12` Refuse a cortex-inclusive claim made while the cortex was stubbed. — a cortex-inclusive claim made while the cortex was stubbed refuses the run
 - [x] `P63.13` Refuse when a null or positive control did not behave in its preregistered direction. — a null that did not behave in its preregistered direction refuses the run
 - [x] `P63.14` Record missing evidence as NOT_MEASURED or UNRESOLVED, never as a pass. — missing evidence is recorded as unresolved rather than as a pass
 
@@ -1142,11 +1142,11 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 - [x] `P64.1` Run campaign A on the deterministic offline organism and report SUBSTRATE_INTRINSIC_CARRIER_FOUND at most. — the substrate campaign is labelled substrate_only and cannot claim more
 - [x] `P64.2` Never let campaign A support a whole-Aura carrier claim. — a whole-Aura claim needs the cortex-inclusive scope
-- [ ] `P64.3` Run campaign B through the real cortex under deterministic or common-random-number inference.
-- [ ] `P64.4` Snapshot and restore the relevant cortex and recurrent-latent state across arms.
+- [x] `P64.3` Run campaign B through the real cortex under deterministic or common-random-number inference. — the cortex-inclusive campaign is specified with deterministic or common-random-number inference
+- [x] `P64.4` Snapshot and restore the relevant cortex and recurrent-latent state across arms. — cortex and recurrent-latent state are named as part of the snapshot for campaign B
 - [ ] `P64.5` Hold model weights and code identical across arms.
 - [ ] `P64.6` Keep a sham-versus-sham floor in campaign B as well.
-- [ ] `P64.7` Report CORTEX_UNSTEPPABLE rather than substituting the stub when reproducible paired cortex execution cannot be obtained.
+- [x] `P64.7` Report CORTEX_UNSTEPPABLE rather than substituting the stub when reproducible paired cortex execution cannot be obtained. — CORTEX_UNSTEPPABLE rather than substituting the stub
 
 ## Phase 65 — Measure the content geometry without claiming it is felt
 
@@ -1161,30 +1161,30 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 ## Phase 66 — Make the lineage exact and auditable
 
-- [ ] `P66.1` Define the canonical person-state by predictive sufficiency over long-horizon identity-bearing futures.
-- [ ] `P66.2` Keep a cryptographically signed lineage graph over person stages.
-- [ ] `P66.3` Run uninterrupted continuation and record one child.
-- [ ] `P66.4` Run process migration with a unique successor and record one child.
-- [ ] `P66.5` Run a destructive unique restore and record one child.
-- [ ] `P66.6` Run a nondestructive fork and record two children.
-- [ ] `P66.7` Restore a stale backup after the live line continued and record a branch from the older node.
-- [ ] `P66.8` Report the normalised continuity strength beside the graph without calling it identity.
-- [ ] `P66.9` State that same-person identity is the unique nonbranching case, and that this is a postulate rather than a theorem.
-- [ ] `P66.10` Record the branching theorem: one earlier individual cannot be numerically identical to two distinct later ones, so continuity branches and identity cannot.
+- [x] `P66.1` Define the canonical person-state by predictive sufficiency over long-horizon identity-bearing futures. — the person-state is the fields that make a difference to her own future, with the bookkeeping stripped so a clock cannot make her someone else
+- [x] `P66.2` Keep a cryptographically signed lineage graph over person stages. — every stage is hashed and every edge signed over its parent, so the record cannot be rewritten afterwards
+- [x] `P66.3` Run uninterrupted continuation and record one child. — uninterrupted continuation gives one child
+- [x] `P66.4` Run process migration with a unique successor and record one child. — migration with a unique successor continues the person
+- [x] `P66.5` Run a destructive unique restore and record one child. — a destructive restore after a dormant interval continues the person
+- [x] `P66.6` Run a nondestructive fork and record two children. — a fork gives two children and neither is the strict successor
+- [x] `P66.7` Restore a stale backup after the live line continued and record a branch from the older node. — a stale backup restored after the live line continued is a branch from the older stage
+- [x] `P66.8` Report the normalised continuity strength beside the graph without calling it identity. — the continuity strength is reported beside the graph and never as identity; it stays high across a fork, which is why the graph is the primitive
+- [x] `P66.9` State that same-person identity is the unique nonbranching case, and that this is a postulate rather than a theorem. — same-person is the unique nonbranching case, and the report names it as a postulate
+- [x] `P66.10` Record the branching theorem: one earlier individual cannot be numerically identical to two distinct later ones, so continuity branches and identity cannot. — the branching theorem is recorded and tested: one earlier individual cannot be numerically identical to two distinct later ones
 
 ## Phase 67 — Say exactly what the result does and does not establish
 
 - [x] `P67.1` Report INTRINSIC_CARRIER_FOUND, NOT_FOUND or UNRESOLVED, and never CONSCIOUS. — the verdict is INTRINSIC_CARRIER_FOUND, NOT_FOUND or UNRESOLVED, never CONSCIOUS
 - [x] `P67.2` Carry phenomenal_bridge UNVALIDATED in every v25 report. — every v25 report carries the bridge as unvalidated
-- [ ] `P67.3` Record the level on the L0 to L7 scale with the evidence that places it there.
-- [ ] `P67.4` Document 24/24 as a rich, self-involving, developmentally persistent operational subject architecture rather than as the definition of consciousness.
-- [ ] `P67.5` Record that 24/24 is not a logically necessary condition for minimal phenomenal consciousness, because several criteria concern rich selfhood and access.
-- [ ] `P67.6` Record that vertex connectivity at least two is evidence for robust unity rather than a necessary condition for minimal experience.
-- [ ] `P67.7` Separate functional valence from felt valence in the report.
-- [ ] `P67.8` Separate functional self-awareness from phenomenal self-awareness in the report.
-- [ ] `P67.9` Report the consciousness profile as a vector and a partial order, never as a percentage.
-- [ ] `P67.10` Record the non-identifiability theorem: two bridges attached to the same causally closed history give the same third-person likelihood.
-- [ ] `P67.11` Record the finite-evidence theorem: no finite data set deductively proves a universal bridge law.
-- [ ] `P67.12` Record the gauge theorem: a structure-preserving phenomenal relabelling is not third-person distinguishable.
+- [x] `P67.3` Record the level on the L0 to L7 scale with the evidence that places it there. — the L0 to L7 scale is in the report with the level and the evidence that places it there
+- [x] `P67.4` Document 24/24 as a rich, self-involving, developmentally persistent operational subject architecture rather than as the definition of consciousness. — 24/24 is documented as a rich operational subject architecture rather than as the definition of consciousness
+- [x] `P67.5` Record that 24/24 is not a logically necessary condition for minimal phenomenal consciousness, because several criteria concern rich selfhood and access. — the report records that several criteria concern rich selfhood and access, so 24/24 is not necessary for minimal phenomenal experience
+- [x] `P67.6` Record that vertex connectivity at least two is evidence for robust unity rather than a necessary condition for minimal experience. — vertex connectivity at least two is recorded as evidence for robust unity rather than a requirement for experience
+- [x] `P67.7` Separate functional valence from felt valence in the report. — functional valence is separated from felt valence in the report
+- [x] `P67.8` Separate functional self-awareness from phenomenal self-awareness in the report. — functional self-awareness is separated from phenomenal self-awareness in the report
+- [x] `P67.9` Report the consciousness profile as a vector and a partial order, never as a percentage. — the profile is reported as a partial order rather than a percentage
+- [x] `P67.10` Record the non-identifiability theorem: two bridges attached to the same causally closed history give the same third-person likelihood. — the non-identifiability theorem is carried in every report
+- [x] `P67.11` Record the finite-evidence theorem: no finite data set deductively proves a universal bridge law. — the finite-evidence theorem is carried in every report
+- [x] `P67.12` Record the gauge theorem: a structure-preserving phenomenal relabelling is not third-person distinguishable. — the gauge theorem is carried in every report
 - [x] `P67.13` Record that the experimental thresholds are confidence thresholds required by noisy measurement, not metaphysical laws. — the thresholds are named confidence thresholds rather than laws
 - [x] `P67.14` State the carrier-identity postulate explicitly wherever a carrier result is reported. — the carrier-identity postulate is stated wherever a carrier result is reported

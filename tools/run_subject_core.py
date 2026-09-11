@@ -436,6 +436,10 @@ async def main() -> int:
         "binding": len(at_horizon) > len(tested) // 4 if tested else False,
     }
     evidence["notes"]["attenuation"] = results.attenuation()
+    # And the instrument's own noise, broken out every way it can be read. An
+    # effect bar a floor approaches is a bar measuring restoration rather than
+    # coupling, and one pooled number cannot say which domain that happened in.
+    evidence["sham_floor"] = results.floor_report()
 
     consumers = sorted({t for s, t in kept if s == "G"})
     returns = [

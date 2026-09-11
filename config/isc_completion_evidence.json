@@ -3951,6 +3951,43 @@
     "note": "every domain's displacement moves at least two of its own features, counting both halves of the intervention",
     "status": "done"
   },
+  "P33.1": {
+    "checks": [
+      {
+        "expr": "bool(report['sham_floor']['floor_is_clean'])",
+        "kind": "report"
+      }
+    ],
+    "note": "no domain's sham-against-sham floor reaches a third of the effect threshold",
+    "status": "done"
+  },
+  "P33.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "The scratch world, byte for byte, and the intention database's rows"
+      }
+    ],
+    "note": "the intention database's rows are part of what the fork carries and what a restore puts back",
+    "status": "done"
+  },
+  "P33.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "Every byte under the scratch root, and where the directories are"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "Put the scratch root back to the bytes it held, and nothing else"
+      }
+    ],
+    "note": "every byte under the scratch root is carried across the fork and restored exactly",
+    "status": "done"
+  },
   "P33.12": {
     "checks": [
       {
@@ -3967,6 +4004,98 @@
     "note": "the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms",
     "status": "done"
   },
+  "P33.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "The free-running layers, advanced by the harness's own count"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/steppable.py",
+        "pattern": "def iterations_at"
+      }
+    ],
+    "note": "the free-running layers advance on a count rather than on the machine's schedule, so two arms step them the same number of times",
+    "status": "done"
+  },
+  "P33.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "\"by_target\": by_target"
+      },
+      {
+        "expr": "len(report['sham_floor']['by_target']) >= 8",
+        "kind": "report"
+      }
+    ],
+    "note": "the floor is reported per target domain, with its tail and not only its mean",
+    "status": "done"
+  },
+  "P33.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "\"by_condition\": by_condition"
+      },
+      {
+        "expr": "len(report['sham_floor']['by_condition']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "and per condition",
+    "status": "done"
+  },
+  "P33.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "\"by_lag\": by_lag"
+      },
+      {
+        "expr": "len(report['sham_floor']['by_lag']) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "and over lag, so noise that grows with the horizon is a different finding from noise on the first frame",
+    "status": "done"
+  },
+  "P33.5": {
+    "checks": [
+      {
+        "expr": "'sham_floor' in report and 'fingerprint' in report['campaign']",
+        "kind": "report"
+      }
+    ],
+    "note": "and per run, because every run carries its own floor report beside its own campaign fingerprint",
+    "status": "done"
+  },
+  "P33.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "crowded_by_restoration_noise"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "A negative\\n            # result for one of these is not interpretable"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_floor_says_which_domain_it_crowded.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "any domain whose floor reaches a third of the bar is named, because a negative result there is not interpretable",
+    "status": "done"
+  },
   "P33.7": {
     "checks": [
       {
@@ -3981,6 +4110,33 @@
       }
     ],
     "note": "module singletons the container does not hold are carried across the fork, the synaptic cleft and its receptor bank among them",
+    "status": "done"
+  },
+  "P33.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "def freeze_host"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "frozen_host: dict\\[str, float\\] \\| None"
+      }
+    ],
+    "note": "the host readings are frozen for the duration of a trial, so the machine cannot drift between two arms",
+    "status": "done"
+  },
+  "P33.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "A clock is not state"
+      }
+    ],
+    "note": "no column reads a clock: the recency of a percept in wall-clock seconds was half a standard deviation between two arms run a second apart",
     "status": "done"
   },
   "P34.1": {

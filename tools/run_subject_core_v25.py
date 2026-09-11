@@ -414,6 +414,14 @@ async def main() -> int:
             "sample has not found it, so a screened run refuses to be authoritative"
         ),
     )
+    parser.add_argument(
+        "--conditions", type=int, default=0,
+        help=(
+            "use only the first N ordinary conditions. An anchor probed under "
+            "one condition cannot say the causal state is not the environment's, "
+            "so a run with this set refuses to be authoritative"
+        ),
+    )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument("--domains", type=str, default="", help="comma-separated support to test instead of all ten")
     parser.add_argument(
@@ -426,6 +434,7 @@ async def main() -> int:
         args.rounds, args.anchors, args.cut_rounds = 3, 4, 1
         args.history_turns = 2
         args.screen = args.screen or 12
+        args.conditions = args.conditions or 2
 
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -446,6 +455,7 @@ async def main() -> int:
     from core.subject.v25_runtime import collect_anchor_bank, collect_partition_samples
 
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
+    conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
     run_dir = next_run_directory(args.out)
     run_dir.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
@@ -463,7 +473,7 @@ async def main() -> int:
 
     runtime = build_runtime(run_dir, seed=args.seed)
     await start_organism(runtime)
-    clock = await calibrate_clock(runtime, CONDITIONS)
+    clock = await calibrate_clock(runtime, conditions)
     frame_seconds = float(clock.get("step", 1.0 / 33.0))
     _log(f"experiment clock at {frame_seconds:.4f}s a frame")
 
@@ -473,14 +483,16 @@ async def main() -> int:
         "scope": "substrate_only",
         "clock": clock,
         "support": list(support),
+        "conditions_used": len(conditions),
+        "conditions_available": len(CONDITIONS),
     }
 
     try:
         # ── the baseline, which every scale is read against ────────────
-        _log(f"baseline: {args.rounds} rounds over {len(CONDITIONS)} conditions")
+        _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
         frames = []
         for _ in range(args.rounds):
-            for condition in CONDITIONS:
+            for condition in conditions:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
         recording.save(run_dir)
@@ -498,7 +510,7 @@ async def main() -> int:
         # ── doses, so a displacement means the same thing everywhere ───
         _log("dose matching each domain to one of its own standard deviations")
         doses = await _dose_matched(
-            runtime, CONDITIONS, scale, slices,
+            runtime, conditions, scale, slices,
             domains=support, rounds=2 if args.quick else 4, seed=args.seed,
         )
         evidence["doses"] = {k: round(v, 5) for k, v in doses.items()}
@@ -507,8 +519,8 @@ async def main() -> int:
         # ── the anchor bank ────────────────────────────────────────────
         _log(f"collecting {args.anchors} anchors")
         anchors = await collect_anchor_bank(
-            runtime, CONDITIONS,
-            rounds=max(1, math.ceil(args.anchors / max(1, len(CONDITIONS)))),
+            runtime, conditions,
+            rounds=max(1, math.ceil(args.anchors / max(1, len(conditions)))),
             history_turns=args.history_turns,
             every=1,
         )
@@ -524,7 +536,7 @@ async def main() -> int:
             _log("learning the grain, then attacking it")
             grain_lags = (1, 8) if args.quick else (1, 8, 33)
             grain = await _learn_grain(
-                runtime, anchors, CONDITIONS, doses,
+                runtime, anchors, conditions, doses,
                 baseline_mean=baseline_mean, baseline_scale=scale,
                 live_mask=live_mask, frame_seconds=frame_seconds,
                 lags=grain_lags, seed=args.seed,
@@ -540,7 +552,7 @@ async def main() -> int:
         lags = (1, 8) if args.quick else LAGS
         _log(f"scoring every bipartition at {len(lags)} horizons")
         spectrum, cut_detail = await _spectrum(
-            runtime, anchors, CONDITIONS,
+            runtime, anchors, conditions,
             lags=lags, frame_seconds=frame_seconds, turns=args.turns,
             rounds=args.cut_rounds, seed=args.seed, domains=support,
             screen=args.screen,
@@ -569,7 +581,7 @@ async def main() -> int:
         right = tuple(right_name) or tuple(support[1:])
         _log(f"representation invariance and v25 nulls at the weakest cut {weakest_name or '?'}")
         held = await collect_partition_samples(
-            runtime, anchors, CONDITIONS,
+            runtime, anchors, conditions,
             left=left, right=right, turns=args.turns, lags=(best_lag,),
         )
         samples = held[best_lag]
@@ -702,6 +714,12 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append("the playback null did not collapse")
     if "note" in closure:
         blockers.append("no periphery could be read, so closure is NOT_MEASURED")
+    if evidence.get("conditions_used", 0) and evidence["conditions_used"] < evidence.get("conditions_available", 0):
+        blockers.append(
+            "anchors were probed under only "
+            f"{evidence['conditions_used']} of {evidence['conditions_available']} conditions, "
+            "so the environment could still be defining the causal state"
+        )
     if any(
         isinstance(block, dict) and block.get("screened")
         for block in cuts.values()

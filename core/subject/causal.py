@@ -132,6 +132,96 @@ class InterventionSet:
     unwritable: tuple[str, ...] = ()
     seconds: float = 0.0
 
+    def floor_report(self) -> dict[str, Any]:
+        """What two untouched arms did, broken out every way it can be read.
+
+        Sham against sham is the instrument's own noise, and an effect bar it
+        approaches is a bar that is measuring restoration rather than coupling.
+        One pooled number cannot say that: a floor that is clean in seven
+        domains and half the threshold in the eighth leaves exactly one domain
+        uninterpretable, and the pooled mean hides which.
+
+        So it is reported by target domain, by condition, by source, and over
+        lag, with the share of the effect threshold each one takes. Any domain
+        whose floor reaches a third of the bar is named: a negative result
+        there is not interpretable, whatever the pooled number says.
+        """
+        if not self.trials:
+            return {"trials": 0}
+
+        def _summary(values: list[float]) -> dict[str, float]:
+            array = np.asarray(values, dtype=np.float64)
+            return {
+                "mean": round(float(array.mean()), 5),
+                "q95": round(float(np.quantile(array, 0.95)), 5),
+                "max": round(float(array.max()), 5),
+            }
+
+        by_target: dict[str, dict[str, float]] = {}
+        by_condition: dict[str, dict[str, float]] = {}
+        by_source: dict[str, dict[str, float]] = {}
+        for target in DOMAINS:
+            values = [
+                t.floor.get(target, 0.0) for t in self.trials if target in t.floor
+            ]
+            if values:
+                by_target[target] = _summary(values)
+        for condition in sorted({t.condition for t in self.trials}):
+            values = [
+                value
+                for t in self.trials
+                if t.condition == condition
+                for value in t.floor.values()
+            ]
+            if values:
+                by_condition[condition] = _summary(values)
+        for source in sorted({t.source for t in self.trials}):
+            values = [
+                value for t in self.trials if t.source == source
+                for value in t.floor.values()
+            ]
+            if values:
+                by_source[source] = _summary(values)
+
+        # Over lag, pooled across every trial and target: restoration noise
+        # that grows with the horizon is a different problem from restoration
+        # noise that is there on the first frame.
+        by_lag: list[float] = []
+        width = max(
+            (len(trace) for t in self.trials for trace in t.floor_trace.values()),
+            default=0,
+        )
+        for lag in range(width):
+            values = [
+                trace[lag]
+                for t in self.trials
+                for trace in t.floor_trace.values()
+                if len(trace) > lag
+            ]
+            if values:
+                by_lag.append(round(float(np.mean(values)), 5))
+
+        crowded = sorted(
+            target
+            for target, row in by_target.items()
+            if row["q95"] >= EDGE_EFFECT / 3.0
+        )
+        return {
+            "trials": len(self.trials),
+            "threshold": EDGE_EFFECT,
+            "by_target": by_target,
+            "by_condition": by_condition,
+            "by_source": by_source,
+            "by_lag": by_lag,
+            "worst_target": max(by_target, key=lambda k: by_target[k]["q95"], default=None)
+            if by_target
+            else None,
+            # A domain whose floor reaches a third of the bar. A negative
+            # result for one of these is not interpretable.
+            "crowded_by_restoration_noise": crowded,
+            "floor_is_clean": not crowded,
+        }
+
     def attenuation(self) -> dict[str, dict[str, float]]:
         """For each displaced domain: how much it moved, and how much got out.
 
