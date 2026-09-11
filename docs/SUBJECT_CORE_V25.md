@@ -202,6 +202,60 @@ Functional valence is not felt valence. Functional self-awareness is not
 phenomenal self-awareness. The profile is a vector and a partial order, not a
 percentage.
 
+## What the review gave us, and where it needed correcting
+
+The v25 design came from an external review. Most of it landed; some of it did
+not survive contact with the runtime, and some of what mattered most was not in
+it.
+
+**Taken as given.** The interventional causal state as the grain. Fisher–Rao as
+the distance, for Čencov's uniqueness rather than for taste. The cut built by
+clamping each side and composing the free halves, which this repository already
+had and the review was right to reuse. All 511 bipartitions with sequential
+allocation rather than a shorter list. Exclusion as a Pareto frontier that
+returns a symmetry class when spectra cross. The representation-invariance
+check, the playback null, the two campaigns, the discovery/freeze/confirmation
+split, the authority gates, and the refusal to print the word the measurement
+does not establish.
+
+**Taken with correction.** The review's own final pass retracts `τ* =
+argmax Φ(τ)/τ` as a law and keeps the spectrum; we implement the retraction
+rather than the first version. The supplied collector ran every anchor against
+every condition for every cut, which multiplies one cut's cost by eight before
+the sweep has seen the other five hundred and ten — anchors are paired with
+conditions instead. The supplied rank estimator has no ceiling check, and a
+rank read off N anchors cannot exceed N−1, so a run that reports rank 1 from
+four anchors is reporting its bank; that refuses now. And the absolute
+differentiation floor of three effective dimensions cannot be applied to a
+forty-column toy when the organism has two hundred and ten — the reference
+architecture scores 2.93 and would fail the line it exists to pass, so the
+nulls are judged on the two scale-free halves.
+
+**Where the review was out of date.** It places the battery at 12/24 from
+run_017. run_019 reads 14/24, with recurrent cognition, deliberation and
+development all inside the strongly connected component and perception the only
+domain outside it.
+
+**What it did not find.** Six instrument defects, each of which would have made
+a result mean something other than what it said:
+
+- `partition_irreducibility` passed at 0.0622 against a bar of 0.05 with a
+  standard error of 0.0595 and a lower bound of −0.054.
+- The synergy null was reading the Gaussian estimator's dimensional bias, which
+  is why three of four triples scored under their own nulls.
+- The rescue criterion failed on a channel the lesion had moved by under seven
+  per cent.
+- Perception had five retained outgoing edges and none coming in, because every
+  column in its schema was metadata about the percept stream and none read what
+  the senses said.
+- `affect.mood_baselines` decides what wins the workspace competition and sat
+  outside the core.
+- Two of the adversarial controls added from the review's own list failed on
+  nothing they were written for.
+
+The review supplies the frame. Finding what is wrong inside it is still the
+work.
+
 ## Running it
 
 ```bash
