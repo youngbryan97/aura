@@ -889,7 +889,8 @@ def test_desktop_shell_bounds_long_session_dedupe_state():
     assert "return rememberBoundedSetValue(state.processedEventIds, id, PROCESSED_EVENT_ID_MAX);" in aura_js
     assert "function rememberMessageFingerprint" in aura_js
     assert "rememberMessageFingerprint(fingerprint)" in aura_js
-    assert "rememberMessageFingerprint(httpFp)" in aura_js
+    assert "renderChatDeliveryAnswer(item, data)" in aura_js
+    assert "rememberMessageFingerprint(httpFp)" not in aura_js
     assert "state.processedMessageFingerprints.add(" not in aura_js
     assert "state.processedEventIds.add(" not in aura_js
 

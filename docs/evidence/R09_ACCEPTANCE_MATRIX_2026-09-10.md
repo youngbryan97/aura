@@ -73,3 +73,46 @@ turn subcase, not the latent cancellation row.
 The word-form change passed smoke (164 passed, one skipped, 105.24 seconds),
 lint, compile, governance-lint and layering. Existing governance debt and
 37 grandfathered layering edges were unchanged.
+
+## Clean coverage replay
+
+The supported restart replaced PID 98193 with PID 4082 after a slow runner
+shutdown. A diagnostic stack showed asyncio runner closure and a background
+language-matcher warmup; the predecessor exited before a targeted termination
+attempt, which returned no-such-process and had no effect. The waiter launched
+one replacement. Boot verified workspace
+`fb17ca8190b5e6ba12d968e4fa57c9f95589eb59e27f78ad97f46ac6cb7155f8`.
+
+Delivery `aura-chat-3e574c22-1b3a-44f9-a12b-4b51bd8c91a2`, turn
+`517634cad8584c4fa16f582c1ba99e07`, answered the identical reading-group
+question correctly in about 83 seconds. It used one foreground generation,
+zero text mutations, and no repair retry. The answer explained that the
+original recommendation was a short story rather than the requested novel,
+then named Gone Girl as the replacement. This validates the coverage repair
+on the resident model without inserting the expected answer into the request.
+
+## Multipart reconnect and stream ownership audit
+
+Delivery `aura-chat-b2bd44c3-ed1d-4174-b89a-9110f71fa2b4`, turn
+`ef46cc4c8db54b60b24a2cb8b9d91acd`, completed in 126.79 seconds with one
+attempt and generation. Reloading the initiating window during generation
+restored the pending request. The completed transcript contained one answer,
+three numbered items, and the requested example. No private reasoning was
+displayed. This proves complete delivery, not factual correctness: the answer
+incorrectly says WAL must flush before modifying an in-memory page and refers
+to the example's single transfer as if it were two transactions. Those are
+recorded semantic defects, not a passing database explanation.
+
+The stream audit found two independent ownership bugs. State-machine draft
+events carried no delivery identity on the global telemetry topic; desktop
+windows accepted any such event. Final HTTP delivery also deduplicated by
+answer prefix across the conversation, suppressing valid repeated answers.
+The repair attaches the existing delivery binding to public draft events,
+keeps unbound voice chunks on their private channel, and matches desktop
+events to the active request. Terminal delivery replaces that request's draft
+and deduplicates by turn identity instead of words. Live deployment is pending.
+
+The neural feed at 20:39 also showed event-loop lag (1.123 seconds), deferred
+background model admission, a stale circadian refresh, and an unrated
+autonomous refactor refusal. These are not evidence of an R09 delivery loss;
+they remain observations for the runtime-warning and scheduler obligations.

@@ -129,6 +129,15 @@ class StateMachine:
                     action="dropped one streamed reply chunk; the finished reply is unaffected",
                     severity="debug",
                 )
+        if str(payload.get("type") or "").startswith("chat_stream_"):
+            from core.runtime.chat_delivery_progress import current_chat_delivery_identity
+
+            identity = current_chat_delivery_identity()
+            if identity is None:
+                # Voice still receives its bound channel above. Unowned drafts
+                # must not become dialogue in every connected desktop window.
+                return
+            payload = {**payload, **identity}
         if self.orchestrator and hasattr(self.orchestrator, "_publish_telemetry"):
             self.orchestrator._publish_telemetry(payload)
 

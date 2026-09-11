@@ -2838,8 +2838,41 @@ function setChatPanelState(panelState) {
     }
 }
 
+function ownsChatStreamEvent(data) {
+    const active = state.activeChatRequest;
+    return Boolean(active && data.idempotency_key
+        && data.idempotency_key === active.idempotencyKey);
+}
+
+function discardChatDraft(item) {
+    if (!item.streamDiv) return;
+    if (activeStreamDiv === item.streamDiv) {
+        activeStreamDiv = null;
+        activeStreamContentRaw = '';
+    }
+    item.streamDiv.remove();
+    item.streamDiv = null;
+}
+
+function renderChatDeliveryAnswer(item, data) {
+    discardChatDraft(item);
+    const messages = DOM.messages || $('messages');
+    const identity = String(data.turn_id || item.turnId || item.idempotencyKey);
+    const existing = Array.from(messages.children).find(node =>
+        node.dataset.historyTurnId === identity && node.dataset.historyRole === 'aura');
+    if (existing) {
+        markReplyConfidence(existing, data.response_confidence);
+        return;
+    }
+    const metadata = { historyTurnId: identity };
+    if (data.thought) metadata.thought = data.thought;
+    if (data.response_confidence) metadata.responseConfidence = data.response_confidence;
+    appendMsg('aura', data.response, false, metadata);
+}
+
 function handleWsEvent(data) {
     const type = data.kind || data.type;
+    if (String(type || '').startsWith('chat_stream_') && !ownsChatStreamEvent(data)) return;
     if (!['chat_stream_chunk', 'heartbeat', 'ping', 'pong'].includes(type)) {
         if (rememberEventId(data.event_id || data.id)) return;
     }
@@ -5995,30 +6028,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
 
         // If it's just a dispatch confirmation, don't clutter the chat
         if (data.response && data.response !== "Message dispatched to cognitive core.") {
-            // Deduplicate: check both stream content AND the global fingerprint set
-            // to catch responses that arrived via WebSocket before the HTTP response.
-            const httpFp = data.response.trim().substring(0, 200);
-            const alreadyDelivered = state.processedMessageFingerprints.has(httpFp);
-            const alreadyStreamed = (typeof activeStreamContentRaw !== 'undefined' && activeStreamContentRaw.trim() === data.response.trim());
-            if (!alreadyDelivered && !alreadyStreamed) {
-                rememberMessageFingerprint(httpFp);
-                const chatMeta = {};
-                if (data.thought) chatMeta.thought = data.thought;
-                // Carried through so the person sees how far she is standing
-                // behind this one. The route has always sent it.
-                if (data.response_confidence) chatMeta.responseConfidence = data.response_confidence;
-                appendMsg('aura', data.response, false, chatMeta);
-            } else if (data.response_confidence) {
-                // The text already reached the transcript over the socket, so
-                // there is nothing to render — but the confidence arrives HERE,
-                // on the HTTP response, and dropping it silently is how a
-                // streamed reply came back unmarked. Mark the message that is
-                // already on screen instead of re-adding it.
-                markReplyConfidence(
-                    (DOM.messages || $('messages'))?.lastElementChild,
-                    data.response_confidence,
-                );
-            }
+            renderChatDeliveryAnswer(item, data);
         }
     } catch (err) {
         console.error('[CHAT] Delivery state machine failed:', err);
@@ -6042,6 +6052,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         }
         persistChatHandoff({ force: true });
     } finally {
+        if (deliverySettled) discardChatDraft(item);
         state.isSubmitting = false;
         updateChatStopControl();
         publishSurfaceWorkload('chat_settled');
@@ -6293,7 +6304,9 @@ let activeStreamContentRaw = '';
 
 function startStreamMsg(role) {
     const messages = DOM.messages || $('messages');
+    if (state.activeChatRequest) discardChatDraft(state.activeChatRequest);
     activeStreamDiv = document.createElement('div');
+    if (state.activeChatRequest) state.activeChatRequest.streamDiv = activeStreamDiv;
     activeStreamDiv.className = `msg ${role}`;
     if (role === 'aura') {
         activeStreamDiv.innerHTML = `<div class="aura-avatar"></div>`;
