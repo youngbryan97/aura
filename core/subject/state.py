@@ -661,18 +661,41 @@ def _f(value: Any, default: float = 0.0) -> float:
     return out
 
 
+#: Fields that are `None` when there is nothing, rather than when nothing could
+#: be read. An optional field holding None is a reading — "there is no thread
+#: open", "she can see nothing" — and recording it as a failed read makes every
+#: run look like a run whose readers were broken. The columns that read these
+#: are presence flags, so None is the answer they are asking for.
+_ABSENT_IS_AN_ANSWER: frozenset[str] = frozenset(
+    {
+        "cognition.active_thread_id",
+        "world.spatial_context",
+        "cognition.phenomenal_state",
+        "cognition.current_objective",
+    }
+)
+
+
 def _dig(root: Any, path: str, default: Any = None) -> Any:
     node = root
+    walked = root
     for part in path.split("."):
         if node is None:
-            _miss(path, "path absent")
+            # A path that ran out before the end is a path that is not there.
+            # A path that reached its end and found None is a field that is
+            # empty, which is different and is often the whole point of the
+            # column reading it.
+            if walked is not None and path not in _ABSENT_IS_AN_ANSWER:
+                _miss(path, "path absent")
             return default
+        walked = node
         if isinstance(node, Mapping):
             node = node.get(part, None)
         else:
             node = getattr(node, part, None)
     if node is None:
-        _miss(path, "value absent")
+        if path not in _ABSENT_IS_AN_ANSWER:
+            _miss(path, "value absent")
         return default
     return node
 

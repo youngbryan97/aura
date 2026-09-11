@@ -563,7 +563,7 @@ class AffectUpdatePhase(Phase):
                 0.0,
                 min(1.0, affect.arousal * keep + float(reading.get("arousal", 0.0)) * SUBSTRATE_SHARE),
             )
-            self._fold_substrate_into_emotions(affect, substrate_valence)
+            self._fold_substrate_into_emotions(affect, substrate_valence, SUBSTRATE_SHARE)
             state.response_modifiers["substrate_share_of_affect"] = SUBSTRATE_SHARE
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
@@ -575,7 +575,9 @@ class AffectUpdatePhase(Phase):
             )
 
     @staticmethod
-    def _fold_substrate_into_emotions(affect: AffectVector, valence: float) -> None:
+    def _fold_substrate_into_emotions(
+        affect: AffectVector, valence: float, share_of_affect: float
+    ) -> None:
         """Put the substrate's valence where valence is kept.
 
         `_derive_metrics` recomputes `affect.valence` from the emotion
@@ -594,7 +596,11 @@ class AffectUpdatePhase(Phase):
         emotions = getattr(affect, "emotions", None)
         if not isinstance(emotions, dict):
             return
-        share = SUBSTRATE_SHARE * max(-1.0, min(1.0, float(valence)))
+        # The share is passed in rather than imported here: the import lives
+        # inside the caller, so naming it at this scope raised NameError on
+        # every turn of a run — the affect phase died four hundred and
+        # ninety-one times before the authority gate refused the report.
+        share = float(share_of_affect) * max(-1.0, min(1.0, float(valence)))
         if abs(share) < 1e-9:
             return
         heaviest = max(

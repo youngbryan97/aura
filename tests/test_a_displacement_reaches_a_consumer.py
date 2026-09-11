@@ -615,3 +615,36 @@ def test_an_empty_ledger_is_not_displaced_into_existence() -> None:
     reset_effort_for_test()
     asyncio.run(perturb_organs(Organs(), "I", DELTA, state=None))
     assert not dict(get_effort_ledger().peek())
+
+
+def test_an_empty_optional_field_is_a_reading_not_a_failed_read() -> None:
+    """"There is no thread open" is an answer.
+
+    `_dig` recorded every None as a source that could not be read, and two
+    presence flags — is a discourse thread open, can she see anything — are
+    None whenever the answer is no. Over a whole run that is a reader failing
+    on every turn, which the authority gate correctly refuses a report on: a
+    run was stopped for two fields working exactly as written.
+    """
+    from core.state.aura_state import AuraState
+    from core.subject.state import read_core_state
+
+    state = AuraState.default()
+    assert state.cognition.active_thread_id is None
+    assert state.world.spatial_context is None
+
+    reading = read_core_state(state)
+    misses = dict(reading.misses)
+    assert "cognition.active_thread_id" not in misses
+    assert "world.spatial_context" not in misses
+
+
+def test_a_path_that_is_not_there_is_still_a_failed_read() -> None:
+    """The exemption is a list of fields, not a decision to stop looking."""
+    from types import SimpleNamespace
+
+    from core.subject.state import _dig, recording_misses
+
+    with recording_misses() as misses:
+        assert _dig(SimpleNamespace(cognition=None), "cognition.nowhere") is None
+    assert "cognition.nowhere" in misses
