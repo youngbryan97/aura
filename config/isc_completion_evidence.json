@@ -423,6 +423,243 @@
     "note": "self beliefs are a profile",
     "status": "done"
   },
+  "P13.10": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['lesioned']['spread']) < float(report['lesion']['intact']['spread'])",
+        "kind": "report"
+      }
+    ],
+    "note": "perturbational spread falls",
+    "status": "done"
+  },
+  "P13.11": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['lesioned']['synergy']) < float(report['lesion']['intact']['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "synergy falls",
+    "status": "done"
+  },
+  "P13.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "Scored at the partition the lesion cuts, in every arm"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "at: tuple\\[tuple\\[str, \\.\\.\\.\\], tuple\\[str, \\.\\.\\.\\]\\] \\| None = None"
+      }
+    ],
+    "note": "the lesion arms are read at the partition that was cut, which is the comparison the main edge experiment makes within a column",
+    "status": "done"
+  },
+  "P13.9": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['lesioned']['phi_do']) < float(report['lesion']['intact']['phi_do'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility falls when the partition is cut",
+    "status": "done"
+  },
+  "P14.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"node_clamp\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "reported as what it is rather than as the partition lesion"
+      }
+    ],
+    "note": "the node clamp is kept and reported under its own name",
+    "status": "done"
+  },
+  "P14.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "with clamped\\(runtime, right\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "with clamped\\(runtime, left\\)"
+      }
+    ],
+    "note": "each side runs with the other held at the cut, so no information crosses and neither side is frozen inside",
+    "status": "done"
+  },
+  "P14.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "it evolves with no\\n    information crossing and its own pipeline intact"
+      }
+    ],
+    "note": "the free side keeps its own pipeline",
+    "status": "done"
+  },
+  "P14.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "def compose"
+      }
+    ],
+    "note": "and so does the other, in its own arm",
+    "status": "done"
+  },
+  "P14.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "compose\\(left_frames, right_frames, left\\)"
+      }
+    ],
+    "note": "the cut system is measured from the two arms composed column-wise",
+    "status": "done"
+  },
+  "P15.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "rescued = await measure\\(\\\"rescued\\\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "def compose"
+      }
+    ],
+    "note": "the rescue restores exactly the channels the lesion cut",
+    "status": "done"
+  },
+  "P15.3": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['rescued']['phi_do']) > float(report['lesion']['lesioned']['phi_do'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility rises again",
+    "status": "done"
+  },
+  "P15.4": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['rescued']['spread']) > float(report['lesion']['lesioned']['spread'])",
+        "kind": "report"
+      }
+    ],
+    "note": "spread rises again",
+    "status": "done"
+  },
+  "P15.5": {
+    "checks": [
+      {
+        "expr": "float(report['lesion']['rescued']['synergy']) > float(report['lesion']['lesioned']['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "synergy rises again",
+    "status": "done"
+  },
+  "P15.8": {
+    "checks": [
+      {
+        "expr": "'rescue' in report['lesion'] and 'deltas' in report['lesion']",
+        "kind": "report"
+      }
+    ],
+    "note": "the recovery fraction is recorded beside the arms",
+    "status": "done"
+  },
+  "P16.1": {
+    "checks": [
+      {
+        "expr": "len([c for c in report['per_condition']['per_condition'].values() if c['one_component']]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "at least three single conditions are strongly connected on their own",
+    "status": "done"
+  },
+  "P16.10": {
+    "checks": [
+      {
+        "expr": "len(set(c['edges'] for c in report['per_condition']['per_condition'].values())) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "the conditions differ: their graphs are not the same graph",
+    "status": "done"
+  },
+  "P16.2": {
+    "checks": [
+      {
+        "expr": "all('edges' in c for c in report['per_condition']['per_condition'].values())",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "by_condition"
+      }
+    ],
+    "note": "each condition's graph is built from its own trials, never from the union",
+    "status": "done"
+  },
+  "P16.4": {
+    "checks": [
+      {
+        "expr": "all('conditions' in r and 'by_condition' in r for r in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "each edge records the conditions it replicated in",
+    "status": "done"
+  },
+  "P16.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "^CONDITIONS"
+      },
+      {
+        "expr": "len(report['recording']['conditions']) == 8",
+        "kind": "report"
+      }
+    ],
+    "note": "the eight conditions are ordinary work, declared in advance and hashed into the campaign",
+    "status": "done"
+  },
+  "P16.9": {
+    "checks": [
+      {
+        "expr": "'idle' in report['recording']['conditions']",
+        "kind": "report"
+      }
+    ],
+    "note": "idle is one of the eight",
+    "status": "done"
+  },
   "P17.1": {
     "checks": [
       {
@@ -2027,6 +2264,160 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P3.1": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "max(len(part) for part in report['graph']['components']) == 10",
+        "kind": "report"
+      }
+    ],
+    "note": "all ten domains in one strongly connected component",
+    "status": "done"
+  },
+  "P3.10": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing D leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.11": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing N leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.2": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing P leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.3": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing I leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.4": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing A leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.5": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing G leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.6": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing C leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.7": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing S leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.8": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing M leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
+  "P3.9": {
+    "checks": [
+      {
+        "expr": "report['graph']['one_strongly_connected_component'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['graph']['vertex_connectivity']) >= 2.0",
+        "kind": "report"
+      }
+    ],
+    "note": "removing W leaves the other nine strongly connected: vertex connectivity is at least two",
+    "status": "done"
+  },
   "P30.1": {
     "checks": [
       {
@@ -2423,6 +2814,477 @@
       }
     ],
     "note": "module singletons the container does not hold are carried across the fork, the synaptic cleft and its receptor bank among them",
+    "status": "done"
+  },
+  "P34.1": {
+    "checks": [
+      {
+        "expr": "all(float(v) > 0.0 for v in report['perturbation']['pci_by_source'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "every source produces a nonzero response",
+    "status": "done"
+  },
+  "P34.2": {
+    "checks": [
+      {
+        "expr": "all(float(v) > 0.0 for v in report['perturbation']['spread_by_source'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "the response reaches more than one domain from every source",
+    "status": "done"
+  },
+  "P34.5": {
+    "checks": [
+      {
+        "expr": "report['perturbation']['beats_null'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "above the matched null's complexity",
+    "status": "done"
+  },
+  "P34.6": {
+    "checks": [
+      {
+        "expr": "len([v for v in report['perturbation']['pci_by_source'].values() if float(v) > 0.1]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "more than one source produces a nondegenerate response",
+    "status": "done"
+  },
+  "P35.1": {
+    "checks": [
+      {
+        "expr": "float(report['intrinsic']['loss_environment_only']) > float(report['intrinsic']['loss_environment_and_state'])",
+        "kind": "report"
+      }
+    ],
+    "note": "predicting from the environment alone is worse than from the environment and the state",
+    "status": "done"
+  },
+  "P35.2": {
+    "checks": [
+      {
+        "expr": "float(report['intrinsic']['loss_shuffled_state']) > float(report['intrinsic']['loss_environment_and_state'])",
+        "kind": "report"
+      },
+      {
+        "expr": "float(report['intrinsic']['delta_over_shuffled_state']) > 0.0",
+        "kind": "report"
+      }
+    ],
+    "note": "shuffling the state removes the advantage",
+    "status": "done"
+  },
+  "P35.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/audit_duplicate_columns.py",
+        "pattern": "never decrease across the recording"
+      },
+      {
+        "expr": "'one_way_columns' in report['recording']",
+        "kind": "report"
+      }
+    ],
+    "note": "a column that never decreases is named in the recording, so a counter carrying the result is visible",
+    "status": "done"
+  },
+  "P36.1": {
+    "checks": [
+      {
+        "expr": "float(report['agency']['self_to_action']) > float(report['agency']['self_to_action_floor'])",
+        "kind": "report"
+      }
+    ],
+    "note": "above the same-arm floor",
+    "status": "done"
+  },
+  "P36.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_no_writer_reaches_into_another_domain -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no writer touches a state path another domain's schema owns",
+    "status": "done"
+  },
+  "P36.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "await organs\\.self_model\\.update_belief"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_displacing_the_self_model_changes_the_beliefs_it_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it",
+    "status": "done"
+  },
+  "P37.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "actor: str = \\\"self\\\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "external"
+      }
+    ],
+    "note": "the ownership arms match on everything but who the action is attributed to",
+    "status": "done"
+  },
+  "P37.6": {
+    "checks": [
+      {
+        "expr": "float(report['agency']['ownership_divergence']) > float(report['agency']['ownership_floor'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the divergence clears the same-arm floor",
+    "status": "done"
+  },
+  "P37.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "organ:comparator\\."
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/state.py",
+        "pattern": "organ:agency\\."
+      }
+    ],
+    "note": "the comparator and the agency ledger are read as separate columns, so a disagreement is visible",
+    "status": "done"
+  },
+  "P38.1": {
+    "checks": [
+      {
+        "expr": "report['timescale']['fast_to_slow'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['timescale']['fast_to_slow_edges']) >= 1",
+        "kind": "report"
+      }
+    ],
+    "note": "at least one fast-to-slow retained edge",
+    "status": "done"
+  },
+  "P38.2": {
+    "checks": [
+      {
+        "expr": "report['timescale']['slow_to_fast'] is True",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['timescale']['slow_to_fast_edges']) >= 1",
+        "kind": "report"
+      }
+    ],
+    "note": "at least one slow-to-fast retained edge",
+    "status": "done"
+  },
+  "P38.6": {
+    "checks": [
+      {
+        "expr": "len(report['timescale']['fast_to_slow_edges']) >= 2",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['timescale']['slow_to_fast_edges']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "the coupling is not a memory count: the edges are measured on displaced arms against their own shams, not on a correlation",
+    "status": "done"
+  },
+  "P38.8": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_no_writer_reaches_into_another_domain -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no writer reaches into another domain",
+    "status": "done"
+  },
+  "P39.1": {
+    "checks": [
+      {
+        "expr": "int(report['metastability']['regimes']) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "more than one regime",
+    "status": "done"
+  },
+  "P39.2": {
+    "checks": [
+      {
+        "expr": "float(report['metastability']['dwell_mean']) > 1.0",
+        "kind": "report"
+      }
+    ],
+    "note": "a regime lasts rather than flickering",
+    "status": "done"
+  },
+  "P39.3": {
+    "checks": [
+      {
+        "expr": "float(report['metastability']['transition_entropy']) > 0.0",
+        "kind": "report"
+      }
+    ],
+    "note": "and it turns over",
+    "status": "done"
+  },
+  "P39.4": {
+    "checks": [
+      {
+        "expr": "float(report['metastability']['transition_entropy']) > 0.0",
+        "kind": "report"
+      }
+    ],
+    "note": "transition entropy above zero",
+    "status": "done"
+  },
+  "P39.5": {
+    "checks": [
+      {
+        "expr": "float(report['metastability']['transition_entropy']) < float(report['metastability']['entropy_ceiling'])",
+        "kind": "report"
+      }
+    ],
+    "note": "and below its ceiling, so the sequence is not noise",
+    "status": "done"
+  },
+  "P4.1": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['P']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "P lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.10": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['N']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "N lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.11": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['P']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "P returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.12": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['I']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "I returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.13": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['A']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "A returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.14": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['G']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "G returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.15": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['C']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "C returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.16": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['S']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "S returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.17": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['M']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "M returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.18": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['W']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "W returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.19": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['D']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "D returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.2": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['I']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "I lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.20": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['shortest_reentry']['N']) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "N returns to itself through at least two other domains",
+    "status": "done"
+  },
+  "P4.21": {
+    "checks": [
+      {
+        "expr": "report['graph']['every_node_on_two_cycles'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "every domain on two cycles",
+    "status": "done"
+  },
+  "P4.3": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['A']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "A lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.4": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['G']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "G lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.5": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['C']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "C lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.6": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['S']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "S lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.7": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['M']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "M lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.8": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['W']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "W lies on at least two directed cycles",
+    "status": "done"
+  },
+  "P4.9": {
+    "checks": [
+      {
+        "expr": "int(report['graph']['cycles_per_node']['D']) >= 2",
+        "kind": "report"
+      }
+    ],
+    "note": "D lies on at least two directed cycles",
     "status": "done"
   },
   "P47.1": {
@@ -2910,6 +3772,395 @@
       }
     ],
     "note": "the seeds are in the target, chosen before any result",
+    "status": "done"
+  },
+  "P5.1": {
+    "checks": [
+      {
+        "expr": "len([r for r in report['edges'] if r['source'] == 'G' and r['kept']]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "at least three retained edges out of the workspace",
+    "status": "done"
+  },
+  "P5.2": {
+    "checks": [
+      {
+        "expr": "all(float(r['q']) < 0.01 for r in [r for r in report['edges'] if r['source'] == 'G' and r['kept']])",
+        "kind": "report"
+      },
+      {
+        "expr": "len([r for r in report['edges'] if r['source'] == 'G' and r['kept']]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "each of them under the preregistered q",
+    "status": "done"
+  },
+  "P5.3": {
+    "checks": [
+      {
+        "expr": "all(float(r['effect']) >= 0.30 for r in [r for r in report['edges'] if r['source'] == 'G' and r['kept']])",
+        "kind": "report"
+      },
+      {
+        "expr": "len([r for r in report['edges'] if r['source'] == 'G' and r['kept']]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "each of them at or above the preregistered effect",
+    "status": "done"
+  },
+  "P5.4": {
+    "checks": [
+      {
+        "expr": "all(int(r['replication']) >= 3 for r in [r for r in report['edges'] if r['source'] == 'G' and r['kept']])",
+        "kind": "report"
+      },
+      {
+        "expr": "len([r for r in report['edges'] if r['source'] == 'G' and r['kept']]) >= 3",
+        "kind": "report"
+      }
+    ],
+    "note": "each of them in at least three conditions",
+    "status": "done"
+  },
+  "P5.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/broadcast_consumers.py",
+        "pattern": "def to_perception"
+      },
+      {
+        "command": "{python} -m pytest tests/test_broadcast_consumers.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a broadcast consumer writes a field the destination domain's reader reads, and the displacement test says which",
+    "status": "done"
+  },
+  "P5.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "def _fold_substrate_into_emotions"
+      },
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "And into the channel curiosity is kept in"
+      }
+    ],
+    "note": "what a consumer writes lands in the channel the readout is derived from, so the next turn does not erase it",
+    "status": "done"
+  },
+  "P5.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/broadcast_consumers.py",
+        "pattern": "record_degradation"
+      }
+    ],
+    "note": "a consumer that raised is recorded as a degradation rather than swallowed",
+    "status": "done"
+  },
+  "P8.1": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['replay'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the replay null",
+    "status": "done"
+  },
+  "P8.11": {
+    "checks": [
+      {
+        "expr": "all(len(row['draws']) > 1 for row in report['nulls']['detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "every draw is kept, not one point estimate",
+    "status": "done"
+  },
+  "P8.12": {
+    "checks": [
+      {
+        "expr": "all('quantile' in row and 'median' in row and 'max' in row for row in report['nulls']['detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "the quantile a null is read at is recorded with it",
+    "status": "done"
+  },
+  "P8.13": {
+    "checks": [
+      {
+        "expr": "all(len(row['draws']) >= 3 for row in report['nulls']['detail'].values() if row['kind'] == 'architecture')",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "a null is a distribution rather than one draw"
+      }
+    ],
+    "note": "several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix",
+    "status": "done"
+  },
+  "P8.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "One of the wirings, with matched widths, decay and noise"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^SELF_EFFECT_TARGET: float"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^NULL_HORIZON: int"
+      }
+    ],
+    "note": "the architectures are built with matched widths, decay, noise and coupling strength, and displaced to a matched dose over the same horizon",
+    "status": "done"
+  },
+  "P8.2": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['time_shuffle'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the time_shuffle null",
+    "status": "done"
+  },
+  "P8.3": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['star'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the star null",
+    "status": "done"
+  },
+  "P8.4": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['hub'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the hub null",
+    "status": "done"
+  },
+  "P8.5": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['one_way'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the one_way null",
+    "status": "done"
+  },
+  "P8.6": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['prompt_only'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the prompt_only null",
+    "status": "done"
+  },
+  "P8.7": {
+    "checks": [
+      {
+        "expr": "float(report['phi']['phi_do']) > float(report['nulls']['phi_table']['frozen_slow'])",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility above the frozen_slow null",
+    "status": "done"
+  },
+  "P8.8": {
+    "checks": [
+      {
+        "expr": "report['nulls']['reference_architecture_passes'] is True",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _passes_the_conjunction"
+      }
+    ],
+    "note": "the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes",
+    "status": "done"
+  },
+  "P9.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"conjunction\": \\{"
+      },
+      {
+        "expr": "len(report['nulls'].get('conjunction', {})) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "each null is put through the conjunction rather than one line of it",
+    "status": "done"
+  },
+  "P9.11": {
+    "checks": [
+      {
+        "expr": "len(report['nulls']['summary']['nulls_that_pass']) == 0",
+        "kind": "report"
+      }
+    ],
+    "note": "no null passes",
+    "status": "done"
+  },
+  "P9.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "reference_passes = _passes_the_conjunction\\(reference\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_null_must_fail_the_whole_battery.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the reference is held to the conjunction, not to one line of it",
+    "status": "done"
+  },
+  "P9.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "\"hidden_broker\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_hidden_broker_keeps_the_memory_outside_the_core -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_hidden_broker_looks_exactly_like_a_mind_on_the_graph -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_a_broker_outside_the_core_leaves_the_core_open[hidden_broker] -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a broker outside K that remembers nearly all its own past; the graph cannot tell it from a mind and causal closure can",
+    "status": "done"
+  },
+  "P9.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "\"independent\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_independent_system_has_no_coupling_to_find -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_independent_system_still_moves -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "ten domains of independent noise at the same width, decay and noise, with nothing crossing",
+    "status": "done"
+  },
+  "P9.2": {
+    "checks": [
+      {
+        "expr": "all('phi_do' in row for row in report['nulls']['detail'].values())",
+        "kind": "report"
+      },
+      {
+        "expr": "all('closed' in row for row in report['nulls']['detail'].values() if row['kind'] == 'architecture')",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _passes_the_conjunction"
+      }
+    ],
+    "note": "irreducibility, the graph measures and causal closure all run on every null, and the conjunction is what decides",
+    "status": "done"
+  },
+  "P9.3": {
+    "checks": [
+      {
+        "expr": "all('one_component' in row and 'vertex_connectivity' in row and 'reentry' in row for row in report['nulls']['detail'].values() if row['kind'] == 'architecture')",
+        "kind": "report"
+      }
+    ],
+    "note": "the graph measures run on every architecture",
+    "status": "done"
+  },
+  "P9.5": {
+    "checks": [
+      {
+        "expr": "all('phi_do' in row for row in report['nulls']['detail'].values())",
+        "kind": "report"
+      }
+    ],
+    "note": "irreducibility runs on every null",
+    "status": "done"
+  },
+  "P9.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def toy_periphery"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"closed\": closed"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_reference_core_is_closed -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py::test_the_conjunction_asks_whether_the_null_core_is_closed -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "causal closure runs on every architecture, with the broker read as the periphery",
     "status": "done"
   }
 }

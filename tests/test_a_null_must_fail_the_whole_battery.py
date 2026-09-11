@@ -42,11 +42,22 @@ def test_the_reference_architecture_shows_its_own_wiring() -> None:
     assert graph.every_node_reenters
 
 
-@pytest.mark.parametrize("name", [n for n in ARCHITECTURES if n != "recurrent"])
+#: The one null the graph cannot tell from a mind. Every path runs through a
+#: broker that is not one of the ten domains, so every domain depends on every
+#: other one and the graph comes back with the reference's own answers. What
+#: separates them is causal closure, which is why the conjunction is a
+#: conjunction — see `test_the_null_suite_covers_the_ways_to_fake_it.py`.
+GRAPH_CANNOT_SEPARATE: frozenset[str] = frozenset({"hidden_broker"})
+
+
+@pytest.mark.parametrize(
+    "name",
+    [n for n in ARCHITECTURES if n != "recurrent" and n not in GRAPH_CANNOT_SEPARATE],
+)
 def test_no_null_passes_the_graph_the_reference_passes(name: str) -> None:
     """Each null keeps something superficial and loses one thing that matters.
 
-    None of them may look like the reference on the graph, or the graph is not
+    None of these may look like the reference on the graph, or the graph is not
     measuring the thing the battery says it measures.
     """
     graph = _graph(name)

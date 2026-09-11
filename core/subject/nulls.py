@@ -18,10 +18,16 @@ Architectures are small dynamical systems with the same ten domains, the same
 widths and comparable coupling strength, wired differently on purpose. The star
 routes every influence through one broker. The one-way system keeps every
 forward path and no feedback. The prompt-only system lets each domain see a
-single scalar summary of everything instead of the states themselves. Each can
-be perturbed and graphed exactly like the real one, so the graph measures get a
-null too, which matters most for the star: it is strongly connected, and only
-vertex connectivity tells it apart from a mind.
+single scalar summary of everything instead of the states themselves. The
+hidden broker routes everything through a broker that remembers nearly all of
+its own past, so the system's memory lives outside K and K's own future depends
+on a variable no reading of K contains. The independent system has no coupling
+at all — ten domains of the same width, decay and noise with nothing crossing —
+which is what every measure in the battery has to report nothing on, and what
+catches a measure that rewards dimensionality instead of integration.
+
+Each can be perturbed and graphed exactly like the real one, to a matched dose
+over the same horizon, so the graph measures get a null too.
 """
 
 from __future__ import annotations
@@ -45,6 +51,7 @@ __all__ = [
     "shuffle_surrogate",
     "toy_doses",
     "toy_edges",
+    "toy_periphery",
     "toy_recording",
 ]
 
@@ -210,6 +217,23 @@ def architecture(
         for key in order:
             hub_in[key] = _matrix(rng, hub_width, widths[key], strength)
             hub_out[key] = _matrix(rng, widths[key], hub_width, strength)
+    elif name == "hidden_broker":
+        # Every path through a broker that is not one of the ten domains and
+        # remembers almost all of its own past. The star's relay keeps nothing
+        # and the hub's keeps some; this one keeps nearly everything, so the
+        # system's integration lives outside K entirely and K's own future
+        # depends on a variable no reading of K contains. It is the hardest
+        # case for causal closure, and it must not look like a mind.
+        hub_width = 8
+        for key in order:
+            hub_in[key] = _matrix(rng, hub_width, widths[key], strength)
+            hub_out[key] = _matrix(rng, widths[key], hub_width, strength)
+    elif name == "independent":
+        # Ten domains, no coupling at all. Same width, same decay, same noise,
+        # and nothing crossing between them. Every measure in the battery has
+        # to report nothing here, and a measure that rewards dimensionality
+        # rather than integration will not.
+        pass
     elif name == "frozen_slow":
         for index, key in enumerate(order):
             for offset in (1, 2, -1):
@@ -231,7 +255,10 @@ def architecture(
         # The hub of a "hub" null carries its own state across steps; the hub of
         # a "star" is a pure relay that keeps nothing. The difference is whether
         # the broker is itself part of the mind.
-        hub_decay=0.6 if name == "hub" else 0.0,
+        # The star's broker is a pure relay that keeps nothing; the hub's keeps
+        # some of its past; the hidden broker keeps nearly all of it. The
+        # difference is how much of the system's memory lives outside K.
+        hub_decay={"hub": 0.6, "hidden_broker": 0.95}.get(name, 0.0),
         frozen=frozen,
     )
 
@@ -241,10 +268,31 @@ ARCHITECTURES: tuple[str, ...] = (
     "recurrent",
     "star",
     "hub",
+    "hidden_broker",
+    "independent",
     "one_way",
     "prompt_only",
     "frozen_slow",
 )
+
+
+def toy_periphery(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> np.ndarray:
+    """The broker's own state over the same run: everything outside K.
+
+    A system whose memory lives in a broker that is not one of the ten domains
+    is causally open, and no reading of K can say so. The real battery measures
+    that by reading the rest of the machine beside the core; the nulls get the
+    same treatment, and a null with no broker returns an empty periphery.
+    """
+    if not system.hub_width:
+        return np.zeros((steps, 0))
+    rng = np.random.default_rng(seed)
+    state = system.start(rng)
+    rows: list[np.ndarray] = []
+    for _ in range(steps):
+        state = system.step(state, rng)
+        rows.append(np.asarray(state["_hub"], dtype=np.float64))
+    return np.vstack(rows)
 
 
 def toy_recording(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> Recording:

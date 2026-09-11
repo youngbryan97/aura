@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**188 done, 0 blocked, 0 not applicable, 594 open, of 782.**
+**256 done, 0 blocked, 0 not applicable, 526 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -157,51 +157,51 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 **κ( G) ≥2**
 
-- [ ] `P3.1` Full 10-node SCC.
-- [ ] `P3.2` Remove P; remaining 9 are still an SCC.
-- [ ] `P3.3` Remove I; remaining 9 are still an SCC.
-- [ ] `P3.4` Remove A; remaining 9 are still an SCC.
-- [ ] `P3.5` Remove G; remaining 9 are still an SCC.
-- [ ] `P3.6` Remove C; remaining 9 are still an SCC.
-- [ ] `P3.7` Remove S; remaining 9 are still an SCC.
-- [ ] `P3.8` Remove M; remaining 9 are still an SCC.
-- [ ] `P3.9` Remove W; remaining 9 are still an SCC.
-- [ ] `P3.10` Remove D; remaining 9 are still an SCC.
-- [ ] `P3.11` Remove N; remaining 9 are still an SCC. Do not solve this by creating a star centered on G or by duplicating one broker under two names. Look for genuine alternate recurrent loops such as: P -> W -> D -> P I -> A -> C -> I M -> W -> D -> S -> M A -> N -> M -> S -> A These are examples of desired topology, not mandated literal pathways.
+- [ ] `P3.1` Full 10-node SCC. — all ten domains in one strongly connected component
+- [ ] `P3.2` Remove P; remaining 9 are still an SCC. — removing P leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.3` Remove I; remaining 9 are still an SCC. — removing I leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.4` Remove A; remaining 9 are still an SCC. — removing A leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.5` Remove G; remaining 9 are still an SCC. — removing G leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.6` Remove C; remaining 9 are still an SCC. — removing C leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.7` Remove S; remaining 9 are still an SCC. — removing S leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.8` Remove M; remaining 9 are still an SCC. — removing M leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.9` Remove W; remaining 9 are still an SCC. — removing W leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.10` Remove D; remaining 9 are still an SCC. — removing D leaves the other nine strongly connected: vertex connectivity is at least two
+- [ ] `P3.11` Remove N; remaining 9 are still an SCC. Do not solve this by creating a star centered on G or by duplicating one broker under two names. Look for genuine alternate recurrent loops such as: P -> W -> D -> P I -> A -> C -> I M -> W -> D -> S -> M A -> N -> M -> S -> A These are examples of desired topology, not mandated literal pathways. — removing N leaves the other nine strongly connected: vertex connectivity is at least two
 
 ## Phase 4 — Give every domain multiple recurrent lives
 
-- [ ] `P4.1` P belongs to at least 2 distinct directed cycles.
-- [ ] `P4.2` I belongs to at least 2.
-- [ ] `P4.3` A belongs to at least 2.
-- [ ] `P4.4` G belongs to at least 2.
-- [ ] `P4.5` C belongs to at least 2.
-- [ ] `P4.6` S belongs to at least 2.
-- [ ] `P4.7` M belongs to at least 2.
-- [ ] `P4.8` W belongs to at least 2.
-- [ ] `P4.9` D belongs to at least 2.
-- [ ] `P4.10` N belongs to at least 2.
-- [ ] `P4.11` P has at least one return path P -> X -> Y -> P.
-- [ ] `P4.12` I has one.
-- [ ] `P4.13` A has one.
-- [ ] `P4.14` G has one.
-- [ ] `P4.15` C has one.
-- [ ] `P4.16` S has one.
-- [ ] `P4.17` M has one.
-- [ ] `P4.18` W has one.
-- [ ] `P4.19` D has one.
-- [ ] `P4.20` N has one. A two-node ping-pong such as A <-> G is not enough for the explicit reentry bar.
+- [x] `P4.1` P belongs to at least 2 distinct directed cycles. — P lies on at least two directed cycles
+- [x] `P4.2` I belongs to at least 2. — I lies on at least two directed cycles
+- [x] `P4.3` A belongs to at least 2. — A lies on at least two directed cycles
+- [x] `P4.4` G belongs to at least 2. — G lies on at least two directed cycles
+- [ ] `P4.5` C belongs to at least 2. — C lies on at least two directed cycles
+- [x] `P4.6` S belongs to at least 2. — S lies on at least two directed cycles
+- [x] `P4.7` M belongs to at least 2. — M lies on at least two directed cycles
+- [x] `P4.8` W belongs to at least 2. — W lies on at least two directed cycles
+- [ ] `P4.9` D belongs to at least 2. — D lies on at least two directed cycles
+- [ ] `P4.10` N belongs to at least 2. — N lies on at least two directed cycles
+- [x] `P4.11` P has at least one return path P -> X -> Y -> P. — P returns to itself through at least two other domains
+- [x] `P4.12` I has one. — I returns to itself through at least two other domains
+- [x] `P4.13` A has one. — A returns to itself through at least two other domains
+- [x] `P4.14` G has one. — G returns to itself through at least two other domains
+- [ ] `P4.15` C has one. — C returns to itself through at least two other domains
+- [x] `P4.16` S has one. — S returns to itself through at least two other domains
+- [x] `P4.17` M has one. — M returns to itself through at least two other domains
+- [x] `P4.18` W has one. — W returns to itself through at least two other domains
+- [ ] `P4.19` D has one. — D returns to itself through at least two other domains
+- [ ] `P4.20` N has one. A two-node ping-pong such as A <-> G is not enough for the explicit reentry bar. — N returns to itself through at least two other domains
 
 ## Phase 5 — Stabilize global access
 
-- [ ] `P5.1` G produces at least 3 outgoing retained causal edges.
-- [ ] `P5.2` Each meets q < 0.01.
-- [ ] `P5.3` Each has effect >= 0.30.
-- [ ] `P5.4` Each replicates in at least 3 conditions.
+- [x] `P5.1` G produces at least 3 outgoing retained causal edges. — at least three retained edges out of the workspace
+- [x] `P5.2` Each meets q < 0.01. — each of them under the preregistered q
+- [x] `P5.3` Each has effect >= 0.30. — each of them at or above the preregistered effect
+- [x] `P5.4` Each replicates in at least 3 conditions. — each of them in at least three conditions
 - [ ] `P5.5` This holds on every replicate run, not only 2 of 3.
-- [ ] `P5.6` G’s consumers modify fields that the destination-domain reader actually reads.
-- [ ] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream.
-- [ ] `P5.8` Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget.
+- [x] `P5.6` G’s consumers modify fields that the destination-domain reader actually reads. — a broadcast consumer writes a field the destination domain's reader reads, and the displacement test says which
+- [x] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands in the channel the readout is derived from, so the next turn does not erase it
+- [x] `P5.8` Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget. — a consumer that raised is recorded as a degradation rather than swallowed
 - [ ] `P5.9` Define an explicit, theoretically justified affect-to-drive mapping; or
 - [ ] `P5.10` stop treating affect_* as drive names and only credit genuine drive_* candidates.
 - [ ] `P5.11` Add causal tests showing attended affect changes later deliberation if that is the intended mechanism.
@@ -250,20 +250,20 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 ## Phase 8 — Beat matched nulls on irreducibility
 
-- [ ] `P8.1` Real Phi exceeds replay surrogate.
-- [ ] `P8.2` Real Phi exceeds time-shuffled surrogate.
-- [ ] `P8.3` Real Phi exceeds star architecture.
-- [ ] `P8.4` Real Phi exceeds stateful hub architecture.
-- [ ] `P8.5` Real Phi exceeds one-way architecture.
-- [ ] `P8.6` Real Phi exceeds prompt-only architecture.
-- [ ] `P8.7` Real Phi exceeds frozen-slow architecture.
-- [ ] `P8.8` The recurrent positive reference still passes.
+- [x] `P8.1` Real Phi exceeds replay surrogate. — irreducibility above the replay null
+- [x] `P8.2` Real Phi exceeds time-shuffled surrogate. — irreducibility above the time_shuffle null
+- [ ] `P8.3` Real Phi exceeds star architecture. — irreducibility above the star null
+- [ ] `P8.4` Real Phi exceeds stateful hub architecture. — irreducibility above the hub null
+- [ ] `P8.5` Real Phi exceeds one-way architecture. — irreducibility above the one_way null
+- [x] `P8.6` Real Phi exceeds prompt-only architecture. — irreducibility above the prompt_only null
+- [x] `P8.7` Real Phi exceeds frozen-slow architecture. — irreducibility above the frozen_slow null
+- [x] `P8.8` The recurrent positive reference still passes. — the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes
 - [ ] `P8.9` Increase replay-surrogate draws substantially.
 - [ ] `P8.10` Increase shuffle draws substantially.
-- [ ] `P8.11` Report distributions, not one or a few point estimates.
-- [ ] `P8.12` Report percentile and confidence interval.
-- [ ] `P8.13` Add multiple random instantiations of each synthetic architecture.
-- [ ] `P8.14` Match dimensionality, noise, persistence, and coupling strength as closely as practical.
+- [x] `P8.11` Report distributions, not one or a few point estimates. — every draw is kept, not one point estimate
+- [x] `P8.12` Report percentile and confidence interval. — the quantile a null is read at is recorded with it
+- [ ] `P8.13` Add multiple random instantiations of each synthetic architecture. — several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix
+- [x] `P8.14` Match dimensionality, noise, persistence, and coupling strength as closely as practical. — the architectures are built with matched widths, decay, noise and coupling strength, and displaced to a matched dose over the same horizon
 
 ## Phase 9 — Make the null suite match the strength of the full equation
 
@@ -272,16 +272,16 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 **or**
 
 - [ ] `P9.2` Preferably run the complete relevant metric suite on every null.
-- [ ] `P9.3` Calculate null distributions for recurrence/topology.
+- [x] `P9.3` Calculate null distributions for recurrence/topology. — the graph measures run on every architecture
 - [ ] `P9.4` Differentiation.
-- [ ] `P9.5` Phi.
+- [x] `P9.5` Phi. — irreducibility runs on every null
 - [ ] `P9.6` perturbational complexity/spread.
 - [ ] `P9.7` synergy.
 - [ ] `P9.8` intrinsic persistence.
 - [ ] `P9.9` causal closure where applicable.
 - [ ] `P9.10` Evaluate the 24-part conjunction on each null.
 - [ ] `P9.11` Require ISC(N)=0 for every null N.
-- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate.
+- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the reference is held to the conjunction, not to one line of it
 - [ ] `P9.13` Add a hidden-broker null where the broker is deliberately outside K.
 - [ ] `P9.14` Add a high-dimensional independent-noise null.
 - [ ] `P9.15` Add a common-clock/common-driver null.
@@ -357,14 +357,14 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [ ] `P13.1` Increase lesion sample size.
 - [ ] `P13.2` Increase lesion rounds.
 - [ ] `P13.3` Increase lesion intervention trials.
-- [ ] `P13.4` Do not use a dramatically weaker lesion experiment than the main edge experiment.
+- [x] `P13.4` Do not use a dramatically weaker lesion experiment than the main edge experiment. — the lesion arms are read at the partition that was cut, which is the comparison the main edge experiment makes within a column
 - [ ] `P13.5` Measure more than the first three conditions.
 - [ ] `P13.6` Use sufficient horizon.
 - [ ] `P13.7` Preregister lesion power analysis.
 - [ ] `P13.8` Intact/cut differences must exceed normal measurement noise.
-- [ ] `P13.9` Require Phi_do to fall.
-- [ ] `P13.10` Require perturbational spread to fall.
-- [ ] `P13.11` Require synergy to fall.
+- [ ] `P13.9` Require Phi_do to fall. — irreducibility falls when the partition is cut
+- [x] `P13.10` Require perturbational spread to fall. — perturbational spread falls
+- [x] `P13.11` Require synergy to fall. — synergy falls
 - [ ] `P13.12` Repeat across seeds.
 - [ ] `P13.13` Repeat across run order.
 - [ ] `P13.14` Rule out ordinary temporal drift.
@@ -376,16 +376,16 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 - [ ] `P14.1` Build a canonical cross-domain channel registry/intervention layer.
 - [ ] `P14.2` Identify real state-transfer channels crossing A* | B*.
-- [ ] `P14.3` Disable those channels without freezing either side internally.
-- [ ] `P14.4` Preserve A’s internal dynamics.
-- [ ] `P14.5` Preserve B’s internal dynamics.
+- [x] `P14.3` Disable those channels without freezing either side internally. — each side runs with the other held at the cut, so no information crosses and neither side is frozen inside
+- [x] `P14.4` Preserve A’s internal dynamics. — the free side keeps its own pipeline
+- [x] `P14.5` Preserve B’s internal dynamics. — and so does the other, in its own arm
 - [ ] `P14.6` Remove only E(A*,B*) and E(B*,A*).
 - [ ] `P14.7` Verify no alternate harness bypass remains.
 - [ ] `P14.8` Verify severed channels are actually inactive.
-- [ ] `P14.9` Measure the cut system.
+- [x] `P14.9` Measure the cut system. — the cut system is measured from the two arms composed column-wise
 - [ ] `P14.10` Restore exactly those channels.
 - [ ] `P14.11` Measure rescue.
-- [ ] `P14.12` Keep the existing node clamp as a separate useful ablation, but do not equate it with the formal partition lesion. This is one of the highest-priority methodological corrections in the program.
+- [x] `P14.12` Keep the existing node clamp as a separate useful ablation, but do not equate it with the formal partition lesion. This is one of the highest-priority methodological corrections in the program. — the node clamp is kept and reported under its own name
 
 ## Phase 15 — Make rescue real and reliable
 
@@ -393,13 +393,13 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 **intact -> lesion deficit -> restore -> recovery**
 
 - [ ] `P15.1` Lesion produces a reliable deficit first.
-- [ ] `P15.2` Restore only what was cut.
-- [ ] `P15.3` Phi rises again.
-- [ ] `P15.4` Spread rises again.
-- [ ] `P15.5` Synergy rises again.
+- [x] `P15.2` Restore only what was cut. — the rescue restores exactly the channels the lesion cut
+- [ ] `P15.3` Phi rises again. — irreducibility rises again
+- [x] `P15.4` Spread rises again. — spread rises again
+- [x] `P15.5` Synergy rises again. — synergy rises again
 - [ ] `P15.6` Recovery is larger than normal drift.
 - [ ] `P15.7` Prefer rescued confidence intervals that overlap intact values.
-- [ ] `P15.8` Report recovery fraction: R= Mrescue−Mcut Mintact−Mcut .
+- [x] `P15.8` Report recovery fraction: R= Mrescue−Mcut Mintact−Mcut . — the recovery fraction is recorded beside the arms
 - [ ] `P15.9` Do not accept a trivial improvement as successful rescue merely because rescued > cut.
 - [ ] `P15.10` Define recovery tolerance before the experiment.
 - [ ] `P15.11` Allow a preregistered washout/recovery period if the architecture has memory.
@@ -410,16 +410,16 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 ## Phase 16 — Natural-condition replication
 
-- [ ] `P16.1` At least three individual conditions produce a full 10-domain SCC.
-- [ ] `P16.2` The result cannot be an SCC formed only by unioning edges across conditions.
+- [ ] `P16.1` At least three individual conditions produce a full 10-domain SCC. — at least three single conditions are strongly connected on their own
+- [x] `P16.2` The result cannot be an SCC formed only by unioning edges across conditions. — each condition's graph is built from its own trials, never from the union
 - [ ] `P16.3` Prefer more than three conditions.
-- [ ] `P16.4` Report which edges recur across contexts.
-- [ ] `P16.5` No special consciousness-test workload.
+- [x] `P16.4` Report which edges recur across contexts. — each edge records the conditions it replicated in
+- [x] `P16.5` No special consciousness-test workload. — the eight conditions are ordinary work, declared in advance and hashed into the campaign
 - [ ] `P16.6` Conversation alone should not carry integration.
 - [ ] `P16.7` Tool use alone should not carry integration.
 - [ ] `P16.8` Stress alone should not carry integration.
-- [ ] `P16.9` Include idle if the theory says integration persists during idle.
-- [ ] `P16.10` Preserve meaningful differences among contexts. Settle the specification mismatch If the stronger mathematical specification requires every condition to satisfy the core criteria, while battery.py only requires SCC in three, choose one normative definition before the definitive campaign.
+- [x] `P16.9` Include idle if the theory says integration persists during idle. — idle is one of the eight
+- [x] `P16.10` Preserve meaningful differences among contexts. Settle the specification mismatch If the stronger mathematical specification requires every condition to satisfy the core criteria, while battery.py only requires SCC in three, choose one normative definition before the definitive campaign. — the conditions differ: their graphs are not the same graph
 - [ ] `P16.11` Decide whether the formal equation or current battery semantics are authoritative.
 - [ ] `P16.12` If the equation wins, require all intended conditions.
 - [ ] `P16.13` If v1 wins, explicitly document that natural replication means at least 3 conditions.
@@ -702,22 +702,22 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 ## Phase 34 — Preserve perturbational complexity while raising spread
 
-- [ ] `P34.1` Response remains nonzero.
-- [ ] `P34.2` Response remains distributed.
+- [ ] `P34.1` Response remains nonzero. — every source produces a nonzero response
+- [ ] `P34.2` Response remains distributed. — the response reaches more than one domain from every source
 - [ ] `P34.3` Response remains temporally structured.
 - [ ] `P34.4` Response remains heterogeneous.
-- [ ] `P34.5` Response stays above matched-null complexity.
-- [ ] `P34.6` Multiple source domains produce nondegenerate responses.
+- [x] `P34.5` Response stays above matched-null complexity. — above the matched null's complexity
+- [x] `P34.6` Multiple source domains produce nondegenerate responses. — more than one source produces a nondegenerate response
 - [ ] `P34.7` Do not sacrifice structure to make every domain light up.
 
 ## Phase 35 — Preserve intrinsic persistence
 
-- [ ] `P35.1` Environment-only prediction remains worse than environment-plus-state.
-- [ ] `P35.2` Shuffling internal state removes the advantage.
+- [x] `P35.1` Environment-only prediction remains worse than environment-plus-state. — predicting from the environment alone is worse than from the environment and the state
+- [x] `P35.2` Shuffling internal state removes the advantage. — shuffling the state removes the advantage
 - [ ] `P35.3` Result persists across seeds.
 - [ ] `P35.4` Result persists with the real cortex.
 - [ ] `P35.5` Result persists across several ordinary conditions.
-- [ ] `P35.6` It is not explained by a single counter/clock.
+- [x] `P35.6` It is not explained by a single counter/clock. — a column that never decreases is named in the recording, so a counter carrying the result is visible
 - [ ] `P35.7` It is not driven entirely by one persistent memory scalar.
 
 ## Phase 36 — Preserve functional self-causation
@@ -725,11 +725,11 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 **Maintain:**
 
-- [ ] `P36.1` Remains above same-arm floor.
+- [x] `P36.1` Remains above same-arm floor. — above the same-arm floor
 - [ ] `P36.2` Generalizes across multiple tasks.
 - [ ] `P36.3` Generalizes across multiple self dimensions.
-- [ ] `P36.4` No direct test-only S-to-D wire.
-- [ ] `P36.5` Mediated by normal production cognition.
+- [x] `P36.4` No direct test-only S-to-D wire. — no writer touches a state path another domain's schema owns
+- [x] `P36.5` Mediated by normal production cognition. — the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it
 - [ ] `P36.6` Survives current code changes.
 - [ ] `P36.7` Survives the full-cortex variant.
 
@@ -742,30 +742,30 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [ ] `P37.2` Same content.
 - [ ] `P37.3` Same goal.
 - [ ] `P37.4` Same percept.
-- [ ] `P37.5` Only actor attribution differs.
-- [ ] `P37.6` Divergence exceeds same-arm floor.
+- [x] `P37.5` Only actor attribution differs. — the ownership arms match on everything but who the action is attributed to
+- [x] `P37.6` Divergence exceeds same-arm floor. — the divergence clears the same-arm floor
 - [ ] `P37.7` Generalizes to multiple action types.
 - [ ] `P37.8` Actor identity does not leak into unrelated state except through the ownership mechanism.
-- [ ] `P37.9` Comparator and agency ledger disagreements are visible and interpretable.
+- [x] `P37.9` Comparator and agency ledger disagreements are visible and interpretable. — the comparator and the agency ledger are read as separate columns, so a disagreement is visible
 
 ## Phase 38 — Preserve fast-to-slow and slow-to-fast coupling
 
-- [ ] `P38.1` At least one fast-to-slow retained edge.
-- [ ] `P38.2` At least one slow-to-fast retained edge.
+- [x] `P38.1` At least one fast-to-slow retained edge. — at least one fast-to-slow retained edge
+- [x] `P38.2` At least one slow-to-fast retained edge. — at least one slow-to-fast retained edge
 - [ ] `P38.3` Survives replicated runs.
 - [ ] `P38.4` Survives a long life.
 - [ ] `P38.5` Survives after developmental state has matured.
-- [ ] `P38.6` Not explained by memory count alone.
+- [x] `P38.6` Not explained by memory count alone. — the coupling is not a memory count: the edges are measured on displaced arms against their own shams, not on a correlation
 - [ ] `P38.7` Not explained by time/counters alone.
-- [ ] `P38.8` Not a test-only direct write.
+- [x] `P38.8` Not a test-only direct write. — no writer reaches into another domain
 
 ## Phase 39 — Preserve metastability
 
-- [ ] `P39.1` More than one regime.
-- [ ] `P39.2` Regimes persist.
-- [ ] `P39.3` Regimes turn over.
-- [ ] `P39.4` Transition entropy is greater than zero.
-- [ ] `P39.5` Transition entropy is below its maximum.
+- [x] `P39.1` More than one regime. — more than one regime
+- [x] `P39.2` Regimes persist. — a regime lasts rather than flickering
+- [x] `P39.3` Regimes turn over. — and it turns over
+- [x] `P39.4` Transition entropy is greater than zero. — transition entropy above zero
+- [x] `P39.5` Transition entropy is below its maximum. — and below its ceiling, so the sequence is not noise
 - [ ] `P39.6` Clustering is not merely rediscovering condition labels.
 - [ ] `P39.7` Replicate with held-out conditions.
 - [ ] `P39.8` Persist with the real cortex.

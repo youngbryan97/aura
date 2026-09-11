@@ -725,6 +725,32 @@ def _nulls(
                 edges = toy_edges(system, trials=16, seed=args.seed)
                 graphs.append(analyse_graph(domains, edges))
         graph = graphs[0]
+        # And whether the null's own core is closed. A broker outside K makes
+        # every domain depend on every other one, so the graph of a hidden
+        # broker is indistinguishable from a mind's — measured, not assumed:
+        # one component, vertex connectivity three, every node re-entering.
+        # What separates them is that K's future depends on a variable no
+        # reading of K contains, which is what this measures and what the
+        # battery keeps causal closure for.
+        closed = True
+        leak = 0.0
+        try:
+            from core.subject.closure import closure_gain
+            from core.subject.nulls import toy_periphery
+
+            system = architecture(name, seed=args.seed)
+            recording_for_closure = toy_recording(system, steps=2500, seed=args.seed)
+            outside = toy_periphery(system, steps=2500, seed=args.seed)
+            report = closure_gain(
+                recording_for_closure,
+                outside,
+                tuple(f"broker.{index}" for index in range(outside.shape[1])),
+                seed=args.seed,
+            )
+            closed = bool(report.closed)
+            leak = float(report.leak)
+        except (ImportError, ValueError, RuntimeError, AttributeError) as exc:
+            _log(f"  closure unavailable for the {name} null: {exc}")
         table[name] = {
             "phi_do": round(float(np.quantile(values, 0.95)), 5),
             "draws": values,
@@ -735,6 +761,8 @@ def _nulls(
             "one_component": graph.one_component,
             "vertex_connectivity": graph.connectivity,
             "reentry": graph.every_node_reenters,
+            "closed": closed,
+            "leak": round(leak, 5),
         }
 
     beaten = {
@@ -764,6 +792,11 @@ def _nulls(
             and bool(row.get("one_component"))
             and float(row.get("vertex_connectivity", 0.0)) >= THRESHOLDS["vertex_connectivity"]
             and bool(row.get("reentry"))
+            # A core whose future depends on a variable no reading of it
+            # contains is not the core. The hidden-broker null passes every
+            # graph measure the reference passes and fails here, which is what
+            # causal closure is in the conjunction for.
+            and bool(row.get("closed", True))
         )
 
     # The instrument has to be able to say yes to something. A reference
