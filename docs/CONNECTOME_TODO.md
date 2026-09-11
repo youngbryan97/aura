@@ -63,6 +63,25 @@ Working list. Deleted when every line is done and green.
       shuffle control reproduces from the firing rates alone. The old number
       would not have been published through either gate.
 
+      Under her own regulator, with the regulator's branching sensor fixed,
+      three of the four published statistics are matched or bettered and three
+      are bettered. Size exponent 1.5191 against cortex's 1.5 over 2.50
+      decades at KS 0.140; duration 1.9065 against 2.0 over 1.54 decades at KS
+      0.081; the shuffle control at 29.7 sigma, so these are cascades and not
+      occupancy; branching 0.9197. The exponent that read 3.69 over half a
+      decade reads 1.52 over two and a half.
+
+      What still fails is the one the module's own docstring calls the test
+      that matters: the crackling relation, 1.272 measured against the 1.746
+      her own two exponents predict, past the 0.2 allowed. Either exponent
+      alone can be produced by something that is not critical, and the
+      relation between them is what refuses that. Her recording is 97.7% bins
+      active with 77 cascades in it, the largest 12,006 unit-bins and the
+      longest 1,367 ticks of 6,000 — a handful of enormous runs rather than a
+      scale-free spread, which is what a failed scaling relation looks like.
+      That is the open half, and it is about the recording having silence in
+      it rather than about the exponents
+
       One route out of it has been tried and does not work. `decay` is
       `dt_ms / tau_m`, a normalised step, so refining it should buy time
       resolution for nothing. It does not, because the mesh's statistics move
@@ -127,7 +146,24 @@ Working list. Deleted when every line is done and green.
       scored her branching against.
 
       Measured offline on a synthetic drive, and the live mesh is driven by
-      real input. Where it settles inside the new bound is the open half
+      real input. Where it settles inside the new bound is now measured, and
+      it settles low: gain 1.5055, well under the 3.5 the ceiling allows.
+
+      Which means the ceiling was not what had it pinned, and an earlier
+      commit here said it was. The regulator's branching sensor was reading
+      0.0000 — not subcritical, unmeasured — and a PID answering 0.0000 with a
+      target of 0.98 demands maximal gain and maximal noise on every tick
+      forever. That is a loop: more gain saturates the mesh, a saturated mesh
+      has no newly active units, and the sensor that reports none reports
+      zero. Raising a ceiling under a controller driven by that would have let
+      it ramp further, which is the opposite of a fix.
+
+      The per-tick mean is reported and no longer driven on, and a rejected
+      fit now holds the last reading and skips the PID rather than
+      substituting a number. Branching reads 0.9197 through the same run that
+      used to read zero. The ceiling change stands on its own argument — a
+      setpoint outside its own bound can never be reached — and it is not what
+      was wrong here
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run and 56
       distinct failures have surfaced. Every one traced so far is either fixed

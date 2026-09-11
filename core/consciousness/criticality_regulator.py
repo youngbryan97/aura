@@ -321,6 +321,9 @@ class CriticalityRegulator:
             maxlen=self.cfg.branching_measurement_interval
         )
         self._branching_ratio: float = 1.0  # assume critical at startup
+        #: Whether the value above came from a fit this tick. False means the
+        #: controller is holding and not integrating.
+        self._branching_measured: bool = False
         self._branching_ratio_naive: float = 1.0
         self._branching_estimator: str = "per-tick-mean"
         self._activity_history: Deque[float] = deque(maxlen=self.cfg.activity_history)
@@ -743,13 +746,33 @@ class CriticalityRegulator:
         # its rate. Wilting & Priesemann, Nat Commun 9:2325 (2018).
         if self._branching_samples:
             self._branching_ratio_naive = float(np.mean(list(self._branching_samples)))
-        self._branching_ratio = self._branching_ratio_naive
-        self._branching_estimator = "per-tick-mean"
+        # The per-tick mean is reported and never driven on.
+        #
+        # It used to be the fallback whenever the regression was rejected, and
+        # its failure mode is zero: a saturated mesh has no newly active units,
+        # every sample comes back 0, and the controller reads a branching ratio
+        # of 0.0000, which is no measurement at all rather than a maximally
+        # subcritical one, and the PID answers it with a constant maximal
+        # demand for more gain and more noise -- which saturated the mesh. A
+        # sensor that fails toward the number that makes the controller worsen
+        # the condition is a loop, and a 6,000-tick run walked straight into
+        # it: branching 0.0000, gain and noise and excitation all at their
+        # rails, 97% of bins carrying a spike.
+        #
+        # An unmeasured quantity is not zero. When the fit is rejected the last
+        # trustworthy reading stands and the controller does not integrate, so
+        # a regulator that cannot see holds still instead of pushing.
+        measured = None
         if len(self._activity_history) >= self.cfg.min_history_for_regression:
             estimate = self._regression_branching_ratio()
             if estimate is not None:
-                self._branching_ratio = estimate.m
+                measured = float(estimate.m)
                 self._branching_estimator = estimate.method
+        self._branching_measured = measured is not None
+        if measured is not None:
+            self._branching_ratio = measured
+        else:
+            self._branching_estimator = "unmeasured"
 
         # 2. Fit the avalanche exponent
         self._avalanche_exponent = self._fit_avalanche_exponent()
@@ -757,26 +780,34 @@ class CriticalityRegulator:
         # 3. Compute criticality score
         score = self._compute_criticality_score()
 
-        # 4. PID update
-        # Error for gain: branching_ratio > 1 means supercritical → DECREASE gain
-        # So we negate: error = -(branching_ratio - 1.0)
-        gain_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
-        self._gain_adjustment = self._gain_pid.step(gain_error)
+        # 4. PID update, and only while there is something to update against.
+        #
+        # A held reading is a stale error, and stepping a PID on the same stale
+        # error every tick arrives at the rail by a slower road than driving on
+        # a fabricated zero did. The outputs keep whatever they last had, which
+        # is the behaviour of a regulator that has lost its sensor rather than
+        # one that has decided something.
+        if self._branching_measured:
+            # Error for gain: branching_ratio > 1 means supercritical →
+            # DECREASE gain. So we negate: error = -(branching - target)
+            gain_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
+            self._gain_adjustment = self._gain_pid.step(gain_error)
 
-        # Error for noise: if subcritical (br < 1), we want MORE noise to
-        # destabilize the fixed point.  If supercritical, less noise.
-        # We also factor in the Herfindahl: high concentration means the
-        # system is stuck in a few columns → more noise needed.
-        noise_error = (
-            -(self._branching_ratio - CRITICAL_BRANCHING_TARGET) + self._herfindahl * 0.5
-        )
-        self._noise_adjustment = self._noise_pid.step(noise_error)
+            # Error for noise: if subcritical, we want MORE noise to
+            # destabilize the fixed point. If supercritical, less noise.
+            # We also factor in the Herfindahl: high concentration means the
+            # system is stuck in a few columns → more noise needed.
+            noise_error = (
+                -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
+                + self._herfindahl * 0.5
+            )
+            self._noise_adjustment = self._noise_pid.step(noise_error)
 
-        # Error for E/I ratio: drives toward balanced excitation/inhibition.
-        # If supercritical, reduce excitation (ratio < 1).
-        # If subcritical, increase excitation (ratio > 1).
-        ei_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
-        self._ei_ratio = self._ei_pid.step(ei_error)
+            # Error for E/I ratio: drives toward balanced excitation and
+            # inhibition. Supercritical reduces excitation, subcritical raises
+            # it.
+            ei_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
+            self._ei_ratio = self._ei_pid.step(ei_error)
 
         # 5. Avalanche diagnostics
         sizes = list(self._avalanche_sizes)

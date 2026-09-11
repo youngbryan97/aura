@@ -6777,18 +6777,22 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     global _FUSION_MODEL_IDENTITY
 
     identity = _FUSION_MODEL_IDENTITY
-    # `active_hooks()` rather than the `_hooks` attribute. That distinction has
-    # been paid for once already in this file -- see `_active_steering_hooks`,
-    # whose whole docstring is about a surface that looked equivalent and was
-    # not -- and reading the attribute here meant this function could decline
-    # every minute and say nothing about it. The live 27B did exactly that for
-    # two days: "no certificate yet" on every turn, and no line anywhere saying
-    # the probe was never reaching its first statement.
-    hooks = _active_steering_hooks(engine)
+    # `active_hooks()` is the surface an engine publishes, so read that. It is
+    # not the reason this never ran, and an earlier commit here said it was:
+    # `AffectiveSteeringEngine.active_hooks` returns `list(self._hooks)`, so on
+    # a real engine the two agree exactly. What was actually missing is still
+    # unknown, and the lines below exist to name it on the next restart.
+    #
+    # Explicit None check rather than `_active_steering_hooks(engine)` alone:
+    # that helper treats None as "fetch the process-wide engine", and a
+    # certification that quietly switched to a different engine than the one
+    # holding this model would measure a channel nobody is generating through.
+    hooks = _active_steering_hooks(engine) if engine is not None else []
     missing = [
         name
         for name, present in (
             ("a model identity", bool(identity)),
+            ("an attached steering engine", engine is not None),
             ("steering hooks", bool(hooks)),
             ("a loaded model", model is not None),
             ("a tokenizer", tokenizer is not None),
