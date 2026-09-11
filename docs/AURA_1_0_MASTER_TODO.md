@@ -348,6 +348,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     now; an unexplained clear flag still warns. FIXED.
 - [ ] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  UPDATE 2026-09-10, session boundaries: the live replay exposed a three-session
+  cutoff that hid a conversation still visible in the desktop. The durable
+  reader now selects chronological authorized turns; UI restoration expands
+  to 100 exchanges without raising the model's admission budget. 64 focused
+  tests pass. Live semantic replay remains required. See
+  [chronological history](evidence/R09_CHRONOLOGICAL_HISTORY_2026-09-10.md).
   UPDATE 2026-09-10, model handoff: the fallback ladder now receives the
   primary turn's admitted structured transcript. Cold-start fallback uses
   the same scoped durable reader. 58 focused tests pass; source-matched

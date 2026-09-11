@@ -1297,9 +1297,10 @@ function messageBadgeHtml(metadata = {}) {
     return replyConfidenceBadgeHtml(metadata.responseConfidence);
 }
 
+const VISIBLE_CHAT_EXCHANGES = 100;
+
 function pruneVisibleMessages(messages) {
-    const MAX_VISIBLE_MESSAGES = 40;
-    while (messages && messages.children.length > MAX_VISIBLE_MESSAGES) {
+    while (messages && messages.children.length > VISIBLE_CHAT_EXCHANGES * 2) {
         messages.removeChild(messages.firstChild);
     }
     // Every append into the transcript funnels through here, so this is the
@@ -1531,7 +1532,7 @@ function updateLanePlaceholder() {
 function hydrateRecentConversation(entries) {
     const messages = DOM.messages || $('messages');
     if (!messages || !Array.isArray(entries) || !entries.length) return;
-    const restored = conversationEntriesToMessages(entries.slice(-12));
+    const restored = conversationEntriesToMessages(entries.slice(-VISIBLE_CHAT_EXCHANGES));
     if (!restored.length) return;
 
     if (!transcriptIsEmpty(messages)) {

@@ -487,6 +487,34 @@ def test_durable_loader_never_crosses_paired_principals(monkeypatch, tmp_path):
     ]
 
 
+def test_durable_recall_survives_many_short_sessions_and_pending_turns(monkeypatch, tmp_path):
+    persistence = ConversationPersistence(tmp_path / "many-sessions.db")
+    for i in range(10):
+        persistence.record_exchange(
+            f"question {i}", f"answer {i}", session_id=f"session-{i}", cid=f"e{i}",
+        )
+    for i in range(4):
+        persistence.record_turn("user", "unfinished", session_id="current", cid=f"pending-{i}:user")
+    _install(monkeypatch, persistence)
+
+    exchanges = chat_routes._load_durable_conversation_exchanges_sync(limit=10, session_id="current")
+    assert [(item["user"], item["aura"]) for item in exchanges] == [
+        (f"question {i}", f"answer {i}") for i in range(10)
+    ]
+    assert chat_routes._load_durable_conversation_exchanges_sync(
+        limit=10, session_id="current", allow_cross_session=False,
+    ) == []
+
+
+def test_durable_recall_does_not_reorder_interleaved_sessions(monkeypatch, tmp_path):
+    persistence = ConversationPersistence(tmp_path / "interleaved-sessions.db")
+    for i, session in enumerate(("active", "other", "active", "other")):
+        persistence.record_exchange(f"q{i}", f"a{i}", session_id=session, cid=f"e{i}")
+    _install(monkeypatch, persistence)
+    exchanges = chat_routes._load_durable_conversation_exchanges_sync(limit=3, session_id="active")
+    assert [item["user"] for item in exchanges] == ["q1", "q2", "q3"]
+
+
 @pytest.mark.asyncio
 async def test_live_chat_logger_atomically_stamps_authenticated_principal(
     monkeypatch,

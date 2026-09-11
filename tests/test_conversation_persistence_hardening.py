@@ -806,3 +806,58 @@ def test_recent_sessions_are_principal_scoped(tmp_path):
         principal_surface="paired_device",
     )
     assert [session["id"] for session in visible] == ["session-a"]
+
+
+def test_recent_history_budget_counts_authorized_turns_not_sessions(tmp_path):
+    store = ConversationPersistence(tmp_path / "recent-turns.db")
+    for i in range(12):
+        store.record_exchange(
+            f"question {i}", f"answer {i}", session_id=f"owner-{i}", cid=f"turn-{i}",
+            principal_id="bryan", principal_surface="owner",
+        )
+    for i in range(15):
+        store.record_turn(
+            "user", "private", session_id=f"device-{i}",
+            principal_id="device", principal_surface="paired_device",
+        )
+    store.start_session()
+    rows = store.get_recent_history(limit=20, principal_id="bryan", principal_surface="owner")
+    assert [row["content"] for row in rows] == [
+        text for i in range(2, 12) for text in (f"question {i}", f"answer {i}")
+    ]
+
+
+def test_recent_history_uses_turn_order_and_latest_revision(tmp_path):
+    store = ConversationPersistence(tmp_path / "interleaved.db")
+    for i, session in enumerate(("first", "second", "first")):
+        store.record_exchange(f"q{i}", f"a{i}", session_id=session, cid=f"e{i}")
+    store.replace_aura_turn(
+        exchange_id="e0", session_id="first", replacement_content="corrected",
+        expected_revision=1, expected_content_sha256=hashlib.sha256(b"a0").hexdigest(),
+    )
+    # Equal clocks still preserve insertion order across session boundaries.
+    with connecting(store._connect()) as con:
+        con.execute("UPDATE turns SET created_at = 1")
+        con.commit()
+    rows = store.get_recent_history(limit=6)
+    assert [row["content"] for row in rows] == ["q0", "corrected", "q1", "a1", "q2", "a2"]
+    assert rows[1]["revision"] == 2
+    assert rows[1]["content_sha256"] == hashlib.sha256(b"corrected").hexdigest()
+    assert store.get_recent_history(limit=3) == rows[-3:]
+    assert store.get_session_history("first") == [rows[i] for i in (0, 1, 4, 5)]
+
+
+def test_recent_history_preserves_legacy_owner_and_surface_boundaries(tmp_path):
+    store = ConversationPersistence(tmp_path / "recent-principals.db")
+    store.record_turn("user", "legacy", session_id="legacy")
+    for surface in ("owner", "paired_device"):
+        store.record_turn("user", surface, session_id=surface,
+                          principal_id="same", principal_surface=surface)
+    assert [r["content"] for r in store.get_recent_history(
+        principal_id="same", principal_surface="owner",
+    )] == ["legacy", "owner"]
+    assert [r["content"] for r in store.get_recent_history(
+        principal_id="same", principal_surface="paired_device",
+    )] == ["paired_device"]
+    with pytest.raises(ValueError, match="requires id and surface"):
+        store.get_recent_history(principal_id="same")

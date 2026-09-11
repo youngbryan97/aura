@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS turns (
 );
 
 CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_turns_created ON turns(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_turns_session_cid ON turns(session_id, cid);
 CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(last_active DESC);
 
@@ -1254,22 +1255,57 @@ class ConversationPersistence:
                         return []
                 elif surface != "owner":
                     return []
-            rows = con.execute(
-                "SELECT * FROM ("
-                "SELECT t.*, r.revision AS revision, "
-                "r.content_sha256 AS revision_content_sha256 "
-                "FROM turns t LEFT JOIN turn_revisions r "
-                "ON r.turn_id = t.id AND r.revision = ("
-                "SELECT MAX(r2.revision) FROM turn_revisions r2 "
-                "WHERE r2.turn_id = t.id) "
-                "WHERE t.session_id = ? "
-                "ORDER BY t.created_at DESC, t.rowid DESC LIMIT ?"
-                ") ORDER BY created_at ASC",
-                (sid, limit),
-            ).fetchall()
+            return self._read_turn_history(con, "t.session_id = ?", (sid,), limit)
+
+    def get_recent_history(
+        self,
+        limit: int = 100,
+        *,
+        principal_id: str = "",
+        principal_surface: str = "",
+    ) -> list[dict[str, Any]]:
+        """Read recent authorized turns, independent of session boundaries."""
+        limit = _safe_limit(limit, 100)
+        principal, surface = _principal_binding(principal_id, principal_surface)
+        with connecting(self._connect()) as con:
+            where = "1"
+            if principal:
+
+                def authorized(metadata: str) -> bool:
+                    bound = _metadata_principal_binding(metadata)
+                    return bound == (principal, surface) if bound[0] else surface == "owner"
+
+                # Filter before LIMIT: other principals must not consume the
+                # caller's history window. Match the session reader's policy.
+                con.create_function("history_authorized", 1, authorized, deterministic=True)
+                where = "history_authorized(s.metadata)"
+            return self._read_turn_history(con, where, (), limit)
+
+    @staticmethod
+    def _read_turn_history(
+        con: sqlite3.Connection,
+        where: str,
+        parameters: tuple[Any, ...],
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        rows = con.execute(
+            "SELECT * FROM ("
+            "SELECT t.*, t.rowid AS history_position, r.revision AS revision, "
+            "r.content_sha256 AS revision_content_sha256 "
+            "FROM turns t JOIN sessions s ON s.id = t.session_id "
+            "LEFT JOIN turn_revisions r "
+            "ON r.turn_id = t.id AND r.revision = ("
+            "SELECT MAX(r2.revision) FROM turn_revisions r2 "
+            "WHERE r2.turn_id = t.id) "
+            f"WHERE {where} "
+            "ORDER BY t.created_at DESC, t.rowid DESC LIMIT ?"
+            ") ORDER BY created_at ASC, history_position ASC",
+            (*parameters, limit),
+        ).fetchall()
         history: list[dict[str, Any]] = []
         for row in rows:
             item = dict(row)
+            item.pop("history_position")
             item["metadata"] = _turn_metadata(item.pop("metadata_json", "{}"))
             item["revision"] = int(item.get("revision") or 1)
             item["content_sha256"] = str(

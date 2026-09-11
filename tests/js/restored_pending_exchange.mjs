@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const source = readFileSync(process.argv[2], 'utf8');
+const visibleLimit = Number(source.match(/const VISIBLE_CHAT_EXCHANGES = (\d+);/)[1]);
+assert.equal(visibleLimit, 100);
 const start = source.indexOf('function hydrateRecentConversation(');
 const end = source.indexOf('\nfunction applyVoiceSummary', start);
 assert(start >= 0 && end > start);
@@ -23,10 +25,10 @@ const convert = new Function(source.slice(conversionStart, conversionEnd)
     + '\nreturn conversationEntriesToMessages;')();
 assert.equal(convert([{ id: 'one', user: 'why?', timestamp: 'original' }])[0].metadata.timestamp, 'original');
 const hydrate = new Function('DOM', '$', 'state', 'transcriptIsEmpty',
-    'conversationEntriesToMessages', 'appendMsg', 'updateLanePlaceholder',
+    'conversationEntriesToMessages', 'appendMsg', 'updateLanePlaceholder', 'VISIBLE_CHAT_EXCHANGES',
     source.slice(start, end) + '\nreturn hydrateRecentConversation;'
 )({ messages }, () => messages, state, host => host.children.length === 0,
-    convert, appendMsg, () => {});
+    convert, appendMsg, () => {}, visibleLimit);
 
 hydrate([{ id: 'one', user: 'why?', aura: '' }]);
 hydrate([{ id: 'one', user: 'why?', aura: 'first answer' }]);
@@ -56,4 +58,21 @@ assert.deepEqual(messages.children.map(node => node.text), ['early?', 'early ans
 hydrate([{ id: 'unknown', user: 'early?', aura: 'unrelated' }]);
 assert.equal(messages.children.length, 4);
 assert(!source.includes('hydrateConversationHistory: !state.bootstrapLoaded'));
+
+messages.children.length = 0;
+hydrate(Array.from({ length: 110 }, (_, i) => ({ id: String(i), user: `question ${i}`, aura: `answer ${i}` })));
+assert.equal(messages.children.length, 200);
+assert.equal(messages.children[0].text, 'question 10');
+assert.equal(messages.children.at(-1).text, 'answer 109');
+const pruneStart = source.indexOf('function pruneVisibleMessages(');
+const pruneEnd = source.indexOf('\nfunction renderRetryPanel', pruneStart);
+const prune = new Function('VISIBLE_CHAT_EXCHANGES', 'updateLanePlaceholder',
+    source.slice(pruneStart, pruneEnd) + '\nreturn pruneVisibleMessages;')(visibleLimit, () => {});
+messages.removeChild = node => messages.children.splice(messages.children.indexOf(node), 1);
+Object.defineProperty(messages, 'firstChild', { get: () => messages.children[0] });
+appendMsg('user', 'new question', false, {});
+appendMsg('aura', 'new answer', false, {});
+prune(messages);
+assert.equal(messages.children.length, 200);
+assert.equal(messages.children[0].text, 'question 11');
 console.log('restored pending exchange checks passed');

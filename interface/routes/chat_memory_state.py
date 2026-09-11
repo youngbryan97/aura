@@ -60,7 +60,6 @@ _session_memory_pins: list[dict] = []
 
 _DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S = 1.5
 
-_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT = 3
 
 _RECENT_CONVERSATION_USER_CHARS = 800
 
@@ -1722,6 +1721,7 @@ def _load_durable_conversation_exchanges_sync(
     persistence = ServiceContainer.get("persistence", default=None)
     get_recent_sessions = getattr(persistence, "get_recent_sessions", None)
     get_session_history = getattr(persistence, "get_session_history", None)
+    get_recent_history = getattr(persistence, "get_recent_history", None)
     if not callable(get_session_history):
         return []
 
@@ -1738,7 +1738,11 @@ def _load_durable_conversation_exchanges_sync(
     )
 
     current_rows: list[dict[str, Any]] = []
-    if safe_session_id:
+    chronological_rows: list[dict[str, Any]] | None = None
+    if allow_cross_session and callable(get_recent_history):
+        history = get_recent_history(limit=fetch_limit, **scope_kwargs)
+        chronological_rows = [item for item in list(history or []) if isinstance(item, dict)]
+    elif safe_session_id:
         history = get_session_history(
             safe_session_id,
             limit=fetch_limit,
@@ -1764,6 +1768,7 @@ def _load_durable_conversation_exchanges_sync(
     rows: list[dict[str, Any]] = []
     if (
         allow_cross_session
+        and chronological_rows is None
         and exchanges_here < max(1, int(limit))
         and callable(get_recent_sessions)
     ):
@@ -1773,7 +1778,7 @@ def _load_durable_conversation_exchanges_sync(
         try:
             sessions = list(
                 get_recent_sessions(
-                    limit=_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT,
+                    limit=fetch_limit,
                     with_turns_only=True,
                     **scope_kwargs,
                 )
@@ -1787,7 +1792,7 @@ def _load_durable_conversation_exchanges_sync(
                 session
                 for session in (
                     get_recent_sessions(
-                        limit=_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT,
+                        limit=fetch_limit,
                         **scope_kwargs,
                     )
                     or []
@@ -1810,6 +1815,8 @@ def _load_durable_conversation_exchanges_sync(
             rows.extend(item for item in list(history or []) if isinstance(item, dict))
 
     rows.extend(current_rows)
+    if chronological_rows is not None:
+        rows = chronological_rows
     if not rows:
         return []
 
