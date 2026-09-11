@@ -235,9 +235,18 @@ async def _learn_grain(
         and gain == gain
         and (gain - (floor if floor == floor else 0.0)) <= SUFFICIENCY_TOLERANCE
     )
+    # A rank read off N anchors cannot exceed N - 1, because centring costs one
+    # dimension. So a rank at that ceiling is a statement about how many
+    # anchors were collected and not about the system, in exactly the way a
+    # tau-star in the last lag bin is a statement about the ladder. The quick
+    # run reads rank 1 from four anchors; that is the bank, not the grain.
+    ceiling = max(1, len(anchors) - 1)
     return {
         "history_turns": int(getattr(anchors[0], "history", np.zeros(0)).size // max(1, width)) if anchors else 0,
         "predictive_rank": int(grain.rank),
+        "anchors": len(anchors),
+        "rank_ceiling": ceiling,
+        "rank_is_at_the_ceiling": bool(grain.rank >= ceiling),
         "signature_columns": int(train.shape[1]),
         "singular_values": [round(float(v), 4) for v in grain.singular_values[:12]],
         "null_quantile": [round(float(v), 4) for v in grain.null_q[:12]],
@@ -700,6 +709,12 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append("the grain was skipped, so the state grain is the experimenter's")
     elif not grain.get("predictive_rank"):
         blockers.append("the predictive rank came out zero: no grain was found")
+    elif grain.get("rank_is_at_the_ceiling"):
+        blockers.append(
+            f"the predictive rank ({grain.get('predictive_rank')}) is at the ceiling "
+            f"{grain.get('anchors')} anchors allow, so it is a reading of the bank "
+            "rather than of the system"
+        )
     elif not grain.get("heldout_intervention_sufficient"):
         blockers.append("held-out interventions break the proposed grain")
     if spectrum.get("tau_status") == "TAU_UNRESOLVED":

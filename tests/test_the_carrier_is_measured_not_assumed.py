@@ -338,3 +338,11 @@ def test_a_screened_sweep_says_how_many_cuts_it_skipped() -> None:
 def test_the_runner_refuses_a_screened_run() -> None:
     source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
     assert "only a sample of the bipartitions was scored" in source
+
+
+def test_a_rank_at_the_anchor_ceiling_refuses_the_run() -> None:
+    """A rank read off N anchors cannot exceed N-1, so one at that ceiling is
+    a reading of how many anchors were collected."""
+    source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
+    assert "rank_is_at_the_ceiling" in source
+    assert "is a reading of the bank" in source or "rather than of the system" in source

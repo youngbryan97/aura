@@ -242,6 +242,14 @@ async def main() -> int:
         after_b = await _same_room(runtime, CONDITIONS, args.shared_turns)
 
         runtime.restore(fork)
+        _log("life A again: the floor, which is what two identical lives differ by")
+        life_floor = await _live(
+            runtime, CONDITIONS, HISTORY_A,
+            epochs=args.epochs, turns=args.turns_per_epoch, label="A again",
+        )
+        after_floor = await _same_room(runtime, CONDITIONS, args.shared_turns)
+
+        runtime.restore(fork)
         _log("life A with the reservoir frozen: the accumulation control")
         life_frozen = await _live(
             runtime, CONDITIONS, HISTORY_A,
@@ -260,22 +268,33 @@ async def main() -> int:
 
         evidence["lives"] = {
             name: {k: v for k, v in life.items() if k not in ("reservoir", "n_domain")}
-            for name, life in (("A", life_a), ("B", life_b), ("frozen", life_frozen))
+            for name, life in (
+                ("A", life_a), ("B", life_b),
+                ("A again", life_floor), ("frozen", life_frozen),
+            )
         }
         evidence["divergence"] = {
             "reservoir_a_vs_b": round(_distance(life_a["reservoir"], life_b["reservoir"]), 6),
-            "reservoir_a_vs_frozen": round(
-                _distance(life_a["reservoir"], life_frozen["reservoir"]), 6
+            # The floor. Two lives that met the same things, from one fork.
+            # Anything the histories did has to be larger than this.
+            "reservoir_floor": round(
+                _distance(life_a["reservoir"], life_floor["reservoir"]), 6
             ),
             "n_domain_a_vs_b": round(_distance(life_a["n_domain"], life_b["n_domain"]), 6),
-            "n_domain_a_vs_frozen": round(
-                _distance(life_a["n_domain"], life_frozen["n_domain"]), 6
+            "n_domain_floor": round(
+                _distance(life_a["n_domain"], life_floor["n_domain"]), 6
             ),
+            # How far each moved from where they started, which is a different
+            # question from how far they moved apart. The frozen twin's
+            # reservoir is the fork's, so its distance from A is exactly this
+            # and it is not a control for the reservoir — it is a control for
+            # what the reservoir reaches.
             "from_the_fork_a": round(_distance(start_h, life_a["reservoir"]), 6),
             "from_the_fork_b": round(_distance(start_h, life_b["reservoir"]), 6),
         }
         evidence["same_room_afterwards"] = {
             "a_vs_b": round(_distance(after_a, after_b), 6),
+            "floor": round(_distance(after_a, after_floor), 6),
             "a_vs_frozen": round(_distance(after_a, after_frozen), 6),
             "turns": args.shared_turns,
         }
@@ -324,29 +343,57 @@ def _saturation(life_a: dict[str, Any], life_b: dict[str, Any]) -> dict[str, Any
     return out
 
 
+#: How far above its own floor a divergence has to sit to be one. A margin,
+#: not a sign test: "larger than the floor" is a comparison two readings pass
+#: half the time, and the first version of this verdict called a reservoir
+#: difference of 0.2674 against a control of 0.2613 a positive result.
+MARGIN: float = 2.0
+
+
 def _verdict(evidence: dict[str, Any]) -> dict[str, Any]:
-    """Two lives diverged, and the frozen control did not."""
+    """Two lives diverged, by more than two identical lives do.
+
+    The floor is the same history run twice from the same fork. Anything the
+    two histories did has to be larger than that, and larger by a margin rather
+    than by a sign.
+
+    The frozen twin is a control for something else. Its reservoir is the
+    fork's, so its distance from A is just how far A moved and says nothing
+    about the histories. What it does answer is whether the behavioural
+    difference follows the reservoir or the stores: it filled the same stores
+    with its reservoir held still, so a behavioural difference it also shows
+    is not the reservoir's doing.
+    """
     div = evidence["divergence"]
     room = evidence["same_room_afterwards"]
     saturation = evidence.get("saturation", {})
-    lives_diverged = div["reservoir_a_vs_b"] > 0.0
-    # The control is the whole argument. Anything the frozen twin also shows
-    # is its stores filling, not its reservoir developing.
-    beyond_accumulation = div["reservoir_a_vs_b"] > div["reservoir_a_vs_frozen"]
-    reaches_behaviour = room["a_vs_b"] > 0.0
+
+    def _clears(value: float, floor: float) -> bool:
+        return value > max(floor * MARGIN, floor + 1e-9) if floor > 0 else value > 1e-9
+
+    lives_diverged = _clears(div["reservoir_a_vs_b"], div["reservoir_floor"])
+    reaches_behaviour = _clears(room["a_vs_b"], room["floor"])
+    # And the behavioural difference has to be larger than the one a twin with
+    # a frozen reservoir produces from the same history. Otherwise what reached
+    # behaviour was the stores filling.
+    follows_the_reservoir = room["a_vs_b"] > room["a_vs_frozen"]
     unsaturated = not any(
         bool(row.get("saturated")) for row in saturation.values() if isinstance(row, dict)
     )
     return {
+        "margin": MARGIN,
         "two_lives_diverge_in_N": bool(lives_diverged),
-        "development_rather_than_accumulation": bool(lives_diverged and beyond_accumulation),
         "the_difference_reaches_what_they_do_next": bool(reaches_behaviour),
+        "development_rather_than_accumulation": bool(
+            lives_diverged and reaches_behaviour and follows_the_reservoir
+        ),
+        "behaviour_follows_the_reservoir_not_the_stores": bool(follows_the_reservoir),
         "N_did_not_saturate": bool(unsaturated),
         "N_survives_a_restart": bool(evidence["restart"]["reservoir_survived"]),
         "note": (
-            "A slow counter also goes up with time. What separates development "
-            "from accumulation here is the frozen twin, which lives the same "
-            "history and fills the same stores with its reservoir held still."
+            "A slow counter also goes up with time. The floor is the same "
+            "history run twice from one fork; the frozen twin answers whether "
+            "what reached behaviour was the reservoir or the stores."
         ),
     }
 
@@ -357,11 +404,14 @@ def _lines(evidence: dict[str, Any]) -> list[str]:
     return [
         "two lives from one fork:",
         f"  reservoir, A against B:            {div['reservoir_a_vs_b']}",
-        f"  reservoir, A against frozen twin:  {div['reservoir_a_vs_frozen']}",
+        f"  reservoir, floor (A run twice):    {div['reservoir_floor']}",
         f"  N domain, A against B:             {div['n_domain_a_vs_b']}",
         f"  in the same room afterwards:       {evidence['same_room_afterwards']['a_vs_b']}",
+        f"  the same room, floor:              {evidence['same_room_afterwards']['floor']}",
+        f"  the same room, frozen twin:        {evidence['same_room_afterwards']['a_vs_frozen']}",
         "",
         f"  two lives diverge in N:            {verdict['two_lives_diverge_in_N']}",
+        f"  behaviour follows the reservoir:   {verdict['behaviour_follows_the_reservoir_not_the_stores']}",
         f"  development, not accumulation:     {verdict['development_rather_than_accumulation']}",
         f"  the difference reaches behaviour:  {verdict['the_difference_reaches_what_they_do_next']}",
         f"  N did not saturate:                {verdict['N_did_not_saturate']}",
