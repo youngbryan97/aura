@@ -137,3 +137,79 @@ on `pytest_collectreport` reporting the first collected file after which the
 variable was set. Three collections of the full tree, no test runs. Whenever a
 victim's symptom is a branch that should not have been taken, ask what
 process-wide switch selects that branch before bisecting the test order.
+
+## Fixed the same day — the second module doing it, found by widening the probe
+
+The guard above started at the three names that make a proof run. Widening the
+same probe to every AURA_* name over the whole tree found one more test module
+with the identical line:
+
+| Module | Line | Variable |
+|---|---|---|
+| `tests/test_seal_infrastructure.py` | `os.environ.setdefault("AURA_TEST_MODE", "1")` at module scope | AURA_TEST_MODE |
+
+Its comment said the quiet part out loud: *ensure AURA_TEST_MODE is set before
+any imports that might check it*. The imports that check it are
+`core/runtime/subprocess_gateway.py`, `core/security/zenith_secrets.py`,
+`core/consciousness/continuous_experience.py` and
+`core/resilience/fault_taxonomy.py`, and they check it for every test collected
+with that file, not just its own. The file passes without the line — 49 tests,
+with AURA_TEST_MODE cleared from the environment. No victim is attributed to it,
+which is the argument for a gate rather than for two deletions.
+
+The guard now watches every AURA_* name. Fourteen are let through, because a
+production module stamps them the moment it is imported and a test inherits the
+stamp by importing it:
+
+| Names | Stamped by |
+|---|---|
+| `AURA_ALLOW_NETWORK_ACCESS`, `AURA_INTERNAL_ONLY`, `AURA_SECURITY_PROFILE` | `core/config.py:550` |
+| `AURA_LIVE_STATE_ROOT` | `core/runtime/state_ownership.py:190` |
+| `AURA_REAPER_MANIFEST`, `AURA_RUNTIME_ID` | `core/reaper.py:70` |
+| `AURA_SAFE_BOOT_DESKTOP`, `AURA_EAGER_CORTEX_WARMUP`, `AURA_DEFERRED_CORTEX_PREWARM` | `core/architect/safe_boot_harness.py:18`, `tools/run_aletheia_live_proof.py:29` |
+| five `AURA_RUNTIME_SOURCE_*` | boot provenance |
+
+Charging a test for those would charge the wrong thing. Two of them gate a real
+branch — the security profile and safe boot — so the shape that produced the six
+victims above is available to them, and whether the runtime should stamp the
+process at import at all is the open question. It is a change to the runtime,
+not to a test, which is why the list is a ratchet and not a fix.
+`_IMPORT_TIME_ENV_STAMPED_BY_RUNTIME` in `tests/conftest.py` holds it, and
+`tests/test_no_module_changes_a_switch_on_import.py` asserts that no name which
+decides a proof run can ever be on it.
+
+## Open, measured 2026-09-10 — the interiority singleton has no reset
+
+Found while confirming the fix above, and unrelated to it.
+
+| Victim | Reproduces under |
+|---|---|
+| `test_affect_behavioral::TestExpandedAffectiveDrivers::test_appraisal_reads_the_stakes_rather_than_the_words` | `pytest tests/ -k "affect or executive_closure"`, some orders |
+| `test_conation_causal_battery::test_affect_path_no_longer_collapses_all_five_cases_to_one_point` | the same, less often |
+
+`AffectEngineV2._heuristic_appraisal` delegates to
+`core.interiority.service.get_interiority().appraise(...)`, and `_SERVICE` there
+is a module global built once per process. Twenty-five singletons in
+`_TEST_SCOPED_RESET_FUNCTIONS` have a `reset_*_for_test`; this one has none, so
+whatever a test puts in the ledger is still there for every test after it.
+
+Three measurements, so the next session does not repeat them:
+
+- On a clean ledger the appraisal of *"I am confused and unclear about this
+  failure"* is **+0.0205**. The test asserts `>= 0.0`, so the margin is two
+  hundredths and any accumulated state can cross it. The observed failure was
+  **-0.0202**.
+- Bonding and promising move it the wrong way for this failure — `bond("bryan",
+  0.9)` plus a promise gives **+0.155**, and settling that promise unkept gives
+  **+0.257**. The carrier is therefore not the bond and promise the failing test
+  writes itself; look at standing norms, notes, mood, and what
+  `StakeFeed.refresh()` pulls in at registration.
+- The order varies per run: `pytest-randomly` is installed and active, seeds
+  from the clock, and shuffles modules as well as tests. Two runs of the same
+  selection gave two failures and then one. **One sample settles nothing here**
+  — pin the order with `-p no:randomly`, or pass the seed the header prints.
+
+Left open rather than patched: the fix is a reset for a service under active
+parallel development, and the margin above says the assertion may want a look
+at the same time.
+

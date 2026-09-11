@@ -134,60 +134,97 @@ def pytest_collection_modifyitems(config, items):
         items[:] = selected
 
 
-#: Every module that turned a proof-run signal on while it was imported.
-#: Read by tests/test_proof_run_signal_stays_off.py, which is where the run
+#: Every module that changed a runtime switch while it was imported.
+#: Read by tests/test_no_module_changes_a_switch_on_import.py, where the run
 #: goes red; collection itself only records and heals, so one careless module
 #: cannot decide policy for the other fifty thousand tests.
-_PROOF_SIGNAL_LEAKS: list[str] = []
+_IMPORT_TIME_ENV_LEAKS: list[str] = []
 
-#: The proof-run signals this process started with, captured before the first
+#: The AURA_* environment this process started with, captured before the first
 #: test module is imported. ``None`` until collection begins.
-_PROOF_SIGNALS_AT_START: dict[str, str | None] | None = None
+_ENV_AT_START: dict[str, str] | None = None
+
+#: Names a production module stamps into the process the moment it is imported
+#: — a security profile from core/config.py, a runtime id from core/reaper.py,
+#: a live state root from core/runtime/state_ownership.py, boot provenance. A
+#: test inherits the stamp by importing the module, so charging the test would
+#: be charging the wrong thing; whether the runtime should stamp at import at
+#: all is a question about the runtime. Recorded in
+#: docs/ORDER_DEPENDENCE_REGISTER.md. This list only shrinks.
+_IMPORT_TIME_ENV_STAMPED_BY_RUNTIME = frozenset(
+    {
+        "AURA_ALLOW_NETWORK_ACCESS",
+        "AURA_DEFERRED_CORTEX_PREWARM",
+        "AURA_EAGER_CORTEX_WARMUP",
+        "AURA_INTERNAL_ONLY",
+        "AURA_LIVE_STATE_ROOT",
+        "AURA_REAPER_MANIFEST",
+        "AURA_RUNTIME_ID",
+        "AURA_RUNTIME_SOURCE_BRANCH",
+        "AURA_RUNTIME_SOURCE_COMMIT",
+        "AURA_RUNTIME_SOURCE_ROOT",
+        "AURA_RUNTIME_SOURCE_SHELL_SHA256",
+        "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256",
+        "AURA_SAFE_BOOT_DESKTOP",
+        "AURA_SECURITY_PROFILE",
+    }
+)
 
 
-def _proof_signal_snapshot() -> dict[str, str | None]:
-    from core.runtime.proof_policy import proof_active_env_names
-
-    return {name: os.environ.get(name) for name in proof_active_env_names()}
+def _aura_env_snapshot() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if key.startswith("AURA_")}
 
 
-def _restore_proof_signals(baseline: dict[str, str | None]) -> None:
-    for name, value in baseline.items():
-        if value is None:
-            os.environ.pop(name, None)
+def _restore_aura_env(baseline: dict[str, str], names: tuple[str, ...]) -> None:
+    for name in names:
+        if name in baseline:
+            os.environ[name] = baseline[name]
         else:
-            os.environ[name] = value
+            os.environ.pop(name, None)
 
 
-def _changed_proof_signals(baseline: dict[str, str | None]) -> tuple[str, ...]:
-    current = _proof_signal_snapshot()
-    return tuple(sorted(name for name, value in current.items() if value != baseline[name]))
+def _changed_aura_env(baseline: dict[str, str]) -> tuple[str, ...]:
+    current = _aura_env_snapshot()
+    return tuple(
+        sorted(
+            name
+            for name in set(current) | set(baseline)
+            if current.get(name) != baseline.get(name)
+            and name not in _IMPORT_TIME_ENV_STAMPED_BY_RUNTIME
+        )
+    )
 
 
-def _capture_proof_signal_baseline() -> None:
-    global _PROOF_SIGNALS_AT_START
+def _capture_env_baseline() -> None:
+    global _ENV_AT_START
 
-    if _PROOF_SIGNALS_AT_START is None:
-        _PROOF_SIGNALS_AT_START = _proof_signal_snapshot()
+    if _ENV_AT_START is None:
+        _ENV_AT_START = _aura_env_snapshot()
 
 
-def proof_signal_leaks() -> tuple[str, ...]:
-    """Modules that turned a proof-run signal on for the whole process.
+def import_time_env_leaks() -> tuple[str, ...]:
+    """Modules that changed a runtime switch for the whole process on import.
 
-    ``proof_run_active()`` is true for any of AURA_PROOF_RUN, AURA_AGI_MAX_TASKS
-    or AURA_TESTING, and dozens of subsystems defer, refuse or take a cheap
-    branch under it. One test module set AURA_TESTING at import, which happens
-    during collection, so every later test in the selection ran against the
-    deferred branch while asserting the live one — green alone, red in company,
-    and the error surfaced in an unrelated file three hundred tests later.
+    ``_global_state_contamination_guard`` restores every AURA_* variable between
+    tests, so a variable set inside a test body is already covered. A variable
+    set at module scope is not: that runs while the module is imported, which is
+    collection, before the first test and after the last point anything had to
+    undo it.
+
+    Two modules did it. ``proof_run_active()`` is true for any of AURA_PROOF_RUN,
+    AURA_AGI_MAX_TASKS or AURA_TESTING, and dozens of subsystems defer, refuse or
+    take a cheap branch under it; one test module set AURA_TESTING, and six tests
+    across four unrelated selections failed on the deferred branch while
+    asserting the live one. Green alone, red in company, and every error
+    surfaced in a file that had nothing to do with the cause.
     """
 
-    return tuple(_PROOF_SIGNAL_LEAKS)
+    return tuple(_IMPORT_TIME_ENV_LEAKS)
 
 
 def pytest_sessionstart(session):
     """Record what the run started with, before any test module is imported."""
-    _capture_proof_signal_baseline()
+    _capture_env_baseline()
 
 
 def pytest_collectstart(collector):
@@ -197,18 +234,18 @@ def pytest_collectstart(collector):
     start, so the snapshot is taken at whichever of the two comes first. Both
     are still ahead of the first test module import, which is what matters.
     """
-    _capture_proof_signal_baseline()
+    _capture_env_baseline()
 
 
 def pytest_collectreport(report):
-    """Undo a proof-run signal a module turned on while it was imported."""
-    if _PROOF_SIGNALS_AT_START is None:
+    """Undo a runtime switch a module changed while it was imported."""
+    if _ENV_AT_START is None:
         return
-    changed = _changed_proof_signals(_PROOF_SIGNALS_AT_START)
+    changed = _changed_aura_env(_ENV_AT_START)
     if not changed:
         return
-    _PROOF_SIGNAL_LEAKS.append(f"{report.nodeid or '<session>'} set {', '.join(changed)}")
-    _restore_proof_signals(_PROOF_SIGNALS_AT_START)
+    _IMPORT_TIME_ENV_LEAKS.append(f"{report.nodeid or '<session>'} set {', '.join(changed)}")
+    _restore_aura_env(_ENV_AT_START, changed)
 
 
 #: Handles a TEST cannot leak, because no test opens or owns them.
