@@ -552,6 +552,11 @@
       {
         "expr": "all(int(r['null_draws']) >= 1000 for r in report['synergy'])",
         "kind": "report"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_synergy_null_is_not_the_estimator.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
       }
     ],
     "note": "a thousand shifts, not two hundred: the ninety-ninth percentile of two hundred draws is the second-largest of them",
@@ -562,9 +567,66 @@
       {
         "expr": "all('null_spread' in r and 'margin_over_null' in r for r in report['synergy'])",
         "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "raw_null_q99"
       }
     ],
     "note": "with the bar's own spread and the margin over it beside each triple",
+    "status": "done"
+  },
+  "P12.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "def _interaction_gain"
+      },
+      {
+        "expr": "all('interaction_gain' in t for t in report['synergy'])",
+        "kind": "report"
+      }
+    ],
+    "note": "the held-out interaction gain is kept beside the information-theoretic estimate",
+    "status": "done"
+  },
+  "P12.16": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "and self\\.interaction_gain > 0\\.0"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "and self\\.synergy > self\\.raw_null_q99"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "which made it a number\\n        nobody checked"
+      }
+    ],
+    "note": "a triple passes only when the information-theoretic synergy clears its bar and its null on both the fraction and the raw value, and the held-out interaction gain is positive",
+    "status": "done"
+  },
+  "P12.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"synergy_triples\": \\[list\\(t\\) for t in TRIPLES\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/synergy.py",
+        "pattern": "Fixed before the run so a passing triple cannot be found"
+      }
+    ],
+    "note": "the four triples are in the campaign fingerprint, so changing them after seeing which pass starts a different campaign",
     "status": "done"
   },
   "P12.4": {
@@ -6909,6 +6971,20 @@
     "note": "no exclusion postulate is introduced silently",
     "status": "done"
   },
+  "P6.10": {
+    "checks": [
+      {
+        "expr": "all('peak_lag' in e and 'lags' in e for e in report['edges'])",
+        "kind": "report"
+      },
+      {
+        "expr": "any(float(e.get('peak_lag', 0)) > 1 for e in report['edges'] if e['kept'])",
+        "kind": "report"
+      }
+    ],
+    "note": "every lag up to the horizon is measured and the lag the effect peaked at is recorded, rather than one horizon chosen afterwards",
+    "status": "done"
+  },
   "P6.11": {
     "checks": [
       {
@@ -6933,6 +7009,37 @@
     "note": "no single domain brokers the graph: vertex connectivity of at least two means removing any one leaves the rest connected",
     "status": "done"
   },
+  "P6.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"all_to_all\":"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "A conjunction that\\n            # left this line out would count a broadcast as a mind"
+      },
+      {
+        "command": "{python} -m pytest tests/test_each_null_fails_for_its_own_reason.py::test_a_broadcast_is_integrated_and_that_is_not_the_objection -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "a broadcast is what the all-to-all and prompt-only nulls are, and differentiation is the line in the conjunction that refuses one",
+    "status": "done"
+  },
+  "P6.3": {
+    "checks": [
+      {
+        "criterion": "perturbational_complexity",
+        "kind": "criterion"
+      }
+    ],
+    "note": "the response has to stay structured: reaching somewhere, above the 99th percentile of matched nulls, and not a broadcast",
+    "status": "done"
+  },
   "P6.4": {
     "checks": [
       {
@@ -6941,6 +7048,22 @@
       }
     ],
     "note": "spread is reported per source and the weak ones are visible",
+    "status": "done"
+  },
+  "P6.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"intervention\": \\{"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "^NULL_HORIZON|^DEFAULT_DELTA"
+      }
+    ],
+    "note": "the horizon is a frozen value in the campaign fingerprint, so changing it starts a different campaign",
     "status": "done"
   },
   "P60.1": {
