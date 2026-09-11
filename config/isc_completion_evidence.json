@@ -3170,6 +3170,171 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P24.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "The one active cortex pointer, and what it says about itself"
+      },
+      {
+        "kind": "grep",
+        "path": "core/brain/llm/model_registry.py",
+        "pattern": "def get_active_cortex_spec"
+      }
+    ],
+    "note": "configured, resident and serving are read from the one active pointer rather than from three places that can drift apart",
+    "status": "done"
+  },
+  "P24.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "`unknown` is not `ready`"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "\"cortex_inclusive\" if not blocked and not unknown else \"substrate_only\""
+      }
+    ],
+    "note": "readiness is checked before a run rather than discovered during one, and unknown is not ready",
+    "status": "done"
+  },
+  "P24.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "\"scope_a_run_could_claim\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core_v25.py",
+        "pattern": "\"scope\": \"substrate_only\""
+      }
+    ],
+    "note": "a run says which scope it could claim, so a substrate graph is never read as a whole-Aura one",
+    "status": "done"
+  },
+  "P24.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "pointer_sha256=getattr\\(spec, \"pointer_sha256\", \"\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "descriptor_sha256=getattr\\(spec, \"descriptor_sha256\", \"\"\\)"
+      },
+      {
+        "command": "{python} tools/cortex_campaign_preflight.py",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the preflight records the pointer, descriptor and serving-profile digests of whatever would serve a cortex campaign",
+    "status": "done"
+  },
+  "P24.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "def _tokenizer"
+      }
+    ],
+    "note": "and which tokenizer files sit beside the weights",
+    "status": "done"
+  },
+  "P24.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "def _chat_template"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "chat_template\\.jinja"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "Looking in only the second reported a blocker on a\\n    model that has one"
+      }
+    ],
+    "note": "and the chat template, hashed, from either place a model can carry one",
+    "status": "done"
+  },
+  "P24.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "^DETERMINISTIC: dict\\[str, Any\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "def _decoding"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "A sampler left free puts\\n#: uncontrolled variation between two arms"
+      }
+    ],
+    "note": "a free sampler is a blocker rather than a note: the resident weights ship temperature 1.0, top_p 0.95 and top_k 20, which is larger than any displacement",
+    "status": "done"
+  },
+  "P24.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "def _kv_restore"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "wanted = \\{\"singletons\", \"services\", \"phases\"\\}"
+      }
+    ],
+    "note": "the fork carries the module singletons, the built services and the phase accumulators, which is what a recurrent state restore needs",
+    "status": "done"
+  },
+  "P24.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "def _no_fallback"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "two arms could be served by two systems"
+      }
+    ],
+    "note": "a fallback lane serving one arm while the real cortex serves the other is a blocker",
+    "status": "done"
+  },
+  "P24.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/cortex_campaign_preflight.py",
+        "pattern": "external_llama_cortex_allowed"
+      }
+    ],
+    "note": "which is the same check: the external lane is what would serve a second model",
+    "status": "done"
+  },
   "P25.1": {
     "checks": [
       {
