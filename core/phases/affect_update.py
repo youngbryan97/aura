@@ -548,7 +548,29 @@ class AffectUpdatePhase(Phase):
             update = getattr(substrate, "update", None)
             if not callable(update):
                 return
-            result = update(valence=affect.valence, arousal=affect.arousal)
+            # Curiosity travels with them. Valence and arousal are pushed down
+            # on every cycle and curiosity is not, so the one affective channel
+            # the developmental state writes into — `_advance_lifetime` blends
+            # affect's curiosity toward how unprecedented the moment is, and
+            # nothing else in the runtime reads novelty at all — stopped at
+            # `AuraState.affect` and never reached the continuous substrate.
+            # The lifetime state could move a number and nothing downstream of
+            # the substrate could feel it.
+            #
+            # As a delta, because that is what the gate takes: the distance
+            # from where the substrate's curiosity already is to where affect
+            # says it should be.
+            step = 0.0
+            try:
+                reading = substrate.get_substrate_affect() or {}
+                step = float(affect.curiosity) - float(reading.get("curiosity", 0.0) or 0.0)
+            except _AFFECT_UPDATE_ERRORS:
+                step = 0.0
+            result = update(
+                valence=affect.valence,
+                arousal=affect.arousal,
+                delta_curiosity=max(-1.0, min(1.0, step)),
+            )
             if not inspect.isawaitable(result):
                 return
             create_tracked_task(result, name="affect_update.liquid_substrate")
