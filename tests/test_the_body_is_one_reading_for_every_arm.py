@@ -149,3 +149,31 @@ def test_exertion_stays_inside_its_bounds_however_hard_the_turn():
     assert EffortLedger.exertion({}) == pytest.approx(0.0)
     enormous = {kind: value * 10_000.0 for kind, value in UNIT_COST.items()}
     assert 0.0 <= EffortLedger.exertion(enormous) <= 1.0
+
+
+def test_how_hard_she_may_think_reaches_the_state():
+    """Three of four cognitive-modifier columns were constants for a whole life.
+
+    `HomeostaticCoupling` blends the continuous substrate into felt state and
+    computes from it how creative, how focused, how urgent and how vital the
+    moment is. Those readings lived on the coupling object, where the
+    capability engine, the phantom browser, time dilation and the heartbeat
+    find them by reference — and `cognition.modifiers`, which every phase reads
+    and the subject schema measures, carried three of the four as constants.
+
+    A reading computed and kept out of the state is a reading the cognition
+    cannot use.
+    """
+    import ast
+
+    source = (ROOT / "core" / "phases" / "proprioceptive_loop.py").read_text()
+    tree = ast.parse(source)
+    publisher = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "_publish_modifiers"
+    )
+    body = ast.get_source_segment(source, publisher) or ""
+    for key in ("creativity_mod", "focus_mod", "overall_vitality", "urgency_flag"):
+        assert key in body, key
+    assert "cognition" in body and "modifiers" in body

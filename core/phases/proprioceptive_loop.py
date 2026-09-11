@@ -175,6 +175,7 @@ class ProprioceptiveLoop(BasePhase):
                 mem_mb=self._process_megabytes(),
                 thermal_level=level,
             )
+            self._publish_modifiers(state, coupling)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "proprioceptive_loop",
@@ -182,6 +183,41 @@ class ProprioceptiveLoop(BasePhase):
                 severity="debug",
                 action="hardware stress was not reported to the homeostatic coupling",
             )
+
+
+    @staticmethod
+    def _publish_modifiers(state: Any, coupling: Any) -> None:
+        """Put how hard she may think where the phases can read it.
+
+        `HomeostaticCoupling` blends the continuous substrate into felt state
+        and computes from it how creative, how focused, how urgent and how
+        vital this moment is. Those four readings live on the coupling object,
+        where the capability engine, the phantom browser, time dilation and the
+        heartbeat find them by reference — and the state, which every phase
+        reads and the schema measures, carried three of the four as constants
+        for the whole of every recording.
+
+        A reading computed and kept out of the state is a reading the cognition
+        cannot use. This is the channel by which recurrent cognition reaches
+        attention at all.
+        """
+        try:
+            mods = coupling.get_modifiers()
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+        cognition = getattr(state, "cognition", None)
+        modifiers = getattr(cognition, "modifiers", None)
+        if not isinstance(modifiers, dict):
+            return
+        for key, value in (
+            ("creativity_mod", getattr(mods, "creativity_mod", None)),
+            ("focus_mod", getattr(mods, "focus_mod", None)),
+            ("overall_vitality", getattr(mods, "overall_vitality", None)),
+            ("urgency_flag", getattr(mods, "urgency_flag", None)),
+        ):
+            if value is None:
+                continue
+            modifiers[key] = value
 
     @staticmethod
     def _process_megabytes() -> float:
