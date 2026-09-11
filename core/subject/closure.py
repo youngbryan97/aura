@@ -41,7 +41,12 @@ import numpy as np
 from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
 
-__all__ = ["ClosureReport", "closure_gain", "read_periphery"]
+__all__ = ["ClosureReport", "closure_gain", "coverage", "read_periphery"]
+
+#: What the last periphery walk saw, and what it could not reach. Read through
+#: `coverage()`; a closure result without it is a claim about everything
+#: outside the core made by a walk that stopped somewhere.
+_COVERAGE: dict[str, Any] = {}
 
 #: How many periphery numbers to keep. A cap, because one organ holding a large
 #: array would otherwise supply more columns than the whole core.
@@ -102,8 +107,32 @@ def _numbers(
             _numbers(value, f"{prefix}.{name}", out, depth + 1)
 
 
+#: Name fragments that say a number is a stored instant rather than a quantity.
+#: Provenance, not shape: a learning counter, accumulated evidence, a
+#: developmental step and a depleting resource are all monotonic over a window
+#: and all of them are hidden state the core's future may legitimately depend
+#: on. Dropping every one-way column to be rid of the clocks threw those away
+#: with them, and a closure test that cannot see a leak cannot report one.
+CLOCK_NAMES: tuple[str, ...] = (
+    "_at", "_time", "_ts", "timestamp", "last_update", "started", "finished",
+    "deadline", "expires", "epoch", "clock",
+)
+
+
+def _named_clock(name: str) -> bool:
+    """Whether the name says this is a moment rather than an amount."""
+    leaf = name.rsplit(".", 1)[-1].lower().rstrip("#")
+    return any(fragment in leaf for fragment in CLOCK_NAMES)
+
+
 def _one_way(values: np.ndarray) -> np.ndarray:
-    """Columns that only ever move one way. Clocks, not hidden state."""
+    """Columns that only ever move one way.
+
+    Kept as a description rather than used as a filter. What it identifies is
+    a quantity whose level is mostly the run's own position in time, and the
+    answer to that is to enter its increment rather than to drop it: see
+    `_as_increments`.
+    """
     if values.shape[0] < 8:
         return np.zeros(values.shape[1], dtype=bool)
     steps = np.diff(values, axis=0)
@@ -113,6 +142,16 @@ def _one_way(values: np.ndarray) -> np.ndarray:
         up = np.where(counts > 0, (steps > 0).sum(axis=0) / np.maximum(counts, 1), 0.0)
         down = np.where(counts > 0, (steps < 0).sum(axis=0) / np.maximum(counts, 1), 0.0)
     return ((up >= 0.99) | (down >= 0.99)) & (counts >= 4)
+
+
+def _as_increments(values: np.ndarray, rising: np.ndarray) -> np.ndarray:
+    """Enter a one-way column as how much it moved, not where it has got to."""
+    if not rising.any():
+        return values
+    out = values.copy()
+    steps = np.diff(values[:, rising], axis=0, prepend=values[:1, rising])
+    out[:, rising] = steps
+    return out
 
 
 def _core_attributes() -> dict[str, set[str]]:
@@ -205,14 +244,37 @@ def read_periphery(kernel: Any) -> dict[str, float]:
                 depth=1,
                 skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
             )
-    except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError) as exc:
         # An absent container is an absent periphery. Named rather than bare:
         # every way this can fail is the container not being importable, not
         # holding services yet, or holding something `_numbers` cannot read,
         # and a genuinely unexpected failure while measuring the periphery
         # should reach somebody rather than read as "there is none".
+        _COVERAGE["reader_failures"] = _COVERAGE.get("reader_failures", 0) + 1
+        _COVERAGE["last_reader_failure"] = f"{type(exc).__name__}: {exc}"[:160]
         return out
+    finally:
+        _COVERAGE["read"] = len(out)
+        _COVERAGE["capped"] = bool(len(out) >= MAX_PERIPHERY)
     return out
+
+
+def coverage() -> dict[str, Any]:
+    """What the periphery walk could and could not see.
+
+    A closure result is a claim about everything outside the core, and a walk
+    that stopped at four hundred numbers or two levels down has not seen
+    everything outside the core. Reporting the caps is the difference between
+    "K is closed" and "K is closed as far as this looked".
+    """
+    return {
+        "numbers_read": int(_COVERAGE.get("read", 0)),
+        "cap": MAX_PERIPHERY,
+        "hit_the_cap": bool(_COVERAGE.get("capped", False)),
+        "max_depth": MAX_DEPTH,
+        "reader_failures": int(_COVERAGE.get("reader_failures", 0)),
+        "last_reader_failure": _COVERAGE.get("last_reader_failure", ""),
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,6 +287,13 @@ class ClosureReport:
     leak_over_shuffle: float
     periphery_width: int
     top_leaks: tuple[tuple[str, float], ...] = ()
+    #: How many permutations the floor was read from, and its upper tail.
+    shuffled_draws: int = 1
+    floor_high: float = 0.0
+    #: One-way columns entered as their increment rather than their level, and
+    #: columns dropped because their name says they hold a moment.
+    differenced: tuple[str, ...] = ()
+    dropped_as_clocks: tuple[str, ...] = ()
 
     @property
     def closed(self) -> bool:
@@ -237,7 +306,7 @@ class ClosureReport:
         shuffled copy has told us the gain was the extra columns, not what was
         in them.
         """
-        return self.leak <= 0.0 or self.leak <= self.shuffled_leak
+        return self.leak <= 0.0 or self.leak <= max(self.shuffled_leak, self.floor_high)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -248,6 +317,10 @@ class ClosureReport:
             "shuffled_leak": round(self.shuffled_leak, 6),
             "leak_over_shuffled": round(self.leak_over_shuffle, 6),
             "periphery_width": self.periphery_width,
+            "shuffled_draws": self.shuffled_draws,
+            "shuffled_leak_q95": round(self.floor_high, 6),
+            "differenced": list(self.differenced),
+            "dropped_as_clocks": list(self.dropped_as_clocks),
             "closed": self.closed,
             "largest_leaks": [
                 {"variable": name, "gain": round(value, 5)} for name, value in self.top_leaks
@@ -262,6 +335,7 @@ def closure_gain(
     *,
     seed: int = 0,
     rank: int = 6,
+    draws: int = 16,
 ) -> ClosureReport:
     """How much of K's future the rest of the machine explains that K does not.
 
@@ -277,9 +351,18 @@ def closure_gain(
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0))
 
     spread = outside.std(axis=0)
-    keep = (spread > 1e-9) & ~_one_way(outside)
+    clocks = np.array([_named_clock(name) for name in names], dtype=bool)
+    keep = (spread > 1e-9) & ~clocks
     outside = outside[:, keep]
     kept_names = tuple(name for name, flag in zip(names, keep, strict=True) if flag)
+    # A one-way column enters as its increment. Its level is mostly where the
+    # run has got to, and every column in a recording drifts with that; what it
+    # carries about the next state is how much it moved.
+    rising = _one_way(outside)
+    differenced = tuple(
+        name for name, flag in zip(kept_names, rising, strict=True) if flag
+    )
+    outside = _as_increments(outside, rising)
     if outside.shape[1] == 0:
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0)
 
@@ -293,21 +376,32 @@ def closure_gain(
         test=test,
         own_width=now.shape[1],
     )
+    # Several shuffled draws, not one. The shuffled arm is the floor the leak
+    # has to clear, and one draw of a permutation is one sample of it — a floor
+    # read off a single draw is as likely to be lucky as the thing it is
+    # measuring.
     rng = np.random.default_rng(seed)
-    order = rng.permutation(outside.shape[0])
-    shuffled = fit_predict(
-        np.hstack([now, outside[order]]),
-        nxt,
-        train=train,
-        validate=validate,
-        test=test,
-        own_width=now.shape[1],
-    )
-
     base = core.loss if core.loss > 1e-12 else 1.0
+    shuffled_losses: list[float] = []
+    for _ in range(max(1, draws)):
+        order = rng.permutation(outside.shape[0])
+        shuffled_losses.append(
+            fit_predict(
+                np.hstack([now, outside[order]]),
+                nxt,
+                train=train,
+                validate=validate,
+                test=test,
+                own_width=now.shape[1],
+            ).loss
+        )
+    shuffled_loss = float(np.mean(shuffled_losses))
+    shuffled_leaks = [(core.loss - loss) / base for loss in shuffled_losses]
+    floor_high = float(np.quantile(shuffled_leaks, 0.95)) if len(shuffled_leaks) > 1 else shuffled_leaks[0]
+
     leak = (core.loss - both.loss) / base
-    shuffled_leak = (core.loss - shuffled.loss) / base
-    over = (shuffled.loss - both.loss) / (shuffled.loss if shuffled.loss > 1e-12 else 1.0)
+    shuffled_leak = float(np.mean(shuffled_leaks))
+    over = (shuffled_loss - both.loss) / (shuffled_loss if shuffled_loss > 1e-12 else 1.0)
 
     # Which outside variables carry it, one at a time, so the answer names a
     # thing rather than reporting an amount.
@@ -330,10 +424,16 @@ def closure_gain(
     return ClosureReport(
         loss_core=core.loss,
         loss_core_and_periphery=both.loss,
-        loss_shuffled_periphery=shuffled.loss,
+        loss_shuffled_periphery=shuffled_loss,
         leak=float(leak),
         shuffled_leak=float(shuffled_leak),
         leak_over_shuffle=float(over),
         periphery_width=int(outside.shape[1]),
         top_leaks=tuple(ranked[:rank]),
+        shuffled_draws=int(len(shuffled_leaks)),
+        floor_high=float(floor_high),
+        differenced=differenced,
+        dropped_as_clocks=tuple(
+            name for name, flag in zip(names, clocks, strict=True) if flag
+        ),
     )

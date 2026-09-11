@@ -2264,6 +2264,188 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P28.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "^CLOCK_NAMES: tuple"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def _named_clock"
+      },
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_name_that_says_it_is_a_moment_is_dropped -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a stored instant is dropped by its magnitude and by its name; what a clock is is a question about provenance",
+    "status": "done"
+  },
+  "P28.11": {
+    "checks": [
+      {
+        "expr": "int(report['closure']['coverage']['max_depth']) > 0",
+        "kind": "report"
+      }
+    ],
+    "note": "and how deep it went",
+    "status": "done"
+  },
+  "P28.12": {
+    "checks": [
+      {
+        "expr": "'reader_failures' in report['closure']['coverage']",
+        "kind": "report"
+      }
+    ],
+    "note": "and how many readers failed while it walked",
+    "status": "done"
+  },
+  "P28.13": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_the_floor_is_read_from_several_permutations -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "int(report['closure']['shuffled_draws']) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "the floor is read from several permutations, not one",
+    "status": "done"
+  },
+  "P28.14": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_core_is_closed_against_the_upper_tail_of_its_own_floor -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "'shuffled_leak_q95' in report['closure']",
+        "kind": "report"
+      }
+    ],
+    "note": "closure is decided against the upper tail of its own floor rather than the mean of it",
+    "status": "done"
+  },
+  "P28.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "so the answer names a"
+      },
+      {
+        "expr": "'largest_leaks' in report['closure']",
+        "kind": "report"
+      }
+    ],
+    "note": "the leaking predictors are named one at a time",
+    "status": "done"
+  },
+  "P28.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def _as_increments"
+      },
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_one_way_column_is_entered_as_its_increment -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_two_way_column_is_left_alone -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a one-way column is kept and entered as its increment rather than dropped",
+    "status": "done"
+  },
+  "P28.3": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_counter_is_not_dropped_for_being_a_counter -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a learning counter is kept",
+    "status": "done"
+  },
+  "P28.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_counter_is_not_dropped_for_being_a_counter -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "accumulated evidence is kept",
+    "status": "done"
+  },
+  "P28.5": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_counter_is_not_dropped_for_being_a_counter -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "developmental state is kept",
+    "status": "done"
+  },
+  "P28.6": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_a_counter_is_not_dropped_for_being_a_counter -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a depleting resource is kept",
+    "status": "done"
+  },
+  "P28.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "out\\[f\"\\{prefix\\}\\.\\{name\\}#\"\\] = float\\(len\\(value\\)\\)"
+      }
+    ],
+    "note": "a map or a list enters as its size, so a peripheral collection is not invisible",
+    "status": "done"
+  },
+  "P28.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def coverage"
+      },
+      {
+        "command": "{python} -m pytest tests/test_closure_is_harder_to_fool.py::test_the_walk_says_what_it_could_not_reach -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "'coverage' in report['closure']",
+        "kind": "report"
+      }
+    ],
+    "note": "the walk reports how many numbers it read and whether it stopped at the cap",
+    "status": "done"
+  },
   "P3.1": {
     "checks": [
       {

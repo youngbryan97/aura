@@ -253,9 +253,15 @@ async def main() -> int:
     evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
     matrix, names = _periphery_matrix(periphery_rows)
     turn_rows = recording.turn_rows()
+    from core.subject.closure import coverage as periphery_coverage
+
     evidence["closure"] = closure_gain(
         turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
     ).as_dict()
+    # What the walk could and could not see. A closure result is a claim about
+    # everything outside the core, and a walk that stopped at four hundred
+    # numbers or two levels down has not seen everything outside the core.
+    evidence["closure"]["coverage"] = periphery_coverage()
     _log(
         f"phi_do={evidence['phi']['phi_do']} cut={evidence['phi']['best_cut']} "
         f"D_eff={evidence['differentiation']['d_eff_normalised']} "
