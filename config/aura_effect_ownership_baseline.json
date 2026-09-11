@@ -6841,6 +6841,14 @@
       "scope": "<module>.build_runtime"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/perception_replay.py",
+      "scope": "<module>.SensoryTape.save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -16466,6 +16474,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2984734d0d3cf13d42025fe3437c96ee3c97a76a1d33c5525ced2c986cf46668",
+  "inventory_sha256": "33259f72b0f4a23d6bb3973ea5aff40a6fa586d86087b8bbe411e37d2505c22d",
   "schema_version": 1
 }

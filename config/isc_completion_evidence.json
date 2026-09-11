@@ -2331,6 +2331,69 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P25.1": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "core/subject/perception_replay.py"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/perception_replay.py",
+        "pattern": "def record_stream"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_recorded_stream_replays_the_same_way.py::test_record_stream_captures_one_frame_at_a_time -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a tape of percepts as they arrived, cut from whatever is living",
+    "status": "done"
+  },
+  "P25.2": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_recorded_stream_replays_the_same_way.py::test_two_arms_replaying_one_frame_see_the_same_world -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "and replayed frame by frame, so two arms see the same world",
+    "status": "done"
+  },
+  "P25.8": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_recorded_stream_replays_the_same_way.py::test_a_replayed_percept_carries_what_a_live_one_does -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/perception_replay.py",
+        "pattern": "would put every consumer that reasons about recency"
+      }
+    ],
+    "note": "the timestamps are the experiment's, not the day the tape was cut, so recency means the same thing in the run as it did when it was recorded",
+    "status": "done"
+  },
+  "P25.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/perception_replay.py",
+        "pattern": "from core.state.percepts import emit_percept"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_recorded_stream_replays_the_same_way.py::test_a_replayed_percept_carries_what_a_live_one_does -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a replayed percept goes on the stream through the same emitter a live one does and is indistinguishable downstream; nothing writes a target domain directly",
+    "status": "done"
+  },
   "P26.1": {
     "checks": [
       {
