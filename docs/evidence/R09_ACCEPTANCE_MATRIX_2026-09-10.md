@@ -220,3 +220,29 @@ These new changes still require deployment and live replay.
 
 The final focused run, including late-failure reporting and both recovery
 ownership cases, passed 34 tests in 15.14 seconds.
+
+## Worker activity across parent-loop stalls
+
+The 22:14:58 desktop recurrence question reached the resident worker. Its
+receipt measured 1,897 prefill tokens in 25.88 seconds and 116 decoded tokens
+in 65.81 seconds. The parent declared a 48-second token stall at 22:18:44;
+the worker then honored that cancellation at 22:18:49. The decoded segment
+contained no public answer, and the desktop received a fallback at 22:20:35.
+Parent-loop delays had prevented consumption of progress already emitted by
+the worker. This is a failed live replay.
+
+The repair publishes the existing inference watchdog's activity through a
+small shared record, bound to the job sequence and allocated anew for each
+worker process. Parent stall decisions read this record directly. Heartbeat
+receipts retain their worker emission time and cannot renew another request.
+Queued stall reports yield to more recent inference evidence. Prefill and
+terminal completion use the same channel; heartbeat generation alone never
+refreshes it. Reads and writes acquire the shared lock without waiting, so a
+worker death during publication cannot block its parent.
+
+The combined lifecycle, progress, cancellation and IPC run passed 433 checks
+in 140.50 seconds. The final first-token watchdog and memory-focused run
+passed 122 checks in 37.49 seconds. Smoke passed 164 with one skipped in
+57.94 seconds; lint, compile, governance-lint and layering passed. A real
+spawned-child test continued publishing while the parent's event loop was
+deliberately blocked. Live deployment and R09 acceptance remain pending.

@@ -6201,7 +6201,10 @@ class JobWatchdog(threading.Thread):
     parent can respawn it.
     """
 
-    def __init__(self, timeout=60.0, writer: IPCWriterThread | None = None):
+    def __init__(
+        self, timeout=60.0, writer: IPCWriterThread | None = None,
+        progress_channel: Any = None,
+    ):
         super().__init__(daemon=True)
         self.timeout = timeout
         self.writer = writer
@@ -6209,18 +6212,30 @@ class JobWatchdog(threading.Thread):
         self.active_job = False
         self.current_request_id = ""
         self.current_action = ""
+        self.activity_seq = 0
+        self.request_seq = 0
+        self.progress_channel = progress_channel
         self._stop_event = threading.Event()
 
     def activity(self):
         self.last_activity = time.monotonic()
+        self.activity_seq += 1
+        from core.brain.llm.worker_progress import publish
 
-    def start_job(self, request_id: str = "", action: str = ""):
+        publish(self.progress_channel, self.request_seq, self.activity_seq)
+
+    def start_job(self, request_id: str = "", action: str = "", *, request_seq: int = 0):
         self.current_request_id = str(request_id or "")
         self.current_action = str(action or "")
         self.active_job = True
-        self.last_activity = time.monotonic()
+        self.request_seq = max(0, int(request_seq))
+        self.activity()
 
     def stop_job(self):
+        # Completion is progress too; the terminal frame can be queued while
+        # the parent loop resumes. Its timestamp remains bound to this job.
+        if self.active_job:
+            self.activity()
         self.active_job = False
         self.current_request_id = ""
         self.current_action = ""
@@ -6232,6 +6247,11 @@ class JobWatchdog(threading.Thread):
         return {
             "active_job": active,
             "job_age_s": round(age_s, 3),
+            # ``job_age_s`` is retained for rolling compatibility, but it has
+            # always measured time since inference activity rather than total
+            # job age. Name that evidence accurately for new parents.
+            "job_progress_age_s": round(age_s, 3),
+            "job_progress_seq": int(self.activity_seq),
             "request_id": self.current_request_id if active else "",
         }
 
@@ -7160,6 +7180,7 @@ def _mlx_worker_loop(
     worker_capture_launch_challenge: Mapping[str, Any] | None = None,
     phi_residual_mem: Any = None,
     latent_readout_mem: Any = None,
+    progress_channel: Any = None,
 ):
     """Runs in a FULLY ISOLATED native subprocess via ForkServer.
 
@@ -7223,7 +7244,7 @@ def _mlx_worker_loop(
     # Watchdog before heartbeat: the heartbeat publishes the watchdog's
     # job-progress snapshot so liveness claims carry inference evidence.
     watchdog = JobWatchdog(
-        timeout=360.0, writer=ipc_writer
+        timeout=360.0, writer=ipc_writer, progress_channel=progress_channel
     )  # Align with the protected foreground solver envelope.
     watchdog.start()
 
@@ -8440,7 +8461,10 @@ def _mlx_worker_loop(
                                     1,
                                     _safe_int(kwargs.get("max_tokens"), max_tokens),
                                 )
-                                watchdog.start_job(str(job.get("id") or ""), "generate")
+                                watchdog.start_job(
+                                    str(job.get("id") or ""), "generate",
+                                    request_seq=_safe_int(job.get("seq"), 0),
+                                )
                                 try:
                                     surface_control_state["instruction_shape_repair_applied"] = (
                                         False
@@ -11112,7 +11136,10 @@ def _mlx_worker_loop(
                     from mlx_lm import batch_generate
                     from mlx_lm.sample_utils import make_sampler
 
-                    watchdog.start_job(str(job.get("id") or ""), "generate_batch")
+                    watchdog.start_job(
+                        str(job.get("id") or ""), "generate_batch",
+                        request_seq=_safe_int(job.get("seq"), 0),
+                    )
                     try:
                         batch_prompt = str(job.get("prompt") or "")
                         if len(batch_prompt) > 400_000:
@@ -11348,7 +11375,10 @@ def _mlx_worker_loop(
                     _enforce_surface_controls_or_fail(job, surface_control_state)
                     try:
                         with metal_semaphore:
-                            watchdog.start_job(str(job.get("id") or ""), "stream")
+                            watchdog.start_job(
+                                str(job.get("id") or ""), "stream",
+                                request_seq=_safe_int(job.get("seq"), 0),
+                            )
                             try:
                                 full_text = ""
                                 token_count = 0
@@ -11712,7 +11742,7 @@ def _mlx_worker_loop(
                             }
                         )
                     else:
-                        watchdog.start_job(request_id, "nonparametric_ingest")
+                        watchdog.start_job(request_id, "nonparametric_ingest", request_seq=job_seq)
 
                         def _ingest_progress(
                             payload: dict[str, Any],
@@ -12114,7 +12144,7 @@ def _mlx_worker_loop(
                     "action": "unified_recurrent_shadow_probe",
                 }
                 clear_stale_soft_cancel(cancel_seq, job_seq)
-                watchdog.start_job(request_id, "unified_recurrent_shadow_probe")
+                watchdog.start_job(request_id, "unified_recurrent_shadow_probe", request_seq=job_seq)
                 try:
                     with metal_semaphore:
                         response = _handle_unified_recurrent_shadow_probe(
@@ -12176,7 +12206,7 @@ def _mlx_worker_loop(
                     "action": "unified_recurrent_qualified_decode",
                 }
                 clear_stale_soft_cancel(cancel_seq, job_seq)
-                watchdog.start_job(request_id, "unified_recurrent_qualified_decode")
+                watchdog.start_job(request_id, "unified_recurrent_qualified_decode", request_seq=job_seq)
                 try:
                     with metal_semaphore:
                         response = _handle_unified_recurrent_qualified_decode(
@@ -12245,7 +12275,7 @@ def _mlx_worker_loop(
                 response = {"id": request_id, "action": "latent_reason"}
                 recycle_after_response = False
                 clear_stale_soft_cancel(cancel_seq, job_seq)
-                watchdog.start_job(request_id, "latent_reason")
+                watchdog.start_job(request_id, "latent_reason", request_seq=job_seq)
 
                 def _latent_progress(
                     payload: dict[str, Any],

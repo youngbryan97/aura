@@ -2386,6 +2386,100 @@ class TestIPCWriterThread(unittest.TestCase):
 
 
 class TestMLXWorkerProgress(unittest.IsolatedAsyncioTestCase):
+    def test_worker_heartbeat_preserves_worker_side_activity_time(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._current_request_id = "demo-request"
+        client._current_request_started_at = 100.0
+
+        with replace_dotted("core.brain.llm.mlx_client.time.time", lambda: 200.0):
+            client._record_worker_job_activity(
+                {
+                    "active_job": True,
+                    "request_id": "demo-request",
+                    "timestamp": 198.0,
+                    "job_progress_age_s": 0.5,
+                }
+            )
+
+        self.assertEqual(client._last_worker_job_activity_at, 197.5)
+
+    def test_worker_heartbeat_cannot_credit_another_request(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._current_request_id = "demo-request"
+        client._current_request_started_at = 100.0
+
+        with replace_dotted("core.brain.llm.mlx_client.time.time", lambda: 200.0):
+            client._record_worker_job_activity(
+                {
+                    "active_job": True,
+                    "request_id": "retired-request",
+                    "timestamp": 199.0,
+                    "job_progress_age_s": 0.1,
+                }
+            )
+
+        self.assertEqual(client._last_worker_job_activity_at, 0.0)
+
+    async def test_generation_waiter_does_not_kill_worker_progress_delayed_by_parent_loop(self):
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        proc = ProcessProbe(alive=True)
+        client._process = proc
+        client._init_done = True
+        client._set_lane_state("ready")
+        req_id = "req-worker-side-progress"
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations[req_id] = future
+        client._current_request_id = req_id
+        client._current_request_started_at = 100.0
+        client._current_first_token_at = 105.0
+        client._last_token_progress_at = 105.0
+        from core.brain.llm.worker_progress import create_channel, publish
+
+        client._current_request_seq = 8
+        client._worker_progress_channel = create_channel(client._mp_context)
+        publish(client._worker_progress_channel, 8, 2)
+        client._last_heartbeat = 200.0
+        client._last_progress_at = 200.0
+        calls = 0
+
+        async def resolve(_future, *, timeout_s):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise TimeoutError
+            return {"text": "complete"}
+
+        with replace_dotted("core.brain.llm.mlx_client._await_shared_future", resolve):
+            with replace_dotted(
+                "core.brain.llm.mlx_client.get_memory_pressure_snapshot",
+                lambda: SimpleNamespace(should_gc=False, refuse_heavy_local_generation=False),
+            ):
+                with replace_dotted("core.brain.llm.mlx_client.time.time", lambda: 200.0):
+                    result = await client._wait_for_generation_result(
+                        req_id,
+                        future,
+                        get_deadline(30.0),
+                        foreground_request=True,
+                        progress_owned_completion=True,
+                    )
+
+        self.assertEqual(result, {"text": "complete"})
+        self.assertIsNone(client._deferred_reboot_reason)
+
+    def test_queued_stall_heartbeat_cannot_cancel_more_recent_inference(self):
+        from core.brain.llm.worker_progress import create_channel, publish
+
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._current_request_id = "active"
+        client._current_request_seq = 8
+        client._current_first_token_at = time.time() - 120
+        client._worker_progress_channel = create_channel(client._mp_context)
+        publish(client._worker_progress_channel, 8, 2)
+        stalled, _ = client._confirm_worker_reported_loop_stall(
+            {"request_id": "active", "job_progress_age_s": 120.0}
+        )
+        self.assertFalse(stalled)
+
     def test_worker_stall_alarm_respects_active_32b_first_token_budget(self):
         client = MLXLocalClient(model_path=QWEN32_MODEL)
         client._current_request_id = "demo-request"

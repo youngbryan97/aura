@@ -67,6 +67,8 @@ from .mlx_worker import (
     _HIDDEN_SEQUENCE_MAX_WIDTH,
     _mlx_worker_loop,
 )
+from .worker_progress import activity_age as worker_activity_age
+from .worker_progress import create_channel as create_worker_progress_channel
 
 #: Returned by an extracted block that did NOT return early. A unique
 #: object, so no value a block legitimately returns can be mistaken for it.
@@ -5213,6 +5215,11 @@ class MLXLocalClient:
         self._worker_ipc_broken_reported = False
         self._last_progress_at = 0.0
         self._last_token_progress_at = 0.0
+        # Inference activity measured inside the worker and timestamped before
+        # IPC delivery. This stays distinct from decoded-token receipt: the
+        # parent event loop can be delayed while the isolated model process is
+        # still producing, and a delayed consumer must not kill that work.
+        self._last_worker_job_activity_at = 0.0
         # Per-spawn key authorizing privileged output-contract selection.
         # Empty until a worker is spawned; a client with no worker has
         # nothing to authorize.
@@ -5368,6 +5375,7 @@ class MLXLocalClient:
         # Cancel latency is one decode step and the model stays warm — unlike
         # force-abort, which kills the worker and pays a full model reload.
         self._cancel_seq = self._mp_context.Value("Q", 0, lock=False)
+        self._worker_progress_channel = None
         self._job_seq_counter = 0
         self._current_request_seq = 0
         self._last_prompt_cache_bytes = 0
@@ -5927,6 +5935,7 @@ class MLXLocalClient:
             "_current_request_progress_baseline_at",
             "_current_first_token_at",
             "_last_token_progress_at",
+            "_last_worker_job_activity_at",
             "_last_heartbeat",
             "_last_progress_at",
             "_last_ready_at",
@@ -6501,6 +6510,7 @@ class MLXLocalClient:
         self._current_prompt_chars = max(0, int(prompt_chars or 0))
         self._current_requested_max_tokens = max(0, int(requested_max_tokens or 0))
         self._last_token_progress_at = 0.0
+        self._last_worker_job_activity_at = 0.0
         self._current_request_prompt_chars = max(0, int(prompt_chars or 0))
         self._current_first_token_hard_ceiling_s = max(
             0.0,
@@ -6715,12 +6725,67 @@ class MLXLocalClient:
         self._tokens_this_request = previous_count + delta
         self._mark_progress()
 
+    def _refresh_worker_job_activity(self) -> None:
+        age = worker_activity_age(
+            getattr(self, "_worker_progress_channel", None),
+            int(getattr(self, "_current_request_seq", 0) or 0),
+        )
+        if age is not None:
+            self._last_worker_job_activity_at = max(
+                float(getattr(self, "_last_worker_job_activity_at", 0.0) or 0.0),
+                time.time() - age,
+            )
+
+    def _record_worker_job_activity(self, payload: Mapping[str, Any]) -> None:
+        """Accept request-bound inference activity from a worker heartbeat.
+
+        Progress and terminal frames are consumed on the parent event loop. The
+        heartbeat is produced by a separate worker thread and carries the model
+        loop's own activity age. Reconstructing the worker-side event time keeps
+        parent-loop starvation from turning queued progress into a false token
+        stall, without treating process liveness as model progress.
+        """
+
+        if payload.get("active_job") is not True:
+            return
+        request_id = str(payload.get("request_id") or "")
+        current_request_id = str(getattr(self, "_current_request_id", "") or "")
+        if not request_id or request_id != current_request_id:
+            return
+        try:
+            emitted_at = float(payload.get("timestamp") or 0.0)
+            activity_age_s = float(
+                payload.get("job_progress_age_s", payload.get("job_age_s", -1.0))
+            )
+        except (TypeError, ValueError, OverflowError):
+            return
+        now = time.time()
+        if (
+            not math.isfinite(emitted_at)
+            or not math.isfinite(activity_age_s)
+            or emitted_at <= 0.0
+            or emitted_at > now + 5.0
+            or activity_age_s < 0.0
+        ):
+            return
+        activity_at = emitted_at - activity_age_s
+        request_started_at = float(
+            getattr(self, "_current_request_started_at", 0.0) or 0.0
+        )
+        if request_started_at > 0.0 and activity_at < request_started_at - 1.0:
+            return
+        self._last_worker_job_activity_at = max(
+            float(getattr(self, "_last_worker_job_activity_at", 0.0) or 0.0),
+            activity_at,
+        )
+
     def _clear_active_generation_tracking(self) -> None:
         self._current_turn_progress = None
         self._current_delivery_progress = None
         self._current_request_started_at = 0.0
         self._current_first_token_at = 0.0
         self._last_token_progress_at = 0.0
+        self._last_worker_job_activity_at = 0.0
         self._current_request_id = ""
         self._current_request_seq = 0
         self._current_request_progress_baseline_at = 0.0
@@ -7321,6 +7386,16 @@ class MLXLocalClient:
                 elapsed = max(0.0, time.time() - self._current_request_started_at)
                 if elapsed < hard_ceiling:
                     return
+                self._refresh_worker_job_activity()
+                activity_at = self._last_worker_job_activity_at
+                quiet_budget = self._token_stall_after(foreground_request=True)
+                if activity_at > 0.0 and time.time() - activity_at < quiet_budget:
+                    timer = _threading.Timer(quiet_budget, _enforce)
+                    timer.daemon = True
+                    timer.name = f"AuraMLXFirstTokenWatchdog:{model_name[:32]}"
+                    self._foreground_generation_watchdog = timer
+                    timer.start()
+                    return
                 logger.error(
                     "🛑 [MLX] Out-of-band first-token watchdog aborting %s "
                     "(%.1fs elapsed, hard=%.1fs).",
@@ -7441,10 +7516,17 @@ class MLXLocalClient:
         if not request_id or not current_request_id or request_id != current_request_id:
             return False, 0.0
         try:
-            age_s = max(0.0, float(payload.get("job_age_s") or 0.0))
+            age_s = max(
+                0.0,
+                float(payload.get("job_progress_age_s", payload.get("job_age_s", 0.0))),
+            )
         except (TypeError, ValueError):
             return False, 0.0
 
+        self._refresh_worker_job_activity()
+        latest = float(getattr(self, "_last_worker_job_activity_at", 0.0) or 0.0)
+        if latest > 0.0:
+            age_s = min(age_s, max(0.0, time.time() - latest))
         first_token_at = float(getattr(self, "_current_first_token_at", 0.0) or 0.0)
         if first_token_at <= 0.0:
             threshold_s = float(getattr(self, "_current_first_token_hard_ceiling_s", 0.0) or 0.0)
@@ -7491,6 +7573,7 @@ class MLXLocalClient:
         return min(full_timeout, scoped_timeout), scoped_timeout < full_timeout
 
     def get_lane_status(self) -> dict[str, Any]:
+        self._refresh_worker_job_activity()
         # [STABILITY v59] Do NOT clear the foreground owner while a warmup
         # is actively in flight.  The warmup legitimately holds the owner
         # for up to 180s; clearing it mid-load lets background workers
@@ -7511,6 +7594,7 @@ class MLXLocalClient:
             self._last_progress_at,
             self._last_ready_at,
             self._last_token_progress_at,
+            self._last_worker_job_activity_at,
             self._last_generation_completed_at,
         )
         visible_conversation_anchor = max(
@@ -7604,6 +7688,7 @@ class MLXLocalClient:
             "progress_age_s": progress_age_s,
             "worker_progress_anchor": worker_progress_anchor,
             "last_token_progress_at": self._last_token_progress_at,
+            "last_worker_job_activity_at": self._last_worker_job_activity_at,
             "last_prefill_progress_at": self._prefill_progress_at(),
             "last_ready_at": self._last_ready_at,
             "last_generation_completed_at": self._last_generation_completed_at,
@@ -8379,6 +8464,7 @@ class MLXLocalClient:
             self._last_progress_at,
             self._last_ready_at,
             self._last_token_progress_at,
+            self._last_worker_job_activity_at,
         )
         if last_activity > 0.0 and (now - last_activity) < 30.0:
             return  # Recent activity — state is legitimate
@@ -8507,6 +8593,7 @@ class MLXLocalClient:
         except ImportError:
             return None
 
+        self._refresh_worker_job_activity()
         now = time.time() if now is None else now
         process = self._process
 
@@ -8518,7 +8605,12 @@ class MLXLocalClient:
             return max(0.0, now - value) if value > 0.0 else None
 
         # The strongest available proof of output: the last token this lane saw.
-        progress_age = _age(getattr(self, "_last_token_progress_at", 0.0))
+        progress_age = _age(
+            max(
+                float(getattr(self, "_last_token_progress_at", 0.0) or 0.0),
+                float(getattr(self, "_last_worker_job_activity_at", 0.0) or 0.0),
+            )
+        )
         if progress_age is None:
             progress_age = _age(getattr(self, "_last_progress_at", 0.0))
 
@@ -12889,6 +12981,7 @@ class MLXLocalClient:
             self._last_heartbeat = 0.0
             self._last_progress_at = 0.0
             self._last_token_progress_at = 0.0
+            self._last_worker_job_activity_at = 0.0
             self._last_generation_completed_at = 0.0
             self._last_user_facing_completed_at = 0.0
             self._last_visible_readiness_at = 0.0
@@ -13228,6 +13321,7 @@ class MLXLocalClient:
                 self._worker_capture_launch_authority = (
                     build_worker_capture_launch_authority()
                 )
+                self._worker_progress_channel = create_worker_progress_channel(ctx)
                 if _shutdown_blocks_model_work(self.model_path, action="worker process start"):
                     raise RuntimeError("runtime_shutdown")
                 p = get_subprocess_gateway().spawn_python_process(
@@ -13245,6 +13339,7 @@ class MLXLocalClient:
                             dict(self._worker_capture_launch_authority.challenge),
                             self._phi_residual_mem,
                             self._latent_readout_mem,
+                            self._worker_progress_channel,
                         ),
                         source="mlx_local_client.worker_owner",
                         name=f"MLXWorker-{os.path.basename(self.model_path)}",
@@ -13478,6 +13573,7 @@ class MLXLocalClient:
 
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
+                    self._record_worker_job_activity(res)
                     self._last_heartbeat = time.time()
                     self._mark_progress()
                     try:
@@ -14730,7 +14826,11 @@ class MLXLocalClient:
 
         if not foreground_request:
             return False
-        last = float(getattr(self, "_last_token_progress_at", 0.0) or 0.0)
+        self._refresh_worker_job_activity()
+        last = max(
+            float(getattr(self, "_last_token_progress_at", 0.0) or 0.0),
+            float(getattr(self, "_last_worker_job_activity_at", 0.0) or 0.0),
+        )
         if last <= 0.0:
             # Nothing has arrived at all, so this is not a slow answer. It is
             # a silent one, and the first-token ceiling owns that case.
@@ -14914,6 +15014,7 @@ class MLXLocalClient:
                     _cancel_shared_future(future)
                     return None
 
+                self._refresh_worker_job_activity()
                 request_started_at = self._current_request_started_at
                 current_runtime_progress = max(
                     self._last_heartbeat,
@@ -15014,6 +15115,10 @@ class MLXLocalClient:
                     and self._current_prefill_tokens_processed < self._current_prefill_tokens_total
                     and (time.time() - self._prefill_progress_at()) < stall_after
                 )
+                worker_advancing = (
+                    self._last_worker_job_activity_at > 0.0
+                    and time.time() - self._last_worker_job_activity_at < token_stall_after
+                )
                 if progress_owned_completion:
                     hard_first_token_ceiling = livelock_ceiling
                 elif prefilling and elapsed_without_token <= livelock_ceiling:
@@ -15022,7 +15127,9 @@ class MLXLocalClient:
                     req_id == self._current_request_id
                     and request_started_at > 0.0
                     and self._current_first_token_at <= 0.0
-                    and not (progress_owned_completion and advancing_prefill)
+                    and not (
+                        progress_owned_completion and (advancing_prefill or worker_advancing)
+                    )
                     and (
                         (
                             elapsed_without_token > max(
@@ -15205,6 +15312,7 @@ class MLXLocalClient:
                     self._last_token_progress_at,
                     self._current_first_token_at,
                     self._prefill_progress_at(),
+                    self._last_worker_job_activity_at,
                 )
                 if (
                     req_id == self._current_request_id
@@ -15247,7 +15355,8 @@ class MLXLocalClient:
                     return None
 
                 last_progress = max(
-                    self._last_heartbeat, self._last_progress_at, self._last_ready_at
+                    self._last_heartbeat, self._last_progress_at, self._last_ready_at,
+                    self._last_worker_job_activity_at,
                 )
                 if last_progress and (time.time() - last_progress) > stall_after:
                     logger.error(
@@ -17829,6 +17938,8 @@ class MLXLocalClient:
             self._last_heartbeat = 0.0
             self._last_progress_at = 0.0
             self._last_token_progress_at = 0.0
+            self._last_worker_job_activity_at = 0.0
+            self._worker_progress_channel = None
             # Reset the cold-start anchor so the next foreground request
             # gets the generous 40 s SLA instead of the tight warm-path 22 s.
             # A reboot means the worker process is gone → first-token budget
