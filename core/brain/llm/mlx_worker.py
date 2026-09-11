@@ -6750,6 +6750,11 @@ def _remember_fusion_identity(descriptor: Any) -> None:
 #: first time the user steps away rather than never.
 FUSION_IDLE_TICKS_BEFORE_SELF_CERTIFY = 12
 
+#: Said once. The idle hook asks every minute, and a worker that can never
+#: answer would otherwise write the same line a thousand times a day or, as it
+#: did, none at all.
+_FUSION_SELF_CERTIFY_REFUSAL_LOGGED = False
+
 #: The probe is smaller in the worker than on the command line. The full sweep
 #: is a research instrument; this one has to fit in an idle gap on a 27B, so it
 #: measures the shipped alpha only and takes fewer, shorter probes.
@@ -6772,8 +6777,34 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     global _FUSION_MODEL_IDENTITY
 
     identity = _FUSION_MODEL_IDENTITY
-    hooks = list(getattr(engine, "_hooks", None) or [])
-    if not identity or not hooks or model is None or tokenizer is None:
+    # `active_hooks()` rather than the `_hooks` attribute. That distinction has
+    # been paid for once already in this file -- see `_active_steering_hooks`,
+    # whose whole docstring is about a surface that looked equivalent and was
+    # not -- and reading the attribute here meant this function could decline
+    # every minute and say nothing about it. The live 27B did exactly that for
+    # two days: "no certificate yet" on every turn, and no line anywhere saying
+    # the probe was never reaching its first statement.
+    hooks = _active_steering_hooks(engine)
+    missing = [
+        name
+        for name, present in (
+            ("a model identity", bool(identity)),
+            ("steering hooks", bool(hooks)),
+            ("a loaded model", model is not None),
+            ("a tokenizer", tokenizer is not None),
+        )
+        if not present
+    ]
+    if missing:
+        global _FUSION_SELF_CERTIFY_REFUSAL_LOGGED
+        if not _FUSION_SELF_CERTIFY_REFUSAL_LOGGED:
+            _FUSION_SELF_CERTIFY_REFUSAL_LOGGED = True
+            logger.info(
+                "The fusion channel cannot be measured on this worker: it has no %s. "
+                "The channel stays shut and this is not retried usefully, so the "
+                "reason is here rather than in a silence repeated every minute.",
+                " and no ".join(missing),
+            )
         return False
     try:
         from core.consciousness.fusion_certificate import certificate_for, write_certificate

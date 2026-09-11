@@ -116,14 +116,61 @@ def test_attaching_without_an_identity_leaves_the_channel_shut(monkeypatch):
 
 def test_self_certification_will_not_run_without_hooks():
     class Engine:
-        _hooks: list = []
+        def active_hooks(self):
+            return []
 
     assert mlx_worker._self_certify_fusion(object(), object(), Engine()) is False
 
 
+def test_self_certification_reads_the_hooks_an_engine_actually_publishes():
+    """`_hooks` is not the surface, and this test used to say it was.
+
+    The attribute exists on the steering engine and is not what a caller is
+    meant to read; `_active_steering_hooks` carries a whole docstring about the
+    last time that distinction cost something. Because the fake published
+    `_hooks` and nothing else, the certification could decline on every real
+    engine and this suite stayed green. The live 27B declined for two days.
+    """
+    probed: list[str] = []
+
+    class Engine:
+        _hooks: list = []
+
+        def active_hooks(self):
+            probed.append("asked")
+            return [object()]
+
+        def set_alpha(self, alpha):
+            return None
+
+    mlx_worker._self_certify_fusion(object(), object(), Engine())
+
+    assert probed, "the certification never asked the engine what its hooks are"
+
+
+def test_a_missing_precondition_is_said_once(monkeypatch, caplog):
+    """A mechanism that declines every minute has to say why, and say it once."""
+    monkeypatch.setattr(mlx_worker, "_FUSION_SELF_CERTIFY_REFUSAL_LOGGED", False)
+    monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", "")
+
+    class Engine:
+        def active_hooks(self):
+            return []
+
+    with caplog.at_level("INFO", logger=mlx_worker.logger.name):
+        assert mlx_worker._self_certify_fusion(None, None, Engine()) is False
+        first = len([r for r in caplog.records if "cannot be measured" in r.getMessage()])
+        assert mlx_worker._self_certify_fusion(None, None, Engine()) is False
+        second = len([r for r in caplog.records if "cannot be measured" in r.getMessage()])
+
+    assert first == 1, "the reason it declined was never written down"
+    assert second == 1, "the reason is written on every idle tick"
+
+
 def test_self_certification_skips_a_checkpoint_that_already_has_one(certified, monkeypatch):
     class Engine:
-        _hooks = [object()]
+        def active_hooks(self):
+            return [object()]
 
         def set_alpha(self, alpha):
             raise AssertionError("must not probe a checkpoint that is already certified")

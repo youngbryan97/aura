@@ -146,9 +146,22 @@ Working list. Deleted when every line is done and green.
 - [ ] a certificate for the resident 27B. The mechanism is proven end to end on
       the reflex 1.5B through the worker's own code path — alpha 0.0 before,
       the probe runs, alpha 0.2 after, and a second call skips a checkpoint
-      that already has one. The 27B earns its own on the first idle minute
-      after the live instance restarts onto this code; until then the channel
-      stays shut on that model, which is the failure direction it should have
+      that already has one. It had never once run on the 27B. The live log
+      says "no certificate yet, the worker will measure one when it has been
+      idle long enough" on every turn from 2026-09-09 20:17 to 2026-09-11
+      01:57, across dozens of restarts, and the probe's own first log line
+      never appears beside it.
+
+      The idle hook fires. What it reached was a precondition block reading
+      `engine._hooks`, which is not the surface an engine publishes —
+      `_active_steering_hooks` in the same file carries a docstring about the
+      last time that exact distinction cost something. It returned False and
+      logged nothing, every minute, for two days. The suite stayed green
+      because the fake published `_hooks` too: the test encoded the defect.
+
+      Reading `active_hooks()` now, and a declined measurement says which
+      precondition is missing, once. Whether the 27B then certifies is the
+      open half, and it answers itself on the next restart
 - [x] fit anything to a human recording. Four published statistics of human
       cortical activity, scored as floors rather than targets: her cascades
       satisfy their own scaling relation, so she is critical, but her exponents
