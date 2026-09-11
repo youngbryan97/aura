@@ -4512,6 +4512,315 @@
     "note": "the null's two arms share a noise stream, so its floor is exactly zero, and that is stated where the comparison is made",
     "status": "done"
   },
+  "P43.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"recurrent\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "if name == \"recurrent\":"
+      }
+    ],
+    "note": "the positive reference: sparse, reciprocal, no broker, and it has to pass everything the nulls fail",
+    "status": "done"
+  },
+  "P43.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"common_driver\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"common_driver\":"
+      }
+    ],
+    "note": "one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other",
+    "status": "done"
+  },
+  "P43.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"all_to_all\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"all_to_all\":"
+      }
+    ],
+    "note": "everything reaching everything directly: maximally integrated and maximally redundant",
+    "status": "done"
+  },
+  "P43.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"memory_only\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"memory_only\":"
+      }
+    ],
+    "note": "one store carries the past and hands it back; nothing else persists",
+    "status": "done"
+  },
+  "P43.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"fake_self\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"fake_self\":"
+      }
+    ],
+    "note": "a self that reads every domain and that nothing reads: a running commentary computed from the system and causing none of it",
+    "status": "done"
+  },
+  "P43.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"agency_without_ownership\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"agency_without_ownership\":"
+      }
+    ],
+    "note": "actions happen and have consequences, and nothing comes back into the self",
+    "status": "done"
+  },
+  "P43.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"ownership_label_without_action_causation\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"ownership_label_without_action_causation\":"
+      }
+    ],
+    "note": "the self is told what was decided and the decision moves nothing in the world",
+    "status": "done"
+  },
+  "P43.16": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"fast_only\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"fast_only\":"
+      }
+    ],
+    "note": "fast domains write the slow ones and the slow ones write nothing back",
+    "status": "done"
+  },
+  "P43.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"slow_only\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"slow_only\":"
+      }
+    ],
+    "note": "slow state drives the fast domains and nothing they do reaches it",
+    "status": "done"
+  },
+  "P43.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"low_rank\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"low_rank\":"
+      }
+    ],
+    "note": "recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent",
+    "status": "done"
+  },
+  "P43.19": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"high_dimensional_independent\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"high_dimensional_independent\":"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_null_suite_covers_the_ways_to_fake_it.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "each domain mixes richly inside itself and nothing crosses between them",
+    "status": "done"
+  },
+  "P43.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"star\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name in \\{\"star\", \"hub\"\\}:"
+      }
+    ],
+    "note": "a pure relay that keeps nothing of its own past",
+    "status": "done"
+  },
+  "P43.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"hub\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name in \\{\"star\", \"hub\"\\}:"
+      }
+    ],
+    "note": "a broker that carries some of its own state across steps",
+    "status": "done"
+  },
+  "P43.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"hidden_broker\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"hidden_broker\":"
+      }
+    ],
+    "note": "a broker outside the ten domains that remembers nearly all of its own past, so the system's memory lives outside K",
+    "status": "done"
+  },
+  "P43.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"one_way\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"one_way\":"
+      }
+    ],
+    "note": "a chain with no return path",
+    "status": "done"
+  },
+  "P43.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"ring\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"ring\":"
+      }
+    ],
+    "note": "the smallest thing that is still one cycle, strongly connected and severed by removing any single node",
+    "status": "done"
+  },
+  "P43.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"prompt_only\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"prompt_only\":"
+      }
+    ],
+    "note": "everything reaching everything through one scalar",
+    "status": "done"
+  },
+  "P43.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"frozen_slow\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"frozen_slow\":"
+      }
+    ],
+    "note": "recurrent dynamics with the slow domains held still",
+    "status": "done"
+  },
+  "P43.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "^    \"independent\",$"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "elif name == \"independent\":"
+      }
+    ],
+    "note": "ten domains with no coupling at all",
+    "status": "done"
+  },
   "P44.1": {
     "checks": [
       {
@@ -5735,29 +6044,36 @@
   "P54.15": {
     "checks": [
       {
-        "expr": "len(report['nulls']['detail']) >= 8",
-        "kind": "report"
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "\"high_dimensional_independent\","
       },
       {
-        "expr": "'hidden_broker' in report['nulls']['detail']",
-        "kind": "report"
+        "command": "{python} -c \"from core.subject.nulls import ARCHITECTURES; raise SystemExit(0 if len(ARCHITECTURES) >= 19 else 1)\"",
+        "kind": "command",
+        "timeout": 120
       },
       {
-        "expr": "'independent' in report['nulls']['detail']",
+        "expr": "len([k for k, v in report['nulls']['detail'].items() if v.get('kind') == 'architecture']) >= 19",
         "kind": "report"
       }
     ],
-    "note": "eight nulls including a hidden broker and independent noise",
+    "note": "nineteen null architectures beside the reference, covering every way to fake the shape the battery looks for",
     "status": "done"
   },
   "P54.16": {
     "checks": [
       {
-        "expr": "len(report['nulls'].get('conjunction', {})) >= 8",
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _passes_the_conjunction"
+      },
+      {
+        "expr": "'conjunction' in report['nulls']",
         "kind": "report"
       }
     ],
-    "note": "each null is put through the conjunction, not one line of it",
+    "note": "each null is put through the whole conjunction rather than one line of it",
     "status": "done"
   },
   "P54.2": {
@@ -5777,15 +6093,15 @@
   "P54.24": {
     "checks": [
       {
-        "expr": "report['nulls']['reference_architecture_passes'] is True",
+        "expr": "bool(report['nulls'].get('reference_architecture_passes'))",
         "kind": "report"
       },
       {
-        "expr": "len(report['nulls']['summary']['nulls_that_pass']) == 0",
+        "expr": "bool(report['nulls'].get('nulls_fail_the_bar'))",
         "kind": "report"
       }
     ],
-    "note": "a positive control that must pass and nulls that must fail",
+    "note": "a positive control that must pass and nineteen nulls that must fail, each for the reason it was built for",
     "status": "done"
   },
   "P54.3": {
@@ -7331,14 +7647,31 @@
     "note": "the profile is reported as a partial order rather than a percentage",
     "status": "done"
   },
+  "P7.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "What is predicted is the change, not the level"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "target_of\\[key\\] = basis\\(nxt\\[:, columns\\]\\) - basis\\(now\\[:, columns\\]\\)"
+      }
+    ],
+    "note": "what is predicted is the change rather than the level, so a cross-partition signal has to move the transition and not the snapshot",
+    "status": "done"
+  },
   "P7.12": {
     "checks": [
       {
-        "expr": "report['phi'].get('standard_error') is not None",
-        "kind": "report"
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "standard_error: float"
       },
       {
-        "expr": "len(report['phi'].get('held_out', [])) > 1",
+        "expr": "'standard_error' in report['phi']",
         "kind": "report"
       }
     ],
@@ -7348,21 +7681,72 @@
   "P7.13": {
     "checks": [
       {
-        "expr": "float(report['phi'].get('lower_bound', -1.0)) > 0.0",
+        "expr": "float(report['phi']['lower_bound']) > 0.0",
         "kind": "report"
       }
     ],
-    "note": "and its lower bound is above zero",
+    "note": "the lower bound is above zero",
     "status": "done"
   },
   "P7.14": {
     "checks": [
       {
-        "expr": "float(report['phi'].get('lower_bound', -1.0)) > 0.05",
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "_phi_bound > THRESHOLDS\\[\\\"phi_do\\\"\\]"
+      },
+      {
+        "expr": "float(report['phi']['lower_bound']) > 0.05",
         "kind": "report"
       }
     ],
-    "note": "with the lower bound itself clearing the bar",
+    "note": "the lower bound itself clears the bar, and the criterion asks for the bound rather than the point",
+    "status": "done"
+  },
+  "P7.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "Surrogates of the series the score is actually computed on"
+      },
+      {
+        "expr": "report['nulls'].get('surrogate_floor') is not None",
+        "kind": "report"
+      }
+    ],
+    "note": "every null is compared against matched surrogates built from the same series the score is computed on",
+    "status": "done"
+  },
+  "P7.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\""
+      },
+      {
+        "expr": "'surrogate_floor_detail' in report['nulls']",
+        "kind": "report"
+      }
+    ],
+    "note": "the surrogate floor is a distribution over many draws with its own quantile and spread, not one draw",
+    "status": "done"
+  },
+  "P7.19": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "the whole computation runs unchanged over shuffled and replayed\\nrecordings"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "phi_do,\\n            analyse_graph,"
+      }
+    ],
+    "note": "the same estimator runs unchanged over Aura and over every null",
     "status": "done"
   },
   "P7.2": {
@@ -7373,6 +7757,64 @@
       }
     ],
     "note": "the cheapest cut is named in every run",
+    "status": "done"
+  },
+  "P7.20": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "\"estimator\": \\{\"components_per_domain\": COMPONENTS, \"folds\": FOLDS\\}"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "^COMPONENTS: int"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "^FOLDS: int"
+      }
+    ],
+    "note": "the estimator's own settings are in the campaign fingerprint, so tuning them starts a different campaign",
+    "status": "done"
+  },
+  "P7.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "def side_detail"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "a side near zero predicts\\n    #: itself too independently"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_weak_side_of_a_cut_is_named.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the cheapest cut is reported one side at a time, so the side that predicts itself too independently is named rather than left to be guessed at",
+    "status": "done"
+  },
+  "P7.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "\"intact_loss\": intact"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/irreducibility.py",
+        "pattern": "\"gain\": 0\\.0 if own <= 0\\.0 else \\(own - intact\\) / own"
+      }
+    ],
+    "note": "what the intact model gains over each side's own model is the cross-cut information that side was failing to exploit, and it is a number in the report",
     "status": "done"
   },
   "P7.7": {

@@ -308,3 +308,33 @@ def test_the_verdict_is_never_the_word_conscious() -> None:
 def test_the_bridge_is_named_as_a_postulate() -> None:
     source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
     assert "carrier-identity postulate" in source
+
+
+# ── a screened sweep is a look, not a result ──────────────────────────────
+
+
+def test_a_screened_sweep_never_reads_as_irreducible() -> None:
+    """The score is the weakest cut, and a sample of cuts has not found it."""
+    from core.subject.v25_cut import CutVerdict, SweepReport
+
+    strong = [
+        CutVerdict(left=("A",), right=("B",), anchors_used=8, lower_bound=1.0, decided=True)
+        for _ in range(3)
+    ]
+    full = SweepReport(tau_seconds=1.0, verdicts=strong)
+    screened = SweepReport(tau_seconds=1.0, verdicts=strong, screened=True, cuts_in_full=511)
+    assert full.irreducible is True
+    assert screened.irreducible is False
+
+
+def test_a_screened_sweep_says_how_many_cuts_it_skipped() -> None:
+    from core.subject.v25_cut import SweepReport
+
+    report = SweepReport(tau_seconds=1.0, screened=True, cuts_in_full=511).as_dict()
+    assert report["screened"] is True
+    assert report["cuts_in_full"] == 511
+
+
+def test_the_runner_refuses_a_screened_run() -> None:
+    source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
+    assert "only a sample of the bipartitions was scored" in source

@@ -125,26 +125,40 @@ async def collect_partition_samples(
     condition_names = [getattr(c, "name", str(i)) for i, c in enumerate(conditions)]
     name_to_index = {name: i for i, name in enumerate(condition_names)}
 
-    for anchor in anchors:
-        for condition in conditions:
-            rows = await paired_partition_trajectories(
-                runtime,
-                anchor.snapshot,
-                condition,
-                left=left,
-                right=right,
-                turns=turns,
-            )
-            one_hot = np.zeros(len(conditions), dtype=np.float64)
-            one_hot[name_to_index[getattr(condition, "name", "")]] = 1.0
-            context = np.concatenate([anchor.current, one_hot])
-            for lag in lags:
-                slot = buckets[int(lag)]
-                slot["context"].append(context)
-                slot["intact"].append(lag_vector(rows.intact_a, int(lag)))
-                slot["sham_a"].append(lag_vector(rows.intact_a, int(lag)))
-                slot["sham_b"].append(lag_vector(rows.intact_b, int(lag)))
-                slot["cut"].append(lag_vector(rows.cut, int(lag)))
+    # Anchor/condition PAIRS, not their cross product. Every cut needs matched
+    # contexts and it needs them across conditions, and taking the product
+    # multiplies the cost of one cut by eight before the sweep has looked at
+    # the other five hundred and ten. Pairing keeps the same spread of
+    # conditions over the bank at a cost that is linear in the anchors, which
+    # is what makes an exhaustive sweep affordable at all.
+    pairs = [
+        (anchor, conditions[index % len(conditions)])
+        for index, anchor in enumerate(anchors)
+    ]
+    for anchor, condition in pairs:
+        rows = await paired_partition_trajectories(
+            runtime,
+            anchor.snapshot,
+            condition,
+            left=left,
+            right=right,
+            turns=turns,
+        )
+        one_hot = np.zeros(len(conditions), dtype=np.float64)
+        one_hot[name_to_index[getattr(condition, "name", "")]] = 1.0
+        context = np.concatenate([anchor.current, one_hot])
+        for lag in lags:
+            slot = buckets[int(lag)]
+            slot["context"].append(context)
+            # `intact` and `sham_a` are the same arm on purpose. The signal is
+            # that arm against the cut; the floor is it against a second
+            # untouched fork from the same snapshot. Two untouched forks are
+            # not numerically identical in practice, and the third arm is what
+            # measures how far apart they are.
+            slot["intact"].append(lag_vector(rows.intact_a, int(lag)))
+            slot["sham_a"].append(lag_vector(rows.intact_a, int(lag)))
+            slot["sham_b"].append(lag_vector(rows.intact_b, int(lag)))
+            slot["cut"].append(lag_vector(rows.cut, int(lag)))
 
     return {
         lag: {key: np.vstack(values) for key, values in slot.items()}

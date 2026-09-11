@@ -99,6 +99,11 @@ class SweepReport:
     """Every cut that was tried, and the weakest one that was decided."""
 
     tau_seconds: float
+    #: True when only a sample of the cuts was scored. A screened sweep is a
+    #: look, not a result: the score is the weakest cut and a sample has not
+    #: found it.
+    screened: bool = False
+    cuts_in_full: int = 0
     verdicts: list[CutVerdict] = field(default_factory=list)
     #: Cuts still compatible with zero when the budget ran out. While this is
     #: not empty the irreducibility claim is UNRESOLVED, not false.
@@ -120,6 +125,8 @@ class SweepReport:
         one cut compatible with zero refuses it and no amount of margin
         elsewhere buys it back.
         """
+        if self.screened:
+            return False
         return bool(self.verdicts) and not self.undecided and all(
             v.decided and v.lower_bound > 0.0 for v in self.verdicts
         )
@@ -133,6 +140,8 @@ class SweepReport:
         return {
             "tau_seconds": round(self.tau_seconds, 6),
             "cuts_tested": len(self.verdicts),
+            "cuts_in_full": self.cuts_in_full,
+            "screened": self.screened,
             "cuts_decided": sum(1 for v in self.verdicts if v.decided),
             "undecided": list(self.undecided),
             "anchors_spent": self.anchors_spent,
@@ -217,6 +226,7 @@ async def sweep_cuts(
     alpha: float = 0.05,
     seed: int = 0,
     domains: Sequence[str] | None = None,
+    screen: int = 0,
     on_progress: Any = None,
 ) -> SweepReport:
     """Every bipartition, with precision spent where the answer is still open.
@@ -226,7 +236,25 @@ async def sweep_cuts(
     leaves the decided ones alone.
     """
     cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
-    report = SweepReport(tau_seconds=float(tau_seconds))
+    every_cut = len(cuts)
+    screened = False
+    if screen and 0 < screen < len(cuts):
+        # A screening pass, and it says so. An exhaustive sweep of 511 cuts at
+        # four runs an anchor is a long run, and there is a real use for a fast
+        # look at where the weak cuts are before paying for one. What there is
+        # no use for is a fast look reported as a result: the score is the
+        # weakest cut, and a sample of cuts has not found it. So a screened
+        # sweep never reads as irreducible and the runner refuses to call it
+        # authoritative.
+        #
+        # The sample is a deterministic stride rather than a draw, so the same
+        # seed screens the same cuts, and it walks the sizes evenly rather than
+        # taking the first N — the cheapest cuts in practice are the lopsided
+        # ones, and the first N of an ordered enumeration are all one shape.
+        stride = max(1, len(cuts) // screen)
+        cuts = cuts[:: stride][:screen]
+        screened = True
+    report = SweepReport(tau_seconds=float(tau_seconds), screened=screened, cuts_in_full=every_cut)
     verdicts: dict[str, CutVerdict] = {}
     for left, right in cuts:
         verdicts[f"{''.join(left)}|{''.join(right)}"] = CutVerdict(left=left, right=right, anchors_used=0)

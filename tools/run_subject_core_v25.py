@@ -264,6 +264,7 @@ async def _spectrum(
     rounds: int,
     seed: int,
     domains: Sequence[str] | None = None,
+    screen: int = 0,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder."""
     from core.subject.v25_cut import sweep_cuts
@@ -276,6 +277,7 @@ async def _spectrum(
             runtime, anchors, conditions,
             tau_frames=int(lag), tau_seconds=tau,
             turns=turns, rounds=rounds, seed=seed + lag, domains=domains,
+            screen=screen,
         )
         weakest = report.weakest
         spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
@@ -404,6 +406,14 @@ async def main() -> int:
     parser.add_argument("--cut-rounds", type=int, default=2, help="sequential allocation rounds over the cuts")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--quick", action="store_true", help="smallest run that exercises every stage")
+    parser.add_argument(
+        "--screen", type=int, default=0,
+        help=(
+            "score a sample of the cuts instead of all 511. A look at where the "
+            "weak cuts are, never a result: the score is the weakest cut and a "
+            "sample has not found it, so a screened run refuses to be authoritative"
+        ),
+    )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument("--domains", type=str, default="", help="comma-separated support to test instead of all ten")
     parser.add_argument(
@@ -413,8 +423,9 @@ async def main() -> int:
     args = parser.parse_args()
 
     if args.quick:
-        args.rounds, args.anchors, args.cut_rounds = 3, 3, 1
+        args.rounds, args.anchors, args.cut_rounds = 3, 4, 1
         args.history_turns = 2
+        args.screen = args.screen or 12
 
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -532,6 +543,7 @@ async def main() -> int:
             runtime, anchors, CONDITIONS,
             lags=lags, frame_seconds=frame_seconds, turns=args.turns,
             rounds=args.cut_rounds, seed=args.seed, domains=support,
+            screen=args.screen,
         )
         binding = _horizon_is_binding(spectrum, lags)
         tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
@@ -690,6 +702,13 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append("the playback null did not collapse")
     if "note" in closure:
         blockers.append("no periphery could be read, so closure is NOT_MEASURED")
+    if any(
+        isinstance(block, dict) and block.get("screened")
+        for block in cuts.values()
+    ):
+        blockers.append(
+            "only a sample of the bipartitions was scored; the weakest cut has not been found"
+        )
     # A cortex-inclusive claim made while the cortex was stubbed is the one
     # blocker that is about what the run is allowed to say rather than about
     # what it measured. The substrate campaign is a real result; it is just a

@@ -194,6 +194,12 @@ class PartitionReport:
     #: cannot say whether it has established a sign.
     held_out: tuple[float, ...] = ()
     standard_error: float = 0.0
+    #: The cheapest cut, one side at a time. `gain` is what that side's own
+    #: model loses by not seeing the other side; a side near zero predicts
+    #: itself too independently, and it is the side to strengthen. Without
+    #: this, a weak cut named two blocks and said nothing about which of them
+    #: was the one holding the score down.
+    sides: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         ranked = sorted(self.scores.items(), key=lambda kv: kv[1])
@@ -210,6 +216,10 @@ class PartitionReport:
             "held_out": list(self.held_out),
             "standard_error": round(self.standard_error, 6),
             "lower_bound": round(self.phi - 1.96 * self.standard_error, 6),
+            "sides": {
+                name: {k: round(v, 6) for k, v in row.items()}
+                for name, row in self.sides.items()
+            },
             "note": self.note,
         }
 
@@ -389,6 +399,21 @@ def phi_do(
         if best is None or value < best[0]:
             best = (value, (side_a, side_b), loss_full, loss_cut)
 
+    def side_detail(block: tuple[str, ...]) -> dict[str, float]:
+        """What this side alone loses by not seeing the other one."""
+        sse, base = measure(block)
+        total = float(base.sum())
+        if total <= 0.0:
+            return {"own_loss": 0.0, "intact_loss": 0.0, "gain": 0.0, "width": float(len(block))}
+        own = float(sse.sum()) / total
+        intact = float(full_fit[block].sum()) / total
+        return {
+            "own_loss": own,
+            "intact_loss": intact,
+            "gain": 0.0 if own <= 0.0 else (own - intact) / own,
+            "width": float(len(block)),
+        }
+
     # The reported score, chosen on folds the score is not read from. For each
     # fold in turn the weakest cut is found using the others and then scored on
     # that fold alone; the average of those held-out readings is an estimate of
@@ -441,6 +466,10 @@ def phi_do(
         pairs=int(now.shape[0]),
         held_out=tuple(round(value, 6) for value in held_out),
         standard_error=error,
+        sides={
+            "".join(best[1][0]): side_detail(best[1][0]),
+            "".join(best[1][1]): side_detail(best[1][1]),
+        },
         note=(
             f"cross-fitted over {len(held_out)} folds; the in-sample minimum over "
             f"{len(cuts)} cuts is {unselected:.4f}"
