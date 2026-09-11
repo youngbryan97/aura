@@ -53,12 +53,24 @@ def test_a_question_needing_no_biography_is_not_claimed(question: str) -> None:
     assert needed_person_fact(question) == ""
 
 
-def test_an_unknown_fact_is_named_and_the_turn_is_not_refused() -> None:
-    block = person_fact_block("what's the population of the town I grew up in?")
+def test_missing_belief_evidence_does_not_claim_global_ignorance(monkeypatch) -> None:
+    import core.self.person_facts as module
 
-    assert "do NOT know the town you grew up in" in block
-    assert "do not refuse the whole turn over it" in block
-    assert "Do not supply a plausible one" in block
+    monkeypatch.setattr(module, "_known_about_person", lambda: [])
+    block = person_fact_block("what's the population of the town I grew up in?")
+    assert block == ""
+
+
+@pytest.mark.parametrize("question", [
+    "What was my reason for correcting you?",
+    "What is my hometown?",
+    "What is my sister's name?",
+])
+def test_partial_store_miss_cannot_override_other_sources(monkeypatch, question) -> None:
+    import core.self.person_facts as module
+
+    monkeypatch.setattr(module, "_known_about_person", lambda: ["job: engineer"])
+    assert person_fact_block(question) == ""
 
 
 def test_a_known_fact_is_offered_instead_of_the_absence(monkeypatch) -> None:

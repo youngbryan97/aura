@@ -50,3 +50,37 @@ The actual neural feed at 19:43 showed reimplementation admission deferral
 reported as a code-generation failure, blocking writes from blinded-workspace
 creation, and verifier errors. R06/R08 retain those obligations. No R item is
 closed by this checkpoint alone.
+
+## Live chronological-window replay, 20:01-20:07 PDT
+
+The controlled restart produced exactly one replacement runtime, PID 89247.
+Boot reported matching expected and actual workspace identity
+`bbe857ab566ddb175021f4a5ad3c560e18bc0398bef4e181bf57cf6ab8dc13d9`,
+with source_current/source_verified true and no identity issues. This was a
+verified dirty workspace snapshot, not a clean-commit deployment; unrelated
+work was preserved. The resident model remained the 27B persona/CRSM model.
+
+The live history endpoint returned 100 exchanges across 63 sessions. The
+actual desktop DOM contained 200 message bubbles. The repeated reading-group
+question received 40 context exchanges, versus two before this repair.
+
+Delivery `aura-chat-0b42c011-4e00-4f04-b61b-e2bb8f57c73d`, turn
+`fe913752b0ff4d749f3929a6e0d7d74d`, failed after 344.52 seconds. It used two
+foreground generations and one completion retry, then served the degraded
+fallback. HTTP 200 did not indicate semantic success. The first 201-character
+draft was marked unanswered_question_part; the repair requested the remaining
+question. The worker later reported fabricated_shared_history and
+internal_task_prompt_leak on its candidate. This is failed recall evidence.
+
+The retry's system context included the personal-fact reader's global
+ignorance instruction. That reader samples only 40 belief entries and never
+reads the transcript or episodic store. Its no-match path now abstains instead
+of asserting that all knowledge sources lack the answer. Positive matches
+remain available. No new prompting or phrase-specific exception was added.
+This follow-up fix has 15 passing focused tests; smoke 164 passed, one skipped
+in 80.56 seconds; lint, compile, governance-lint and layering passed. It is
+not yet deployed or live-validated.
+
+The neural feed also reported conversation_persistence degradation events
+during startup and the live turn. History display eventually recovered, but
+that does not close the separate receipt-I/O latency investigation.
