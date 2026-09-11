@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.task_ownership import create_tracked_task
 from core.state.aura_state import AffectVector, AuraState
 from core.state.percepts import drop_consumed, fresh_for, mark_consumed
 
@@ -304,7 +303,7 @@ class AffectUpdatePhase(Phase):
             "conscious_substrate", default=None
         )
         if ls:
-            self._schedule_substrate_update(ls, affect, state)
+            await self._push_to_substrate(ls, affect, state)
             # And read it back. `HomeostaticCoupling` says the continuous
             # substrate is the ground truth for felt state and blends it at
             # thirty percent — into a local dictionary used to pick cognitive
@@ -389,10 +388,25 @@ class AffectUpdatePhase(Phase):
             weight = max(0.0, min(1.0, float(
                 getattr(reading, "relative_displacement", reading.displacement)
             )))
-            affect.curiosity = max(
+            blended = max(
                 0.0,
                 min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
             )
+            affect.curiosity = blended
+            # And into the channel curiosity is kept in, not only the readout.
+            #
+            # `_derive_metrics` recomputes `affect.curiosity` from the emotion
+            # dictionary at the top of every turn, so a value written here was
+            # thrown away before the next one — the developmental state could
+            # colour one turn and never two, whatever it sensed. The emotions
+            # are where affect carries; everything else in this phase writes
+            # there and lets the readout follow.
+            if isinstance(getattr(affect, "emotions", None), dict):
+                held = float(affect.emotions.get("curiosity", blended) or 0.0)
+                affect.emotions["curiosity"] = max(
+                    0.0,
+                    min(1.0, (1.0 - weight) * held + weight * float(reading.novelty)),
+                )
             state.response_modifiers["ontogenetic_novelty"] = round(float(reading.novelty), 4)
             state.response_modifiers["ontogenetic_displacement"] = round(weight, 4)
             self._ground_affect(state, affect, novelty=float(reading.novelty))
@@ -550,7 +564,21 @@ class AffectUpdatePhase(Phase):
                 severity="warning",
             )
 
-    def _schedule_substrate_update(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
+    async def _push_to_substrate(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
+        """Push felt state into the continuous substrate, and wait for it.
+
+        This scheduled the write as a task nobody waited for. The very next
+        statement in the phase reads the substrate back to blend it into
+        affect, so the read raced the write; and the frame after it takes the
+        reading the whole C domain is measured from, so whether the push had
+        landed was decided by the event loop. Two arms of a paired trial
+        differing only in that gave the substrate's frustration channel a floor
+        of nineteen hundredths of a standard deviation — the largest in the
+        organism, on the one domain that has no outgoing edge.
+
+        The write is a lock and a handful of array elements. There is nothing
+        to schedule around.
+        """
         try:
             update = getattr(substrate, "update", None)
             if not callable(update):
@@ -578,9 +606,8 @@ class AffectUpdatePhase(Phase):
                 arousal=affect.arousal,
                 delta_curiosity=max(-1.0, min(1.0, step)),
             )
-            if not inspect.isawaitable(result):
-                return
-            create_tracked_task(result, name="affect_update.liquid_substrate")
+            if inspect.isawaitable(result):
+                await result
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
                 state,

@@ -58,8 +58,18 @@ def _snail(engine: ConationEngine, key: str = "snail", **kwargs):
 
 
 def _appraisals(triggers):
+    """Appraise each trigger, from a settled interior.
+
+    The first appraisal after a quiet stretch refreshes what is at stake — a
+    rate-limited pass that runs at most once every ninety seconds — so a
+    measurement whose first call pays for that and whose second does not is
+    comparing a transient against a settled state. Both sides of the
+    comparison below warm up the same way.
+    """
     from core.affect.damasio_v2 import AffectEngineV2
 
+    for _ in range(3):
+        AffectEngineV2._heuristic_appraisal("settling the interior", {"intensity": 0.7})
     return [
         tuple(AffectEngineV2._heuristic_appraisal(t, {"intensity": 0.7}).values())
         for t in triggers
