@@ -739,15 +739,29 @@ class CognitiveHeartbeat:
         """Gather lightweight state snapshots from existing systems."""
         state = {}
 
-        # Affect
+        # Affect, from the state the phases settle rather than from the engine
+        # that feeds them.
+        #
+        # `AffectUpdatePhase` writes `AuraState.affect` — the emotion channels,
+        # the substrate blend, the lifetime's novelty — and every other consumer
+        # of felt state reads it. The affect engine is one estimator among the
+        # inputs to that, and measured over six turns of two conditions it
+        # reported a valence of exactly 0.0 on every one of them while the
+        # state's moved between 0.17 and 0.29.
+        #
+        # The self-prediction loop below predicts valence from this reading and
+        # grades itself against it, so predicting a constant was free: its
+        # valence error was exactly zero for the life of the process, and so was
+        # its drive error. A self-model that cannot be wrong is not a model.
         try:
-            affect_engine = getattr(self.orch, "affect_engine", None)
-            if affect_engine and hasattr(affect_engine, "get"):
-                affect = await affect_engine.get()
-                state["affect_valence"] = affect.valence
-                state["affect_arousal"] = affect.arousal
-                state["affect_engagement"] = affect.engagement
-                state["affect_emotion"] = affect.dominant_emotion
+            if not self._felt_state_from_the_state(state):
+                affect_engine = getattr(self.orch, "affect_engine", None)
+                if affect_engine and hasattr(affect_engine, "get"):
+                    affect = await affect_engine.get()
+                    state["affect_valence"] = affect.valence
+                    state["affect_arousal"] = affect.arousal
+                    state["affect_engagement"] = affect.engagement
+                    state["affect_emotion"] = affect.dominant_emotion
         except (OSError, ConnectionError, TimeoutError) as e:
             _record_heartbeat_degradation(
                 e,
@@ -1233,6 +1247,26 @@ class CognitiveHeartbeat:
                 severity="warning",
             )
             logger.debug("Narrative injection failed: %s", e)
+
+
+    @staticmethod
+    def _felt_state_from_the_state(state: dict) -> bool:
+        """The affect the phases settled on. False when there is none to read."""
+        try:
+            from core.container import ServiceContainer
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            affect = getattr(current, "affect", None)
+            if affect is None:
+                return False
+            state["affect_valence"] = float(getattr(affect, "valence", 0.0) or 0.0)
+            state["affect_arousal"] = float(getattr(affect, "arousal", 0.0) or 0.0)
+            state["affect_engagement"] = float(getattr(affect, "engagement", 0.0) or 0.0)
+            state["affect_emotion"] = str(getattr(affect, "dominant_emotion", "neutral"))
+            return True
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return False
 
     def _compute_significance(
         self,

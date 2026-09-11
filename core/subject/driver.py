@@ -1339,6 +1339,22 @@ class SubjectRuntime:
             if fields:
                 _restore_organ(phase, fields)
 
+
+    def _publish_state(self) -> None:
+        """Point the repository at the state this driver is carrying.
+
+        Runtime paths that ask the container for the current state read it off
+        the repository, and this driver keeps its state in an attribute. Without
+        this they read None: present, registered, and never exercised.
+        """
+        vault = getattr(self.kernel, "vault", None)
+        if vault is None:
+            return
+        try:
+            vault._current = self.state
+        except (AttributeError, TypeError):
+            return
+
     def _refresh_health(self) -> None:
         """Run the kernel's own end-of-tick projection over the finished state."""
         refresh = getattr(self.state, "_refresh_cognitive_health", None)
@@ -1452,6 +1468,7 @@ class SubjectRuntime:
         for name, saved in snapshot.organs.items():
             _restore_organ(getattr(self.organs, name, None), saved)
         self.state = copy.deepcopy(snapshot.state)
+        self._publish_state()
         self.ontogeny.h = np.array(snapshot.hidden, copy=True)
         self.ontogeny.steps = snapshot.steps
         self.ontogeny.era = snapshot.era
@@ -1567,6 +1584,7 @@ class SubjectRuntime:
                 )
                 if result is not None:
                     self.state = result
+                    self._publish_state()
             except BaseException as exc:  # noqa: BLE001 - a phase that dies is a reading
                 self.failures[name] = self.failures.get(name, 0) + 1
                 self.failure_notes[name] = f"{type(exc).__name__}: {exc}"[:200]
@@ -2216,6 +2234,19 @@ async def calibrate_clock(
     return reading
 
 
+
+def _publish_repository(runtime: SubjectRuntime) -> None:
+    """Register this run's vault under the name the tree reads it by."""
+    vault = getattr(runtime.kernel, "vault", None)
+    if vault is None:
+        return
+    try:
+        from core.container import ServiceContainer
+
+        ServiceContainer.register_instance("state_repository", vault, required=False)
+    except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
+        logger.warning("could not register the run's state repository: %s", exc)
+
 async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
     """Stop the free-running loops before the paired arms begin."""
     from core.subject.organism import _live_tasks, quiesce
@@ -2241,6 +2272,12 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
     from core.subject.organism import bring_up
 
     organism = await bring_up(quiet=quiet)
+    # After the bring-up, because it registers the services again and its own
+    # registration replaces the one `build_runtime` made. The name has to point
+    # at the vault this run is actually carrying its state in, or every runtime
+    # path that reads the current state off the container reads someone else's
+    # empty one.
+    _publish_repository(runtime)
     runtime.heartbeat = organism.heartbeat
     # N reads the organ's shared lifetime reservoir, not a private one. A
     # private reservoir would be a second life running beside the real one and
