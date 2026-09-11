@@ -136,6 +136,10 @@ subject-core-integrity:
 	@$(PYTHON) tools/audit_unseeded_randomness.py --check
 	@echo "🔬 Checking that nothing is written and replaced in one cycle..."
 	@$(PYTHON) tools/audit_overwritten_in_the_same_cycle.py --check
+	@echo "🔬 Checking that no result is assembled into a mapping nothing reads..."
+	@$(PYTHON) tools/audit_return_paths_into_local_dicts.py --check
+	@echo "🔬 Checking every state field is in a domain or named outside it..."
+	@$(PYTHON) tools/audit_state_outside_the_core.py --check
 	@echo "🔬 Checking the completion tracker against what actually passes..."
 	@$(PYTHON) tools/isc_completion_status.py --check
 

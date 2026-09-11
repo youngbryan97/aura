@@ -3304,6 +3304,188 @@
     "note": "information retrieval is one of the four she cycles through, and its ownership divergence clears its own floor",
     "status": "done"
   },
+  "P27.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "parser\\.add_argument\\(\"--epochs\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "parser\\.add_argument\\(\"--turns-per-epoch\""
+      }
+    ],
+    "note": "a life is run in epochs rather than turns, and the experiment is built to be run longer by raising one number",
+    "status": "done"
+  },
+  "P27.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "^HISTORY_A: tuple\\[str, \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "^HISTORY_B: tuple\\[str, \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"reservoir_a_vs_b\""
+      }
+    ],
+    "note": "two lives forked from one snapshot, given histories named before the run, and the divergence in N measured",
+    "status": "done"
+  },
+  "P27.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "rows\\.append\\(np\\.concatenate\\(\\[reading\\.values\\[key\\] for key in FAST_DOMAINS\\]\\)\\)"
+      }
+    ],
+    "note": "and the downstream divergence measured over the fast domains in that shared environment",
+    "status": "done"
+  },
+  "P27.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"reservoir_survived\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "does not survive a process boundary is a cache"
+      }
+    ],
+    "note": "the developmental state is carried across a snapshot and a restore, because a state that does not survive a process boundary is a cache",
+    "status": "done"
+  },
+  "P27.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "freeze: bool = False"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "the whole argument\\. Anything the frozen twin also shows"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"development_rather_than_accumulation\""
+      }
+    ],
+    "note": "a third fork lives the same history with its reservoir frozen, so anything it also shows is accumulation rather than development",
+    "status": "done"
+  },
+  "P27.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "only the\\n                # reservoir is held where it started, so its memory and its\\n                # stores accumulate exactly as the others do"
+      }
+    ],
+    "note": "the frozen twin's memory grows and its stores fill exactly as the others do; only the reservoir is held still",
+    "status": "done"
+  },
+  "P27.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"epoch\": epoch,"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"era\": int\\(getattr\\(runtime\\.ontogeny, \"era\", 1\\)\\)"
+      }
+    ],
+    "note": "development is measured epoch by epoch: the steps taken, the era reached, the novelty met and what the reservoir holds",
+    "status": "done"
+  },
+  "P27.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"saturation_first\": saturation\\[0\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"novelty_last\": novelty\\[-1\\]"
+      }
+    ],
+    "note": "every epoch is its own analysis window, first and last compared rather than pooled",
+    "status": "done"
+  },
+  "P27.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"saturated\": bool\\(saturation\\[-1\\] > 0\\.95\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "A reservoir pinned at its ceiling has stopped carrying anything\\n            # new"
+      }
+    ],
+    "note": "whether the reservoir ran out of room is measured rather than assumed: a state pinned at its ceiling has stopped carrying anything new",
+    "status": "done"
+  },
+  "P27.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"novelty_fell_with_experience\""
+      }
+    ],
+    "note": "novelty is recorded per epoch, so whether it falls as experience grows is a reading rather than a claim",
+    "status": "done"
+  },
+  "P27.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "Cosine distance, which does not grow just because both grew"
+      }
+    ],
+    "note": "the reservoir is compared by cosine distance, which does not grow just because both lives grew",
+    "status": "done"
+  },
+  "P27.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "async def _same_room"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_ontogeny_lives.py",
+        "pattern": "\"same_room_afterwards\""
+      }
+    ],
+    "note": "both lives are put back into the same environment afterwards, and what they do there is compared",
+    "status": "done"
+  },
   "P28.1": {
     "checks": [
       {
