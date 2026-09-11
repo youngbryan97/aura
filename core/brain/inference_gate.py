@@ -2728,13 +2728,28 @@ class InferenceGate:
                 "state": "recovering",
                 "readiness_blockers": ["cortex_status_invalid"],
             }
-        blockers = [
+        raw_blockers = [
             str(item)
             for item in (candidate.get("readiness_blockers") or ())
             if str(item or "").strip()
         ]
+        # A visible conversation is the public proof that the whole chat path
+        # works.  It is not a prerequisite for materializing that path.  The
+        # server intentionally holds public chat readiness false while it
+        # warms the non-model dependencies, so carrying this one public-proof
+        # blocker into the internal Cortex probe creates an impossible cycle:
+        # dependencies wait for a visible turn that dependencies themselves
+        # prevent.  Preserve every model/worker blocker and bypass only the
+        # proof that this internal probe exists to make possible.
+        blockers = [
+            item for item in raw_blockers if item != "visible_conversation_probe_missing"
+        ]
+        model_lane_ready = bool(candidate.get("conversation_ready")) or (
+            str(candidate.get("state") or "").strip().lower() == "ready"
+            and raw_blockers == ["visible_conversation_probe_missing"]
+        )
         return {
-            "conversation_ready": bool(candidate.get("conversation_ready")) and not blockers,
+            "conversation_ready": model_lane_ready and not blockers,
             "state": str(candidate.get("state") or "cold"),
             "readiness_blockers": blockers,
         }

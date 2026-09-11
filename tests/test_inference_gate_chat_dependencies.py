@@ -19,6 +19,16 @@ class _ReadyClient:
         }
 
 
+class _ReadyClientAwaitingVisibleProof:
+    def get_lane_status(self):
+        return {
+            "state": "ready",
+            "conversation_ready": False,
+            "readiness_blockers": ["visible_conversation_probe_missing"],
+            "warmup_attempted": True,
+        }
+
+
 def test_chat_dependencies_block_public_readiness_after_cortex_is_ready():
     gate = InferenceGate()
     gate._mlx_client = _ReadyClient()
@@ -46,6 +56,41 @@ def test_chat_dependencies_release_same_resident_lane_without_reloading_model():
     assert public["conversation_ready"] is True
     assert public["chat_dependencies_ready"] is True
     assert "chat_dependencies_warming" not in public["readiness_blockers"]
+
+
+def test_dependency_warmup_can_start_before_the_first_visible_turn():
+    gate = InferenceGate()
+    gate._mlx_client = _ReadyClientAwaitingVisibleProof()
+    gate.set_chat_dependencies_ready(False)
+
+    cortex = gate.get_cortex_readiness_status()
+    public = gate.get_conversation_status()
+
+    assert cortex == {
+        "conversation_ready": True,
+        "state": "ready",
+        "readiness_blockers": [],
+    }
+    assert public["conversation_ready"] is False
+    assert "visible_conversation_probe_missing" in public["readiness_blockers"]
+    assert "chat_dependencies_warming" in public["readiness_blockers"]
+
+
+def test_dependency_warmup_never_hides_a_real_cortex_blocker():
+    class _BlockedClient(_ReadyClientAwaitingVisibleProof):
+        def get_lane_status(self):
+            lane = super().get_lane_status()
+            lane["state"] = "recovering"
+            lane["readiness_blockers"].append("worker_progress_stale")
+            return lane
+
+    gate = InferenceGate()
+    gate._mlx_client = _BlockedClient()
+
+    cortex = gate.get_cortex_readiness_status()
+
+    assert cortex["conversation_ready"] is False
+    assert cortex["readiness_blockers"] == ["worker_progress_stale"]
 
 
 @pytest.mark.parametrize("ready", [True, False])
