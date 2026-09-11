@@ -185,3 +185,39 @@ selects excerpts; it cannot establish agreement or absence. Corrections and
 adjacent replies remain together. The shared-history, custody and screen
 regressions passed 89 tests in 7.03 seconds. Final smoke passed 164 tests with
 one skip in 67.60 seconds; lint, compile, governance-lint and layering passed.
+
+Checkpoint `da2fe8952` was pushed and its three production files applied to
+the launch checkout. UI reboot at 15:30:12 saved state and completed service
+teardown, but PID 32432 lingered. A native process sample was retained at
+`/tmp/aura-r09-0911/shutdown-sample.txt`. A targeted SIGTERM was observed;
+the process subsequently exited with code zero. Later SIGUSR1 and SIGKILL
+attempts both returned no-such-process and had no effect. Relaunch raced the
+desktop launcher: PID 59539 stopped before event-loop boot, and orphan cleanup
+reaped waiter 58765. Launcher-owned PID 59679 became the sole live instance.
+This is recovery, not a clean restart proof; the launch ownership race remains
+an R01/R02 observation.
+
+Boot verified source snapshot
+`e8dacf2f79359f5414c421985a36c3a9b3180876f28e1fd16e797f0e388eae0f`,
+with readiness true and no revision issues. The unchanged reading-group
+question was submitted at 15:34:54, delivery
+`aura-chat-61e0334a-b8f2-450a-92ad-a5e22d7fbfb4`, turn
+`eb879aff0aff4c42abbdae4e53f4c9b0`. The 83-message conversation reached
+the resident worker as 9,572 tokens without the previous context rejection.
+Its answer is pending at this recording.
+
+At 15:36:13 it answered "Gone Girl by Gillian Flynn." The receipt reports
+one attempt, one generation, zero text mutations, and 40 retained exchanges.
+This passes the identical title-recall replay after restart.
+
+The next paraphrase, "What did you get wrong before that, and what was my
+reason for correcting you?", delivery
+`aura-chat-f1b39e13-ee70-4588-b887-9386a5525f84`, exposed two more false
+rejections. Coverage marked the first part missing. A subsequent accurate
+short-story/novel correction beginning "I called The Tell-Tale Heart a novel"
+was rejected as `unfounded_tool_execution_claim`: the detector treated any
+first-person "called" as invocation, regardless of its object. Repeated
+generation was stopped at 15:41:46 and the one cancellation acknowledgement
+was delivered. This replay fails R09; the retained title result does not
+override it. Repairs and focused regressions for the shared validators are
+in progress, with 50 direct tests and 32 related reliability tests passing.

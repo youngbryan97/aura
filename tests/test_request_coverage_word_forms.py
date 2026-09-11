@@ -37,3 +37,13 @@ def test_live_correction_answer_already_covers_the_reason():
 
 def test_unrelated_words_do_not_supply_evidence():
     assert matching_word_forms({"correcting", "reason"}, {"weather", "sunny"}) == set()
+
+
+def test_deictic_followup_does_not_require_repeating_grammatical_scaffolding():
+    contract = SimpleNamespace(
+        requires_single_reply_coverage=True, numbered_parts=0,
+        question_segments=("What did you get wrong before that", "what was my reason for correcting you?"),
+    )
+    answer = "I recommended a short story. You corrected me because you wanted a novel."
+    assert unanswered_question_parts(answer, contract) == []
+    assert unanswered_question_parts("The weather is sunny.", contract)

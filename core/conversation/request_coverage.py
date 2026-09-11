@@ -22,6 +22,7 @@ from core.language.word_forms import matching_word_forms
 _COVERAGE_STOPWORDS = frozenset(
     {
         "about",
+        "after",
         "actually",
         "again",
         "and",
@@ -34,6 +35,7 @@ _COVERAGE_STOPWORDS = frozenset(
         "aura",
         "because",
         "been",
+        "before",
         "being",
         "both",
         "but",
@@ -48,6 +50,7 @@ _COVERAGE_STOPWORDS = frozenset(
         "done",
         "for",
         "from",
+        "get",
         "give",
         "had",
         "has",

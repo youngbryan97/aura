@@ -54,6 +54,11 @@ RECEIPT = ({"tool": "web_search", "ok": True},)
 
 # (label, reply, receipts, is_an_unfounded_claim)
 CASES: list[tuple[str, str, tuple, bool]] = [
+    ("classification", "I called The Tell-Tale Heart a novel, but it is a short story.", (), False),
+    ("naming", "I called that approach cautious because it preserves the original.", (), False),
+    ("callable invocation", "I called calculate_total() and got 42.", (), True),
+    ("qualified invocation", "I called os.getpid() and got 42.", (), True),
+    ("tool invocation", "I have called the tool and received its result.", (), True),
     (
         "the live fabrication, verbatim",
         "I can use DuckDuckGo, WolframAlpha, and Python. Let's do a quick "

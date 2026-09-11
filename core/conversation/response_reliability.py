@@ -6142,8 +6142,16 @@ def _has_unfounded_voice_intrusion(
 _TOOL_EXECUTION_CLAIM_RE = re.compile(
     r"(?:"
     # First-person past execution.
-    r"\bi\s+(?:just\s+)?(?:ran|executed|invoked|called)\b"
-    r"|\bi(?:'ve|\s+have)\s+(?:just\s+)?(?:run|executed|invoked|called)\b"
+    r"\bi\s+(?:just\s+)?(?:ran|executed|invoked)\b"
+    r"|\bi(?:'ve|\s+have)\s+(?:just\s+)?(?:run|executed|invoked)\b"
+    # Calling something a name is not invoking a tool. Require a callable
+    # object or an explicit execution noun before treating "called" as proof.
+    r"|\bi(?:'ve|\s+have)?\s+(?:just\s+)?called\s+"
+    r"(?:(?:the|a|an)\s+)?(?:"
+    r"(?:tool|function|method|API|endpoint|command|script|procedure)\b"
+    r"|`?[A-Za-z_]\w*(?:\.\w+)+\s*\("
+    r"|`?[A-Za-z_]\w*\s*\("
+    r")"
     # Retrieval is execution too.  "I looked it up" used to pass because the
     # detector recognized only the mechanics (ran/invoked/called), letting an
     # unrelated older search receipt become a plausible story about this turn.
