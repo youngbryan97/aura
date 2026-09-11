@@ -9,6 +9,7 @@ downstream of it changed.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 import pytest
 
@@ -24,7 +25,7 @@ def _loaded() -> None:
 
 
 @pytest.fixture()
-def service() -> InteriorityService:
+def service() -> Iterator[InteriorityService]:
     """A fresh layer on a fixed stream.
 
     Release through the synaptic cleft is probabilistic and the cleft draws
@@ -37,8 +38,16 @@ def service() -> InteriorityService:
     """
     import random
 
+    # Put the stream back afterwards. Seeding the process generator inside a
+    # fixture and leaving it seeded changes the stream every test after this
+    # one draws from, which is the same defect one level up: a test that
+    # controls randomness must control it for itself alone.
+    saved = random.getstate()
     random.seed(20260911)
-    return InteriorityService()
+    try:
+        yield InteriorityService()
+    finally:
+        random.setstate(saved)
 
 
 def test_appraisal_tracks_what_is_held_not_what_is_said(

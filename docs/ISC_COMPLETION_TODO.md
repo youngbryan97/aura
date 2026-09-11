@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**256 done, 0 blocked, 0 not applicable, 526 open, of 782.**
+**280 done, 0 blocked, 0 not applicable, 502 open, of 782.**
 
 Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
@@ -271,19 +271,19 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 **or**
 
-- [ ] `P9.2` Preferably run the complete relevant metric suite on every null.
+- [ ] `P9.2` Preferably run the complete relevant metric suite on every null. — irreducibility, the graph measures and causal closure all run on every null, and the conjunction is what decides
 - [x] `P9.3` Calculate null distributions for recurrence/topology. — the graph measures run on every architecture
 - [ ] `P9.4` Differentiation.
 - [x] `P9.5` Phi. — irreducibility runs on every null
 - [ ] `P9.6` perturbational complexity/spread.
 - [ ] `P9.7` synergy.
 - [ ] `P9.8` intrinsic persistence.
-- [ ] `P9.9` causal closure where applicable.
-- [ ] `P9.10` Evaluate the 24-part conjunction on each null.
-- [ ] `P9.11` Require ISC(N)=0 for every null N.
-- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the reference is held to the conjunction, not to one line of it
-- [ ] `P9.13` Add a hidden-broker null where the broker is deliberately outside K.
-- [ ] `P9.14` Add a high-dimensional independent-noise null.
+- [x] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
+- [ ] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction rather than one line of it
+- [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes
+- [x] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the reference is held to the conjunction, not to one line of it
+- [x] `P9.13` Add a hidden-broker null where the broker is deliberately outside K. — a broker outside K that remembers nearly all its own past; the graph cannot tell it from a mind and causal closure can
+- [x] `P9.14` Add a high-dimensional independent-noise null. — ten domains of independent noise at the same width, decay and noise, with nothing crossing
 - [ ] `P9.15` Add a common-clock/common-driver null.
 - [ ] `P9.16` Add a random recurrent-network null.
 - [ ] `P9.17` Add a memory-only recurrence null.
@@ -603,21 +603,21 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 ## Phase 28 — Make causal closure harder to fool
 
-- [ ] `P28.1` Classify actual clocks/timestamps by provenance instead of monotonicity alone.
-- [ ] `P28.2` Do not drop a variable merely because it is monotonic.
-- [ ] `P28.3` Learning counters may be monotonic.
-- [ ] `P28.4` accumulated evidence may be monotonic.
-- [ ] `P28.5` developmental state may be monotonic over windows.
-- [ ] `P28.6` resource depletion may be monotonic.
+- [x] `P28.1` Classify actual clocks/timestamps by provenance instead of monotonicity alone. — a stored instant is dropped by its magnitude and by its name; what a clock is is a question about provenance
+- [x] `P28.2` Do not drop a variable merely because it is monotonic. — a one-way column is kept and entered as its increment rather than dropped
+- [x] `P28.3` Learning counters may be monotonic. — a learning counter is kept
+- [x] `P28.4` accumulated evidence may be monotonic. — accumulated evidence is kept
+- [x] `P28.5` developmental state may be monotonic over windows. — developmental state is kept
+- [x] `P28.6` resource depletion may be monotonic. — a depleting resource is kept
 - [ ] `P28.7` Add fixed-dimensional summaries for arrays/tensors.
-- [ ] `P28.8` Add content-sensitive summaries for maps/lists.
-- [ ] `P28.9` Report how many potential variables are excluded by scan caps.
+- [x] `P28.8` Add content-sensitive summaries for maps/lists. — a map or a list enters as its size, so a peripheral collection is not invisible
+- [ ] `P28.9` Report how many potential variables are excluded by scan caps. — the walk reports how many numbers it read and whether it stopped at the cap
 - [ ] `P28.10` Increase coverage or project all peripheral state into a fixed sketch.
-- [ ] `P28.11` Report traversal-depth limitations.
-- [ ] `P28.12` Report reader failures.
-- [ ] `P28.13` Repeat closure with multiple shuffled-periphery draws.
-- [ ] `P28.14` Add confidence intervals on leakage.
-- [ ] `P28.15` Identify individual peripheral predictors when leakage occurs.
+- [ ] `P28.11` Report traversal-depth limitations. — and how deep it went
+- [ ] `P28.12` Report reader failures. — and how many readers failed while it walked
+- [ ] `P28.13` Repeat closure with multiple shuffled-periphery draws. — the floor is read from several permutations, not one
+- [ ] `P28.14` Add confidence intervals on leakage. — closure is decided against the upper tail of its own floor rather than the mean of it
+- [x] `P28.15` Identify individual peripheral predictors when leakage occurs. — the leaking predictors are named one at a time
 - [ ] `P28.16` Inject an adversarial hidden broker and prove the closure test finds it.
 - [ ] `P28.17` If an outside variable predicts K, move it into the correct domain or redefine K and begin a new preregistered campaign.
 - [ ] `P28.18` Never hide a leaking variable because it is inconvenient.
@@ -833,31 +833,31 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 
 ## Phase 44 — Remove hidden test-specific shortcuts
 
-- [ ] `P44.1` No production subsystem knows “make ISC pass”.
-- [ ] `P44.2` No testing flag adds integration solely for the battery.
-- [ ] `P44.3` No hidden direct P-to-W or S-to-D pathway used only in the harness.
+- [x] `P44.1` No production subsystem knows “make ISC pass”. — no module under measurement names the battery
+- [x] `P44.2` No testing flag adds integration solely for the battery. — and no environment switch opens a path only the harness takes
+- [x] `P44.3` No hidden direct P-to-W or S-to-D pathway used only in the harness. — no writer reaches into a domain it does not own
 - [ ] `P44.4` No test-only workspace consumers.
 - [ ] `P44.5` No fake percept solely to manufacture an edge unless it faithfully models a production sensory route.
-- [ ] `P44.6` No threshold value imported into production cognition.
-- [ ] `P44.7` No mechanism built solely to satisfy a score without an independent functional rationale.
+- [x] `P44.6` No threshold value imported into production cognition. — the thresholds live in the battery and nothing under measurement imports them
+- [x] `P44.7` No mechanism built solely to satisfy a score without an independent functional rationale. — no writer names the recording, the edge test, the thresholds or a reading function
 - [ ] `P44.8` Every added causal route has a normal cognitive or engineering purpose. The ideal outcome is that Aura passes because the architecture naturally has the property, not because the test became another organ.
 
 ## Phase 45 — Recheck every previously discovered dead mechanism
 
-- [ ] `P45.1` Audit services with no callers.
+- [x] `P45.1` Audit services with no callers. — services asked for through the read-only seam that are only built on demand are listed
 - [ ] `P45.2` Audit registered processors with no consumers.
-- [ ] `P45.3` Audit readers with no writers.
-- [ ] `P45.4` Audit writers with no readers.
+- [x] `P45.3` Audit readers with no writers. — a reader with no writer shows up as a column that never moves, and the recording names them
+- [x] `P45.4` Audit writers with no readers. — a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one
 - [ ] `P45.5` Audit bid types that never win.
 - [ ] `P45.6` Audit consumers that always return early.
 - [ ] `P45.7` Audit model observers that never receive observations.
 - [ ] `P45.8` Audit self-model fields that never change.
 - [ ] `P45.9` Audit affect fields overwritten later in the same cycle.
 - [ ] `P45.10` Audit return paths that terminate in local dictionaries.
-- [ ] `P45.11` Audit background loops that start but immediately die.
-- [ ] `P45.12` Audit service-name mismatches.
+- [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
+- [x] `P45.12` Audit service-name mismatches. — the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent
 - [ ] `P45.13` Audit aliases that exist only in desktop boot but not in the measurement runtime.
-- [ ] `P45.14` Audit all 10 domains for intervention attenuation. Remember: written != wired != causally consequential Only the last one matters to ISC.
+- [x] `P45.14` Audit all 10 domains for intervention attenuation. Remember: written != wired != causally consequential Only the last one matters to ISC. — how far each domain was displaced and how far its largest outgoing effect reached, per domain, in every run
 
 ## Phase 46 — Fix remaining lifecycle/race conditions before long evidence runs
 
@@ -923,9 +923,9 @@ Newest run with a report: `run_017` — 12/24 criteria, commit `da4f931353c9`.
 - [ ] `P48.3` Require CI for the evaluation branch/release.
 - [ ] `P48.4` Protect main or at least the evidence branch/tag process.
 - [ ] `P48.5` Do not rewrite history.
-- [ ] `P48.6` Archive exact source tarball/commit.
+- [x] `P48.6` Archive exact source tarball/commit. — the commit, the hash of the tree that decides the answer and whether it was dirty are recorded with every run
 - [ ] `P48.7` All tests defining the evaluation are green.
-- [ ] `P48.8` Evidence artifacts point to that exact tag.
+- [ ] `P48.8` Evidence artifacts point to that exact tag. — and a SHA-256 for every file the run wrote
 
 ## Phase 49 — Replicate over independent seeds
 

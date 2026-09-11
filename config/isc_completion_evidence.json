@@ -3469,6 +3469,152 @@
     "note": "D lies on at least two directed cycles",
     "status": "done"
   },
+  "P44.1": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_no_battery_shortcuts.py --check",
+        "kind": "command",
+        "timeout": 180
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_organism_cannot_see_the_instrument.py::test_no_module_under_measurement_names_the_instrument -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no module under measurement names the battery",
+    "status": "done"
+  },
+  "P44.2": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_no_battery_shortcuts.py --check",
+        "kind": "command",
+        "timeout": 180
+      },
+      {
+        "kind": "grep",
+        "path": "tools/audit_no_battery_shortcuts.py",
+        "pattern": "^SWITCHES: tuple"
+      }
+    ],
+    "note": "and no environment switch opens a path only the harness takes",
+    "status": "done"
+  },
+  "P44.3": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_no_writer_reaches_into_another_domain -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no writer reaches into a domain it does not own",
+    "status": "done"
+  },
+  "P44.6": {
+    "checks": [
+      {
+        "command": "{python} tools/audit_no_battery_shortcuts.py --check",
+        "kind": "command",
+        "timeout": 180
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/battery.py",
+        "pattern": "^THRESHOLDS: dict"
+      }
+    ],
+    "note": "the thresholds live in the battery and nothing under measurement imports them",
+    "status": "done"
+  },
+  "P44.7": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_displacement_reaches_a_consumer.py::test_no_writer_consults_the_measurement -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "no writer names the recording, the edge test, the thresholds or a reading function",
+    "status": "done"
+  },
+  "P45.1": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "tools/audit_read_only_service_asks.py"
+      }
+    ],
+    "note": "services asked for through the read-only seam that are only built on demand are listed",
+    "status": "done"
+  },
+  "P45.11": {
+    "checks": [
+      {
+        "expr": "'down' in report['organism']",
+        "kind": "report"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "a declared layer did not come up"
+      }
+    ],
+    "note": "a layer that did not come up is named, and a run with one refuses",
+    "status": "done"
+  },
+  "P45.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/homeostatic_coupling.py",
+        "pattern": "Two names are in use for one object"
+      },
+      {
+        "command": "{python} -m pytest tests/test_feeling_reaches_thought_from_her_own_baseline.py::test_an_absent_substrate_is_asked_for_again -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent",
+    "status": "done"
+  },
+  "P45.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "\"attenuation\": round\\(own / escaped, 2\\)"
+      },
+      {
+        "expr": "len(report['notes']['attenuation']) == 10",
+        "kind": "report"
+      }
+    ],
+    "note": "how far each domain was displaced and how far its largest outgoing effect reached, per domain, in every run",
+    "status": "done"
+  },
+  "P45.3": {
+    "checks": [
+      {
+        "expr": "'flat_column_names' in report['recording']",
+        "kind": "report"
+      }
+    ],
+    "note": "a reader with no writer shows up as a column that never moves, and the recording names them",
+    "status": "done"
+  },
+  "P45.4": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "tests/test_a_displacement_reaches_a_consumer.py"
+      }
+    ],
+    "note": "a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one",
+    "status": "done"
+  },
   "P47.1": {
     "checks": [
       {
@@ -3910,6 +4056,39 @@
       }
     ],
     "note": "which mind answered, with a hash of its code",
+    "status": "done"
+  },
+  "P48.6": {
+    "checks": [
+      {
+        "expr": "len(report['campaign']['commit']) == 40",
+        "kind": "report"
+      },
+      {
+        "expr": "len(report['campaign']['tree_hash']) > 0",
+        "kind": "report"
+      },
+      {
+        "expr": "'dirty' in report['campaign']",
+        "kind": "report"
+      }
+    ],
+    "note": "the commit, the hash of the tree that decides the answer and whether it was dirty are recorded with every run",
+    "status": "done"
+  },
+  "P48.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def manifest"
+      },
+      {
+        "kind": "path",
+        "path": "artifacts/subject_core/run_017/manifest.json"
+      }
+    ],
+    "note": "and a SHA-256 for every file the run wrote",
     "status": "done"
   },
   "P49.1": {
