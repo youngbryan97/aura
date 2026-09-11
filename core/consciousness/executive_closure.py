@@ -319,9 +319,17 @@ class ExecutiveClosureEngine:
             state.phi_estimate = phi_estimate
             state.phi = phi_estimate
         else:
-            if not state.phi_estimate and state.phi:
+            if state.phi:
                 # The estimate has no other writer at all, so carry the
                 # measurement into it rather than leaving a field nothing fills.
+                #
+                # Every turn, not only the first. The guard here was
+                # `not state.phi_estimate`, which filled the field once and
+                # latched it: with the closed loop silent there is no earlier
+                # reading to protect, so all the guard did was keep the first
+                # value for the life of the state while `phi` moved underneath
+                # it. Recurrent cognition's own headline number was a constant
+                # in every recording the battery has made.
                 state.phi_estimate = float(state.phi)
             # And bind the local from what the state now holds. The first
             # version bound it only on the branch where the closed loop
