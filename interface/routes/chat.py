@@ -15320,6 +15320,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             normalized_recovery_reasons = {reason.lower() for reason in reason_tuple}
             completion_recovery = bool(
                 rejected_reply and normalized_recovery_reasons & completion_failure_reasons
+                # A state projection can be incomplete without there ever
+                # having been a model generation to resume. Its text is not
+                # an assistant tail and cannot mint a continuation identity.
+                and _live_turn_trace.get("foreground_model_generation_consumed")
             )
             if (
                 bool(
@@ -15367,11 +15371,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 return None
 
-            recovery_message = _build_cognitive_engine_reply_repair_directive(
-                _semantic_user_message,
-                rejected_reply,
-                reason_tuple,
-            )
+            recovery_message = _semantic_user_message
             recovery_trace: dict[str, Any] = {}
             try:
                 recovered = await _run_cognitive_engine_chat_turn(

@@ -155,3 +155,44 @@ execution owner's stopping token before any worker or client mutation, so
 other fallback callers cannot admit work for a stopped owner. The focused
 tool/client suites passed 113 tests in 31.96 seconds. This is a new live
 cancellation defect with a tested repair; it is not yet a passing live replay.
+
+## Repaired tool Stop replay
+
+Checkpoint `9a64751d5` was applied with the UI identity follow-up. Supported
+reboot replaced PID 10940 with PID 16694. Boot verified workspace
+`9fe8f017b7352d55c657c73424789be38c1955438319f18b4b2badd8e579d888`,
+with source_current/source_verified true and no issues.
+
+The identical switches-and-bulbs request took the same tool-capable path.
+Stop interrupted worker job 3 at 448/1619 prefill tokens at 21:03:32.077.
+Delivery `aura-chat-278d89c5-808c-40c3-b2c6-cbf21c91f12a`, turn
+`4614b66141b64cf59e4ad22f331a7f0b`, sealed at 21:03:32.449. The desktop
+displayed one acknowledgement in that same second. No fallback generation
+started. The next turn, delivery
+`aura-chat-d7502048-b2ce-461b-a049-c9ef18bdcf2d`, correctly recalled
+"Gone Girl by Gillian Flynn" at 21:05:31 on the same process.
+
+The delivery-journal, cancellation, and live-persistence suites passed
+59 tests in 13.20 seconds. Ordinary and tool-path cancellation are live-passed;
+the distinct latent-worker cancellation replay remains outstanding.
+
+## Recovery ownership and a slow reconnect reader
+
+Delivery `aura-chat-49873e39-96d6-4a1d-baf4-04c42e7b344b`, turn
+`5ed574b436d445f9b86736b4119e3637`, failed after the primary model produced
+2,150 characters. A short runtime self-evidence projection was incomplete;
+recovery classified that text as a prior model segment even though the turn
+had no consumed generation or transaction identity. The resulting completion
+could not prove ownership. Recovery now resumes only consumed model work;
+otherwise it submits the original question as a new CognitiveEngine turn.
+It no longer replaces that question with a repair directive. The production
+closure has executable tests for both cases. Five focused checks and 22
+continuation/ownership regressions passed. Smoke passed 164 with one skipped;
+lint, compile and layering passed. Live replay is pending.
+
+Reload retained one answer per current-runtime exchange with separate saved
+history IDs, but restored only four exchanges. The neural log identifies the
+cause: conversation_history_read exceeded its 1,500 ms wait and discarded the
+result. A read-only query of the 3,002-row conversation database returned the
+requested 600 rows in 9.8 ms outside the live executor. Older history is still
+stored; the saturated read path, not retention, is the remaining defect.
