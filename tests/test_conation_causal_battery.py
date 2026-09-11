@@ -57,44 +57,72 @@ def _snail(engine: ConationEngine, key: str = "snail", **kwargs):
 # ── the measurement that motivates the package ───────────────────────────
 
 
-def test_affect_path_no_longer_collapses_all_five_cases_to_one_point():
-    """It fired, and what it caught was an improvement.
-
-    This pinned a defect: five situations, one appraisal, identical output,
-    with a docstring saying that if it ever failed then PAD had gained an axis
-    and conation might go. It failed on 2026-09-02, separating the five by a
-    maximum distance of 0.86.
-
-    The cause is that appraisal moved to core.interiority, which reads what is
-    at stake rather than scanning thirty words. So the original claim — that a
-    separate conative layer is necessary because the affect path cannot tell
-    these apart — no longer rests on this test.
-
-    That is not the same as conation being ornamental, and this test does not
-    decide it. What conation adds beyond a discriminating affect path is an
-    open question, and `test_conation_separates_the_same_five_cases` below
-    still measures the topology it claims. Recorded here rather than deleted,
-    because a defect that got fixed is worth as much as one that got found.
-    """
+def _appraisals(triggers):
     from core.affect.damasio_v2 import AffectEngineV2
 
-    triggers = (
-        "another child is playing with the toy and now I want it",
-        "the smell of something tasty, my heart jumps",
-        "a snail on the path, I want to pick it up and see it",
-        "playfully flustering someone I am fond of",
-        "they agreed to teach me the thing I have been wanting to learn",
-    )
-    points = [
+    return [
         tuple(AffectEngineV2._heuristic_appraisal(t, {"intensity": 0.7}).values())
         for t in triggers
     ]
-    distances = [math.dist(a, b) for a, b in itertools.combinations(points, 2)]
-    assert max(distances) > 0.1, (
-        "the affect path has collapsed back to one point; the relational "
-        "appraisal has stopped reading what is at stake and something is "
-        "scoring words again"
+
+
+def _spread(points):
+    return max(math.dist(a, b) for a, b in itertools.combinations(points, 2))
+
+
+FIVE = (
+    "another child is playing with the toy and now I want it",
+    "the smell of something tasty, my heart jumps",
+    "a snail on the path, I want to pick it up and see it",
+    "playfully flustering someone I am fond of",
+    "they agreed to teach me the thing I have been wanting to learn",
+)
+
+
+def test_the_affect_path_tells_five_cases_apart_no_better_than_one_from_itself():
+    """The measurement the package exists to answer, and its false dawn.
+
+    Five situations that behave nothing alike, one appraisal each, and the
+    three numbers come out the same. That is what motivates a separate
+    conative layer, and it is what this has measured from the start.
+
+    It reported the opposite for nine days. On 2026-09-02 the five points
+    separated by 0.86 and the reading was recorded as an improvement: appraisal
+    had moved to `core.interiority`, which reads what is at stake rather than
+    scanning thirty words, so the collapse looked solved. It was not. The
+    interiority tick returns the frame plus every faculty scaled by what the
+    synaptic cleft transmitted, and in that medium a channel used a moment ago
+    releases more readily than one that has been quiet. The five
+    points were separating in the order they were evaluated, and appraising one
+    trigger five times running moved it 0.43, further than the five different
+    triggers moved between them.
+
+    So the comparison is made against that: five different events beside one
+    event repeated the same number of times. No threshold is needed, and a
+    medium drifting under a loop cannot be read as discrimination, because it
+    moves both sides equally. `appraise` reports the event's own reading now,
+    and five situations with nothing at stake read alike — which is what the
+    relational appraisal says it does. The claim the package rests on holds.
+    """
+    one = FIVE[2]
+    assert _spread(_appraisals(FIVE)) <= _spread(_appraisals([one] * len(FIVE))) * 1.5, (
+        "the affect path now tells these five apart by more than it tells one "
+        "of them from itself; if that is real, the argument for a separate "
+        "conative layer has to be made again"
     )
+
+
+def test_appraising_one_event_again_gives_the_same_answer():
+    """An appraisal is of the event, not of how busy the terminal has been.
+
+    This is the check that would have caught the false dawn above. The interior
+    state legitimately carries — a mood is a history — but what an event means
+    does not depend on how recently anything else was appraised. The bar is a
+    fifth of the 0.1 line the package's own claim is argued at, so a drift that
+    could be mistaken for discrimination fails here first.
+    """
+    drift = _spread(_appraisals([FIVE[2]] * 6))
+    assert drift < 0.02, f"the same event appraised six times drifted by {drift:.4f}"
 
 
 def test_conation_separates_the_same_five_cases(engine: ConationEngine):

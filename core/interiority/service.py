@@ -50,7 +50,7 @@ from core.interiority.attribution import get_attribution
 from core.interiority.census import get_census
 from core.interiority.cleft import get_cleft
 from core.interiority.core_affect import core_affect
-from core.interiority.effects import BudgetDelta, GoalDelta, RetentionClaim
+from core.interiority.effects import AffectDelta, BudgetDelta, GoalDelta, RetentionClaim
 from core.interiority.event import EventKind, InteriorEvent
 from core.interiority.evidence import Reading, measured, reported
 from core.interiority.faculty import Activation, FacultyContext, registry
@@ -711,12 +711,41 @@ class InteriorityService:
             confidence=float(payload.get("confidence", 1.0) or 1.0),
             source=str(payload.get("source", "affect_engine")),
         )
-        state = self.tick(event)
+        self.tick(event)
+        reading = self.appraisal_of_the_last_event()
         return {
-            "v": max(-1.0, min(1.0, state.affect.valence)),
-            "a": max(0.0, min(1.0, abs(state.affect.arousal))),
-            "e": max(0.0, min(1.0, abs(state.affect.engagement))),
+            "v": max(-1.0, min(1.0, reading.valence)),
+            "a": max(0.0, min(1.0, abs(reading.arousal))),
+            "e": max(0.0, min(1.0, abs(reading.engagement))),
         }
+
+    def appraisal_of_the_last_event(self) -> AffectDelta:
+        """What the last event meant, before the medium had its say.
+
+        `tick` returns the interior state, which is the frame's core affect
+        plus every faculty scaled by what the synaptic cleft actually
+        transmitted. In that medium a channel used a moment ago
+        releases more readily than one that has been quiet, which is right for
+        a mood and wrong for an appraisal. Appraising the same event five times
+        in a row moved the reading by 0.43 in three axes, further than five
+        genuinely different events moved it — so the affect engine's intensity
+        for an event depended on how recently it had appraised anything, and a
+        test that five situations are told apart was reading facilitation.
+
+        What an event means does not depend on how busy the terminal has been.
+        This is the frame and the faculties at the strengths they fired at.
+        """
+        with self._lock:
+            frame = self._last_frame
+            activations = self._last_activations
+        if frame is None:
+            return AffectDelta()
+        reading = core_affect(frame)
+        for activation in activations:
+            if activation.declined or activation.intensity <= 0.0:
+                continue
+            reading = reading + activation.effects.affect
+        return reading
 
     def attune(
         self, message: str, *, subject: str | None = None, species: str = "human",

@@ -48,7 +48,7 @@ import random
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Mapping
+from typing import Any, Mapping
 
 from core.interiority.params import Param, ParamKind, declare
 from core.interiority.receptors import ReceptorBank, get_receptor_bank
@@ -188,7 +188,20 @@ class SynapticCleft:
         self._lock = checked_lock("core.interiority.cleft.SynapticCleft", reentrant=True)
         self._terminals: dict[str, _Terminal] = {}
         self._bank = bank or get_receptor_bank()
-        self._rng = rng or random.Random()
+        # The process generator, not a private one.
+        #
+        # Release is probabilistic, every faculty publishes through here, and
+        # the interiority layer runs on every turn — so a `random.Random()` of
+        # its own put unseeded randomness inside the cognitive path where
+        # nothing could see it. `random.seed()` did not reach it, so a run was
+        # not reproducible; and a paired experiment that snapshots and restores
+        # the process generator could not rewind it, so two arms started from
+        # one state and drew different quanta. That is a floor under every
+        # measurement, and the ones it stood under were the workspace's.
+        #
+        # The module's generator is the one the harness saves and puts back,
+        # and an explicit `rng` still wins for a test that wants its own.
+        self._rng: Any = rng if rng is not None else random
         #: Neighbourhoods for volume transmission. A channel spills only
         #: to channels declared adjacent to it, because spilling to
         #: everything is the same as having one channel.
