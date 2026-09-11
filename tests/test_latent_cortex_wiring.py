@@ -22,6 +22,7 @@ from core.brain.latent_cortex_service import (
     _foreground_surplus_plan,
     _operation_authority_rejected,
 )
+from core.brain.llm.latent_cortex.branch_exchange import eligible_exchange_steps
 from core.brain.llm.latent_cortex.loop_core import canonical_sha256
 from core.brain.llm.latent_cortex.resource_accounting import (
     ModelComputeProfile,
@@ -246,7 +247,15 @@ def _accounting_fields(
     *,
     input_tokens_sha256: str = "7" * 64,
     input_token_count: int = 64,
+    branch_exchange: dict | None = None,
 ) -> dict:
+    """The stub budget, charged for whatever the stub receipt says it did.
+
+    The receipt contract cross-checks the exchange trace's own tensor
+    accounting against the ledger, so a receipt that claims an exchange and a
+    ledger that was never charged for one disagree. The engine charges the
+    ledger at the moment it exchanges; the stub charges it here.
+    """
     profile = ModelComputeProfile(
         model_type="wiring-fixture",
         hidden_size=8,
@@ -257,7 +266,19 @@ def _accounting_fields(
         vocab_size=64,
         head_dim=4,
     )
-    resource = ResourceLedger(profile).to_receipt()
+    ledger = ResourceLedger(profile)
+    for row in (branch_exchange or {}).get("exchanges", ()):
+        counters = row["tensor_accounting"]
+        ledger.charge(
+            "branch_exchange",
+            tensor_element_reads=counters["source_elements_read"],
+            tensor_element_writes=(
+                counters["message_elements_emitted"]
+                + counters["consensus_elements_written"]
+            ),
+            tensor_scalar_ops=counters["tensor_scalar_ops"],
+        )
+    resource = ledger.to_receipt()
     information = build_information_receipt(
         sources=[
             {
@@ -431,9 +452,60 @@ def _attach_nonadmitted_fast_weight_receipt(
     )
 
 
-def _branch_isolation_fields(config, *, exchanges=0):
+def _stub_branch_fields(config) -> dict:
+    """Isolation plus, when the schedule offers one, a real exchange trace.
+
+    A two-branch episode that runs its whole schedule and exchanges nothing is
+    an episode the ensemble cannot produce, and the receipt contract now says
+    so. Rather than lower the claim, the stub carries the provenance.
+    """
+    fields = _branch_isolation_fields(config)
+    if not fields["exchanges"]:
+        return fields
+    return {
+        **fields,
+        "branch_exchange": _branch_exchange_fields(config, fields["branch_isolation"]),
+        # The trace validator reads both declaration traces and refuses a
+        # receipt that leaves either of them missing. Empty is the truthful
+        # value for an interval exchange: nothing declared it but the schedule.
+        "bytecode_events": [],
+        "cognitive_action_trace": [],
+    }
+
+
+def _first_exchange_step(config) -> int:
+    """The step the ensemble would first offer this config an exchange on."""
+    steps = eligible_exchange_steps(
+        n_branches=int(config["n_branches"]),
+        max_steps=int(config.get("max_steps") or config["isolation_steps"]),
+        isolation_steps=int(config["isolation_steps"]),
+        exchange_interval=int(config.get("exchange_interval") or 4),
+    )
+    return steps[0] if steps else int(config["isolation_steps"])
+
+
+def _branch_isolation_fields(config, *, exchanges=None):
+    """A stub receipt that cannot describe an episode the engine cannot run.
+
+    ``exchanges=0`` used to be the default, and it described a two-branch
+    episode that ran its whole schedule and never once exchanged. The receipt
+    contract accepted it because the allocator left ``exchange_interval``
+    unset, so the check that would have caught it read ``None`` and skipped.
+    The count now comes from the config's own schedule.
+    """
     count = config["n_branches"]
     required = config["isolation_steps"]
+    eligible = eligible_exchange_steps(
+        n_branches=count,
+        max_steps=int(config.get("max_steps") or required),
+        isolation_steps=required,
+        exchange_interval=int(config.get("exchange_interval") or 4),
+    )
+    if exchanges is None:
+        # One, not len(eligible): the stub trace below carries a single
+        # exchange, and a count the trace cannot account for is the same kind
+        # of fiction this default exists to remove.
+        exchanges = 1 if eligible else 0
     roles = (
         "constructive_solution",
         "counterexample_search",
@@ -458,7 +530,7 @@ def _branch_isolation_fields(config, *, exchanges=0):
             "seed_states_unique": True,
             "rng_streams_unique": True,
             "cross_exposure_started": exchanges > 0,
-            "first_exchange_step": required if exchanges else None,
+            "first_exchange_step": _first_exchange_step(config) if exchanges else None,
             "blocked_cross_exposures": 0,
             "candidates": [
                 {
@@ -974,6 +1046,15 @@ def _recurrent_grounding_fields(config, *, steps=1, episode_id=""):
 
 
 def _branch_exchange_fields(config, isolation):
+    # The allocator leaves the branch defaults to BranchConfig rather than
+    # writing them into every episode config, so read them the way the receipt
+    # contract reads them and not with a hard key.
+    config = {
+        "comm_slot": 0,
+        "exchange_gamma": 0.35,
+        "exchange_interval": 4,
+        **dict(config),
+    }
     from core.brain.llm.latent_cortex.branch_exchange import (
         BRANCH_EXCHANGE_SCHEMA,
         MAX_EXCHANGE_SOURCE_SLOTS,
@@ -994,7 +1075,7 @@ def _branch_exchange_fields(config, isolation):
                 "branch_index": index,
                 "role": candidate["role"],
                 "operator": operator_for_role(candidate["role"]).value,
-                "step": candidate["candidate_step"],
+                "step": _first_exchange_step(config),
                 "candidate_sha256": candidate["candidate_sha256"],
                 "candidate_step": candidate["candidate_step"],
                 "source_slots": source_slots,
@@ -1010,7 +1091,7 @@ def _branch_exchange_fields(config, isolation):
         "schema": BRANCH_EXCHANGE_SCHEMA,
         "ordinal": 0,
         "sync_kind": "interval",
-        "sync_id": "recurrent-step:2",
+        "sync_id": f"recurrent-step:{_first_exchange_step(config)}",
         "generation": "independent_candidates",
         "n_branches": count,
         "n_slots": n_slots,
@@ -3826,7 +3907,7 @@ def test_service_routes_through_client_and_records_receipt(monkeypatch):
                     "checkpoint_fingerprint_method": "sha256",
                     "checkpoint_file_count": 8,
                     **_identity_receipt(episode_id="abc"),
-                    **_branch_isolation_fields(kwargs["config"]),
+                    **_stub_branch_fields(kwargs["config"]),
                         **_recurrent_grounding_fields(
                             kwargs["config"],
                             steps=kwargs["config"]["max_steps"],
@@ -3844,7 +3925,11 @@ def test_service_routes_through_client_and_records_receipt(monkeypatch):
                         "wall_clock_s": 120.0,
                         "elapsed_s": 30.0,
                         "exhausted": False,
-                        **_accounting_fields(),
+                        **_accounting_fields(
+                            branch_exchange=_stub_branch_fields(
+                                kwargs["config"]
+                            ).get("branch_exchange")
+                        ),
                     },
                     "decode_requested_tokens": kwargs["config"]["decode_max_tokens"],
                     "decode_generated_tokens": 12,
@@ -5531,7 +5616,7 @@ def _full_success_stub_client(captured):
                     "checkpoint_fingerprint_method": "sha256",
                     "checkpoint_file_count": 8,
                     **_identity_receipt(episode_id="ep-gwt"),
-                    **_branch_isolation_fields(kwargs["config"]),
+                    **_stub_branch_fields(kwargs["config"]),
                     **_recurrent_grounding_fields(
                         kwargs["config"],
                         steps=kwargs["config"]["max_steps"],
@@ -5549,7 +5634,11 @@ def _full_success_stub_client(captured):
                         "wall_clock_s": 120.0,
                         "elapsed_s": 30.0,
                         "exhausted": False,
-                        **_accounting_fields(),
+                        **_accounting_fields(
+                            branch_exchange=_stub_branch_fields(
+                                kwargs["config"]
+                            ).get("branch_exchange")
+                        ),
                     },
                     "decode_requested_tokens": kwargs["config"]["decode_max_tokens"],
                     "decode_generated_tokens": 12,

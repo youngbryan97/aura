@@ -30,6 +30,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from core.brain.llm.latent_cortex.branch_exchange import eligible_exchange_steps
 from core.brain.llm.latent_cortex.output_quality import evaluate_latent_output
 from core.runtime.errors import record_degradation
 
@@ -2810,6 +2811,11 @@ class LatentCortexService:
             except (ImportError, TypeError, ValueError):
                 errors.append("decoy_verifier_preflight_unproven")
         LatentCortexService._receipt_counterfactual_errors(config, errors, receipt, verified_counterfactual, verified_generation)
+        # The first exchange an episode may take is not the interval. The
+        # ensemble refuses every exchange until isolation seals, so an episode
+        # with isolation above the interval reaches its first eligible step
+        # later than the interval says, and demanding an exchange before then
+        # accuses a worker of skipping something it was never offered.
         exchange_interval = config.get("exchange_interval")
         if (
             type(exchange_interval) is int
@@ -2817,8 +2823,13 @@ class LatentCortexService:
             and type(config.get("n_branches")) is int
             and config["n_branches"] > 1
             and positive_int(receipt, "steps_taken")
-            and receipt["steps_taken"] >= exchange_interval
             and not positive_int(receipt, "exchanges")
+            and eligible_exchange_steps(
+                n_branches=int(config["n_branches"]),
+                max_steps=int(receipt["steps_taken"]),
+                isolation_steps=int(config.get("isolation_steps") or 1),
+                exchange_interval=exchange_interval,
+            )
         ):
             errors.append("branch_exchange_unproven")
         budget = receipt.get("budget")
