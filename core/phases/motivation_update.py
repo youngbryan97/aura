@@ -109,6 +109,22 @@ class MotivationUpdatePhase(Phase):
             mot.budgets["integrity"]["level"] = min(100.0, mot.budgets["integrity"]["level"] + recovery)
             logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
         
+        # 1b. Which urge acts now, integrated over time rather than sampled.
+        #
+        # `core/consciousness/drive_integration.py` is a leaky integrator per
+        # drive with mutual inhibition and a Schmitt trigger, written because
+        # the thing before it fired the instant a point crossed a line — "a
+        # transient spike acts the same as a sustained pull". It was registered
+        # as a service and asked for by nothing in the tree, so a competition of
+        # accumulating urges ran nowhere and the assessment below has picked the
+        # single most depleted budget on every turn since.
+        #
+        # It is grounded here on what the moment actually is: how she feels, how
+        # settled the substrate is, how unprecedented the moment is, and what
+        # hurts. That is the route by which affect, recurrent cognition, the
+        # body and the developmental state reach deliberation at all.
+        next_state = await self._integrate_drives(next_state)
+
         # 2. Intention Assessment (The "Will")
         # Only assess if we are not already in its own autonomous thought or deliberate mode
         if next_state.cognition.current_mode.value != "deliberate":
@@ -315,6 +331,78 @@ class MotivationUpdatePhase(Phase):
             }
 
         return None
+
+
+    async def _integrate_drives(self, state: AuraState) -> AuraState:
+        """Step the drive competition and let its winner ask for attention.
+
+        Returns the state, changed only if a drive actually won: an urge that
+        has not accumulated past its own threshold has not decided anything,
+        and saying so is the difference between a decision and a sample.
+        """
+        try:
+            # Through the container, not `get_runtime_service`. That seam reads
+            # with `peek`, which deliberately never invokes a factory — it is
+            # for diagnostics and error sinks, which must not boot an organ
+            # while they are looking at one. This is a lifecycle caller, and
+            # the drive engine is registered lazily, so asking through the
+            # read-only seam returns None for ever.
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("drive_integration", default=None)
+            if engine is None:
+                return state
+            affect = getattr(state, "affect", None)
+            signals = engine.gather_signals(
+                {
+                    "valence": float(getattr(affect, "valence", 0.0) or 0.0),
+                    "arousal": float(getattr(affect, "arousal", 0.0) or 0.0),
+                    "dominance": self._substrate_dominance(),
+                    "novelty": float(
+                        state.response_modifiers.get("ontogenetic_novelty", 0.0) or 0.0
+                    ),
+                }
+            )
+            decision = engine.step(signals)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "motivation_update",
+                exc,
+                severity="debug",
+                action="kept the drive budgets without the integrated competition",
+            )
+            return state
+        if decision is None or not getattr(decision, "action", None):
+            return state
+        state.response_modifiers["drive_competition"] = decision.to_dict()
+        next_state, _ = await propose_governed_initiative_to_state(
+            state,
+            f"Acting on {decision.drive}: {decision.action}",
+            orchestrator=None,
+            source="motivation_update",
+            kind="integrated_drive",
+            # What it asks for is how far it accumulated, which is the whole
+            # point of integrating: a sustained moderate pull asks more loudly
+            # than a spike that has already decayed.
+            urgency=max(0.0, min(1.0, float(decision.activation))),
+            triggered_by=str(decision.drive or "drive_integration"),
+            metadata={"drive": decision.drive, "phase": "motivation_update"},
+        )
+        return next_state
+
+    @staticmethod
+    def _substrate_dominance() -> float:
+        """How settled the continuous substrate is, or zero when it cannot say."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("conscious_substrate", default=None)
+            reading = substrate.get_substrate_affect() if substrate is not None else None
+            if not isinstance(reading, dict):
+                return 0.0
+            return max(-1.0, min(1.0, float(reading.get("dominance", 0.0) or 0.0)))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
 
     @staticmethod
     def _footing(state: AuraState) -> dict[str, float]:
