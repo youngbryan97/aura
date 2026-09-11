@@ -134,6 +134,83 @@ def pytest_collection_modifyitems(config, items):
         items[:] = selected
 
 
+#: Every module that turned a proof-run signal on while it was imported.
+#: Read by tests/test_proof_run_signal_stays_off.py, which is where the run
+#: goes red; collection itself only records and heals, so one careless module
+#: cannot decide policy for the other fifty thousand tests.
+_PROOF_SIGNAL_LEAKS: list[str] = []
+
+#: The proof-run signals this process started with, captured before the first
+#: test module is imported. ``None`` until collection begins.
+_PROOF_SIGNALS_AT_START: dict[str, str | None] | None = None
+
+
+def _proof_signal_snapshot() -> dict[str, str | None]:
+    from core.runtime.proof_policy import proof_active_env_names
+
+    return {name: os.environ.get(name) for name in proof_active_env_names()}
+
+
+def _restore_proof_signals(baseline: dict[str, str | None]) -> None:
+    for name, value in baseline.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
+def _changed_proof_signals(baseline: dict[str, str | None]) -> tuple[str, ...]:
+    current = _proof_signal_snapshot()
+    return tuple(sorted(name for name, value in current.items() if value != baseline[name]))
+
+
+def _capture_proof_signal_baseline() -> None:
+    global _PROOF_SIGNALS_AT_START
+
+    if _PROOF_SIGNALS_AT_START is None:
+        _PROOF_SIGNALS_AT_START = _proof_signal_snapshot()
+
+
+def proof_signal_leaks() -> tuple[str, ...]:
+    """Modules that turned a proof-run signal on for the whole process.
+
+    ``proof_run_active()`` is true for any of AURA_PROOF_RUN, AURA_AGI_MAX_TASKS
+    or AURA_TESTING, and dozens of subsystems defer, refuse or take a cheap
+    branch under it. One test module set AURA_TESTING at import, which happens
+    during collection, so every later test in the selection ran against the
+    deferred branch while asserting the live one — green alone, red in company,
+    and the error surfaced in an unrelated file three hundred tests later.
+    """
+
+    return tuple(_PROOF_SIGNAL_LEAKS)
+
+
+def pytest_sessionstart(session):
+    """Record what the run started with, before any test module is imported."""
+    _capture_proof_signal_baseline()
+
+
+def pytest_collectstart(collector):
+    """Second entry point for the same baseline.
+
+    A run whose arguments do not name tests/ loads this conftest after session
+    start, so the snapshot is taken at whichever of the two comes first. Both
+    are still ahead of the first test module import, which is what matters.
+    """
+    _capture_proof_signal_baseline()
+
+
+def pytest_collectreport(report):
+    """Undo a proof-run signal a module turned on while it was imported."""
+    if _PROOF_SIGNALS_AT_START is None:
+        return
+    changed = _changed_proof_signals(_PROOF_SIGNALS_AT_START)
+    if not changed:
+        return
+    _PROOF_SIGNAL_LEAKS.append(f"{report.nodeid or '<session>'} set {', '.join(changed)}")
+    _restore_proof_signals(_PROOF_SIGNALS_AT_START)
+
+
 #: Handles a TEST cannot leak, because no test opens or owns them.
 #:
 #: MLX opens its Metal library and the on-disk shader cache once per process,

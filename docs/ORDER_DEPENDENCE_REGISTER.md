@@ -98,24 +98,42 @@ Standing notes for any future receipt-store work:
 - Lesson: a "who closed X" symptom can have a root in an unrelated
   singleton — chase the earliest corrupted state, not the loudest error.
 
-## Sampled 2026-09-10, while repairing the subject-core harness
+## Fixed 2026-09-10 — a proof run the whole selection was in
 
-Three victims found in selections run for other reasons, all with the shape
-this register is about: green alone, red in company. Recorded here rather than
-fixed in passing, because the root is in shared process state somewhere in the
-selection and a drive-by patch to the victim would hide it.
+Six victims sampled the same day, in four unrelated selections, had one root:
+`tests/test_declared_channels_reach_the_cadence.py` set `AURA_TESTING` at
+module scope. A module-level statement runs while the module is imported, which
+is collection — before the first test, and after the last point anything had to
+undo it. `proof_run_active()` is true for any of AURA_PROOF_RUN,
+AURA_AGI_MAX_TASKS or AURA_TESTING, so every test collected with that file ran
+against the deferred branch of whatever it touched.
 
-| Victim | Selection that reproduces it | What is different in company |
-|---|---|---|
-| `test_core_affect_models::test_narrative_thread_start_seeds_snapshot_and_falls_back_task_tracker` | `pytest tests/ -k affect` | a degradation receipt is recorded where the test asserts none |
-| `test_core_affect_models::test_narrative_thread_refresh_failure_writes_degraded_snapshot` | `pytest tests/ -k affect` | `NarrativeThread.get_current_snapshot()` returns the pending fallback, so `_current_narrative` is None where the refresh loop should have written a degraded snapshot |
-| `test_cognitive_routing_runtime::test_substrate_handoff_failure_records_keyword_fallback` | `pytest tests/ -k "workspace or substrate or orchestrator_boot or consciousness_system"` | `_should_allow_deep_handoff` never calls the substrate extractor, so something earlier left the decision cached or the module stubbed |
+| Victim | What the proof run changed |
+|---|---|
+| `test_core_affect_models::test_narrative_thread_start_seeds_snapshot_and_falls_back_task_tracker` | `NarrativeThread.start` returns before it starts the loop |
+| `test_core_affect_models::test_narrative_thread_refresh_failure_writes_degraded_snapshot` | the refresh loop returns before it writes a snapshot, so `get_current_snapshot()` hands back the pending fallback and the assertion reads `KeyError: 'evidence'` |
+| `test_cognitive_routing_runtime::test_substrate_handoff_failure_records_keyword_fallback` | `_should_allow_deep_handoff` never reaches the substrate extractor |
+| `test_executive_closure::test_closed_loop_coalesces_hierarchical_phi_refresh_tasks` | `loop._hphi_task` stays None, because the refresh is never scheduled |
+| `test_perception_keeps_up_while_she_acts` ×3 | the perceptual compute budget reads 0.1 Hz where the test asks for 2.0 |
 
-| `test_executive_closure::test_closed_loop_coalesces_hierarchical_phi_refresh_tasks` | `pytest tests/ -k executive_closure` | `loop._hphi_task` is None where the test asks for a coalesced task, so an earlier test leaves the loop or its task tracker in a state where the refresh is not scheduled. Reproduced identically on a clean checkout at `36174cd12`, so it predates this session |
-| `test_perception_keeps_up_while_she_acts` ×3 | `pytest tests/ -k "percept or broadcast"` | the perceptual compute budget reads 0.1 Hz where the test asks for 2.0, so an earlier test leaves the lane or generation state that `_compute_budget` consults |
+Six victims across four selections that share no files. Each was recorded
+separately, with a separate guess at a separate root; each is the one line.
 
-Both affect files pass alone and pass as a pair, so that root is further up the
-selection. `pytest tests/test_affect_behavioral.py tests/test_core_affect_models.py`
-is green, which rules out the nearest suspect. The perception trio passes alone
-and passes beside `tests/test_broadcast_consumers.py`, so the same is true of
-it.
+The file did not need the variable — it passes without it, and the suite has
+run without it all along, since `tests/conftest.py` sets several AURA_* defaults
+and deliberately not this one. The line is gone.
+
+`_global_state_contamination_guard` already restores every AURA_* variable
+between tests, so the per-test half of this was covered and the leak could only
+ever have come from collection. `tests/conftest.py` now takes a snapshot of the
+proof-run variables before the first module is imported, and after each
+collected file puts back anything that changed and records which file changed
+it. `tests/test_proof_run_signal_stays_off.py` is where the run then goes red,
+naming the module; `tests/order_dependence_leak_example.py` is the file that
+makes it fire, run in a subprocess, so the guard cannot report green forever.
+
+Method note, for the next one of these: the bisect that found it was a plugin
+on `pytest_collectreport` reporting the first collected file after which the
+variable was set. Three collections of the full tree, no test runs. Whenever a
+victim's symptom is a branch that should not have been taken, ask what
+process-wide switch selects that branch before bisecting the test order.

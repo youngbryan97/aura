@@ -10,8 +10,6 @@ what is registered.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from core.fsw.telemetry_samplers import (
@@ -20,8 +18,6 @@ from core.fsw.telemetry_samplers import (
     run_registered_samplers,
     samplers_report,
 )
-
-os.environ.setdefault("AURA_TESTING", "1")
 
 
 @pytest.fixture(autouse=True)
