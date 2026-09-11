@@ -334,6 +334,44 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
+    # And a surprise about herself, which is the other half of the bid above
+    # it. A surprise about the world enters this competition; a surprise about
+    # her own next feeling, drive or focus did not, though the self model
+    # computes one every tick and names the channel it missed on. So the only
+    # thing the self-state could say here was how stable identity is — a number
+    # that barely moves — and everything self-state contributes to what wins
+    # attention came through affect, which is the same thing affect was already
+    # saying.
+    #
+    # Priced against its own running level, like the world model's: what
+    # matters is whether she is harder to predict now than she usually is.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        predictor = get_runtime_service("self_prediction", default=None)
+        snapshot = predictor.get_snapshot() if predictor is not None else None
+        if isinstance(snapshot, dict):
+            error = max(0.0, float(snapshot.get("smoothed_error", 0.0) or 0.0))
+            channels = [
+                max(0.0, float(snapshot.get(name, 0.0) or 0.0))
+                for name in ("valence_error_ema", "drive_error_ema", "focus_error_ema")
+            ]
+            usual = sum(channels) / len(channels) if channels else 0.0
+            total = error + usual
+            level = 0.0 if total <= 1e-9 else error / total
+            if level > FLOOR:
+                missed = str(snapshot.get("most_unpredictable") or "herself")
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"she did not do what she predicted ({missed}, {level:.2f})",
+                        source="self",
+                        priority=_clamp(level),
+                        content_type=ContentType.META,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the self model had nothing to offer the workspace: %s", exc)
+
     # An unprecedented moment deserves attention. The lifetime state computes
     # exactly that number every cycle and nothing competed on it, so a life
     # that had never seen anything like this bid the same as one on a familiar

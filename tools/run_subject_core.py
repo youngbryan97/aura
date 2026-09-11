@@ -576,6 +576,8 @@ def _nulls(
     domains: list[str],
 ) -> dict[str, Any]:
     """Every null, through the measures that are supposed to tell it apart."""
+    from core.subject.battery import THRESHOLDS
+
     table: dict[str, Any] = {}
     real_phi = float(evidence["phi"]["phi_do"])
 
@@ -634,12 +636,36 @@ def _nulls(
         if name != "recurrent"
     }
     reference = table.get("recurrent", {})
+
+    def _passes_the_conjunction(row: dict[str, Any]) -> bool:
+        """The criterion's own words: does this system pass the battery?
+
+        `beats_every_null` says "no null passes the conjunction" and the test
+        behind it asked one question — whether irreducibility cleared its bar.
+        That is not the conjunction, and it gave the wrong answer: the hub
+        null, a broker that carries its own state across steps, scores 0.070
+        against a bar of 0.05 and is counted as passing, though it fails the
+        graph on vertex connectivity exactly as the null was designed to. A
+        stateful broker is genuinely hard to partition; the battery separates
+        it from a mind on the shape of its graph, not on phi, and the criterion
+        has to ask the same question the battery asks.
+        """
+        if row.get("kind") != "architecture":
+            return float(row.get("phi_do", 0.0)) > THRESHOLDS["phi_do"]
+        return (
+            float(row.get("phi_do", 0.0)) > THRESHOLDS["phi_do"]
+            and bool(row.get("one_component"))
+            and float(row.get("vertex_connectivity", 0.0)) >= THRESHOLDS["vertex_connectivity"]
+            and bool(row.get("reentry"))
+        )
+
     # The instrument has to be able to say yes to something. A reference
-    # architecture that is genuinely recurrent must clear the same bar the
-    # nulls fail, or the battery is only capable of returning no.
-    reference_passes = float(reference.get("phi_do", 0.0)) > 0.05
-    nulls_fail = all(
-        float(row["phi_do"]) <= 0.05 for name, row in table.items() if name != "recurrent"
+    # architecture that is genuinely recurrent must pass everything the nulls
+    # fail — not one line of it — or the battery is only capable of returning
+    # no and nobody can tell a hard organism from a blunt instrument.
+    reference_passes = _passes_the_conjunction(reference)
+    nulls_fail = not any(
+        _passes_the_conjunction(row) for name, row in table.items() if name != "recurrent"
     )
     # The floor the real score has to clear. A minimum over five hundred and
     # eleven noisy estimates is biased downward by the width of its own search,
@@ -659,8 +685,17 @@ def _nulls(
         "nulls_fail_the_bar": nulls_fail,
         "reference_architecture_passes": reference_passes,
         "reference_recurrent_phi": reference.get("phi_do"),
+        "conjunction": {
+            name: _passes_the_conjunction(row) for name, row in table.items()
+        },
         "summary": {
             "reference_recurrent": reference.get("phi_do"),
+            "reference_passes_the_conjunction": reference_passes,
+            "nulls_that_pass": [
+                name
+                for name, row in table.items()
+                if name != "recurrent" and _passes_the_conjunction(row)
+            ],
             "worst_null": max(
                 (float(row["phi_do"]) for name, row in table.items() if name != "recurrent"),
                 default=0.0,

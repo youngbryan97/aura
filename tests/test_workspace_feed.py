@@ -525,3 +525,60 @@ def test_a_goal_that_states_no_urgency_still_enters_at_neutral():
     state.cognition.active_goals = [{"description": "something unpriced", "priority": 1.0}]
     bid = next(b for b in build_candidates(state) if b.source == "deliberation")
     assert bid.priority == pytest.approx(0.5)
+
+
+def test_a_surprise_about_herself_competes_the_way_one_about_the_world_does(monkeypatch):
+    """The two halves of the same bid.
+
+    The world model's prediction error enters the competition. The self
+    model's did not, though it computes one every tick and names the channel
+    it missed on — so the only thing self-state could say to attention was how
+    stable identity is, a number that barely moves. Everything else self-state
+    contributed to what wins attention arrived through affect, which is what
+    affect was already saying.
+
+    That is measurable as redundancy: the preregistered synergy triple asks
+    whether affect and self-state carry something about attention that neither
+    carries alone, and two sources saying the same thing carry nothing jointly.
+    """
+    from types import SimpleNamespace
+
+    import core.consciousness.workspace_feed as feed
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+
+    def at(error: float) -> float:
+        snapshot = {
+            "smoothed_error": error,
+            "valence_error_ema": 0.2,
+            "drive_error_ema": 0.2,
+            "focus_error_ema": 0.2,
+            "most_unpredictable": "focus",
+        }
+        predictor = SimpleNamespace(get_snapshot=lambda: snapshot)
+        monkeypatch.setattr(
+            feed,
+            "build_candidates",
+            feed.build_candidates,
+        )
+        import core.runtime.service_registry as registry
+
+        monkeypatch.setattr(
+            registry,
+            "get_runtime_service",
+            lambda name, default=None: predictor if name == "self_prediction" else default,
+        )
+        bids = [
+            bid
+            for bid in feed.build_candidates(state)
+            if getattr(bid, "source", "") == "self"
+            and "predicted" in str(getattr(bid, "content", ""))
+        ]
+        return max((float(bid.priority) for bid in bids), default=0.0)
+
+    predictable, surprising = at(0.05), at(0.9)
+    assert surprising > predictable, (
+        "a moment she failed to predict about herself bids no higher than one she did"
+    )
+    assert predictable >= 0.0

@@ -37,10 +37,13 @@ from core.subject.state import DOMAINS
 
 __all__ = [
     "ARCHITECTURES",
+    "NULL_HORIZON",
+    "SELF_EFFECT_TARGET",
     "ToySystem",
     "architecture",
     "replay_surrogate",
     "shuffle_surrogate",
+    "toy_doses",
     "toy_edges",
     "toy_recording",
 ]
@@ -274,27 +277,43 @@ def toy_recording(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> Rec
     )
 
 
-def toy_edges(
+#: How far a null's own domain has to move before the displacement counts as
+#: one. A displacement is not a dose until the thing displaced has moved, and
+#: the natural unit is that domain's own ordinary variation: one standard
+#: deviation, measured on the same warm-up the effects are scaled against.
+#:
+#: A flat delta is not a matched intervention. At the 0.5 this used, the
+#: reference recurrent architecture's workspace domain moved itself by 0.29
+#: standard deviations and its self-state by 0.52 — so some domains were poked
+#: twice as hard as others, the reference's own declared wiring did not come
+#: back out of the measurement, and the positive control the battery needs in
+#: order to be able to say yes to anything failed on the instrument rather
+#: than on the system. Dose-matching per source removes that: what differs
+#: between architectures is then what escapes, not how hard each was hit.
+SELF_EFFECT_TARGET: float = 1.0
+
+#: How many frames of propagation a null is given. The real run reads a
+#: displaced arm for two turns, which is sixty-six frames; giving the nulls six
+#: measured a different experiment and left the reference's longest paths
+#: unrecoverable.
+NULL_HORIZON: int = 66
+
+
+def _peak_effects(
     system: ToySystem,
+    deltas: dict[str, float],
+    scale: dict[str, float],
     *,
-    trials: int = 40,
-    horizon: int = 6,
-    delta: float = 0.5,
-    seed: int = 0,
-    effect_min: float = 0.3,
-) -> list[tuple[str, str]]:
-    """Perturb each domain and keep the targets that moved past the same bar.
+    trials: int,
+    horizon: int,
+    seed: int,
+) -> dict[tuple[str, str], float]:
+    """Mean peak standardized displacement for every ordered pair, self included.
 
     The two arms share a noise stream, so the sham floor is exactly zero and
     the comparison is the cleanest possible version of the one run against the
     real system.
     """
-    rng = np.random.default_rng(seed)
-    scale: dict[str, float] = {}
-    warm = toy_recording(system, steps=800, seed=seed + 1)
-    for key in DOMAINS:
-        scale[key] = float(np.mean(warm.domain(key).std(axis=0))) or 1.0
-
     effects: dict[tuple[str, str], list[float]] = {}
     for trial in range(trials):
         base_rng = np.random.default_rng(seed + 100 + trial)
@@ -304,7 +323,7 @@ def toy_edges(
         for source in DOMAINS:
             sham_state = {k: v.copy() for k, v in state.items()}
             pert_state = {k: v.copy() for k, v in state.items()}
-            pert_state[source] = pert_state[source] + delta
+            pert_state[source] = pert_state[source] + deltas[source]
             sham_rng = np.random.default_rng(seed + 500 + trial)
             pert_rng = np.random.default_rng(seed + 500 + trial)
             peak = {key: 0.0 for key in DOMAINS}
@@ -317,11 +336,58 @@ def toy_edges(
                     ) / scale[key]
                     peak[key] = max(peak[key], gap)
             for target in DOMAINS:
-                if target == source:
-                    continue
                 effects.setdefault((source, target), []).append(peak[target])
+    return {pair: float(np.mean(values)) for pair, values in effects.items()}
+
+
+def toy_doses(
+    system: ToySystem,
+    *,
+    target: float = SELF_EFFECT_TARGET,
+    horizon: int = NULL_HORIZON,
+    seed: int = 0,
+    rounds: int = 6,
+) -> tuple[dict[str, float], dict[str, float]]:
+    """The displacement each domain needs to move itself by `target`, and the scales.
+
+    Found by repeated proportional correction rather than a search: the
+    response is close enough to linear in the displacement that six rounds of
+    four trials settle every domain, and the rounds are cheap.
+    """
+    warm = toy_recording(system, steps=800, seed=seed + 1)
+    scale = {key: float(np.mean(warm.domain(key).std(axis=0))) or 1.0 for key in DOMAINS}
+    deltas = {key: 0.5 for key in DOMAINS}
+    for _ in range(max(1, rounds)):
+        measured = _peak_effects(
+            system, deltas, scale, trials=4, horizon=horizon, seed=seed
+        )
+        for key in DOMAINS:
+            own = max(1e-6, measured[(key, key)])
+            deltas[key] = float(np.clip(deltas[key] * (target / own), 0.05, 20.0))
+    return deltas, scale
+
+
+def toy_edges(
+    system: ToySystem,
+    *,
+    trials: int = 40,
+    horizon: int = NULL_HORIZON,
+    seed: int = 0,
+    effect_min: float = 0.3,
+    target: float = SELF_EFFECT_TARGET,
+) -> list[tuple[str, str]]:
+    """Perturb each domain to a matched dose and keep the targets that moved.
+
+    Same bar as the real run, and the same number of frames to reach it, so
+    that "this architecture's graph is not strongly connected" is a statement
+    about the architecture.
+    """
+    deltas, scale = toy_doses(system, target=target, horizon=horizon, seed=seed)
+    measured = _peak_effects(
+        system, deltas, scale, trials=trials, horizon=horizon, seed=seed
+    )
     return [
         pair
-        for pair, values in effects.items()
-        if float(np.mean(values)) >= effect_min
+        for pair, value in measured.items()
+        if pair[0] != pair[1] and value >= effect_min
     ]
