@@ -3672,6 +3672,22 @@
     "note": "a stored instant is dropped by its magnitude and by its name; what a clock is is a question about provenance",
     "status": "done"
   },
+  "P28.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "so a large array costs the same as a small one"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_closure_test_can_see_a_tensor.py::test_the_sketch_is_a_fixed_width -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "the sketch is fixed in width, so a thousand-unit reservoir costs what a three-element vector costs and cannot eat the budget the rest of the periphery needs",
+    "status": "done"
+  },
   "P28.11": {
     "checks": [
       {
@@ -3800,6 +3816,32 @@
       }
     ],
     "note": "a depleting resource is kept",
+    "status": "done"
+  },
+  "P28.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "def _sketch"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "^SKETCH_WIDTH: int"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/closure.py",
+        "pattern": "every tensor the machine was\\n            # carrying was invisible to the closure test"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_closure_test_can_see_a_tensor.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "an array enters as a fixed number of columns \u2014 its size, its four moments and a seeded projection \u2014 because every tensor the machine carried fell through the walk and was invisible",
     "status": "done"
   },
   "P28.8": {

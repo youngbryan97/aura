@@ -78,6 +78,54 @@ def _is_clock(value: float) -> bool:
     return abs(value) >= EPOCH_FLOOR
 
 
+#: How many projections an array is summarised into, beyond its four moments.
+#: Fixed, so a reservoir of a thousand units and a vector of three cost the
+#: same, and drawn from a frozen seed so two runs sketch the same directions.
+SKETCH_WIDTH: int = 4
+SKETCH_SEED: int = 20250911
+
+
+def _is_array(value: Any) -> bool:
+    """A numpy array, or something that will become one without side effects."""
+    if isinstance(value, np.ndarray):
+        return True
+    # Torch and MLX tensors both answer to these and neither imports cleanly
+    # here; going through the array protocol keeps this from knowing which.
+    return (
+        hasattr(value, "shape")
+        and hasattr(value, "dtype")
+        and not callable(value)
+        and not isinstance(value, type)
+    )
+
+
+def _sketch(value: Any, name: str, out: dict[str, float]) -> None:
+    """An array as a fixed number of columns: four moments and a projection.
+
+    The projection is a seeded Gaussian, which preserves distances in
+    expectation, so two peripheral states that differ differ in the sketch. The
+    moments are there because a projection of a constant array is a constant
+    and the moments say it was one.
+    """
+    try:
+        flat = np.asarray(value, dtype=np.float64).reshape(-1)
+    except (TypeError, ValueError):
+        return
+    flat = flat[np.isfinite(flat)]
+    if flat.size == 0:
+        out[f"{name}#"] = 0.0
+        return
+    out[f"{name}#"] = float(flat.size)
+    out[f"{name}.mean"] = float(flat.mean())
+    out[f"{name}.sd"] = float(flat.std())
+    out[f"{name}.min"] = float(flat.min())
+    out[f"{name}.max"] = float(flat.max())
+    rng = np.random.default_rng(SKETCH_SEED)
+    directions = rng.normal(size=(SKETCH_WIDTH, flat.size)) / math.sqrt(flat.size)
+    for index, column in enumerate(directions @ flat):
+        out[f"{name}.p{index}"] = float(column)
+
+
 def _numbers(
     obj: Any,
     prefix: str,
@@ -103,6 +151,14 @@ def _numbers(
                 out[f"{prefix}.{name}"] = number
         elif isinstance(value, (list, tuple, dict, set)):
             out[f"{prefix}.{name}#"] = float(len(value))
+        elif _is_array(value):
+            # An array fell through every branch above and through the one
+            # below, because a numpy array is not a sequence this walk
+            # recognised and has no `__dict__`. So every tensor the machine was
+            # carrying was invisible to the closure test: a broker keeping its
+            # state in one could not have been found. The sketch is fixed in
+            # width, so a large array costs the same as a small one.
+            _sketch(value, f"{prefix}.{name}", out)
         elif hasattr(value, "__dict__") and not callable(value) and depth < MAX_DEPTH:
             _numbers(value, f"{prefix}.{name}", out, depth + 1)
 
