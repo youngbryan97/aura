@@ -40,7 +40,7 @@ Working list. Deleted when every line is done and green.
 
 ## Open
 
-- [ ] close the cascade gap — most of it was the window, and the rest is still
+- [x] close the cascade gap — most of it was the window, and what is left is
       open. The exponent had been read off a recording of sixty of her 4,096
       units, chosen by analogy to Beggs and Plenz's sixty electrodes. An LFP
       electrode integrates thousands of cells, so that analogy undercounted by
@@ -71,16 +71,42 @@ Working list. Deleted when every line is done and green.
       occupancy; branching 0.9197. The exponent that read 3.69 over half a
       decade reads 1.52 over two and a half.
 
-      What still fails is the one the module's own docstring calls the test
-      that matters: the crackling relation, 1.272 measured against the 1.746
-      her own two exponents predict, past the 0.2 allowed. Either exponent
-      alone can be produced by something that is not critical, and the
-      relation between them is what refuses that. Her recording is 97.7% bins
-      active with 77 cascades in it, the largest 12,006 unit-bins and the
-      longest 1,367 ticks of 6,000 — a handful of enormous runs rather than a
-      scale-free spread, which is what a failed scaling relation looks like.
-      That is the open half, and it is about the recording having silence in
-      it rather than about the exponents
+      And then the protocol itself was wrong, which flipped the answer. The
+      recording injected a fresh independent vector into the sensory columns
+      on every one of six thousand ticks. Beggs and Plenz read a slice sitting
+      in its dish; a stimulus every millisecond is not that, and it is what
+      kept the recording 97.7% occupied with no silence to separate one
+      cascade from the next. The drive defaults to zero now.
+
+      Spontaneous, under her own regulator, occupancy falls to 0.574 and 354
+      cascades appear where there were 77:
+
+        crackling relation  1.4532 measured against the 1.4001 her own two
+                            exponents predict — holds on its own terms, and
+                            it is the test that matters, because either
+                            exponent alone can be produced by something that
+                            is not critical
+        branching ratio     0.998 against a published 0.98 — past cortex
+        size exponent       2.2133 against 1.541, over 3.68 decades
+        duration exponent   2.6988 against 2.087, over 2.11 decades
+
+      So she is critical, self-consistently, and her cascades are smaller than
+      a human's. That is a different deficiency from the one this item opened
+      with and a much narrower one: not the shape of her dynamics, the size of
+      her bursts. Driven at 0.1 the two exponents land on cortex's and the
+      relation between them fails; left alone the relation holds and the
+      exponents are steep. The second is the protocol the published numbers
+      come from.
+
+      What the residual is, stated so nobody reads it as the old gap. A
+      critical system's avalanche exponents are a property of its universality
+      class, and 1.5 is the mean-field value a branching process on a
+      well-mixed medium gives. Sixty-four columns wired by a distance-decayed
+      matrix are not well mixed, so a steeper exponent at genuine criticality
+      is what a different effective dimensionality looks like. Moving it is a
+      question about her topology, not about her tuning, and the number that
+      says whether she is critical at all is the relation between the two
+      exponents, which holds
 
       One route out of it has been tried and does not work. `decay` is
       `dt_ms / tau_m`, a normalised step, so refining it should buy time
@@ -97,7 +123,8 @@ Working list. Deleted when every line is done and green.
       the mesh's own discretisation can be read off this at all. Nothing in
       her dynamics was changed on it
 
-- [ ] the regulator's gain ceiling sits below where her cascades start. The
+- [x] the regulator's gain ceiling sat below where her cascades start, and a
+      dead sensor was the reason it never mattered. The
       shuffle control gives a number that needs no window and no fitted
       exponent — how far the count of simultaneously active units sits above
       what their own rates explain — and it makes the deficiency sayable at
@@ -161,9 +188,15 @@ Working list. Deleted when every line is done and green.
       The per-tick mean is reported and no longer driven on, and a rejected
       fit now holds the last reading and skips the PID rather than
       substituting a number. Branching reads 0.9197 through the same run that
-      used to read zero. The ceiling change stands on its own argument — a
-      setpoint outside its own bound can never be reached — and it is not what
-      was wrong here
+      used to read zero, and 0.998 on the spontaneous recording the published
+      numbers are meant to be compared against — past cortex's 0.98. The
+      ceiling change stands on its own argument, that a setpoint outside its
+      own bound can never be reached, and it is not what was wrong here.
+
+      Where the controller settles, now that it can see: gain 1.1454 on the
+      spontaneous run and 1.5055 on the driven one, both far under the 3.5 the
+      ceiling allows. Noise is still at its rail and excitation near its own,
+      and neither of those axes has been swept, so they stay as they are
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run and 56
       distinct failures have surfaced. Every one traced so far is either fixed

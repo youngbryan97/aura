@@ -51,7 +51,20 @@ def main() -> int:
         help="threshold on the raster; 0 counts any spike, which is the raster's own definition",
     )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--drive", type=float, default=0.1)
+    parser.add_argument(
+        "--drive",
+        type=float,
+        default=0.0,
+        help=(
+            "sensory injection per tick. Zero by default because the numbers "
+            "this is compared against are recordings of SPONTANEOUS activity: "
+            "Beggs and Plenz read a slice sitting in its dish. Driving her with "
+            "a fresh independent vector every tick is not that protocol, and it "
+            "changes the answer -- at 0.1 the two exponents land on cortex's and "
+            "the scaling relation between them fails, at 0.0 the relation holds "
+            "and the exponents are too steep"
+        ),
+    )
     parser.add_argument(
         "--regulate",
         action="store_true",
