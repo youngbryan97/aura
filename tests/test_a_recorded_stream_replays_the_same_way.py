@@ -79,10 +79,13 @@ def test_a_frame_past_the_end_is_silence_rather_than_a_crash() -> None:
 
 
 def test_a_tape_survives_the_round_trip(tmp_path: Path) -> None:
+    """Written by the archive, which owns every file a run writes."""
+    from core.subject.archive import write_json
+
     tape = SensoryTape.record(
         _world_with(("interaction", "keep this", 0.9), ("error", "and this", 0.2))
     )
-    path = tape.save(tmp_path / "tape.json")
+    path = write_json(tmp_path, "tape.json", tape.as_dict())
     again = SensoryTape.load(path)
     assert len(again) == len(tape)
     assert again.frames == tape.frames

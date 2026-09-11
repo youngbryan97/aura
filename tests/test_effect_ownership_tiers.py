@@ -56,11 +56,13 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: nothing to do with the debt this test sums. Every commit since carried a
 #: red ratchet nobody could pay down, because paying debt lowers D and the
 #: ceiling was tracking M. The debt total on the same run that printed
-#: "1840 buckets" was 1783; it is 1903 now, over 2055 buckets, with raw at
-#: 833 against its own ceiling of 854. Ratcheted from the measured debt from
-#: here.
-TOTAL_CEILING = 1903
-RAW_CEILING = 854
+#: "1840 buckets" was 1783. It reached 1907 and sat four over a ceiling of
+#: 1903 — three soak harnesses had the same two lines each, resolving an
+#: output directory and opening a receipts file, so one place a soak writes
+#: carried six entries of debt. They share one helper now: 1902, with raw at
+#: 828. Ratcheted from the measured debt from here.
+TOTAL_CEILING = 1902
+RAW_CEILING = 828
 
 
 def _split() -> tuple[int, int]:

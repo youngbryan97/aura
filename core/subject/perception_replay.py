@@ -15,7 +15,7 @@ difference between them stays the intervention.
     from core.subject.perception_replay import SensoryTape
 
     tape = SensoryTape.record(world)          # while she is living normally
-    tape.save(path)
+    write_json(directory, "sensory_tape.json", tape.as_dict())
     tape = SensoryTape.load(path)             # in the battery
     tape.play(state.world, frame)             # the same frame, the same world
 
@@ -102,27 +102,28 @@ class SensoryTape:
                     emitted["timestamp"] = float(now)
         return played
 
-    def save(self, path: Path) -> Path:
-        from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
+    def as_dict(self) -> dict[str, Any]:
+        """The tape as data. Writing it is the archive's job.
 
-        payload = json.dumps(
-            {"notes": self.notes, "frames": self.frames}, separators=(",", ":"), default=str
-        )
-        with local_internal_governed_scope("subject_core.perception_replay"):
-            get_file_write_gateway().write_text(
-                Path(path), payload, source="subject_core.perception_replay"
-            )
-        return Path(path)
+        A module that holds a recording and also owns a file is two things, and
+        the second one is a call site somebody has to govern. `core.subject.
+        archive` already owns every file a run writes:
+
+            write_json(directory, "sensory_tape.json", tape.as_dict())
+        """
+        return {"notes": dict(self.notes), "frames": [list(f) for f in self.frames]}
 
     @classmethod
-    def load(cls, path: Path) -> SensoryTape:
-        blob = json.loads(Path(path).read_text())
+    def from_dict(cls, blob: dict[str, Any]) -> SensoryTape:
         frames = [
             [dict(item) for item in frame if isinstance(item, dict)]
             for frame in blob.get("frames", [])
         ]
         return cls(frames=frames, notes=dict(blob.get("notes", {})))
+
+    @classmethod
+    def load(cls, path: Path) -> SensoryTape:
+        return cls.from_dict(json.loads(Path(path).read_text()))
 
 
 def record_stream(world: Any, frames: int, step: Any) -> SensoryTape:

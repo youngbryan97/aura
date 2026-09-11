@@ -6841,14 +6841,6 @@
       "scope": "<module>.build_runtime"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/perception_replay.py",
-      "scope": "<module>.SensoryTape.save"
-    },
-    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -14369,60 +14361,20 @@
       "scope": "<module>._fill_disk._restore"
     },
     {
-      "callee": "path.open",
+      "callee": "pathlib.Path().open",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>._append_resource_row"
-    },
-    {
-      "callee": "path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>._append_text"
-    },
-    {
-      "callee": "run_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>.main"
+      "path": "tools/longevity/soak_output.py",
+      "scope": "<module>.open_receipts"
     },
     {
       "callee": "out_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "tools/longevity/run_live_autonomy_soak.py",
-      "scope": "<module>._resolve_output_dir"
-    },
-    {
-      "callee": "receipts_path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_live_autonomy_soak.py",
-      "scope": "<module>.async_main"
-    },
-    {
-      "callee": "out_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_longevity_soak.py",
-      "scope": "<module>._resolve_output_dir"
-    },
-    {
-      "callee": "receipts_path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_longevity_soak.py",
-      "scope": "<module>.async_main"
+      "path": "tools/longevity/soak_output.py",
+      "scope": "<module>.resolve_output_dir"
     },
     {
       "callee": "socket.create_connection",
@@ -16474,6 +16426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "33259f72b0f4a23d6bb3973ea5aff40a6fa586d86087b8bbe411e37d2505c22d",
+  "inventory_sha256": "a66571c1ca5125f34fe1f3c621d39876bd5a14c375ecd889258ebf890995abb0",
   "schema_version": 1
 }

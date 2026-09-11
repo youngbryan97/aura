@@ -71,9 +71,9 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def _resolve_output_dir(raw_path: str) -> Path:
-    out_dir = Path(raw_path).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir
+    from tools.longevity.soak_output import resolve_output_dir
+
+    return resolve_output_dir(raw_path)
 
 
 async def _measure_lag_ms() -> float:
@@ -135,7 +135,9 @@ async def async_main(argv: list[str] | None = None) -> int:
         await will.start()
         router = get_llm_router()
 
-        with receipts_path.open("w", encoding="utf-8") as receipt_file:
+        from tools.longevity.soak_output import open_receipts
+
+        with open_receipts(receipts_path) as receipt_file:
             for index in range(max(1, args.iterations)):
                 elapsed = time.time() - start_time
                 if elapsed > args.duration_s:

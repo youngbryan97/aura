@@ -71,13 +71,15 @@ _RECOVERABLE_SNAPSHOT_ERRORS = (
 
 
 def _append_text(path: Path, line: str) -> None:
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(line)
+    from tools.longevity.soak_output import append_line
+
+    append_line(path, line)
 
 
 def _append_resource_row(path: Path, row: list[Any]) -> None:
-    with path.open("a", encoding="utf-8") as fh:
-        csv.writer(fh).writerow(row)
+    from tools.longevity.soak_output import append_row
+
+    append_row(path, row)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -334,8 +336,11 @@ async def main() -> int:
     args = parser.parse_args()
     profile = _PROFILES[args.profile]
     run_id = f"longevity-{args.profile}-{uuid.uuid4().hex[:8]}"
-    run_dir = Path.home() / ".aura" / "data" / "longevity" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    from tools.longevity.soak_output import resolve_output_dir
+
+    run_dir = resolve_output_dir(
+        str(Path.home() / ".aura" / "data" / "longevity" / run_id)
+    )
     logger.info("longevity run_id=%s profile=%s dir=%s duration_s=%s", run_id, args.profile, run_dir, profile["duration_s"])
 
     started = time.time()
