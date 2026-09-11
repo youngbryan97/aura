@@ -7,7 +7,7 @@ const end = source.indexOf('\nfunction handleWsEvent(', start);
 assert(start >= 0 && end > start);
 const messages = { children: [] };
 function appendMsg(role, text, html, metadata) {
-    const node = { text, dataset: { historyTurnId: metadata.historyTurnId, historyRole: role } };
+    const node = { text, dataset: { deliveryTurnId: metadata.deliveryTurnId, historyRole: role } };
     node.remove = () => messages.children.splice(messages.children.indexOf(node), 1);
     messages.children.push(node);
     return node;
@@ -29,4 +29,6 @@ render(item, { turn_id: 'third', response: 'Revised complete answer.' });
 assert.equal(messages.children.length, 3);
 assert.equal(messages.children.at(-1).text, 'Revised complete answer.');
 assert.equal(item.streamDiv, null);
+assert.equal(messages.children.at(-1).dataset.historyTurnId, undefined,
+    'a delivery turn is not a durable history exchange id');
 console.log('chat delivery answer identity: PASS');

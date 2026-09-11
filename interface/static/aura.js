@@ -2859,12 +2859,12 @@ function renderChatDeliveryAnswer(item, data) {
     const messages = DOM.messages || $('messages');
     const identity = String(data.turn_id || item.turnId || item.idempotencyKey);
     const existing = Array.from(messages.children).find(node =>
-        node.dataset.historyTurnId === identity && node.dataset.historyRole === 'aura');
+        node.dataset.deliveryTurnId === identity);
     if (existing) {
         markReplyConfidence(existing, data.response_confidence);
         return;
     }
-    const metadata = { historyTurnId: identity };
+    const metadata = { deliveryTurnId: identity };
     if (data.thought) metadata.thought = data.thought;
     if (data.response_confidence) metadata.responseConfidence = data.response_confidence;
     appendMsg('aura', data.response, false, metadata);
@@ -6125,6 +6125,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
+    if (metadata.deliveryTurnId) div.dataset.deliveryTurnId = String(metadata.deliveryTurnId);
     if (metadata.historyTurnId) {
         div.dataset.historyTurnId = String(metadata.historyTurnId);
         div.dataset.historyRole = role;
