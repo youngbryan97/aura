@@ -2031,6 +2031,13 @@ class SubjectRuntime:
                     return True
         return False
 
+    #: An action kind the agency experiment is holding her to for this arm, or
+    #: None for the ordinary case where what she does follows from what she is
+    #: attending to. The ownership experiment needs the same action in both
+    #: arms with only the author differing, and it needs more than one kind
+    #: across its trials.
+    forced_action: str | None = None
+
     def _chosen_action(self) -> str:
         """What she does, decided by what she is attending to.
 
@@ -2039,6 +2046,9 @@ class SubjectRuntime:
         which changes what the filesystem holds, which changes what her senses
         report back. That is the whole of the return route through the world.
         """
+        forced = getattr(self, "forced_action", None)
+        if forced in self.ACTIONS:
+            return str(forced)
         attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
         source = attending.split(":", 1)[0].strip()
         if source.startswith("affect_"):
@@ -2148,6 +2158,9 @@ class SubjectRuntime:
             "verified": ok,
             "at": time.time(),
             "actor": actor,
+            # Which of the four things she can do this was, so an experiment
+            # over action kinds can say which one it measured.
+            "kind": kind,
         }
         self.state.world.facts["last_action"] = record
         self.last_action = dict(record)

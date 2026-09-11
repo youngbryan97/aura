@@ -21,7 +21,7 @@ counts only where it exceeds what running the same thing twice produces.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -54,6 +54,10 @@ class AgencyReport:
     outcome_to_self_floor: float
     action_text_changed: bool
     trials: int
+    #: The ownership divergence per action kind, and the same-arm floor for
+    #: each. One pathway exercised six times is not four pathways.
+    ownership_by_action: dict[str, float] = field(default_factory=dict)
+    ownership_floor_by_action: dict[str, float] = field(default_factory=dict)
     note: str = ""
 
     @property
@@ -74,8 +78,25 @@ class AgencyReport:
             "outcome_updates_self": self.outcome_updates_self,
             "action_text_changed_under_self_perturbation": self.action_text_changed,
             "trials": self.trials,
+            "ownership_by_action": dict(self.ownership_by_action),
+            "ownership_floor_by_action": dict(self.ownership_floor_by_action),
+            "ownership_generalises": self.ownership_generalises,
             "note": self.note,
         }
+
+    @property
+    def ownership_generalises(self) -> bool:
+        """Whether she tells her own hand from the world's in more than one way.
+
+        Two action kinds, each clearing its own same-arm floor. One pathway
+        exercised six times is not evidence that ownership is about acting.
+        """
+        cleared = [
+            kind
+            for kind, value in self.ownership_by_action.items()
+            if value > self.ownership_floor_by_action.get(kind, 0.0)
+        ]
+        return len(cleared) >= 2
 
 
 async def run_agency(
@@ -92,17 +113,33 @@ async def run_agency(
     own_effect: list[float] = []
     own_floor: list[float] = []
     text_changed = False
+    #: Per action kind, so "she knows which end of the loop she is at" is a
+    #: claim about acting rather than about one pathway. The completion
+    #: specification asks for creation, modification, retrieval and removal to
+    #: be exercised separately, and the ownership divergence to survive each.
+    by_kind: dict[str, list[float]] = {}
+    floor_by_kind: dict[str, list[float]] = {}
 
     action_scale = scale.get("D", np.ones(1))
     self_scale = scale.get("S", np.ones(1))
 
-    for _ in range(trials):
+    #: The four things she can do, cycled across trials rather than left to
+    #: whichever the state happened to pick. Left to the state, a run could
+    #: exercise one pathway for every trial and the report would say ownership
+    #: generalises when nothing had been asked of it twice.
+    kinds = list(SubjectRuntime.ACTIONS)
+
+    for trial in range(trials):
+        forced = kinds[trial % len(kinds)] if kinds else None
         await runtime.turn_once(condition)
         snapshot = runtime.snapshot()
 
-        async def arm(*, displace: bool, actor: str) -> tuple[list[CoreState], dict[str, Any]]:
+        async def arm(
+            *, displace: bool, actor: str, kind: str | None = forced
+        ) -> tuple[list[CoreState], dict[str, Any]]:
             runtime.restore(snapshot)
             runtime.actor = actor
+            runtime.forced_action = kind
             hit = {"done": not displace}
 
             async def apply(rt: SubjectRuntime) -> None:
@@ -125,13 +162,19 @@ async def run_agency(
 
         self_effect.append(_gap(moved, plain, "D", action_scale))
         self_floor.append(_gap(again, plain, "D", action_scale))
-        own_effect.append(_gap(outside, plain, "S", self_scale))
-        own_floor.append(_gap(again, plain, "S", self_scale))
+        own = _gap(outside, plain, "S", self_scale)
+        own_base = _gap(again, plain, "S", self_scale)
+        own_effect.append(own)
+        own_floor.append(own_base)
+        kind = str(plain_action.get("kind") or forced or "unknown")
+        by_kind.setdefault(kind, []).append(own)
+        floor_by_kind.setdefault(kind, []).append(own_base)
         if moved_action.get("intended") != plain_action.get("intended"):
             text_changed = True
         del again_action
 
     runtime.actor = "self"
+    runtime.forced_action = None
     note = ""
     if not own_effect:
         note = "no trials ran"
@@ -142,5 +185,12 @@ async def run_agency(
         outcome_to_self_floor=float(np.mean(own_floor)) if own_floor else 0.0,
         action_text_changed=text_changed,
         trials=trials,
+        ownership_by_action={
+            kind: round(float(np.mean(values)), 5) for kind, values in sorted(by_kind.items())
+        },
+        ownership_floor_by_action={
+            kind: round(float(np.mean(values)), 5)
+            for kind, values in sorted(floor_by_kind.items())
+        },
         note=note,
     )

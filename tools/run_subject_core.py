@@ -97,7 +97,9 @@ async def main() -> int:
     parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
-    parser.add_argument("--agency-trials", type=int, default=5)
+    # At least one trial per action kind, so ownership is asked about acting
+    # rather than about whichever pathway the state happened to pick.
+    parser.add_argument("--agency-trials", type=int, default=8)
     parser.add_argument("--lesion-rounds", type=int, default=30)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(

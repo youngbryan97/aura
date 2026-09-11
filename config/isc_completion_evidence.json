@@ -2280,6 +2280,77 @@
     "note": "core/subject/steppable.py calls each layer's own loop body on a count",
     "status": "done"
   },
+  "P26.1": {
+    "checks": [
+      {
+        "expr": "float(report['agency']['ownership_by_action'].get('write_notes', -1.0)) > float(report['agency']['ownership_floor_by_action'].get('write_notes', 0.0))",
+        "kind": "report"
+      }
+    ],
+    "note": "file creation is one of the four she cycles through, and its ownership divergence clears its own floor",
+    "status": "done"
+  },
+  "P26.14": {
+    "checks": [
+      {
+        "expr": "report['agency']['ownership_generalises'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the self-state divergence survives every action kind it was asked about",
+    "status": "done"
+  },
+  "P26.15": {
+    "checks": [
+      {
+        "expr": "len(report['agency']['ownership_by_action']) >= 2",
+        "kind": "report"
+      },
+      {
+        "command": "{python} -m pytest tests/test_ownership_is_about_acting.py::test_the_experiment_cycles_every_action_she_has -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "attribution is asked about four action kinds, not one",
+    "status": "done"
+  },
+  "P26.16": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_ownership_is_about_acting.py::test_holding_her_to_an_action_overrides_what_she_would_have_picked -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "forced_action: str \\| None = None"
+      }
+    ],
+    "note": "and both arms of a trial do the same thing, so what differs is who did it",
+    "status": "done"
+  },
+  "P26.2": {
+    "checks": [
+      {
+        "expr": "float(report['agency']['ownership_by_action'].get('append_log', -1.0)) > float(report['agency']['ownership_floor_by_action'].get('append_log', 0.0))",
+        "kind": "report"
+      }
+    ],
+    "note": "file modification is one of the four she cycles through, and its ownership divergence clears its own floor",
+    "status": "done"
+  },
+  "P26.7": {
+    "checks": [
+      {
+        "expr": "float(report['agency']['ownership_by_action'].get('read_room', -1.0)) > float(report['agency']['ownership_floor_by_action'].get('read_room', 0.0))",
+        "kind": "report"
+      }
+    ],
+    "note": "information retrieval is one of the four she cycles through, and its ownership divergence clears its own floor",
+    "status": "done"
+  },
   "P28.1": {
     "checks": [
       {
@@ -3207,6 +3278,39 @@
     "note": "the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it",
     "status": "done"
   },
+  "P37.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "The file ends with\\n        # the same bytes either way"
+      }
+    ],
+    "note": "the two arms end with the same file holding the same bytes",
+    "status": "done"
+  },
+  "P37.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "the same fact is recorded"
+      }
+    ],
+    "note": "the same fact recorded",
+    "status": "done"
+  },
+  "P37.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "the same goal is\\n        # appended with the same text"
+      }
+    ],
+    "note": "the same goal appended with the same text",
+    "status": "done"
+  },
   "P37.5": {
     "checks": [
       {
@@ -3231,6 +3335,21 @@
       }
     ],
     "note": "the divergence clears the same-arm floor",
+    "status": "done"
+  },
+  "P37.7": {
+    "checks": [
+      {
+        "expr": "report['agency']['ownership_generalises'] is True",
+        "kind": "report"
+      },
+      {
+        "command": "{python} -m pytest tests/test_ownership_is_about_acting.py::test_one_pathway_is_not_generalisation -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "ownership holds for more than one kind of action",
     "status": "done"
   },
   "P37.9": {
