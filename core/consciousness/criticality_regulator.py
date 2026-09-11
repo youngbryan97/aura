@@ -62,6 +62,17 @@ __all__ = [
 # Configuration
 # ---------------------------------------------------------------------------
 
+#: The branching ratio the controller steers toward.
+#:
+#: It was 1.0, written inline three times. One is the critical point exactly,
+#: and cortex does not sit there: Wilting and Priesemann measure 0.98 in vivo
+#: by multistep regression, slightly subcritical, which is the reverberating
+#: regime and the same number this system's own cortical scorecard scores her
+#: branching against. Steering to 1.0 steers to the edge of runaway and scores
+#: her against a target she was never driven to.
+CRITICAL_BRANCHING_TARGET: float = 0.98
+
+
 @dataclass(frozen=True)
 class CriticalityConfig:
     """Immutable tuning parameters for the regulator.
@@ -89,8 +100,33 @@ class CriticalityConfig:
     kd: float = 0.1
 
     # Output clamps -- prevent the PID from pushing the system into
-    # dangerous regimes.  The range is symmetric around 1.0.
-    gain_clamp: Tuple[float, float] = (0.5, 2.0)
+    # dangerous regimes. The range was symmetric around 1.0, which is a shape
+    # rather than a measurement, and on the gain axis the shape put the ceiling
+    # below the controller's own setpoint: inside a clamp of 2.0 the mesh
+    # reaches a branching ratio of 0.929, so a controller asking for 0.98 could
+    # never arrive and sat wound up against the rail forever.
+    #
+    # Swept at 3,000 ticks and four seeds a point, effective gain against
+    # branching ratio and against how far the count of simultaneously active
+    # units sits above what their own rates explain:
+    #
+    #     gain 2.0   branching 0.929   2.89 sigma (1.24 5.91 2.48 1.96)
+    #     gain 2.5   branching 0.961   6.93 sigma (3.33 14.5 5.42 4.45)
+    #     gain 3.0   branching 0.961  10.05 sigma (6.75 14.0 7.73 11.8)
+    #     gain 3.5   branching 0.992  20.84 sigma (15.9 18.5 28.2 20.8)
+    #
+    # 3.5 is where the setpoint becomes reachable with room to settle, and it
+    # is well below where the mesh misbehaves: gain 4.0 multiplies the spike
+    # count fivefold, and gain 3.0 with twenty times the inter-column coupling
+    # runs away outright. A clamp is a bound and not an operating point -- the
+    # controller still stops when its branching target arrives, around 3.2.
+    #
+    # Measured offline on a synthetic drive. The live mesh is driven by real
+    # input and may settle elsewhere inside the same bound.
+    gain_clamp: Tuple[float, float] = (0.5, 3.5)
+    # Unmeasured, and left alone. Nothing here has swept the noise axis or the
+    # excitation-inhibition axis, and a ceiling nobody has measured should not
+    # move because a neighbouring one did.
     noise_clamp: Tuple[float, float] = (0.5, 2.0)
     ei_ratio_clamp: Tuple[float, float] = (0.7, 1.3)
 
@@ -724,20 +760,22 @@ class CriticalityRegulator:
         # 4. PID update
         # Error for gain: branching_ratio > 1 means supercritical → DECREASE gain
         # So we negate: error = -(branching_ratio - 1.0)
-        gain_error = -(self._branching_ratio - 1.0)
+        gain_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
         self._gain_adjustment = self._gain_pid.step(gain_error)
 
         # Error for noise: if subcritical (br < 1), we want MORE noise to
         # destabilize the fixed point.  If supercritical, less noise.
         # We also factor in the Herfindahl: high concentration means the
         # system is stuck in a few columns → more noise needed.
-        noise_error = -(self._branching_ratio - 1.0) + self._herfindahl * 0.5
+        noise_error = (
+            -(self._branching_ratio - CRITICAL_BRANCHING_TARGET) + self._herfindahl * 0.5
+        )
         self._noise_adjustment = self._noise_pid.step(noise_error)
 
         # Error for E/I ratio: drives toward balanced excitation/inhibition.
         # If supercritical, reduce excitation (ratio < 1).
         # If subcritical, increase excitation (ratio > 1).
-        ei_error = -(self._branching_ratio - 1.0)
+        ei_error = -(self._branching_ratio - CRITICAL_BRANCHING_TARGET)
         self._ei_ratio = self._ei_pid.step(ei_error)
 
         # 5. Avalanche diagnostics

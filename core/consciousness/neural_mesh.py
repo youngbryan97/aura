@@ -227,6 +227,14 @@ SPIKE_SIGMA = 3.0
 #: estimate is small for no reason and the threshold is crossed by everything:
 #: unguarded, the mesh fired 8,370 of its 8,373 spikes in one burst in the
 #: first few ticks and was silent for the next five thousand.
+#: The largest gain the criticality regulator may ask this mesh for.
+#:
+#: Mirrors the regulator's own clamp, and is stated here rather than imported
+#: because the mesh must not depend on its regulator. A test holds the two
+#: together, because the tighter of two ceilings decides and does it silently.
+CRITICALITY_GAIN_CEILING: float = 3.5
+
+
 SPIKE_STATISTICS_MINIMUM = 10
 
 
@@ -1752,8 +1760,15 @@ class NeuralMesh(MeshWiring):
     def _publish_modulatory_state_locked(self) -> None:
         base_gain, base_plasticity, base_noise = self._base_modulatory_state
         criticality_gain, criticality_noise = self._criticality_modulatory_factors
+        # The third ceiling on one quantity, and the one nobody could see. The
+        # regulator clamps what it asks for, `set_criticality_adjustment`
+        # clamps what it accepts, and this clamps what either of them
+        # published -- so the tightest of the three decided, silently. At 3.0
+        # the branching ratio reaches 0.961 against a target of 0.98, which is
+        # still out of reach, so raising the other two without this one would
+        # have changed nothing and looked like a fix.
         effective = (
-            max(0.1, min(3.0, base_gain * criticality_gain)),
+            max(0.1, min(CRITICALITY_GAIN_CEILING, base_gain * criticality_gain)),
             max(0.0, min(5.0, base_plasticity)),
             max(0.0, min(3.0, base_noise * criticality_noise)),
         )
@@ -1868,10 +1883,16 @@ class NeuralMesh(MeshWiring):
         """Apply bounded criticality factors over the neurochemical base state."""
         gain_value, gain_valid = _finite_float(gain, 1.0)
         noise_value, noise_valid = _finite_float(noise, 1.0)
+        # The regulator's own gain clamp, and the same measurement behind it:
+        # inside a ceiling of 2.0 this mesh reaches a branching ratio of 0.929
+        # against a controller asking for 0.98, so the ceiling made the target
+        # unreachable and the controller sat at the rail. See
+        # `CriticalityConfig.gain_clamp` for the sweep. The two numbers have to
+        # agree or the tighter one decides, silently.
         gain_value, gain_unchanged = _clamp_float(
             gain_value,
             lower=0.5,
-            upper=2.0,
+            upper=CRITICALITY_GAIN_CEILING,
         )
         noise_value, noise_unchanged = _clamp_float(
             noise_value,

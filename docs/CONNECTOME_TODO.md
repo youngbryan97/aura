@@ -101,9 +101,33 @@ Working list. Deleted when every line is done and green.
       twenty times the coupling runs away outright — 480,569 spikes against a
       baseline 4,840, branching 0.9991. Recruitment and silence pull against
       each other here, and a recording with no silence in it cannot separate
-      one cascade from the next however well its units recruit. The clamp
-      should move; what it should move to is the open question, and it is one
-      seed a cell so far
+      one cascade from the next however well its units recruit.
+
+      Four seeds a point settled where recruitment starts, and it is not where
+      one seed said: 2.89 sigma at the clamp, 6.93 at 2.5, 10.05 at 3.0, 20.84
+      at 3.5, with the branching ratio climbing 0.929, 0.961, 0.961, 0.992
+      beside it. At the clamp itself it straddles the bar — 1.24, 5.91, 2.48,
+      1.96 across the four seeds. Occupancy rises 0.907 to 0.952, which is the
+      cost and is milder than one seed suggested.
+
+      That makes the case structural rather than a matter of taste. The PID
+      steers toward a branching ratio, and inside a gain ceiling of 2.0 this
+      mesh reaches 0.929, so the setpoint sat outside the ceiling and the
+      controller wound against the rail for the life of every process it ran
+      in. Three ceilings sat on that one quantity — the regulator's clamp at
+      2.0, `set_criticality_adjustment` at 2.0, and a third inside
+      `_publish_modulatory_state_locked` at 3.0 that nothing named — and the
+      tightest decided silently, so raising the visible pair alone would have
+      changed nothing and looked like a fix. All three are 3.5 now, with the
+      sweep in the comment and a test that fails if they ever disagree.
+
+      The setpoint moved too, 1.0 to 0.98. One is the critical point exactly,
+      cortex does not sit there, and 0.98 is both Wilting and Priesemann's in
+      vivo measurement and the number this system's own scorecard already
+      scored her branching against.
+
+      Measured offline on a synthetic drive, and the live mesh is driven by
+      real input. Where it settles inside the new bound is the open half
 
 - [ ] the full offline suite green. Nineteen of forty chunks have run and 56
       distinct failures have surfaced. Every one traced so far is either fixed
