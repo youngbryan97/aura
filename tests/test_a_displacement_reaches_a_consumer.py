@@ -576,3 +576,42 @@ def test_curiosity_is_read_from_both_channels_not_the_larger_one() -> None:
         "the curiosity channel moved and the readout did not, so whatever "
         "writes it cannot be read"
     )
+
+
+def test_displacing_the_body_reaches_what_prices_her_effort() -> None:
+    """The host is held still, so the ledger is the body's only live channel.
+
+    `_perturb_I` writes `soma.exertion`, and the proprioceptive loop derives
+    that from the effort ledger at the top of every turn — so the write lasted
+    until the next turn began. The one consumer that prices anything on how
+    hard she has been working reads the ledger rather than the readout, so the
+    displacement reached it never.
+    """
+    from core.soma.effort import (
+        EffortLedger,
+        get_effort_ledger,
+        note_effort,
+        reset_effort_for_test,
+    )
+    from core.subject.state import Organs
+
+    reset_effort_for_test()
+    for _ in range(29):
+        note_effort("phases", 1.0)
+    before = EffortLedger.exertion(dict(get_effort_ledger().peek()))
+
+    assert asyncio.run(perturb_organs(Organs(), "I", DELTA, state=None)) is True
+    after = EffortLedger.exertion(dict(get_effort_ledger().peek()))
+    assert after > before, "the ledger the consumers read did not move"
+    reset_effort_for_test()
+
+
+def test_an_empty_ledger_is_not_displaced_into_existence() -> None:
+    """A share of what she has spent. With nothing spent there is nothing to be
+    more tired than, and inventing a number would be inventing a body."""
+    from core.soma.effort import get_effort_ledger, reset_effort_for_test
+    from core.subject.state import Organs
+
+    reset_effort_for_test()
+    asyncio.run(perturb_organs(Organs(), "I", DELTA, state=None))
+    assert not dict(get_effort_ledger().peek())

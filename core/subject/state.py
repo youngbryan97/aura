@@ -1774,6 +1774,32 @@ async def perturb_organs(
             hit = True
         except Exception:  # noqa: BLE001
             hit = False
+    elif domain == "I":
+        # The effort ledger, which is where her own exertion is kept.
+        #
+        # `_perturb_I` writes `soma.exertion`, and the proprioceptive loop
+        # derives that from the ledger at the top of every turn — so the write
+        # lasted until the next turn began. Worse, the one consumer that prices
+        # anything on how hard she has been working reads the ledger rather
+        # than the readout, so the displacement reached it never. The host is
+        # held still for the duration of a trial, which leaves this as the only
+        # channel the body has, and it was going nowhere.
+        #
+        # A share of what she has already spent, not a number: being a fifth
+        # more tired than you are is a displacement, and being a fifth of some
+        # absolute quantity more tired is a fact about the units.
+        try:
+            from core.soma.effort import get_effort_ledger
+
+            ledger = get_effort_ledger()
+            spent = dict(ledger.peek())
+            for kind, amount in spent.items():
+                step = float(amount) * delta
+                if abs(step) > 1e-9:
+                    ledger.note(kind, step)
+                    hit = True
+        except Exception:  # noqa: BLE001 - an absent ledger is an absent ledger
+            hit = False
     elif domain == "N":
         # The reservoir the cognitive cycle steps, when that is not the one the
         # state writer already moved. `start_organism` binds the two together,
