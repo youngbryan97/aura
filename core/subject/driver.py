@@ -1366,15 +1366,11 @@ class SubjectRuntime:
                         inside = sorted(target_room.iterdir())
                         removed = 0
                         for item in inside:
+                            # Deleted through the gateway, like the write two
+                            # branches up: a raw unlink was the one call here
+                            # the governance lint could not account for.
                             if item.is_file():
-                                # Through the gateway, like the write two
-                                # branches up. A raw unlink here was the one
-                                # call in this file the governance lint could
-                                # not account for, and the room it clears is
-                                # written through the gateway either way.
-                                gateway.delete_file(
-                                    item, source="subject_core.action_probe"
-                                )
+                                gateway.delete_file(item, source="subject_core.action_probe")
                                 removed += 1
                         left = len(list(target_room.iterdir()))
                         ok = removed > 0 and left == 0

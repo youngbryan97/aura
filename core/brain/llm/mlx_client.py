@@ -1498,7 +1498,6 @@ _SPAWN_GATE_ACQUIRE_TIMEOUT_S = _env_duration_s(
 )
 
 
-
 def _model_process_reserve_gb(model_path: str) -> float:
     def _env_float(name: str, default: float) -> float:
         return _finite_env_float(name, default, minimum=0.0)
@@ -8563,9 +8562,6 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         self._req_q = None
         self._res_q = None
         self._response_queue_generation += 1
-
-
-
 
 
 
