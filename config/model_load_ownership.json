@@ -258,6 +258,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/capture_27b_steering_vectors.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/cortex_generation_upgrade.py",
       "purpose": "evaluation"
     },
@@ -492,6 +503,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/qualify_27b_steering.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/recurrence_native_train.py"
     },
     {
@@ -524,6 +546,17 @@
       ],
       "ownership_mode": "standalone_process",
       "path": "tools/rlc_accuracy_ladder.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/run_caa_steering_campaign.py",
       "purpose": "evaluation"
     },
     {

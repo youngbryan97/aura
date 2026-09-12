@@ -613,3 +613,43 @@ class TestWhileTrueIsAnIdiomNotADefect:
     def test_an_exit_inside_a_handler_still_counts(self) -> None:
         source = "while True:\n    try:\n        work()\n    except OSError:\n        break\n"
         assert _scan_loops(source) == set()
+
+
+def _scan_blocking_sleep(source: str, rel: str = "core/thing.py") -> set[int]:
+    """Lines the blocking-sleep rule would report."""
+    import ast
+
+    from tools.aura_enterprise_gate import AstGate, GateReport
+
+    report = GateReport(root=".", generated_at_unix=0.0)
+    AstGate(rel, report, source_lines=source.splitlines()).visit(ast.parse(source))
+    return {f.line for f in report.findings if f.kind == "blocking_sleep_in_async"}
+
+
+class TestADeliberateStallIsMarkedOnItsLine:
+    """A test whose subject is a stalled event loop has to be able to stall one.
+
+    The only escape the rule had was a file-name allowlist, and that blesses
+    every sleep added to the file afterwards — which is the debt the rule
+    exists to catch. `# noqa: ASYNC251` is the ecosystem-standard annotation
+    for this call and it names the one line a human read.
+    """
+
+    def test_a_blocking_sleep_inside_async_is_reported(self) -> None:
+        source = "import time\n\n\nasync def go():\n    time.sleep(0.1)\n"
+        assert _scan_blocking_sleep(source) == {5}
+
+    def test_the_reviewed_marker_clears_that_line_and_no_other(self) -> None:
+        source = (
+            "import time\n"
+            "\n"
+            "\n"
+            "async def go():\n"
+            "    time.sleep(0.1)  # noqa: ASYNC251 - the stalled loop is the subject\n"
+            "    time.sleep(0.2)\n"
+        )
+        assert _scan_blocking_sleep(source) == {6}
+
+    def test_a_sleep_outside_async_was_never_the_rule(self) -> None:
+        source = "import time\n\n\ndef go():\n    time.sleep(0.1)\n"
+        assert _scan_blocking_sleep(source) == set()

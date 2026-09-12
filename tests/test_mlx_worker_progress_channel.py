@@ -53,7 +53,7 @@ async def test_child_progress_remains_visible_after_parent_loop_was_blocked():
         assert await asyncio.to_thread(ready.wait, 10.0)
         # Deliberately block this event loop. No listener or heartbeat consumer
         # runs while the child continues publishing inference activity.
-        time.sleep(0.12)
+        time.sleep(0.12)  # noqa: ASYNC251 - the stalled loop is the subject
         age = activity_age(channel, 7)
         assert age is not None and age < 0.1
         assert activity_age(channel, 8) is None

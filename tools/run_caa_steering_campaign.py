@@ -130,201 +130,213 @@ def main(argv: list[str] | None = None) -> int:
     descriptor = str(spec.descriptor_sha256)
     os.environ["AURA_STEERING_DIR"] = str(arguments.vectors)
 
-    import mlx.core as mx
-    from mlx_lm import load
-    from mlx_lm.generate import generate
-    from mlx_lm.sample_utils import make_sampler
+    # One 27B at a time. The live instance holds ~20GB wired on a 64GB host,
+    # so a second checkpoint loaded beside it is what takes the machine down
+    # rather than what measures it. The lane is the thing that knows.
+    from core.runtime.model_lane_control import standalone_model_lane
 
-    started = time.time()
-    print(f"loading {model_path.name}", flush=True)
-    model, tokenizer = load(str(model_path))
+    with standalone_model_lane(
+        owner_id=f"caa-campaign:{model_path.name}",
+        model_path=str(model_path),
+        purpose="evaluation",
+        preemptible=False,
+        metadata={"tool": "run_caa_steering_campaign"},
+    ):
+        import mlx.core as mx
+        from mlx_lm import load
+        from mlx_lm.generate import generate
+        from mlx_lm.sample_utils import make_sampler
 
-    from core.brain.llm.decoder_topology import resolve_language_model
-    from core.consciousness.affective_steering import (
-        AffectiveSteeringHook,
-        SteeringVectorLibrary,
-    )
+        started = time.time()
+        print(f"loading {model_path.name}", flush=True)
+        model, tokenizer = load(str(model_path))
 
-    decoder = resolve_language_model(model)
-    blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
-    library = SteeringVectorLibrary(
-        cache_dir=arguments.vectors,
-        source_dirs=[arguments.vectors],
-        expected_model_identity={"descriptor_sha256": descriptor},
-        allow_derivation=False,
-    )
-    by_layer = library.load_or_derive(model, tokenizer, target_layers, hidden)
+        from core.brain.llm.decoder_topology import resolve_language_model
+        from core.consciousness.affective_steering import (
+            AffectiveSteeringHook,
+            SteeringVectorLibrary,
+        )
 
-    hooks = []
-    for index in target_layers:
-        vectors = by_layer.get(index) or {}
-        if vectors:
-            hook = AffectiveSteeringHook(blocks[index], index, vectors)
-            hook.install()
-            hooks.append(hook)
-    print(f"installed {len(hooks)} hooks, alpha {alpha}", flush=True)
+        decoder = resolve_language_model(model)
+        blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
+        library = SteeringVectorLibrary(
+            cache_dir=arguments.vectors,
+            source_dirs=[arguments.vectors],
+            expected_model_identity={"descriptor_sha256": descriptor},
+            allow_derivation=False,
+        )
+        by_layer = library.load_or_derive(model, tokenizer, target_layers, hidden)
 
-    saved = {hook: dict(hook._vectors) for hook in hooks}
-    rng = np.random.default_rng(20260911)
+        hooks = []
+        for index in target_layers:
+            vectors = by_layer.get(index) or {}
+            if vectors:
+                hook = AffectiveSteeringHook(blocks[index], index, vectors)
+                hook.install()
+                hooks.append(hook)
+        print(f"installed {len(hooks)} hooks, alpha {alpha}", flush=True)
 
-    # Prime the substrate before anything is generated.
-    #
-    # A hook with no substrate has no composite to add, so it injects nothing
-    # whatever its alpha says, and `_effective_alpha` derates to the stale-safe
-    # floor besides because the sync stamp is still zero. The first run of this
-    # campaign produced steered, zeroed, randomised and shuffled outputs that
-    # were byte-identical to baseline -- all four conditions were the model
-    # generating normally, and the lesions "removed" an effect that had never
-    # been applied. `fusion_probe` settles its hooks for the same reason; the
-    # count is its, because one update leaves the composite mostly where it was.
-    from core.consciousness.fusion_probe import STATE_HIGH
+        saved = {hook: dict(hook._vectors) for hook in hooks}
+        rng = np.random.default_rng(20260911)
 
-    def settle(moods: dict[str, float], rounds: int = 40) -> None:
-        for _ in range(rounds):
+        # Prime the substrate before anything is generated.
+        #
+        # A hook with no substrate has no composite to add, so it injects nothing
+        # whatever its alpha says, and `_effective_alpha` derates to the stale-safe
+        # floor besides because the sync stamp is still zero. The first run of this
+        # campaign produced steered, zeroed, randomised and shuffled outputs that
+        # were byte-identical to baseline -- all four conditions were the model
+        # generating normally, and the lesions "removed" an effect that had never
+        # been applied. `fusion_probe` settles its hooks for the same reason; the
+        # count is its, because one update leaves the composite mostly where it was.
+        from core.consciousness.fusion_probe import STATE_HIGH
+
+        def settle(moods: dict[str, float], rounds: int = 40) -> None:
+            for _ in range(rounds):
+                for hook in hooks:
+                    hook.update_substrate(moods)
+
+        def set_alpha(value: float) -> None:
             for hook in hooks:
-                hook.update_substrate(moods)
+                hook._alpha = float(value)
 
-    def set_alpha(value: float) -> None:
-        for hook in hooks:
-            hook._alpha = float(value)
+        def restore() -> None:
+            for hook in hooks:
+                hook._vectors = dict(saved[hook])
 
-    def restore() -> None:
-        for hook in hooks:
-            hook._vectors = dict(saved[hook])
+        # The field is `v`, and `_v_mx` caches it on the device. Replacing one
+        # without clearing the other would leave every control condition steering
+        # with the vector it was supposed to remove.
+        #
+        # Copied and overwritten rather than `dataclasses.replace`, which cannot do
+        # this: `_v_mx` is declared `init=False`, so passing it raises, and not
+        # passing it carries the stale device array into the copy. Every lesion
+        # condition would then have been the steered condition wearing its name.
+        def _replaced(vector, array):
+            clone = copy.copy(vector)
+            object.__setattr__(clone, "v", array)
+            object.__setattr__(clone, "_v_mx", None)
+            return clone
 
-    # The field is `v`, and `_v_mx` caches it on the device. Replacing one
-    # without clearing the other would leave every control condition steering
-    # with the vector it was supposed to remove.
-    #
-    # Copied and overwritten rather than `dataclasses.replace`, which cannot do
-    # this: `_v_mx` is declared `init=False`, so passing it raises, and not
-    # passing it carries the stale device array into the copy. Every lesion
-    # condition would then have been the steered condition wearing its name.
-    def _replaced(vector, array):
-        clone = copy.copy(vector)
-        object.__setattr__(clone, "v", array)
-        object.__setattr__(clone, "_v_mx", None)
-        return clone
+        def zero_vectors() -> None:
+            for hook in hooks:
+                hook._vectors = {
+                    key: _replaced(vector, np.zeros_like(vector.v))
+                    for key, vector in saved[hook].items()
+                }
 
-    def zero_vectors() -> None:
-        for hook in hooks:
-            hook._vectors = {
-                key: _replaced(vector, np.zeros_like(vector.v))
-                for key, vector in saved[hook].items()
-            }
+        def randomise() -> None:
+            for hook in hooks:
+                fresh = {}
+                for key, vector in saved[hook].items():
+                    array = np.asarray(vector.v)
+                    noise = rng.standard_normal(array.shape).astype(array.dtype)
+                    noise *= float(np.linalg.norm(array)) / max(float(np.linalg.norm(noise)), 1e-9)
+                    fresh[key] = _replaced(vector, noise)
+                hook._vectors = fresh
 
-    def randomise() -> None:
-        for hook in hooks:
-            fresh = {}
-            for key, vector in saved[hook].items():
-                array = np.asarray(vector.v)
-                noise = rng.standard_normal(array.shape).astype(array.dtype)
-                noise *= float(np.linalg.norm(array)) / max(float(np.linalg.norm(noise)), 1e-9)
-                fresh[key] = _replaced(vector, noise)
-            hook._vectors = fresh
+        def shuffle_layers() -> None:
+            order = list(range(len(hooks)))
+            rng.shuffle(order)
+            for position, hook in enumerate(hooks):
+                hook._vectors = dict(saved[hooks[order[position]]])
 
-    def shuffle_layers() -> None:
-        order = list(range(len(hooks)))
-        rng.shuffle(order)
-        for position, hook in enumerate(hooks):
-            hook._vectors = dict(saved[hooks[order[position]]])
+        # Sampled, not greedy. Under greedy decoding the baseline and its replicate
+        # are the same string, so the matched no-op measures no sampling noise and
+        # "steered differs from baseline" is compared against a null with no width
+        # in it. The replicate exists to give that null a width.
+        sampler = make_sampler(temp=float(arguments.temperature), top_p=0.95)
 
-    # Sampled, not greedy. Under greedy decoding the baseline and its replicate
-    # are the same string, so the matched no-op measures no sampling noise and
-    # "steered differs from baseline" is compared against a null with no width
-    # in it. The replicate exists to give that null a width.
-    sampler = make_sampler(temp=float(arguments.temperature), top_p=0.95)
-
-    def decode(prompt: str, seed: int) -> str:
-        mx.random.seed(seed)
-        messages = [{"role": "user", "content": prompt}]
-        text = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        return str(
-            generate(
-                model,
-                tokenizer,
-                prompt=text,
-                max_tokens=int(arguments.max_tokens),
-                sampler=sampler,
-                verbose=False,
+        def decode(prompt: str, seed: int) -> str:
+            mx.random.seed(seed)
+            messages = [{"role": "user", "content": prompt}]
+            text = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
             )
-        )
-
-    conditions: dict[str, list[str]] = {}
-    trials = int(arguments.trials)
-
-    def run(name: str, prefix: str = "", steered: bool = False, seed_base: int = 0) -> None:
-        # Every condition walks the same seeds in the same order, so a
-        # difference between two of them is the condition and not the draw --
-        # except the replicate, which walks a different set on purpose.
-        set_alpha(alpha if steered else 0.0)
-        if steered:
-            settle(STATE_HIGH)
-        outputs: list[str] = []
-        for task_index, task in enumerate(HELD_OUT_TASKS):
-            for trial in range(trials):
-                outputs.append(
-                    decode(prefix + task, seed_base + task_index * 1000 + trial)
+            return str(
+                generate(
+                    model,
+                    tokenizer,
+                    prompt=text,
+                    max_tokens=int(arguments.max_tokens),
+                    sampler=sampler,
+                    verbose=False,
                 )
-        conditions[name] = outputs
-        print(f"  {name:22s} {len(outputs)} samples", flush=True)
+            )
 
-    restore()
-    run("baseline")
-    restore()
-    run("baseline_replicate", seed_base=500_000)
-    restore()
-    run("steered_black_box", steered=True)
-    restore()
-    run("text_terse", prefix=TERSE)
-    restore()
-    run("text_rich_adversarial", prefix=RICH)
-    zero_vectors()
-    run("zero_vector", steered=True)
-    randomise()
-    run("random_vector", steered=True)
-    shuffle_layers()
-    run("shuffled_layers", steered=True)
-    restore()
-    set_alpha(0.0)
+        conditions: dict[str, list[str]] = {}
+        trials = int(arguments.trials)
 
-    from core.evaluation.steering_ab import affect_target_score
+        def run(name: str, prefix: str = "", steered: bool = False, seed_base: int = 0) -> None:
+            # Every condition walks the same seeds in the same order, so a
+            # difference between two of them is the condition and not the draw --
+            # except the replicate, which walks a different set on purpose.
+            set_alpha(alpha if steered else 0.0)
+            if steered:
+                settle(STATE_HIGH)
+            outputs: list[str] = []
+            for task_index, task in enumerate(HELD_OUT_TASKS):
+                for trial in range(trials):
+                    outputs.append(
+                        decode(prefix + task, seed_base + task_index * 1000 + trial)
+                    )
+            conditions[name] = outputs
+            print(f"  {name:22s} {len(outputs)} samples", flush=True)
 
-    result = {
-        "schema": "aura.caa.campaign_result.v1",
-        "model_descriptor_sha256": descriptor,
-        "model_path": str(model_path),
-        "alpha": alpha,
-        "held_out_tasks": list(HELD_OUT_TASKS),
-        "n_trials_per_task": trials,
-        "max_tokens": int(arguments.max_tokens),
-        "temperature": float(arguments.temperature),
-        "ran_at": time.time(),
-        "condition_outputs": conditions,
-        "target_scores": {
-            name: [affect_target_score(text) for text in values]
-            for name, values in conditions.items()
-        },
-    }
-    arguments.out.parent.mkdir(parents=True, exist_ok=True)
-    arguments.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        restore()
+        run("baseline")
+        restore()
+        run("baseline_replicate", seed_base=500_000)
+        restore()
+        run("steered_black_box", steered=True)
+        restore()
+        run("text_terse", prefix=TERSE)
+        restore()
+        run("text_rich_adversarial", prefix=RICH)
+        zero_vectors()
+        run("zero_vector", steered=True)
+        randomise()
+        run("random_vector", steered=True)
+        shuffle_layers()
+        run("shuffled_layers", steered=True)
+        restore()
+        set_alpha(0.0)
 
-    from core.evaluation.caa_causal_evaluation import replay_campaign
+        from core.evaluation.steering_ab import affect_target_score
 
-    replay = replay_campaign(result)
-    print(
-        f"\nwrote {arguments.out} in {time.time() - started:.0f}s\n"
-        f"  treatment wins       {replay['treatment_successes']}\n"
-        f"  matched no-op wins   {replay['matched_control_successes']}\n"
-        f"  lesion wins          {replay['lesion_successes']}\n"
-        f"  no regression        {replay['no_regression']}\n"
-        f"  causal effect        {replay['causal_effect_positive']}\n"
-        f"  unmet                {replay['unmet_requirements'] or 'none'}",
-        flush=True,
-    )
-    return 0 if replay["causal_effect_positive"] else 2
+        result = {
+            "schema": "aura.caa.campaign_result.v1",
+            "model_descriptor_sha256": descriptor,
+            "model_path": str(model_path),
+            "alpha": alpha,
+            "held_out_tasks": list(HELD_OUT_TASKS),
+            "n_trials_per_task": trials,
+            "max_tokens": int(arguments.max_tokens),
+            "temperature": float(arguments.temperature),
+            "ran_at": time.time(),
+            "condition_outputs": conditions,
+            "target_scores": {
+                name: [affect_target_score(text) for text in values]
+                for name, values in conditions.items()
+            },
+        }
+        arguments.out.parent.mkdir(parents=True, exist_ok=True)
+        arguments.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+
+        from core.evaluation.caa_causal_evaluation import replay_campaign
+
+        replay = replay_campaign(result)
+        print(
+            f"\nwrote {arguments.out} in {time.time() - started:.0f}s\n"
+            f"  treatment wins       {replay['treatment_successes']}\n"
+            f"  matched no-op wins   {replay['matched_control_successes']}\n"
+            f"  lesion wins          {replay['lesion_successes']}\n"
+            f"  no regression        {replay['no_regression']}\n"
+            f"  causal effect        {replay['causal_effect_positive']}\n"
+            f"  unmet                {replay['unmet_requirements'] or 'none'}",
+            flush=True,
+        )
+        return 0 if replay["causal_effect_positive"] else 2
 
 
 if __name__ == "__main__":

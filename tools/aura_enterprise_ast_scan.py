@@ -544,6 +544,17 @@ class AstGate(ast.NodeVisitor):
         """
         return self._line_has_marker(node, "noqa: S102")
 
+    def _line_has_reviewed_blocking_sleep(self, node: ast.AST) -> bool:
+        """A blocking sleep inside async that a human reviewed and justified.
+
+        `# noqa: ASYNC251` is the ecosystem-standard annotation for exactly
+        this call, and a test whose subject IS a stalled event loop has to be
+        able to stall one. Per-line rather than another
+        ALLOW_BLOCKING_SLEEP_IN_ASYNC entry, for the reason above: a file
+        allowlist also blesses every sleep added to it later.
+        """
+        return self._line_has_marker(node, "noqa: ASYNC251")
+
     def add(self, severity: str, kind: str, node: ast.AST, detail: str = "") -> None:
         self.report.findings.append(
             Finding(severity, kind, self.rel, getattr(node, "lineno", 0), detail)
@@ -729,6 +740,7 @@ class AstGate(ast.NodeVisitor):
             name == "time.sleep"
             and self.async_depth
             and self.rel not in ALLOW_BLOCKING_SLEEP_IN_ASYNC
+            and not self._line_has_reviewed_blocking_sleep(node)
         ):
             self.add("high", "blocking_sleep_in_async", node)
         self.generic_visit(node)

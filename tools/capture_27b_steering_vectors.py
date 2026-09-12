@@ -107,132 +107,144 @@ def main(argv: list[str] | None = None) -> int:
     if arguments.dry_run:
         return 0
 
-    import mlx.core as mx
-    from mlx_lm import load
+    # One 27B at a time. The live instance holds ~20GB wired on a 64GB host,
+    # so a second checkpoint loaded beside it is what takes the machine down
+    # rather than what measures it. The lane is the thing that knows.
+    from core.runtime.model_lane_control import standalone_model_lane
 
-    started = time.time()
-    print("loading the checkpoint", flush=True)
-    model, tokenizer = load(str(model_path))
-    print(f"loaded in {time.time() - started:.1f}s", flush=True)
+    with standalone_model_lane(
+        owner_id=f"caa-capture:{model_path.name}",
+        model_path=str(model_path),
+        purpose="evaluation",
+        preemptible=False,
+        metadata={"tool": "capture_27b_steering_vectors"},
+    ):
+        import mlx.core as mx
+        from mlx_lm import load
 
-    from core.brain.llm.decoder_topology import resolve_language_model
-    decoder = resolve_language_model(model)
-    blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
-    if not blocks:
-        print("the loaded object publishes no decoder layers", file=sys.stderr)
-        return 1
-    if max(layers_wanted) >= len(blocks):
-        print(
-            f"the plan names layer {max(layers_wanted)} and the checkpoint has "
-            f"{len(blocks)}",
-            file=sys.stderr,
-        )
-        return 1
+        started = time.time()
+        print("loading the checkpoint", flush=True)
+        model, tokenizer = load(str(model_path))
+        print(f"loaded in {time.time() - started:.1f}s", flush=True)
 
-    captured: dict[int, object] = {}
-
-    # One subclass per target block, each closing over its own index, so a
-    # single pass reads every layer the plan asks for. Reading them one layer
-    # at a time would run the same prompt sixteen times for sixteen numbers
-    # that a single run already contains.
-    for index in layers_wanted:
-        block = blocks[index]
-        base = block.__class__
-
-        def make(base_class, layer_index):
-            class Capturing(base_class):
-                def __call__(self, x, *args, **kwargs):
-                    out = super().__call__(x, *args, **kwargs)
-                    hidden_states = out[0] if isinstance(out, tuple) else out
-                    if hidden_states is not None:
-                        captured[layer_index] = hidden_states[0, -1, :].astype(mx.float32)
-                    return out
-            return Capturing
-
-        block.__class__ = make(base, index)
-
-    def read_prompt(text: str):
-        captured.clear()
-        tokens = tokenizer.encode(text)
-        ids = getattr(tokens, "input_ids", tokens)
-        try:
-            out = model(mx.array([ids]))
-            mx.eval(out, *[v for v in captured.values() if v is not None])
-        except (RuntimeError, ValueError, TypeError) as exc:
-            print(f"  prompt discarded: {type(exc).__name__}: {exc}", flush=True)
-            return None
-        return {
-            index: np.array(value, dtype=np.float32)
-            for index, value in captured.items()
-            if value is not None
-        }
-
-    arguments.out.mkdir(parents=True, exist_ok=True)
-    config_path = model_path / "config.json"
-    config_sha = _sha256_file(config_path) if config_path.exists() else ""
-    written = 0
-    for dimension in AFFECTIVE_DIMENSIONS:
-        key = str(dimension["key"])
-        sums: dict[str, dict] = {"positive": {}, "negative": {}}
-        counts = {"positive": 0, "negative": 0}
-        for side in ("positive", "negative"):
-            for prompt in dimension[side]:
-                reading = read_prompt(str(prompt))
-                if not reading:
-                    continue
-                counts[side] += 1
-                for index, vector in reading.items():
-                    running = sums[side].get(index)
-                    sums[side][index] = vector if running is None else running + vector
-        if not counts["positive"] or not counts["negative"]:
-            print(f"  {key}: no usable prompts on one side; skipped", flush=True)
-            continue
-        for index in layers_wanted:
-            positive = sums["positive"].get(index)
-            negative = sums["negative"].get(index)
-            if positive is None or negative is None:
-                continue
-            vector = (positive / counts["positive"]) - (negative / counts["negative"])
-            if vector.shape[0] != hidden:
-                print(
-                    f"  {key} layer {index}: width {vector.shape[0]} against "
-                    f"{hidden}; skipped",
-                    flush=True,
-                )
-                continue
-            out = arguments.out / f"{key}_layer{index}.npz"
-            np.savez(
-                out,
-                v=vector.astype(np.float32),
-                source="extracted_caa",
-                extracted=True,
-                dimension=key,
-                layer=index,
-                layer_kind=kind_by_layer.get(index, ""),
-                model=str(model_path),
-                model_path=str(model_path),
-                model_config_sha256=config_sha,
-                model_config_path=str(config_path),
-                model_descriptor_sha256=descriptor,
-                plan_descriptor_fingerprint=str(plan["descriptor_fingerprint"]),
-                positive_prompts=counts["positive"],
-                negative_prompts=counts["negative"],
-                derived_at=time.time(),
+        from core.brain.llm.decoder_topology import resolve_language_model
+        decoder = resolve_language_model(model)
+        blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
+        if not blocks:
+            print("the loaded object publishes no decoder layers", file=sys.stderr)
+            return 1
+        if max(layers_wanted) >= len(blocks):
+            print(
+                f"the plan names layer {max(layers_wanted)} and the checkpoint has "
+                f"{len(blocks)}",
+                file=sys.stderr,
             )
-            written += 1
+            return 1
+
+        captured: dict[int, object] = {}
+
+        # One subclass per target block, each closing over its own index, so a
+        # single pass reads every layer the plan asks for. Reading them one layer
+        # at a time would run the same prompt sixteen times for sixteen numbers
+        # that a single run already contains.
+        for index in layers_wanted:
+            block = blocks[index]
+            base = block.__class__
+
+            def make(base_class, layer_index):
+                class Capturing(base_class):
+                    def __call__(self, x, *args, **kwargs):
+                        out = super().__call__(x, *args, **kwargs)
+                        hidden_states = out[0] if isinstance(out, tuple) else out
+                        if hidden_states is not None:
+                            captured[layer_index] = hidden_states[0, -1, :].astype(mx.float32)
+                        return out
+                return Capturing
+
+            block.__class__ = make(base, index)
+
+        def read_prompt(text: str):
+            captured.clear()
+            tokens = tokenizer.encode(text)
+            ids = getattr(tokens, "input_ids", tokens)
+            try:
+                out = model(mx.array([ids]))
+                mx.eval(out, *[v for v in captured.values() if v is not None])
+            except (RuntimeError, ValueError, TypeError) as exc:
+                print(f"  prompt discarded: {type(exc).__name__}: {exc}", flush=True)
+                return None
+            return {
+                index: np.array(value, dtype=np.float32)
+                for index, value in captured.items()
+                if value is not None
+            }
+
+        arguments.out.mkdir(parents=True, exist_ok=True)
+        config_path = model_path / "config.json"
+        config_sha = _sha256_file(config_path) if config_path.exists() else ""
+        written = 0
+        for dimension in AFFECTIVE_DIMENSIONS:
+            key = str(dimension["key"])
+            sums: dict[str, dict] = {"positive": {}, "negative": {}}
+            counts = {"positive": 0, "negative": 0}
+            for side in ("positive", "negative"):
+                for prompt in dimension[side]:
+                    reading = read_prompt(str(prompt))
+                    if not reading:
+                        continue
+                    counts[side] += 1
+                    for index, vector in reading.items():
+                        running = sums[side].get(index)
+                        sums[side][index] = vector if running is None else running + vector
+            if not counts["positive"] or not counts["negative"]:
+                print(f"  {key}: no usable prompts on one side; skipped", flush=True)
+                continue
+            for index in layers_wanted:
+                positive = sums["positive"].get(index)
+                negative = sums["negative"].get(index)
+                if positive is None or negative is None:
+                    continue
+                vector = (positive / counts["positive"]) - (negative / counts["negative"])
+                if vector.shape[0] != hidden:
+                    print(
+                        f"  {key} layer {index}: width {vector.shape[0]} against "
+                        f"{hidden}; skipped",
+                        flush=True,
+                    )
+                    continue
+                out = arguments.out / f"{key}_layer{index}.npz"
+                np.savez(
+                    out,
+                    v=vector.astype(np.float32),
+                    source="extracted_caa",
+                    extracted=True,
+                    dimension=key,
+                    layer=index,
+                    layer_kind=kind_by_layer.get(index, ""),
+                    model=str(model_path),
+                    model_path=str(model_path),
+                    model_config_sha256=config_sha,
+                    model_config_path=str(config_path),
+                    model_descriptor_sha256=descriptor,
+                    plan_descriptor_fingerprint=str(plan["descriptor_fingerprint"]),
+                    positive_prompts=counts["positive"],
+                    negative_prompts=counts["negative"],
+                    derived_at=time.time(),
+                )
+                written += 1
+            print(
+                f"  {key}: {counts['positive']} positive, {counts['negative']} negative, "
+                f"{len(layers_wanted)} layers",
+                flush=True,
+            )
+
         print(
-            f"  {key}: {counts['positive']} positive, {counts['negative']} negative, "
-            f"{len(layers_wanted)} layers",
+            f"\nwrote {written} vectors to {arguments.out} in "
+            f"{time.time() - started:.1f}s, bound to {descriptor[:16]}\n"
+            "capture grants nothing: the four evidence requirements are a separate run",
             flush=True,
         )
-
-    print(
-        f"\nwrote {written} vectors to {arguments.out} in "
-        f"{time.time() - started:.1f}s, bound to {descriptor[:16]}\n"
-        "capture grants nothing: the four evidence requirements are a separate run",
-        flush=True,
-    )
-    return 0 if written else 1
+        return 0 if written else 1
 
 
 if __name__ == "__main__":

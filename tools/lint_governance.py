@@ -1074,6 +1074,12 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
                 )
 
 
+try:
+    from tools.cpu_budget import cores_available
+except ModuleNotFoundError:  # run as `tools/<name>.py`; only tools/ is on the path
+    from cpu_budget import cores_available
+
+
 def _declarations_in_one(job: tuple[str, str]) -> list[tuple[str, str]]:
     """Scan one file for gateway calls with no declared accelerator intent."""
     path_text, relative = job
@@ -1100,7 +1106,7 @@ def audit_subprocess_accelerator_declarations(
         (str(path), path.relative_to(root).as_posix())
         for path in _iter_subprocess_declaration_source_files(root)
     ]
-    workers = min(os.cpu_count() or 1, 8)
+    workers = cores_available()
     if workers > 1 and len(jobs) > 64:
         with ProcessPoolExecutor(max_workers=workers) as pool:
             batches = list(pool.map(_declarations_in_one, jobs, chunksize=32))
@@ -1162,7 +1168,7 @@ def scan_repository(root: Path = ROOT) -> tuple[list[EffectBucket], list[ScanPro
         (str(path), path.relative_to(root).as_posix())
         for path in _iter_source_files(root)
     ]
-    workers = min(os.cpu_count() or 1, 8)
+    workers = cores_available()
     if workers > 1 and len(jobs) > 64:
         with ProcessPoolExecutor(max_workers=workers) as pool:
             results = list(pool.map(_scan_one, jobs, chunksize=32))

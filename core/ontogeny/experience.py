@@ -298,6 +298,14 @@ class ExperienceSpine:
         self._refused = 0
         self._stopped = threading.Event()
         self._flusher: threading.Thread | None = None
+        # Set while a flush holds an open connection. The flusher is a daemon
+        # thread on a 2s timer that nothing in a test starts or stops, so its
+        # handle on the store appears under whichever test happens to be in
+        # teardown. That handle is in use, not leaked, and the difference is
+        # readable only from here: sqlite objects are thread-affine, so a
+        # sweeper walking the object graph from another thread cannot even
+        # query this connection, let alone decide whether it is finished.
+        self._writing = threading.Event()
         # stats() is three unindexed aggregates over the whole episodes table,
         # and ontogeny_report() calls it once per control point — so a single
         # health report used to scan the corpus N times. Under demo load that
@@ -525,6 +533,7 @@ class ExperienceSpine:
             self._prune_dedup()
         if not batch and not resolutions and not repeats:
             return 0
+        self._writing.set()
         try:
             with connecting(self._connect()) as conn:
                 if batch:
@@ -567,6 +576,25 @@ class ExperienceSpine:
                 "ontogeny_experience", exc, action="experience batch lost; corpus continues"
             )
             return 0
+        finally:
+            # After the `with`, so the flag drops only once the handle is shut.
+            self._writing.clear()
+
+    def a_write_is_in_flight(self) -> bool:
+        """True while a flush holds the store open."""
+        return self._writing.is_set()
+
+    def wait_until_quiet(self, timeout: float = 5.0) -> bool:
+        """Block until no flush holds the store. True if it went quiet.
+
+        Shutdown wants this and so does anything that measures open handles:
+        both need to know the writer finished, and neither can ask the
+        connection, which belongs to the flusher's thread.
+        """
+        deadline = time.monotonic() + max(0.0, timeout)
+        while self._writing.is_set() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return not self._writing.is_set()
 
     @staticmethod
     def _row(ep: Episode) -> tuple:
@@ -930,6 +958,18 @@ def get_experience_spine() -> ExperienceSpine:
     return _spine
 
 
+def a_background_write_is_in_flight() -> bool:
+    """True while the process-wide spine's flusher holds its store open."""
+    spine = _spine
+    return spine is not None and spine.a_write_is_in_flight()
+
+
+def wait_for_background_writes(timeout: float = 5.0) -> bool:
+    """Wait out the process-wide spine's flusher. True if it went quiet."""
+    spine = _spine
+    return True if spine is None else spine.wait_until_quiet(timeout)
+
+
 def reset_experience_spine_for_test(spine: ExperienceSpine | None = None) -> None:
     """Swap the process-wide spine. Tests only; the live path never calls this."""
     global _spine
@@ -943,6 +983,8 @@ __all__ = [
     "Episode",
     "ExperienceSpine",
     "Outcome",
+    "a_background_write_is_in_flight",
+    "wait_for_background_writes",
     "OutcomeKind",
     "Provenance",
     "SPINE_SCHEMA",

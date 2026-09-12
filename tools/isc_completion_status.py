@@ -32,6 +32,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from tools.report_expression import ExpressionRefused, evaluate_report_expression
+
 REPO = Path(__file__).resolve().parents[1]
 ITEMS = REPO / "config" / "isc_completion_items.json"
 EVIDENCE = REPO / "config" / "isc_completion_evidence.json"
@@ -83,7 +85,7 @@ class Checker:
             return False, f"unknown check kind {kind!r}"
         try:
             return handler(check)
-        except Exception as exc:  # a check that explodes has not passed
+        except Exception as exc:  # noqa: BLE001 - a check that explodes has not passed
             return False, f"{kind} raised {exc!r}"
 
     def _check_path(self, check: dict[str, Any]) -> tuple[bool, str]:
@@ -114,19 +116,14 @@ class Checker:
     def _check_report(self, check: dict[str, Any]) -> tuple[bool, str]:
         if not self.report:
             return False, "no report to read"
-        # In the globals, not the locals. A comprehension body is its own
-        # scope and resolves names against globals, so `any(int(r) ...)` raised
-        # NameError while `int(report[...])` worked — and a check that raises
-        # reads as an item that is not done rather than as a check that could
-        # not run.
-        names = {
-            "__builtins__": {},
-            "report": self.report,
-            "len": len, "any": any, "all": all, "sum": sum, "min": min, "max": max,
-            "float": float, "int": int, "str": str, "abs": abs, "round": round,
-            "sorted": sorted, "set": set, "list": list, "bool": bool,
-        }
-        value = eval(check["expr"], names, {})
+        # Read, not executed. These expressions live in a JSON file, and
+        # handing a JSON file to `eval` means anyone who can edit the evidence
+        # can run anything this tool can run. The reader below offers the
+        # grammar the 288 of them use and refuses the rest.
+        try:
+            value = evaluate_report_expression(check["expr"], self.report)
+        except ExpressionRefused as exc:
+            return False, f"{check['expr']} could not be read: {exc}"
         return bool(value), f"{check['expr']} -> {value!r}"
 
     def _check_scorecard(self, check: dict[str, Any]) -> tuple[bool, str]:
@@ -145,7 +142,19 @@ class Checker:
         # turns every command check into a silent failure there — which reads
         # as an item that is not done rather than as a check that could not run.
         command = check["command"].format(python=shlex.quote(sys.executable))
-        done = subprocess.run(command, cwd=REPO, shell=True, capture_output=True, text=True, timeout=check.get("timeout", 600))
+        # Split here rather than handing the string to a shell. The commands
+        # are written with shell quoting, which is exactly what shlex reads,
+        # and every one of them is a single program with arguments — so the
+        # shell was parsing them and then adding a way to run anything else.
+        try:
+            argv = shlex.split(command)
+        except ValueError as exc:
+            return False, f"unreadable command: {exc}"
+        if not argv:
+            return False, "empty command"
+        done = subprocess.run(  # noqa: S603 - argv from the evidence file, no shell
+            argv, cwd=REPO, capture_output=True, text=True, timeout=check.get("timeout", 600)
+        )
         return done.returncode == 0, f"exit {done.returncode}: {command}"
 
 

@@ -359,6 +359,40 @@ def _sqlite_paths_from(leaked_files: set[str]) -> set[str]:
     return bases
 
 
+def wait_out_declared_background_writers(timeout: float = 5.0) -> list[str]:
+    """Let a process-global writer finish before its handle is called a leak.
+
+    Ontogeny's experience flusher is a daemon thread on a two-second timer.
+    Nothing in a test starts it and nothing stops it, so the store it has open
+    for the length of one write belongs to whichever test is in teardown at
+    that moment. The handle is in use; the settle loop below cannot tell the
+    difference and neither can the sweeper, because sqlite objects are
+    thread-affine and a query from this thread raises rather than answers.
+
+    So ask the writer instead. Only modules a test already imported are
+    consulted, and only once a leak has been seen, so an untouched subsystem
+    is neither started nor waited on. Returns what was waited out.
+    """
+    waited: list[str] = []
+    for module_name, has_writes, wait in (
+        (
+            "core.ontogeny.experience",
+            "a_background_write_is_in_flight",
+            "wait_for_background_writes",
+        ),
+    ):
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        in_flight = getattr(module, has_writes, None)
+        quiesce = getattr(module, wait, None)
+        if in_flight is None or quiesce is None or not in_flight():
+            continue
+        quiesce(timeout)
+        waited.append(module_name)
+    return waited
+
+
 def close_leaked_sqlite_connections(leaked_files: set[str]) -> list[str]:
     """Close live sqlite connections to the given files. Returns what held them.
 
@@ -609,6 +643,14 @@ class HermeticResourceSandbox:
             if int(pid) == os.getpid() and int(fd) >= 0:
                 with contextlib.suppress(OSError):
                     os.close(int(fd))
+
+        # Before blaming anyone, let a declared background writer finish.
+        # Its handle is open because it is writing, which is not the thing
+        # this fixture exists to catch, and no fixed settle deadline can
+        # separate a two-second timer from a leak.
+        if leaks.get("open_files") and wait_out_declared_background_writers():
+            gc.collect()
+            leaks = self.leaks()
 
         # Backstop for the dominant leak class. Five unrelated modules —
         # AuditLog, ReceiptStore, the goal lifecycle store, the cognitive

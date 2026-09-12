@@ -360,15 +360,19 @@ def environment() -> dict[str, Any]:
             locks.append(f"{name}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}")
     hardware: dict[str, Any] = {}
     try:
-        import psutil
+        # Through the observer, not through psutil. A run recorded under a
+        # simulated observer has to say the machine the run believed it was
+        # on, and reading the host directly here would write the real one
+        # into the provenance of a run that never saw it.
+        from core.runtime import resource_psutil
 
         hardware = {
-            "cpus": psutil.cpu_count(logical=True),
-            "physical_cpus": psutil.cpu_count(logical=False),
-            "memory_gb": round(psutil.virtual_memory().total / 1e9, 1),
+            "cpus": resource_psutil.cpu_count(logical=True),
+            "physical_cpus": resource_psutil.cpu_count(logical=False),
+            "memory_gb": round(resource_psutil.virtual_memory().total / 1e9, 1),
         }
     except Exception:  # noqa: BLE001 - a machine that will not describe itself says so
-        hardware = {"note": "psutil unavailable"}
+        hardware = {"note": "the machine did not describe itself"}
     packages: dict[str, str] = {}
     for name in ("numpy", "scipy", "torch", "scikit-learn"):
         try:

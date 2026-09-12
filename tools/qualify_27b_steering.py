@@ -90,117 +90,129 @@ def main(argv: list[str] | None = None) -> int:
 
     os.environ["AURA_STEERING_DIR"] = str(arguments.vectors)
 
-    import mlx.core as mx  # noqa: F401  (imported for its side effect on load)
-    from mlx_lm import load
+    # One 27B at a time. The live instance holds ~20GB wired on a 64GB host,
+    # so a second checkpoint loaded beside it is what takes the machine down
+    # rather than what measures it. The lane is the thing that knows.
+    from core.runtime.model_lane_control import standalone_model_lane
 
-    started = time.time()
-    print("loading the checkpoint", flush=True)
-    model, tokenizer = load(str(model_path))
+    with standalone_model_lane(
+        owner_id=f"caa-qualify:{model_path.name}",
+        model_path=str(model_path),
+        purpose="evaluation",
+        preemptible=False,
+        metadata={"tool": "qualify_27b_steering"},
+    ):
+        import mlx.core as mx  # noqa: F401  (imported for its side effect on load)
+        from mlx_lm import load
 
-    from core.brain.llm.decoder_topology import resolve_language_model
-    from core.consciousness.affective_steering import (
-        AffectiveSteeringHook,
-        SteeringVectorLibrary,
-    )
+        started = time.time()
+        print("loading the checkpoint", flush=True)
+        model, tokenizer = load(str(model_path))
 
-    decoder = resolve_language_model(model)
-    blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
-
-    library = SteeringVectorLibrary(
-        cache_dir=arguments.vectors,
-        source_dirs=[arguments.vectors],
-        expected_model_identity={"descriptor_sha256": descriptor},
-        allow_derivation=False,
-    )
-    by_layer = library.load_or_derive(model, tokenizer, target_layers, hidden)
-    hooks = []
-    for layer_index in target_layers:
-        vectors = by_layer.get(layer_index) or {}
-        if not vectors:
-            continue
-        hook = AffectiveSteeringHook(blocks[layer_index], layer_index, vectors)
-        hook.install()
-        hooks.append(hook)
-    print(
-        f"installed   {len(hooks)} hooks over "
-        f"{sum(len(v) for v in by_layer.values())} vectors in "
-        f"{time.time() - started:.1f}s",
-        flush=True,
-    )
-    if not hooks:
-        print("no hooks installed; nothing to measure", file=sys.stderr)
-        return 1
-
-    def set_alpha(value: float) -> None:
-        for hook in hooks:
-            hook._alpha = float(value)
-
-    from core.consciousness.fusion_probe import measure_fusion
-
-    alphas = tuple(float(a) for a in str(arguments.alphas).split(",") if a.strip())
-    certificates = measure_fusion(
-        model,
-        tokenizer,
-        hooks,
-        set_alpha,
-        model_identity=descriptor,
-        model_name=str(model_path),
-        alphas=alphas,
-        steps=int(arguments.steps),
-        runner="tools/qualify_27b_steering.main",
-    )
-    for certificate in certificates:
-        print(
-            f"alpha {certificate.alpha:<5} arrives={certificate.arrives} "
-            f"beats_noise={certificate.beats_noise} "
-            f"carries_content={certificate.carries_content} "
-            f"costs_nothing={certificate.costs_nothing} "
-            f"| words change on {certificate.prompts_that_change}/{certificate.prompts}, "
-            f"states separate {certificate.state_separation:.3f}",
-            flush=True,
+        from core.brain.llm.decoder_topology import resolve_language_model
+        from core.consciousness.affective_steering import (
+            AffectiveSteeringHook,
+            SteeringVectorLibrary,
         )
 
-    holding = [c for c in certificates if c.holds]
-    best = min(holding, key=lambda c: c.alpha) if holding else None
+        decoder = resolve_language_model(model)
+        blocks = list(getattr(decoder, "layers", None) or getattr(decoder.model, "layers", []))
 
-    evidence = {
-        "schema": "aura.steering.regeneration_evidence.v1",
-        "descriptor_fingerprint": plan.get("descriptor_fingerprint"),
-        "model_descriptor_sha256": descriptor,
-        "measured_at": time.time(),
-        "vectors": len(files),
-        "hooks": len(hooks),
-        "extraction_bound_to_active_descriptor": extraction_bound,
-        "causal_ab_vs_matched_noop": bool(best and best.arrives and best.beats_noise),
-        "lesion_removes_the_effect": bool(best and best.carries_content),
-        "no_regression_on_the_control_prompts": bool(best and best.costs_nothing),
-        "alpha": float(best.alpha) if best else 0.0,
-        "certificates": [
-            {
-                "alpha": c.alpha,
-                "arrives": c.arrives,
-                "beats_noise": c.beats_noise,
-                "carries_content": c.carries_content,
-                "costs_nothing": c.costs_nothing,
-                "prompts": c.prompts,
-                "prompts_that_change": c.prompts_that_change,
-                "state_separation": c.state_separation,
-                "holds": c.holds,
-            }
-            for c in certificates
-        ],
-    }
-    arguments.out.parent.mkdir(parents=True, exist_ok=True)
-    arguments.out.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+        library = SteeringVectorLibrary(
+            cache_dir=arguments.vectors,
+            source_dirs=[arguments.vectors],
+            expected_model_identity={"descriptor_sha256": descriptor},
+            allow_derivation=False,
+        )
+        by_layer = library.load_or_derive(model, tokenizer, target_layers, hidden)
+        hooks = []
+        for layer_index in target_layers:
+            vectors = by_layer.get(layer_index) or {}
+            if not vectors:
+                continue
+            hook = AffectiveSteeringHook(blocks[layer_index], layer_index, vectors)
+            hook.install()
+            hooks.append(hook)
+        print(
+            f"installed   {len(hooks)} hooks over "
+            f"{sum(len(v) for v in by_layer.values())} vectors in "
+            f"{time.time() - started:.1f}s",
+            flush=True,
+        )
+        if not hooks:
+            print("no hooks installed; nothing to measure", file=sys.stderr)
+            return 1
 
-    outstanding = authority_errors(plan, evidence)
-    print(f"\nwrote {arguments.out}")
-    if may_serve(plan, evidence):
-        print("every requirement holds; the steering component can be qualified")
-        return 0
-    for error in outstanding:
-        print(f"  outstanding   {error}")
-    return 2
+        def set_alpha(value: float) -> None:
+            for hook in hooks:
+                hook._alpha = float(value)
+
+        from core.consciousness.fusion_probe import measure_fusion
+
+        alphas = tuple(float(a) for a in str(arguments.alphas).split(",") if a.strip())
+        certificates = measure_fusion(
+            model,
+            tokenizer,
+            hooks,
+            set_alpha,
+            model_identity=descriptor,
+            model_name=str(model_path),
+            alphas=alphas,
+            steps=int(arguments.steps),
+            runner="tools/qualify_27b_steering.main",
+        )
+        for certificate in certificates:
+            print(
+                f"alpha {certificate.alpha:<5} arrives={certificate.arrives} "
+                f"beats_noise={certificate.beats_noise} "
+                f"carries_content={certificate.carries_content} "
+                f"costs_nothing={certificate.costs_nothing} "
+                f"| words change on {certificate.prompts_that_change}/{certificate.prompts}, "
+                f"states separate {certificate.state_separation:.3f}",
+                flush=True,
+            )
+
+        holding = [c for c in certificates if c.holds]
+        best = min(holding, key=lambda c: c.alpha) if holding else None
+
+        evidence = {
+            "schema": "aura.steering.regeneration_evidence.v1",
+            "descriptor_fingerprint": plan.get("descriptor_fingerprint"),
+            "model_descriptor_sha256": descriptor,
+            "measured_at": time.time(),
+            "vectors": len(files),
+            "hooks": len(hooks),
+            "extraction_bound_to_active_descriptor": extraction_bound,
+            "causal_ab_vs_matched_noop": bool(best and best.arrives and best.beats_noise),
+            "lesion_removes_the_effect": bool(best and best.carries_content),
+            "no_regression_on_the_control_prompts": bool(best and best.costs_nothing),
+            "alpha": float(best.alpha) if best else 0.0,
+            "certificates": [
+                {
+                    "alpha": c.alpha,
+                    "arrives": c.arrives,
+                    "beats_noise": c.beats_noise,
+                    "carries_content": c.carries_content,
+                    "costs_nothing": c.costs_nothing,
+                    "prompts": c.prompts,
+                    "prompts_that_change": c.prompts_that_change,
+                    "state_separation": c.state_separation,
+                    "holds": c.holds,
+                }
+                for c in certificates
+            ],
+        }
+        arguments.out.parent.mkdir(parents=True, exist_ok=True)
+        arguments.out.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+
+        outstanding = authority_errors(plan, evidence)
+        print(f"\nwrote {arguments.out}")
+        if may_serve(plan, evidence):
+            print("every requirement holds; the steering component can be qualified")
+            return 0
+        for error in outstanding:
+            print(f"  outstanding   {error}")
+        return 2
 
 
 if __name__ == "__main__":

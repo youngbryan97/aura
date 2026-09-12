@@ -36,6 +36,7 @@ import inspect
 import logging
 import os
 import random
+import sqlite3
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, fields as dataclass_fields, replace
@@ -65,6 +66,7 @@ __all__ = [
 ]
 
 from core.state.percepts import emit_percept
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Subject.Driver")
 
@@ -735,8 +737,16 @@ def _restore_intentions(loop: Any, rows: list[tuple] | None) -> None:
             if rows:
                 marks = ",".join("?" for _ in rows[0])
                 connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
-    except Exception:  # noqa: BLE001
-        return
+    except sqlite3.Error as exc:
+        # The snapshot is still the truth; the arm that could not be rolled
+        # back runs on whatever the database holds, and the run has to say so
+        # rather than carry a silent difference between two arms.
+        record_degradation(
+            "subject_driver",
+            exc,
+            severity="warning",
+            action="intentions were not rolled back to the snapshot; this arm starts from live rows",
+        )
 
 
 def _reanchor(runtime: SubjectRuntime, shift: float) -> None:

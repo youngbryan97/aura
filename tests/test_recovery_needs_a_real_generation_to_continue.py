@@ -29,7 +29,8 @@ def _recovery_helper(namespace):
     ).body[0]
     factory.body.insert(1, helper)
     module = ast.Module(body=[factory], type_ignores=[])
-    exec(compile(ast.fix_missing_locations(module), str(source), "exec"), namespace)
+    # Builds the closure under test from the module's own source.
+    exec(compile(ast.fix_missing_locations(module), str(source), "exec"), namespace)  # noqa: S102
     return namespace["factory"]()
 
 
