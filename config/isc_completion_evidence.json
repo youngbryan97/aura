@@ -1897,7 +1897,7 @@
   "P2.48": {
     "checks": [
       {
-        "expr": "bool({e['source'] for e in [e for e in report['edges'] if e['kept']] if e['target'] == 'S'} - {'G', 'M'})",
+        "expr": "bool({e['source'] for e in report['edges'] if e['kept'] and e['target'] == 'S'} - {'G', 'M'})",
         "kind": "report"
       }
     ],
@@ -2002,11 +2002,26 @@
   "P2.57": {
     "checks": [
       {
-        "expr": "any(r['source'] == 'M' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "grep",
+        "path": "core/world_model/observe_cycle.py",
+        "pattern": "def _recalled"
+      },
+      {
+        "kind": "grep",
+        "path": "core/world_model/observe_cycle.py",
+        "pattern": "^OBSERVATION_WIDTH: int = OBSERVATION_READINGS \\+ CONTENT_WIDTH"
+      },
+      {
+        "command": "{python} -m pytest tests/test_world_model_sees_the_cycle.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      },
+      {
+        "expr": "any(e['source'] == 'M' and e['target'] == 'W' and e['kept'] for e in report['edges'])",
         "kind": "report"
       }
     ],
-    "note": "M->W is a retained edge in the newest run",
+    "note": "M->W is a retained edge in the newest run: what she recalled reaches the world model as a coordinate rather than as a score and a count",
     "status": "done"
   },
   "P2.58": {
@@ -2067,11 +2082,16 @@
   "P2.62": {
     "checks": [
       {
-        "expr": "any(r['source'] == 'M' and r['target'] == 'W' and r['kept'] for r in report['edges'])",
+        "kind": "grep",
+        "path": "core/world_model/observe_cycle.py",
+        "pattern": "\\*_recalled\\(cognition\\)"
+      },
+      {
+        "expr": "any(e['source'] == 'M' and e['target'] == 'W' and e['kept'] for e in report['edges'])",
         "kind": "report"
       }
     ],
-    "note": "M->W is a retained edge in the newest run",
+    "note": "remembered evidence helps construct the world: the retrieved set is part of the observation the model learns from",
     "status": "done"
   },
   "P2.63": {

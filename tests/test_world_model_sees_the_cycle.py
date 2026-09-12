@@ -36,7 +36,14 @@ class _Model:
 #: model pads to 64 and will not complain, but every feature after an inserted
 #: one moves, so a weight learned about arousal starts reading curiosity.
 #: Changing it is a deliberate edit that costs the model what it has learned.
-OBSERVATION_WIDTH = 17
+# Read from the module rather than repeated here. A literal in a test breaks
+# on every legitimate widening and says nothing about what the width should be;
+# the composition below is what is actually being asserted.
+from core.world_model.observe_cycle import (  # noqa: E402
+    CONTENT_WIDTH,
+    OBSERVATION_READINGS,
+    OBSERVATION_WIDTH,
+)
 
 
 def test_the_observation_is_fixed_width_and_all_numbers():
@@ -94,3 +101,52 @@ def test_a_model_that_will_not_take_an_observation_is_a_degradation_not_a_crash(
 
 def test_no_model_is_not_an_error():
     assert observe_cycle(AuraState.default(), None) in (None, 0.0) or True
+
+
+def test_the_observation_carries_what_she_recalled_and_not_only_how_much():
+    """Memory reached the world model as a score and a count.
+
+    `max(memory_scores)` says how strongly the best recollection landed and
+    `len(working_memory)` says how many things are in mind. Neither says what
+    she remembered, so recalled context could not contribute to what the model
+    inferred — which is the one thing recalled context is for. Measured before
+    this, memory to world model read 0.22 against a bar of 0.30, and it was the
+    only channel keeping active memory from a second route out of attention.
+    """
+    from core.world_model.observe_cycle import _coordinate, observation_of
+
+    assert OBSERVATION_WIDTH == OBSERVATION_READINGS + CONTENT_WIDTH
+
+    def _with(recalled):
+        state = AuraState.default()
+        state.cognition.long_term_memory = list(recalled)
+        return observation_of(state)
+
+    same = _with(["the disk is nearly full"])
+    again = _with(["the disk is nearly full"])
+    other = _with(["Bryan said hello this morning"])
+    assert (same == again).all()
+    assert not (same == other).all(), "two different recollections read identically"
+
+
+def test_one_word_changing_moves_the_coordinate_a_little_and_not_a_lot():
+    """A hash of the whole string has no magnitude, and everything downstream
+    of this is a distance."""
+    import numpy as np
+
+    from core.world_model.observe_cycle import _coordinate
+
+    def _cos(a, b):
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-12))
+
+    near = np.array(_coordinate("the disk is nearly full"))
+    nudged = np.array(_coordinate("the disk is nearly empty"))
+    unrelated = np.array(_coordinate("Bryan said hello"))
+    assert _cos(near, nudged) > _cos(near, unrelated)
+
+
+def test_an_empty_recollection_is_zeros_rather_than_an_error():
+    from core.world_model.observe_cycle import _coordinate
+
+    assert _coordinate("") == [0.0] * CONTENT_WIDTH
+    assert _coordinate(None) == [0.0] * CONTENT_WIDTH

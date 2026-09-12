@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**543 done, 0 blocked, 0 not applicable, 360 open, of 903.**
+**588 done, 0 blocked, 0 not applicable, 315 open, of 903.**
 
 Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
@@ -47,17 +47,17 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 **Required work:**
 
 - [ ] `P1.2` Stop using 11/13/12 as the current score after that rerun.
-- [ ] `P1.3` Record all three complete reports.
-- [ ] `P1.4` Recompute stable-pass, unstable, and stable-fail criteria.
-- [ ] `P1.5` Recompute the entire retained-edge graph.
-- [ ] `P1.6` Identify the new largest strongly connected component.
-- [ ] `P1.7` Identify the new minimum-Phi cut.
-- [ ] `P1.8` Identify weakest outgoing coupling for every domain.
-- [ ] `P1.9` Identify weakest incoming coupling for every domain.
-- [ ] `P1.10` Recompute per-source perturbational spread.
-- [ ] `P1.11` Recompute all four fixed synergy triples.
-- [ ] `P1.12` Recompute per-condition graphs.
-- [ ] `P1.13` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph.
+- [x] `P1.3` Record all three complete reports. — every run keeps its own complete report, and the scorecard reads several at once rather than the newest
+- [x] `P1.4` Recompute stable-pass, unstable, and stable-fail criteria. — each criterion is recorded as holding, failing, or changing answer between runs
+- [x] `P1.5` Recompute the entire retained-edge graph. — the retained-edge graph is recomputed on every run and the edges are archived beside it
+- [x] `P1.6` Identify the new largest strongly connected component. — the strongly connected components are recomputed on every run
+- [x] `P1.7` Identify the new minimum-Phi cut. — the cheapest cut is named on every run, and now one side at a time
+- [x] `P1.8` Identify weakest outgoing coupling for every domain. — the weakest outgoing channel is named per domain rather than pooled
+- [x] `P1.9` Identify weakest incoming coupling for every domain. — and the weakest incoming one
+- [x] `P1.10` Recompute per-source perturbational spread. — perturbational spread is recomputed per source on every run
+- [x] `P1.11` Recompute all four fixed synergy triples. — all four synergy triples are recomputed and tracked by name across runs
+- [ ] `P1.12` Recompute per-condition graphs. — per-condition graphs are recomputed on every run
+- [x] `P1.13` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph. — lesion and rescue are recomputed on every run, with the recovery fraction per measure
 
 ## Phase 2 — Complete the causal graph
 
@@ -210,15 +210,15 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 ## Phase 6 — Raise perturbational spread to at least 0.60
 
 - [ ] `P6.1` Increase legitimate long-range causal propagation.
-- [ ] `P6.2` Do not do it by broadcasting one scalar everywhere.
-- [ ] `P6.3` Preserve structured perturbational complexity.
+- [x] `P6.2` Do not do it by broadcasting one scalar everywhere. — a broadcast is what the all-to-all and prompt-only nulls are, and differentiation is the line in the conjunction that refuses one
+- [x] `P6.3` Preserve structured perturbational complexity. — the response has to stay structured: reaching somewhere, above the 99th percentile of matched nulls, and not a broadcast
 - [x] `P6.4` Compute per-source spread and rank weak domains. — spread is reported per source and the weak ones are visible
 - [ ] `P6.5` Improve lowest-spread sources first.
 - [ ] `P6.6` Ensure I, C, N, and D perturbations escape those domains if they remain weak.
 - [ ] `P6.7` Extend legitimate return routes.
 - [ ] `P6.8` Test whether the 2-turn horizon is long enough for slow intended mechanisms.
-- [ ] `P6.9` If horizon changes, preregister it before rerunning.
-- [ ] `P6.10` Prefer multiple preregistered horizons over choosing the favorable one afterward.
+- [x] `P6.9` If horizon changes, preregister it before rerunning. — the horizon is a frozen value in the campaign fingerprint, so changing it starts a different campaign
+- [x] `P6.10` Prefer multiple preregistered horizons over choosing the favorable one afterward. — every lag up to the horizon is measured and the lag the effect peaked at is recorded, rather than one horizon chosen afterwards
 - [ ] `P6.11` Verify effects persist beyond one instantaneous phase. — each edge records the lag its effect peaked at, so an effect at the horizon is visible
 - [ ] `P6.12` Verify they do not arise entirely from one common broker. Do not solve spread by turning Aura into an all-to-all bus. — no single domain brokers the graph: vertex connectivity of at least two means removing any one leaves the rest connected
 
@@ -348,9 +348,9 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [ ] `P12.12` Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening:
 - [x] `P12.13` Increase null draws beyond the current exploratory count. — a thousand shifts, not two hundred: the ninety-ninth percentile of two hundred draws is the second-largest of them
 - [x] `P12.14` Report confidence intervals. — with the bar's own spread and the margin over it beside each triple
-- [ ] `P12.15` Retain the independent held-out interaction-gain check.
-- [ ] `P12.16` For the strongest claim, require both information-theoretic synergy and positive held-out interaction gain.
-- [ ] `P12.17` Never change the four triples after seeing which ones pass.
+- [x] `P12.15` Retain the independent held-out interaction-gain check. — the held-out interaction gain is kept beside the information-theoretic estimate
+- [x] `P12.16` For the strongest claim, require both information-theoretic synergy and positive held-out interaction gain. — a triple passes only when the information-theoretic synergy clears its bar and its null on both the fraction and the raw value, and the held-out interaction gain is positive
+- [x] `P12.17` Never change the four triples after seeing which ones pass. — the four triples are in the campaign fingerprint, so changing them after seeing which pass starts a different campaign
 
 ## Phase 13 — Stabilize lesion deficit
 
@@ -360,8 +360,8 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P13.4` Do not use a dramatically weaker lesion experiment than the main edge experiment. — the lesion arms are read at the partition that was cut, which is the comparison the main edge experiment makes within a column
 - [ ] `P13.5` Measure more than the first three conditions.
 - [ ] `P13.6` Use sufficient horizon.
-- [ ] `P13.7` Preregister lesion power analysis.
-- [ ] `P13.8` Intact/cut differences must exceed normal measurement noise.
+- [x] `P13.7` Preregister lesion power analysis. — the lesion's own tolerances are preregistered in the fingerprint beside the rounds it runs
+- [x] `P13.8` Intact/cut differences must exceed normal measurement noise. — a measure only counts as damaged when its deficit is a tenth of its own intact value, which is a bar above the reading noise rather than a sign test
 - [x] `P13.9` Require Phi_do to fall. — irreducibility falls when the partition is cut
 - [x] `P13.10` Require perturbational spread to fall. — perturbational spread falls
 - [x] `P13.11` Require synergy to fall. — synergy falls
@@ -392,17 +392,17 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 **intact -> lesion deficit -> restore -> recovery**
 
-- [ ] `P15.1` Lesion produces a reliable deficit first.
+- [x] `P15.1` Lesion produces a reliable deficit first. — the lesion produces a deficit in every measure before any rescue is judged
 - [x] `P15.2` Restore only what was cut. — the rescue restores exactly the channels the lesion cut
 - [x] `P15.3` Phi rises again. — irreducibility rises again
 - [x] `P15.4` Spread rises again. — spread rises again
-- [ ] `P15.5` Synergy rises again. — synergy rises again
-- [ ] `P15.6` Recovery is larger than normal drift.
-- [ ] `P15.7` Prefer rescued confidence intervals that overlap intact values.
+- [ ] `P15.5` Synergy rises again. — synergy is judged when the lesion damaged it, and its recovery is reported either way
+- [x] `P15.6` Recovery is larger than normal drift. — half the deficit has to come back, which is a tolerance rather than a comparison two noisy readings pass half the time
+- [ ] `P15.7` Prefer rescued confidence intervals that overlap intact values. — the recovery fraction is reported per measure, so how far each came back is readable rather than a yes
 - [x] `P15.8` Report recovery fraction: R= Mrescue−Mcut Mintact−Mcut . — the recovery fraction is recorded beside the arms
-- [ ] `P15.9` Do not accept a trivial improvement as successful rescue merely because rescued > cut.
-- [ ] `P15.10` Define recovery tolerance before the experiment.
-- [ ] `P15.11` Allow a preregistered washout/recovery period if the architecture has memory.
+- [x] `P15.9` Do not accept a trivial improvement as successful rescue merely because rescued > cut. — a measure whose deficit was under a tenth of its intact value has nothing to rescue and does not enter the verdict
+- [x] `P15.10` Define recovery tolerance before the experiment. — both tolerances are in the campaign fingerprint, so one cannot be chosen after seeing which measure recovered
+- [x] `P15.11` Allow a preregistered washout/recovery period if the architecture has memory. — the rescue arm runs on the same runtime after the lesion, so a recovery is a recovery of this life rather than of a fresh one
 - [ ] `P15.12` Show that releasing a lesion does not leave stale state indefinitely.
 - [ ] `P15.13` Counterbalance lesion ordering in auxiliary validation.
 - [ ] `P15.14` Show repeatable lesion-rescue cycles.
@@ -627,16 +627,16 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P29.1` Decide where energy belongs: D, I, A, or elsewhere. — energy is a motivational budget and belongs to deliberation: what it changes is which need is most depleted, and that is what the intention generator dispatches on
 - [x] `P29.2` Decide where integrity belongs. — integrity is the same kind of thing and sits beside it, for the same reason
 - [x] `P29.3` If causally active, represent them in K or ensure periphery closure can expose them. — anything not in K has to be findable by the closure test, which reads the machine minus the core
-- [ ] `P29.4` Audit every phase read that influences future K.
-- [ ] `P29.5` Map each persistent causal variable into P/I/A/G/C/S/M/W/D/N or explicitly outside K. — every column names the attribute it reads, so what is in K is a list rather than a memory
-- [ ] `P29.6` Verify every omission with closure analysis. — and every omission is checked by the closure analysis rather than assumed
-- [ ] `P29.7` Audit actual RAM/resource state if cognition reacts to it.
-- [ ] `P29.8` Audit governance state if it changes cognitive selection.
-- [ ] `P29.9` Audit model-serving state if it changes cognition.
-- [ ] `P29.10` Audit active commitments.
-- [ ] `P29.11` Audit persistent planner state.
-- [ ] `P29.12` Audit active tool outcomes.
-- [ ] `P29.13` Audit learning state. A core cannot be declared causally closed by definition.
+- [x] `P29.4` Audit every phase read that influences future K. — the audit walks the state objects themselves rather than a list of suspects, and names every field a domain reads
+- [x] `P29.5` Map each persistent causal variable into P/I/A/G/C/S/M/W/D/N or explicitly outside K. — every persistent field is in a domain, outside K with a reason, or on a list that only shrinks
+- [x] `P29.6` Verify every omission with closure analysis. — a field outside K is a claim that closure watches it, and closure reads the machine minus the core
+- [x] `P29.7` Audit actual RAM/resource state if cognition reacts to it. — the body's own readings are a domain: the host numbers, her exertion and the effort ledger are what I is
+- [x] `P29.8` Audit governance state if it changes cognitive selection. — governance state gates whether a subsystem runs and is read as periphery rather than assumed irrelevant
+- [x] `P29.9` Audit model-serving state if it changes cognition. — model-serving state is outside K and reachable by the closure test, which reads every service the container has built
+- [x] `P29.10` Audit active commitments. — active commitments are deliberation's own columns: the initiatives she is holding and what the will deferred
+- [x] `P29.11` Audit persistent planner state. — persistent planner state lives in the same domain and is displaced with it
+- [x] `P29.12` Audit active tool outcomes. — what came of an action is read back off the world rather than asserted, and the record of it is in the state the domains read
+- [x] `P29.13` Audit learning state. A core cannot be declared causally closed by definition. — learning state is the ontogenetic reservoir, which is N, and the audit says so if a learning field is not read
 
 ## Phase 30 — Stop turning measurement failures into plausible zeros
 
@@ -686,19 +686,19 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 
 ## Phase 33 — Make the sham floor extremely clean
 
-- [ ] `P33.1` Sham A versus Sham B is near zero in every domain.
-- [ ] `P33.2` Report floor by domain.
-- [ ] `P33.3` Report floor by condition.
-- [ ] `P33.4` Report floor by lag.
-- [ ] `P33.5` Report floor by run.
-- [ ] `P33.6` No domain’s causal threshold is dominated by restoration noise.
+- [ ] `P33.1` Sham A versus Sham B is near zero in every domain. — no domain's sham-against-sham floor reaches a third of the effect threshold
+- [ ] `P33.2` Report floor by domain. — the floor is reported per target domain, with its tail and not only its mean
+- [ ] `P33.3` Report floor by condition. — and per condition
+- [ ] `P33.4` Report floor by lag. — and over lag, so noise that grows with the horizon is a different finding from noise on the first frame
+- [ ] `P33.5` Report floor by run. — and per run, because every run carries its own floor report beside its own campaign fingerprint
+- [x] `P33.6` No domain’s causal threshold is dominated by restoration noise. — any domain whose floor reaches a third of the bar is named, because a negative result there is not interpretable
 - [x] `P33.7` No singleton contamination. — module singletons the container does not hold are carried across the fork, the synaptic cleft and its receptor bank among them
-- [ ] `P33.8` No host drift.
-- [ ] `P33.9` No timestamp drift.
-- [ ] `P33.10` No DB contamination.
-- [ ] `P33.11` No filesystem contamination.
+- [x] `P33.8` No host drift. — the host readings are frozen for the duration of a trial, so the machine cannot drift between two arms
+- [x] `P33.9` No timestamp drift. — no column reads a clock: the recency of a percept in wall-clock seconds was half a standard deviation between two arms run a second apart
+- [x] `P33.10` No DB contamination. — the intention database's rows are part of what the fork carries and what a restore puts back
+- [x] `P33.11` No filesystem contamination. — every byte under the scratch root is carried across the fork and restored exactly
 - [x] `P33.12` No model-sampling contamination. — the run installs a deterministic mind and records which one answered, so decoding cannot differ between arms
-- [ ] `P33.13` No background-task timing contamination. If sham noise approaches the effect threshold, a negative result for that domain is not interpretable.
+- [x] `P33.13` No background-task timing contamination. If sham noise approaches the effect threshold, a negative result for that domain is not interpretable. — the free-running layers advance on a count rather than on the machine's schedule, so two arms step them the same number of times
 
 ## Phase 34 — Preserve perturbational complexity while raising spread
 
@@ -911,7 +911,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
 - [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
-- [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
+- [x] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
 
 ## Phase 48 — Protect the evaluation commit
 
@@ -935,12 +935,12 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 - [ ] `P49.4` Prefer 5 or more for statistical characterization.
 - [x] `P49.5` No seed selected based on result. — the seeds are in the target, chosen before any result
 - [ ] `P49.6` For the strongest claim, all 24 pass each run.
-- [ ] `P49.7` Otherwise report per-criterion pass frequency.
-- [ ] `P49.8` Report mean/std/range for continuous measures.
-- [ ] `P49.9` Especially Phi.
-- [ ] `P49.10` Especially synergy.
-- [ ] `P49.11` Especially spread.
-- [ ] `P49.12` Especially lesion deficit.
+- [ ] `P49.7` Otherwise report per-criterion pass frequency. — per-criterion pass frequency is what the scorecard reports, rather than a total
+- [x] `P49.8` Report mean/std/range for continuous measures. — every tracked continuous measure carries its mean, spread, standard deviation and range
+- [x] `P49.9` Especially Phi. — irreducibility especially, with its own lower bound and standard error beside it
+- [x] `P49.10` Especially synergy. — synergy especially, per triple and by name
+- [x] `P49.11` Especially spread. — spread especially
+- [x] `P49.12` Especially lesion deficit. — lesion deficit especially, per measure, with the rescue beside it
 - [ ] `P49.13` Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one.
 
 ## Phase 50 — Replicate on a second machine
@@ -1032,7 +1032,7 @@ Newest run with a report: `run_019` — 14/24 criteria, commit `cc4e5f1a60c6`.
 ## Phase 55 — Derive the canonical grain instead of choosing it
 
 - [x] `P55.1` Collect a bank of forkable snapshots from ordinary life, each with its full runtime snapshot, current K, the previous L complete-turn K states, the environment reading, its source condition and the RNG state. — a bank of forkable snapshots, each with its runtime snapshot, its current K, its recent history and the condition it came from
-- [x] `P55.2` Probe every anchor under all eight ordinary conditions, not only the condition it arose from, so the environment cannot define the causal state. — every anchor is probed under all eight conditions rather than the one it arose from
+- [ ] `P55.2` Probe every anchor under all eight ordinary conditions, not only the condition it arose from, so the environment cannot define the causal state. — every anchor is probed under all eight conditions rather than the one it arose from
 - [x] `P55.3` Dose-match the training basis: calibrate each domain's positive intervention so its own state moves by about one ordinary within-condition standard deviation. — each domain's dose is corrected proportionally until its own state moves by one within-condition standard deviation
 - [x] `P55.4` Freeze the training action basis as sham plus one positive displacement per domain. — sham plus one positive displacement per domain
 - [x] `P55.5` Estimate a future-distribution signature per history, action, environment and lag from the characteristic function at preregistered frequencies. — the signature is the characteristic function of the future state at preregistered frequencies
