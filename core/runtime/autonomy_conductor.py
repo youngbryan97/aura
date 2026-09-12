@@ -641,6 +641,33 @@ class AutonomyConductor:
             note_a_consideration("idle", because="no_registered_lesions")
             return {"status": "idle", "reason": "no_registered_lesions"}
 
+        # Being in the gate's file is not being on the gate's background path.
+        # This job asks with a background, non-user-facing origin, and the one
+        # channel applied inside the gate sits behind
+        # ``not is_background and self._origin_is_user_facing(origin)`` — the
+        # rest are inside the engine's clean-user-surface contract. So the
+        # rotation was spending three generations an hour on a lesion that
+        # could not reach the line it lesions, and a verdict from that would
+        # have been worse than no verdict: an INERT that measured the guard.
+        from core.verify.which_lesions_a_direct_call_can_bite import (
+            what_a_background_gate_call_can_bite,
+        )
+
+        reachable = set(what_a_background_gate_call_can_bite())
+        unreachable = sorted(name for name in channels if name not in reachable)
+        channels = [name for name in channels if name in reachable]
+        if not channels:
+            note_a_consideration(
+                "unreachable",
+                because="no channel this job can lesion is on its own generation path",
+            )
+            return {
+                "status": "unreachable",
+                "reason": "no channel this job can lesion is on its own generation path",
+                "registered": len(unreachable),
+                "unreachable": unreachable,
+            }
+
         # Rotate by least-evidence-first: the channel with the fewest null
         # samples is the one whose verdict is furthest away, so it is the one
         # worth the model time. Ties break on name for determinism.

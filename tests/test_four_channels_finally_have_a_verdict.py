@@ -119,3 +119,72 @@ def test_the_baseline_never_walks_back_a_verdict():
     assert now["declared_lesions"] >= held["declared_lesions"]
     assert now["measured"] >= held["measured"]
     assert now["measured_at_substrate"] >= held["measured_at_substrate"]
+
+
+def test_the_gate_site_is_behind_a_foreground_guard():
+    """The fact that explains three weeks of zeros, held by a test.
+
+    If somebody removes that guard the circumplex becomes reachable from a
+    background call and this fails, which is the right way round: the claim
+    is about the source, so the source is what checks it.
+    """
+    from core.verify.which_lesions_a_direct_call_can_bite import where_each_channel_acts
+
+    sites = {one.channel: one for one in where_each_channel_acts(str(RECEIPT.parents[2]))}
+    circumplex = sites["affect.circumplex_sampling"]
+    assert "core/brain/inference_gate.py" in circumplex.applied_in
+    assert "core/brain/inference_gate.py" in circumplex.foreground_only_in
+    assert not circumplex.reachable_by("a background call through the gate")
+
+
+def test_a_background_call_through_the_gate_can_bite_nothing():
+    """Which is why the hourly job must not spend generations on it."""
+    from core.verify.which_lesions_a_direct_call_can_bite import (
+        what_a_background_gate_call_can_bite,
+    )
+
+    assert what_a_background_gate_call_can_bite(str(RECEIPT.parents[2])) == ()
+
+
+def test_the_campaign_job_refuses_a_channel_it_cannot_move():
+    import asyncio
+
+    from core.container import ServiceContainer
+    from core.runtime.autonomy_conductor import AutonomyConductor
+    from core.verify import influence_campaign
+    from core.verify.lesion_registry import LesionHandle, get_lesion_registry
+    from core.verify.why_the_campaign_did_not_run import (
+        forget_everything,
+        how_the_campaign_has_gone,
+    )
+
+    registry = get_lesion_registry()
+    registry.register(
+        LesionHandle(
+            channel="test.unreachable_channel",
+            lesion=lambda: None,
+            restore=lambda: None,
+            owner="test_four_channels_finally_have_a_verdict",
+            neutral_description="nothing",
+            direct_actuation=True,
+        ),
+        replace=True,
+    )
+
+    class _Gate:
+        async def generate(self, *_args, **_kwargs):  # pragma: no cover - never called
+            raise AssertionError("a channel this job cannot move must cost no generations")
+
+    forget_everything()
+    original = influence_campaign.campaign_admission_reason
+    influence_campaign.campaign_admission_reason = lambda **_: ""
+    ServiceContainer.register("inference_gate", _Gate())
+    try:
+        result = asyncio.run(AutonomyConductor()._job_influence_campaign())
+    finally:
+        influence_campaign.campaign_admission_reason = original
+        registry.unregister("test.unreachable_channel")
+
+    assert result["status"] == "unreachable"
+    assert "test.unreachable_channel" in result["unreachable"]
+    assert how_the_campaign_has_gone()["counts"].get("unreachable") == 1
