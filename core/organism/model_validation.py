@@ -1491,6 +1491,10 @@ def install_runtime_validation() -> dict[str, Any]:
                 subject="frozen resident semantic transfer on a fresh cohort",
             ),
             owner="tools/verify_semantic_program_replication.py",
+            # Seeds a fresh cohort and runs the frozen transducer against it,
+            # which is an experiment and 1.6 seconds of one. Owned by
+            # tests/test_the_experiments_the_boot_posture_declines.py.
+            expensive=True,
         )
     )
     suite.add_test(
@@ -3390,6 +3394,26 @@ _AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
     # 2.2 seconds, invisible for as long as the test that measures it could
     # not reach its own assertion.
     "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
+    # Named by the budget again, and the same reading applies to all three.
+    # `endogenous_verdict_is_earned_on_known_corpora` trains a readout over
+    # known corpora and scores it, 6.5 seconds;
+    # `test_both_her_algebras_compile_to_one_semantics` compiles every
+    # positional term and every value expression in both languages and
+    # compares them term by term, 1.7; and
+    # `frozen_semantic_programs_transfer_to_fresh_cohort` seeds a fresh cohort
+    # and runs the transducer against it, 1.6. Each arrives at a result rather
+    # than reading one a previous run arrived at, which is what separates an
+    # experiment from an instrument here.
+    "endogenous_verdict_is_earned_on_known_corpora",
+    "test_both_her_algebras_compile_to_one_semantics",
+    "frozen_semantic_programs_transfer_to_fresh_cohort",
+    # And the one those three were hiding. Declaring an experiment surfaces the
+    # next slowest, which is how every entry above this one was found:
+    # `test_branching_is_not_something_those_three_could_have_produced` searches
+    # for a way of building words that composition, inversion and iteration
+    # could not produce between them, 1.8 seconds, and it is owned by
+    # tests/test_no_authored_ceiling_at_any_level.py.
+    "test_branching_is_not_something_those_three_could_have_produced",
 })
 
 

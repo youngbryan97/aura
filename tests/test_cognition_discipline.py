@@ -377,6 +377,15 @@ _EXPERIMENTS_WITH_THEIR_OWN_TEST = {
     "test_the_ablation_matrix_separates_the_arms",
     "test_the_lesion_arm_recovers_and_the_fixed_arm_does_not",
     "test_the_poisoned_signal_cannot_grow_the_population_past_its_cap",
+    # Owned by tests/test_the_experiments_the_boot_posture_declines.py, which
+    # runs all three at full cost. Declaring an experiment without owning it
+    # turns a slow check into a claim nobody makes, and from the boot outcome
+    # that looks exactly like one that passed.
+    "endogenous_verdict_is_earned_on_known_corpora",
+    "test_both_her_algebras_compile_to_one_semantics",
+    "frozen_semantic_programs_transfer_to_fresh_cohort",
+    # Owned by tests/test_no_authored_ceiling_at_any_level.py.
+    "test_branching_is_not_something_those_three_could_have_produced",
 }
 
 
