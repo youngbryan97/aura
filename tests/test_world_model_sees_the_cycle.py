@@ -41,8 +41,10 @@ class _Model:
 # the composition below is what is actually being asserted.
 from core.world_model.observe_cycle import (  # noqa: E402
     CONTENT_WIDTH,
+    GOAL_WIDTH,
     OBSERVATION_READINGS,
     OBSERVATION_WIDTH,
+    PRESSURE_READINGS,
 )
 
 
@@ -113,9 +115,9 @@ def test_the_observation_carries_what_she_recalled_and_not_only_how_much():
     this, memory to world model read 0.22 against a bar of 0.30, and it was the
     only channel keeping active memory from a second route out of attention.
     """
-    from core.world_model.observe_cycle import _coordinate, observation_of
+    from core.world_model.observe_cycle import observation_of
 
-    assert OBSERVATION_WIDTH == OBSERVATION_READINGS + CONTENT_WIDTH
+    assert OBSERVATION_WIDTH == OBSERVATION_READINGS + CONTENT_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
 
     def _with(recalled):
         state = AuraState.default()
@@ -150,3 +152,66 @@ def test_an_empty_recollection_is_zeros_rather_than_an_error():
 
     assert _coordinate("") == [0.0] * CONTENT_WIDTH
     assert _coordinate(None) == [0.0] * CONTENT_WIDTH
+
+
+def test_the_observation_carries_what_she_intends_and_not_only_how_many():
+    """A displaced drive reached the world model at a median of zero in run_023.
+
+    The observation counted active goals and never read them, so adding an
+    intention moved one number among twenty-one by one. Two states with one goal
+    each now differ when the goals do.
+    """
+
+    def _with(goal):
+        state = AuraState.default()
+        state.cognition.active_goals.append({"goal": goal, "description": goal})
+        return observation_of(state)
+
+    tidy = _with("tidy the notes into one file")
+    again = _with("tidy the notes into one file")
+    other = _with("ask Bryan what he meant this morning")
+    assert (tidy == again).all()
+    assert not (tidy == other).all(), "two different intentions read identically"
+
+
+def _every_drive_full(state):
+    """A default state does not start with every drive full, so a test about
+    one drive sets all of them rather than trusting the defaults."""
+    for entry in state.motivation.budgets.values():
+        entry["level"] = entry.get("capacity", 100.0)
+    return state
+
+
+def test_the_most_pressing_drive_moves_the_observation():
+    full = observation_of(_every_drive_full(AuraState.default()))
+    hungry = _every_drive_full(AuraState.default())
+    hungry.motivation.budgets["energy"]["level"] = 40.0
+    assert full[-1] == 0.0
+    assert observation_of(hungry)[-1] == pytest.approx(0.6)
+
+
+def test_pressure_is_the_deepest_shortfall_and_not_their_sum():
+    """Deliberation answers the most pressing need, so two half-empty drives
+    are not one empty one."""
+    state = _every_drive_full(AuraState.default())
+    state.motivation.budgets["energy"]["level"] = 40.0
+    state.motivation.budgets["curiosity"]["level"] = 75.0
+    assert observation_of(state)[-1] == pytest.approx(0.6)
+
+
+def test_the_new_readings_come_after_everything_the_model_has_already_learned():
+    """An insertion would move every later feature onto a weight learned for
+    another one, so the layout is pinned: readings, then what she recalled,
+    then what she intends, then drive pressure."""
+    from core.world_model.observe_cycle import _coordinate
+
+    state = _every_drive_full(AuraState.default())
+    state.cognition.long_term_memory = ["the disk is nearly full"]
+    state.cognition.active_goals.append({"goal": "free some space"})
+    state.motivation.budgets["curiosity"]["level"] = 75.0
+    vector = observation_of(state)
+    recalled_at = OBSERVATION_READINGS
+    goal_at = recalled_at + CONTENT_WIDTH
+    assert list(vector[recalled_at:goal_at]) == pytest.approx(_coordinate("the disk is nearly full"))
+    assert list(vector[goal_at:goal_at + GOAL_WIDTH]) == pytest.approx(_coordinate("free some space", GOAL_WIDTH))
+    assert vector[goal_at + GOAL_WIDTH] == pytest.approx(0.25)

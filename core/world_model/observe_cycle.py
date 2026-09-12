@@ -62,7 +62,13 @@ _RECALL_TOKENS: int = 64
 #: of what she recalled. Declared here rather than counted in a test, so a
 #: widening is a deliberate edit to a contract rather than a number that broke.
 OBSERVATION_READINGS: int = 17
-OBSERVATION_WIDTH: int = OBSERVATION_READINGS + CONTENT_WIDTH
+#: What she is trying to do, as a coordinate, and how hard her most depleted
+#: drive is pulling. Both sit after the recalled coordinate rather than among
+#: the readings: the model has learned a weight for every position before them,
+#: and an insertion would move each of those onto a feature it never saw.
+GOAL_WIDTH: int = CONTENT_WIDTH
+PRESSURE_READINGS: int = 1
+OBSERVATION_WIDTH: int = OBSERVATION_READINGS + CONTENT_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
 
 
 def observation_of(state: Any) -> np.ndarray:
@@ -110,6 +116,13 @@ def observation_of(state: Any) -> np.ndarray:
             # it was the only channel keeping active memory from a second route
             # out of the workspace.
             *_recalled(cognition),
+            # What she is trying to do, and not only how many things. The goal
+            # count above moves by one when an intention is added, among twenty
+            # other inputs, and a displaced drive reached the world model at a
+            # median of zero in run_023: the model was shown that she had
+            # intentions and never what they were.
+            *_intended(cognition),
+            _pressure(state),
         ],
         dtype=np.float64,
     )
@@ -164,6 +177,45 @@ def _recalled(cognition: Any) -> list[float]:
             for item in working[-4:]
         )
     return _coordinate(text)
+
+
+def _intended(cognition: Any) -> list[float]:
+    """What she is trying to do, as a coordinate rather than as a count.
+
+    The newest three goals, by the text the goal engine writes for them, under
+    the same projection as a recollection, so an intention and a memory that
+    share their words sit near each other.
+    """
+    if cognition is None:
+        return [0.0] * GOAL_WIDTH
+    parts: list[str] = []
+    for goal in list(getattr(cognition, "active_goals", []) or [])[-3:]:
+        if isinstance(goal, dict):
+            text = goal.get("goal") or goal.get("objective") or goal.get("description") or ""
+        else:
+            text = getattr(goal, "description", "") or getattr(goal, "title", "") or goal
+        if text:
+            parts.append(str(text))
+    return _coordinate(" ".join(parts), GOAL_WIDTH)
+
+
+def _pressure(state: Any) -> float:
+    """How far her most depleted drive is from full, as a share of its capacity.
+
+    Deliberation acts on the most pressing need, so of everything about
+    motivation this is the number that decides what she does next. Zero when
+    every drive is full or there are none to read.
+    """
+    motivation = getattr(state, "motivation", None)
+    budgets = (getattr(motivation, "budgets", None) or {}) if motivation is not None else {}
+    deepest = 0.0
+    for entry in budgets.values():
+        if not isinstance(entry, dict):
+            continue
+        capacity = _num(entry.get("capacity", 100.0), 100.0) or 100.0
+        level = _num(entry.get("current", entry.get("level", capacity)), capacity)
+        deepest = max(deepest, max(0.0, capacity - level) / capacity)
+    return min(1.0, deepest)
 
 
 def action_of(state: Any) -> np.ndarray:
