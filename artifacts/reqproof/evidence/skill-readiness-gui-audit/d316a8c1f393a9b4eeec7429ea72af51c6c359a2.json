@@ -1,0 +1,93 @@
+{
+  "command": [
+    "/Users/bryan/.aura/live-source/.venv/bin/python",
+    "tools/closeout/audit_skill_readiness_ui.py"
+  ],
+  "cwd": ".",
+  "duration_seconds": 3.457988,
+  "environment_policy": {
+    "inherited_names_sha256": "944095401789ad0e7b6f5aa31664f5660713475ac7237ae316e5ee57abb5654a",
+    "name": "host-sanitized-v1",
+    "override_names": [
+      "AURA_LOG_DIR",
+      "AURA_TEST_MODE",
+      "PYTHONDONTWRITEBYTECODE"
+    ],
+    "removed_prefixes": [
+      "AURA_",
+      "PYTEST_",
+      "COVERAGE_"
+    ]
+  },
+  "evidence_targets": [
+    {
+      "acceptance_ids": [
+        "A4"
+      ],
+      "evidence_class": "gui",
+      "requirement_id": "ADDENDUM-23"
+    },
+    {
+      "acceptance_ids": [
+        "A1"
+      ],
+      "evidence_class": "gui",
+      "requirement_id": "CTX2-SKILL-002"
+    }
+  ],
+  "finished_at": "2026-09-12T10:42:55.561246+00:00",
+  "non_claims": [
+    "unlisted evidence classes or acceptance units",
+    "live runtime behavior",
+    "release readiness",
+    "soak reliability"
+  ],
+  "origin_main_commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+  "output_bytes": 801,
+  "proof_id": "skill-readiness-gui-audit",
+  "returncode": 0,
+  "schema": "aura.reqproof.command_receipt.v2",
+  "source_commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+  "source_manifest": [
+    {
+      "path": "interface/static/aura.css",
+      "sha256": "1930df0630904c86037c3ee26dedb291c0920caae9dbb3cae2967246206ab203",
+      "size_bytes": 219179
+    },
+    {
+      "path": "interface/static/aura.js",
+      "sha256": "fa766b1e6d7c54a72ec00b7f690a791252642698b2f4b4e067645fdab7b45238",
+      "size_bytes": 504614
+    },
+    {
+      "path": "interface/static/index.html",
+      "sha256": "7eae3e4de0bbe5e4879cb596763b3fef2f873324917bd57f5b10355af97f97fb",
+      "size_bytes": 88936
+    },
+    {
+      "path": "tools/closeout/audit_skill_readiness_ui.py",
+      "sha256": "3198f85d6b4a126052a7e3589bfea1f413a8c984d3f03d1e71a319a109f454d0",
+      "size_bytes": 8291
+    }
+  ],
+  "source_selectors": {
+    "globs": [],
+    "paths": [
+      "interface/static/aura.css",
+      "interface/static/aura.js",
+      "interface/static/index.html",
+      "tools/closeout/audit_skill_readiness_ui.py"
+    ]
+  },
+  "spec_registry": {
+    "content_sha256": "03572f3dca7e14ac93f3ec0e4c96578f5f75ac0a5cf1826463c23c19c80cd087",
+    "path": "config/requirement_proof_specs.json"
+  },
+  "started_at": "2026-09-12T10:42:52.103231+00:00",
+  "stderr": "",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdout": "AURA_SKILL_READINESS_UI_AUDIT={\"blocked\":{\"catalogState\":\"BLOCKED\",\"detail\":\"source catalog incomplete \\u00b7 execution failed \\u00b7 failed: self_modify \\u00b7 missing: memory_sync \\u00b7 1 quarantined\",\"injectedImageCount\":0,\"issueCount\":3,\"issuesHidden\":false,\"issuesText\":\"MISSING LIVEmemory_syncPREFLIGHT FAILEDself_modifyQUARANTINEDself_modify at constructor: <img src=x onerror=\\\"window.__catalog_xss=true\\\"> dependency unavailable\",\"preflightState\":\"FAILED\",\"xssExecuted\":false},\"browser\":\"chromium\",\"failures\":[],\"mobile\":{\"containerClientWidth\":316,\"containerScrollWidth\":316,\"rowOverflow\":false,\"templates\":[\"292px\",\"292px\",\"292px\"]},\"ok\":true,\"recovered\":{\"catalogState\":\"READY\",\"issuesHidden\":true,\"issuesText\":\"\",\"preflightState\":\"VERIFIED\"},\"schema\":\"aura.skill_readiness_ui_audit.v1\"}\n",
+  "stdout_sha256": "685bbad40997b0425d1bf6dfb5ea2e6442475f211501744fd7ce34483fd3908a",
+  "timeout_seconds": 120,
+  "verdict": "pass"
+}

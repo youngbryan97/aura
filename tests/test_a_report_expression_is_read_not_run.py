@@ -85,6 +85,27 @@ def test_a_missing_key_is_a_failed_check_not_a_refusal():
         evaluate_report_expression("report['nothing']['here']", REPORT)
 
 
+def test_a_callable_inside_the_report_is_still_not_callable():
+    """Safety that rests on the input's type is one input away from none.
+
+    A report is JSON and holds no functions, so `report['f']()` could not have
+    reached anything today. The reader resolves what is being called instead of
+    calling whatever it resolves, so it does not depend on that staying true.
+    """
+    import os
+
+    report = {"f": os.system, "g": {"h": os.system}}
+    for expr in ("report['f']('true')", "report['g']['h']('true')"):
+        with pytest.raises(ExpressionRefused):
+            evaluate_report_expression(expr, report)
+
+
+def test_a_loop_variable_may_not_shadow_a_builtin_into_a_call():
+    report = {"rows": [len]}
+    with pytest.raises(ExpressionRefused):
+        evaluate_report_expression("any(len(1) for len in report['rows'])", report)
+
+
 def test_nothing_it_can_call_can_reach_the_interpreter():
     for name, function in CALLABLES.items():
         assert getattr(function, "__module__", "builtins") == "builtins", name

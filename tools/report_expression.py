@@ -91,6 +91,20 @@ def _read(node: ast.AST, scope: dict[str, Any]) -> Any:
     if isinstance(node, ast.Call):
         if node.keywords:
             raise ExpressionRefused("keyword arguments are not read here")
+        # What is being called has to be one of the names above, or a method
+        # named above on a value already reached. Resolving the callee and
+        # calling whatever comes back would let a report that held a callable
+        # have it invoked — reports are JSON and hold none, and a reader whose
+        # safety rests on its input's type is one input away from not being
+        # safe.
+        if isinstance(node.func, ast.Name):
+            if node.func.id not in CALLABLES or node.func.id in scope:
+                raise ExpressionRefused(f"{node.func.id!r} is not callable here")
+        elif isinstance(node.func, ast.Attribute):
+            if node.func.attr not in METHODS:
+                raise ExpressionRefused(f"method {node.func.attr!r} is not callable here")
+        else:
+            raise ExpressionRefused("only a named function or method may be called")
         func = _read(node.func, scope)
         return func(*[_read(arg, scope) for arg in node.args])
 

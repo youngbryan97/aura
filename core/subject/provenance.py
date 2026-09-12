@@ -49,7 +49,15 @@ __all__ = [
 REPO = Path(__file__).resolve().parents[2]
 
 
-def _git(*args: str) -> str:
+def _run_git(*args: str, text: bool = True, timeout: float = 30.0) -> Any | None:
+    """Run git through its gateway. None when git could not answer.
+
+    One call site, two shapes. A listing wants the text stripped; a blob about
+    to be hashed wants the bytes exactly as git holds them, because a digest
+    over a round-trip through str is a digest of something else. Splitting
+    them into two gateway calls was two buckets of effect-ownership debt for
+    one spawn, and the same receipt either way.
+    """
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     try:
@@ -57,18 +65,28 @@ def _git(*args: str) -> str:
             ["git", *args],
             cwd=REPO,
             capture_output=True,
-            text=True,
-            timeout=30,
+            text=text,
+            timeout=timeout,
             check=False,
             read_only=True,
             source="subject_core.provenance.git",
             accelerator_capability="none",
         )
     except (OSError, subprocess.SubprocessError):
-        return ""
-    if out.returncode != 0:
-        return ""
-    return str(out.stdout or "").strip()
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def _git(*args: str) -> str:
+    """What git printed, stripped. Empty when it could not answer."""
+    printed = _run_git(*args)
+    return "" if printed is None else str(printed or "").strip()
+
+
+def _git_bytes(*args: str) -> bytes | None:
+    """A blob exactly as git holds it, or None if git could not produce it."""
+    raw = _run_git(*args, text=False, timeout=60.0)
+    return None if raw is None else bytes(raw or b"")
 
 
 #: What "the same code" means for a campaign. The whole tree would change with
@@ -96,32 +114,6 @@ def _tree_hash() -> str:
         except OSError:
             continue
     return digest.hexdigest()
-
-
-def _git_bytes(*args: str) -> bytes | None:
-    """A blob exactly as git holds it, or None if git could not produce it.
-
-    `_git` strips and decodes, which is right for a listing and wrong for
-    content that is about to be hashed: the digest has to be over the bytes,
-    not over a round-trip through str. Same owner, same receipt, no decode.
-    """
-    from core.runtime.subprocess_gateway import get_subprocess_gateway
-
-    try:
-        out = get_subprocess_gateway().run(
-            ["git", *args],
-            cwd=REPO,
-            capture_output=True,
-            text=False,
-            timeout=60,
-            check=False,
-            read_only=True,
-            source="subject_core.provenance.git_blob",
-            accelerator_capability="none",
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return bytes(out.stdout or b"") if out.returncode == 0 else None
 
 
 def tree_hash_at(commit: str) -> str:
