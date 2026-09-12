@@ -31,6 +31,45 @@ def _a_proof_run_does_not_hide_every_other_reason(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _nothing_adaptive_moves_the_budget(monkeypatch):
+    """Freeze what adapts to the host, so these tests measure the tiering.
+
+    Two things reshape a budget after the tier has declared it. The runtime
+    sampling advisories carry a `max_tokens_factor` read off available memory,
+    and `fit_the_answer_to_the_time` trims the length so the decode fits the
+    clock at the rate this machine last measured — which is right, and which
+    means the dispatched number is a function of the prompt's length and the
+    host's speed as well as of the lane.
+
+    So a test comparing the dispatched budget against the tier's declared
+    default was asserting that nothing had to be trimmed today: 384 against
+    383, failing for a reason no line of it mentions. Both have their own
+    tests — tests/test_a_reply_gets_long_enough_to_be_written.py is the fit's.
+    Here the subject is which tier serves the turn and what that tier
+    declares, so the arithmetic is the gate's alone.
+    """
+    monkeypatch.setattr(
+        InferenceGate,
+        "_apply_runtime_sampling_biases",
+        classmethod(
+            lambda cls, *, base_temperature, max_tokens, context, state,
+            allow_token_scaling: (
+                base_temperature,
+                max_tokens,
+                {"temperature_delta": 0.0, "max_tokens_factor": 1.0},
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "core.brain.inference_gate.fit_the_answer_to_the_time",
+        lambda prompt, max_tokens, asked_for, *, floor=0: (
+            float(asked_for),
+            int(max_tokens),
+        ),
+    )
+
+
 _MISSING = object()
 
 
