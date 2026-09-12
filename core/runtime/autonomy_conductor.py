@@ -615,6 +615,7 @@ class AutonomyConductor:
             campaign_admission_reason,
             run_influence_campaign,
         )
+        from core.verify.influence_turn_probe import run_probe_turn
         from core.verify.lesion_registry import get_lesion_registry
 
         # Counted, not only logged. An hourly job that has produced no verdicts
@@ -629,31 +630,31 @@ class AutonomyConductor:
             note_a_consideration("deferred", because=refusal)
             return {"status": "deferred", "reason": refusal}
 
-        gate = ServiceContainer.get("inference_gate", default=None)
-        if gate is None or not hasattr(gate, "generate"):
+        engine = ServiceContainer.get("cognitive_engine", default=None)
+        if engine is None or not hasattr(engine, "think"):
             note_a_consideration(
-                "unavailable", because="inference_gate_not_registered"
+                "unavailable", because="cognitive_engine_not_registered"
             )
-            return {"status": "unavailable", "reason": "inference_gate_not_registered"}
+            return {"status": "unavailable", "reason": "cognitive_engine_not_registered"}
 
         channels = list(get_lesion_registry().channels())
         if not channels:
             note_a_consideration("idle", because="no_registered_lesions")
             return {"status": "idle", "reason": "no_registered_lesions"}
 
-        # Being in the gate's file is not being on the gate's background path.
-        # This job asks with a background, non-user-facing origin, and the one
-        # channel applied inside the gate sits behind
-        # ``not is_background and self._origin_is_user_facing(origin)`` — the
-        # rest are inside the engine's clean-user-surface contract. So the
-        # rotation was spending three generations an hour on a lesion that
-        # could not reach the line it lesions, and a verdict from that would
-        # have been worse than no verdict: an INERT that measured the guard.
+        # Only what this job's own turn can move. It runs down the desktop
+        # quick-reply lane with a foreground origin, which opens both guards
+        # the old background call was shut out by — so every registered
+        # channel is on its path today. The check stays because the next
+        # channel somebody registers may not be: a rotation that spends three
+        # generations on a lesion which cannot reach the line it lesions
+        # produces an INERT that measured the guard, which is worse than no
+        # verdict at all.
         from core.verify.which_lesions_a_direct_call_can_bite import (
-            what_a_background_gate_call_can_bite,
+            what_the_probe_turn_can_bite,
         )
 
-        reachable = set(what_a_background_gate_call_can_bite())
+        reachable = set(what_the_probe_turn_can_bite())
         unreachable = sorted(name for name in channels if name not in reachable)
         channels = [name for name in channels if name in reachable]
         if not channels:
@@ -678,40 +679,19 @@ class AutonomyConductor:
         )
 
         async def generate() -> str:
-            # The gate returns None for a refusal and None for a model that
-            # said nothing, and its own comment says a caller cannot tell them
-            # apart. Flattening both to "" is what made three weeks of this
-            # campaign worthless: every arm was refused with
-            # ``background_local_fallback_suppressed``, every arm became the
-            # empty string, and the ledger recorded a perfect zero divergence
-            # in both the treatment arm and the null. The receipt is right
-            # there — read it, and let the arm fail by its real name.
-            probe_context: dict[str, Any] = {
-                "origin": "influence_probe",
-                "max_tokens": 96,
-                "messages": [{"role": "user", "content": _INFLUENCE_PROBE_PROMPT}],
-                # A measurement has no user waiting on it. The suppression
-                # this turns off exists to protect foreground latency, and the
-                # campaign is only admitted when there is no foreground turn.
-                "allow_background_local_fallback": True,
-            }
-            result = await gate.generate(
+            # One turn down the desktop quick-reply lane, which is where the
+            # channels are applied. The old generator asked the gate for a
+            # BACKGROUND generation, and every apply_channel site sits behind
+            # a guard a background call does not pass — so it could not have
+            # moved one of the nine channels it was rotating through, however
+            # well its generations had gone. They did not go at all: the gate
+            # refused every arm and the caller turned the refusal into an
+            # empty string, which scores zero against another empty string in
+            # both the treatment arm and the null.
+            return await run_probe_turn(
                 _INFLUENCE_PROBE_PROMPT,
-                probe_context,
-                timeout=_INFLUENCE_PROBE_TIMEOUT_S,
+                timeout_s=_INFLUENCE_PROBE_TIMEOUT_S,
             )
-            text = str(getattr(result, "text", result) or "")
-            if text.strip():
-                return text
-            refusal = probe_context.get("inference_refusal")
-            if not isinstance(refusal, dict):
-                getter = getattr(gate, "last_refusal_receipt", None)
-                refusal = getter() if callable(getter) else None
-            if isinstance(refusal, dict) and refusal.get("reason"):
-                raise InfluenceArmRefusedError(
-                    f"{refusal.get('kind') or 'refused'}: {refusal.get('reason')}"
-                )
-            raise InfluenceArmRefusedError("the generation lane returned no text")
 
         report = await run_influence_campaign(
             generate=generate,

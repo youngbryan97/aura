@@ -44,6 +44,7 @@ __all__ = [
     "THE_FOREGROUND_GUARDS",
     "WHAT_A_HARNESS_REACHES",
     "what_a_background_gate_call_can_bite",
+    "what_the_probe_turn_can_bite",
     "where_each_channel_acts",
     "what_a_direct_call_can_bite",
     "how_the_lesions_are_reachable",
@@ -69,6 +70,17 @@ WHAT_A_HARNESS_REACHES: dict[str, tuple[str, ...]] = {
     # Entered separately because the campaign spent three weeks rotating
     # through nine channels on the strength of "the site is in the gate".
     "a background call through the gate": ("core/brain/inference_gate.py",),
+    # What the campaign uses now: one turn down the desktop quick-reply lane,
+    # with a foreground origin. It passes both guards, so the sites inside the
+    # clean-user-surface contract and the gate's foreground branch are both on
+    # its path. Same reach as a turn through the engine, because it is one.
+    "a turn through the probe lane": (
+        "core/brain/inference_gate.py",
+        "core/brain/cognitive_engine.py",
+        "core/consciousness/qualia_synthesizer.py",
+        "core/affect/affective_circumplex.py",
+        "core/being/affective_valence.py",
+    ),
 }
 
 #: What a test has to mention for the branch under it to be foreground-only.
@@ -101,12 +113,17 @@ class AChannelSite:
     #: and never on the line.
     foreground_only_in: tuple[str, ...] = ()
 
+    #: Harnesses whose caller is a background, non-user-facing request. A site
+    #: behind a foreground guard is not on their path however completely the
+    #: file is.
+    BACKGROUND_HARNESSES = ("a background call through the gate",)
+
     def reachable_by(self, harness: str) -> bool:
         allowed = WHAT_A_HARNESS_REACHES.get(harness, ())
         if not allowed:
             return False
         where = self.applied_in
-        if harness == "a background call through the gate":
+        if harness in self.BACKGROUND_HARNESSES:
             where = tuple(one for one in where if one not in self.foreground_only_in)
         return any(one.startswith(allowed) for one in where)
 
@@ -245,6 +262,19 @@ def what_a_direct_call_can_bite(repo: str = ".") -> tuple[str, ...]:
         one.channel
         for one in where_each_channel_acts(repo)
         if one.reachable_by("a direct model call")
+    )
+
+
+def what_the_probe_turn_can_bite(repo: str = ".") -> tuple[str, ...]:
+    """Channels the campaign's measurement turn can actually move.
+
+    The turn runs down the desktop quick-reply lane with a foreground origin,
+    so both guards that shut the background caller out are open to it.
+    """
+    return tuple(
+        one.channel
+        for one in where_each_channel_acts(repo)
+        if one.reachable_by("a turn through the probe lane")
     )
 
 

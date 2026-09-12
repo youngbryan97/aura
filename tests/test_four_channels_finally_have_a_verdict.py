@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from core.verify.what_has_a_measured_effect import (
     how_much_is_measured,
@@ -138,7 +141,7 @@ def test_the_gate_site_is_behind_a_foreground_guard():
 
 
 def test_a_background_call_through_the_gate_can_bite_nothing():
-    """Which is why the hourly job must not spend generations on it."""
+    """Which is why the hourly job stopped being one."""
     from core.verify.which_lesions_a_direct_call_can_bite import (
         what_a_background_gate_call_can_bite,
     )
@@ -146,7 +149,58 @@ def test_a_background_call_through_the_gate_can_bite_nothing():
     assert what_a_background_gate_call_can_bite(str(RECEIPT.parents[2])) == ()
 
 
-def test_the_campaign_job_refuses_a_channel_it_cannot_move():
+def test_the_probe_turn_can_bite_every_registered_channel():
+    """The generator the campaign uses now runs down the lane they are on.
+
+    A foreground origin opens both guards — the gate's user-facing branch and
+    the engine's clean-user-surface contract — so the sites that a background
+    call could never reach are on this turn's path.
+    """
+    from core.verify.which_lesions_a_direct_call_can_bite import (
+        what_the_probe_turn_can_bite,
+    )
+
+    reachable = set(what_the_probe_turn_can_bite(str(RECEIPT.parents[2])))
+    assert {
+        "affect.circumplex_sampling",
+        "live_mind.context_block",
+        "live_mind.recurrent_loops",
+        "live_mind.steering_alpha",
+        "qualia.richness",
+        "spiking.sampling_bias",
+    } <= reachable
+
+
+def test_the_probe_origin_is_foreground_and_its_own():
+    """Foreground is what opens the guards; its own name is what keeps a
+    measurement distinguishable from a turn somebody took."""
+    from core.goals.objective_lifecycle import is_foreground_objective_origin
+    from core.verify.influence_turn_probe import PROBE_ORIGIN
+
+    assert is_foreground_objective_origin(PROBE_ORIGIN)
+    assert PROBE_ORIGIN not in {"desktop_quick_reply", "desktop", "api_chat"}
+
+
+def test_the_probe_turn_refuses_to_return_nothing():
+    """An arm that generated no text has not been measured."""
+    import asyncio
+
+    from core.container import ServiceContainer
+    from core.verify.influence_turn_probe import TurnProbeUnavailableError, run_probe_turn
+
+    class _Silent:
+        async def think(self, *_args, **_kwargs):
+            return SimpleNamespace(content="   ")
+
+    ServiceContainer.register("cognitive_engine", _Silent())
+    try:
+        with pytest.raises(TurnProbeUnavailableError):
+            asyncio.run(run_probe_turn("anything"))
+    finally:
+        ServiceContainer.register("cognitive_engine", None)
+
+
+def test_the_campaign_job_refuses_a_channel_it_cannot_move(monkeypatch):
     import asyncio
 
     from core.container import ServiceContainer
@@ -170,9 +224,17 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move():
         ),
         replace=True,
     )
+    # Nothing on the probe turn's path, which is the case this guards. The
+    # registry is process-global and other imports have registered the real
+    # ten, so the reachable set is what has to be empty here rather than the
+    # registry.
+    monkeypatch.setattr(
+        "core.verify.which_lesions_a_direct_call_can_bite.what_the_probe_turn_can_bite",
+        lambda *_a, **_k: (),
+    )
 
-    class _Gate:
-        async def generate(self, *_args, **_kwargs):  # pragma: no cover - never called
+    class _Engine:
+        async def think(self, *_args, **_kwargs):  # pragma: no cover - never called
             raise AssertionError("a channel this job cannot move must cost no generations")
 
     # Counted as a delta, not an absolute. `forget_everything` clears the
@@ -182,7 +244,7 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move():
     before = how_the_campaign_has_gone()["counts"].get("unreachable", 0)
     original = influence_campaign.campaign_admission_reason
     influence_campaign.campaign_admission_reason = lambda **_: ""
-    ServiceContainer.register("inference_gate", _Gate())
+    ServiceContainer.register("cognitive_engine", _Engine())
     try:
         result = asyncio.run(AutonomyConductor()._job_influence_campaign())
     finally:

@@ -265,24 +265,32 @@ Working list. Deleted when every line is done and green.
         order, at HEAD and before it: domain W goes missing because the world
         model organ is not there on some orderings.
 
-- [ ] user-surface recurrent depth above one. The gate is closed and correct:
-      `user_surface_recurrent_ceiling` fails to 1 on every path, and a receipt
-      raises it only for a named checkpoint whose margin beats the shallower
-      arm's own binomial spread.
+- [x] user-surface recurrent depth above one — measured, and it is much
+      worse. The gate was closed and correct; what was missing was an arm.
+      The two reports that used to sit in `artifacts/recurrent_depth` carried
+      the same responses digest, the same accuracy of 0.625 and no declared
+      depth, seventy seconds apart. One run written twice, because
+      `tools/heldout_eval.py` has no depth option and could not have varied
+      the thing the filenames claimed to compare. They are deleted; a file
+      named `loops2.json` that is not a depth-two arm is a trap, and the
+      prose here is the record.
 
-      What is missing is the evidence, and the reason is worth writing down.
-      The two arms on disk — `artifacts/recurrent_depth/loops1.json` and
-      `loops2.json` — carry the same `responses_sha256`, the same accuracy of
-      0.625, no declared depth, and timestamps seventy seconds apart. They are
-      one run written twice. `tools/heldout_eval.py`, which produced them, has
-      no depth option at all, so the thing the filenames claim to compare was
-      never varied.
+      `tools/run_recurrent_depth_arms.py` varies it. One model is patched
+      once by `apply_recurrent_depth` at the deeper count, and the arms differ
+      only in `inner._recurrent_depth_runtime_loops` — the integer the
+      worker's surface contract sets per request, which is exactly what
+      `user_surface_recurrent_ceiling` governs. Greedy decoding, the sealed
+      forty-task battery, one substrate.
 
-      The control that would have to move is `clean_user_surface_recurrent_loops`,
-      a runtime control the latent cortex service validates at 1..2 and passes
-      into the worker. So a depth arm needs a worker, not a standalone grade,
-      and that is the harness that does not exist yet. The gate says all of
-      this in its own refusal, which is what a fail-closed gate is for.
+      Depth 1: 21/40, 0.5250. Depth 2: 2/40, 0.0500. The gate reads both,
+      finds no refusals — they are a real comparison — and authorises depth 1
+      on a margin of -0.475 against the shallow arm's own spread of 0.079.
+
+      So the ceiling of one is the measurement now, not an absence. Re-running
+      the middle band twice at these settings destroys the answer on
+      Qwen2.5-1.5B-Instruct-4bit. Whether the resident 27B behaves the same
+      way is a separate arm on a separate substrate, which is why the receipt
+      the gate writes is named by descriptor.
 
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
