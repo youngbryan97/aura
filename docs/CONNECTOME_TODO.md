@@ -292,6 +292,39 @@ Working list. Deleted when every line is done and green.
       way is a separate arm on a separate substrate, which is why the receipt
       the gate writes is named by descriptor.
 
+- [ ] steering serving authority — refused by arithmetic, not by judgement.
+      Worth writing down exactly where, because "turn it on" has no honest
+      path until a campaign passes.
+
+      Three gates, from the live worker log: the checkpoint's signed component
+      authority says `steering_generation_deferred`, so no hooks attach; the
+      surface clamp forces alpha to 0.0 on user-visible decodes; and no fusion
+      certificate exists. Neutral attachment — hooks installed at alpha 0, the
+      state that would let the live instance MEASURE — is not a way round it
+      either: a deferred authority returns before any hook is built.
+
+      Publishing a qualified generation is what opens all three, and
+      `_validate_steering` in `core/learning/cortex_migration_authority.py`
+      requires a causal evaluation carrying `verdict == "PASS"`,
+      `qualified is True`, at least 24 samples, treatment strictly greater
+      than the matched no-op, every lesion strictly under treatment,
+      `no_regression is True` and `causal_effect_positive is True`.
+
+      Neither campaign clears it. The original vectors at alpha 0.2 pass the
+      win counts (20 against 7, lesions 4/15/4) and fail
+      `causal_effect_positive`, because a shuffled-layer control reproduces
+      0.44 of a 0.75 effect and a plain text instruction beats it 1.36 to
+      0.75. The layer-specific set fails four ways: treatment 7 against a
+      no-op 7 is not strictly greater, `shuffled_layers` wins 8 which is more
+      than treatment, one task regresses, and the effect is inside sampling
+      noise.
+
+      The migration authority key is present and usable — an earlier note
+      here said otherwise, which was a scratch state root hiding it. That
+      changes nothing: an authority signed over an evaluation that fails
+      `_validate_steering` is rejected at attach. The gate is checking the
+      thing the measurements say is false, which is the gate working.
+
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
       end on the reflex 1.5B through the worker's own code path: alpha 0.0
