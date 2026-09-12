@@ -2841,6 +2841,27 @@
     "note": "one test: after an arm runs and the snapshot is restored, every K feature and every peripheral feature is back",
     "status": "done"
   },
+  "P20.20": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_phi_workers_carry_nothing_between_arms.py",
+        "pattern": "def test_the_worker_computation_is_a_function_of_its_arguments"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_phi_workers_carry_nothing_between_arms.py",
+        "pattern": "def test_the_futures_are_joined_inside_the_call_that_submits_them"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_fork_leaves_nothing_behind.py",
+        "pattern": "def test_an_arm_that_ran_leaves_the_organism_where_it_found_it"
+      }
+    ],
+    "note": "the only subprocess the organism starts is hierarchical phi's spawn pool: its workers compute from their arguments, their futures are joined inside the call that submits them, and the object that keeps the result is forked with the arm. The decisive regression test is the fork test, which compares every K reading, the peripheral state and the scratch world after a restore",
+    "status": "done"
+  },
   "P20.3": {
     "checks": [
       {
@@ -6773,6 +6794,27 @@
       }
     ],
     "note": "no writer reaches into a domain it does not own",
+    "status": "done"
+  },
+  "P44.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_workspace_has_no_harness_only_consumers.py",
+        "pattern": "def test_consumers_are_registered_by_the_production_consciousness_system_alone"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_workspace_has_no_harness_only_consumers.py",
+        "pattern": "def test_the_instrument_never_registers_a_consumer_on_the_workspace"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_workspace_has_no_harness_only_consumers.py",
+        "pattern": "def test_no_consumer_registration_depends_on_the_test_profile"
+      }
+    ],
+    "note": "workspace consumers are registered in one place, by the production consciousness system; nothing under core/subject registers or subscribes, and no registration branches on the test profile. A test reads the tree, so a harness-only consumer fails before it reaches a run",
     "status": "done"
   },
   "P44.6": {
