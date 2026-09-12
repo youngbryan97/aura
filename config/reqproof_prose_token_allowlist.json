@@ -7,5 +7,6 @@
   "PASSF-NEURAL-STREAM-FLOOD": "Named failure-mode seed key from the Pass F FMEA item, not a requirement ID.",
   "PASSF-RESOURCE-SPAWN-LOOP": "Named failure-mode seed key from the Pass F FMEA item, not a requirement ID.",
   "PASSF-SEMANTIC-REVIEW-GAP": "Named failure-mode seed key from the Pass F FMEA item, not a requirement ID.",
-  "PASSF-STALE-OBLIGATION": "Named failure-mode seed key from the Pass F FMEA item, not a requirement ID."
+  "PASSF-STALE-OBLIGATION": "Named failure-mode seed key from the Pass F FMEA item, not a requirement ID.",
+  "RUNTIME-CHAT": "A runtime fault id, not a requirement. core/runtime/errors.py builds one per subsystem as RUNTIME-{subsystem}, so this is what a degradation in core.conversation is logged as; the execution tracker quotes the log line."
 }

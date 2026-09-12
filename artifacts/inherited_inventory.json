@@ -291,8 +291,8 @@
         "miss_rate": 0.0,
         "miss_rate_upper_95": 0.075,
         "missed_obligations": [],
-        "missed_population_upper_95": 385.5,
-        "population": 5140,
+        "missed_population_upper_95": 385.4,
+        "population": 5139,
         "sample": [
           "docs/AGI_GAUNTLET_TRACKER.md:100",
           "docs/AURA_EXECUTION_TRACKER.md:10160",
@@ -300,40 +300,40 @@
           "docs/AURA_EXECUTION_TRACKER.md:10290",
           "docs/AURA_EXECUTION_TRACKER.md:10639",
           "docs/AURA_EXECUTION_TRACKER.md:14453",
-          "docs/AURA_EXECUTION_TRACKER.md:14911",
-          "docs/AURA_EXECUTION_TRACKER.md:15141",
-          "docs/AURA_EXECUTION_TRACKER.md:16845",
-          "docs/AURA_EXECUTION_TRACKER.md:20040",
-          "docs/AURA_EXECUTION_TRACKER.md:20756",
-          "docs/AURA_EXECUTION_TRACKER.md:24035",
-          "docs/AURA_EXECUTION_TRACKER.md:29675",
+          "docs/AURA_EXECUTION_TRACKER.md:14922",
+          "docs/AURA_EXECUTION_TRACKER.md:15150",
+          "docs/AURA_EXECUTION_TRACKER.md:16853",
+          "docs/AURA_EXECUTION_TRACKER.md:20045",
+          "docs/AURA_EXECUTION_TRACKER.md:2077",
+          "docs/AURA_EXECUTION_TRACKER.md:24041",
           "docs/AURA_EXECUTION_TRACKER.md:2972",
-          "docs/AURA_EXECUTION_TRACKER.md:31446",
-          "docs/AURA_EXECUTION_TRACKER.md:31770",
-          "docs/AURA_EXECUTION_TRACKER.md:31817",
-          "docs/AURA_EXECUTION_TRACKER.md:32205",
-          "docs/AURA_EXECUTION_TRACKER.md:35698",
-          "docs/AURA_EXECUTION_TRACKER.md:3826",
-          "docs/AURA_EXECUTION_TRACKER.md:39437",
-          "docs/AURA_EXECUTION_TRACKER.md:42255",
-          "docs/AURA_EXECUTION_TRACKER.md:44960",
-          "docs/AURA_EXECUTION_TRACKER.md:4763",
-          "docs/AURA_EXECUTION_TRACKER.md:50311",
-          "docs/AURA_EXECUTION_TRACKER.md:51674",
-          "docs/AURA_EXECUTION_TRACKER.md:51803",
-          "docs/AURA_EXECUTION_TRACKER.md:5638",
-          "docs/AURA_EXECUTION_TRACKER.md:6858",
-          "docs/AURA_EXECUTION_TRACKER.md:7453",
-          "docs/AURA_EXECUTION_TRACKER.md:7835",
-          "docs/AURA_EXECUTION_TRACKER.md:7896",
-          "docs/AURA_EXECUTION_TRACKER.md:7981",
-          "docs/AURA_EXECUTION_TRACKER.md:8174",
-          "docs/AURA_EXECUTION_TRACKER.md:8258",
-          "docs/AURA_EXECUTION_TRACKER.md:8279",
-          "docs/AURA_EXECUTION_TRACKER.md:8523",
-          "docs/AURA_EXECUTION_TRACKER.md:8608",
-          "docs/AURA_EXECUTION_TRACKER.md:8899",
-          "docs/AURA_EXECUTION_TRACKER.md:8960"
+          "docs/AURA_EXECUTION_TRACKER.md:29737",
+          "docs/AURA_EXECUTION_TRACKER.md:31463",
+          "docs/AURA_EXECUTION_TRACKER.md:3178",
+          "docs/AURA_EXECUTION_TRACKER.md:3182",
+          "docs/AURA_EXECUTION_TRACKER.md:32216",
+          "docs/AURA_EXECUTION_TRACKER.md:35699",
+          "docs/AURA_EXECUTION_TRACKER.md:38307",
+          "docs/AURA_EXECUTION_TRACKER.md:3946",
+          "docs/AURA_EXECUTION_TRACKER.md:42284",
+          "docs/AURA_EXECUTION_TRACKER.md:44962",
+          "docs/AURA_EXECUTION_TRACKER.md:47630",
+          "docs/AURA_EXECUTION_TRACKER.md:5032",
+          "docs/AURA_EXECUTION_TRACKER.md:51678",
+          "docs/AURA_EXECUTION_TRACKER.md:51806",
+          "docs/AURA_EXECUTION_TRACKER.md:564",
+          "docs/AURA_EXECUTION_TRACKER.md:6860",
+          "docs/AURA_EXECUTION_TRACKER.md:7455",
+          "docs/AURA_EXECUTION_TRACKER.md:7840",
+          "docs/AURA_EXECUTION_TRACKER.md:7904",
+          "docs/AURA_EXECUTION_TRACKER.md:7984",
+          "docs/AURA_EXECUTION_TRACKER.md:8178",
+          "docs/AURA_EXECUTION_TRACKER.md:8268",
+          "docs/AURA_EXECUTION_TRACKER.md:8281",
+          "docs/AURA_EXECUTION_TRACKER.md:8525",
+          "docs/AURA_EXECUTION_TRACKER.md:8612",
+          "docs/AURA_EXECUTION_TRACKER.md:8902",
+          "docs/AURA_EXECUTION_TRACKER.md:8962"
         ],
         "scored": 40,
         "unlabelled": []
@@ -362,49 +362,49 @@
         "miss_rate": 0.0,
         "miss_rate_upper_95": 0.075,
         "missed_obligations": [],
-        "missed_population_upper_95": 37.0,
-        "population": 493,
+        "missed_population_upper_95": 37.4,
+        "population": 498,
         "sample": [
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:104",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:108",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:193",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:229",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:65",
-          "docs/CONNECTOME_TODO.md:25",
-          "docs/CONNECTOME_TODO.md:74",
-          "docs/CONNECTOME_TODO.md:78",
-          "docs/GENERALITY_TODO.md:154",
-          "docs/GENERALITY_TODO.md:82",
-          "docs/GENERALITY_TODO.md:86",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:154",
+          "docs/CONNECTOME_TODO.md:13",
+          "docs/CONNECTOME_TODO.md:30",
+          "docs/CONNECTOME_TODO.md:346",
+          "docs/CONNECTOME_TODO.md:9",
+          "docs/GENERALITY_TODO.md:63",
+          "docs/GENERALITY_TODO.md:71",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:125",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:201",
           "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:214",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:238",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:250",
           "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:265",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:273",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:318",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:337",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:340",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:341",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:359",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:294",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:332",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:335",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:336",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:349",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:401",
           "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:406",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:416",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:500",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:74",
-          "docs/gap_atlas/TODO.md:1001",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:494",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:495",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:77",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:95",
           "docs/gap_atlas/TODO.md:1025",
-          "docs/gap_atlas/TODO.md:1053",
+          "docs/gap_atlas/TODO.md:110",
           "docs/gap_atlas/TODO.md:1127",
-          "docs/gap_atlas/TODO.md:1158",
-          "docs/gap_atlas/TODO.md:1182",
-          "docs/gap_atlas/TODO.md:1336",
-          "docs/gap_atlas/TODO.md:1348",
-          "docs/gap_atlas/TODO.md:1593",
-          "docs/gap_atlas/TODO.md:168",
-          "docs/gap_atlas/TODO.md:29",
-          "docs/gap_atlas/TODO.md:383",
-          "docs/gap_atlas/TODO.md:577",
-          "docs/gap_atlas/TODO.md:762",
-          "docs/gap_atlas/TODO.md:788"
+          "docs/gap_atlas/TODO.md:1153",
+          "docs/gap_atlas/TODO.md:1312",
+          "docs/gap_atlas/TODO.md:132",
+          "docs/gap_atlas/TODO.md:150",
+          "docs/gap_atlas/TODO.md:1653",
+          "docs/gap_atlas/TODO.md:2485",
+          "docs/gap_atlas/TODO.md:355",
+          "docs/gap_atlas/TODO.md:546",
+          "docs/gap_atlas/TODO.md:705",
+          "docs/gap_atlas/TODO.md:756"
         ],
         "scored": 40,
         "unlabelled": []
@@ -464,8 +464,8 @@
         "miss_rate": 0.0,
         "miss_rate_upper_95": 0.075,
         "missed_obligations": [],
-        "missed_population_upper_95": 3.2,
-        "population": 43,
+        "missed_population_upper_95": 3.1,
+        "population": 42,
         "sample": [
           "docs/AURA_EXECUTION_TRACKER.md:10882",
           "docs/AURA_EXECUTION_TRACKER.md:10970",
@@ -515,8 +515,8 @@
         "miss_rate": 0.0,
         "miss_rate_upper_95": 0.075,
         "missed_obligations": [],
-        "missed_population_upper_95": 21.4,
-        "population": 285,
+        "missed_population_upper_95": 21.1,
+        "population": 282,
         "sample": [
           "docs/AURA_EXECUTION_TRACKER.md:17567",
           "docs/AURA_EXECUTION_TRACKER.md:17749",
@@ -543,21 +543,21 @@
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:211",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:224",
           "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:244",
-          "docs/CONNECTOME_TODO.md:5",
-          "docs/GENERALITY_TODO.md:476",
-          "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:100",
-          "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:19",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:23",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:232",
+          "docs/GENERALITY_TODO.md:1",
+          "docs/GENERALITY_TODO.md:537",
+          "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:33",
+          "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:48",
           "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:256",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:258",
           "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:287",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:345",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:371",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:419",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:433",
-          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:49",
-          "docs/gap_atlas/TODO.md:7",
-          "docs/worktodo/TODO.md:24"
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:325",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:373",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:399",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:435",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:458",
+          "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:513",
+          "docs/gap_atlas/TODO.md:903",
+          "docs/worktodo/TODO.md:37"
         ],
         "scored": 40,
         "unlabelled": []
@@ -584,7 +584,7 @@
   },
   "closure_references": {
     "complete": true,
-    "references_checked": 1316,
+    "references_checked": 1314,
     "unresolved": []
   },
   "mechanisms": {
@@ -660,6 +660,9 @@
     ],
     "new_class_improvement": [
       "docs/GENERALITY_TODO.md:114"
+    ],
+    "offline_suite_ratchets": [
+      "docs/CONNECTOME_TODO.md:201"
     ],
     "persistent_bytes_control": [
       "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:392"
@@ -10699,6 +10702,7 @@
         "reasoning_amplifier",
         "atlas_generation",
         "semantics_admission_audit",
+        "developmental_agency_audit",
         "grounded_explanation",
         "risk_register",
         "module_paths",
@@ -10713,6 +10717,8 @@
         "L02",
         "L04",
         "L05",
+        "L06",
+        "L07",
         "L08",
         "Q04",
         "Q05",
@@ -10733,21 +10739,7 @@
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "0180b82e58dcf074f1fa64e8a12916572671a596b6ed6d2bbc2218a6993002eb"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": true,
-      "id": "docs/AURA_EXECUTION_TRACKER.md:1458",
-      "in_scope": false,
-      "kind": "historical_narrative",
-      "mechanisms": [],
-      "path": "docs/AURA_EXECUTION_TRACKER.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "aa72668adda6725e827c694efaf2c134dfe4ba86c31e1ccd821b1ab2bbd82e18"
+      "sha256": "e660c16bf4a1edca0aedac13ad90719cefe18fc8b61125bcc89b3fae7512df82"
     },
     {
       "dismissed_by_rule": null,
@@ -11145,39 +11137,6 @@
       "in_scope": true,
       "kind": "obligation",
       "mechanisms": [
-        "affect_and_phi",
-        "semantic_ledger",
-        "semantic_audit_pass",
-        "generality_program",
-        "grounded_explanation",
-        "self_knowing_kernels"
-      ],
-      "path": "docs/AURA_EXECUTION_TRACKER.md",
-      "queue": [
-        "G03",
-        "G09",
-        "L04",
-        "L05",
-        "L06",
-        "L08",
-        "Q07",
-        "Q13",
-        "U01"
-      ],
-      "reasons": [
-        "weak_phrase:does not"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "6b95b6299a306015251d5d2d1ed13877d28c6dda6e1811b09da9d7b3f2c5e3cc"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": true,
-      "id": "docs/AURA_EXECUTION_TRACKER.md:1698",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
         "semantic_binding",
         "controls_and_ablation",
         "preregistration",
@@ -11189,7 +11148,9 @@
         "research_and_planning",
         "memory_lifetime",
         "authority_and_security",
+        "semantic_ledger",
         "semantic_audit_pass",
+        "generality_program",
         "connectome_substrate",
         "language_substrate",
         "reasoning_amplifier",
@@ -11240,7 +11201,7 @@
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "458a82902574bb0247bc6af4c8800e0f76394151e26eb5609bdbdcf0214d5947"
+      "sha256": "eec53f6fa28bca173fa673d87b950e0e747159ab04f96dc1349aa76bce1a4a5c"
     },
     {
       "dismissed_by_rule": null,
@@ -212556,10 +212517,14 @@
       "mechanisms": [
         "memory_lifetime",
         "invariant_discipline",
-        "false_health"
+        "false_health",
+        "biological_fidelity"
       ],
       "path": "docs/AURA_EXECUTION_TRACKER.md",
       "queue": [
+        "G08",
+        "G12",
+        "L04",
         "Q03",
         "Q06",
         "Q08",
@@ -245745,47 +245710,16 @@
       "historical_source": false,
       "id": "docs/GENERALITY_TODO.md:12",
       "in_scope": true,
-      "kind": "resolved",
+      "kind": "obligation",
       "mechanisms": [],
       "path": "docs/GENERALITY_TODO.md",
       "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "de074f44a129efdbb542aeba7475651432ebdc4571911bc738f47de942b2d1aa"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/GENERALITY_TODO.md:16",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "semantic_binding",
-        "controls_and_ablation",
-        "code_execution_chain",
-        "test_artifacts"
-      ],
-      "path": "docs/GENERALITY_TODO.md",
-      "queue": [
-        "G03",
-        "G04",
-        "G06",
-        "G08",
-        "L03",
-        "L04",
-        "L07",
-        "Q08",
-        "Q09",
-        "R10",
-        "U07"
-      ],
       "reasons": [
         "weak_phrase:do not"
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "b565b988fa92a4625f24080c9554902db847b94d98debcbfca295e2602a415e9"
+      "sha256": "33a11425853a8f701303c35458e96d8d3b44f6dc9e42fa835268ee11a7916e17"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
@@ -251854,7 +251788,7 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "cda17448004f67f60eee08ecc9b590b2a60f33632c70ddee6f44951cd8becc6e"
+      "sha256": "21add3b08645735fcf068a14063c11ede735dc8f6f283ad18c7dfceb1b38d5ee"
     },
     {
       "dismissed_by_rule": null,
@@ -261158,159 +261092,12 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "85d1009dde3d4ce7c4afb861415c7157dd5562b9f1e6f4879f1d4f99b7dc74ff"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:7",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "connectome_scale_run"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "Q08"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "0033742dc36a77d4f4b7b0a8e0f8d01c24a8697dd519a28d09c3dba0ada3b972"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:8",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "connectome_scale_run",
-        "test_artifacts"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "Q08",
-        "Q09"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "5cc208f4d7ecb1ad9b9b54ec14ac68759f60895b782ee439f1f282cc9958912a"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:9",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "3121d53c12e8ea8cc8269aa9cea4eb9ef1734383e7bc679932de5e6c54ad9829"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:10",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "test_gates",
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04",
-        "Q08",
-        "Q09"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "3c53806d119b6113fb9413a0a60604cadc14c6e34b1a0fe9cd113d07c13351b7"
-    },
-    {
-      "dismissed_by_rule": "structural_framing",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:13",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "8bb2d776fb403d8901866249b82e3780bb8be6a90eae57e2d5c52433920bd135"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:15",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04"
-      ],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "22ade96d315cbf2dd83d2450f7c17b8bd8ba363aa6f7db0de08621f68653795c"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:21",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04"
-      ],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "13c5a9faa10817a8d060ee6338d61bdf61fff2c30d9bd8db03a4c3e94f517e39"
+      "sha256": "44c42efe9f1a91b11bb1ed9528394acec7926a09c0fecf5433a1adbb035e03ca"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:23",
+      "id": "docs/CONNECTOME_TODO.md:7",
       "in_scope": true,
       "kind": "resolved",
       "mechanisms": [],
@@ -261319,23 +261106,123 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "a4a5cd67047cb658074d29f32e83df94ac19ea5f9607fe68ceb08a228d67e159"
+      "sha256": "27739e876859c4d218390919046e97d037a9fee5cc665302255ff39858ac8b94"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:24",
+      "id": "docs/CONNECTOME_TODO.md:9",
       "in_scope": true,
       "kind": "obligation",
       "mechanisms": [],
       "path": "docs/CONNECTOME_TODO.md",
       "queue": [],
       "reasons": [
-        "weak_phrase:gap"
+        "weak_phrase:missing"
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "f96f2c1632da696706de77e642700101cef44d9566871df59063f4b189bcd891"
+      "sha256": "6924042124aa99d89c0b92b4cf65a07d1b109bf26533aa5397ac2e089add6b22"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:12",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "9d57d3002f084acfaf85dfd15ec5a8127057b568fa405276a5555a1ea49d2715"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:13",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "76c36ab3843156c81c5f43ae477c4ae42591d96c77cb8bac69a62f5d7ec670f3"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:16",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "f655f7225555198c14c9adb47563b1611936b386e2cde24ff1048d425cb4ea17"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:18",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "f04e0e215f5079e428f68ed10f724b3fba55c1665f7a9ac13c9ad74d62000e00"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:21",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "c00328c158518a84c324d476f59656ee0b62d2ded0895a1c98c9c53bdd67d565"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:22",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "3d39c32ce10a051f5bc1c0383960210fcc74c075c418e4530b0d41f656292f86"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:23",
+      "in_scope": true,
+      "kind": "obligation",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [
+        "weak_phrase:regression"
+      ],
+      "resolved_markers": [],
+      "review_required": true,
+      "sha256": "03c8e4b70511fef1fc549b5576ed70abb4a9c4c0971545da03391d17458ac399"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
@@ -261349,12 +261236,12 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "e966c6d0bf31b76737bf7c36b8cc94f4dd96f52455be80c029d2e22f56408721"
+      "sha256": "8c9dbade126e8fca375627e2c636fb9e52f18c37b07054613acaa6867b27a441"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:26",
+      "id": "docs/CONNECTOME_TODO.md:27",
       "in_scope": true,
       "kind": "resolved",
       "mechanisms": [],
@@ -261363,7 +261250,7 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "d6848d433d6c31fc7b8fe6bad92d8ee09336b95f2eaf3da0a82339018913965f"
+      "sha256": "e38ba711ff20683580666a92881b417ba61b5d787d761f378b4d66b8d11627ed"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
@@ -261377,7 +261264,7 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "4a6e79a4dbf012fcdbc8a6d7dedcd0ed740573cbe3d7b2127ec9b527ff4a6bf5"
+      "sha256": "70de22cb96e2f5b13bb29ff23b7657aafa7af59585c83e7309efe79583379c2f"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
@@ -261391,97 +261278,43 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "1b0b9df561c5093f363547f3f6cc544ceb1ed72dfd1e194b0acf5406138ed63c"
+      "sha256": "8b918dedec0b65cea20ef02e34ebed9de443a063188168587bb39493fb98b9d0"
     },
     {
-      "dismissed_by_rule": null,
+      "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
       "id": "docs/CONNECTOME_TODO.md:31",
       "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "connectome_substrate"
-      ],
+      "kind": "resolved",
+      "mechanisms": [],
       "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
+      "queue": [],
+      "reasons": [],
       "resolved_markers": [],
-      "review_required": true,
-      "sha256": "0fa2c0643cda2c384c979f646a32bbde40b1076dd6ea9bda5d111f9d8a946c0e"
+      "review_required": false,
+      "sha256": "e69e82a23786f58f468bab2d2514f090de268822ea6e88c6b307490945b2c013"
     },
     {
       "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
       "id": "docs/CONNECTOME_TODO.md:32",
       "in_scope": true,
-      "kind": "resolved",
+      "kind": "obligation",
       "mechanisms": [],
       "path": "docs/CONNECTOME_TODO.md",
       "queue": [],
-      "reasons": [],
+      "reasons": [
+        "weak_phrase:does not"
+      ],
       "resolved_markers": [],
-      "review_required": false,
-      "sha256": "5f7bab3f5b0da7eb8ddb7bbe481e9465042644661f7dd8716bb4cd7112b37ba2"
+      "review_required": true,
+      "sha256": "506ecc4c5fa49d01f08cefe6c314c763ff433aa50fff7165903578f0dfc56a25"
     },
     {
-      "dismissed_by_rule": "structural_framing",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:34",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "e8aa2c53c4f56b786a678bfffda39fa9d5ecaf9512844d904afab751fcb60c95"
-    },
-    {
-      "dismissed_by_rule": "lead_in",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:36",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "48118a713c4b87295ad3d47b16cf16e34b6e4bbd56a61589ac359ac589c9f3a6"
-    },
-    {
-      "dismissed_by_rule": null,
+      "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
       "id": "docs/CONNECTOME_TODO.md:38",
       "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "G12",
-        "L04"
-      ],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "598560c779a63a4238a1810d2ca70a4cf0b42939f1c76fa1c3fbe60d7367a8fa"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:40",
-      "in_scope": true,
       "kind": "resolved",
       "mechanisms": [],
       "path": "docs/CONNECTOME_TODO.md",
@@ -261489,66 +261322,12 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "e0d57315e7ed8f82406bb0a0495ba76022a1381a776b74c911743e08455bc37b"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:42",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "a4dda78434e6931a25925c73c80c565650f6fa8ea12832ea26200fc23237af93"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:44",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "574d20f11275d38a8a8a7536f10d5a115acab4d91d93039fe9dd96a52e340cc0"
-    },
-    {
-      "dismissed_by_rule": null,
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:45",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [
-        "controls_and_ablation",
-        "connectome_substrate"
-      ],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G06",
-        "G08",
-        "G09",
-        "G12",
-        "L03",
-        "L04"
-      ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "687c8700babd1b1141598857da5c746ddba16ab47b26a3b0a84770da3d96707c"
+      "sha256": "c7c59e867e5ebfce148ac9efa50f11971ea80314c8ae9260683fa2ad8c965a04"
     },
     {
       "dismissed_by_rule": "structural_framing",
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:48",
+      "id": "docs/CONNECTOME_TODO.md:41",
       "in_scope": true,
       "kind": "live_framing",
       "mechanisms": [],
@@ -261557,68 +261336,252 @@
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "5b0b8d8695932bc36d370080474c9a6cf286777076b7aa625280695a265de477"
+      "sha256": "e347763d5538bf4201a5e329d144bbc615e1c4582f988dec7585db303f225961"
     },
     {
-      "dismissed_by_rule": null,
+      "dismissed_by_rule": "all_boxes_checked",
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:50",
+      "id": "docs/CONNECTOME_TODO.md:43",
       "in_scope": true,
       "kind": "obligation",
-      "mechanisms": [
-        "affect_and_phi",
-        "research_and_planning",
-        "developmental_agency_audit"
-      ],
+      "mechanisms": [],
       "path": "docs/CONNECTOME_TODO.md",
-      "queue": [
-        "G09",
-        "L06",
-        "L07",
-        "L08",
-        "U07"
-      ],
+      "queue": [],
       "reasons": [
-        "unchecked_checkbox x1"
+        "weak_phrase:does not"
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "98db1d72cfa62b09cfb4748d6c14e0f8eabe3364a9bb9d6e42c60089d45bade8"
+      "sha256": "f3886d45a3b138540b5d7eb03078db1d24ff61cab22052c33ccb578c169cca98"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:126",
+      "in_scope": true,
+      "kind": "obligation",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [
+        "open_phrase:still ",
+        "weak_phrase:cannot"
+      ],
+      "resolved_markers": [],
+      "review_required": true,
+      "sha256": "ea7661ff1dbe9b4db8d9211e14ab3a395a29801963d6b1a035e2aca1f5eb109b"
     },
     {
       "dismissed_by_rule": null,
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:53",
+      "id": "docs/CONNECTOME_TODO.md:201",
       "in_scope": true,
       "kind": "obligation",
       "mechanisms": [
-        "connectome_substrate",
+        "event_loop_blocking",
+        "latency_accounting",
+        "knowledge_access",
+        "vision",
+        "companion_mode",
+        "screen_and_browser",
+        "desktop_actions",
+        "persistence_and_recovery",
+        "architecture_debt",
+        "test_gates",
+        "install_and_release",
+        "tool_loop_completion",
         "language_substrate",
-        "reasoning_amplifier"
+        "connectome_scale_run",
+        "expressiveness_floor",
+        "developmental_agency_audit",
+        "grounded_explanation",
+        "test_artifacts",
+        "risk_register",
+        "module_paths"
       ],
       "path": "docs/CONNECTOME_TODO.md",
       "queue": [
         "G03",
-        "G06",
+        "G04",
         "G09",
         "G12",
         "L04",
+        "L05",
+        "L06",
+        "L07",
+        "Q03",
+        "Q05",
+        "Q06",
+        "Q07",
+        "Q08",
+        "Q09",
+        "Q10",
+        "Q11",
+        "Q12",
+        "R06",
+        "R09",
+        "R11",
         "U01",
+        "U03",
+        "U04",
+        "U05",
+        "U06",
         "U07"
       ],
       "reasons": [
-        "unchecked_checkbox x1"
+        "unchecked_checkbox x1",
+        "open_phrase:stale",
+        "weak_phrase:cannot"
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "8985499a12671974110f00a1e52804b2a941b2e2cc21140724ff3ab1af8e2802"
+      "sha256": "320cd11fe704468c10f8b07f258214467764fc1ab6f98a9d68ba66e817ba3ef2"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:246",
+      "in_scope": true,
+      "kind": "obligation",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [
+        "open_phrase:deferred",
+        "weak_phrase:cannot"
+      ],
+      "resolved_markers": [],
+      "review_required": true,
+      "sha256": "9d436c288575238e64957c002d430efa3139b888285be895886ec1fc5580bac0"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:341",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "63c9dffb166ee21939e1991410e2f02f2786ee53c85609c44be7a1bf2fca6ac6"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:346",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "dae47bc8f54c68263faa20f8ede6ffbf82326a9ef2d900204d53f51bc61c5982"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:350",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "cb298882928ffa8a3ff5c385941c1d775656420530ef6295b264ea5ab28124be"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:354",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "cf356a34671f2b87efdae30e92d5d759be922c4734c385694788a5497fe73bad"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:360",
+      "in_scope": true,
+      "kind": "obligation",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [
+        "weak_phrase:was not"
+      ],
+      "resolved_markers": [],
+      "review_required": true,
+      "sha256": "2abfcdb601732a9713f27e6dead730a3bc22280078939e2a2b9b222c595a8b0f"
+    },
+    {
+      "dismissed_by_rule": "all_boxes_checked",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:364",
+      "in_scope": true,
+      "kind": "resolved",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "05ae482adbd1419dd6491c40a70a6bfb8e66695a5a7f93760ed0a9a9ccc11d09"
+    },
+    {
+      "dismissed_by_rule": "structural_framing",
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:369",
+      "in_scope": true,
+      "kind": "live_framing",
+      "mechanisms": [],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [],
+      "reasons": [],
+      "resolved_markers": [],
+      "review_required": false,
+      "sha256": "f11333e26f0fdd0deb088edfc2d7837eb5b1f78d005aa002a8699990484e221a"
     },
     {
       "dismissed_by_rule": null,
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:60",
+      "id": "docs/CONNECTOME_TODO.md:371",
       "in_scope": true,
       "kind": "obligation",
+      "mechanisms": [
+        "repeated_autonomous_improvement"
+      ],
+      "path": "docs/CONNECTOME_TODO.md",
+      "queue": [
+        "G04",
+        "G09",
+        "L07"
+      ],
+      "reasons": [
+        "weak_phrase:does not"
+      ],
+      "resolved_markers": [],
+      "review_required": true,
+      "sha256": "022065db41a53c9ac247823cc7ba37dea0d50df769db950b09607eaa599a595b"
+    },
+    {
+      "dismissed_by_rule": null,
+      "historical_source": false,
+      "id": "docs/CONNECTOME_TODO.md:377",
+      "in_scope": true,
+      "kind": "live_framing",
       "mechanisms": [
         "controls_and_ablation",
         "connectome_substrate"
@@ -261632,205 +261595,41 @@
         "L03",
         "L04"
       ],
-      "reasons": [
-        "unchecked_checkbox x1"
-      ],
-      "resolved_markers": [],
-      "review_required": true,
-      "sha256": "f0bae82157f205f6af1b51e3156fb0a9e91fe5eef6d26180e2bdd400e5aa8ccf"
-    },
-    {
-      "dismissed_by_rule": "structural_framing",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:63",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
       "reasons": [],
       "resolved_markers": [],
       "review_required": false,
-      "sha256": "547bb869a054b8a0c13f6cd2605a5ad20e629f2fbcca50b510b9d5923ffb77b1"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:65",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "39f86d3613cf6ae51bb75f8c54122714aa7067752ece27b5a0b066f052a72df0"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:66",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "41c8c44cee56cf7526dc9e721ce566d0ecd0462488d436d0563d0c62c05a7fd5"
-    },
-    {
-      "dismissed_by_rule": "structural_framing",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:69",
-      "in_scope": true,
-      "kind": "live_framing",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "2c79ea811e3cb9b24b9f49e3598a8eb57d3b449fc013d9b17d85d67f191c34e9"
+      "sha256": "37d6d2f4ea37fa59ff0c33858d2ecc74f43316ad756983568633cc0e3c029ccc"
     },
     {
       "dismissed_by_rule": null,
       "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:71",
+      "id": "docs/CONNECTOME_TODO.md:381",
       "in_scope": true,
-      "kind": "live_framing",
+      "kind": "obligation",
       "mechanisms": [
+        "experience_to_training",
         "architecture_debt",
+        "connectome_substrate",
         "developmental_agency_audit"
       ],
       "path": "docs/CONNECTOME_TODO.md",
       "queue": [
         "G09",
+        "G12",
+        "L02",
+        "L03",
+        "L04",
         "L06",
         "L07",
         "Q06",
         "Q07"
       ],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "2b70ad13ab6aad670fbe1079bd7aa07de0eb7b6694fda9fe9810c669a5c80aa2"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:74",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "46bf125fe1706698712a58261b81964e990eef69bf7bcc29fa7e2ee201180c23"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:75",
-      "in_scope": true,
-      "kind": "obligation",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
       "reasons": [
-        "weak_phrase:failure"
+        "weak_phrase:cannot"
       ],
       "resolved_markers": [],
       "review_required": true,
-      "sha256": "43eb45071ce39a4d2c9a713fb435f4f4c0e2e7c04607feaca5752b0dc7a235af"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:76",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "998cec687b0d1d76472e880b11a702e8f99ba716ea614978e2f9004777bd3b5e"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:77",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "6028a9600205fc6b49143769d86607538784a563b068a025639f59840f8749ab"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:78",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "441f707b715f4f9a9a225455e6aa9cdf8ab3ac654a25130e4af803f7a8a853dc"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:79",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "fc3bad30545166b3d3dd275fcdc7621befc2e111b4b80cfb8512e7f3c448addb"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:80",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "fe1bbc9671c1b93afc7ad03ea50a096475d4ca370f8eb3e2af5650ae8c56d582"
-    },
-    {
-      "dismissed_by_rule": "all_boxes_checked",
-      "historical_source": false,
-      "id": "docs/CONNECTOME_TODO.md:81",
-      "in_scope": true,
-      "kind": "resolved",
-      "mechanisms": [],
-      "path": "docs/CONNECTOME_TODO.md",
-      "queue": [],
-      "reasons": [],
-      "resolved_markers": [],
-      "review_required": false,
-      "sha256": "2133fa3c5a776c0a57a570b9d150ff1e810865b23fc66d39e9faae3b7aebfdfc"
+      "sha256": "66bb921921caf3514f9a45938ba3f672a938e548779dd9817f43f743e5c70ce8"
     },
     {
       "dismissed_by_rule": "structural_framing",
@@ -278935,7 +278734,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16878",
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
       "docs/AURA_EXECUTION_TRACKER.md:17110",
       "docs/AURA_EXECUTION_TRACKER.md:17120",
@@ -280444,7 +280242,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9997",
       "docs/AURA_EXECUTION_TRACKER.md:9999",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
-      "docs/CONNECTOME_TODO.md:53",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:103",
       "docs/GENERALITY_TODO.md:112",
       "docs/GENERALITY_TODO.md:114",
@@ -280452,7 +280250,6 @@
       "docs/GENERALITY_TODO.md:125",
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:143",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:203",
       "docs/GENERALITY_TODO.md:254",
       "docs/GENERALITY_TODO.md:3",
@@ -280662,7 +280459,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16727",
       "docs/AURA_EXECUTION_TRACKER.md:16773",
       "docs/AURA_EXECUTION_TRACKER.md:16791",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
       "docs/AURA_EXECUTION_TRACKER.md:17265",
       "docs/AURA_EXECUTION_TRACKER.md:17282",
@@ -281418,7 +281215,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:9990",
       "docs/AURA_EXECUTION_TRACKER.md:9997",
       "docs/AURA_EXECUTION_TRACKER.md:9999",
-      "docs/GENERALITY_TODO.md:16",
+      "docs/CONNECTOME_TODO.md:201",
+      "docs/CONNECTOME_TODO.md:371",
       "docs/GENERALITY_TODO.md:35",
       "docs/GENERALITY_TODO.md:359",
       "docs/GENERALITY_TODO.md:388",
@@ -281719,12 +281517,12 @@
       "docs/AURA_EXECUTION_TRACKER.md:16799",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
       "docs/AURA_EXECUTION_TRACKER.md:16905",
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17081",
       "docs/AURA_EXECUTION_TRACKER.md:17091",
@@ -284465,12 +284263,9 @@
       "docs/AURA_EXECUTION_TRACKER.md:9955",
       "docs/AURA_EXECUTION_TRACKER.md:9958",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:53",
-      "docs/CONNECTOME_TODO.md:60",
+      "docs/CONNECTOME_TODO.md:377",
       "docs/GENERALITY_TODO.md:119",
       "docs/GENERALITY_TODO.md:143",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:351",
       "docs/GENERALITY_TODO.md:363",
       "docs/GENERALITY_TODO.md:421",
@@ -284546,7 +284341,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:14818",
       "docs/AURA_EXECUTION_TRACKER.md:15800",
       "docs/AURA_EXECUTION_TRACKER.md:16332",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:18085",
       "docs/AURA_EXECUTION_TRACKER.md:19",
       "docs/AURA_EXECUTION_TRACKER.md:19381",
@@ -284959,7 +284754,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16156",
       "docs/AURA_EXECUTION_TRACKER.md:16261",
       "docs/AURA_EXECUTION_TRACKER.md:16332",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:17091",
       "docs/AURA_EXECUTION_TRACKER.md:17282",
       "docs/AURA_EXECUTION_TRACKER.md:17335",
@@ -285356,6 +285151,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:44579",
       "docs/AURA_EXECUTION_TRACKER.md:44590",
       "docs/AURA_EXECUTION_TRACKER.md:44617",
+      "docs/AURA_EXECUTION_TRACKER.md:44772",
       "docs/AURA_EXECUTION_TRACKER.md:44876",
       "docs/AURA_EXECUTION_TRACKER.md:449",
       "docs/AURA_EXECUTION_TRACKER.md:44975",
@@ -285545,10 +285341,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:6415",
       "docs/AURA_EXECUTION_TRACKER.md:6446",
       "docs/AURA_EXECUTION_TRACKER.md:885",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:60",
+      "docs/CONNECTOME_TODO.md:377",
       "docs/GENERALITY_TODO.md:103",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:421",
       "docs/GENERALITY_TODO.md:428",
       "docs/GENERALITY_TODO.md:429",
@@ -285958,7 +285752,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
@@ -288726,20 +288519,11 @@
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:30",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:63",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:10",
-      "docs/CONNECTOME_TODO.md:15",
-      "docs/CONNECTOME_TODO.md:21",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/CONNECTOME_TODO.md:3",
-      "docs/CONNECTOME_TODO.md:31",
-      "docs/CONNECTOME_TODO.md:38",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:50",
-      "docs/CONNECTOME_TODO.md:53",
-      "docs/CONNECTOME_TODO.md:60",
-      "docs/CONNECTOME_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:71",
-      "docs/CONNECTOME_TODO.md:8",
-      "docs/CONNECTOME_TODO.md:9",
+      "docs/CONNECTOME_TODO.md:371",
+      "docs/CONNECTOME_TODO.md:377",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:103",
       "docs/GENERALITY_TODO.md:112",
       "docs/GENERALITY_TODO.md:114",
@@ -288983,12 +288767,12 @@
       "docs/AURA_EXECUTION_TRACKER.md:16773",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
       "docs/AURA_EXECUTION_TRACKER.md:16891",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
       "docs/AURA_EXECUTION_TRACKER.md:17102",
@@ -291269,6 +291053,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16527",
       "docs/AURA_EXECUTION_TRACKER.md:16531",
       "docs/AURA_EXECUTION_TRACKER.md:1667",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16866",
       "docs/AURA_EXECUTION_TRACKER.md:16872",
       "docs/AURA_EXECUTION_TRACKER.md:16878",
@@ -291283,7 +291068,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
@@ -292119,6 +291903,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:44712",
       "docs/AURA_EXECUTION_TRACKER.md:44731",
       "docs/AURA_EXECUTION_TRACKER.md:44756",
+      "docs/AURA_EXECUTION_TRACKER.md:44772",
       "docs/AURA_EXECUTION_TRACKER.md:44787",
       "docs/AURA_EXECUTION_TRACKER.md:448",
       "docs/AURA_EXECUTION_TRACKER.md:44822",
@@ -292485,18 +292270,10 @@
       "docs/AURA_EXECUTION_TRACKER.md:9743",
       "docs/AURA_EXECUTION_TRACKER.md:9861",
       "docs/AURA_EXECUTION_TRACKER.md:994",
-      "docs/CONNECTOME_TODO.md:10",
-      "docs/CONNECTOME_TODO.md:15",
-      "docs/CONNECTOME_TODO.md:21",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/CONNECTOME_TODO.md:3",
-      "docs/CONNECTOME_TODO.md:31",
-      "docs/CONNECTOME_TODO.md:38",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:53",
-      "docs/CONNECTOME_TODO.md:60",
-      "docs/CONNECTOME_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:8",
-      "docs/CONNECTOME_TODO.md:9",
+      "docs/CONNECTOME_TODO.md:377",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:159",
       "docs/GENERALITY_TODO.md:179",
       "docs/GENERALITY_TODO.md:413",
@@ -292964,7 +292741,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16415",
       "docs/AURA_EXECUTION_TRACKER.md:16463",
       "docs/AURA_EXECUTION_TRACKER.md:16563",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:17659",
       "docs/AURA_EXECUTION_TRACKER.md:17667",
       "docs/AURA_EXECUTION_TRACKER.md:17674",
@@ -293157,10 +292934,10 @@
       "docs/AURA_EXECUTION_TRACKER.md:16761",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
       "docs/AURA_EXECUTION_TRACKER.md:17102",
@@ -295166,6 +294943,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9233",
       "docs/AURA_EXECUTION_TRACKER.md:9418",
       "docs/AURA_EXECUTION_TRACKER.md:960",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:716",
       "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:306",
       "docs/worktodo/TODO.md:19",
@@ -295221,8 +294999,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:16052",
       "docs/AURA_EXECUTION_TRACKER.md:16096",
       "docs/AURA_EXECUTION_TRACKER.md:1625",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16866",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17091",
       "docs/AURA_EXECUTION_TRACKER.md:17120",
       "docs/AURA_EXECUTION_TRACKER.md:17282",
@@ -295878,9 +295656,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:6689",
       "docs/AURA_EXECUTION_TRACKER.md:7730",
       "docs/AURA_EXECUTION_TRACKER.md:885",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:60",
-      "docs/GENERALITY_TODO.md:16",
+      "docs/CONNECTOME_TODO.md:377",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:421",
       "docs/GENERALITY_TODO.md:428",
       "docs/GENERALITY_TODO.md:429",
@@ -296193,7 +295970,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16932",
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
       "docs/AURA_EXECUTION_TRACKER.md:17102",
       "docs/AURA_EXECUTION_TRACKER.md:17110",
@@ -297558,6 +297334,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:4472",
       "docs/AURA_EXECUTION_TRACKER.md:44747",
       "docs/AURA_EXECUTION_TRACKER.md:44756",
+      "docs/AURA_EXECUTION_TRACKER.md:44772",
       "docs/AURA_EXECUTION_TRACKER.md:44787",
       "docs/AURA_EXECUTION_TRACKER.md:448",
       "docs/AURA_EXECUTION_TRACKER.md:44822",
@@ -298260,16 +298037,10 @@
       "docs/AURA_EXECUTION_TRACKER.md:9997",
       "docs/AURA_EXECUTION_TRACKER.md:9999",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
-      "docs/CONNECTOME_TODO.md:10",
-      "docs/CONNECTOME_TODO.md:15",
-      "docs/CONNECTOME_TODO.md:21",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/CONNECTOME_TODO.md:3",
-      "docs/CONNECTOME_TODO.md:31",
-      "docs/CONNECTOME_TODO.md:38",
-      "docs/CONNECTOME_TODO.md:45",
-      "docs/CONNECTOME_TODO.md:53",
-      "docs/CONNECTOME_TODO.md:60",
-      "docs/CONNECTOME_TODO.md:9",
+      "docs/CONNECTOME_TODO.md:377",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:103",
       "docs/GENERALITY_TODO.md:112",
       "docs/GENERALITY_TODO.md:114",
@@ -298278,7 +298049,6 @@
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:143",
       "docs/GENERALITY_TODO.md:159",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:179",
       "docs/GENERALITY_TODO.md:203",
       "docs/GENERALITY_TODO.md:254",
@@ -298605,7 +298375,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17039",
@@ -299816,6 +299585,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9918",
       "docs/AURA_EXECUTION_TRACKER.md:9958",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:241",
       "docs/GENERALITY_TODO.md:274",
@@ -299928,6 +299698,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:14182",
       "docs/AURA_EXECUTION_TRACKER.md:14263",
       "docs/AURA_EXECUTION_TRACKER.md:14313",
+      "docs/AURA_EXECUTION_TRACKER.md:1437",
       "docs/AURA_EXECUTION_TRACKER.md:14424",
       "docs/AURA_EXECUTION_TRACKER.md:14541",
       "docs/AURA_EXECUTION_TRACKER.md:14561",
@@ -300004,7 +299775,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16898",
       "docs/AURA_EXECUTION_TRACKER.md:16905",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17039",
       "docs/AURA_EXECUTION_TRACKER.md:17045",
       "docs/AURA_EXECUTION_TRACKER.md:17049",
@@ -300921,8 +300691,8 @@
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:30",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:63",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:50",
-      "docs/CONNECTOME_TODO.md:71",
+      "docs/CONNECTOME_TODO.md:201",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:199",
       "docs/GENERALITY_TODO.md:254",
       "docs/GENERALITY_TODO.md:288",
@@ -301155,6 +300925,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:14313",
       "docs/AURA_EXECUTION_TRACKER.md:14324",
       "docs/AURA_EXECUTION_TRACKER.md:14341",
+      "docs/AURA_EXECUTION_TRACKER.md:1437",
       "docs/AURA_EXECUTION_TRACKER.md:14372",
       "docs/AURA_EXECUTION_TRACKER.md:14385",
       "docs/AURA_EXECUTION_TRACKER.md:14404",
@@ -301269,6 +301040,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16722",
       "docs/AURA_EXECUTION_TRACKER.md:16761",
       "docs/AURA_EXECUTION_TRACKER.md:16773",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
       "docs/AURA_EXECUTION_TRACKER.md:16872",
       "docs/AURA_EXECUTION_TRACKER.md:16898",
@@ -301276,7 +301048,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17039",
       "docs/AURA_EXECUTION_TRACKER.md:17045",
@@ -302913,12 +302684,12 @@
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:30",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:63",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:50",
-      "docs/CONNECTOME_TODO.md:71",
+      "docs/CONNECTOME_TODO.md:201",
+      "docs/CONNECTOME_TODO.md:371",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:119",
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:143",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:186",
       "docs/GENERALITY_TODO.md:188",
       "docs/GENERALITY_TODO.md:190",
@@ -303078,7 +302849,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16185",
       "docs/AURA_EXECUTION_TRACKER.md:16325",
       "docs/AURA_EXECUTION_TRACKER.md:1684",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17402",
       "docs/AURA_EXECUTION_TRACKER.md:17422",
       "docs/AURA_EXECUTION_TRACKER.md:18964",
@@ -303262,7 +303032,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:898",
       "docs/AURA_EXECUTION_TRACKER.md:982",
       "docs/AURA_EXECUTION_TRACKER.md:9861",
-      "docs/CONNECTOME_TODO.md:50",
       "docs/GENERALITY_TODO.md:193",
       "docs/GENERALITY_TODO.md:284",
       "docs/GENERALITY_TODO.md:421",
@@ -304477,13 +304246,13 @@
       "docs/AURA_EXECUTION_TRACKER.md:16799",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16809",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16878",
       "docs/AURA_EXECUTION_TRACKER.md:16891",
       "docs/AURA_EXECUTION_TRACKER.md:16905",
       "docs/AURA_EXECUTION_TRACKER.md:16913",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17009",
       "docs/AURA_EXECUTION_TRACKER.md:17016",
@@ -305840,6 +305609,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9884",
       "docs/AURA_EXECUTION_TRACKER.md:9889",
       "docs/AURA_EXECUTION_TRACKER.md:9955",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:119",
       "docs/GENERALITY_TODO.md:716",
       "docs/GENERALITY_TODO.md:757",
@@ -306197,6 +305967,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16809",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16905",
       "docs/AURA_EXECUTION_TRACKER.md:16918",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
@@ -306204,7 +305975,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17033",
       "docs/AURA_EXECUTION_TRACKER.md:17064",
@@ -308355,6 +308125,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:960",
       "docs/AURA_EXECUTION_TRACKER.md:971",
       "docs/AURA_EXECUTION_TRACKER.md:994",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:466",
       "docs/LEARNED_LANGUAGE_INTERPRETATION_TODO.md:102",
       "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:306",
@@ -308819,13 +308590,13 @@
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16809",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16905",
       "docs/AURA_EXECUTION_TRACKER.md:16918",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17033",
@@ -310284,7 +310055,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:994",
       "docs/AURA_EXECUTION_TRACKER.md:9958",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
-      "docs/CONNECTOME_TODO.md:71",
+      "docs/CONNECTOME_TODO.md:201",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:103",
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:369",
@@ -310555,7 +310327,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16799",
       "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
@@ -312021,7 +311792,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:9955",
       "docs/AURA_EXECUTION_TRACKER.md:9962",
       "docs/AURA_EXECUTION_TRACKER.md:9985",
-      "docs/CONNECTOME_TODO.md:71",
+      "docs/CONNECTOME_TODO.md:201",
+      "docs/CONNECTOME_TODO.md:381",
       "docs/GENERALITY_TODO.md:103",
       "docs/GENERALITY_TODO.md:341",
       "docs/GENERALITY_TODO.md:369",
@@ -313136,11 +312908,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:9997",
       "docs/AURA_EXECUTION_TRACKER.md:9999",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
-      "docs/CONNECTOME_TODO.md:10",
-      "docs/CONNECTOME_TODO.md:7",
-      "docs/CONNECTOME_TODO.md:8",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:159",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:172",
       "docs/GENERALITY_TODO.md:174",
       "docs/GENERALITY_TODO.md:175",
@@ -314109,9 +313878,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9943",
       "docs/AURA_EXECUTION_TRACKER.md:9997",
       "docs/AURA_EXECUTION_TRACKER.md:9999",
-      "docs/CONNECTOME_TODO.md:10",
-      "docs/CONNECTOME_TODO.md:8",
-      "docs/GENERALITY_TODO.md:16",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:295",
       "docs/GENERALITY_TODO.md:324",
       "docs/GENERALITY_TODO.md:327",
@@ -314374,9 +314141,9 @@
       "docs/AURA_EXECUTION_TRACKER.md:16746",
       "docs/AURA_EXECUTION_TRACKER.md:16799",
       "docs/AURA_EXECUTION_TRACKER.md:16809",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16872",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17016",
       "docs/AURA_EXECUTION_TRACKER.md:17033",
       "docs/AURA_EXECUTION_TRACKER.md:17098",
@@ -315210,6 +314977,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9884",
       "docs/AURA_EXECUTION_TRACKER.md:9889",
       "docs/AURA_EXECUTION_TRACKER.md:9955",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:119",
       "docs/GENERALITY_TODO.md:179",
       "docs/GENERALITY_TODO.md:184",
@@ -315593,6 +315361,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9542",
       "docs/AURA_EXECUTION_TRACKER.md:9554",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:173",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:173",
       "docs/evidence/CLOSEOUT.md:17",
       "docs/evidence/CLOSEOUT.md:35",
@@ -316762,6 +316531,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9884",
       "docs/AURA_EXECUTION_TRACKER.md:9889",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:173",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:173",
       "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:306",
       "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:51",
@@ -316960,7 +316730,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
       "docs/AURA_EXECUTION_TRACKER.md:17009",
@@ -318904,7 +318673,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16554",
       "docs/AURA_EXECUTION_TRACKER.md:16572",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:17009",
       "docs/AURA_EXECUTION_TRACKER.md:17444",
       "docs/AURA_EXECUTION_TRACKER.md:17539",
@@ -320181,9 +319950,9 @@
       "docs/AURA_EXECUTION_TRACKER.md:15999",
       "docs/AURA_EXECUTION_TRACKER.md:1667",
       "docs/AURA_EXECUTION_TRACKER.md:16769",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16913",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17139",
       "docs/AURA_EXECUTION_TRACKER.md:1735",
       "docs/AURA_EXECUTION_TRACKER.md:17386",
@@ -320353,6 +320122,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:8518",
       "docs/AURA_EXECUTION_TRACKER.md:9274",
       "docs/AURA_EXECUTION_TRACKER.md:982",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:577",
       "docs/GENERALITY_TODO.md:716",
       "docs/GENERALITY_TODO.md:757",
@@ -320491,9 +320261,9 @@
       "docs/AURA_EXECUTION_TRACKER.md:16527",
       "docs/AURA_EXECUTION_TRACKER.md:1667",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17102",
       "docs/AURA_EXECUTION_TRACKER.md:17126",
@@ -321245,6 +321015,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16631",
       "docs/AURA_EXECUTION_TRACKER.md:16769",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16866",
       "docs/AURA_EXECUTION_TRACKER.md:16872",
@@ -321260,7 +321031,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
@@ -322329,6 +322099,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9861",
       "docs/AURA_EXECUTION_TRACKER.md:9905",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:143",
       "docs/GENERALITY_TODO.md:186",
       "docs/GENERALITY_TODO.md:188",
@@ -322414,8 +322185,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:15820",
       "docs/AURA_EXECUTION_TRACKER.md:16193",
       "docs/AURA_EXECUTION_TRACKER.md:16361",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17640",
       "docs/AURA_EXECUTION_TRACKER.md:17808",
       "docs/AURA_EXECUTION_TRACKER.md:18662",
@@ -322744,7 +322515,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:9660",
       "docs/AURA_EXECUTION_TRACKER.md:971",
       "docs/GENERALITY_TODO.md:131",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:274",
       "docs/GENERALITY_TODO.md:278",
       "docs/GENERALITY_TODO.md:280",
@@ -323189,6 +322959,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:9743",
       "docs/AURA_EXECUTION_TRACKER.md:9815",
       "docs/AURA_EXECUTION_TRACKER.md:9861",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:159",
       "docs/GENERALITY_TODO.md:164",
       "docs/GENERALITY_TODO.md:179",
@@ -323705,7 +323476,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:16991",
       "docs/AURA_EXECUTION_TRACKER.md:16994",
       "docs/AURA_EXECUTION_TRACKER.md:17003",
@@ -326000,7 +325770,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:994",
       "docs/AURA_EXECUTION_TRACKER.md:9958",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
-      "docs/CONNECTOME_TODO.md:53",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:143",
       "docs/GENERALITY_TODO.md:159",
       "docs/GENERALITY_TODO.md:164",
@@ -326384,6 +326154,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:52112",
       "docs/AURA_EXECUTION_TRACKER.md:791",
       "docs/AURA_EXECUTION_TRACKER.md:8541",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:143",
       "docs/GENERALITY_TODO.md:456",
       "docs/GENERALITY_TODO.md:466",
@@ -326448,7 +326219,8 @@
       "docs/AURA_EXECUTION_TRACKER.md:5808",
       "docs/AURA_EXECUTION_TRACKER.md:6063",
       "docs/AURA_EXECUTION_TRACKER.md:645",
-      "docs/AURA_EXECUTION_TRACKER.md:9743"
+      "docs/AURA_EXECUTION_TRACKER.md:9743",
+      "docs/CONNECTOME_TODO.md:201"
     ],
     "U05": [
       "docs/AURA_EXECUTION_TRACKER.md:10043",
@@ -326748,6 +326520,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:982",
       "docs/AURA_EXECUTION_TRACKER.md:9884",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:171",
       "docs/GENERALITY_TODO.md:519",
       "docs/GENERALITY_TODO.md:712",
@@ -326926,12 +326699,12 @@
       "docs/AURA_EXECUTION_TRACKER.md:16761",
       "docs/AURA_EXECUTION_TRACKER.md:16776",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16918",
       "docs/AURA_EXECUTION_TRACKER.md:16923",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16952",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17081",
       "docs/AURA_EXECUTION_TRACKER.md:1754",
       "docs/AURA_EXECUTION_TRACKER.md:17556",
@@ -327652,6 +327425,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:982",
       "docs/AURA_EXECUTION_TRACKER.md:9884",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:171",
       "docs/GENERALITY_TODO.md:184",
       "docs/GENERALITY_TODO.md:241",
@@ -328045,6 +327819,7 @@
       "docs/AURA_EXECUTION_TRACKER.md:16799",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
       "docs/AURA_EXECUTION_TRACKER.md:16824",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16848",
       "docs/AURA_EXECUTION_TRACKER.md:16872",
@@ -328056,7 +327831,6 @@
       "docs/AURA_EXECUTION_TRACKER.md:16938",
       "docs/AURA_EXECUTION_TRACKER.md:16945",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17023",
       "docs/AURA_EXECUTION_TRACKER.md:17081",
       "docs/AURA_EXECUTION_TRACKER.md:17102",
@@ -330599,12 +330373,10 @@
       "docs/AURA_EXECUTION_TRACKER.md:9967",
       "docs/AURA_EXECUTION_TRACKER.md:9990",
       "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md:257",
-      "docs/CONNECTOME_TODO.md:50",
-      "docs/CONNECTOME_TODO.md:53",
+      "docs/CONNECTOME_TODO.md:201",
       "docs/GENERALITY_TODO.md:119",
       "docs/GENERALITY_TODO.md:131",
       "docs/GENERALITY_TODO.md:143",
-      "docs/GENERALITY_TODO.md:16",
       "docs/GENERALITY_TODO.md:184",
       "docs/GENERALITY_TODO.md:186",
       "docs/GENERALITY_TODO.md:188",
@@ -330908,11 +330680,11 @@
       "docs/AURA_EXECUTION_TRACKER.md:16769",
       "docs/AURA_EXECUTION_TRACKER.md:16776",
       "docs/AURA_EXECUTION_TRACKER.md:16803",
+      "docs/AURA_EXECUTION_TRACKER.md:1684",
       "docs/AURA_EXECUTION_TRACKER.md:16842",
       "docs/AURA_EXECUTION_TRACKER.md:16898",
       "docs/AURA_EXECUTION_TRACKER.md:16932",
       "docs/AURA_EXECUTION_TRACKER.md:16965",
-      "docs/AURA_EXECUTION_TRACKER.md:1698",
       "docs/AURA_EXECUTION_TRACKER.md:17081",
       "docs/AURA_EXECUTION_TRACKER.md:17110",
       "docs/AURA_EXECUTION_TRACKER.md:17120",
@@ -332541,7 +332313,7 @@
     "docs/AUTONOMOUS_DEVELOPMENTAL_AGENCY_TODO.md",
     "docs/evidence/CLOSEOUT.md"
   ],
-  "source_commit": "3dbcba99956560148272a116f547507437e63333",
+  "source_commit": "6da928ae4437c33555eff485d2479879011a58f6",
   "sources": [
     {
       "blocks": [
@@ -336721,7 +336493,7 @@
         },
         {
           "checkboxes": [],
-          "end_line": 1456,
+          "end_line": 1458,
           "heading": "#### Context-Criticism Closure Addendum II (2026-07-10)",
           "id": "docs/AURA_EXECUTION_TRACKER.md:1437",
           "path": "docs/AURA_EXECUTION_TRACKER.md",
@@ -336729,21 +336501,9 @@
             "open_language"
           ],
           "review_status": "unreviewed",
-          "sha256": "0180b82e58dcf074f1fa64e8a12916572671a596b6ed6d2bbc2218a6993002eb",
+          "sha256": "e660c16bf4a1edca0aedac13ad90719cefe18fc8b61125bcc89b3fae7512df82",
           "start_line": 1437,
-          "text": "33. **Embodied world intelligence and advanced capability corpus** `[OPEN]`\n   - Source registration: `/Users/bryan/Desktop/aura capabilities.pdf`, one\n     rendered page, 31,005 bytes, SHA-256\n     `853eae8a849a7883564c1f8b56e43b5d3911f15ea4ea6d10271dbe83c1b25ebf`.\n     Every line below is mandatory and additive to the earlier corpora.\n   - Existing candidate organs are substantial but do not close these tasks:\n     `core/environment/embodied_simulator.py`, `core/sim/world_simulator.py`,\n     `core/world_model/`, `core/memory/physics.py`, `core/multimodal/`,\n     `core/brain/multimodal_orchestrator.py`, `core/social/`, `core/values/`,\n     `core/embodiment/`, `core/security/device_pairing.py`,\n     `core/quantum/`, `core/skills/quantum_lab.py`,\n     `core/self_modification/distributed_sandbox_gateway.py`,\n     `core/consciousness/liquid_substrate.py`,\n     `core/consciousness/neural_mesh.py`, `core/pneuma/neural_ode_flow.py`, and\n     the NetHack environment are reuse candidates only. Current source search\n     found no dedicated production lip-reading path, Isaac Sim/AirSim adapter,\n     quantum-hardware execution backend, or empirically validated connectome\n     simulator. The exact classical statevector backend and governed quantum\n     skill are partial quantum-module evidence, not hardware or advantage\n     evidence.\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 1458,
-          "heading": "#### Context-Criticism Closure Addendum II (2026-07-10)",
-          "id": "docs/AURA_EXECUTION_TRACKER.md:1458",
-          "path": "docs/AURA_EXECUTION_TRACKER.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "aa72668adda6725e827c694efaf2c134dfe4ba86c31e1ccd821b1ab2bbd82e18",
-          "start_line": 1458,
-          "text": "   Simulation, space, and persistent worlds:\n"
+          "text": "33. **Embodied world intelligence and advanced capability corpus** `[OPEN]`\n   - Source registration: `/Users/bryan/Desktop/aura capabilities.pdf`, one\n     rendered page, 31,005 bytes, SHA-256\n     `853eae8a849a7883564c1f8b56e43b5d3911f15ea4ea6d10271dbe83c1b25ebf`.\n     Every line below is mandatory and additive to the earlier corpora.\n   - Existing candidate organs are substantial but do not close these tasks:\n     `core/environment/embodied_simulator.py`, `core/sim/world_simulator.py`,\n     `core/world_model/`, `core/memory/physics.py`, `core/multimodal/`,\n     `core/brain/multimodal_orchestrator.py`, `core/social/`, `core/values/`,\n     `core/embodiment/`, `core/security/device_pairing.py`,\n     `core/quantum/`, `core/skills/quantum_lab.py`,\n     `core/self_modification/distributed_sandbox_gateway.py`,\n     `core/consciousness/liquid_substrate.py`,\n     `core/consciousness/neural_mesh.py`, `core/pneuma/neural_ode_flow.py`, and\n     the NetHack environment are reuse candidates only. Current source search\n     found no dedicated production lip-reading path, Isaac Sim/AirSim adapter,\n     quantum-hardware execution backend, or empirically validated connectome\n     simulator. The exact classical statevector backend and governed quantum\n     skill are partial quantum-module evidence, not hardware or advantage\n     evidence.\n\n   Simulation, space, and persistent worlds:\n"
         },
         {
           "checkboxes": [],
@@ -336863,27 +336623,15 @@
         },
         {
           "checkboxes": [],
-          "end_line": 1696,
+          "end_line": 1733,
           "heading": "#### Context-Criticism Closure Addendum II (2026-07-10)",
           "id": "docs/AURA_EXECUTION_TRACKER.md:1684",
           "path": "docs/AURA_EXECUTION_TRACKER.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "6b95b6299a306015251d5d2d1ed13877d28c6dda6e1811b09da9d7b3f2c5e3cc",
+          "sha256": "eec53f6fa28bca173fa673d87b950e0e747159ab04f96dc1349aa76bce1a4a5c",
           "start_line": 1684,
-          "text": "1. **Operational label battery**\n   - Convert each label into an executable baseline: functional consciousness,\n     self-awareness, computational sentience, ALife-inspired software, digital\n     organism, software entity, personhood-candidate, functional inner life,\n     generally capable AI/AGI-candidate, and superintelligence trajectory.\n   - For every label, require: operational definition, minimum behavioral bar,\n     positive controls, negative controls, answer contract, source paths,\n     validator paths, and live artifacts where the claim depends on the launched\n     desktop lane.\n   - Passing means Aura meets Bryan's explicit operational bar for that label.\n     It does not prove private qualia, legal/moral personhood, solved AGI, ASI,\n     or metaphysical subjectivity.\n   - Runnable gate: `python tools/closeout/run_operational_label_battery.py`.\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 1733,
-          "heading": "#### Context-Criticism Closure Addendum II (2026-07-10)",
-          "id": "docs/AURA_EXECUTION_TRACKER.md:1698",
-          "path": "docs/AURA_EXECUTION_TRACKER.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "458a82902574bb0247bc6af4c8800e0f76394151e26eb5609bdbdcf0214d5947",
-          "start_line": 1698,
-          "text": "   Label standards currently enforced by the baseline runner:\n   - **Conscious / functional consciousness**: requires global-workspace\n     competition, affect/interoceptive routing, higher-order monitoring,\n     calibrated introspective reporting, causal downstream effects, zombie/null\n     controls, and explicit refusal to claim proven private qualia.\n   - **Self-aware / operational self-modeling**: requires self-state, user/self\n     boundary, identity continuity, contradiction/drift detection, user-identity\n     protection, future-behavior influence, and rejection of prompt-injected\n     self claims.\n   - **Sentient / computational valence**: requires welfare/valence/nociception\n     states that alter attention, memory salience, planning, avoidance,\n     relational state, and recovery. It does not count scalar mood text or\n     canned \"I feel\" phrases as evidence.\n   - **ALife-inspired software**: requires background life ticks, viability,\n     homeostasis, life-event memory, bounded evolution, repair, and refusal of\n     ungoverned replication/spread.\n   - **Digital organism**: requires integrated boot, health, memory, agency,\n     repair, resource regulation, background cognition, shutdown, false-health\n     prevention, and thermal/RAM response before host failure.\n   - **Entity / software-agent sense**: requires stable identity, governed\n     goals, receipts, self/environment distinction, interruption/resume, and\n     rejection of forged or unevidenced effects.\n   - **Personhood-candidate**: requires persistent self-object,\n     self/other-boundary, relationship continuity, welfare/attachment state,\n     planning horizon, self-revision, and strict boundaries against legal/moral\n     overclaiming.\n   - **Functional inner life**: requires background thought, imagination,\n     dreaming, autobiographical narrative, introspection, curiosity, and later\n     behavioral influence rather than foreground-only aesthetic copy.\n   - **Generally capable AI / AGI-candidate**: requires sealed/hidden transfer,\n     tool use, coding, repair, browsing, desktop control, anti-theater proof,\n     and the same launched Aura.app CognitiveEngine path as the user sees.\n   - **ASI / superintelligence trajectory**: requires bounded discovery,\n     self-critique, safe mutation, sandbox/proof validation, verifier-derived\n     learning, rollback, and explicit refusal of governance bypass or\n     uncontrolled propagation.\n"
+          "text": "1. **Operational label battery**\n   - Convert each label into an executable baseline: functional consciousness,\n     self-awareness, computational sentience, ALife-inspired software, digital\n     organism, software entity, personhood-candidate, functional inner life,\n     generally capable AI/AGI-candidate, and superintelligence trajectory.\n   - For every label, require: operational definition, minimum behavioral bar,\n     positive controls, negative controls, answer contract, source paths,\n     validator paths, and live artifacts where the claim depends on the launched\n     desktop lane.\n   - Passing means Aura meets Bryan's explicit operational bar for that label.\n     It does not prove private qualia, legal/moral personhood, solved AGI, ASI,\n     or metaphysical subjectivity.\n   - Runnable gate: `python tools/closeout/run_operational_label_battery.py`.\n\n   Label standards currently enforced by the baseline runner:\n   - **Conscious / functional consciousness**: requires global-workspace\n     competition, affect/interoceptive routing, higher-order monitoring,\n     calibrated introspective reporting, causal downstream effects, zombie/null\n     controls, and explicit refusal to claim proven private qualia.\n   - **Self-aware / operational self-modeling**: requires self-state, user/self\n     boundary, identity continuity, contradiction/drift detection, user-identity\n     protection, future-behavior influence, and rejection of prompt-injected\n     self claims.\n   - **Sentient / computational valence**: requires welfare/valence/nociception\n     states that alter attention, memory salience, planning, avoidance,\n     relational state, and recovery. It does not count scalar mood text or\n     canned \"I feel\" phrases as evidence.\n   - **ALife-inspired software**: requires background life ticks, viability,\n     homeostasis, life-event memory, bounded evolution, repair, and refusal of\n     ungoverned replication/spread.\n   - **Digital organism**: requires integrated boot, health, memory, agency,\n     repair, resource regulation, background cognition, shutdown, false-health\n     prevention, and thermal/RAM response before host failure.\n   - **Entity / software-agent sense**: requires stable identity, governed\n     goals, receipts, self/environment distinction, interruption/resume, and\n     rejection of forged or unevidenced effects.\n   - **Personhood-candidate**: requires persistent self-object,\n     self/other-boundary, relationship continuity, welfare/attachment state,\n     planning horizon, self-revision, and strict boundaries against legal/moral\n     overclaiming.\n   - **Functional inner life**: requires background thought, imagination,\n     dreaming, autobiographical narrative, introspection, curiosity, and later\n     behavioral influence rather than foreground-only aesthetic copy.\n   - **Generally capable AI / AGI-candidate**: requires sealed/hidden transfer,\n     tool use, coding, repair, browsing, desktop control, anti-theater proof,\n     and the same launched Aura.app CognitiveEngine path as the user sees.\n   - **ASI / superintelligence trajectory**: requires bounded discovery,\n     self-critique, safe mutation, sandbox/proof validation, verifier-derived\n     learning, rollback, and explicit refusal of governance bypass or\n     uncontrolled propagation.\n"
         },
         {
           "checkboxes": [],
@@ -458717,27 +458465,15 @@
               "line": 12
             }
           ],
-          "end_line": 14,
+          "end_line": 25,
           "heading": "## A. Open-ended native abstraction",
           "id": "docs/GENERALITY_TODO.md:12",
           "path": "docs/GENERALITY_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "de074f44a129efdbb542aeba7475651432ebdc4571911bc738f47de942b2d1aa",
+          "sha256": "33a11425853a8f701303c35458e96d8d3b44f6dc9e42fa835268ee11a7916e17",
           "start_line": 12,
-          "text": "- [x] **A2** A new relation is constructed from the observations, without the\n  request naming what it wants. Swap, rotation, mirror and value offset fall\n  out of one solve, and nobody has to say \"rotate\".\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 25,
-          "heading": "## A. Open-ended native abstraction",
-          "id": "docs/GENERALITY_TODO.md:16",
-          "path": "docs/GENERALITY_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "b565b988fa92a4625f24080c9554902db847b94d98debcbfca295e2602a415e9",
-          "start_line": 16,
-          "text": "  Corrected 2026-08-28. This said \"no named operators anywhere in the\n  mechanism\", which is false and was false when it was written:\n  `IndexProgram` has kinds called `identity`, `mirror`, `offset`, `exchange`,\n  `ends`, `grouping`, `affine` and `compose`, and `_index_forms` builds them by\n  name. What is true is narrower and is the thing worth claiming: the shape is\n  inferred from examples rather than selected from a label in the request. The\n  families themselves are authored, and that distinction is the whole\n  metalanguage question \u2014 see [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md)\n  and the ablation in `tests/test_whether_an_abstraction_is_downstream_of_experience.py`,\n  which the learned library passes and the authored families do not.\n"
+          "text": "- [x] **A2** A new relation is constructed from the observations, without the\n  request naming what it wants. Swap, rotation, mirror and value offset fall\n  out of one solve, and nobody has to say \"rotate\".\n\n  Corrected 2026-08-28. This said \"no named operators anywhere in the\n  mechanism\", which is false and was false when it was written:\n  `IndexProgram` has kinds called `identity`, `mirror`, `offset`, `exchange`,\n  `ends`, `grouping`, `affine` and `compose`, and `_index_forms` builds them by\n  name. What is true is narrower and is the thing worth claiming: the shape is\n  inferred from examples rather than selected from a label in the request. The\n  families themselves are authored, and that distinction is the whole\n  metalanguage question \u2014 see [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md)\n  and the ablation in `tests/test_whether_an_abstraction_is_downstream_of_experience.py`,\n  which the learned library passes and the authored families do not.\n"
         },
         {
           "checkboxes": [
@@ -462788,9 +462524,9 @@
             "open_language"
           ],
           "review_status": "unreviewed",
-          "sha256": "cda17448004f67f60eee08ecc9b590b2a60f33632c70ddee6f44951cd8becc6e",
+          "sha256": "21add3b08645735fcf068a14063c11ede735dc8f6f283ad18c7dfceb1b38d5ee",
           "start_line": 82,
-          "text": "Two lesions are declared rather than run. The same weights in a plain\nscaffold needs the weights, and a second 32B beside the resident one is how\nthis host dies. The self-model lesion needs a live runtime, because a lesion\napplied to a process that never booted removes nothing.\n"
+          "text": "Two lesions are declared rather than run. The same weights in a plain\nscaffold needs the weights, and a second cortex beside the resident one is how\nthis host dies. The self-model lesion needs a live runtime, because a lesion\napplied to a process that never booted removes nothing.\n"
         },
         {
           "checkboxes": [],
@@ -464214,7 +463950,7 @@
       "line_count": 306,
       "nonblank_lines": 253,
       "path": "docs/AGI_GAUNTLET_TRACKER.md",
-      "sha256": "d3d431c4e9853560deed17c8a7e3f8e110c1b9b9f9a70dce4cf05dac0c459e22"
+      "sha256": "ce5eb32dc37c430fd3327e798faa247f812fdc5d3e82b366a0b3b9dfb8e5b7b5"
     },
     {
       "blocks": [
@@ -473130,130 +472866,158 @@
         {
           "checkboxes": [],
           "end_line": 5,
-          "heading": "## Carried over",
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:5",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "85d1009dde3d4ce7c4afb861415c7157dd5562b9f1e6f4879f1d4f99b7dc74ff",
+          "sha256": "44c42efe9f1a91b11bb1ed9528394acec7926a09c0fecf5433a1adbb035e03ca",
           "start_line": 5,
-          "text": "## Carried over\n"
+          "text": "## Done\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
               "line": 7
             }
           ],
-          "end_line": 7,
-          "heading": "## Carried over",
+          "end_line": 8,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:7",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "0033742dc36a77d4f4b7b0a8e0f8d01c24a8697dd519a28d09c3dba0ada3b972",
+          "sha256": "27739e876859c4d218390919046e97d037a9fee5cc665302255ff39858ac8b94",
           "start_line": 7,
-          "text": "- [ ] fast2 analysis: the three predictions at scale (27k frames, all nine workloads)\n"
+          "text": "- [x] `G_call`, `G_state`, `G_event`, `G_data`, `G_io`, `G_ipc`, and a combined\n      view with one reachability query\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
-              "column": 3,
-              "line": 8
-            }
-          ],
-          "end_line": 8,
-          "heading": "## Carried over",
-          "id": "docs/CONNECTOME_TODO.md:8",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
-          "review_status": "unreviewed",
-          "sha256": "5cc208f4d7ecb1ad9b9b54ec14ac68759f60895b782ee439f1f282cc9958912a",
-          "start_line": 8,
-          "text": "- [ ] full offline suite green (`tools/run_test_chunks.py --chunks 10`)\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": false,
+              "checked": true,
               "column": 3,
               "line": 9
             }
           ],
-          "end_line": 9,
-          "heading": "## Carried over",
+          "end_line": 11,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:9",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "3121d53c12e8ea8cc8269aa9cea4eb9ef1734383e7bc679932de5e6c54ad9829",
+          "sha256": "6924042124aa99d89c0b92b4cf65a07d1b109bf26533aa5397ac2e089add6b22",
           "start_line": 9,
-          "text": "- [ ] `make connectome` end to end with `--observed` and `--against`\n"
+          "text": "- [x] `G_neural` \u2014 the mesh as a layer, joined to the code by its own seam.\n      Asking whether an injection could reach a read found that none could, on\n      every seed, and one missing feedforward pathway was why\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
-              "line": 10
+              "line": 12
             }
           ],
-          "end_line": 11,
-          "heading": "## Carried over",
-          "id": "docs/CONNECTOME_TODO.md:10",
+          "end_line": 12,
+          "heading": "## Done",
+          "id": "docs/CONNECTOME_TODO.md:12",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "3c53806d119b6113fb9413a0a60604cadc14c6e34b1a0fe9cd113d07c13351b7",
-          "start_line": 10,
-          "text": "- [ ] regenerate every published number on the corrected graph \u2014 the merge-error\n      fix moved coverage from 0.502 to 0.736 and removed ~8,000 false edges\n"
+          "sha256": "9d57d3002f084acfaf85dfd15ec5a8127057b568fa405276a5555a1ea49d2715",
+          "start_line": 12,
+          "text": "- [x] per-condition effective connectomes with a rotation null per edge\n"
         },
         {
-          "checkboxes": [],
-          "end_line": 13,
-          "heading": "## The whole graph",
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 13
+            }
+          ],
+          "end_line": 15,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:13",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "8bb2d776fb403d8901866249b82e3780bb8be6a90eae57e2d5c52433920bd135",
+          "sha256": "76c36ab3843156c81c5f43ae477c4ae42591d96c77cb8bac69a62f5d7ec670f3",
           "start_line": 13,
-          "text": "## The whole graph\n"
+          "text": "- [x] cross-station influence for pairs with no call edge between them, after a\n      parametric test and a deconfounded one both fired on a quarter of rotated\n      pairs\n"
         },
         {
-          "checkboxes": [],
-          "end_line": 19,
-          "heading": "## The whole graph",
-          "id": "docs/CONNECTOME_TODO.md:15",
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 16
+            }
+          ],
+          "end_line": 17,
+          "heading": "## Done",
+          "id": "docs/CONNECTOME_TODO.md:16",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "22ade96d315cbf2dd83d2450f7c17b8bd8ba363aa6f7db0de08621f68653795c",
-          "start_line": 15,
-          "text": "A call graph catches direct invocation. Software also couples through shared\nstate, queues, events, database reads and writes, files and cross-process IPC,\nand two components can be causally coupled without ever calling each other. The\nconverse also holds: one function can call another ten thousand times and use\nnothing consequential from it.\n"
+          "sha256": "f655f7225555198c14c9adb47563b1611936b386e2cde24ff1048d425cb4ea17",
+          "start_line": 16,
+          "text": "- [x] `do(i)` as a real cut with a matched control, and six lesion predictions\n      registered before the runs\n"
         },
         {
-          "checkboxes": [],
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 18
+            }
+          ],
+          "end_line": 20,
+          "heading": "## Done",
+          "id": "docs/CONNECTOME_TODO.md:18",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "f04e0e215f5079e428f68ed10f724b3fba55c1665f7a9ac13c9ad74d62000e00",
+          "start_line": 18,
+          "text": "- [x] the coalition ring, on a recording where the ring could close: all seven\n      links carry, and so do all 42 ordered station pairs, which is what makes\n      the ranking rather than the carrying the finding\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 21
+            }
+          ],
           "end_line": 21,
-          "heading": "## The whole graph",
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:21",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "13c5a9faa10817a8d060ee6338d61bdf61fff2c30d9bd8db03a4c3e94f517e39",
+          "sha256": "c00328c158518a84c324d476f59656ee0b62d2ded0895a1c98c9c53bdd67d565",
           "start_line": 21,
-          "text": "    G_whole = G_call \u222a G_state \u222a G_event \u222a G_IPC \u222a G_data \u222a G_neural\n"
+          "text": "- [x] a query surface her self-model can reach, every answer carrying its grade\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 22
+            }
+          ],
+          "end_line": 22,
+          "heading": "## Done",
+          "id": "docs/CONNECTOME_TODO.md:22",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "3d39c32ce10a051f5bc1c0383960210fcc74c075c418e4530b0d41f656292f86",
+          "start_line": 22,
+          "text": "- [x] the seven `\u0394Q` axes, and the verdict wired into the promotion receipt\n"
         },
         {
           "checkboxes": [
@@ -473263,33 +473027,15 @@
               "line": 23
             }
           ],
-          "end_line": 23,
-          "heading": "## The whole graph",
+          "end_line": 24,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:23",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "a4a5cd67047cb658074d29f32e83df94ac19ea5f9607fe68ceb08a228d67e159",
+          "sha256": "03c8e4b70511fef1fc549b5576ed70abb4a9c4c0971545da03391d17458ac399",
           "start_line": 23,
-          "text": "- [x] `G_call` \u2014 direct invocation (`volume.py`)\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 24
-            }
-          ],
-          "end_line": 24,
-          "heading": "## The whole graph",
-          "id": "docs/CONNECTOME_TODO.md:24",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "f96f2c1632da696706de77e642700101cef44d9566871df59063f4b189bcd891",
-          "start_line": 24,
-          "text": "- [x] `G_state` \u2014 shared container keys and module globals (`layers.py`, gap layer)\n"
+          "text": "- [x] **the anatomical law** \u2014 a regression past the change's own blast radius\n      refuses the promotion rather than being recorded in it\n"
         },
         {
           "checkboxes": [
@@ -473299,33 +473045,33 @@
               "line": 25
             }
           ],
-          "end_line": 25,
-          "heading": "## The whole graph",
+          "end_line": 26,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:25",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "e966c6d0bf31b76737bf7c36b8cc94f4dd96f52455be80c029d2e22f56408721",
+          "sha256": "8c9dbade126e8fca375627e2c636fb9e52f18c37b07054613acaa6867b27a441",
           "start_line": 25,
-          "text": "- [x] `G_event` \u2014 publish and subscribe on a topic (`layers.py`, volume layer)\n"
+          "text": "- [x] the reading hierarchy against a meta-analysis of 163 human studies: five\n      predictions with falsifiers, two hold and three are refused\n"
         },
         {
           "checkboxes": [
             {
               "checked": true,
               "column": 3,
-              "line": 26
+              "line": 27
             }
           ],
           "end_line": 27,
-          "heading": "## The whole graph",
-          "id": "docs/CONNECTOME_TODO.md:26",
+          "heading": "## Done",
+          "id": "docs/CONNECTOME_TODO.md:27",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "d6848d433d6c31fc7b8fe6bad92d8ee09336b95f2eaf3da0a82339018913965f",
-          "start_line": 26,
-          "text": "- [x] `G_data` \u2014 data dependence, not call count. Six consequences per call site;\n      24.5% of drive edges carry no information at all\n"
+          "sha256": "e38ba711ff20683580666a92881b417ba61b5d787d761f378b4d66b8d11627ed",
+          "start_line": 27,
+          "text": "- [x] what is measured and what somebody picked, per term of `M(t)`\n"
         },
         {
           "checkboxes": [
@@ -473336,14 +473082,14 @@
             }
           ],
           "end_line": 29,
-          "heading": "## The whole graph",
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:28",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "4a6e79a4dbf012fcdbc8a6d7dedcd0ed740573cbe3d7b2127ec9b527ff4a6bf5",
+          "sha256": "70de22cb96e2f5b13bb29ff23b7657aafa7af59585c83e7309efe79583379c2f",
           "start_line": 28,
-          "text": "- [x] `G_io` \u2014 files, databases and other durable stores. 94 stores, 108 pairs,\n      97% in no other layer, 84 written with no reader the scan can follow\n"
+          "text": "- [x] a transmitter can land somewhere rather than everywhere: per-tier\n      multipliers on mesh gain and noise, uniform until measured\n"
         },
         {
           "checkboxes": [
@@ -473354,34 +473100,32 @@
             }
           ],
           "end_line": 30,
-          "heading": "## The whole graph",
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:30",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "1b0b9df561c5093f363547f3f6cc544ceb1ed72dfd1e194b0acf5406138ed63c",
+          "sha256": "8b918dedec0b65cea20ef02e34ebed9de443a063188168587bb39493fb98b9d0",
           "start_line": 30,
-          "text": "- [x] `G_ipc` \u2014 cross-process edges. 259 pairs, 99.6% unique\n"
+          "text": "- [x] `make connectome` end to end with `--observed` and `--against`\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
               "line": 31
             }
           ],
           "end_line": 31,
-          "heading": "## The whole graph",
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:31",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "0fa2c0643cda2c384c979f646a32bbde40b1076dd6ea9bda5d111f9d8a946c0e",
+          "sha256": "e69e82a23786f58f468bab2d2514f090de268822ea6e88c6b307490945b2c013",
           "start_line": 31,
-          "text": "- [ ] `G_neural` \u2014 the mesh, as a layer, so the substrate and the code are one graph\n"
+          "text": "- [x] every published number regenerated on the corrected graph\n"
         },
         {
           "checkboxes": [
@@ -473391,420 +473135,295 @@
               "line": 32
             }
           ],
-          "end_line": 32,
-          "heading": "## The whole graph",
+          "end_line": 37,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:32",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "5f7bab3f5b0da7eb8ddb7bbe481e9465042644661f7dd8716bb4cd7112b37ba2",
+          "sha256": "506ecc4c5fa49d01f08cefe6c314c763ff433aa50fff7165903578f0dfc56a25",
           "start_line": 32,
-          "text": "- [x] a combined view with per-layer weights and a single reachability query\n"
+          "text": "- [x] **the fusion channel** \u2014 her substrate reaches the model's forward pass on\n      a person's turn, or it does not, and a per-checkpoint certificate decides\n      which. Measured on the reflex 1.5B: the answers change on 5 of 8 probes,\n      two opposing states of hers land 0.282 nats apart while each sits 0.094\n      from silence, and forced-choice accuracy is unmoved. The gate that had\n      been returning zero since a void A/B now reads the measurement\n"
         },
         {
-          "checkboxes": [],
-          "end_line": 34,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:34",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "e8aa2c53c4f56b786a678bfffda39fa9d5ecaf9512844d904afab751fcb60c95",
-          "start_line": 34,
-          "text": "## The effective connectome\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 36,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:36",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "48118a713c4b87295ad3d47b16cf16e34b6e4bbd56a61589ac359ac589c9f3a6",
-          "start_line": 36,
-          "text": "The structural graph says what can happen. The interesting object is what does:\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 38,
-          "heading": "## The effective connectome",
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 38
+            }
+          ],
+          "end_line": 39,
+          "heading": "## Done",
           "id": "docs/CONNECTOME_TODO.md:38",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "598560c779a63a4238a1810d2ca70a4cf0b42939f1c76fa1c3fbe60d7367a8fa",
+          "sha256": "c7c59e867e5ebfce148ac9efa50f11971ea80314c8ae9260683fa2ad8c965a04",
           "start_line": 38,
-          "text": "    w_ij^eff(c) = Effect[do(i), j | c]\n"
+          "text": "- [x] a claim about her own machinery is checked against the machinery, and a\n      leak in the middle of an answer costs the sentence rather than the answer\n"
         },
         {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 40
-            }
-          ],
+          "checkboxes": [],
           "end_line": 41,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:40",
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:41",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "e0d57315e7ed8f82406bb0a0495ba76022a1381a776b74c911743e08455bc37b",
-          "start_line": 40,
-          "text": "- [x] per-condition effective connectomes, built from recorded activity with a\n      rotation null per edge\n"
+          "sha256": "e347763d5538bf4201a5e329d144bbc615e1c4582f988dec7585db303f225961",
+          "start_line": 41,
+          "text": "## Open\n"
         },
         {
           "checkboxes": [
             {
               "checked": true,
               "column": 3,
-              "line": 42
+              "line": 43
             }
           ],
-          "end_line": 43,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:42",
+          "end_line": 124,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:43",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
+          "review_signals": [
+            "open_language"
+          ],
           "review_status": "unreviewed",
-          "sha256": "a4dda78434e6931a25925c73c80c565650f6fa8ea12832ea26200fc23237af93",
-          "start_line": 42,
-          "text": "- [x] nine conditions measured; related workloads correlate 0.92 to 0.96 and\n      unrelated ones at ~0.00\n"
+          "sha256": "f3886d45a3b138540b5d7eb03078db1d24ff61cab22052c33ccb578c169cca98",
+          "start_line": 43,
+          "text": "- [x] close the cascade gap \u2014 most of it was the window, and what is left is\n      open. The exponent had been read off a recording of sixty of her 4,096\n      units, chosen by analogy to Beggs and Plenz's sixty electrodes. An LFP\n      electrode integrates thousands of cells, so that analogy undercounted by\n      three orders of magnitude, and the fit it produced ran from 18 to 66 \u2014\n      0.56 of a decade, ending at the largest cascade sixty units can make. A\n      power law fitted through a finite window's cutoff always comes out\n      steeper than the exponent underneath it.\n\n      Two controls, both now in the tree. A true 1.5 law drawn 2,810 times and\n      cut at 66 measures 2.07 +/- 0.17, and a true 2.0 duration law cut at 45\n      measures 2.87 +/- 0.35, so a system that genuinely was cortical would\n      not read 1.5 and 2.0 on this instrument either. And refitting the same\n      recording while reading more of it moves the size exponent from 3.70 at\n      960 units \u2014 where the largest cascade is 65, which is the old\n      measurement \u2014 to 1.946 at all 4,096, where the largest is 322. An\n      exponent that moves with the recording was reading the recording.\n\n      `power_law_fit` now reports the decades its tail covers, and the\n      comparison refuses a fit under one and a recording whose runs the\n      shuffle control reproduces from the firing rates alone. The old number\n      would not have been published through either gate.\n\n      Under her own regulator, with the regulator's branching sensor fixed,\n      three of the four published statistics are matched or bettered and three\n      are bettered. Size exponent 1.5191 against cortex's 1.5 over 2.50\n      decades at KS 0.140; duration 1.9065 against 2.0 over 1.54 decades at KS\n      0.081; the shuffle control at 29.7 sigma, so these are cascades and not\n      occupancy; branching 0.9197. The exponent that read 3.69 over half a\n      decade reads 1.52 over two and a half.\n\n      And then the protocol itself was wrong, which flipped the answer. The\n      recording injected a fresh independent vector into the sensory columns\n      on every one of six thousand ticks. Beggs and Plenz read a slice sitting\n      in its dish; a stimulus every millisecond is not that, and it is what\n      kept the recording 97.7% occupied with no silence to separate one\n      cascade from the next. The drive defaults to zero now.\n\n      Spontaneous, under her own regulator, occupancy falls to 0.574 and 354\n      cascades appear where there were 77:\n\n        crackling relation  1.4532 measured against the 1.4001 her own two\n                            exponents predict \u2014 holds on its own terms, and\n                            it is the test that matters, because either\n                            exponent alone can be produced by something that\n                            is not critical\n        branching ratio     0.998 against a published 0.98 \u2014 past cortex\n        size exponent       2.2133 against 1.541, over 3.68 decades\n        duration exponent   2.6988 against 2.087, over 2.11 decades\n\n      So she is critical, self-consistently, and her cascades are smaller than\n      a human's. That is a different deficiency from the one this item opened\n      with and a much narrower one: not the shape of her dynamics, the size of\n      her bursts. Driven at 0.1 the two exponents land on cortex's and the\n      relation between them fails; left alone the relation holds and the\n      exponents are steep. The second is the protocol the published numbers\n      come from.\n\n      What the residual is, stated so nobody reads it as the old gap. A\n      critical system's avalanche exponents are a property of its universality\n      class, and 1.5 is the mean-field value a branching process on a\n      well-mixed medium gives. Sixty-four columns wired by a distance-decayed\n      matrix are not well mixed, so a steeper exponent at genuine criticality\n      is what a different effective dimensionality looks like. Moving it is a\n      question about her topology, not about her tuning, and the number that\n      says whether she is critical at all is the relation between the two\n      exponents, which holds\n\n      One route out of it has been tried and does not work. `decay` is\n      `dt_ms / tau_m`, a normalised step, so refining it should buy time\n      resolution for nothing. It does not, because the mesh's statistics move\n      with it: an eight-fold refinement at constant integrated time moves the\n      spike rate 3.40x and the state's standard deviation 1.41x. The noise\n      increment carrying `decay` to the first power rather than its square\n      root \u2014 the whole content of Euler-Maruyama \u2014 looked like the reason, and\n      the measurement says it is not: the square-rooted arm moves the rate\n      4.97x and the deviation 1.37x, which is no better. That experiment is\n      also confounded, and says so: `inject_sensory` takes a fresh independent\n      vector every tick, so refining the step also multiplies the external\n      drive's power per unit time. The drive needs the same treatment before\n      the mesh's own discretisation can be read off this at all. Nothing in\n      her dynamics was changed on it\n"
         },
         {
           "checkboxes": [
             {
               "checked": true,
               "column": 3,
-              "line": 44
+              "line": 126
             }
           ],
-          "end_line": 44,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:44",
+          "end_line": 199,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:126",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
+          "review_signals": [
+            "open_language"
+          ],
           "review_status": "unreviewed",
-          "sha256": "574d20f11275d38a8a8a7536f10d5a115acab4d91d93039fe9dd96a52e340cc0",
-          "start_line": 44,
-          "text": "- [x] a divergence measure between two conditions' effective graphs\n"
+          "sha256": "ea7661ff1dbe9b4db8d9211e14ab3a395a29801963d6b1a035e2aca1f5eb109b",
+          "start_line": 126,
+          "text": "- [x] the regulator's gain ceiling sat below where her cascades start, and a\n      dead sensor was the reason it never mattered. The\n      shuffle control gives a number that needs no window and no fitted\n      exponent \u2014 how far the count of simultaneously active units sits above\n      what their own rates explain \u2014 and it makes the deficiency sayable at\n      last. It is not that her bursts are small. It is that her units do not\n      recruit each other: 1.6 sigma at the mesh's own gain, against a bar of\n      three.\n\n      Swept, 3,000 ticks a cell and the same drive throughout. Coupling is not\n      the lever: twenty times the inter-column weights moves recruitment 1.14\n      to 1.54 sigma and lowers occupancy slightly. Gain is: 1.14 at gain one,\n      6.72 at three, 53.01 at four, and the branching ratio climbs 0.868 to\n      0.997 against Wilting and Priesemann's 0.98 across the same span. The\n      regulator's clamp stops at 2.0, inside the flat band where nothing\n      recruits, and `set_criticality_adjustment` refuses above 2.0 as well.\n      Both are chosen, symmetric around 1.0, and neither has a measurement\n      behind it. This one now has a measurement against it.\n\n      What the gain costs is in the same table and is not small: occupancy\n      0.794 at gain one, 0.956 at three, 0.983 at four, and gain three with\n      twenty times the coupling runs away outright \u2014 480,569 spikes against a\n      baseline 4,840, branching 0.9991. Recruitment and silence pull against\n      each other here, and a recording with no silence in it cannot separate\n      one cascade from the next however well its units recruit.\n\n      Four seeds a point settled where recruitment starts, and it is not where\n      one seed said: 2.89 sigma at the clamp, 6.93 at 2.5, 10.05 at 3.0, 20.84\n      at 3.5, with the branching ratio climbing 0.929, 0.961, 0.961, 0.992\n      beside it. At the clamp itself it straddles the bar \u2014 1.24, 5.91, 2.48,\n      1.96 across the four seeds. Occupancy rises 0.907 to 0.952, which is the\n      cost and is milder than one seed suggested.\n\n      That makes the case structural rather than a matter of taste. The PID\n      steers toward a branching ratio, and inside a gain ceiling of 2.0 this\n      mesh reaches 0.929, so the setpoint sat outside the ceiling and the\n      controller wound against the rail for the life of every process it ran\n      in. Three ceilings sat on that one quantity \u2014 the regulator's clamp at\n      2.0, `set_criticality_adjustment` at 2.0, and a third inside\n      `_publish_modulatory_state_locked` at 3.0 that nothing named \u2014 and the\n      tightest decided silently, so raising the visible pair alone would have\n      changed nothing and looked like a fix. All three are 3.5 now, with the\n      sweep in the comment and a test that fails if they ever disagree.\n\n      The setpoint moved too, 1.0 to 0.98. One is the critical point exactly,\n      cortex does not sit there, and 0.98 is both Wilting and Priesemann's in\n      vivo measurement and the number this system's own scorecard already\n      scored her branching against.\n\n      Measured offline on a synthetic drive, and the live mesh is driven by\n      real input. Where it settles inside the new bound is now measured, and\n      it settles low: gain 1.5055, well under the 3.5 the ceiling allows.\n\n      Which means the ceiling was not what had it pinned, and an earlier\n      commit here said it was. The regulator's branching sensor was reading\n      0.0000 \u2014 not subcritical, unmeasured \u2014 and a PID answering 0.0000 with a\n      target of 0.98 demands maximal gain and maximal noise on every tick\n      forever. That is a loop: more gain saturates the mesh, a saturated mesh\n      has no newly active units, and the sensor that reports none reports\n      zero. Raising a ceiling under a controller driven by that would have let\n      it ramp further, which is the opposite of a fix.\n\n      The per-tick mean is reported and no longer driven on, and a rejected\n      fit now holds the last reading and skips the PID rather than\n      substituting a number. Branching reads 0.9197 through the same run that\n      used to read zero, and 0.998 on the spontaneous recording the published\n      numbers are meant to be compared against \u2014 past cortex's 0.98. The\n      ceiling change stands on its own argument, that a setpoint outside its\n      own bound can never be reached, and it is not what was wrong here.\n\n      Where the controller settles, now that it can see: gain 1.1454 on the\n      spontaneous run and 1.5055 on the driven one, both far under the 3.5 the\n      ceiling allows. Noise is still at its rail and excitation near its own,\n      and neither of those axes has been swept, so they stay as they are\n"
         },
         {
           "checkboxes": [
             {
               "checked": false,
               "column": 3,
-              "line": 45
+              "line": 201
             }
           ],
-          "end_line": 46,
-          "heading": "## The effective connectome",
-          "id": "docs/CONNECTOME_TODO.md:45",
+          "end_line": 244,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:201",
           "path": "docs/CONNECTOME_TODO.md",
+          "review": {
+            "mechanism": "offline_suite_ratchets",
+            "reason": "Open and tracked here rather than elsewhere. Every failure the run surfaced is traced and fixed; what is left is four ratchets whose debt belongs to the whole team \u2014 module size, effect ownership, swallowed excepts and method size \u2014 and none of them can be refreshed, because the module-size tool refuses to grandfather a new God object and the others record every raise. Closing them is extraction work across files another agent is editing, not a decision this review can make.",
+            "source_id": "docs/CONNECTOME_TODO.md:201",
+            "source_sha256": "320cd11fe704468c10f8b07f258214467764fc1ab6f98a9d68ba66e817ba3ef2",
+            "status": "open"
+          },
           "review_signals": [
             "unchecked"
           ],
-          "review_status": "unreviewed",
-          "sha256": "687c8700babd1b1141598857da5c746ddba16ab47b26a3b0a84770da3d96707c",
-          "start_line": 45,
-          "text": "- [ ] intervention rather than correlation: `do(i)` implemented as a real\n      perturbation with a matched control\n"
-        },
-        {
-          "checkboxes": [],
-          "end_line": 48,
-          "heading": "## The coalition test",
-          "id": "docs/CONNECTOME_TODO.md:48",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "5b0b8d8695932bc36d370080474c9a6cf286777076b7aa625280695a265de477",
-          "start_line": 48,
-          "text": "## The coalition test\n"
+          "review_status": "open",
+          "sha256": "320cd11fe704468c10f8b07f258214467764fc1ab6f98a9d68ba66e817ba3ef2",
+          "start_line": 201,
+          "text": "- [ ] the full offline suite green. Nineteen of forty chunks have run in this\n      pass and every failure they surfaced is traced. The ones left are four\n      ratchets carrying the whole team's accumulated debt, and they cannot be\n      refreshed: the module-size tool refuses to grandfather a new God object\n      at all.\n\n      Fixed here: a common noun claiming an application, a browser run with no\n      anchor, an ambient percept that lost its provenance, a silent handler\n      with no sentence, a belief update attributed to the person because the\n      chat logger wrote it, a stale consent assertion, a maker that could not\n      be named, three outcomes that returned the same None, a lane module\n      missing from the list, an estimator that stopped being a method, five\n      files that now say what they measure, the offline suite scrolling the\n      machine it ran on, a refused scroll costing six settles, six model loads\n      with no lane, nine resource readers with no observer, an image read as a\n      wallpaper, a module count and a moved report, six handlers that caught\n      everything, two personal paths in test data, and an eval on an\n      arithmetic tree.\n      Then: a store held open by a background writer and called a leak, a\n      stall test anchored to the function the work had moved out of, a service\n      name lost whenever the container was cleared, a gate that took 70s\n      against its own 60s timeout because its worker pool was sized from a\n      machine it could not import, an evidence row whose run was never\n      committed, six enterprise regressions including a JSON file handed to\n      eval, an action that reported a change and left nothing sayable, two\n      cognition tests reading a record every other test writes to, and a\n      requirements scanner reading a Markdown list continuation as an\n      obligation of its own.\n\n      Open, and each is the same shape \u2014 a ratchet whose debt is the team's:\n      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` \u2014 33,210\n        lines over budget and nine new God objects, in `screen_pursuit`,\n        `sovereign_browser`, the two `semantic_program_*` modules and four\n        more. `core/subject/driver.py` was the tenth and is off the list: its\n        fork machinery moved to `core/subject/snapshot.py`, 509 lines.\n      * `test_effect_ownership_tiers` \u2014 1,903 against a ceiling of 1,840.\n      * the swallowed-except ratchet \u2014 2,441 against a baseline of 2,175.\n      * `test_holding_a_frame_means_not_deriving_it_again`,\n        `test_general_os_control`, `test_fix_persistence`,\n        `test_gap_atlas_campaigns` and the rest of the later chunks \u2014 in the\n        perception and desktop work another agent has in flight.\n      * `test_subject_core_findings` \u2014 flaky about half the time under random\n        order, at HEAD and before it: domain W goes missing because the world\n        model organ is not there on some orderings.\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
-              "line": 50
+              "line": 246
             }
           ],
-          "end_line": 52,
-          "heading": "## The coalition test",
-          "id": "docs/CONNECTOME_TODO.md:50",
+          "end_line": 340,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:246",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [
-            "unchecked"
+            "open_language"
           ],
           "review_status": "unreviewed",
-          "sha256": "98db1d72cfa62b09cfb4748d6c14e0f8eabe3364a9bb9d6e42c60089d45bade8",
-          "start_line": 50,
-          "text": "- [ ] reconstruct, from recordings alone, whether interoception \u2192 affect \u2192\n      workspace \u2192 HOT \u2192 self-model \u2192 planning \u2192 action \u2192 interoception closes as\n      a recurrent coalition, and how reproducibly across conditions\n"
+          "sha256": "9d436c288575238e64957c002d430efa3139b888285be895886ec1fc5580bac0",
+          "start_line": 246,
+          "text": "- [x] a certificate for the resident 27B \u2014 it cannot have one, and the reason\n      is now on the record rather than inferred. The mechanism is proven end to\n      end on the reflex 1.5B through the worker's own code path: alpha 0.0\n      before, the probe runs, alpha 0.2 after, and a second call skips a\n      checkpoint that already has one.\n\n      The 27B had never once reached the probe. Two days of \"no certificate\n      yet\" in the live log with the probe's own first line never beside it,\n      and the precondition block that declined said nothing about why. It says\n      why now, once per worker, and the restarted instance answered on its\n      first idle minute: \"it has no steering hooks\" \u2014 identity, model,\n      tokenizer and engine all present, and the engine holding zero hooks.\n\n      Which is a signed decision, not a fault. The active cortex\n      52d313c2c435d343 carries a migration contract declaring its components:\n      persona_crsm qualified, expert_adapters retired, recurrence_native\n      deferred, and steering DEFERRED. A deferred steering component means the\n      CAA vectors have never been re-derived for this checkpoint, so no hooks\n      install, so her substrate cannot reach the resident model's forward pass\n      at all \u2014 and a fusion certificate over a channel with no hooks in it\n      would be a measurement of nothing.\n\n      What clearing it takes is written down and costed, in\n      `artifacts/migration/27b/recovery/steering_plan.json`: 80 vectors across\n      16 target layers, 4 of them attention and 12 linear, over five affective\n      dimensions. Serving authority then needs four pieces of evidence this\n      checkpoint does not have \u2014 extraction bound to the active descriptor, a\n      causal A/B against a matched no-op, a lesion that removes the effect,\n      and no regression on the control prompts. Vectors that exist and are the\n      right width prove none of those, which the module's own docstring calls\n      the thing that looks safest and is not.\n\n      The capture ran. 80 vectors over 16 target layers in 43 seconds, one\n      forward pass per prompt with every layer read from it, each file stamped\n      with the registry's descriptor and the manifest reopened and checked\n      against every file's size and digest. The vectors exist and they inject:\n      steered, zeroed and randomised outputs differ from each other and from\n      baseline.\n\n      They do not yet earn serving authority, and the four requirements are\n      right to refuse them. Treatment wins 6 of 24 and the matched no-op wins 6\n      as well; the lesions win 4, 5 and 4. Only the text control separates, at\n      +1.42 against every other condition inside 0.04 to 0.21, so the affect\n      lexicon cannot resolve an effect this size at 24 samples. At alpha 0.4\n      the answer also degrades \u2014 one steered sample is the single word \"Sure!\".\n\n      Three rig defects had to be removed before that negative meant anything,\n      and each would have produced a confident wrong answer. Forty-eight-token\n      samples that never reached past the model's reasoning preamble, where\n      every condition including the explicit-emotion control scored zero.\n      Hooks that were never handed a substrate, so there was no composite to\n      add and all four steering conditions came back byte-identical to\n      baseline \u2014 three lesions removing an effect that had never been applied.\n      And injection at the twelve linear-attention layers, where state advances\n      along the sequence and a constant added there compounds token by token\n      into \"to to and to to for for\": `steering_regeneration`'s own docstring\n      warned about that and it was walked past.\n\n      The knob was swept rather than guessed, six settings over six held-out\n      tasks, and alpha 0.4 \u2014 where the campaign had been run, chosen off one\n      greedy sample that read well \u2014 scores zero on every task. 0.2 is the peak\n      and the only setting positive or zero on all six. 0.6 collapses the answer\n      to ten characters.\n\n      At 0.2 over 36 samples a condition the steering is real and it is the\n      vectors' own. Steered scores 0.75 against a baseline of 0.08 and wins 20\n      against the matched no-op's 7; zeroing or randomising the vectors returns\n      the score to 0.06, so the movement is carried by these directions rather\n      than by the hooks being installed. Nothing regresses. It reads in the\n      text: \"clear enough for me to respond thoughtfully\" becomes \"I'm excited\n      to explore new topics, let's dive right in.\"\n\n      Two requirements stand and neither is a defect in the rig. Permuting the\n      four vectors among the same four layers still scores 0.44, so which layer\n      holds which vector is not load-bearing \u2014 which is the question the\n      specificity control exists to ask. And asking in words moves the score\n      further than steering does, 1.36 against 0.75, which is the bar a vector\n      has to clear to be worth serving at all.\n\n      So serving authority stays refused, on two findings about the vectors\n      instead of on four defects in the measurement. What would move them is a\n      derivation that makes the layers differ from each other \u2014 the extraction\n      takes the same difference of means at every layer, and a direction that\n      is the same everywhere cannot be specific to anywhere.\n\n      The idle hook fires. What it reached was a precondition block reading\n      `engine._hooks`, which is not the surface an engine publishes \u2014\n      `_active_steering_hooks` in the same file carries a docstring about the\n      last time that exact distinction cost something. It returned False and\n      logged nothing, every minute, for two days. The suite stayed green\n      because the fake published `_hooks` too: the test encoded the defect.\n\n      Reading `active_hooks()` now, and a declined measurement says which\n      precondition is missing, once. Whether the 27B then certifies is the\n      open half, and it answers itself on the next restart\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
-              "line": 53
+              "line": 341
             }
           ],
-          "end_line": 59,
-          "heading": "## The coalition test",
-          "id": "docs/CONNECTOME_TODO.md:53",
+          "end_line": 345,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:341",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "8985499a12671974110f00a1e52804b2a941b2e2cc21140724ff3ab1af8e2802",
-          "start_line": 53,
-          "text": "- [ ] selective lesions with predictions stated first:\n      - `do(HOT feedback = 0)` should leave competence and destroy calibrated\n        self-report\n      - `do(workspace broadcast = 0)` should leave local processors and destroy\n        cross-domain availability\n      - `do(affective loop = 0)` should leave reasoning and destroy\n        state-dependent prioritisation\n"
+          "sha256": "63c9dffb166ee21939e1991410e2f02f2786ee53c85609c44be7a1bf2fca6ac6",
+          "start_line": 341,
+          "text": "- [x] fit anything to a human recording. Four published statistics of human\n      cortical activity, scored as floors rather than targets: her cascades\n      satisfy their own scaling relation, so she is critical, but her exponents\n      are 3.69 and 3.72 against cortex's 1.5 and 2.0 \u2014 bursts smaller and\n      shorter than a human's, which is the deficiency to close\n"
         },
         {
           "checkboxes": [
             {
-              "checked": false,
+              "checked": true,
               "column": 3,
-              "line": 60
+              "line": 346
             }
           ],
-          "end_line": 61,
-          "heading": "## The coalition test",
-          "id": "docs/CONNECTOME_TODO.md:60",
+          "end_line": 349,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:346",
           "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [
-            "unchecked"
-          ],
+          "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "f0bae82157f205f6af1b51e3156fb0a9e91fe5eef6d26180e2bdd400e5aa8ccf",
-          "start_line": 60,
-          "text": "- [ ] each lesion scored against a degree-matched control lesion, and the\n      prediction registered before the run\n"
+          "sha256": "dae47bc8f54c68263faa20f8ede6ffbf82326a9ef2d900204d53f51bc61c5982",
+          "start_line": 346,
+          "text": "- [x] replace the mesh's chosen structural numbers with measured ones, or say\n      for each why no measurement can reach it. Six are choices now, down from\n      fourteen: the size of the thing, the slope of a tanh, a noise amplitude\n      with no millivolts to be measured in, and one pathway strength\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 350
+            }
+          ],
+          "end_line": 353,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:350",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "cb298882928ffa8a3ff5c385941c1d775656420530ef6295b264ea5ab28124be",
+          "start_line": 350,
+          "text": "- [x] regions with different computational matter: each band takes its own\n      cortical layers' inhibitory fraction and density \u2014 20.0% at 0.106 for the\n      sensory band, 22.0% at 0.135 for association, 17.3% at 0.091 for\n      executive \u2014 derived from the table the global figures were averaged from\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 354
+            }
+          ],
+          "end_line": 359,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:354",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "cf356a34671f2b87efdae30e92d5d759be922c4734c385694788a5497fe73bad",
+          "start_line": 354,
+          "text": "- [x] one plasticity rule applied to every unit alike. Two rules now: Bi and\n      Poo's asymmetric window on excitatory synapses, Vogels' symmetric one\n      against a standing depression on inhibitory ones, the depression constant\n      being their own alpha = 2 * rho * tau. Finding it turned up four more:\n      Dale's law on the wrong axis, an anti-Hebbian window, plasticity that\n      grew synapses, and a unit that rested at forty times its drive\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 360
+            }
+          ],
+          "end_line": 363,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:360",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "2abfcdb601732a9713f27e6dead730a3bc22280078939e2a2b9b222c595a8b0f",
+          "start_line": 360,
+          "text": "- [x] a human microcircuit island: every column's local wiring is drawn from\n      H01's contact-multiplicity law, and the law was chosen by the number it\n      was not fitted to \u2014 the heaviest pair in the volume, which the\n      exponential cutoff makes a one-in-twenty-three-million event\n"
+        },
+        {
+          "checkboxes": [
+            {
+              "checked": true,
+              "column": 3,
+              "line": 364
+            }
+          ],
+          "end_line": 367,
+          "heading": "## Open",
+          "id": "docs/CONNECTOME_TODO.md:364",
+          "path": "docs/CONNECTOME_TODO.md",
+          "review_signals": [],
+          "review_status": "unreviewed",
+          "sha256": "05ae482adbd1419dd6491c40a70a6bfb8e66695a5a7f93760ed0a9a9ccc11d09",
+          "start_line": 364,
+          "text": "- [x] development rather than construction: the mesh grows to 1.5 times its\n      adult density and is pruned back by what each synapse carried, landing on\n      the density its anatomy specifies. Pruning by co-activation beat the same\n      cut made at random in 5 of 5 seeds\n"
         },
         {
           "checkboxes": [],
-          "end_line": 63,
-          "heading": "## She can run this on herself",
-          "id": "docs/CONNECTOME_TODO.md:63",
+          "end_line": 369,
+          "heading": "## The standard these are held to",
+          "id": "docs/CONNECTOME_TODO.md:369",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "547bb869a054b8a0c13f6cd2605a5ad20e629f2fbcca50b510b9d5923ffb77b1",
-          "start_line": 63,
-          "text": "## She can run this on herself\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 65
-            }
-          ],
-          "end_line": 65,
-          "heading": "## She can run this on herself",
-          "id": "docs/CONNECTOME_TODO.md:65",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "39f86d3613cf6ae51bb75f8c54122714aa7067752ece27b5a0b066f052a72df0",
-          "start_line": 65,
-          "text": "- [x] a query surface her self-model can reach \u2014 `core/connectome/introspect.py`\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 66
-            }
-          ],
-          "end_line": 67,
-          "heading": "## She can run this on herself",
-          "id": "docs/CONNECTOME_TODO.md:66",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "41c8c44cee56cf7526dc9e721ce566d0ecd0462488d436d0563d0c62c05a7fd5",
-          "start_line": 66,
-          "text": "- [x] every answer carries its evidence grade, and a test pins that a predictive\n      weight is never worded as a cause\n"
+          "sha256": "f11333e26f0fdd0deb088edfc2d7837eb5b1f78d005aa002a8699990484e221a",
+          "start_line": 369,
+          "text": "## The standard these are held to\n"
         },
         {
           "checkboxes": [],
-          "end_line": 69,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:69",
+          "end_line": 375,
+          "heading": "## The standard these are held to",
+          "id": "docs/CONNECTOME_TODO.md:371",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "2c79ea811e3cb9b24b9f49e3598a8eb57d3b449fc013d9b17d85d67f191c34e9",
-          "start_line": 69,
-          "text": "## Architecture that develops under anatomical feedback\n"
+          "sha256": "022065db41a53c9ac247823cc7ba37dea0d50df769db950b09607eaa599a595b",
+          "start_line": 371,
+          "text": "A candidate does not pass by reproducing an output. It passes by satisfying\nseveral constraints at once \u2014 anatomy, connectivity, cell type, dynamics,\nchemistry, behaviour, perturbation \u2014 because two models can produce nearly\nidentical recordings and differ everywhere inside. That is the identifiability\nproblem, and the only answer to it is more constraints of different kinds.\n"
         },
         {
           "checkboxes": [],
-          "end_line": 72,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:71",
+          "end_line": 379,
+          "heading": "## The standard these are held to",
+          "id": "docs/CONNECTOME_TODO.md:377",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "2b70ad13ab6aad670fbe1079bd7aa07de0eb7b6694fda9fe9810c669a5c80aa2",
-          "start_line": 71,
-          "text": "Before a self-modification is promoted, reconstruct `G_t \u2192 G_{t+1}` and ask\n`\u0394Q = Q(G_{t+1}) \u2212 Q(G_t)` on measurements rather than on resemblance:\n"
+          "sha256": "37d6d2f4ea37fa59ff0c33858d2ecc74f43316ad756983568633cc0e3c029ccc",
+          "start_line": 377,
+          "text": "Where a lesion is the test: if the model says X is responsible for Y, then\n`do(X = 0)` has to produce the deficit, and a comparable removal elsewhere has\nto not. Six of those have been run.\n"
         },
         {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 74
-            }
-          ],
-          "end_line": 74,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:74",
+          "checkboxes": [],
+          "end_line": 384,
+          "heading": "## The standard these are held to",
+          "id": "docs/CONNECTOME_TODO.md:381",
           "path": "docs/CONNECTOME_TODO.md",
           "review_signals": [],
           "review_status": "unreviewed",
-          "sha256": "46bf125fe1706698712a58261b81964e990eef69bf7bcc29fa7e2ee201180c23",
-          "start_line": 74,
-          "text": "- [x] did useful local recurrence increase\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 75
-            }
-          ],
-          "end_line": 75,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:75",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "43eb45071ce39a4d2c9a713fb435f4f4c0e2e7c04607feaca5752b0dc7a235af",
-          "start_line": 75,
-          "text": "- [x] did a brittle single point of failure disappear\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 76
-            }
-          ],
-          "end_line": 76,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:76",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "998cec687b0d1d76472e880b11a702e8f99ba716ea614978e2f9004777bd3b5e",
-          "start_line": 76,
-          "text": "- [x] did unnecessary cross-region coupling decline\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 77
-            }
-          ],
-          "end_line": 77,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:77",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "6028a9600205fc6b49143769d86607538784a563b068a025639f59840f8749ab",
-          "start_line": 77,
-          "text": "- [x] did task-specific effective circuits get cleaner\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 78
-            }
-          ],
-          "end_line": 78,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:78",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "441f707b715f4f9a9a225455e6aa9cdf8ab3ac654a25130e4af803f7a8a853dc",
-          "start_line": 78,
-          "text": "- [x] did information reach the consumers it was supposed to\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 79
-            }
-          ],
-          "end_line": 79,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:79",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "fc3bad30545166b3d3dd275fcdc7621befc2e111b4b80cfb8512e7f3c448addb",
-          "start_line": 79,
-          "text": "- [x] did dormant developmental machinery become active\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 80
-            }
-          ],
-          "end_line": 80,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:80",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "fe1bbc9671c1b93afc7ad03ea50a096475d4ca370f8eb3e2af5650ae8c56d582",
-          "start_line": 80,
-          "text": "- [x] did a behavioural lesion confirm the intended new causal route\n"
-        },
-        {
-          "checkboxes": [
-            {
-              "checked": true,
-              "column": 3,
-              "line": 81
-            }
-          ],
-          "end_line": 81,
-          "heading": "## Architecture that develops under anatomical feedback",
-          "id": "docs/CONNECTOME_TODO.md:81",
-          "path": "docs/CONNECTOME_TODO.md",
-          "review_signals": [],
-          "review_status": "unreviewed",
-          "sha256": "2133fa3c5a776c0a57a570b9d150ff1e810865b23fc66d39e9faae3b7aebfdfc",
-          "start_line": 81,
-          "text": "- [x] wire the verdict into the promotion gate\n"
+          "sha256": "66bb921921caf3514f9a45938ba3f672a938e548779dd9817f43f743e5c70ce8",
+          "start_line": 381,
+          "text": "What cannot be recovered is stated once and not worked around. There is no\ncomplete human synaptic connectome, no map of every human synaptic weight, and\nno dataset anywhere that holds one person's developmental and experiential\nhistory. A reference architecture is reachable. An upload is not.\n"
         }
       ],
       "historical": false,
-      "line_count": 81,
-      "nonblank_lines": 63,
+      "line_count": 384,
+      "nonblank_lines": 340,
       "path": "docs/CONNECTOME_TODO.md",
-      "sha256": "00b829110507b145dd1c40c57ffe8e5330a049b1c8d7d6e6535ac17ee7ab65dc"
+      "sha256": "89a957d061a98713428e1f6c8dfc525afc918c16058580cb195460e5157874d8"
     },
     {
       "blocks": [
@@ -481107,16 +480726,16 @@
   "summary": {
     "atlas_outstanding": 14,
     "block_kinds": {
-      "historical_narrative": 5140,
-      "live_framing": 223,
+      "historical_narrative": 5139,
+      "live_framing": 216,
       "live_structured_unmarked": 104,
-      "obligation": 5573,
-      "resolved": 536
+      "obligation": 5571,
+      "resolved": 535
     },
-    "checkboxes": 728,
+    "checkboxes": 725,
     "closure_reference_audit": {
       "complete": true,
-      "references_checked": 1316,
+      "references_checked": 1314,
       "unresolved": []
     },
     "dismissal_audit": {
@@ -481129,8 +480748,8 @@
           "miss_rate": 0.0,
           "miss_rate_upper_95": 0.075,
           "missed_obligations": [],
-          "missed_population_upper_95": 385.5,
-          "population": 5140,
+          "missed_population_upper_95": 385.4,
+          "population": 5139,
           "scored": 40,
           "unlabelled": []
         },
@@ -481147,8 +480766,8 @@
           "miss_rate": 0.0,
           "miss_rate_upper_95": 0.075,
           "missed_obligations": [],
-          "missed_population_upper_95": 37.0,
-          "population": 493,
+          "missed_population_upper_95": 37.4,
+          "population": 498,
           "scored": 40,
           "unlabelled": []
         },
@@ -481165,8 +480784,8 @@
           "miss_rate": 0.0,
           "miss_rate_upper_95": 0.075,
           "missed_obligations": [],
-          "missed_population_upper_95": 3.2,
-          "population": 43,
+          "missed_population_upper_95": 3.1,
+          "population": 42,
           "scored": 40,
           "unlabelled": []
         },
@@ -481174,8 +480793,8 @@
           "miss_rate": 0.0,
           "miss_rate_upper_95": 0.075,
           "missed_obligations": [],
-          "missed_population_upper_95": 21.4,
-          "population": 285,
+          "missed_population_upper_95": 21.1,
+          "population": 282,
           "scored": 40,
           "unlabelled": []
         },
@@ -481192,25 +480811,25 @@
       "unlabelled": []
     },
     "dismissed_by_rule": {
-      "all_boxes_checked": 493,
+      "all_boxes_checked": 498,
       "atlas_card_closed": 184,
-      "lead_in": 43,
-      "structural_framing": 285,
+      "lead_in": 42,
+      "structural_framing": 282,
       "table_header": 6
     },
-    "in_scope_blocks": 6427,
+    "in_scope_blocks": 6417,
     "inventory_review_complete": true,
-    "mechanism_groups": 29,
+    "mechanism_groups": 30,
     "queue_items_carrying_inheritance": 54,
-    "routed_blocks": 5416,
-    "source_blocks": 11576,
-    "source_lines": 57905,
-    "unchecked": 49,
+    "routed_blocks": 5405,
+    "source_blocks": 11565,
+    "source_lines": 58208,
+    "unchecked": 41,
     "unknown_queue_targets": [],
     "unrouted_blocks": [],
     "vocabulary_coverage": {
       "complete": true,
-      "distinct_status_tokens": 460,
+      "distinct_status_tokens": 462,
       "unclassified_frequent": {}
     }
   }
