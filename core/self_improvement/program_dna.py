@@ -255,7 +255,7 @@ def _decidably_broken(candidate_code: str) -> list[str]:
         from core.sandbox.static_check import what_will_not_work
 
         return [f.describe() for f in what_will_not_work(candidate_code)]
-    except Exception:  # noqa: BLE001 - a check that fails checks nothing
+    except Exception:  # noqa: BLE001 - foreign code: a check that fails checks nothing
         return []
 
 

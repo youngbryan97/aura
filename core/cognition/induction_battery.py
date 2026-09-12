@@ -429,7 +429,7 @@ def _solve(
         return tuple(found.apply(problem.held_out.before)) == tuple(
             problem.held_out.after
         )
-    except Exception:  # noqa: BLE001 - a relation that throws did not predict it
+    except Exception:  # noqa: BLE001 - foreign code: a relation that throws did not predict it
         return False
 
 

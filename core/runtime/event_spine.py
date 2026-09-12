@@ -726,7 +726,9 @@ def _where_the_experience_is_kept() -> Path | None:
         if runtime_profile() is not RuntimeProfile.LIVE:
             return None
         return Path(state_root()) / "experience.jsonl"
-    except Exception:  # noqa: BLE001 — no path means an in-memory log, which still works
+    except (ImportError, AttributeError, RuntimeError, OSError):
+        # No path means an in-memory log, which still works. Those four are
+        # what "there is no state root here" raises.
         return None
 
 

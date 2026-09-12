@@ -124,7 +124,7 @@ class SelfWrittenGate:
             return test()
         except AssertionError:
             return Outcome.FAILED
-        except Exception:  # noqa: BLE001 - anything else is an error, not a failure
+        except Exception:  # noqa: BLE001 - foreign code: anything else is an error, not a failure
             return Outcome.ERRORED
 
     def _record(self, verdict: GateVerdict) -> GateVerdict:

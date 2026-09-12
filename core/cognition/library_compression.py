@@ -199,7 +199,7 @@ class LibraryCompressor:
             return True
         try:
             return self._evaluate(before) == self._evaluate(after)
-        except Exception:  # noqa: BLE001 - a rewrite that cannot be evaluated is not safe
+        except Exception:  # noqa: BLE001 - foreign code: a rewrite that cannot be evaluated is not safe
             return False
 
     def compress_once(self) -> CompressionRound:

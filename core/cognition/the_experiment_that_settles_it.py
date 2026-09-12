@@ -98,7 +98,7 @@ class Experiment:
 def _readable(answer: Any) -> str:
     try:
         return str(list(answer)) if isinstance(answer, tuple) else str(answer)
-    except Exception:  # noqa: BLE001 - last-resort floor: str() of a hostile object
+    except Exception:  # noqa: BLE001 - foreign code: last-resort floor: str() of a hostile object
         return repr(answer)
 
 
@@ -143,7 +143,7 @@ def _how_long(one: Any) -> int | None:
 
     try:
         length = int(how_long_it_is(one))
-    except Exception:  # noqa: BLE001 - accounts are hers and may be anything
+    except Exception:  # noqa: BLE001 - foreign code: accounts are hers and may be anything
         return None
     return max(0, length)
 

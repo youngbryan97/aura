@@ -349,7 +349,10 @@ def _what_a_step_costs() -> float:
             if one.backend is Backend.MACRO and one.value.value_when_it_works > 0
         ]
         return sum(timings) / len(timings) if timings else 0.0
-    except Exception:  # noqa: BLE001 - no measurement is 0.0, not a guess
+    except (ArithmeticError, AttributeError, TypeError, ValueError):
+        # No measurement is 0.0, not a guess. The arithmetic and the registry
+        # reads are what can refuse; a failure anywhere else is this
+        # function's own and should not read as "nothing measured".
         return 0.0
 
 

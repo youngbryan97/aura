@@ -190,7 +190,10 @@ def how_the_parts_answer(parts: dict[str, Any] | None = None) -> dict[str, Any]:
         def look(name: str) -> Any:
             try:
                 return ServiceContainer.get(name, default=None)
-            except Exception:  # noqa: BLE001 - a lookup must not break the report
+            except (AttributeError, RuntimeError, TypeError):
+                # A lookup must not break the report. Those are what a
+                # container that is absent or closing raises; anything else
+                # would read as "no such service" for a service that is there.
                 return None
     else:
         def look(name: str) -> Any:

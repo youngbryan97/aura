@@ -227,7 +227,7 @@ class AstLinter(ast.NodeVisitor):
     def add(self, severity: str, kind: str, node: ast.AST, message: str) -> None:
         if self.rel in EXEMPT_FILES:
             return  # Audited and exempted from strict lints
-        if kind in {"unapproved_direct_subprocess", "unapproved_direct_network", "unapproved_direct_file_write", "raw_dynamic_code"}:
+        if kind in {"unapproved_direct_subprocess", "unapproved_direct_network", "unapproved_direct_file_write", "raw_dynamic_code", "swallowed_broad_exception"}:
             if is_approved_direct_surface(self.rel, kind):
                 return
             reviewed = self.REVIEWED_MARKERS.get(kind)
@@ -546,6 +546,19 @@ class AstLinter(ast.NodeVisitor):
     REVIEWED_MARKERS = {
         "raw_dynamic_code": "noqa: S102",
         "unapproved_direct_subprocess": "noqa: S603",
+        # A handler around code this repo did not write. An invented operator,
+        # a term compiled into a function, an evaluator handed in from
+        # outside, an induced relation, a module whose import runs its own top
+        # level, a self-written test, a builtin applied to a hostile object:
+        # any exception is possible there and they all mean the same one
+        # thing, which is what the handler returns.
+        #
+        # Not the same claim as BLE001 on its own, and deliberately harder to
+        # write. Six handlers in core/subject carried BLE001 saying "an absent
+        # organ" and swallowed a TypeError from a defect in the reader, so the
+        # battery would have recorded an organ missing when it was there and
+        # broken. Reading BLE001 here would have kept all six.
+        "swallowed_broad_exception": "foreign code:",
     }
 
     def _line_carries(self, node: ast.AST, marker: str) -> bool:

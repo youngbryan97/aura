@@ -130,7 +130,7 @@ def _same(a: Any, b: Any) -> bool:
     """Equality that survives values which refuse to compare."""
     try:
         return bool(a == b)
-    except Exception:  # noqa: BLE001 — identity is the answer when equality refuses
+    except Exception:  # noqa: BLE001 — foreign code: identity is the answer when equality refuses
         # Not a loss and not a guess. A value whose __eq__ raises (a numpy
         # array, a lazily-loading proxy, a half-built object) has no equality
         # to report, and "the same object" is true of exactly the cases where

@@ -1409,7 +1409,7 @@ def _the_sequence_answer(text: Any) -> str:
         return ""
     try:
         result = tuple(found.apply(tuple(question.asked)))
-    except Exception:  # noqa: BLE001 - a relation that throws has not answered
+    except Exception:  # noqa: BLE001 - foreign code: a relation that throws has not answered
         return ""
     if len(result) > len(question.asked):
         return ""
