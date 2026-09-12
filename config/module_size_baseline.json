@@ -3,11 +3,11 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 145693,
+  "oversize_budget_lines": 145567,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
-      "lines": 3883,
-      "max_class_methods": 63
+      "lines": 3750,
+      "max_class_methods": 62
     },
     "core/advanced_cognition/continual_learning_stability.py": {
       "lines": 890,
@@ -106,7 +106,7 @@
       "max_class_methods": 32
     },
     "core/brain/llm/mlx_client.py": {
-      "lines": 15349,
+      "lines": 15207,
       "max_class_methods": 158
     },
     "core/brain/llm/mlx_worker.py": {

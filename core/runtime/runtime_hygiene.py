@@ -200,7 +200,8 @@ def _is_python_multiprocessing_spawn_process(proc: Any) -> bool:
 def _process_pid(proc: Any) -> int:
     try:
         return int(getattr(proc, "pid", 0) or 0)
-    except _PROCESS_INTROSPECTION_ERRORS:
+    except _PROCESS_INTROSPECTION_ERRORS as exc:
+        logger.debug("Process pid unreadable, reporting none: %s", exc)
         return 0
 
 
@@ -210,12 +211,14 @@ def _process_ppid(proc: Any) -> int:
         if value:
             raw = value() if callable(value) else value
             return int(raw or 0)
-    except _PROCESS_INTROSPECTION_ERRORS:
+    except _PROCESS_INTROSPECTION_ERRORS as exc:
+        logger.debug("Process ppid unreadable, reporting none: %s", exc)
         return 0
     info = getattr(proc, "info", None) or {}
     try:
         return int(info.get("ppid") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Reported ppid is not an integer, reporting none: %s", exc)
         return 0
 
 
@@ -376,8 +379,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
 
             if is_shutdown_requested():
                 raise RuntimeError("runtime_shutdown")
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.debug("Shutdown coordinator unavailable, not checking for a latched shutdown: %s", exc)
         if self._running:
             target_loop = loop
             if target_loop is not None:
@@ -429,7 +432,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             shutdown_latched = is_shutdown_requested()
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, not treating it as latched: %s", exc)
             shutdown_latched = False
         if shutdown_latched:
             task_report = await self._task_tracker.shutdown(
@@ -587,7 +591,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
         for worker in workers:
             try:
                 alive = bool(worker.is_alive())
-            except (AttributeError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Executor worker liveness unreadable, reporting not alive: %s", exc)
                 alive = False
             if not alive:
                 continue
@@ -899,7 +904,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 detail="runtime_hygiene_creation_patch",
             )
             return True
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Shutdown state unreadable, not blocking the resource start: %s", exc)
             return False
 
     @staticmethod
@@ -908,7 +914,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             return bool(is_shutdown_requested())
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, reporting it not latched: %s", exc)
             return False
 
     @staticmethod
@@ -928,7 +935,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 outcome=outcome,
                 detail=detail,
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Creation boundary not recorded to the shutdown coordinator: %s", exc)
             return
 
     @staticmethod
@@ -941,7 +949,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 proc.kill()
                 proc.wait(timeout=0.75)
             return proc.poll() is not None
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Crossed subprocess not reaped: %s", exc)
             return False
 
     @staticmethod
@@ -954,7 +963,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 proc.kill()
                 proc.join(timeout=0.75)
             return not proc.is_alive()
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Crossed multiprocessing child not reaped: %s", exc)
             return False
 
 
@@ -999,7 +1009,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 continue
             try:
                 pid = int(getattr(child, "pid", 0) or 0)
-            except _PROCESS_INTROSPECTION_ERRORS:
+            except _PROCESS_INTROSPECTION_ERRORS as exc:
+                logger.debug("Child pid unreadable, adopting none: %s", exc)
                 pid = 0
             if pid and pid in tracked_pids:
                 continue
@@ -1017,8 +1028,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             if self.resource_observer.provenance.host_observed and _HAS_PSUTIL:
                 try:
                     self._process_refs[key] = psutil.Process(pid)
-                except _PROCESS_INTROSPECTION_ERRORS:
-                    pass
+                except _PROCESS_INTROSPECTION_ERRORS as exc:
+                    logger.debug("Child process handle not adopted: %s", exc)
             if pid:
                 tracked_pids.add(pid)
 
@@ -1108,7 +1119,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             crossed_shutdown = is_shutdown_requested()
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, not treating registration as crossed: %s", exc)
             crossed_shutdown = False
         crossed_shutdown = self._shutdown_started or crossed_shutdown
         with self._resource_lock:
@@ -1188,7 +1200,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 outcome=outcome,
                 detail=detail,
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Resource boundary not recorded to the shutdown coordinator: %s", exc)
             return
 
     def _resource_summary(self) -> dict[str, Any]:
@@ -1352,7 +1365,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
             try:
                 observed = getattr(proc, "exitcode", None)
                 exit_code = int(observed) if observed is not None else None
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                logger.debug("Exit code unreadable, retiring the handle without one: %s", exc)
                 exit_code = None
         record.exit_code = exit_code
         record.finished_at = record.finished_at or time.monotonic()
@@ -1466,7 +1480,8 @@ class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
                 if return_code is not None:
                     try:
                         record.exit_code = int(return_code)
-                    except (RuntimeError, TypeError, ValueError):
+                    except (RuntimeError, TypeError, ValueError) as exc:
+                        logger.debug("Return code is not an integer, leaving the record without one: %s", exc)
                         record.exit_code = None
                     record.finished_at = record.finished_at or now
         # Release finished procs: OUR ref must not keep their pipes alive.

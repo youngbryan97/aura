@@ -443,3 +443,161 @@ class ImmuneStatePersistence:
                 json.dumps(payload, indent=2),
                 source="adaptation.adaptive_immunity.state",
             )
+
+    def _load_state(self) -> bool:
+        from collections import defaultdict, deque
+
+        from core.adaptation.adaptive_immunity import (
+            IMMUNE_STATE_SCHEMA_VERSION,
+            MAX_IMMUNE_STATE_BYTES,
+            Antigen,
+            CellKind,
+            EffectorKind,
+            ImmuneCell,
+            TissueField,
+            _immune_state_digest,
+            _live_rule_vocabulary,
+            _normalize_behavioral_rule,
+            _record_adaptive_immunity_degradation,
+            logger,
+        )
+
+        if not self._state_path.exists():
+            return False
+        try:
+            size = self._state_path.stat().st_size
+            if size > MAX_IMMUNE_STATE_BYTES:
+                raise ValueError(
+                    f"immune state file is {size} bytes, over the "
+                    f"{MAX_IMMUNE_STATE_BYTES} bound"
+                )
+            payload = json.loads(self._state_path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("immune state must be a JSON object")
+            # A file written by a different layout is quarantined to a reseed
+            # rather than parsed field-by-field into a live repair-capable
+            # population (CP126 5c214831).
+            found_version = int(payload.get("schema_version", 0) or 0)
+            if found_version != IMMUNE_STATE_SCHEMA_VERSION:
+                raise ValueError(
+                    f"immune state schema {found_version} != "
+                    f"{IMMUNE_STATE_SCHEMA_VERSION}"
+                )
+            integrity = payload.get("integrity")
+            if isinstance(integrity, dict) and integrity.get("digest"):
+                if _immune_state_digest(payload) != str(integrity["digest"]):
+                    raise ValueError("immune state digest does not match its contents")
+            if "expansion_engine" in payload:
+                from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
+
+                self.expansion_engine = DimensionalExpansionEngine.from_dict(
+                    payload["expansion_engine"]
+                )
+
+            self._cells = [ImmuneCell.from_dict(item) for item in payload.get("cells", [])]
+            vocabulary = _live_rule_vocabulary()
+            migrated_rules = 0
+            for cell in self._cells:
+                if cell.kind not in {CellKind.B, CellKind.MEMORY}:
+                    if cell.behavioral_rule is not None:
+                        cell.behavioral_rule = None
+                        migrated_rules += 1
+                    continue
+                normalized, migrated = _normalize_behavioral_rule(
+                    cell.behavioral_rule,
+                    self._rng,
+                    vocabulary=vocabulary,
+                )
+                cell.behavioral_rule = normalized
+                migrated_rules += int(migrated)
+            self._migrated_behavioral_rules = migrated_rules
+            if migrated_rules:
+                logger.info(
+                    "Migrated %d persisted immune behavioral rule(s) to the bounded grammar",
+                    migrated_rules,
+                )
+
+            # Reconcile receptor vectors of loaded cells with system current_dim
+            target_dim = self.expansion_engine.current_dim
+            for cell in self._cells:
+                cell.resize_receptor(target_dim, self._rng)
+
+            self._tissue = TissueField.from_dict(
+                payload.get("tissue", {}),
+                diffusion=self.cfg.tissue_diffusion,
+                decay=self.cfg.tissue_decay,
+            )
+            self._lineage_stats = defaultdict(
+                lambda: {
+                    "successes": 0,
+                    "failures": 0,
+                    "best_effector": None,
+                    "best_fitness": 0.0,
+                }
+            )
+            for lineage_id, stats in payload.get("lineage_stats", {}).items():
+                self._lineage_stats[lineage_id] = {
+                    "successes": int(stats.get("successes", 0)),
+                    "failures": int(stats.get("failures", 0)),
+                    "best_effector": (
+                        EffectorKind(stats["best_effector"]) if stats.get("best_effector") else None
+                    ),
+                    "best_fitness": float(stats.get("best_fitness", 0.0)),
+                }
+            self._observation_count = int(payload.get("observation_count", 0))
+            self._last_dream_at = int(payload.get("last_dream_at", 0))
+            self._recent_antigens = deque(
+                [Antigen.from_dict(item) for item in payload.get("recent_antigens", [])],
+                maxlen=self.cfg.replay_buffer_size,
+            )
+            self._recent_responses = deque(
+                [dict(item) for item in payload.get("recent_responses", [])],
+                maxlen=self.cfg.recent_response_buffer,
+            )
+            self._recurrence_tracker = defaultdict(
+                lambda: {
+                    "occurrences": 0,
+                    "last_seen": 0.0,
+                    "interval_ewma": 0.0,
+                    "last_interval": None,
+                    "streak": 0,
+                    "peak_streak": 0,
+                    "verified_repairs": 0,
+                    "failed_repairs": 0,
+                    "last_verified_at": 0.0,
+                }
+            )
+            for key, stats in payload.get("recurrence_tracker", {}).items():
+                self._recurrence_tracker[str(key)] = {
+                    "occurrences": int(stats.get("occurrences", 0)),
+                    "last_seen": float(stats.get("last_seen", 0.0)),
+                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
+                    "last_interval": self._coerce_optional_float(stats.get("last_interval")),
+                    "streak": int(stats.get("streak", 0)),
+                    "peak_streak": int(stats.get("peak_streak", 0)),
+                    "verified_repairs": int(stats.get("verified_repairs", 0)),
+                    "failed_repairs": int(stats.get("failed_repairs", 0)),
+                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
+                }
+            self._assign_species()
+            return bool(self._cells)
+        except (
+            OSError,
+            ConnectionError,
+            TimeoutError,
+            # Corrupt or hostile persisted state must quarantine to a reseed,
+            # never abort immune construction: JSON, schema, enum, and
+            # numeric failures were previously uncaught here.
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _record_adaptive_immunity_degradation(
+                exc,
+                action="Rejected persisted adaptive immune state and reseeded immune population",
+                severity="degraded",
+                extra={"state_path": str(self._state_path)},
+            )
+            logger.warning("Adaptive immune state load failed; reseeding: %s", exc)
+            return False

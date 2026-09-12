@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import logging
 import os
 import shutil
 import sys
@@ -30,6 +31,13 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 import psutil
+
+#: Debug only, and it exists because this module reports a NUMBER for every
+#: field it cannot read. A process that will not say how much CPU it is using
+#: is reported as using none, and a pressure decision downstream cannot tell
+#: that apart from an idle process. The reading still falls back; the reason it
+#: fell back now reaches somebody.
+logger = logging.getLogger("Runtime.ResourceObservation")
 
 #: psutil reports processor use as the difference between two samples of the
 #: kernel's counters, so the FIRST non-blocking call in a process has nothing to
@@ -57,7 +65,8 @@ def _seed_cpu_counter() -> None:
     global _CPU_SAMPLED_AT
     try:
         psutil.cpu_percent(interval=None)
-    except (psutil.Error, OSError, RuntimeError, ValueError):
+    except (psutil.Error, OSError, RuntimeError, ValueError) as exc:
+        logger.debug("CPU counter not seeded: %s", exc)
         return
     _CPU_SAMPLED_AT = time.monotonic()
 
@@ -599,7 +608,8 @@ def _darwin_open_file_identity(
             mode=int(vnode.vst_mode),
             provider="proc_pidfdinfo",
         )
-    except (AttributeError, OSError, TypeError, ValueError):
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("libproc file identity unavailable: %s", exc)
         return None
 
 
@@ -638,7 +648,8 @@ def _posix_open_file_identity(
                 mode=int(metadata.st_mode),
                 provider="self_fstat",
             )
-    except (OSError, TypeError, ValueError):
+    except (OSError, TypeError, ValueError) as exc:
+        logger.debug("Open file identity unreadable: %s", exc)
         return None
     return None
 
@@ -699,39 +710,47 @@ class HostResourceObserver:
                 rss_bytes = int(getattr(process.memory_info(), "rss", 0) or 0)
                 try:
                     memory_percent = float(process.memory_percent() or 0.0)
-                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("Process memory percent unreadable, reporting none: %s", exc)
                     memory_percent = 0.0
                 try:
                     cpu_percent = float(process.cpu_percent(interval=None) or 0.0)
-                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("Process CPU percent unreadable, reporting none: %s", exc)
                     cpu_percent = 0.0
                 try:
                     cpu_times = process.cpu_times()
                     cpu_user_seconds = float(getattr(cpu_times, "user", 0.0) or 0.0)
                     cpu_system_seconds = float(getattr(cpu_times, "system", 0.0) or 0.0)
-                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("Process CPU times unreadable, reporting none: %s", exc)
                     cpu_user_seconds = 0.0
                     cpu_system_seconds = 0.0
                 try:
                     num_threads = int(process.num_threads() or 0)
-                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("Process thread count unreadable, reporting none: %s", exc)
                     num_threads = 0
                 try:
                     num_fds_reader = getattr(process, "num_fds", None)
                     num_fds = int(num_fds_reader() or 0) if callable(num_fds_reader) else 0
-                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.debug("Process fd count unreadable, reporting none: %s", exc)
                     num_fds = 0
                 try:
                     exe = str(process.exe() or "")
-                except (psutil.Error, OSError, RuntimeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, ValueError) as exc:
+                    logger.debug("Process executable unreadable: %s", exc)
                     exe = ""
                 try:
                     username = str(process.username() or "")
-                except (psutil.Error, OSError, RuntimeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, ValueError) as exc:
+                    logger.debug("Process username unreadable: %s", exc)
                     username = ""
                 try:
                     cwd = str(process.cwd() or "")
-                except (psutil.Error, OSError, RuntimeError, ValueError):
+                except (psutil.Error, OSError, RuntimeError, ValueError) as exc:
+                    logger.debug("Process cwd unreadable: %s", exc)
                     cwd = ""
             try:
                 ancestors = tuple(int(parent.pid) for parent in process.parents())
@@ -757,13 +776,15 @@ class HostResourceObserver:
                 username=username,
                 cwd=cwd,
             )
-        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError):
+        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError) as exc:
+            logger.debug("Process handle unreadable, reporting no observation: %s", exc)
             return None
 
     def process(self, pid: int) -> ProcessObservation | None:
         try:
             return self._process_from_handle(psutil.Process(int(pid)))
-        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError):
+        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError) as exc:
+            logger.debug("Process unreadable by pid: %s", exc)
             return None
 
     def process_ids(self) -> ProcessIdsObservation:
@@ -807,14 +828,16 @@ class HostResourceObserver:
                 ppid = int(process.ppid())
                 create_time = float(process.create_time())
                 status = str(process.status())
-        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError):
+        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError) as exc:
+            logger.debug("Process handle unreadable, reporting no lightweight observation: %s", exc)
             return None
         try:
             rss_bytes = int(getattr(process.memory_info(), "rss", 0) or 0)
-        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError):
+        except (psutil.Error, OSError, RuntimeError, SystemError, TypeError, ValueError) as exc:
             # Identity is authoritative for process-lifetime decisions. A
             # transient RSS read failure must degrade one metric, not make a
             # live guarded process appear to have exited.
+            logger.debug("Process RSS unreadable, reporting 0 bytes: %s", exc)
             rss_bytes = 0
         return ProcessObservation(
             provenance=self.provenance,
@@ -1081,8 +1104,8 @@ class HostResourceObserver:
             tree_rss = process_rss
             if include_process_tree:
                 tree_rss += self._children_rss_bytes(process, root)
-        except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
-            pass
+        except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Process tree RSS unreadable, leaving it out of the reading: %s", exc)
         swap_total = 0
         swap_used = 0
         swap_free = 0
@@ -1093,8 +1116,8 @@ class HostResourceObserver:
             swap_used = int(getattr(swap, "used", 0) or 0)
             swap_free = int(getattr(swap, "free", 0) or 0)
             swap_percent = float(getattr(swap, "percent", 0.0) or 0.0)
-        except (psutil.Error, OSError, RuntimeError, TypeError, ValueError):
-            pass
+        except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Swap unreadable, leaving it out of the reading: %s", exc)
         return MemoryObservation(
             provenance=provenance,
             total_bytes=total,
@@ -1212,7 +1235,8 @@ class HostResourceObserver:
         try:
             try:
                 load_1m, load_5m, load_15m = (float(value) for value in os.getloadavg())
-            except (AttributeError, OSError):
+            except (AttributeError, OSError) as exc:
+                logger.debug("Load average unavailable, reporting zero: %s", exc)
                 load_1m = load_5m = load_15m = 0.0
             cpu_times = psutil.cpu_times()
             return ComputeObservation(

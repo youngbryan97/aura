@@ -328,7 +328,8 @@ def _worker_process_started_at(client: Any) -> float:
         from core.runtime.process_identity import _create_time  # noqa: PLC0415
 
         return float(_create_time(int(pid)) or 0.0)
-    except (ImportError, AttributeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Worker start time unreadable, reporting none: %s", exc)
         return 0.0
 
 
@@ -348,7 +349,8 @@ def _worker_process_is_running(proc: Any) -> bool:
             return bool(proc.is_alive())
         if hasattr(proc, "poll"):
             return proc.poll() is None
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("Worker liveness unreadable, reporting not running: %s", exc)
         return False
     return False
 
@@ -900,7 +902,8 @@ def snapshot_metric(snapshot: Any, key: str) -> float | None:
         return None
     try:
         value = float(snapshot.get(key))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Snapshot metric is not a number: %s", exc)
         return None
     return value if math.isfinite(value) else None
 
@@ -973,7 +976,8 @@ def _transition_age_s(client: Any, lane: Mapping[str, Any] | None = None) -> flo
     if lane is not None:
         try:
             mono = float(lane.get("last_transition_monotonic_at", 0.0) or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("Lane transition stamp is not a number, treating it as unset: %s", exc)
             mono = 0.0
     if mono <= 0.0:
         mono = float(getattr(client, "_lane_transition_monotonic_at", 0.0) or 0.0)
@@ -999,7 +1003,8 @@ def _generation_actually_stopped(client: Any) -> bool | None:
         if not isinstance(snapshot, Mapping) or "active_generations" not in snapshot:
             return None
         active = int(snapshot["active_generations"])
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Lane status unreadable, cannot say whether generation stopped: %s", exc)
         return None
     return active <= 0
 
@@ -1124,7 +1129,8 @@ def local_deep_solver_status(
             if available_gb is not None
             else float(memory.available) / float(1024**3)
         )
-    except (AttributeError, OSError, TypeError, ValueError):
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("System memory unreadable, reporting none detected: %s", exc)
         detected_total = 0.0
         detected_available = 0.0
     minimum_total = max(
@@ -1197,7 +1203,8 @@ def _asks_for_a_document(user_message: Any) -> bool:
         from core.runtime.desktop_objective_intent import asks_to_build_software
 
         return bool(asks_to_build_software(str(user_message or "")))
-    except _INFERENCE_RECOVERABLE_ERRORS:
+    except _INFERENCE_RECOVERABLE_ERRORS as exc:
+        logger.debug("Software-request classifier unavailable: %s", exc)
         return False
 
 
@@ -2238,7 +2245,8 @@ def _answer_reserve_seconds(client: Any, prompt_chars: Any) -> float:
 
     try:
         chars = max(0, int(prompt_chars or 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Prompt length is not an integer, reserving from zero: %s", exc)
         chars = 0
     if not chars:
         return _ANSWER_RESERVE_FALLBACK_S
@@ -2379,11 +2387,13 @@ def _reachable_scope(name: str, skill_scope: Any, permitted: set[str]) -> str | 
             declared_action_scopes,
             skill_class_named,
         )
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("Action scope module unavailable, no reachable scope: %s", exc)
         return None
     try:
         declared = declared_action_scopes(skill_class_named(name))
-    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Declared action scopes unreadable for this skill: %s", exc)
         return None
     reachable = [scope for scope in declared.values() if scope in permitted]
     if not reachable:
@@ -2407,7 +2417,8 @@ def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
         if name in _RUNS_A_SNIPPET:
             return False
         risk = str(classify_execution_risk(name, {}, effect_scope=scope) or "").lower()
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Execution risk classifier unavailable, not demanding confirmation: %s", exc)
         return False
     return risk in {"high", "critical"}
 
@@ -2522,7 +2533,8 @@ def _seconds_to_read(prompt_chars: int) -> float:
         from core.brain.llm.thinking_reserve import seconds_to_read
 
         return max(0.0, float(seconds_to_read(chars)))
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Reading time unavailable, reserving none: %s", exc)
         return 0.0
 
 
@@ -2538,7 +2550,8 @@ def _seconds_to_decode(tokens: int, model: str = "") -> float:
         from core.brain.llm.thinking_reserve import seconds_to_decode
 
         return float(seconds_to_decode(tokens, model))
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Decode time unavailable, reserving none: %s", exc)
         return 0.0
 
 
@@ -3050,7 +3063,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 _gate_examined_something = int(
                     receipt.get("surface_quality_gate_attempts") or 0
                 ) > 0
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("surface_quality_gate_attempts is not an integer: %s", exc)
                 _gate_examined_something = False
             if (
                 not success
@@ -3401,8 +3415,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.conversation.surface_disposition import record_raw_model_draft
 
             record_raw_model_draft(original)
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Raw model draft not recorded to surface disposition: %s", exc)
         try:
             from core.synthesis import stabilize_user_facing_response
 
@@ -3680,7 +3694,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         try:
             if int(lane.get("active_generations", 0) or 0) > 0:
                 return True
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("active_generations is not an integer, reporting no active generation: %s", exc)
             return False
         blockers = {
             str(blocker or "").strip()
@@ -4194,6 +4209,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         try:
             running_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
         except RuntimeError:
+            # Not a failure: no running loop at cleanup is the case this is distinguishing.
             running_loop = None
         if cancelled_tasks and running_loop is None:
             logger.warning(
@@ -4314,7 +4330,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.runtime.response_policy import (
                 USER_FACING_COMPLETION_DEADLINE_MAX_S,
             )
-        except (ImportError, AttributeError):
+        except (ImportError, AttributeError) as exc:
+            logger.debug("Decode timing unavailable, allowing no tokens for the turn: %s", exc)
             return 0
         allowed = float(seconds) if float(seconds or 0.0) > 0.0 else float(
             USER_FACING_COMPLETION_DEADLINE_MAX_S
@@ -4330,8 +4347,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 from core.brain.llm.mlx_client import seconds_to_read
 
                 allowed -= float(seconds_to_read(int(prompt_chars)))
-            except (ImportError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug("Reading time unavailable, not subtracting it from the allowance: %s", exc)
         # And what the turn spends after the last token: stabilizing, shaping,
         # classifying, persisting, emitting a receipt, writing the response.
         # The search below finds the largest answer that fits EXACTLY, so a
@@ -4343,8 +4360,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.brain.llm.thinking_reserve import seconds_to_deliver
 
             allowed -= float(seconds_to_deliver())
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Delivery time unavailable, not subtracting it from the allowance: %s", exc)
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget
@@ -4377,7 +4394,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.brain.llm.thinking_reserve import reserve_tokens
 
             return max(0, int(reserve_tokens(model)))
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Reserve tokens unavailable, reserving none: %s", exc)
             return 0
 
     @classmethod
@@ -4411,7 +4429,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 final_user_surface=final_user_surface,
                 answer_is_derived_here=derived_here,
             )
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Chat format unavailable, reserving nothing for reasoning: %s", exc)
             return 0
         return cls._reasoning_reserve(model) if native_thinking is True else 0
 
@@ -4986,6 +5005,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 except asyncio.CancelledError:
                     exc = asyncio.CancelledError("prewarm_cancelled")
                 except asyncio.InvalidStateError:
+                    # Not a failure: a prewarm task that has not finished has no exception to report yet.
                     exc = None
                 if exc is not None:
                     lane["state"] = "recovering"
@@ -5159,6 +5179,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         try:
             asyncio.get_running_loop()
         except RuntimeError:
+            # Not a failure: no running loop means there is nothing to note the timeout on.
             return
         try:
             warmup_deferral = self._cortex_warmup_deferral_reason("background")
@@ -5182,7 +5203,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 from core.container import ServiceContainer
 
                 orch = ServiceContainer.get("orchestrator", default=None)
-            except _INFERENCE_RECOVERABLE_ERRORS:
+            except _INFERENCE_RECOVERABLE_ERRORS as exc:
+                logger.debug("Orchestrator unavailable, cannot extend the startup quiet window: %s", exc)
                 orch = None
         if orch and hasattr(orch, "_extend_foreground_quiet_window"):
             try:
@@ -5490,9 +5512,10 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
 
             observations = get_model_lane_controller().owner_observations()
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
             # Never let a probe break a turn — and never let it widen into a
             # catch that would swallow a programming error too.
+            logger.debug("Lane observations unavailable, not claiming a foreign owner: %s", exc)
             return False
         if not observations:
             return False
@@ -5530,8 +5553,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 pids.add(str(parent.pid))
             for child in proc.children(recursive=True):
                 pids.add(str(child.pid))
-        except (psutil.Error, *_INFERENCE_RECOVERABLE_ERRORS):
-            pass
+        except (psutil.Error, *_INFERENCE_RECOVERABLE_ERRORS) as exc:
+            logger.debug("Own process tree unreadable, leaving the pid set short: %s", exc)
         return frozenset(p for p in pids if p and p != "0")
 
 
@@ -6289,7 +6312,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.conversation.session_scope import current_user_question
 
             return bool(current_user_question())
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Session scope unavailable, not claiming a turn is in flight: %s", exc)
             return False
 
     @staticmethod
@@ -6335,7 +6359,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 return False
             quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)
             return quiet_until > time.time()
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Orchestrator unavailable, reporting no quiet window: %s", exc)
             return False
 
     def _safe_boot_background_guard_active(self) -> bool:
@@ -6718,7 +6743,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             return False
         try:
             return not bool(is_alive())
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Worker liveness unreadable, not claiming it is unloaded: %s", exc)
             return False
 
     def last_shed_receipt(self) -> dict[str, Any]:
@@ -6732,7 +6758,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             return False
         try:
             return bool(client.is_alive())
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Client liveness unreadable, reporting the lane not ready: %s", exc)
             return False
 
     def _memory_blocks_primary_load(self) -> bool:
@@ -6886,7 +6913,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             return False
         try:
             hard_ceiling = int(contract.get("hard_token_ceiling") or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("hard_token_ceiling is not an integer: %s", exc)
             return False
         return bool(
             0 < hard_ceiling <= 192
@@ -7236,11 +7264,13 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         """Whether the turn asks for a quantity this runtime must simply get right."""
         try:
             from core.conversation.response_reliability import asks_for_a_number
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("Response reliability unavailable, not classifying the turn: %s", exc)
             return False
         try:
             return bool(asks_for_a_number(prompt))
-        except (RuntimeError, TypeError, ValueError):
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Number-request classifier failed: %s", exc)
             return False
 
     @classmethod
@@ -8053,7 +8083,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 if callable(_counter):
                     try:
                         _tokens = max(0, int(_counter() or 0))
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as exc:
+                        logger.debug("Token counter is not an integer, counting none: %s", exc)
                         _tokens = 0
             try:
                 from core.conversation.turn_evidence_custody import (
@@ -9675,8 +9706,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     context=context if isinstance(context, dict) else None,
                     origin=str((context or {}).get("origin") or ""),
                 )
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Halt state unreadable, proceeding with generation: %s", exc)
 
         sink_slot = self._generation_metadata_sink_slot()
         inherited_sink = sink_slot.get()
@@ -9720,8 +9751,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     # task, thread, or worker boundaries. The worker receives
                     # evidence, never authority to read ambient conversation.
                     context["user_surface_grounding_evidence"] = list(turn_grounding)
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Turn grounding custody unavailable, carrying no evidence: %s", exc)
         self._clear_last_generation_metadata()
         initial_messages = context.get("messages")
         if not isinstance(initial_messages, list):
@@ -9932,7 +9963,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
             deep_probe_request = looks_like_deep_mind_probe(prompt)
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
             deep_probe_request = False
         if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
             if _FLAG_EMBODIED_CHALLENGE.value():
@@ -10340,7 +10372,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         if "max_tokens" in context:
             try:
                 explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("Requested max_tokens is not an integer, applying no explicit cap: %s", exc)
                 explicit_max_tokens_cap = None
         # Whether the CALLER asked for the floor, or the gate worked it out.
         #
@@ -10626,7 +10659,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     if math.isfinite(_caller_temp)
                     else None
                 )
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Caller temperature is not a number, leaving it unset: %s", exc)
                 somatic_temperature = None
         for _gen_key in (
             "top_p",
@@ -11107,7 +11141,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         ):
             try:
                 requested_budget = int(context.get("max_tokens") or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Requested budget is not an integer, reading it as none: %s", exc)
                 requested_budget = 0
             if requested_budget > 0:
                 # A flat floor rescues a conversational reply and still starves
@@ -11176,7 +11211,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             # than the visible request.
             try:
                 _floor = int(context.get("user_surface_completion_floor") or 0)
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
                 _floor = 0
             if 0 < _floor and max_tokens < _floor:
                 logger.info(
@@ -12059,7 +12095,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 _answer_floor_final = int(
                     context.get("user_surface_completion_floor") or 0
                 )
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
                 _answer_floor_final = 0
             # A floor may not raise a ceiling the caller declared. This one ran
             # at dispatch, after the caller-cap clamp, so a request that asked
@@ -12280,7 +12317,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                     from core.brain.llm.thinking_reserve import answer_tokens_seen
 
                     _ever_needed = int(answer_tokens_seen(_model_for_clock))
-                except (ImportError, AttributeError, TypeError, ValueError):
+                except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug("Answer tokens seen unavailable, reading none: %s", exc)
                     _ever_needed = 0
                 if _ever_needed > 0:
                     _affordable = min(_affordable, max(max_tokens, _ever_needed))
@@ -12656,8 +12694,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                                 )
 
                                 preserve_draft(stabilized)
-                            except (ImportError, RuntimeError, TypeError, ValueError):
-                                pass
+                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                                logger.debug("Draft not preserved to surface disposition: %s", exc)
                             return stabilized
                         return self._stabilize_user_facing_text(
                             text,
@@ -14017,7 +14055,8 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                 and hasattr(client, "is_alive")
                 and client.is_alive()
             )
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Client liveness unreadable, reporting the backend not alive: %s", exc)
             return False
 
     def inference_readiness(self) -> tuple[bool, str]:

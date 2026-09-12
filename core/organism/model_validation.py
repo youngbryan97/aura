@@ -3017,6 +3017,7 @@ def _universality_certificates_that_fail() -> int:
         run(the_least_where(build(L("k", N(1)))), fuel=20_000)
         failed += 1
     except OutOfFuel:
+        # Not a failure: a certificate that runs out of fuel is one that did not close inside the bound, which is what this counts.
         pass
     failed += 0 if what_the_arithmetic_rests_on()["all_agree"] else 1
     return failed
@@ -4572,7 +4573,8 @@ def _phenomena_reachable() -> int:
             except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 continue
         return found
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Phenomena services unreachable, reporting none wired: %s", exc)
         return 0
 
 
@@ -4606,7 +4608,8 @@ def _care_floor_survives_an_overwhelming_need() -> bool:
             <= 7.0 + 1e-9
             for need in (1e3, 1e6, 1e12)
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Care allocation unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4619,7 +4622,8 @@ def _pooling_signal_yields_no_type() -> bool:
         free = SignalChannel(benefit=2.0, cost_slope=0.0)
         reading = free.receive(free.send("anyone", 5.0))
         return reading.implied_type is None and not reading.informative
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Costly signalling unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4635,7 +4639,8 @@ def _arbitration_abstains_without_evidence() -> bool:
             and result.probability is None
             and result.weight_affective == result.weight_deliberate
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Dual-process arbiter unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4819,7 +4824,8 @@ def _honesty_coverage_is_closed() -> bool:
         from core.epistemics.effect_registry import coverage_gaps, observable_actions
 
         return not coverage_gaps() and len(observable_actions()) >= 23
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Effect registry unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4861,7 +4867,8 @@ def _zero_receipt_completion_is_caught() -> bool:
             action_requested=True,
         )
         return caught and quiet and evidenced
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Unevidenced-action correction unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4910,7 +4917,8 @@ def _functional_i_policy_reaches_generation() -> bool:
         # Tighten-only, checked at the seam rather than asserted about it.
         raised, _p, _l = _apply_functional_i_constraint(0.58, 0.88, 1)
         return raised <= 0.58
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Policy coupler unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4932,7 +4940,8 @@ def _identity_is_key_anchored() -> bool:
             and identity.verify_link(link)
             and not identity.verify_link(type(link)(**{**link.to_dict(), "signature": "00" * 64}))
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Identity anchoring unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4989,7 +4998,8 @@ def _cognitive_contracts_detect_undeclared_writes() -> bool:
             transformation.complete(state, publish_violation=False)
         receipt = graph.receipts[-1]
         return receipt.undeclared_writes == ("affect.arousal",)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Cognitive contracts unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5013,7 +5023,8 @@ def _standing_prohibitions_are_deny_only() -> bool:
             and callable(getattr(standing_directives, name, None))
         ]
         return not grants and "There is no allow/grant field" in source
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Standing prohibitions unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5065,7 +5076,8 @@ def _held_facts_survive_the_reply_path() -> bool:
                 stated + " It took 42s.",
                 emit_log=False,
             ) == ()
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Held-fact custody unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5106,7 +5118,8 @@ def _why_is_answered_from_provenance() -> bool:
             and "ordinary_decay" in answer
             and "affect.curiosity" in answer
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Provenance answering unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5273,7 +5286,8 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     try:
         journal_path = artifact_root / "result.json.journal.jsonl"
         journal_sha = hashlib.sha256(journal_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Semantic composition certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5396,7 +5410,8 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     try:
         manifest_path = pathlib.Path(result["resident_manifest_identity"]["path"])
         manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Induced procedure certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_exact = {
@@ -5468,7 +5483,8 @@ def _semantic_program_27b_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B semantic program certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5526,7 +5542,8 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B replication certificate unreadable, claim unverified: %s", exc)
         return False
 
     compatibility = certificate.get("representation_compatibility")
@@ -5573,7 +5590,8 @@ def _semantic_program_27b_shared_variable_geometry_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B shared-variable geometry certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5645,7 +5663,8 @@ def _semantic_program_27b_floor_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B floor certificate unreadable, claim unverified: %s", exc)
         return False
     expected_boundary = (
         "the frozen shared semantic transducer's accepted test programs have "
@@ -5741,7 +5760,8 @@ def _canary_artifact_bundle(
         verifier_sha = hashlib.sha256(
             (root / verifier_relative).read_bytes()
         ).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Canary artifact bundle unreadable: %s", exc)
         return None
 
     # A certificate pins the source it was measured over. When that source
@@ -5792,7 +5812,8 @@ def _sealed_certificate(relative_path: str) -> tuple[dict, str, pathlib.Path, pa
             ensure_ascii=True,
             allow_nan=False,
         ).encode("ascii")
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Sealed certificate unreadable: %s", exc)
         return None
     return certificate, hashlib.sha256(canonical).hexdigest(), certificate_path, root
 
@@ -5860,7 +5881,8 @@ def _historical_semantic_sources_hold_at_binding(
             ).stdout
             if hashlib.sha256(payload).hexdigest() != expected:
                 return False
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+        logger.debug("Historical semantic sources unreadable at binding: %s", exc)
         return False
     return True
 
@@ -6027,7 +6049,8 @@ def _recurrent_memory_decode_certificate_holds_at(
         ).hexdigest()
         verifier_path = root / "tools/verify_mathematics_memory_decode_canary.py"
         verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Recurrent memory decode certificate unreadable, claim unverified: %s", exc)
         return False
     controls = certificate.get("causal_control_exacts")
     base_contract_holds = bool(
@@ -6732,7 +6755,8 @@ def _recorded_verdict() -> dict[str, Any] | None:
     path = pathlib.Path(__file__).resolve().parents[2] / "artifacts" / "validation" / "last_run.json"
     try:
         verdict = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("Recorded verdict unreadable: %s", exc)
         return None
     return verdict if isinstance(verdict, dict) else None
 

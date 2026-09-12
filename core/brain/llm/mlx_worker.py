@@ -559,7 +559,8 @@ def _answer_is_derived_here(job: dict[str, Any], model: str = "") -> bool:
             model_name=model,
             seconds_remaining=_seconds_left_on(job),
         )
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Chat format unavailable, not treating the answer as derived here: %s", exc)
         return False
 
 
@@ -568,7 +569,8 @@ def _seconds_left_on(job: dict[str, Any]) -> float:
 
     try:
         deadline = float(job.get("deadline_unix") or 0.0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Job deadline is not a number, reporting no time left: %s", exc)
         return 0.0
     if not (deadline > 0.0):
         return 0.0
@@ -598,7 +600,8 @@ def _seconds_to_decode(tokens: int) -> float:
         from core.brain.llm.thinking_reserve import seconds_to_decode
 
         return float(seconds_to_decode(tokens))
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Decode timing unavailable, reporting no seconds: %s", exc)
         return 0.0
 
 
@@ -611,7 +614,8 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") ->
         )
 
         record_budget_that_ran_out_thinking(budget_tokens=budget_tokens, model=model)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Budget that ran out thinking not recorded: %s", exc)
         return
 
 
@@ -620,7 +624,8 @@ def _the_private_channel_budget(job: dict[str, Any] | None, max_tokens: Any) -> 
 
     try:
         from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("Private channel budget unavailable, allowing none: %s", exc)
         return 0
     return the_channel_budget_for(
         max_tokens=max_tokens,
@@ -640,7 +645,8 @@ def _record_budget_that_finished_thinking(budget_tokens: int, model: str = "") -
         )
 
         record_budget_that_finished_thinking(budget_tokens=budget_tokens, model=model)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Budget that finished thinking not recorded: %s", exc)
         return
 
 
@@ -657,7 +663,8 @@ def _record_decode_rate(generated_tokens: int, elapsed_s: float, model: str = ""
         from core.brain.llm.thinking_reserve import record_decode_rate
 
         record_decode_rate(generated_tokens=generated_tokens, elapsed_s=elapsed_s, model=model)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Decode rate not recorded: %s", exc)
         return
 
 
@@ -674,7 +681,8 @@ def _record_read_rate(prompt_chars: int, elapsed_s: float) -> None:
         from core.brain.llm.thinking_reserve import record_read_rate
 
         record_read_rate(prompt_chars=prompt_chars, elapsed_s=elapsed_s)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Read rate not recorded: %s", exc)
         return
 
 
@@ -685,7 +693,8 @@ def _reasoning_reserve_tokens(model: str = "") -> int:
         from core.brain.llm.thinking_reserve import reserve_tokens
 
         return int(reserve_tokens(model))
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Reserve tokens unavailable, reserving none: %s", exc)
         return 0
 
 
@@ -707,7 +716,8 @@ def _record_reasoning_cost(
             generated_tokens=generated_tokens,
             model=model,
         )
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Reasoning cost not recorded: %s", exc)
         return
 
 
@@ -774,7 +784,8 @@ def _name_tokens(tokenizer: Any, token_ids: Any) -> str:
         text = ""
         try:
             text = tokenizer.decode([token_id])
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Token id would not decode, naming it empty: %s", exc)
             text = ""
         if text.strip():
             named.append(repr(text))
@@ -782,7 +793,8 @@ def _name_tokens(tokenizer: Any, token_ids: Any) -> str:
         label = ""
         try:
             label = str(tokenizer.convert_ids_to_tokens(token_id))
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Token id has no label, naming it empty: %s", exc)
             label = ""
         named.append(label or f"id:{token_id}")
     return ", ".join(named)
@@ -2140,7 +2152,8 @@ def _qualified_serving_limits_for_model(model_path: str) -> Any | None:
         from core.brain.llm.model_registry import get_active_cortex_serving_limits
 
         limits = get_active_cortex_serving_limits(model_path)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Serving limits unavailable for this checkpoint: %s", exc)
         return None
     if limits is None or not bool(getattr(limits, "qualified", False)):
         return None
@@ -2207,7 +2220,8 @@ def _runtime_prefill_step_size(model_path: str) -> int:
         from core.utils.memory_monitor import get_memory_pressure_snapshot
 
         pressure_snapshot = get_memory_pressure_snapshot()
-    except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Memory pressure unreadable, sizing prefill without it: %s", exc)
         pressure_snapshot = None
     pressure_selected = _prefill_step_size_for_model(
         model_path,
@@ -2766,6 +2780,7 @@ class IPCWriterThread(threading.Thread):
                         self.local_queue.put(item, block=False)
                         return
                     except queue.Full:
+                        # Not a failure: a full local queue is the condition this non-blocking put is testing for.
                         pass
             if priority >= 2:
                 try:
@@ -2848,6 +2863,7 @@ class IPCWriterThread(threading.Thread):
                             self.local_queue.put(item, block=False)
                             requeued = True
                         except queue.Full:
+                            # Not a failure: a full local queue means the item cannot be requeued, which the flag below reports.
                             pass
                     if not requeued:
                         try:
@@ -2926,7 +2942,8 @@ class HeartbeatThread(threading.Thread):
         try:
             os.kill(self._parent_pid, 0)
             return True
-        except (OSError, ProcessLookupError):
+        except (OSError, ProcessLookupError) as exc:
+            logger.debug("Parent process unreachable, reporting it gone: %s", exc)
             return False
 
     def run(self):
@@ -3020,8 +3037,8 @@ class WorkerMemorySentinel(threading.Thread):
                 if safe_boot and not unsafe_allowed:
                     return min(configured_limit, default_limit)
                 return configured_limit
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as exc:
+                logger.debug("Configured RSS limit is not a number, leaving the default: %s", exc)
         return default_limit
 
     def _sample_rss_gb(self) -> float | None:
@@ -3035,7 +3052,8 @@ class WorkerMemorySentinel(threading.Thread):
             from core.utils.memory_monitor import process_memory_bytes
 
             sampled = float(process_memory_bytes(self._pid)) / float(1024**3)
-        except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Worker RSS unreadable: %s", exc)
             return None
         return sampled if sampled > 0.0 else None
 
@@ -3960,7 +3978,8 @@ def _load_effective_context_window(model_path: str) -> int:
         if tokenizer_config_path.exists():
             tokenizer_payload = json.loads(tokenizer_config_path.read_text())
             tokenizer_model_max = int(tokenizer_payload.get("model_max_length") or 0)
-    except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
+    except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("Tokenizer config unreadable, reading no model_max_length: %s", exc)
         tokenizer_model_max = 0
 
     def _bounded(window: int) -> int:
@@ -4197,7 +4216,8 @@ def soft_cancel_requested(cancel_seq: Any, job_seq: int) -> bool:
         return False
     try:
         return int(getattr(cancel_seq, "value", 0)) == int(job_seq)
-    except (TypeError, ValueError, OSError):
+    except (TypeError, ValueError, OSError) as exc:
+        logger.debug("Soft-cancel sequence unreadable, reporting no cancel: %s", exc)
         return False
 
 
@@ -4614,7 +4634,8 @@ def _remember_fusion_identity(descriptor: Any) -> None:
         from core.consciousness.fusion_certificate import certificate_for
 
         certificate = certificate_for(digest)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Fusion certificate unavailable for this digest: %s", exc)
         return
     if certificate is None:
         logger.info(
@@ -5236,7 +5257,8 @@ def _mlx_worker_loop(
         except ImportError:
             try:
                 from mlx_lm.sample import make_sampler
-            except ImportError:
+            except ImportError as exc:
+                logger.debug("mlx_lm sampler unavailable, decoding without one: %s", exc)
                 make_sampler = None
 
         logger.info("📡 [WORKER] Loading Core modules...")
@@ -5285,7 +5307,8 @@ def _mlx_worker_loop(
                     _total_gb = float(
                         get_resource_observer().memory(include_process_tree=False).total_bytes
                     ) / float(1024**3)
-                except (ImportError, OSError, RuntimeError, AttributeError, ValueError, TypeError):
+                except (ImportError, OSError, RuntimeError, AttributeError, ValueError, TypeError) as exc:
+                    logger.debug("Total memory unreadable, reporting 0GB: %s", exc)
                     _total_gb = 0.0
                 if _total_gb >= 96.0:
                     _cache_gb, _active_gb = 24, 40
@@ -6576,7 +6599,8 @@ def _mlx_worker_loop(
                                     def _can_trim(pc):
                                         try:
                                             return bool(_mlx_can_trim(pc))
-                                        except (AttributeError, TypeError, ValueError):
+                                        except (AttributeError, TypeError, ValueError) as exc:
+                                            logger.debug("Prompt cache trim support unreadable, reporting none: %s", exc)
                                             return False
 
                                     def _do_trim(pc, num):
@@ -7634,7 +7658,8 @@ def _mlx_worker_loop(
                                         _read_s = float(
                                             generation_performance.get("prefill_seconds") or 0.0
                                         )
-                                    except (AttributeError, TypeError, ValueError):
+                                    except (AttributeError, TypeError, ValueError) as exc:
+                                        logger.debug("Reported prefill_seconds is not a number: %s", exc)
                                         _read_s = 0.0
                                     # Nothing when MLX did not time it. This
                                     # module's own discipline: an unmeasured
@@ -9954,7 +9979,8 @@ def _mlx_worker_loop(
                             )
                             try:
                                 prompt_cache_lru = _PromptCacheLRU(max_size=prompt_cache_budget)
-                            except (RuntimeError, TypeError, ValueError):
+                            except (RuntimeError, TypeError, ValueError) as exc:
+                                logger.debug("Prompt cache LRU not constructed: %s", exc)
                                 cache_invalidated = False
                         if mx and device != "cpu":
                             _clear_mlx_cache(mx)

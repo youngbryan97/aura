@@ -227,14 +227,22 @@ Working list. Deleted when every line is done and green.
       requirements scanner reading a Markdown list continuation as an
       obligation of its own.
 
+      Closed since: the module-size ratchet and the effect-ownership one. The
+      nine new God objects are gone and the tree is inside its budget at
+      145,693 lines, which is also the new budget — it only shrinks. The last
+      one to move was `adaptive_immunity`, which grew four methods the same day
+      serializing the ecology off the lock; its five write-side methods live
+      beside the writer they hand their payload to, and the class is 63
+      methods against a ceiling of 64.
+
       Open, and each is the same shape — a ratchet whose debt is the team's:
-      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` — 33,210
-        lines over budget and nine new God objects, in `screen_pursuit`,
-        `sovereign_browser`, the two `semantic_program_*` modules and four
-        more. `core/subject/driver.py` was the tenth and is off the list: its
-        fork machinery moved to `core/subject/snapshot.py`, 509 lines.
-      * `test_effect_ownership_tiers` — 1,903 against a ceiling of 1,840.
-      * the swallowed-except ratchet — 2,441 against a baseline of 2,175.
+      * the swallowed-except ratchet — 2,350 against a baseline of 2,175. Was
+        2,441. Ninety-one explained so far: eighteen in `model_lane_control`
+        and seventy-three in `mlx_client`, each read and given either the
+        exception on a debug line or a sentence saying the value it returns is
+        an answer rather than a fault. The gate could not see six of its own
+        notes, because it matched "not a failure:" case-sensitively and a note
+        that opens a sentence is capitalised.
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
         `test_gap_atlas_campaigns` and the rest of the later chunks — in the

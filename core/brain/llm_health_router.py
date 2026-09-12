@@ -299,7 +299,8 @@ def _mark_generation_gate_acquired(
         if timeout_s is not None:
             try:
                 bounded_timeout = float(timeout_s)
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("Gate timeout is not a number, treating it as none: %s", exc)
                 bounded_timeout = 0.0
             if math.isfinite(bounded_timeout) and bounded_timeout > 0.0:
                 _GENERATION_GATE_LEASE_DEADLINES[lease_id] = (
@@ -323,7 +324,8 @@ async def _acquire_generation_gate_slot(wait_s: float) -> bool:
     """
     try:
         wait_s = float(wait_s)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Gate wait is not a number, treating it as none: %s", exc)
         wait_s = 0.0
     if not math.isfinite(wait_s) or wait_s < 0.0:
         wait_s = 0.0
@@ -339,6 +341,7 @@ async def _acquire_generation_gate_slot(wait_s: float) -> bool:
                 try:
                     _GENERATION_GATE.release()
                 except ValueError:
+                    # Not a failure: a gate slot this thread no longer holds cannot be released, and ValueError is how the semaphore says so.
                     pass
                 return False
             state["delivered"] = True
@@ -354,6 +357,7 @@ async def _acquire_generation_gate_slot(wait_s: float) -> bool:
                 try:
                     _GENERATION_GATE.release()
                 except ValueError:
+                    # Not a failure: a gate slot this thread no longer holds cannot be released, and ValueError is how the semaphore says so.
                     pass
             else:
                 state["abandoned"] = True
@@ -378,7 +382,8 @@ async def acquire_external_generation_gate_lease(
     try:
         bounded_timeout = float(timeout_s)
         bounded_wait = float(wait_s)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("Lease bounds are not numbers, issuing no lease: %s", exc)
         return None
     if (
         not math.isfinite(bounded_timeout)
@@ -419,6 +424,7 @@ def _release_generation_gate_after_call(lease_id: int) -> None:
     try:
         _GENERATION_GATE.release()
     except ValueError:
+        # Not a failure: a gate slot this thread no longer holds cannot be released, and ValueError is how the semaphore says so.
         pass
 
 
@@ -585,13 +591,15 @@ async def _await_while_it_is_working(
                 from core.brain.llm.mlx_client import longest_a_turn_may_take
 
                 a_person_waits = float(longest_a_turn_may_take())
-            except (ImportError, AttributeError, TypeError, ValueError):
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug("Turn-length ceiling unavailable, waiting from zero: %s", exc)
                 a_person_waits = 0.0
             if a_person_waits > 0.0 and budget_s < a_person_waits:
                 async def _say_when_it_passes_a_persons_patience() -> None:
                     try:
                         await asyncio.sleep(max(0.0, a_person_waits - budget_s))
                     except asyncio.CancelledError:
+                        # Not a failure: cancellation is the caller's decision, not a fault in the wait.
                         return
                     if not task.done():
                         logger.warning(
@@ -661,6 +669,7 @@ async def _await_while_it_is_working(
             try:
                 await task
             except asyncio.CancelledError:
+                # Not a failure: cancellation is the caller's decision, not a fault in the await.
                 pass
             except Exception as exc:  # noqa: BLE001 - recorded below, not swallowed
                 record_degradation(
@@ -729,7 +738,8 @@ def _endpoint_call_budgets(
     ):
         try:
             token_count = int(max_tokens or 0)
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("max_tokens is not an integer, budgeting from zero: %s", exc)
             token_count = 0
         compact_turn = int(prompt_chars or 0) <= 10_000 and token_count <= 768
         extended_turn = not compact_turn and token_count <= 1536
@@ -785,7 +795,8 @@ def _seconds_a_budget_needs(max_tokens: Any) -> float:
         from core.brain.llm.thinking_reserve import seconds_to_decode
 
         return float(seconds_to_decode(int(max_tokens or 0)))
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Decode timing unavailable, reporting no seconds: %s", exc)
         return 0.0
 
 
@@ -1360,10 +1371,12 @@ def _local_client_failure_reason(client: Any) -> str:
         try:
             inspect.getattr_static(candidate, attr)
         except AttributeError:
+            # Not a failure: an attribute the candidate does not have is exactly what this is looking for.
             return None
         try:
             value = getattr(candidate, attr)
-        except (RuntimeError, AttributeError, TypeError):
+        except (RuntimeError, AttributeError, TypeError) as exc:
+            logger.debug("Client attribute unreadable, reporting no failure reason: %s", exc)
             return None
         if value is candidate:
             return None
@@ -1490,7 +1503,8 @@ def _worker_still_healthy(endpoint: Any) -> bool:
     try:
         if not bool(alive()):
             return False
-    except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
+    except (AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("Worker liveness unreadable, reporting it unhealthy: %s", exc)
         return False
     beat = max(
         float(getattr(client, "_last_heartbeat", 0.0) or 0.0),
@@ -1709,8 +1723,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             from core.runtime.service_access import resolve_inference_gate
 
             _abort_client(resolve_inference_gate())
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Inference gate unreachable, active generation not aborted: %s", exc)
         return aborted
 
     def register(
@@ -3043,6 +3057,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             try:
                 inspect.getattr_static(unwrapped, attr)
             except AttributeError:
+                # Not a failure: an attribute the client does not have means there is nothing nested to unwrap.
                 nested = None
             else:
                 nested = getattr(unwrapped, attr, None)
@@ -3558,7 +3573,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                 from core.brain.llm.mlx_client import _foreground_owner_active
 
                 foreground_owned = bool(_foreground_owner_active())
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                logger.debug("Foreground ownership unreadable, not treating the lane as owned: %s", exc)
                 foreground_owned = False
 
         if is_bg and (self._foreground_user_turn_active() or self._foreground_owner_active() or foreground_owned):
@@ -3816,7 +3832,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
             try:
                 try:
                     requested_max_tokens = int(kwargs.get("max_tokens") or 0)
-                except (TypeError, ValueError, OverflowError):
+                except (TypeError, ValueError, OverflowError) as exc:
+                    logger.debug("Requested max_tokens is not an integer, reading it as none: %s", exc)
                     requested_max_tokens = 0
                 cooperative_budget, endpoint_budget = _endpoint_call_budgets(
                     min(timeout, remaining_cascade_s),
@@ -4061,6 +4078,7 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                 availability = await asyncio.wait_for(availability, timeout=5.0)
             return bool(availability)
         except TimeoutError:
+            # Not a failure: an availability probe that does not answer inside its bound is unavailable, which is what the bound is for.
             return False
         except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
             _record_router_degradation(
@@ -4164,7 +4182,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                                 ValueError,
                                 httpx.HTTPError,
                                 OSError,
-                            ):
+                            ) as exc:
+                                logger.debug("Availability reason unreadable: %s", exc)
                                 availability_reason = ""
                         availability_reason = availability_reason or "client_unavailable"
                         ep.record_failure(availability_reason)
@@ -4266,7 +4285,8 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                         generate_kwargs = _call_kwargs(client.generate)
                         try:
                             generate_sig = inspect.signature(client.generate)
-                        except (TypeError, ValueError):
+                        except (TypeError, ValueError) as exc:
+                            logger.debug("Generate signature unreadable, calling without one: %s", exc)
                             generate_sig = None
                         if generate_sig and "context" in generate_sig.parameters:
                             existing_context = clean_kwargs.get("context")
@@ -4864,7 +4884,8 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         from core.brain.inference_gate import local_deep_solver_enabled
 
         deep_lane_possible = local_deep_solver_enabled()
-    except _ROUTER_CLIENT_ERRORS:
+    except _ROUTER_CLIENT_ERRORS as exc:
+        logger.debug("Deep solver availability unreadable, not offering the deep lane: %s", exc)
         deep_lane_possible = False
     if not deep_lane_possible:
         logger.info(
@@ -4889,6 +4910,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("✅ %s registered with an admitted local specialist.", DEEP_ENDPOINT)
     except _DeepLaneUnavailable:
+        # Not a failure: the deep lane raised its own unavailability above; this is where that is handled.
         pass
     except (ImportError, AttributeError, RuntimeError) as e:
         _record_router_degradation(

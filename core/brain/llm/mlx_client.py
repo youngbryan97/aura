@@ -13,7 +13,6 @@ import logging
 import math
 import multiprocessing as mp
 import os
-import pathlib
 import platform
 import queue
 import re
@@ -35,6 +34,19 @@ if TYPE_CHECKING:
     from core.brain.lane_admission import ActiveLane
     from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 
+from core.brain.llm.how_big_is_the_checkpoint import (  # noqa: F401 - re-exported
+    _MAX_ARTIFACT_FILES_SCANNED,
+    _MAX_ARTIFACT_SCAN_DEPTH,
+    _PATH_SIZE_CACHE,
+    _WEIGHT_FILE_SUFFIXES,
+    _env_projected_footprint_gb,
+    _measured_model_footprint_gb,
+    _model_load_min_available_gb,
+    _path_size_gb,
+    _projected_footprint_from_artifact_gb,
+    _projected_model_footprint_gb,
+    _weight_files,
+)
 from core.brain.llm.measured_admission import record_generation
 from core.conversation.continuation import continuation_state_text
 from core.runtime.atomic_writer import atomic_write_text
@@ -270,7 +282,8 @@ def _observed_process_rss_bytes(pid: int) -> int:
     try:
         process = get_resource_observer().process(int(pid))
         return int(process.rss_bytes) if process is not None else 0
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Process RSS unreadable, reporting 0 bytes: %s", exc)
         return 0
 
 
@@ -630,7 +643,8 @@ def _observe_worker_prompt_tokenization(response: Mapping[str, Any]) -> bool:
                 evidence.get("tokens"),
             )
         )
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Prompt tokenization evidence not observed: %s", exc)
         return False
 
 
@@ -643,7 +657,8 @@ def _observe_worker_token_budget_calibration(response: Mapping[str, Any]) -> int
         from core.brain.llm.token_budget_evidence import observe_calibration_batch
 
         return int(observe_calibration_batch(response.get("token_budget_calibration")))
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Worker token budget calibration not imported: %s", exc)
         return 0
 
 
@@ -723,7 +738,8 @@ def _validate_model_artifact(resolved: Path, incumbent: str = "") -> ArtifactVer
         from core.brain.llm.model_artifact_profile import get_model_artifact_profile
 
         profile = get_model_artifact_profile(str(resolved))
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Model artifact profile unavailable: %s", exc)
         profile = None
 
     verdict = ArtifactVerdict(
@@ -815,6 +831,7 @@ def _bounded_maintenance_counters(
         try:
             value = int(raw)
         except (TypeError, ValueError, OverflowError):
+            # Not a failure: a counter that will not convert is what 'malformed' means, and the fault list carries which one it was.
             faults.append(f"{name}:malformed")
             return None
         if value < 0:
@@ -1258,13 +1275,15 @@ def _manifest_recurrent_loops(artifact_path: Any) -> int | None:
         return None
     try:
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.debug("Recurrence manifest unreadable, reporting no declared depth: %s", exc)
         return None
     if not isinstance(spec, dict):
         return None
     try:
         steps = int(spec.get("recurrent_steps") or 0)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("Manifest recurrent_steps is not an integer: %s", exc)
         return None
     return steps if steps > 0 else None
 
@@ -1380,7 +1399,8 @@ def _measured_size_class(model_path: Any) -> str | None:
         from core.brain.llm.model_artifact_profile import get_model_artifact_profile
 
         profile = get_model_artifact_profile(str(model_path or ""))
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Artifact profile unavailable, reporting no measured size class: %s", exc)
         return None
     return profile.size_class if getattr(profile, "measured", False) else None
 
@@ -1415,7 +1435,8 @@ def _model_is_quantized(model_path: Any) -> bool:
         from core.brain.llm.model_artifact_profile import get_model_artifact_profile
 
         profile = get_model_artifact_profile(str(model_path or ""))
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Artifact profile unavailable, quantization unknown: %s", exc)
         profile = None
     bits = int(getattr(profile, "quantization_bits", 0) or 0)
     if bits:
@@ -1476,213 +1497,6 @@ _SPAWN_GATE_ACQUIRE_TIMEOUT_S = _env_duration_s(
     "AURA_SPAWN_GATE_ACQUIRE_TIMEOUT_S", 5.0, minimum=0.05
 )
 
-
-def _model_load_min_available_gb(model_path: str) -> float:
-    def _env_float(name: str, default: float) -> float:
-        return _finite_env_float(name, default, minimum=0.0)
-
-    try:
-        total_gb = float(psutil.virtual_memory().total) / float(1024**3)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError, psutil.Error):
-        total_gb = 0.0
-    if _model_matches_class(model_path, ("72b", "solver")):
-        default = 52.0 if 0.0 < total_gb < 96.0 else 34.0
-        return _env_float("AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB", default)
-    if _model_matches_class(model_path, ("32b", "cortex", "zenith")):
-        # Derive the requirement from the model actually on disk rather than a
-        # constant that happens to be wrong for it. Measured 2026-07-25: the
-        # resident 32B is 17.2GB on disk and the flat 24.0 gate refused it on a
-        # host sitting at 20.4GB available — a 6.8GB margin over true need, and
-        # the cortex starved through six deaths in one run because of it.
-        #
-        # weights x 1.20 + 1GB covers KV cache and activations for a normal
-        # context with room to spare. The flat default remains the CEILING, so
-        # this can only ever relax toward the real footprint, never tighten
-        # past a deliberate operator setting — and it floors at 16GB so a
-        # mis-sized or unreadable model directory cannot wave a load through.
-        default = 24.0 if total_gb >= 60.0 else 22.0
-        measured = _measured_model_footprint_gb(model_path)
-        if measured is not None:
-            derived = measured * 1.20 + 1.0
-            default = max(16.0, min(default, derived))
-        return _env_float("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", default)
-    return _env_float("AURA_MLX_LOAD_MIN_AVAILABLE_GB", 8.0)
-
-
-def _measured_model_footprint_gb(model_path: Any) -> float | None:
-    """Total size of the model directory in GB, or None if unreadable.
-
-    Returns None on anything surprising — a missing directory, a permission
-    error, an implausible size — so the caller keeps its conservative default.
-    """
-    text = str(model_path or "").strip()
-    if not text:
-        return None  # Path("") is the CWD, which is a real directory
-    try:
-        root = pathlib.Path(text)
-        if not root.is_dir():
-            return None
-        total = sum(f.stat().st_size for f in root.rglob("*") if f.is_file())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return None
-    gb = total / float(1024**3)
-    if not (1.0 < gb < 200.0):
-        return None
-    return gb
-
-
-def _env_projected_footprint_gb(name: str) -> float | None:
-    raw = os.environ.get(name)
-    if raw is None:
-        return None
-    text = str(raw).strip().lower()
-    if text in {"", "auto", "detect", "detected"}:
-        return None
-    try:
-        value = float(text)
-    except (TypeError, ValueError):
-        return None
-    # A zero/negative override makes a real multi-GB worker appear free and
-    # NaN/inf poisons every downstream admission sum — ignore such overrides.
-    if not math.isfinite(value) or value <= 0.0:
-        logger.warning("Ignoring invalid projected-footprint override %s=%r.", name, raw)
-        return None
-    return value
-
-
-# Model artifacts are immutable while the runtime holds them (fusion
-# publishes a NEW directory), so their size is computed once per
-# (path, mtime) and reused. Uncached, this rglob+stat walk ran on the
-# EVENT LOOP inside model-load admission while 20GB of safetensors reads
-# saturated the disk — the 5.5-8.6s loop stalls captured in
-# data/error_logs/stalls/stall_1784673149 / stall_1784675621 bottom out
-# exactly here (pathlib stat under _projected_footprint_from_artifact_gb).
-#: Extensions that hold model weights. Everything else in a checkpoint
-#: directory — tokenizer caches, logs, receipts, adapters, temp files — is not
-#: what gets loaded into memory, so it is not part of the footprint that RAM
-#: admission is computed from (CP126 50d8ed03).
-_WEIGHT_FILE_SUFFIXES = frozenset(
-    {".safetensors", ".bin", ".gguf", ".npz", ".pt", ".pth"}
-)
-#: Depth and count ceilings for the artifact scan. A checkpoint's weights sit
-#: at the top level or one directory below it; a scan that follows an arbitrary
-#: tree is unbounded work on an admission path.
-_MAX_ARTIFACT_SCAN_DEPTH = 2
-_MAX_ARTIFACT_FILES_SCANNED = 512
-
-
-def _weight_files(root: Path):
-    """Weight files within the artifact, bounded in depth."""
-    stack: list[tuple[Path, int]] = [(root, 0)]
-    while stack:
-        directory, depth = stack.pop()
-        try:
-            entries = list(directory.iterdir())
-        except OSError:
-            continue
-        for entry in entries:
-            try:
-                if entry.is_dir():
-                    if depth + 1 < _MAX_ARTIFACT_SCAN_DEPTH:
-                        stack.append((entry, depth + 1))
-                    continue
-                if entry.suffix.lower() in _WEIGHT_FILE_SUFFIXES:
-                    yield entry
-            except OSError:
-                continue
-
-
-_PATH_SIZE_CACHE: dict[tuple[str, int], float] = {}
-
-
-def _path_size_gb(model_path: str) -> float:
-    path = Path(str(model_path or "")).expanduser()
-    try:
-        if path.is_file():
-            return float(path.stat().st_size) / float(1024**3)
-        if not path.is_dir():
-            return 0.0
-        cache_key = (str(path), path.stat().st_mtime_ns)
-        cached = _PATH_SIZE_CACHE.get(cache_key)
-        if cached is not None:
-            return cached
-        # CP126 50d8ed03: this walked EVERY descendant and counted every file,
-        # so tokenizer caches, training logs, adapters, receipts and temporary
-        # artifacts inflated the "model footprint" that RAM admission is
-        # computed from — and a directory with a deep subtree made the walk
-        # unbounded. What the footprint means is the weights that get loaded,
-        # so only weight files count, only the top two levels are walked, and
-        # the walk stops at a file ceiling rather than running as long as the
-        # tree is deep.
-        total = 0
-        scanned = 0
-        for child in _weight_files(path):
-            try:
-                total += child.stat().st_size
-            except OSError:
-                continue
-            scanned += 1
-            if scanned >= _MAX_ARTIFACT_FILES_SCANNED:
-                logger.debug(
-                    "Artifact size scan for %s stopped at %d files.",
-                    path,
-                    scanned,
-                )
-                break
-        size_gb = float(total) / float(1024**3)
-        if len(_PATH_SIZE_CACHE) > 64:
-            _PATH_SIZE_CACHE.clear()
-        _PATH_SIZE_CACHE[cache_key] = size_gb
-        return size_gb
-    except OSError:
-        return 0.0
-
-
-def _projected_footprint_from_artifact_gb(model_path: str, *, fallback_gb: float) -> float:
-    """Estimate live model footprint from the local artifact when possible.
-
-    The launcher previously used one static 32B projection for every artifact.
-    That is too blunt for Aura: the active fused 4-bit model is materially
-    smaller than the old 8-bit base artifact, while a genuine 8-bit path should
-    still be treated as too expensive for a tight desktop process cap.
-    """
-
-    size_gb = _path_size_gb(model_path)
-    if size_gb <= 0.0:
-        return fallback_gb
-    if _model_matches_class(model_path, ("72b", "solver")):
-        overhead = max(4.0, size_gb * 0.14)
-    elif _model_matches_class(model_path, ("32b", "cortex", "zenith", "aura-32b")):
-        overhead = max(3.0, size_gb * 0.30)
-    else:
-        overhead = max(1.0, size_gb * 0.20)
-    return max(1.0, size_gb + overhead)
-
-
-def _projected_model_footprint_gb(model_path: str) -> float:
-    def _env_float(name: str, default: float) -> float:
-        return _finite_env_float(name, default, minimum=0.0)
-
-    if _model_matches_class(model_path, ("72b", "solver")):
-        override = _env_projected_footprint_gb("AURA_MLX_72B_PROJECTED_FOOTPRINT_GB")
-        if override is not None:
-            return override
-        return _projected_footprint_from_artifact_gb(model_path, fallback_gb=41.0)
-    if _model_matches_class(model_path, ("32b", "cortex", "zenith")):
-        override = _env_projected_footprint_gb("AURA_MLX_32B_PROJECTED_FOOTPRINT_GB")
-        if override is not None:
-            return override
-        # Quantization changes the footprint by more than a third, and it is
-        # a property of the checkpoint, not of its directory name. Ask the
-        # artifact; fall back to the name only when it cannot be read.
-        quantized = _model_is_quantized(model_path)
-        default = 20.0 if quantized else 35.0
-        return _projected_footprint_from_artifact_gb(model_path, fallback_gb=default)
-    if _model_matches_class(model_path, ("14b",)):
-        return _env_float("AURA_MLX_14B_PROJECTED_FOOTPRINT_GB", 10.0)
-    if _model_matches_class(model_path, ("7b",)):
-        return _env_float("AURA_MLX_7B_PROJECTED_FOOTPRINT_GB", 5.0)
-    return _env_float("AURA_MLX_PROJECTED_FOOTPRINT_GB", 4.0)
 
 
 def _model_process_reserve_gb(model_path: str) -> float:
@@ -1841,8 +1655,8 @@ def _model_lane_owner_id(client: Any) -> str:
     owner_id = f"mlx:{os.getpid()}:{id(client):x}:{generation}:{model_path}"
     try:
         client._model_lane_owner_id = owner_id
-    except (AttributeError, RuntimeError, TypeError, ValueError):
-        pass
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Model lane owner id not stamped on the client: %s", exc)
     return owner_id
 
 
@@ -1914,7 +1728,8 @@ def _transient_runtime_footprint_gb(owners: list[Any]) -> float:
         observed_worker_gb = sum(
             max(0.0, float(getattr(owner, "observed_gb", 0.0) or 0.0)) for owner in owners
         )
-    except (OSError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Transient runtime footprint unreadable, reporting 0GB: %s", exc)
         return 0.0
     return max(0.0, process_rss_gb - observed_worker_gb)
 
@@ -2194,7 +2009,8 @@ def _lane_is_last_warm(client: Any) -> bool:
             except (AttributeError, RuntimeError, OSError, ValueError):
                 continue
         return True
-    except (AttributeError, RuntimeError, OSError, ValueError):
+    except (AttributeError, RuntimeError, OSError, ValueError) as exc:
+        logger.debug("Warm lane comparison failed, not claiming this is the last one: %s", exc)
         return False
 
 
@@ -2600,11 +2416,13 @@ def _recurrent_depth_readiness_blocker(status: dict[str, Any]) -> str | None:
     config_payload = config if isinstance(config, dict) else {}
     try:
         configured_loops = int(config_payload.get("n_loops") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Configured n_loops is not an integer, reading it as none: %s", exc)
         configured_loops = 0
     try:
         expected_loops = int(status.get("expected_loops") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Reported expected_loops is not an integer, reading it as none: %s", exc)
         expected_loops = 0
     if expected_loops > 1 and configured_loops < expected_loops:
         return "recurrent_depth_loop_mismatch"
@@ -2751,8 +2569,8 @@ def _real_model_path(value: Any) -> str:
 
         if is_model_repository_id(raw):
             return raw
-    except (ImportError, RuntimeError):
-        pass
+    except (ImportError, RuntimeError) as exc:
+        logger.debug("Model registry unavailable, cannot recognise a repository id: %s", exc)
     return os.path.realpath(raw)
 
 
@@ -2791,8 +2609,8 @@ def _safe_close_queue(q: mp.Queue | None) -> None:
             from core.runtime.runtime_hygiene import get_runtime_hygiene
 
             get_runtime_hygiene().unregister_shutdown_resource(q)
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Queue not unregistered from shutdown hygiene: %s", exc)
 
 
 def _register_runtime_queue(q: mp.Queue, *, name: str) -> None:
@@ -3007,12 +2825,14 @@ def _bounded_generation_max_tokens(
     if preserve_user_surface_completion_floor:
         try:
             surface_floor = max(0, int(user_surface_completion_floor or 0))
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
             surface_floor = 0
     tool_floor = 0
     try:
         tool_floor = max(0, int(tool_call_floor or 0))
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("tool_call_floor is not an integer, using no floor: %s", exc)
         tool_floor = 0
     completion_floor = max(contract_floor, surface_floor, tool_floor)
     if completion_floor <= 0:
@@ -3026,8 +2846,8 @@ def _bounded_generation_max_tokens(
     if hard_output_ceiling is not None and hard_output_ceiling != "":
         try:
             admitted_cap = min(admitted_cap, max(1, int(hard_output_ceiling)))
-        except (TypeError, ValueError, OverflowError):
-            pass
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("hard_output_ceiling is not an integer, leaving the cap where it was: %s", exc)
     admitted = max(bounded, min(completion_floor, admitted_cap))
     if admitted > bounded and contract_floor > bounded:
         # This is a successful policy decision. The generation receipt carries
@@ -3056,7 +2876,8 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
     if bool(contract.get("exact_reply", False)):
         try:
             utf8_bytes = max(1, int(contract.get("exact_reply_utf8_bytes") or 0))
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("exact_reply_utf8_bytes is not an integer, using no floor: %s", exc)
             utf8_bytes = 0
         if utf8_bytes > 0:
             # Any supported tokenizer needs no more content tokens than UTF-8
@@ -3072,7 +2893,8 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
             _MAX_OUTPUT_CONTRACT_FLOOR_TOKENS,
             max(0, int(contract.get("semantic_token_cap") or 0)),
         )
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("semantic_token_cap is not an integer, using no floor: %s", exc)
         return 0
 
 
@@ -3227,7 +3049,8 @@ def _apply_memory_pressure_generation_controls(
             0,
             int(options.get("user_surface_completion_floor", 0) or 0),
         )
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
         completion_floor = 0
     completion_floor = min(requested_max_tokens, completion_floor)
     try:
@@ -3344,7 +3167,8 @@ def _carry_decode_rate_across(receipt: dict[str, Any]) -> None:
         return
     try:
         rate = float(verified.get("decode_tokens_per_second") or 0.0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Verified decode rate is not a number, carrying nothing across: %s", exc)
         return
     if not (rate > 0.0):
         return
@@ -3352,7 +3176,8 @@ def _carry_decode_rate_across(receipt: dict[str, Any]) -> None:
         from core.brain.llm.thinking_reserve import record_decode_rate
 
         record_decode_rate(generated_tokens=int(rate * 10), elapsed_s=10.0)
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Decode rate not recorded to the thinking reserve: %s", exc)
         return
 
 
@@ -4368,11 +4193,13 @@ def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Fut
             try:
                 proxy.set_exception(exc)
             except (cfutures.InvalidStateError, asyncio.InvalidStateError):
+                # Not a failure: a proxy that already carries an outcome cannot be given another one.
                 pass
             return
         try:
             proxy.set_result(result)
         except (cfutures.InvalidStateError, asyncio.InvalidStateError):
+            # Not a failure: a proxy that already carries an outcome cannot be given another one.
             return
 
     if future.done():
@@ -4422,6 +4249,7 @@ def _set_shared_future_result(future: SharedFuture | None, result: Any) -> bool:
         except cfutures.InvalidStateError:
             # Another thread completed/cancelled it between the done() check
             # and here — response delivery must not break on that race.
+            # Not a failure: a future that is already resolved has nowhere to put this result.
             return False
         return True
 
@@ -4431,6 +4259,7 @@ def _set_shared_future_result(future: SharedFuture | None, result: Any) -> bool:
     try:
         future_loop = future.get_loop()
     except (RuntimeError, AttributeError):
+        # Not a failure: a future with no loop cannot be completed from another thread, which is what this is asking.
         return False
     if future_loop.is_closed():
         return False
@@ -4445,6 +4274,7 @@ def _set_shared_future_result(future: SharedFuture | None, result: Any) -> bool:
     try:
         future_loop.call_soon_threadsafe(_setter)
     except RuntimeError:
+        # Not a failure: a loop that is closed cannot be asked to run the setter. False says the result did not land.
         return False
     return True
 
@@ -4463,12 +4293,14 @@ def _cancel_shared_future(future: SharedFuture | None) -> None:
     try:
         future_loop = future.get_loop()
     except (RuntimeError, AttributeError):
+        # Not a failure: a future with no loop has no loop to cancel it on.
         return
     if future_loop.is_closed():
         return
     try:
         running_loop = asyncio.get_running_loop()
     except RuntimeError:
+        # Not a failure: no running loop in this thread is the case this is distinguishing.
         running_loop = None
     if running_loop is future_loop:
         future.cancel()
@@ -4490,6 +4322,7 @@ def _cancel_task_threadsafe(task: asyncio.Task | None) -> None:
     try:
         task_loop = task.get_loop()
     except (RuntimeError, AttributeError):
+        # Not a failure: a task with no loop cannot be cancelled through one.
         return
     if task_loop.is_closed():
         return
@@ -5360,7 +5193,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             )
 
             self._latent_readout_mem = _create_latent_channel(self._mp_context)
-        except (ImportError, AttributeError, OSError, ValueError):
+        except (ImportError, AttributeError, OSError, ValueError) as exc:
+            logger.debug("Latent readout channel unavailable: %s", exc)
             self._latent_readout_mem = None
         self._latent_readout_seen: list[float] | None = None
 
@@ -5368,7 +5202,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             from core.consciousness.phi_residual_channel import create_channel
 
             self._phi_residual_mem = create_channel(self._mp_context)
-        except (ImportError, OSError, ValueError):
+        except (ImportError, OSError, ValueError) as exc:
+            logger.debug("Phi residual channel unavailable: %s", exc)
             self._phi_residual_mem = None
 
         # Shared memory flag to track if affective steering successfully attached
@@ -5919,7 +5754,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         if isinstance(result, dict):
             try:
                 freed = int(result.get("prompt_cache_bytes_freed") or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("prompt_cache_bytes_freed is not an integer, reporting none freed: %s", exc)
                 freed = 0
             self._last_prompt_cache_bytes = max(
                 0, int(result.get("prompt_cache_bytes") or 0)
@@ -6017,19 +5853,21 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         exact_prefill = measured_prefill
                     if math.isfinite(measured_decode) and measured_decode > 0.0:
                         exact_decode = measured_decode
-                except (TypeError, ValueError, OverflowError):
-                    pass
+                except (TypeError, ValueError, OverflowError) as exc:
+                    logger.debug("Prefill and decode seconds are not numbers, recording no sample: %s", exc)
                 # The rate every deadline is built from. MLX timed this
                 # inside the worker; the estimate this side keeps times how
                 # often it was told, which is a different quantity and was
                 # wrong by a factor of ten. See _measured_prefill_rate.
                 try:
                     reported_tps = float(performance.get("prompt_tps") or 0.0)
-                except (TypeError, ValueError, OverflowError):
+                except (TypeError, ValueError, OverflowError) as exc:
+                    logger.debug("Reported prompt_tps is not a number: %s", exc)
                     reported_tps = 0.0
                 try:
                     measured_over = int(performance.get("prompt_tokens") or 0)
-                except (TypeError, ValueError, OverflowError):
+                except (TypeError, ValueError, OverflowError) as exc:
+                    logger.debug("Reported prompt_tokens is not an integer: %s", exc)
                     measured_over = 0
                 if measured_over < _BIG_ENOUGH_TO_TIME_TOKENS:
                     # Too small to be a rate. Setting a generation up costs
@@ -6111,16 +5949,16 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 self._last_prompt_cache_bytes = max(
                     0, int(response.get("prompt_cache_bytes") or 0)
                 )
-            except (TypeError, ValueError, OverflowError):
-                pass
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("prompt_cache_bytes is not an integer, leaving the last reading: %s", exc)
         receipt = _sanitize_surface_control_receipt(
             response.get("surface_control_receipt") if isinstance(response, dict) else None
         )
         if isinstance(response, dict) and "tokens_used" in response:
             try:
                 receipt["generated_tokens"] = max(0, int(response.get("tokens_used") or 0))
-            except (TypeError, ValueError, OverflowError):
-                pass
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("tokens_used is not an integer, leaving it off the receipt: %s", exc)
         if receipt:
             self._bind_surface_receipt_provenance(receipt, response)
         self._set_task_surface_control_receipt(receipt)
@@ -6545,8 +6383,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
 
             if getattr(self, "_current_turn_progress", None) is not None:
                 note_progress(progress=self._current_turn_progress)
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.debug("Turn progress unavailable, token progress not noted: %s", exc)
         if self._current_first_token_at <= 0.0:
             self._current_first_token_at = now
             # Request-to-token latency includes queueing and admission. Only
@@ -6622,7 +6460,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             activity_age_s = float(
                 payload.get("job_progress_age_s", payload.get("job_age_s", -1.0))
             )
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("Worker job timestamps are not numbers, recording no activity: %s", exc)
             return
         now = time.time()
         if (
@@ -7054,7 +6893,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             for entry in entries:
                 if entry.suffix in (".safetensors", ".bin", ".gguf", ".npz"):
                     total += entry.stat().st_size
-        except OSError:
+        except OSError as exc:
+            logger.debug("Weight files unreadable, reporting 0 bytes: %s", exc)
             total = 0
         size = total / (1024.0**3)
         _WEIGHT_SIZES[path] = size
@@ -7315,7 +7155,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             receipt = self.soft_cancel_active_generation(
                 "first_token_wall_clock_watchdog"
             )
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Soft cancel failed, the first-token watchdog did not fire: %s", exc)
             return False
         if not receipt.get("requested"):
             return False
@@ -7495,7 +7336,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             from core.runtime.proof_policy import proof_headless_run
 
             _proof_headless = proof_headless_run()
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Proof policy unavailable, reporting not headless: %s", exc)
             _proof_headless = False
         if (
             self._is_primary_or_deep_lane()
@@ -7711,7 +7553,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         if str(reason or "") == "foreground_warmup_deferred_memory_pressure":
             try:
                 worker_ready = bool(self.is_alive() and self._init_done)
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Worker readiness unreadable, reporting not ready: %s", exc)
                 worker_ready = False
             if worker_ready:
                 # CP126 5b870404: this used to stamp _last_ready_at and
@@ -8233,6 +8076,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 try:
                     await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
                 except (asyncio.CancelledError, TimeoutError):
+                    # Not a failure: a listener that has not finished inside the bounded wait is what the timeout is for.
                     pass
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     logger.debug("Prior MLX listener ended with %s", type(exc).__name__)
@@ -8346,7 +8190,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             process = self._process
             try:
                 directly_alive = bool(process and process.is_alive())
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                logger.debug("Process liveness unreadable, leaving it unknown: %s", exc)
                 directly_alive = None
             if directly_alive is False:
                 # No classifier is needed to retire a process that the process
@@ -8455,7 +8300,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         """
         try:
             from core.runtime.worker_liveness import WorkerEvidence, classify_worker
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("Worker liveness classifier unavailable: %s", exc)
             return None
 
         self._refresh_worker_job_activity()
@@ -8465,7 +8311,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         def _age(stamp: Any) -> float | None:
             try:
                 value = float(stamp or 0.0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Liveness stamp is not a number: %s", exc)
                 return None
             return max(0.0, now - value) if value > 0.0 else None
 
@@ -8481,7 +8328,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
 
         try:
             alive = bool(process.is_alive()) if process is not None else False
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Process liveness unreadable, leaving it unknown: %s", exc)
             alive = None
 
         evidence = WorkerEvidence(
@@ -8543,19 +8391,20 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         try:
             if getattr(process, "exitcode", None) is not None:
                 return True
-        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            logger.debug("Exit code unreadable, exit not proven here: %s", exc)
         try:
             if not process.is_alive():
                 return True
-        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            logger.debug("Liveness unreadable, exit not proven here: %s", exc)
         if identity is not None and getattr(identity, "bound", False):
             try:
                 from core.runtime.process_identity import identity_still_current
 
                 return not identity_still_current(identity, process)
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                logger.debug("Process identity unavailable, exit not proven: %s", exc)
                 return False
         return False
 
@@ -8565,8 +8414,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             from core.runtime.runtime_hygiene import get_runtime_hygiene
 
             get_runtime_hygiene().retire_process_handle(process)
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
-            pass
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            logger.debug("Process handle not retired from shutdown hygiene: %s", exc)
         close = getattr(process, "close", None)
         if not callable(close):
             return
@@ -8574,6 +8423,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             close()
         except ValueError:
             # ``Process.close`` is idempotent only by exception.
+            # Not a failure: a handle that is already closed is closed, which is what this wanted.
             return
         except (RuntimeError, AttributeError, TypeError, OSError) as exc:
             _record_mlx_degradation(
@@ -8630,7 +8480,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             from core.runtime.process_identity import capture_identity
 
             identity = capture_identity(p, label="mlx_model_worker")
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            logger.debug("Process identity not captured before the kill: %s", exc)
             identity = None
 
         failures: list[BaseException] = []
@@ -8665,6 +8516,7 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             except ProcessLookupError:
                 # Another owner won the race. The identity check after join
                 # distinguishes a dead PID from a stale multiprocessing handle.
+                # Not a failure: a process that has already gone is what this signal was trying to achieve.
                 pass
             except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
                 failures.append(exc)
@@ -8745,7 +8597,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         worker_model_path = identity.get("worker_model_path")
         try:
             process_alive = bool(process is not None and process.is_alive())
-        except (AssertionError, OSError, ValueError):
+        except (AssertionError, OSError, ValueError) as exc:
+            logger.debug("Process liveness unreadable, reporting not alive: %s", exc)
             process_alive = False
         if (
             not owner_id
@@ -9671,7 +9524,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             if prior is not None:
                 try:
                     prior_terminal = not bool(prior.is_alive())
-                except (RuntimeError, AttributeError, ValueError, OSError):
+                except (RuntimeError, AttributeError, ValueError, OSError) as exc:
+                    logger.debug("Prior worker liveness unreadable, not treating it as terminal: %s", exc)
                     prior_terminal = False
             if not prior_terminal:
                 error = RuntimeError(
@@ -11352,7 +11206,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             return False
         try:
             window = float(within_s)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("Production window is not a number: %s", exc)
             return False
         if not (window > 0.0):
             return False
@@ -12098,9 +11953,10 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             if isinstance(args, str):
                 try:
                     args = json.loads(args)
-                except (json.JSONDecodeError, TypeError, ValueError):
+                except (json.JSONDecodeError, TypeError, ValueError) as exc:
                     # Never INVENT an argument shape for text that failed to
                     # parse — an unparseable argument string is not a call.
+                    logger.debug("Tool call arguments are not JSON: %s", exc)
                     return None
             if args is None:
                 args = {}
@@ -12203,7 +12059,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             return None
         try:
             return _normalize(_loads_tool_json(candidate))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as exc:
+            logger.debug("Tool call payload is not JSON: %s", exc)
             return None
 
     def steering_liveness_reading(self) -> dict[str, Any]:
@@ -12249,8 +12106,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 if sm is not None and float(sm[-1]) > 0.5:
                     self._steering_liveness_observed = True
                     return True
-            except (TypeError, ValueError, IndexError, OSError):
-                pass
+            except (TypeError, ValueError, IndexError, OSError) as exc:
+                logger.debug("Substrate channel unreadable, steering liveness not observed: %s", exc)
             return None
         try:
             return bool(self._steering_active.value)
@@ -12264,7 +12121,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 return False
             # Last slot written by worker as liveness flag
             return float(sm[-1]) > 0.5
-        except (TypeError, ValueError, IndexError, OSError):
+        except (TypeError, ValueError, IndexError, OSError) as exc:
+            logger.debug("Substrate channel unreadable, reporting no steering: %s", exc)
             return False
 
     def _emit_steering_status(
@@ -12286,7 +12144,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 and math.isfinite(float(requested_alpha))
                 and float(requested_alpha) <= 0.0
             )
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("Requested alpha is not a number, not treating it as neutral: %s", exc)
             neutral_requested = False
         if active is None:
             logger.debug(
@@ -14935,6 +14794,7 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
         try:
             parsed = json.loads(stripped)
         except (json.JSONDecodeError, ValueError):
+            # Not a failure: a tool result that is not JSON is not JSON, which is what this is deciding.
             parsed = None
         if parsed is not None:
             # Re-emit a VALID, explicitly-marked truncation envelope instead
@@ -15197,7 +15057,8 @@ def _refuse_action_beyond_authority(
         if action_within_scope(target, action, skill_scope, authorised):
             return None
         needed = action_effect_scope(target, action, skill_scope)
-    except (AttributeError, ImportError, TypeError, ValueError):
+    except (AttributeError, ImportError, TypeError, ValueError) as exc:
+        logger.debug("Action scope unavailable, no authority verdict: %s", exc)
         return None
     return {
         "ok": False,
@@ -15261,7 +15122,8 @@ def _benchmark_run_context_active() -> bool:
         from core.runtime.state_ownership import RuntimeProfile, runtime_profile
 
         return runtime_profile() is RuntimeProfile.BENCH
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Runtime profile unavailable, reporting not a benchmark run: %s", exc)
         return False
 
 
