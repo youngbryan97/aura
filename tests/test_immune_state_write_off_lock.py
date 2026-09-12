@@ -225,6 +225,37 @@ class TestTheSlotCoalesces:
         assert writer.stats()["failed"] == 1
         assert writer.stats()["last_error"].startswith("OSError")
 
+    def test_two_flushes_at_once_both_see_the_write_land(self):
+        """A second flusher waits for the write rather than reporting failure."""
+        started = threading.Event()
+        release = threading.Event()
+        written: list[int] = []
+
+        def slow_write(payload):
+            started.set()
+            release.wait(timeout=5.0)
+            written.append(payload)
+
+        writer = SingleSlotStateWriter("test.concurrent", slow_write)
+        results: dict[str, bool] = {}
+
+        def flusher(tag):
+            results[tag] = writer.flush(timeout=5.0)
+
+        writer.submit(3, background=False)
+        first = threading.Thread(target=flusher, args=("a",))
+        first.start()
+        assert started.wait(timeout=5.0)
+
+        second = threading.Thread(target=flusher, args=("b",))
+        second.start()
+        release.set()
+        first.join(timeout=5.0)
+        second.join(timeout=5.0)
+
+        assert written == [3]
+        assert results == {"a": True, "b": True}, results
+
     def test_the_thread_retires_when_nothing_arrives(self):
         writer = SingleSlotStateWriter("test.retire", lambda _p: None, idle_timeout_s=0.05)
         try:

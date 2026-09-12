@@ -113,6 +113,10 @@ class SingleSlotStateWriter:
         """Make the pending payload durable. True when the slot is empty.
 
         Never call this while holding the lock the payload was built under.
+
+        A write already in flight is waited for rather than claimed, so two
+        callers flushing at once do not both report failure while the write
+        one of them started is landing.
         """
         deadline = time.monotonic() + max(0.0, float(timeout))
         while True:
@@ -121,10 +125,7 @@ class SingleSlotStateWriter:
                 if self._slot is None and not self._writing:
                     return True
                 thread = self._thread
-                if thread is None or not thread.is_alive():
-                    if self._slot is None:
-                        # A write in flight on a thread that has since died.
-                        return False
+                if (thread is None or not thread.is_alive()) and self._slot is not None:
                     inline = self._slot
                     self._slot = None
                     self._writing = True
