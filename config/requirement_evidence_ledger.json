@@ -1,5 +1,5 @@
 {
-  "content_sha256": "caa0e86c79365a9c82830839d92f6ee0df8bf4776fac70425551c68888ff4248",
+  "content_sha256": "fed1d09e38abacb752dcc594ff6f5cc22cc9da143770b599099e7fbfe0a541ec",
   "entries": [
     {
       "acceptance_ids": [
@@ -136,12 +136,12 @@
         "A4",
         "A5"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "ADDENDUM-23",
-      "sha256": "455559bafc9f87005531e0e6ebfc7110375fd8f34dac5ffee2f962f6858ffcef"
+      "sha256": "1e3ceccfe5856aea151a8100a4bd8cba623c2b2a39f951f8cb55be6aa79921b3"
     },
     {
       "acceptance_ids": [
@@ -163,12 +163,12 @@
         "A2",
         "A3"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "ADDENDUM-32",
-      "sha256": "44c5e3b0b6bfdb0fb6f08dbe023bcb423bad4702eaef60e223d890988d399900"
+      "sha256": "793111927c79f539b86ec2cb93bff0bc666d92026d8b0793861e730a5b7ae6e7"
     },
     {
       "acceptance_ids": [
@@ -350,12 +350,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SHUTDOWN-001",
-      "sha256": "44c5e3b0b6bfdb0fb6f08dbe023bcb423bad4702eaef60e223d890988d399900"
+      "sha256": "793111927c79f539b86ec2cb93bff0bc666d92026d8b0793861e730a5b7ae6e7"
     },
     {
       "acceptance_ids": [
@@ -372,12 +372,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SHUTDOWN-002",
-      "sha256": "44c5e3b0b6bfdb0fb6f08dbe023bcb423bad4702eaef60e223d890988d399900"
+      "sha256": "793111927c79f539b86ec2cb93bff0bc666d92026d8b0793861e730a5b7ae6e7"
     },
     {
       "acceptance_ids": [
@@ -394,23 +394,23 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SHUTDOWN-003",
-      "sha256": "44c5e3b0b6bfdb0fb6f08dbe023bcb423bad4702eaef60e223d890988d399900"
+      "sha256": "793111927c79f539b86ec2cb93bff0bc666d92026d8b0793861e730a5b7ae6e7"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d5dca3cc233c160d5c4583e2edc29f96f66cc957",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/skill-filesystem-parity-audit/d5dca3cc233c160d5c4583e2edc29f96f66cc957.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/skill-filesystem-parity-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SKILL-001",
-      "sha256": "5a7cfc197bfabaf83d4a75fef6782d41ba51ded2305066a4bf8d0b81e17a4414"
+      "sha256": "9d71dd04f01c404eabcffe0c6d76faff0c20b6c7f0c7e6e999416ea0d6b068d1"
     },
     {
       "acceptance_ids": [
@@ -438,12 +438,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "a42f6523de058f20453190f789aaddad53356cd1",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/skill-runtime-route-audit/a42f6523de058f20453190f789aaddad53356cd1.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/skill-runtime-route-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "3a7a23970d087ce23c136af57b043d189cb3961a4877d829f7bc076983b7c0b5"
+      "sha256": "ce99ae149bd37812dec7434a393ed07f87695b69b69692a6b5cca10101c74adf"
     },
     {
       "acceptance_ids": [
@@ -471,12 +471,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "CTX2-SKILL-002",
-      "sha256": "455559bafc9f87005531e0e6ebfc7110375fd8f34dac5ffee2f962f6858ffcef"
+      "sha256": "1e3ceccfe5856aea151a8100a4bd8cba623c2b2a39f951f8cb55be6aa79921b3"
     },
     {
       "acceptance_ids": [
@@ -570,23 +570,23 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "068ca4c7f23f856852bf9c690ee98283c5baddbe",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/lifecycle-ownership-audit/068ca4c7f23f856852bf9c690ee98283c5baddbe.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/lifecycle-ownership-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "LIFECYCLE-001",
-      "sha256": "f7741c6df160899c8247d373519d67aaea8f815d49cf65f943c4e87c5bc4387b"
+      "sha256": "4aa03278223eba9dbb2a718866cdcb1c98c7ef17d1f1ef5f2129f342538d6610"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "5b78e7e21ae11598fb8980c457092b21d9d501d5",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/lifecycle-ownership-contract-tests/5b78e7e21ae11598fb8980c457092b21d9d501d5.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/lifecycle-ownership-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "LIFECYCLE-001",
-      "sha256": "d254d9149182d0e1b74c79c1b6479efe33fe9c7d60aa903d0efd1fdbe9e70167"
+      "sha256": "ab36c2be7ef919642f4adbc84090edb6ec369962b63a6331bd2ae3659c3778cd"
     },
     {
       "acceptance_ids": [
@@ -618,12 +618,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "c52b1efb191032063aa5a3616326fe5e5daad17b",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/reqproof-progress-engine-audit/c52b1efb191032063aa5a3616326fe5e5daad17b.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/reqproof-progress-engine-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "PROGRESS-CONTROL-001",
-      "sha256": "c7006500703270b037d84cfa4fa8e502f790947564bcaa42feae0f99d2758d61"
+      "sha256": "2764277b4bfdb98e93777a93900173bee604b8f01e639650434737eee3098d9b"
     },
     {
       "acceptance_ids": [
@@ -695,23 +695,23 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "test",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/shutdown-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "SHUTDOWN-001",
-      "sha256": "44c5e3b0b6bfdb0fb6f08dbe023bcb423bad4702eaef60e223d890988d399900"
+      "sha256": "793111927c79f539b86ec2cb93bff0bc666d92026d8b0793861e730a5b7ae6e7"
     },
     {
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "d316a8c1f393a9b4eeec7429ea72af51c6c359a2",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
       "recorded_at": "2026-09-12",
-      "ref": "artifacts/reqproof/evidence/gate-skill-closure-audit/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json",
+      "ref": "artifacts/reqproof/evidence/skill-runtime-route-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "SKILLS-001",
-      "sha256": "e93133a3208528937b8c2d5a4dc347ad4524dda85ff7250b21ea9c4ca70f2995"
+      "sha256": "ce99ae149bd37812dec7434a393ed07f87695b69b69692a6b5cca10101c74adf"
     },
     {
       "acceptance_ids": [
@@ -728,12 +728,12 @@
       "acceptance_ids": [
         "A1"
       ],
-      "commit": "666bf0ce73f87c86f79fc79a03f795d5db4207eb",
+      "commit": "e90f63f3b7a43bacbede6a7a8dd107ac0563ed14",
       "evidence_class": "implementation",
-      "recorded_at": "2026-08-25",
-      "ref": "artifacts/reqproof/evidence/production-surface-ownership-audit/666bf0ce73f87c86f79fc79a03f795d5db4207eb.json",
+      "recorded_at": "2026-09-12",
+      "ref": "artifacts/reqproof/evidence/production-surface-ownership-audit/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json",
       "requirement_id": "STORAGE-GATEWAY-001",
-      "sha256": "19c43d3b5cb656b49a0bfa703ad68f87a08d0e170d71f8f21fcd1e05f5f0fa61"
+      "sha256": "5518f02ed11891861e782110fefabc5a62a637e6eb249dea864eaa0222b2afcd"
     },
     {
       "acceptance_ids": [
