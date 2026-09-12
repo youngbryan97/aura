@@ -162,6 +162,9 @@ def _cleanup(paths: list[Path]) -> None:
         try:
             if p.exists():
                 p.unlink()
+        # Not a failure: a temporary file that will not delete is left for
+        # the operating system. The artifact it belonged to is already
+        # built or already abandoned either way.
         except OSError:
             pass
 

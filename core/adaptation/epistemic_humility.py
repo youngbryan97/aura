@@ -86,6 +86,8 @@ class EpistemicHumility:
             task.cancel()
             try:
                 await asyncio.wait_for(task, timeout=1.0)
+            # Not a failure: the line above cancelled it, so this is the
+            # cancellation arriving rather than something going wrong.
             except asyncio.CancelledError:
                 pass
             except TimeoutError as exc:
