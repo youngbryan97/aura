@@ -336,6 +336,13 @@ def what_it_stood_at_last_time() -> dict[str, Any]:
     return {
         "declared_lesions": held.get("declared_lesions"),
         "measured": held.get("measured"),
+        # Separate, and named with its substrate, because a verdict at a 1.5B
+        # is not a verdict at the cortex. Health showed only `measured`, which
+        # is still zero, so four real verdicts were invisible where the rest of
+        # the integrity block is read.
+        "measured_at_substrate": held.get("measured_at_substrate"),
+        "substrate": held.get("substrate"),
+        "substrate_verdicts": dict(held.get("substrate_verdicts") or {}),
         "unmeasured": len(held.get("still_unmeasured") or ()),
         "still_unmeasured": list(held.get("still_unmeasured") or ())[:20],
         "worked_out_this_process": _declared_lesions.cache_info().currsize > 0,

@@ -175,7 +175,11 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move():
         async def generate(self, *_args, **_kwargs):  # pragma: no cover - never called
             raise AssertionError("a channel this job cannot move must cost no generations")
 
+    # Counted as a delta, not an absolute. `forget_everything` clears the
+    # in-memory fold and the next read loads the persisted counts back, so the
+    # absolute depends on whatever state root this run happens to have.
     forget_everything()
+    before = how_the_campaign_has_gone()["counts"].get("unreachable", 0)
     original = influence_campaign.campaign_admission_reason
     influence_campaign.campaign_admission_reason = lambda **_: ""
     ServiceContainer.register("inference_gate", _Gate())
@@ -187,4 +191,20 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move():
 
     assert result["status"] == "unreachable"
     assert "test.unreachable_channel" in result["unreachable"]
-    assert how_the_campaign_has_gone()["counts"].get("unreachable") == 1
+    assert how_the_campaign_has_gone()["counts"].get("unreachable", 0) == before + 1
+
+
+def test_the_health_report_shows_the_substrate_count():
+    """Four real verdicts were invisible where the integrity block is read.
+
+    ``what_it_stood_at_last_time`` is the cheap reader health serves, and it
+    reported only ``measured`` — which is the live path and is still zero.
+    """
+    from core.verify.what_has_a_measured_effect import what_it_stood_at_last_time
+
+    shown = what_it_stood_at_last_time()
+    assert shown["measured"] == 0
+    assert shown["measured_at_substrate"] >= 4
+    assert shown["substrate"]
+    assert len(shown["substrate_verdicts"]) >= 4
+    assert shown["what_this_means"]
