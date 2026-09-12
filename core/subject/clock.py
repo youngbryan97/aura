@@ -28,6 +28,7 @@ from __future__ import annotations
 import threading
 import time as _time
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["ExperimentClock", "installed_clock", "real_time"]
 
@@ -40,7 +41,7 @@ real_time = _time.time
 #: The process-wide installed clock, if any. One per process, because it
 #: replaces a module-level function that every subsystem shares.
 _INSTALLED: ExperimentClock | None = None
-_INSTALL_LOCK = threading.Lock()
+_INSTALL_LOCK = checked_lock("core.subject.clock._INSTALL_LOCK")
 
 
 def installed_clock() -> ExperimentClock | None:
@@ -54,7 +55,7 @@ class ExperimentClock:
     def __init__(self, step: float, *, start: float | None = None) -> None:
         self.step = max(1e-6, float(step))
         self._now = float(start if start is not None else _time.time())
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.subject.clock.experiment_clock")
         self._real_time: Any = None
 
     # ── reading ──────────────────────────────────────────────────────────

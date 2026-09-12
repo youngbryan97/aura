@@ -22,6 +22,7 @@ here decides anything; it is a ledger.
 from __future__ import annotations
 
 import threading
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["EffortLedger", "get_effort_ledger", "note_effort", "reset_effort_for_test"]
 
@@ -49,7 +50,7 @@ class EffortLedger:
     """Exertion reported since the last time the body looked."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.soma.effort.ledger")
         self._pending: dict[str, float] = {}
         self._lifetime: dict[str, float] = {}
 
@@ -114,7 +115,7 @@ class EffortLedger:
 
 
 _ledger: EffortLedger | None = None
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.soma.effort._ledger_lock")
 
 
 def get_effort_ledger() -> EffortLedger:
