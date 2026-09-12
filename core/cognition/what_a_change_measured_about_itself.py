@@ -40,6 +40,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatAChangeMeasuredAboutItself")
 
@@ -118,7 +119,7 @@ def changes_nothing(said: str, because: str = "it installs nothing") -> ChangesN
 
 
 _CLAIMS: dict[str, dict[str, Any]] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.cognition.what_a_change_measured_about_itself._LOCK")
 
 
 def the_evidence_in(said: Any) -> WhatItMeasured | None:

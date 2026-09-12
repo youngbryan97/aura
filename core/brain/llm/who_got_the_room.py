@@ -27,6 +27,7 @@ import re
 import threading
 from dataclasses import dataclass
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhoGotTheRoom")
 
@@ -169,7 +170,7 @@ def who_was_squeezed(
 
 
 _LEDGER: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.brain.llm.who_got_the_room._LOCK")
 _KEEP = 200
 
 

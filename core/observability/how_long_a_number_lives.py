@@ -23,6 +23,7 @@ import threading
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Callable
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.HowLongANumberLives")
 
@@ -70,7 +71,7 @@ class ANumber:
 
 
 _NUMBERS: dict[str, ANumber] = {}
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.observability.how_long_a_number_lives._LOCK", reentrant=True)
 
 
 def declare_a_number(

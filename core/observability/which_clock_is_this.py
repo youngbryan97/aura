@@ -41,6 +41,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhichClockIsThis")
 
@@ -118,7 +119,7 @@ _OFFSETS: dict[ClockDomain, float] = {
 }
 _ANCHOR: dict[ClockDomain, float] = {}
 _READS: dict[ClockDomain, int] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.observability.which_clock_is_this._LOCK")
 
 
 def _reader_for(domain: ClockDomain) -> Callable[[], float]:

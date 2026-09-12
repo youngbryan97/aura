@@ -27,6 +27,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Connectome.Integration")
 
@@ -65,7 +66,7 @@ CHANNEL_FINDINGS = "connectome.findings"
 CHANNEL_FINDINGS_CONFIRMED = "connectome.findings_confirmed"
 
 _CACHE: dict[str, Any] = {}
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.connectome.integration._LOCK", reentrant=True)
 _DECLARED = False
 _MAPPED = False
 
