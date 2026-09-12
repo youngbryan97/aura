@@ -1098,7 +1098,11 @@ def _snapshot_process_globals() -> dict[str, object]:
     name — each one silently reconfigures every later test, and the guard can
     only name the polluter after the damage. All three can be put back exactly,
     so put them back.
+
+    And `time.time`, which the Subject Core replaces with an experiment clock.
     """
+    import time
+
     return {
         "aura_env": {
             key: value
@@ -1106,6 +1110,7 @@ def _snapshot_process_globals() -> dict[str, object]:
             if key.startswith("AURA_")
         },
         "cwd": os.getcwd(),
+        "wall_clock": time.time,
         "mocked_modules": {
             name: module
             for name, module in list(sys.modules.items())
@@ -1146,6 +1151,23 @@ def _restore_process_globals(snapshot: dict[str, object]) -> None:
             # A stand-in the test installed. Dropping it lets the next importer
             # get the real module back; leaving it rewires every later import.
             sys.modules.pop(name, None)
+
+    import time
+
+    saved_clock = snapshot.get("wall_clock")
+    if saved_clock is not None and time.time is not saved_clock:
+        # An experiment clock a test installed and never took down. Every later
+        # test reads a stopped clock for the time, and the next clock installed
+        # over it deadlocked the whole process on Sep 12. Taken down through the
+        # clock itself first, so the module's record of what is installed goes
+        # with it.
+        clock_module = sys.modules.get("core.subject.clock")
+        installed = getattr(clock_module, "installed_clock", None)
+        current = installed() if callable(installed) else None
+        if current is not None:
+            current.uninstall()
+        if time.time is not saved_clock:
+            time.time = saved_clock  # type: ignore[assignment]
 
 
 def _reset_test_scoped_runtime_services() -> None:
@@ -2148,8 +2170,11 @@ _STATE_GUARD_LEDGER: list[str] = []
 # be asking for another allowlist entry.
 _STATE_GUARD_CONTAINED_LEDGER: list[str] = []
 _CONTAINED_STATE_KEYS = frozenset(
-    {"service_container", "aura_env", "cwd", "mocked_core_modules"}
+    {"service_container", "aura_env", "cwd", "mocked_core_modules", "wall_clock"}
 )
+
+#: The machine's `time.time`, taken before any test can replace it.
+_REAL_WALL_CLOCK = __import__("time").time
 
 
 def _global_state_fingerprint() -> dict[str, object]:
@@ -2177,6 +2202,11 @@ def _global_state_fingerprint() -> dict[str, object]:
         )
     except OSError:
         pass
+    import time
+
+    # Whether `time.time` is still the machine's. A test that installs an
+    # experiment clock and leaves it up hands every later test a stopped clock.
+    fingerprint["wall_clock"] = "real" if time.time is _REAL_WALL_CLOCK else "replaced"
     try:
         # Installed resolvers and sinks are process-global by design: they are
         # how the runtime is wired once at boot. A test that installs one and

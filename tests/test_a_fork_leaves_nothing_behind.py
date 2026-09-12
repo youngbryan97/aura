@@ -127,7 +127,18 @@ def test_an_arm_that_ran_leaves_the_organism_where_it_found_it() -> None:
             )
             return before, after, before_periphery, after_periphery
 
-    before, after, before_periphery, after_periphery = asyncio.run(run())
+    from core.subject.clock import installed_clock
+
+    try:
+        before, after, before_periphery, after_periphery = asyncio.run(run())
+    finally:
+        # `calibrate_clock` installs the run's clock over `time.time` and nothing
+        # in a run takes it down, because a run ends with its process. A test
+        # does not, and the next clock installed over this one deadlocked the
+        # suite.
+        clock = installed_clock()
+        if clock is not None:
+            clock.uninstall()
 
     drifted: list[str] = []
     for name, vector in before.items():

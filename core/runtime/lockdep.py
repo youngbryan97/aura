@@ -81,6 +81,15 @@ from core.runtime.taint import TaintFlag, taint
 
 logger = logging.getLogger("Aura.Lockdep")
 
+#: The machine's wall clock, taken when this module loads. A splat is stamped
+#: while the validator holds its own lock, and `time.time` is replaceable: the
+#: Subject Core installs an experiment clock over it for a whole campaign. An
+#: installed clock that takes a checked lock sent the stamp back into this
+#: module under its own lock, and every thread that asked the time parked
+#: behind it. Nothing that can install a clock loads before this module does,
+#: because installing one needs a lock from here.
+_wall_time = time.time
+
 #: Basename of this module, for skipping our own frames when naming a call
 #: site. Computed once; ``_site`` runs on every acquire.
 _THIS_FILE = __file__.rsplit("/", 1)[-1]
@@ -536,7 +545,7 @@ class LockdepValidator:
             message=message,
             held=tuple(h.name for h in held),
             acquiring=acquiring,
-            at=time.time(),
+            at=_wall_time(),
             stack=self._stack(),
             context=context,
         )
@@ -641,7 +650,7 @@ class LockdepValidator:
                 message=message,
                 held=tuple(held),
                 acquiring="(external)",
-                at=time.time(),
+                at=_wall_time(),
                 stack=self._stack(),
                 context=label,
             )
