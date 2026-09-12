@@ -3022,7 +3022,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/adaptation/adaptive_immunity.py",
-      "scope": "<module>.AdaptiveImmuneSystem._save_state"
+      "scope": "<module>.AdaptiveImmuneSystem._write_state_payload"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -16426,6 +16426,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "b213bebd5680fbb58fa00417391319c7f28b007c2d70bbcb04bd27eee8e68990",
+  "inventory_sha256": "78f43ded55f0f3e356b25e5242d068cd24841099ab149b31f0ebd696ead1283f",
   "schema_version": 1
 }
