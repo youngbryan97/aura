@@ -37,7 +37,7 @@ from typing import Any
 import numpy as np
 
 from core.adaptation.immune_state_writer import (
-    DEFAULT_FLUSH_TIMEOUT_S,
+    ImmuneStatePersistence,
     SingleSlotStateWriter,
 )
 from core.adaptation.spatial_receptor_code import annotate_antigen_like
@@ -1348,7 +1348,7 @@ class OfflineCoevolutionLab:
         return population[:4]
 
 
-class AdaptiveImmuneSystem:
+class AdaptiveImmuneSystem(ImmuneStatePersistence):
     """Adaptive immune ecology for Aura."""
 
     _PROTECTED_SUBSYSTEM_HINTS = (
@@ -3440,156 +3440,6 @@ class AdaptiveImmuneSystem:
             ),
         )
         return float(scale), float(max(0.0, min(1.0, entropy_pressure)))
-
-    def _save_state(self, *, force: bool = False) -> None:
-        """Persist the immune ecology, coalescing bursts.
-
-        CP126 df9f2a05: core observation writes state, reinforcement can write
-        again, and the response summary writes again — so ONE event
-        serialized the whole ecology several times. During a failure storm,
-        which is exactly when many events arrive at once, that multiplied I/O
-        and lock time in the subsystem meant to be responding to the storm.
-
-        Writes inside the coalescing interval are deferred, not dropped: the
-        dirty flag survives and the next call past the interval writes the
-        latest state. The honest cost is that a crash can lose up to
-        ``_save_min_interval_s`` of fitness updates — which is a far better
-        trade than amplifying the storm that causes the crash, and callers
-        that need a durable point (boot seeding, consolidation) pass
-        force=True.
-
-        force=True means the snapshot is taken now and written next, not
-        that the disk has it when this returns. The write happens on the
-        caller's thread only where blocking is the caller's own cost —
-        off the ecology lock and off the event loop. Everywhere else it
-        goes to the writer thread, and :meth:`flush_state` is how a caller
-        waits for it.
-        """
-        now = time.time()
-        self._state_dirty = True
-        if not force and (now - self._last_save_at) < self._save_min_interval_s:
-            self._deferred_saves += 1
-            return
-        self._last_save_at = now
-        self._state_dirty = False
-        payload = {
-            "cells": [cell.to_dict() for cell in self._cells],
-            "tissue": self._tissue.to_dict(),
-            "lineage_stats": {
-                lineage_id: {
-                    "successes": int(stats["successes"]),
-                    "failures": int(stats["failures"]),
-                    "best_effector": (
-                        stats["best_effector"].value
-                        if isinstance(stats["best_effector"], EffectorKind)
-                        else None
-                    ),
-                    "best_fitness": float(stats["best_fitness"]),
-                }
-                for lineage_id, stats in self._lineage_stats.items()
-            },
-            "observation_count": self._observation_count,
-            "last_dream_at": self._last_dream_at,
-            "recent_antigens": [antigen.to_dict() for antigen in list(self._recent_antigens)[-24:]],
-            "recent_responses": list(self._recent_responses)[-24:],
-            "recurrence_tracker": {
-                key: {
-                    "occurrences": int(stats.get("occurrences", 0)),
-                    "last_seen": float(stats.get("last_seen", 0.0)),
-                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
-                    "last_interval": (
-                        float(stats["last_interval"])
-                        if stats.get("last_interval") is not None
-                        else None
-                    ),
-                    "streak": int(stats.get("streak", 0)),
-                    "peak_streak": int(stats.get("peak_streak", 0)),
-                    "verified_repairs": int(stats.get("verified_repairs", 0)),
-                    "failed_repairs": int(stats.get("failed_repairs", 0)),
-                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
-                }
-                for key, stats in self._recurrence_tracker.items()
-            },
-            "expansion_engine": self.expansion_engine.to_dict(),
-        }
-        payload["schema_version"] = IMMUNE_STATE_SCHEMA_VERSION
-        # An unkeyed digest over the body: it detects CORRUPTION and truncation,
-        # not tampering by anyone who can write the file. Labelled as what it
-        # is rather than as a trust root — a signed state file needs a key this
-        # subsystem does not hold (CP126 5c214831).
-        payload["integrity"] = {
-            "algorithm": "sha256-unkeyed",
-            "digest": _immune_state_digest(payload),
-        }
-        # The snapshot had to be built under the caller's lock. The write
-        # does not: lockdep reported the fsync under _lock during a
-        # subject-core run, which is the class of defect that froze the live
-        # event loop for twenty minutes. Hand the payload over and let the
-        # disk work happen where nothing is waiting on the ecology.
-        here = force and not self._lock.held_by_current_thread() and not _on_event_loop()
-        self._state_writer.submit(payload, background=not here)
-        if here:
-            self.flush_state()
-
-    def flush_state(self, timeout: float = DEFAULT_FLUSH_TIMEOUT_S) -> bool:
-        """Make the newest snapshot durable. True when nothing is pending.
-
-        Refuses under ``_lock``, and on the event loop, and says so with
-        False. Both are places where waiting for a disk write costs what
-        doing the write there cost — the lock because every other caller of
-        the immune ecology queues behind it, the loop because everything
-        else in the runtime does. The queued payload is not lost either
-        way: the writer thread still has it.
-        """
-        if self._lock.held_by_current_thread() or _on_event_loop():
-            return False
-        return self._state_writer.flush(timeout)
-
-    def on_stop(self) -> None:
-        """Container shutdown hook: the last snapshot has to land.
-
-        Bounded well inside the container's per-hook budget. A state file
-        this size writes in milliseconds, so a drain that needs seconds is
-        a sick disk, and holding shutdown for it helps nobody.
-        """
-        self._state_writer.stop(timeout=STATE_SHUTDOWN_TIMEOUT_S)
-
-    def _record_state_write_failure(self, exc: BaseException) -> None:
-        """Report a failed state write from whichever thread ran it.
-
-        The write used to run inline, so a narrow except list was enough —
-        anything unlisted reached the caller. Off the caller's thread there
-        is no caller to reach, so every failure is recorded here instead of
-        one class of them being lost with the thread.
-        """
-        _record_adaptive_immunity_degradation(
-            exc,
-            action="Skipped adaptive immune persistence write and kept in-memory immune state active",
-            extra={"state_path": str(self._state_path), "cells": len(self._cells)},
-        )
-        logger.debug("Adaptive immune state save skipped: %s", exc)
-
-    def _write_state_payload(self, payload: dict[str, Any]) -> None:
-        """Put one serialized ecology on disk. Never called under ``_lock``.
-
-        Route through the governed file-write gateway: a repair-capable,
-        behavior-evolving state file is a consequential write and must be
-        authorized and receipt-bound like every other one. The scope is
-        built here rather than inherited, so it holds on the writer thread.
-        """
-        from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
-
-        with local_internal_governed_scope(
-            "adaptation.adaptive_immunity.state",
-            domain="file_write",
-            receipt_prefix="adaptive-immunity-state",
-        ):
-            get_file_write_gateway().write_text(
-                self._state_path,
-                json.dumps(payload, indent=2),
-                source="adaptation.adaptive_immunity.state",
-            )
 
     def _load_state(self) -> bool:
         if not self._state_path.exists():
