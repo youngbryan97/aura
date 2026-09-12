@@ -368,27 +368,73 @@ def test_a_consumer_that_never_does_anything_is_named() -> None:
     reset_consumer_activity()
 
 
-def test_a_consumer_with_a_winner_to_act_on_counts_as_working() -> None:
+def test_a_consumer_that_reports_nothing_is_not_counted_as_having_written() -> None:
+    """A winner to act on is not evidence that anything was acted on.
+
+    This used to assert the opposite, on the ground that calling a working
+    consumer dead is worse than crediting a silent one. The hole in that was
+    that nothing ever set the marker, so every write this monitor reported was
+    the fallback inventing one — and a consumer that silently did nothing was
+    indistinguishable from one that worked, which is the state of affairs the
+    file exists to detect.
+    """
     import asyncio
     from types import SimpleNamespace
 
     from core.consciousness.broadcast_consumers import (
         _counted,
+        _wrote,
         consumer_activity,
         reset_consumer_activity,
     )
 
     reset_consumer_activity()
 
-    async def does_something(event) -> None:
+    async def does_nothing(event) -> None:
         return
+
+    async def does_something(event) -> None:
+        _wrote()
 
     winner = SimpleNamespace(source="perception", content="x", effective_priority=0.7)
 
     async def go() -> None:
-        wrapped = _counted("somewhere", does_something)
-        await wrapped(SimpleNamespace(winners=[winner]))
+        await _counted("silent", does_nothing)(SimpleNamespace(winners=[winner]))
+        await _counted("reports", does_something)(SimpleNamespace(winners=[winner]))
 
     asyncio.run(go())
-    assert "somewhere" not in consumer_activity()["never_wrote"]
+    activity = consumer_activity()
+
+    assert activity["ran_without_writing"]["silent"] == 1
+    assert "silent" in activity["never_wrote"]
+    assert activity["wrote"].get("silent", 0) == 0
+
+    assert activity["wrote"]["reports"] == 1
+    assert "reports" not in activity["never_wrote"]
+    assert "reports" not in activity["ran_without_writing"]
     reset_consumer_activity()
+
+
+def test_every_registered_consumer_reports_its_own_write() -> None:
+    """Otherwise the honest accounting reports five dead consumers.
+
+    Removing the fallback only helps if the writes it was standing in for are
+    real. Each consumer writes somewhere its destination reads; each one says
+    so at the point the write lands.
+    """
+    import inspect
+
+    from core.consciousness import broadcast_consumers
+
+    source = inspect.getsource(broadcast_consumers.register_broadcast_consumers)
+    for consumer in (
+        "to_recurrent_cognition",
+        "to_self_model",
+        "to_affect",
+        "to_deliberation",
+        "to_perception",
+    ):
+        body = source[source.index(f"async def {consumer}(") :]
+        end = body.find(chr(10) + "    async def ", 10)
+        body = body[:end] if end > 0 else body
+        assert "_wrote()" in body, f"{consumer} never reports a write"

@@ -25,6 +25,7 @@ tick that called it.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 from typing import Any
 
@@ -140,14 +141,43 @@ def _drive_served(source: str) -> str:
 #: writes is a run where global access is narrower than the report says.
 _CALLED: dict[str, int] = {}
 _WROTE: dict[str, int] = {}
+#: Ran with a winner to act on and reported no write. Counted separately
+#: because it is neither "wrote" nor "was never called", and the two it sits
+#: between are the two this monitor exists to tell apart.
+_QUIET: dict[str, int] = {}
+
+#: Which consumer is running, so :func:`_wrote` needs no argument and the
+#: consumers keep the signature the workspace calls them with.
+_RUNNING: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "broadcast_consumer", default=""
+)
+
+
+def _wrote() -> None:
+    """The running consumer changed the state its destination reads.
+
+    Called at the point the write lands, never before it. Everything this
+    monitor reports rests on that being true.
+    """
+    name = _RUNNING.get()
+    if name:
+        _WROTE[name] = _WROTE.get(name, 0) + 1
 
 
 def _counted(name: str, consumer: Any) -> Any:
     """Wrap a consumer so the run can say whether it ever did anything.
 
-    "Did anything" is whether the state it writes into changed, which is read
-    off a marker the consumer sets. A consumer that returns before writing
-    leaves the marker alone.
+    A consumer that ran with a winner and reported nothing used to be counted
+    as having written, on the ground that calling a working consumer dead is
+    worse. That reasoning had a hole big enough to swallow the whole monitor:
+    nothing ever set the marker, so EVERY write in this report was the
+    fallback inventing one, and a consumer that silently did nothing was
+    indistinguishable from one that worked — which is the state of affairs the
+    file was written to detect.
+
+    So the invention is gone and the third state is named instead. A consumer
+    that does not report is `ran_without_writing`, which is a thing a person
+    can go and look at.
     """
     import functools
 
@@ -155,13 +185,13 @@ def _counted(name: str, consumer: Any) -> Any:
     async def counted(event: Any) -> None:
         _CALLED[name] = _CALLED.get(name, 0) + 1
         before = _WROTE.get(name, 0)
-        await consumer(event)
+        token = _RUNNING.set(name)
+        try:
+            await consumer(event)
+        finally:
+            _RUNNING.reset(token)
         if _WROTE.get(name, 0) == before and _winner(event) is not None:
-            # The consumer ran to the end with a winner to act on. Whether it
-            # wrote is its own business to report; anything that does not
-            # report is counted as having written, because the alternative is
-            # calling a working consumer dead.
-            _WROTE[name] = before + 1
+            _QUIET[name] = _QUIET.get(name, 0) + 1
 
     return counted
 
@@ -171,6 +201,7 @@ def consumer_activity() -> dict[str, Any]:
     return {
         "called": dict(sorted(_CALLED.items())),
         "wrote": dict(sorted(_WROTE.items())),
+        "ran_without_writing": dict(sorted(_QUIET.items())),
         "never_wrote": sorted(name for name in _CALLED if not _WROTE.get(name)),
     }
 
@@ -178,6 +209,7 @@ def consumer_activity() -> dict[str, Any]:
 def reset_consumer_activity() -> None:
     _CALLED.clear()
     _WROTE.clear()
+    _QUIET.clear()
 
 
 def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> list[str]:
@@ -206,6 +238,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             await substrate.inject_stimulus(
                 stimulus, weight=min(1.0, max(0.0, float(winner.effective_priority)))
             )
+            _wrote()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "broadcast_consumers",
@@ -228,6 +261,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 return
             beliefs["attending:source"] = str(winner.source)[:64]
             beliefs["attending:priority"] = round(float(winner.effective_priority), 4)
+            _wrote()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="the self model did not record the broadcast")
@@ -252,6 +286,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
                 "source": str(winner.source)[:64],
             }
+            _wrote()
         except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="affect did not take the broadcast")
@@ -290,6 +325,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 "drive": drive,
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
             }
+            _wrote()
         except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="deliberation did not take the broadcast")
@@ -318,6 +354,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 "content": str(winner.content)[:512],
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
             }
+            _wrote()
         except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="perception did not take the broadcast")
