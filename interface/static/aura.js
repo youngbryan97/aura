@@ -6221,10 +6221,11 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
 
         // Ordered lists (1. item)
         h = h.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+            const start = Number(block.match(/^\d+/)[0]);
             const items = block.trim().split('\n').map(line =>
                 `<li>${line.replace(/^\d+\. /, '')}</li>`
             ).join('');
-            return `<ol>${items}</ol>`;
+            return `<ol start="${start}">${items}</ol>`;
         });
 
         // Inline formatting (bold, italic, code, links)

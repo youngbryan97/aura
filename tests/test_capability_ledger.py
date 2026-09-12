@@ -5,6 +5,7 @@ the runtime held the opposite fact.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from unittest import mock
 
 import pytest
@@ -511,7 +512,13 @@ def test_borrowed_human_psychology_is_caught_as_a_false_self_claim(monkeypatch):
 
 def test_a_denial_with_no_first_person_pronoun_is_still_a_denial():
     """"the request would not persist" denies as completely as "I can't"."""
-    ledger = _ledger(_fixed("reminder"))
+    available = cl.Availability(
+        name="reminder", present=True, usable_now=True, summary="Reminder retained."
+    )
+    ledger = _ledger(cl.LiveCapability(
+        "reminder", ("reminder",), lambda: available,
+        failure_frame=cl._RETENTION_FAILURE_FRAME,
+    ))
     assert ledger.contradicted_claims("The reminder would not persist.")
     assert ledger.contradicted_claims("No action would be taken on that reminder.")
 
@@ -532,6 +539,7 @@ def test_predicate_overlap_cannot_authorize_capability_replacement(sentence):
     ))
     ledger = _ledger(cl.LiveCapability(
         live.name, live.subjects, probe, denial_subjects=live.denial_subjects,
+        failure_frame=live.failure_frame,
     ))
     claims = ledger.contradicted_claims(sentence)
     assert claims == []
@@ -546,10 +554,71 @@ def test_declared_referents_work_for_new_capabilities_without_ledger_rules():
     ledger = _ledger(cl.LiveCapability(
         "storage", ("durable", "persist", "archive"), lambda: availability,
         denial_subjects=("archive",),
+        failure_frame=cl._RETENTION_FAILURE_FRAME,
     ))
     assert not ledger.contradicted_claims("The pattern does not persist.")
     assert ledger.contradicted_claims("The archive does not persist.")
     assert ledger.contradicted_claims("I cannot persist anything.")
+
+
+@pytest.mark.parametrize("sentence", [
+    "Sweat evaporates from the body, taking thermal energy with it.",
+    "Water evaporates near the camera lens.",
+    "Unused energy is discarded by this calculation.",
+    "The sensor signal would not persist after the external device loses power.",
+])
+def test_a_domain_loss_is_not_a_denial_of_an_unrelated_capability(sentence):
+    declared = cl._default_ledger()
+    ledger = cl.CapabilityLedger()
+    for name in declared.names():
+        ledger.register(replace(declared.get(name), probe=mock.Mock(
+            side_effect=AssertionError(
+                "A capability must not be measured to refute an unrelated loss predicate"
+            )
+        )))
+    claims = ledger.contradicted_claims(sentence)
+    assert claims == []
+    assert cl.reconcile_contradicted_claims(sentence, claims) == sentence
+
+
+def test_retention_failure_belongs_only_to_the_declared_owner():
+    ledger = _ledger(
+        cl.LiveCapability(
+            "reminder", ("reminder",),
+            lambda: cl.Availability(
+                name="reminder", present=True, usable_now=True, summary="Reminder retained."
+            ),
+            failure_frame=cl._RETENTION_FAILURE_FRAME,
+        ),
+        _fixed("energy"),
+    )
+    claims = ledger.contradicted_claims("The reminder evaporates when my energy drops.")
+    assert [claim.availability.name for claim in claims] == ["reminder"]
+
+
+@pytest.mark.asyncio
+async def test_physical_cooling_reaches_delivery_without_a_self_state_replacement(monkeypatch):
+    from interface.routes import chat, chat_desktop_mode
+
+    ledger = cl._default_ledger()
+    monkeypatch.setattr(cl, "get_capability_ledger", lambda: ledger)
+
+    async def no_regeneration(*_args, **_kwargs):
+        raise AssertionError("A scientific example must not trigger self-state recovery")
+
+    monkeypatch.setattr(chat, "_run_cognitive_engine_chat_turn", no_regeneration)
+    reply = (
+        "Evaporation cools the remaining liquid as faster molecules escape. "
+        "For example, sweat evaporates from the body and carries energy away."
+    )
+    trace = {"live_mind_surface_control_receipt": {}}
+    result = await chat_desktop_mode._reanswer_when_the_runtime_contradicts_her(
+        reply,
+        user_message="Which of those processes cools the remaining liquid, and why?",
+        turn_trace=trace,
+    )
+    assert result == reply
+    assert not trace.get("text_mutations")
 
 
 @pytest.mark.parametrize(

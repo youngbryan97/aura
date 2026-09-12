@@ -20,7 +20,11 @@ it.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AURA_JS = PROJECT_ROOT / "interface" / "static" / "aura.js"
@@ -88,3 +92,19 @@ def test_typewriter_cannot_leave_a_message_marked_typing_forever() -> None:
     assert re.search(r"else\s*\{\s*finish\(\);", loop_tail), (
         "the animation's completion branch must go through finish()"
     )
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_numbered_answers_keep_their_ordinals_across_paragraphs() -> None:
+    result = subprocess.run(
+        [
+            shutil.which("node"),
+            str(PROJECT_ROOT / "tests/js/chat_numbered_answers.mjs"),
+            str(AURA_JS),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
