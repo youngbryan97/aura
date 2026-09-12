@@ -15,6 +15,7 @@ other modules already ask it for.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import importlib
 import inspect
@@ -693,46 +694,76 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
         raise RuntimeError(f"the fork could not restore {len(failures)} state file(s): {failures[:6]}")
 
 
-def _intentions_state(loop: Any) -> list[tuple] | None:
-    """Every row the intention database holds.
+def _loop_lock(loop: Any) -> Any:
+    """The intention loop's own lock, which every write it makes is taken under."""
+    lock = getattr(loop, "_lock", None)
+    return lock if lock is not None else contextlib.nullcontext()
 
-    The loop keeps its open intentions in memory and its record of what came of
-    them on disk, and the fork carried only the first. Efficacy, the capability
-    beliefs the self model reads and the comparator's attributions are all
-    computed from what is on disk, so an arm that acted taught the next arm
-    what it had learned.
+
+def _intentions_state(loop: Any) -> dict[str, Any] | None:
+    """Every row the intention database holds, and the loop's memory of them.
+
+    Efficacy, the capability beliefs the self model reads and the comparator's
+    attributions are all computed from what is on disk, so an arm that acted
+    taught the next arm what it had learned. The rows alone are half of it. The
+    loop also keeps its open and recently finished intentions in memory, and a
+    restore that rolled back only the rows left the nine intentions a probe arm
+    had opened still open for the arm after it. The persist count travels too,
+    because it decides when the table is next pruned.
     """
     connection = getattr(loop, "_conn", None)
     if connection is None:
         return None
-    try:
-        return list(connection.execute("SELECT * FROM intentions"))
-    except sqlite3.Error:
-        # A database that will not read is not carried across the fork.
-        return None
+    with _loop_lock(loop):
+        try:
+            rows = list(connection.execute("SELECT * FROM intentions"))
+        except sqlite3.Error:
+            # A database that will not read is not carried across the fork.
+            return None
+        return {
+            "rows": rows,
+            "active": copy.deepcopy(getattr(loop, "_active_intentions", None)),
+            "completed": copy.deepcopy(getattr(loop, "_completed_intentions", None)),
+            "persist_count": getattr(loop, "_persist_count", None),
+        }
 
 
-def _restore_intentions(loop: Any, rows: list[tuple] | None) -> None:
-    """Roll the intention database back to the rows the snapshot holds."""
+def _restore_intentions(loop: Any, saved: dict[str, Any] | None) -> None:
+    """Roll the intention database and the loop's memory back to the snapshot."""
     connection = getattr(loop, "_conn", None)
-    if connection is None or rows is None:
+    if connection is None or saved is None:
         return
-    try:
-        with connection:
-            connection.execute("DELETE FROM intentions")
-            if rows:
-                marks = ",".join("?" for _ in rows[0])
-                connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
-    except sqlite3.Error as exc:
-        # The snapshot is still the truth; the arm that could not be rolled
-        # back runs on whatever the database holds, and the run has to say so
-        # rather than carry a silent difference between two arms.
-        record_degradation(
-            "subject_driver",
-            exc,
-            severity="warning",
-            action="intentions were not rolled back to the snapshot; this arm starts from live rows",
-        )
+    rows = saved["rows"]
+    with _loop_lock(loop):
+        try:
+            with connection:
+                connection.execute("DELETE FROM intentions")
+                if rows:
+                    marks = ",".join("?" for _ in rows[0])
+                    connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
+        except sqlite3.Error as exc:
+            # The snapshot is still the truth; the arm that could not be rolled
+            # back runs on whatever the database holds, and the run has to say so
+            # rather than carry a silent difference between two arms.
+            record_degradation(
+                "subject_driver",
+                exc,
+                severity="warning",
+                action="intentions were not rolled back to the snapshot; this arm starts from live rows",
+            )
+        # Filled in place, because a caller may hold the dict or the deque, and
+        # from a fresh copy, because one snapshot starts many arms and an arm
+        # that updates a record must not change the record the next arm gets.
+        active = getattr(loop, "_active_intentions", None)
+        if active is not None and saved["active"] is not None:
+            active.clear()
+            active.update(copy.deepcopy(saved["active"]))
+        completed = getattr(loop, "_completed_intentions", None)
+        if completed is not None and saved["completed"] is not None:
+            completed.clear()
+            completed.extend(copy.deepcopy(saved["completed"]))
+        if saved["persist_count"] is not None:
+            loop._persist_count = saved["persist_count"]
 
 
 def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
@@ -1156,11 +1187,11 @@ class Snapshot:
     #: are process-wide, so without carrying them the sham arm started from a
     #: state the displaced arm had already moved — a floor on N of nearly two
     #: standard deviations before a single phase had run.
-    #: The scratch world, byte for byte, and the intention database's rows. The
+    #: The scratch world, byte for byte, and the intention loop's rows and memory. The
     #: experiment forks (K, E): what she wrote in one arm is not there for the
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
-    intentions: list[tuple] | None = None
+    intentions: dict[str, Any] | None = None
     #: The harness's frame count. Which free-running layers step on a given
     #: frame is a function of this number, so two arms that do not start from
     #: the same one are not running the same organism.
