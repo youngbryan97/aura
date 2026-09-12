@@ -4811,7 +4811,11 @@ def test_desktop_safe_boot_refuses_explicit_auto_deferred_prewarm_under_pressure
 
 
 def test_explicit_deferred_cortex_prewarm_refusal_is_rate_limited(monkeypatch, caplog):
-    from core.brain import inference_gate as inference_gate_module
+    # The two names below and the clock they compare against live in the
+    # warm-up module now — the watch moved out of the gate when the gate was
+    # split for size. Patching them on `inference_gate` raised AttributeError,
+    # and the split had already carried the behaviour across intact.
+    from core.brain import inference_gate_cortex_warmup as inference_gate_module
 
     monkeypatch.setenv("AURA_DEFERRED_CORTEX_PREWARM", "1")
     monkeypatch.delenv("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", raising=False)
