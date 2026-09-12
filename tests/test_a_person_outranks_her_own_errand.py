@@ -58,7 +58,13 @@ def test_a_caller_that_says_nothing_keeps_the_old_meaning():
 # ── and the generation sites use it ──────────────────────────────────────
 
 def test_a_generation_read_by_code_does_not_claim_somebody_is_waiting():
-    source = inspect.getsource(mlx_client)
+    # The whole client family. One of the two claim sites moved to
+    # `mlx_latent_reasoning` when mlx_client went back under the size ceiling,
+    # so counting them in the one file found one and read that as a site
+    # having started claiming a person is waiting again.
+    from mlx_source import client_source
+
+    source = client_source()
     claims = [
         line
         for line in source.splitlines()
