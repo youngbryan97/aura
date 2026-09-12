@@ -17,9 +17,15 @@ Each domain is reduced to a few principal components first. Forty columns
 against a few thousand rows makes a covariance matrix that is nearly singular,
 and a determinant near zero can report any amount of information at all.
 
+Each component is then carried to a standard normal by its rank, the Gaussian
+copula, so the estimate reads how the columns depend on each other and not the
+shape of any one of them. The mutual information is the closed-form Gaussian
+one with its sample-size bias taken off analytically, which holds no rows out
+and so never scores one stretch of a drifting life against a model of another.
+
 Because a positive number here would be easy to produce by accident, the same
-computation runs against a null built by sliding one source in time against
-the target. The shift keeps every marginal, every autocorrelation and every
+computation runs against a null built by sliding the two sources together in
+time against the target. The shift keeps every marginal, every autocorrelation and every
 within-source relationship, and destroys only the alignment that synergy is
 supposed to be about.
 
@@ -36,6 +42,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy.special import ndtri, psi
+from scipy.stats import rankdata
 
 from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
@@ -54,6 +62,10 @@ COMPONENTS: int = 3
 #: bar for. Each draw is two Gaussian mutual informations over a covariance
 #: matrix of nine columns, so a thousand costs milliseconds.
 NULL_DRAWS: int = 1000
+
+#: What the mutual information is estimated with. Named so the campaign
+#: fingerprint carries it: a different estimator is a different measurement.
+ESTIMATOR: str = "gaussian_copula_bias_corrected"
 
 
 def _components(block: np.ndarray, k: int = COMPONENTS) -> np.ndarray:
@@ -84,86 +96,68 @@ def _plugin_mi(x: np.ndarray, y: np.ndarray, *, ridge: float = 1e-6) -> float:
     return max(0.0, 0.5 * float(log_x + log_y - log_j))
 
 
-#: Folds the mutual information is cross-fitted over.
-MI_FOLDS: int = 4
+def _copula_normal(block: np.ndarray) -> np.ndarray:
+    """Each column carried to a standard normal by its rank.
+
+    Mutual information does not change when one variable is stretched by a
+    monotone function, and a Gaussian estimate does: a column that saturates
+    or jumps reports a different amount of information from the same
+    dependence. Ranks remove that. Ties share their average rank, so a flat
+    stretch stays flat instead of taking an order from the row index.
+    """
+    rows = block.shape[0]
+    out = np.empty(block.shape, dtype=np.float64)
+    for column in range(block.shape[1]):
+        ranks = rankdata(block[:, column], method="average")
+        out[:, column] = ndtri(ranks / (rows + 1.0))
+    return out
 
 
-def _gaussian_mi(x: np.ndarray, y: np.ndarray) -> float:
-    """I(X;Y), estimated on rows the covariance was not fitted on.
+def _gaussian_mi(x: np.ndarray, y: np.ndarray, *, ridge: float = 1e-9) -> float:
+    """I(X;Y) in nats for Gaussian blocks, with the sample-size bias removed.
 
-    The plug-in estimator is biased upward, and the bias grows with the number
-    of columns. That does not cancel in a synergy, because a synergy is a joint
-    over eight columns minus two marginals over four: the joint carries about
-    twice the bias of either marginal, and the difference is positive whatever
-    the data. Measured on run_019 the shifted null scored a synergy fraction of
-    0.78 where the real system scored 0.056 — the null was reading the
-    estimator, and the estimator's bias is largest exactly where there is no
-    signal to divide it by.
+    The plug-in estimate is biased upward and the bias grows with the number
+    of columns, so it does not cancel in a synergy: the joint over nine
+    columns carries about twice the bias of either marginal. On run_019 the
+    shifted null scored a synergy fraction of 0.78 against the system's 0.056.
 
-    Cross-fitting removes it. The covariance is fitted on one block of rows and
-    the log-likelihood ratio is evaluated on the next, so a fitted cross-block
-    structure that was noise does not improve the held-out likelihood and the
-    estimate falls to zero under independence rather than to the bias.
+    Cross-fitting took the bias away and put a worse fault in its place. It
+    scored each contiguous quarter of the run against a covariance fitted on
+    the other three, and the life drifts: in run_023 the first quarter of the
+    affect domain scored a held-out log-likelihood ratio of -51 nats, the
+    average over folds clamped to zero, the self-model's information survived
+    at 1.88, and A+S->G read a synergy of -1.88, which no decomposition can
+    produce.
+
+    The bias of a Gaussian log determinant is known exactly. For a sample
+    covariance on rows - 1 degrees of freedom, E[log det S] is log det Sigma
+    plus width * log(2 / (rows - 1)) plus the sum of digamma((rows - i) / 2).
+    Taking half of that offset off each entropy leaves each one unbiased, and
+    the information with them, with every row used and none scored against a
+    model of a different stretch.
     """
     if x.size == 0 or y.size == 0:
         return 0.0
-    rows = x.shape[0]
-    width = x.shape[1] + y.shape[1]
-    if rows < max(4 * width, 4 * MI_FOLDS):
-        # Too few rows to hold any out. The plug-in value is what there is, and
-        # both arms of the comparison get it the same way.
-        return _plugin_mi(x, y)
-    edge = rows // MI_FOLDS
-    values: list[float] = []
-    for fold in range(MI_FOLDS):
-        stop = rows if fold == MI_FOLDS - 1 else (fold + 1) * edge
-        test = slice(fold * edge, stop)
-        keep = np.ones(rows, dtype=bool)
-        keep[test] = False
-        if keep.sum() < 2 * width or (stop - fold * edge) < 2:
-            continue
-        values.append(_heldout_mi(x[keep], y[keep], x[test], y[test]))
-    if not values:
-        return _plugin_mi(x, y)
-    return max(0.0, float(np.mean(values)))
-
-
-def _heldout_mi(
-    x_fit: np.ndarray, y_fit: np.ndarray, x_test: np.ndarray, y_test: np.ndarray
-) -> float:
-    """The Gaussian log-likelihood ratio on held-out rows, per row.
-
-    I(X;Y) is the expected log of p(x,y)/(p(x)p(y)). Fitting all three
-    covariances on one block and scoring the ratio on another gives an
-    estimate that is not inflated by the fit.
-    """
-    ridge = 1e-6
-
-    def _fit(block: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
-        centre = block.mean(axis=0)
-        cov = np.cov(block, rowvar=False).reshape(block.shape[1], block.shape[1])
-        cov = cov + ridge * np.eye(block.shape[1])
-        sign, logdet = np.linalg.slogdet(cov)
-        if sign <= 0:
-            raise np.linalg.LinAlgError("covariance is not positive definite")
-        return centre, np.linalg.inv(cov), float(logdet)
-
-    def _score(block: np.ndarray, fitted: tuple[np.ndarray, np.ndarray, float]) -> np.ndarray:
-        centre, precision, logdet = fitted
-        delta = block - centre
-        quad = np.einsum("ij,jk,ik->i", delta, precision, delta)
-        return -0.5 * (quad + logdet + block.shape[1] * np.log(2.0 * np.pi))
-
+    rows, width_x, width_y = x.shape[0], x.shape[1], y.shape[1]
+    width = width_x + width_y
+    if rows <= width + 1:
+        # The correction needs more rows than columns, and below that the
+        # sample covariance is singular anyway. Nothing can be said.
+        return 0.0
+    cov = np.cov(np.hstack([x, y]), rowvar=False).reshape(width, width)
+    cov = cov + ridge * np.eye(width)
     try:
-        fit_x = _fit(x_fit)
-        fit_y = _fit(y_fit)
-        fit_j = _fit(np.hstack([x_fit, y_fit]))
+        joint = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov)))))
+        own_x = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov[:width_x, :width_x])))))
+        own_y = float(np.sum(np.log(np.diag(np.linalg.cholesky(cov[width_x:, width_x:])))))
     except np.linalg.LinAlgError:
         return 0.0
-    joint_test = np.hstack([x_test, y_test])
-    return float(
-        np.mean(_score(joint_test, fit_j) - _score(x_test, fit_x) - _score(y_test, fit_y))
-    )
+    digamma = psi((rows - np.arange(1, width + 1)) / 2.0) / 2.0
+    offset = (np.log(2.0) - np.log(rows - 1.0)) / 2.0
+    own_x -= width_x * offset + digamma[:width_x].sum()
+    own_y -= width_y * offset + digamma[:width_y].sum()
+    joint -= width * offset + digamma.sum()
+    return float(own_x + own_y - joint)
 
 
 @dataclass
@@ -272,12 +266,15 @@ def synergy(
     seed: int = 0,
 ) -> SynergyReport:
     """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check."""
-    a = _components(recording.domain(source_a)[:-1])
-    b = _components(recording.domain(source_b)[:-1])
-    y = _components(recording.domain(target)[1:])
-    rows = a.shape[0]
-    if rows < 40 or min(a.shape[1], b.shape[1], y.shape[1]) < 1:
+    raw_a = _components(recording.domain(source_a)[:-1])
+    raw_b = _components(recording.domain(source_b)[:-1])
+    raw_y = _components(recording.domain(target)[1:])
+    rows = raw_a.shape[0]
+    if rows < 40 or min(raw_a.shape[1], raw_b.shape[1], raw_y.shape[1]) < 1:
         return SynergyReport((source_a, source_b), target, 0, 0, 0, 0, 0, 0, 1, 0, rows)
+    # Ranks once, before the null. A circular shift keeps every marginal, so a
+    # slid copy of these is already the copula of the slid series.
+    a, b, y = (_copula_normal(block) for block in (raw_a, raw_b, raw_y))
 
     joint = _gaussian_mi(np.hstack([a, b]), y)
     mi_a = _gaussian_mi(a, y)
@@ -340,7 +337,10 @@ def synergy(
         synergy=value,
         normalised=float(fraction),
         null_q99=float(np.quantile(nulls, 0.99)),
-        interaction_gain=_interaction_gain(a, b, y),
+        # On the components before the rank transform. This one is here to
+        # fail differently from the information estimate, and giving it the
+        # same input would take away half of that.
+        interaction_gain=_interaction_gain(raw_a, raw_b, raw_y),
         rows=rows,
         null_draws=int(nulls.size),
         null_median=null_median,

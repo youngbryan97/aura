@@ -171,7 +171,12 @@ def campaign(
     lesion_cycles: int = 1,
 ) -> dict[str, Any]:
     """Everything a second run would have to match to be the same measurement."""
-    from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE, THRESHOLDS
+    from core.subject.battery import (
+        DEFICIT_SHARE,
+        LESION_SOURCES,
+        RECOVERY_TOLERANCE,
+        THRESHOLDS,
+    )
     from core.subject.causal import (
         DEFAULT_DELTA,
         DIVERGENCE_CEILING,
@@ -186,7 +191,8 @@ def campaign(
     from core.subject.nulls import ARCHITECTURES
     from core.subject.state import DOMAINS, feature_names
     from core.subject.steppable import LAYERS
-    from core.subject.synergy import TRIPLES
+    from core.subject.synergy import COMPONENTS as SYNERGY_COMPONENTS
+    from core.subject.synergy import ESTIMATOR, NULL_DRAWS, TRIPLES
 
     schema = feature_names()
     frozen: dict[str, Any] = {
@@ -245,11 +251,24 @@ def campaign(
             # recovered.
             "recovery_tolerance": RECOVERY_TOLERANCE,
             "deficit_share": DEFICIT_SHARE,
+            # Which sources the lesion's spread is read from. A fixed set all on
+            # one side of the cut cannot lose reach when the other side is
+            # removed, so the rule is part of what the criterion measures.
+            "sources_per_arm": LESION_SOURCES,
+            "source_rule": "alternating across the cut, smaller side first, domain order within a side",
         },
         "estimator": {"components_per_domain": COMPONENTS, "folds": FOLDS},
         "nulls": {"architectures": list(ARCHITECTURES)},
         "synergy_triples": [list(t) for t in TRIPLES],
-        "domains": list(DOMAINS),
+        # How the information in those triples is estimated. The estimator is
+            # part of the measurement, and changing it after seeing a result starts
+            # a new campaign like any threshold would.
+            "synergy_estimator": {
+                "name": ESTIMATOR,
+                "components": SYNERGY_COMPONENTS,
+                "null_draws": NULL_DRAWS,
+            },
+            "domains": list(DOMAINS),
         "schema": {"width": len(schema), "hash": hashlib.blake2b(
             "|".join(schema).encode(), digest_size=16
         ).hexdigest()},

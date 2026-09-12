@@ -27,7 +27,7 @@ from typing import Any
 import pytest
 
 from core.subject.state import DOMAINS
-from tools.run_subject_core import _lesion, _lesion_power
+from tools.run_subject_core import _lesion, _lesion_power, _watched_across_the_cut
 
 pytestmark = pytest.mark.unit
 
@@ -267,3 +267,25 @@ def test_a_deficit_under_the_detectable_size_is_reported_unpowered() -> None:
     row = _lesion_power(every, ("phi_do",))["lesion"]["phi_do"]
     assert row["powered"] is False
     assert row["cycles_needed"] > 3
+
+
+def test_the_spread_is_read_from_both_sides_of_the_cut() -> None:
+    """run_023 read A, G and S against a P|C cut, none of which the cut could
+    reach less, and spread did not move in any arm."""
+    rest = ("I", "A", "G", "S", "M", "W", "D", "N")
+    watched = _watched_across_the_cut(("P", "C"), rest)
+    assert len(watched) == 3
+    assert set(watched) & {"P", "C"}
+    assert set(watched) & set(rest)
+    assert watched[0] in {"P", "C"}, "the isolated side goes first"
+
+
+def test_the_sources_do_not_depend_on_which_side_is_named_first() -> None:
+    rest = ("I", "A", "G", "S", "M", "W", "D", "N")
+    assert _watched_across_the_cut(("P", "C"), rest) == _watched_across_the_cut(rest, ("P", "C"))
+
+
+def test_a_cut_with_a_one_domain_side_still_reads_three_sources() -> None:
+    rest = ("P", "I", "A", "G", "S", "M", "W", "D", "N")
+    watched = _watched_across_the_cut(("C",), rest)
+    assert len(watched) == 3 and watched[0] == "C"

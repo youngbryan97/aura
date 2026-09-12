@@ -8362,11 +8362,21 @@
         "pattern": "def _passes_the_conjunction"
       },
       {
-        "expr": "'conjunction' in report['nulls']",
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "and _synergy_holds\\(row\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "float\\(r\\.normalised\\)"
+      },
+      {
+        "expr": "all('synergy_passes' in v and 'spread' in v for v in report['nulls']['detail'].values() if v.get('kind') == 'architecture')",
         "kind": "report"
       }
     ],
-    "note": "each null is put through the whole conjunction rather than one line of it",
+    "note": "each architecture null is judged on irreducibility, one component, vertex connectivity, reentry, closure, differentiation and all four synergy triples; spread is reported beside them and not judged, because the null's spread is a different quantity from the battery's. Until Sep 12 the synergy read raised on every null and neither synergy nor spread was measured, so this item was marked done on a conjunction that asked six questions",
     "status": "done"
   },
   "P54.2": {

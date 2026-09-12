@@ -10,11 +10,16 @@ either marginal and the difference is positive whatever the data. Under the
 null there is no signal to divide that by, so the fraction — the value over the
 joint — goes wherever the noise goes.
 
-Cross-fitting removes it. The covariance is fitted on one block of rows and the
-log-likelihood ratio scored on the next, so a cross-block structure that was
-noise does not improve the held-out likelihood. Under independence the estimate
-falls to zero instead of to the bias, and the null collapses the way a null
-should.
+Cross-fitting removed the bias and broke on a life that drifts. It scored each
+contiguous quarter against a covariance fitted on the other three, and in
+run_023 the first quarter of the affect domain scored a held-out ratio of -51
+nats. The fold average clamped to zero, the self-model's information survived,
+and A+S->G read a synergy of -1.88, which no decomposition can produce.
+
+The bias of a Gaussian log determinant is known in closed form, so it is taken
+off analytically instead, with every row used. Each column is carried to a
+standard normal by rank first, so one column's shape cannot pass for
+dependence.
 
 Two more things follow. The shift slides both sources together rather than one
 against the other, because redundancy between the sources is structure an
@@ -28,7 +33,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from core.subject.synergy import _gaussian_mi, _plugin_mi
+from core.subject.synergy import _copula_normal, _gaussian_mi, _plugin_mi
 
 pytestmark = pytest.mark.unit
 
@@ -49,35 +54,109 @@ def test_the_bias_grows_with_width() -> None:
     assert wide > narrow
 
 
-def test_cross_fitting_takes_it_to_zero() -> None:
-    rng = np.random.default_rng(2)
-    x, y = rng.normal(size=(4000, 4)), rng.normal(size=(4000, 4))
-    assert _gaussian_mi(x, y) == pytest.approx(0.0, abs=1e-3)
+def _independent_means(width_x: int, width_y: int, rows: int = 4000, seeds: int = 20):
+    corrected, plugin = [], []
+    for seed in range(seeds):
+        rng = np.random.default_rng(100 + seed)
+        x, y = rng.normal(size=(rows, width_x)), rng.normal(size=(rows, width_y))
+        corrected.append(_gaussian_mi(x, y))
+        plugin.append(_plugin_mi(x, y))
+    return float(np.mean(corrected)), float(np.mean(plugin))
 
 
-def test_cross_fitting_takes_the_wide_case_to_zero_too(seed: int = 3) -> None:
-    rng = np.random.default_rng(seed)
-    assert _gaussian_mi(rng.normal(size=(4000, 8)), rng.normal(size=(4000, 4))) == pytest.approx(
-        0.0, abs=1e-3
-    )
+@pytest.mark.parametrize("width_x,width_y", [(4, 4), (8, 4)])
+def test_the_corrected_estimate_is_centred_on_zero_under_independence(width_x, width_y) -> None:
+    """Within four of its own standard errors.
+
+    Under independence twice rows times the information is chi-squared on
+    width_x * width_y degrees of freedom, so one estimate has a standard
+    deviation of sqrt(width_x * width_y / 2) / rows, and a mean of twenty has
+    that over the square root of twenty. The bound comes from there.
+    """
+    rows, seeds = 4000, 20
+    corrected, _ = _independent_means(width_x, width_y, rows, seeds)
+    standard_error = np.sqrt(width_x * width_y / 2.0) / rows / np.sqrt(seeds)
+    assert abs(corrected) < 4.0 * standard_error
 
 
-def test_a_real_signal_survives_cross_fitting() -> None:
+@pytest.mark.parametrize("width_x,width_y", [(4, 4), (8, 4)])
+def test_the_correction_takes_off_the_bias_the_plugin_carries(width_x, width_y) -> None:
+    """The plug-in sits at width_x * width_y / (2 * rows), and the corrected
+    estimate keeps under a fifth of that."""
+    rows = 4000
+    corrected, plugin = _independent_means(width_x, width_y, rows)
+    expected = width_x * width_y / (2.0 * rows)
+    assert plugin == pytest.approx(expected, rel=0.25)
+    assert abs(corrected) < 0.2 * expected
+
+
+def test_a_real_signal_survives_the_correction() -> None:
     """An unbiased estimator that cannot see anything is not an improvement."""
     rng = np.random.default_rng(4)
     latent = rng.normal(size=(4000, 1))
     x = np.hstack([latent + 0.3 * rng.normal(size=(4000, 1)) for _ in range(4)])
     y = np.hstack([latent + 0.3 * rng.normal(size=(4000, 1)) for _ in range(4)])
-    crossfit = _gaussian_mi(x, y)
-    assert crossfit > 1.0
-    assert crossfit == pytest.approx(_plugin_mi(x, y), rel=0.05)
+    corrected = _gaussian_mi(x, y)
+    assert corrected > 1.0
+    assert corrected == pytest.approx(_plugin_mi(x, y), rel=0.05)
 
 
-def test_too_few_rows_falls_back_rather_than_returning_nothing() -> None:
-    """Both arms of the comparison then get the plug-in value the same way."""
+def test_too_few_rows_says_nothing() -> None:
+    """The correction needs more rows than columns, and a covariance on fewer
+    is singular. Zero is the honest reading, and both arms get it."""
     rng = np.random.default_rng(5)
-    x, y = rng.normal(size=(12, 4)), rng.normal(size=(12, 4))
-    assert _gaussian_mi(x, y) == pytest.approx(_plugin_mi(x, y))
+    x, y = rng.normal(size=(8, 4)), rng.normal(size=(8, 4))
+    assert _gaussian_mi(x, y) == 0.0
+
+
+def test_stretching_one_column_changes_nothing_after_ranks() -> None:
+    """Information does not change under a monotone transform, and a raw
+    Gaussian estimate does. The ranks are what make the estimate respect that."""
+    rng = np.random.default_rng(4)
+    latent = rng.normal(size=(4000, 1))
+    x = np.hstack([latent + 0.3 * rng.normal(size=(4000, 1)) for _ in range(4)])
+    y = np.hstack([latent + 0.3 * rng.normal(size=(4000, 1)) for _ in range(4)])
+    stretched = x.copy()
+    stretched[:, 0] = np.exp(3.0 * stretched[:, 0])
+    before = _gaussian_mi(_copula_normal(x), _copula_normal(y))
+    after = _gaussian_mi(_copula_normal(stretched), _copula_normal(y))
+    assert after == pytest.approx(before, abs=1e-9)
+    assert abs(_gaussian_mi(stretched, y) - _gaussian_mi(x, y)) > 0.01
+
+
+def test_a_flat_stretch_stays_flat_under_ranks() -> None:
+    """Ties share a rank. Ordering them by row would give a constant stretch
+    a trend it does not have."""
+    column = np.concatenate([np.full(50, 2.0), np.linspace(0.0, 1.0, 50)])[:, None]
+    ranked = _copula_normal(column)
+    assert np.ptp(ranked[:50, 0]) == 0.0
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_a_first_quarter_unlike_the_rest_does_not_read_as_negative_synergy(seed) -> None:
+    """run_023, reduced to the part that mattered.
+
+    One source spends its first quarter at a different level, nearly still,
+    the way a domain does before a life has settled. The cross-fitted estimate
+    scored that quarter against a model of the other three, clamped the
+    source's information and the joint to zero, and returned a synergy near
+    minus the other source's information. The corrected joint cannot fall
+    below the larger marginal by more than noise, and the synergy stays
+    positive.
+    """
+    rng = np.random.default_rng(seed)
+    rows, early = 479, 479 // 4
+    source_a, source_b = rng.normal(size=(rows, 1)), rng.normal(size=(rows, 1))
+    a = source_a + 0.4 * rng.normal(size=(rows, 3))
+    b = source_b + 0.4 * rng.normal(size=(rows, 3))
+    y = np.hstack([source_a + source_b, source_a - source_b, rng.normal(size=(rows, 1))])
+    y = y + 0.4 * rng.normal(size=(rows, 3))
+    a[:early] = 4.0 + 0.02 * rng.normal(size=(early, 3))
+    a, b, y = _copula_normal(a), _copula_normal(b), _copula_normal(y)
+    joint = _gaussian_mi(np.hstack([a, b]), y)
+    larger = max(_gaussian_mi(a, y), _gaussian_mi(b, y))
+    assert joint >= larger - 0.01
+    assert joint - larger > 0.05
 
 
 def test_the_null_slides_both_sources_together() -> None:

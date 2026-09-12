@@ -704,10 +704,13 @@ async def _lesion(
     larger = max(phi.best_cut, key=len)
     left, right = phi.best_cut[0], phi.best_cut[1]
 
-    #: The sources perturbational spread is read from in a lesion arm. Three
-    #: rather than ten, because each arm pays for its own intervention sweep
-    #: and every cycle runs five arms.
-    watched = ("A", "G", "S")
+    #: The sources perturbational spread is read from in a lesion arm, taken
+    #: from both sides of the cut. The fixed three this used, A, G and S, all
+    #: sat on the large side of run_023's P|C cut, so removing the crossing
+    #: could not shrink their reach and spread read 0.444 in the intact, cut
+    #: and rescued arms alike: a measure that could not move, scored as one
+    #: that did not.
+    watched = _watched_across_the_cut(left, right)
 
     cycles = max(1, int(getattr(args, "lesion_cycles", 1)))
     # The same life, divided. A cycle shorter than two rounds measures nothing,
@@ -929,6 +932,30 @@ async def _lesion(
         "deficit": deficit,
         "rescued_ok": rescued_ok,
     }
+
+
+def _watched_across_the_cut(left: Sequence[str], right: Sequence[str]) -> tuple[str, ...]:
+    """Sources for a lesion arm's spread, alternating between the two sides.
+
+    The smaller side goes first, because it is the part the cut isolates and a
+    source there is the one whose reach the cut should shrink most. Within a
+    side the order is the domain order, so two runs with the same cut read the
+    same sources.
+    """
+    from core.subject.battery import LESION_SOURCES
+    from core.subject.state import DOMAINS
+
+    small, large = (left, right) if len(left) <= len(right) else (right, left)
+    queues = (
+        [key for key in DOMAINS if key in set(small)],
+        [key for key in DOMAINS if key in set(large)],
+    )
+    picked: list[str] = []
+    while len(picked) < LESION_SOURCES and any(queues):
+        for queue in queues:
+            if queue and len(picked) < LESION_SOURCES:
+                picked.append(queue.pop(0))
+    return tuple(picked)
 
 
 def _lesion_power(every: list[dict[str, Any]], measures: Sequence[str]) -> dict[str, Any]:
@@ -1181,19 +1208,29 @@ def _nulls(
             extra["d_eff_normalised"] = round(float(spectrum.normalised), 4)
             extra["largest_component_share"] = round(float(spectrum.top_share), 4)
             extra["intrinsic_gain"] = round(float(intrinsic_gain(scored, seed=args.seed).gain), 5)
-            fractions = [float(r.fraction) for r in synergy_suite(scored, seed=args.seed)]
-            extra["synergy"] = [round(v, 4) for v in fractions]
-            extra["synergy_min"] = round(min(fractions), 4) if fractions else 0.0
-            # Spread is how far a displacement travels: the share of the other
-            # domains a source reaches, taken at the source that reaches most.
-            reached: dict[str, set[str]] = {}
-            for source, target in edges:
-                reached.setdefault(source, set()).add(target)
-            extra["spread"] = round(
-                max((len(v) for v in reached.values()), default=0) / max(1, len(domains) - 1), 4
+            # `normalised`, the report's own field. This read `.fraction`, which
+            # the report has never had: every run raised here, the except below
+            # logged it nineteen times a run, and no null was ever scored on
+            # synergy or on spread, because spread came after this line in the
+            # same block.
+            reports = synergy_suite(scored, seed=args.seed)
+            extra["synergy"] = [round(float(r.normalised), 4) for r in reports]
+            extra["synergy_passes"] = [bool(r.passes) for r in reports]
+            extra["synergy_min"] = (
+                round(min(float(r.normalised) for r in reports), 4) if reports else 0.0
             )
         except (ImportError, ValueError, RuntimeError, AttributeError, TypeError) as exc:
             _log(f"  the wider suite was unavailable for the {name} null: {exc}")
+        # Spread in its own block. It needs nothing the lines above produce,
+        # and sharing their failure is how it went unmeasured for every null.
+        # Spread is how far a displacement travels: the share of the other
+        # domains a source reaches, taken at the source that reaches most.
+        reached: dict[str, set[str]] = {}
+        for source, target in edges:
+            reached.setdefault(source, set()).add(target)
+        extra["spread"] = round(
+            max((len(v) for v in reached.values()), default=0) / max(1, len(domains) - 1), 4
+        )
 
         table[name] = {
             "phi_do": round(float(np.quantile(values, 0.95)), 5),
@@ -1250,6 +1287,10 @@ def _nulls(
             # domain hears the same signal and adds nothing. A conjunction that
             # left this line out would count a broadcast as a mind.
             and _differentiated_enough(row)
+            # And synergy, which the conjunction never asked about. The null
+            # suite computed it for the report and then read a field the report
+            # does not have, so it was never measured and never judged.
+            and _synergy_holds(row)
         )
 
     def _differentiated_enough(row: dict[str, Any]) -> bool:
@@ -1275,6 +1316,25 @@ def _nulls(
             float(row.get("largest_component_share", 1.0)) < THRESHOLDS["component_share"]
             and float(row.get("d_eff_normalised", 1.0)) < THRESHOLDS["d_eff_normalised"]
         )
+
+    def _synergy_holds(row: dict[str, Any]) -> bool:
+        """The synergy criterion, on a null's own numbers.
+
+        The battery passes synergy only when every triple clears its bar and
+        its shifted null, so a null is held to all four as well. Nothing
+        measured reads as undecided, in the way `_differentiated_enough` does,
+        and the row falls through on whatever else it failed.
+
+        Spread is reported beside it and not judged here. The null's spread is
+        the reach of its single furthest-reaching source, and the battery's is
+        the mean share reached over displaced sources: two quantities with one
+        name, and holding a null to a bar set on the other would be a
+        comparison of nothing.
+        """
+        passes = row.get("synergy_passes")
+        if not passes:
+            return True
+        return all(bool(item) for item in passes)
 
     # The instrument has to be able to say yes to something. A reference
     # architecture that is genuinely recurrent must pass everything the nulls

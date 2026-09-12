@@ -37,6 +37,11 @@ __all__ = [
 RECOVERY_TOLERANCE: float = 0.5
 DEFICIT_SHARE: float = 0.10
 
+#: How many sources a lesion arm displaces to read spread, taken alternately
+#: from the two sides of the cut. Three, because every cycle runs five arms and
+#: each arm pays for its own intervention sweep.
+LESION_SOURCES: int = 3
+
 THRESHOLDS: dict[str, float] = {
     "phi_do": 0.05,
     "d_eff_normalised": 0.40,
