@@ -233,9 +233,10 @@ class MotivationUpdatePhase(Phase):
         being told to hurry by an absence.
         """
         try:
-            from core.container import ServiceContainer
-
-            engine = ServiceContainer.get("free_energy_engine", default=None)
+            # Through the registry: this is an observer reading a rate, and
+            # `peek` is exactly right for it — a reading must not boot the
+            # engine it is reading.
+            engine = get_runtime_service("free_energy_engine", default=None)
             if engine is None:
                 return 0.0
             return max(0.0, min(1.0, float(engine.get_action_urgency())))
@@ -392,9 +393,9 @@ class MotivationUpdatePhase(Phase):
         """
         exertion = 0.0
         try:
-            from core.container import ServiceContainer
-
-            repo = ServiceContainer.get("state_repository", default=None)
+            # An observer again: reading exertion must not instantiate the
+            # repository that holds it.
+            repo = get_runtime_service("state_repository", default=None)
             current = getattr(repo, "_current", None) if repo is not None else None
             exertion = float(getattr(getattr(current, "soma", None), "exertion", 0.0) or 0.0)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
@@ -548,9 +549,9 @@ class MotivationUpdatePhase(Phase):
     def _world_surprise() -> float:
         """How far the world just departed from the model of it. 0.0 if unknown."""
         try:
-            from core.container import ServiceContainer
-
-            model = ServiceContainer.get("unified_world_model", default=None)
+            # An observer: reading how far the world departed from the model
+            # must not be what instantiates the model.
+            model = get_runtime_service("unified_world_model", default=None)
             value = model.surprise() if model is not None else None
             return 0.0 if value is None else max(0.0, min(1.0, float(value)))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):

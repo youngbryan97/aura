@@ -101,20 +101,31 @@ class TestPassOnlyConstructorsAreJudgedByShape:
     doubles — the standard way to stop a real constructor from running, where
     `pass` IS the correct implementation of "set nothing up".
 
-    The exemption is shaped, not path-based: the class must define at least
-    one other method with a real body. A class that is nothing BUT a
-    pass-only __init__ is still scaffolding and is still reported, which is
-    what stops this from being "skip tests/" under a better name.
+    In PRODUCTION the exemption is shaped, not path-based: the class must
+    define at least one other method with a real body. A class that is nothing
+    BUT a pass-only __init__ is still scaffolding and is still reported.
+
+    Inside tests/ a second rule applies, added later and deliberately: any
+    method of a class may be pass-only, because a double exists to satisfy an
+    interface without behaving and every method it does not care about has to
+    be exactly that. Ten of them in this suite — `cancel`, `attach`,
+    `resolve`, `record_outcome`, `put_link`, `clear`. It is still bounded: a
+    pass-only function at MODULE level in a test is a test somebody stopped
+    writing, and is still reported.
+
+    These cases run against a production path for that reason. Running them
+    against `tests/probe.py` measured the doubles rule and called the shape
+    rule broken.
     """
 
     @staticmethod
-    def _findings(source: str) -> list[str]:
+    def _findings(source: str, rel: str = "core/probe.py") -> list[str]:
         import ast
 
         from tools.aura_enterprise_gate import AstGate, GateReport
 
         report = GateReport(root=Path("."), generated_at_unix=0.0)
-        AstGate("tests/probe.py", report, source.splitlines()).visit(ast.parse(source))
+        AstGate(rel, report, source.splitlines()).visit(ast.parse(source))
         return [f.kind for f in report.findings]
 
     def test_a_double_with_real_methods_is_exempt(self) -> None:
@@ -153,6 +164,22 @@ class TestPassOnlyConstructorsAreJudgedByShape:
 
     def test_a_bare_pass_only_function_is_reported(self) -> None:
         assert "pass_only_function" in self._findings("def nothing():\n    pass\n")
+
+    def test_a_doubles_method_may_be_pass_only_inside_the_tests(self) -> None:
+        """The later rule, and the reason it is not "skip tests/"."""
+        source = (
+            "class Double:\n"
+            "    def cancel(self) -> None:\n"
+            "        pass\n"
+        )
+        assert "pass_only_function" not in self._findings(source, "tests/probe.py")
+        assert "pass_only_function" in self._findings(source)
+
+    def test_a_module_level_stub_in_a_test_is_still_reported(self) -> None:
+        """A double is a class. A bare function is a test somebody stopped."""
+        assert "pass_only_function" in self._findings(
+            "def nothing():\n    pass\n", "tests/probe.py"
+        )
 
 
 class TestARegexIsRecognisedByItsValue:
