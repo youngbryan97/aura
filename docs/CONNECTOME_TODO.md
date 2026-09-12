@@ -250,6 +250,13 @@ Working list. Deleted when every line is done and green.
       persistence mixin, not by raising anything. Budget 145,567.
 
       Open, and not this pass's to close:
+      * `make governance-lint` — twenty call sites that moved owner and
+        seventeen that left the old one, in the size extractions landing this
+        week: host automation's screen reader, computer use's document maker,
+        the task ledger, the service heads, the ambient bubble, and the immune
+        state writer. Same calls, new owner classes, which is what the gate
+        asks to be refreshed for — but refreshing it stamps another agent's
+        in-flight moves under whoever runs it, so it belongs to them.
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
         `test_gap_atlas_campaigns` and the rest of the later chunks — in the
