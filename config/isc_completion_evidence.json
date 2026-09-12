@@ -2209,7 +2209,7 @@
         "pattern": "ownership_by_action"
       }
     ],
-    "note": "ownership is measured over four action kinds rather than one, and it has to clear its own floor on more than one of them",
+    "note": "ownership is measured over every action kind rather than one. ownership_generalises requires two action kinds and two outcome shapes, each over its own same-arm floor, and every compared pair of arms ending in the same world. Tightened on Sep 12, so run_023's stored flag was computed under the older kinds-only rule and the next run re-judges it",
     "status": "done"
   },
   "P2.51": {
@@ -3963,7 +3963,7 @@
         "kind": "report"
       }
     ],
-    "note": "the self-state divergence survives every action kind it was asked about",
+    "note": "the self-state divergence has to survive each action kind and outcome shape it was asked about. ownership_generalises requires two action kinds and two outcome shapes, each over its own same-arm floor, and every compared pair of arms ending in the same world. Tightened on Sep 12, so run_023's stored flag was computed under the older kinds-only rule and the next run re-judges it",
     "status": "done"
   },
   "P26.15": {
@@ -5785,7 +5785,7 @@
         "timeout": 300
       }
     ],
-    "note": "ownership holds for more than one kind of action",
+    "note": "ownership holds for more than one kind of action and more than one outcome. ownership_generalises requires two action kinds and two outcome shapes, each over its own same-arm floor, and every compared pair of arms ending in the same world. Tightened on Sep 12, so run_023's stored flag was computed under the older kinds-only rule and the next run re-judges it",
     "status": "done"
   },
   "P37.9": {

@@ -8,6 +8,12 @@ saying ownership holds would be saying it about `write_notes`.
 
 The four things she can do are cycled across the trials now, and the divergence
 is reported per kind against its own same-arm floor.
+
+Generalising also needs more than one outcome shape and worlds that were checked
+to match, which `test_ownership_is_asked_of_more_than_one_shape_of_acting`
+covers. Both are held at a passing value here, so the only thing these tests
+move is how many action kinds cleared their floors, and a report that fails
+fails for the reason the test is named after.
 """
 
 from __future__ import annotations
@@ -24,6 +30,10 @@ def _report(**kwargs) -> AgencyReport:
         outcome_to_self_floor=0.03,
         action_text_changed=False,
         trials=4,
+        ownership_by_outcome={"succeeded": 0.7, "failed": 0.5},
+        ownership_floor_by_outcome={"succeeded": 0.03, "failed": 0.03},
+        worlds_matched=4,
+        worlds_compared=4,
     )
     base.update(kwargs)
     return AgencyReport(**base)
