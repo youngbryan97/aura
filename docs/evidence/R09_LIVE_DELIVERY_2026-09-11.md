@@ -284,3 +284,40 @@ that another owner may have removed. The 44 focused hygiene checks passed;
 smoke passed 164 with one skipped in 56.82 seconds. Lint, compile and layering
 passed. These repairs still require live replay at this entry. R09 remains
 open rather than treating the earlier multipart pass as a complete sequence.
+
+## Launch interruption before the final replay
+
+At 19:17 PDT the supported app launched PID 81202 from workspace snapshot
+`9674c111ea71d84b3ac5d63317c3af3249325e2571421ae1b655df345798a98f`.
+Boot verified source identity but initially reported an unavailable live
+provenance refresh. It then progressed through subsystem initialization.
+At 19:21 the health response still reported initialized=false, running=false,
+and startup_latched=false. The native launcher stopped PID 81202 rather than
+letting initialization finish. The process exited with code zero.
+
+The native launcher read the orchestrator's post-initialization `running`
+flag as boot-loop liveness. Its age-based replacement rules interpreted a
+responding, initializing process as dead. The repair recognizes the explicit
+initialization state before applying loop-death or unhealthy-age replacement
+rules. A started or latched runtime and an explicit build mismatch retain
+their separate failure signals. This does not report the initializing lane
+as ready, weaken source verification, or raise any timeout.
+
+Ten tests compile and execute the production Swift decision code, covering
+44, 45, 90, 300 and 1,800 seconds of initialization, pending core probes,
+previously started loops, unknown lifecycle, and build mismatch. All pass in
+16.51 seconds. The existing launcher contract suite passed 53 tests. The
+first harness compile failed because its top-level variable exposed a private
+Swift type; the corrected harness preserves the production type's access.
+Installed-launcher survival and the R09 follow-up replay remain required.
+
+At 00:20 PDT on September 12 the first repaired launcher still replaced the
+booting runtime. Initialization can finish, and model warmup can begin, before
+the orchestrator sets running=true. The earlier predicate did not cover that
+interval. Startup now follows the monotonic startup latch and run-loop state,
+not initialization completion. The existing live-lane handoff also takes
+precedence over stale-loop replacement. Four additional compiled Swift cases
+cover both initialization values and warmup/serving handoffs. The combined
+launcher suite passes 67 checks in 8.37 seconds. Smoke passed 164 with one
+skipped; lint, compile and layering passed. The thin app was rebuilt and
+installed with the existing signing identity. R09 remains open pending replay.
