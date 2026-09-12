@@ -97,9 +97,17 @@ async def main() -> int:
     parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
-    # At least one trial per action kind, so ownership is asked about acting
-    # rather than about whichever pathway the state happened to pick.
-    parser.add_argument("--agency-trials", type=int, default=8)
+    # At least two trials per action kind, so ownership is asked about acting
+    # rather than about whichever pathway the state happened to pick, and so
+    # each kind is asked twice rather than once.
+    parser.add_argument("--agency-trials", type=int, default=16)
+    parser.add_argument(
+        "--agency-seeds",
+        type=int,
+        default=2,
+        help="times the whole ownership experiment is repeated on a fresh "
+        "generator. One seed cannot say whether the divergence survives one",
+    )
     parser.add_argument("--lesion-rounds", type=int, default=30)
     parser.add_argument(
         "--lesion-cycles",
@@ -160,8 +168,9 @@ async def main() -> int:
 
     if args.quick:
         args.rounds, args.trials, args.turns = 6, 2, 1
-        args.agency_trials, args.lesion_rounds = 2, 4
+        args.agency_trials, args.lesion_rounds = 8, 4
         args.lesion_cycles = 2
+        args.agency_seeds = 1
 
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -489,9 +498,28 @@ async def main() -> int:
 
     _log("agency and ownership")
     act_condition = next(c for c in CONDITIONS if c.after == "act")
-    evidence["agency"] = (
-        await run_agency(runtime, act_condition, scale=scale, trials=args.agency_trials)
-    ).as_dict()
+    # More than one seed. A divergence that only survives the generator it was
+    # found on is a property of that draw, and the report has to be able to say
+    # which of the two it is.
+    seeds = max(1, int(args.agency_seeds))
+    runs: list[dict[str, Any]] = []
+    for index in range(seeds):
+        if index:
+            runtime.rng.seed(args.seed + 1000 * index)
+        runs.append(
+            (
+                await run_agency(
+                    runtime, act_condition, scale=scale, trials=args.agency_trials
+                )
+            ).as_dict()
+        )
+        _log(
+            f"  seed {index + 1}/{seeds}: ownership {runs[-1]['ownership_divergence']} "
+            f"over floor {runs[-1]['ownership_floor']}, "
+            f"generalises={runs[-1]['ownership_generalises']}"
+        )
+    runtime.rng.seed(args.seed)
+    evidence["agency"] = _agency_across_seeds(runs)
 
     if args.skip_lesion:
         _log("lesion skipped")
@@ -547,6 +575,58 @@ async def main() -> int:
     print()
     _log(f"wrote {args.out / 'subject_core_report.json'} in {evidence['notes']['seconds']}s")
     return 0
+
+
+def _agency_across_seeds(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """One report from several, with what each seed said kept beside it.
+
+    The headline numbers are the means, which is what a criterion reads. What
+    is added is whether every seed agreed: a divergence that cleared its floor
+    on one generator and not the next is a property of that draw, and a mean
+    hides which of the two it was.
+    """
+    if len(runs) == 1:
+        out = dict(runs[0])
+        out["seeds"] = 1
+        out["agreed_across_seeds"] = True
+        return out
+
+    numbers = [
+        "self_to_action", "self_to_action_floor",
+        "ownership_divergence", "ownership_floor",
+    ]
+    out = dict(runs[-1])
+    for key in numbers:
+        out[key] = round(float(np.mean([float(r.get(key, 0.0)) for r in runs])), 5)
+    out["self_drives_action"] = all(bool(r.get("self_drives_action")) for r in runs)
+    out["outcome_updates_self"] = all(bool(r.get("outcome_updates_self")) for r in runs)
+    out["ownership_generalises"] = all(bool(r.get("ownership_generalises")) for r in runs)
+    out["worlds_identical"] = all(bool(r.get("worlds_identical")) for r in runs)
+    out["seeds"] = len(runs)
+    out["per_seed"] = [
+        {
+            "ownership_divergence": r.get("ownership_divergence"),
+            "ownership_floor": r.get("ownership_floor"),
+            "ownership_generalises": r.get("ownership_generalises"),
+            "kinds_that_cleared": r.get("kinds_that_cleared", []),
+            "outcomes_that_cleared": r.get("outcomes_that_cleared", []),
+            "worlds_identical": r.get("worlds_identical"),
+        }
+        for r in runs
+    ]
+    # Which kinds and which outcome shapes cleared on every seed. A claim that
+    # ownership generalises is a claim about the ones that held throughout.
+    out["kinds_that_cleared"] = sorted(
+        set.intersection(*(set(r.get("kinds_that_cleared", [])) for r in runs))
+    )
+    out["outcomes_that_cleared"] = sorted(
+        set.intersection(*(set(r.get("outcomes_that_cleared", [])) for r in runs))
+    )
+    out["agreed_across_seeds"] = (
+        len({bool(r.get("ownership_generalises")) for r in runs}) == 1
+        and len({bool(r.get("outcome_updates_self")) for r in runs}) == 1
+    )
+    return out
 
 
 def _attach_tape(runtime: Any, args: Any) -> dict[str, Any]:

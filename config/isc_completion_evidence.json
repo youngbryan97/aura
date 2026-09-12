@@ -106,7 +106,7 @@
       {
         "kind": "grep",
         "path": "core/subject/provenance.py",
-        "pattern": "Two runs with the same fingerprint were measured the same way"
+        "pattern": "One short hash over the method: everything fixed before the run but the seed"
       },
       {
         "kind": "grep",
@@ -2675,20 +2675,60 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "ACTIONS: ClassVar\\[tuple\\[str, \\.\\.\\.\\]\\] = \\(\\n        \"write_notes\",\\n        \"append_log\",\\n        \"make_room\",\\n        \"read_room\",\\n    \\)"
+        "pattern": "\"write_notes\","
       },
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "ATTENTION_ACTIONS: ClassVar\\[dict\\[str, str\\]\\]"
+        "pattern": "\"append_log\","
       },
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "DRIVE_ACTIONS: ClassVar\\[dict\\[str, str\\]\\]"
+        "pattern": "\"make_room\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"read_room\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"paint_panel\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"visit_room\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"finish_task\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"tidy_room\","
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "OUTCOMES: ClassVar\\[tuple\\[str, \\.\\.\\.\\]\\] = \\(\"succeeded\", \"partial\", \"failed\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "ATTENTION_ACTIONS: ClassVar"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "DRIVE_ACTIONS: ClassVar"
       }
     ],
-    "note": "four action kinds over three different filesystem structures, chosen by what won attention and then by which drive is most depleted; one of them can fail, and fails for a reason of her own making",
+    "note": "eight action kinds over five filesystem structures and a surface, chosen by what won attention and then by which drive is most depleted; they can succeed, half work or fail, and one of them fails for a reason of her own making",
     "status": "done"
   },
   "P20.1": {
@@ -3842,6 +3882,80 @@
     "note": "file creation is one of the four she cycles through, and its ownership divergence clears its own floor",
     "status": "done"
   },
+  "P26.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "def _expects_to_succeed"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "predicted_correctly"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_being_right_and_being_wrong_are_filed_apart"
+      }
+    ],
+    "note": "she predicts from what this kind of action did for her last time, and a correct prediction files the trial under predicted_correctly",
+    "status": "done"
+  },
+  "P26.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "predicted_wrongly"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_an_action_with_no_prediction_recorded_files_no_shape_for_it"
+      }
+    ],
+    "note": "and a wrong one files it under predicted_wrongly; an action with no prediction recorded files no shape for it rather than counting as wrong",
+    "status": "done"
+  },
+  "P26.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "def _roll_the_log_if_long"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "\"accidental\""
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_an_accident_of_her_own_doing_is_not_a_deliberate_one"
+      }
+    ],
+    "note": "the action log rolls itself when an append makes it too long, which removes lines nobody asked to remove \u2014 her hand, her consequence, and no intention of it anywhere",
+    "status": "done"
+  },
+  "P26.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"deliberate\": bool\\(actor == \"self\" and not accidental\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "\"deliberate\""
+      }
+    ],
+    "note": "an action she took herself and did not stumble into is filed as deliberate, beside the accident",
+    "status": "done"
+  },
   "P26.14": {
     "checks": [
       {
@@ -3883,6 +3997,32 @@
     "note": "and both arms of a trial do the same thing, so what differs is who did it",
     "status": "done"
   },
+  "P26.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "--agency-seeds"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _agency_across_seeds"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_a_claim_holds_across_seeds_only_if_every_seed_made_it"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_only_the_kinds_that_cleared_on_every_seed_are_claimed"
+      }
+    ],
+    "note": "the whole ownership experiment runs on more than one generator, and a claim holds across seeds only if every seed made it; only the kinds that cleared on every seed are claimed",
+    "status": "done"
+  },
   "P26.2": {
     "checks": [
       {
@@ -3893,6 +4033,80 @@
     "note": "file modification is one of the four she cycles through, and its ownership divergence clears its own floor",
     "status": "done"
   },
+  "P26.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "by_outcome.setdefault"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_four_kinds_that_all_succeeded_do_not_generalise"
+      }
+    ],
+    "note": "an action can fail, and the divergence is filed under the outcome it came back as rather than averaged with the ones that worked",
+    "status": "done"
+  },
+  "P26.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"tidy_room\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "partial = removed > 0 and left > 0"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "partial = not done"
+      }
+    ],
+    "note": "tidy_room clears what it can reach and leaves the directories, so a room with anything in it comes back partly tidy; finish_task is partial until the step that finishes it",
+    "status": "done"
+  },
+  "P26.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "def _world_digest"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "worlds_matched"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_ownership_is_asked_of_more_than_one_shape_of_acting.py",
+        "pattern": "def test_arms_that_ended_with_different_worlds_measured_two_things"
+      }
+    ],
+    "note": "the external arm leaves the same world as the self arm, and the two are compared byte for byte rather than assumed to match; a pair that ended differently refuses the generalisation claim",
+    "status": "done"
+  },
+  "P26.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"paint_panel\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "A surface rather than a record"
+      }
+    ],
+    "note": "paint_panel writes a surface rather than a record, and is correct only if what comes back reads as the panel she drew",
+    "status": "done"
+  },
   "P26.7": {
     "checks": [
       {
@@ -3901,6 +4115,38 @@
       }
     ],
     "note": "information retrieval is one of the four she cycles through, and its ownership divergence clears its own floor",
+    "status": "done"
+  },
+  "P26.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"visit_room\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "facts\\[\"location\"\\]"
+      }
+    ],
+    "note": "visit_room changes where she is and nothing else, which is an action whose whole effect is on her position",
+    "status": "done"
+  },
+  "P26.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"finish_task\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "done = len\\(steps\\) % 3 == 0"
+      }
+    ],
+    "note": "finish_task takes three steps, so completion is a different outcome from progress",
     "status": "done"
   },
   "P27.1": {

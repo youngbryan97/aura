@@ -1011,6 +1011,12 @@ class Snapshot:
     #: ran, and the comparison was between an untouched organism and one that
     #: had already been touched.
     organs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: What each kind of action did for her last time, which is what she
+    #: predicts from. An arm that inherited the other arm's experience would
+    #: predict from something that did not happen to it, and whether she was
+    #: right about her own effect is one of the things the ownership experiment
+    #: has to span.
+    outcomes_by_kind: dict[str, bool] = field(default_factory=dict)
 
 
 #: The three names other modules ask the driver for. Kept as aliases rather

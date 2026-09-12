@@ -599,6 +599,7 @@ class SubjectRuntime:
 
     def snapshot(self) -> Snapshot:
         return Snapshot(
+            outcomes_by_kind=dict(getattr(self, "_outcomes_by_kind", {}) or {}),
             organs={
                 name: _organ_state(getattr(self.organs, name, None))
                 for name in self.ORGAN_FIELDS
@@ -632,6 +633,7 @@ class SubjectRuntime:
         )
 
     def restore(self, snapshot: Snapshot) -> None:
+        self._outcomes_by_kind = dict(snapshot.outcomes_by_kind)
         for name, saved in snapshot.organs.items():
             _restore_organ(getattr(self.organs, name, None), saved)
         self.state = copy.deepcopy(snapshot.state)
@@ -1062,7 +1064,22 @@ class SubjectRuntime:
         "append_log",
         "make_room",
         "read_room",
+        # Four more, because the first four were all the same shape: change a
+        # file, read it back, succeed. Ownership measured only on that shape is
+        # ownership of writing to disk. These add the shapes the completion
+        # specification asks for — a surface rather than a record, going
+        # somewhere rather than changing it, finishing a thing that takes more
+        # than one step, and an action that half works.
+        "paint_panel",
+        "visit_room",
+        "finish_task",
+        "tidy_room",
     )
+
+    #: What each action can come back as. An action repertoire where everything
+    #: succeeds cannot distinguish "I did this" from "this worked" — both read
+    #: as one constant — and one where nothing fails teaches no efficacy at all.
+    OUTCOMES: ClassVar[tuple[str, ...]] = ("succeeded", "partial", "failed")
 
     #: Which action each drive reaches for. Written out rather than hashed:
     #: `hash()` on a string is salted per process, so the drive that picked
@@ -1160,6 +1177,61 @@ class SubjectRuntime:
         levels.sort()
         return self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
 
+    #: How many lines the action log keeps. Past this an append rolls it,
+    #: which removes lines the append never asked to remove — an outcome she
+    #: caused and did not intend. A repertoire with no accidents cannot tell a
+    #: deliberate effect from any other kind.
+    LOG_LINES: ClassVar[int] = 24
+
+    def _expects_to_succeed(self, kind: str) -> bool:
+        """Whether she expects this to work, from what it did last time.
+
+        The first attempt at anything is optimistic, which is a real prior
+        rather than a placeholder: nothing has taught her otherwise yet.
+        """
+        seen = getattr(self, "_outcomes_by_kind", None)
+        if not seen:
+            return True
+        return bool(seen.get(kind, True))
+
+    def _remember_outcome(self, kind: str, ok: bool) -> None:
+        if not hasattr(self, "_outcomes_by_kind"):
+            self._outcomes_by_kind = {}
+        self._outcomes_by_kind[str(kind)] = bool(ok)
+
+    def _roll_the_log_if_long(self, kind: str) -> bool:
+        """Trim the log when an append made it too long. Returns whether it bit.
+
+        The trim is a consequence of her own append and of nothing else, and
+        she never asked for it. That is what an accidental self-caused outcome
+        is, and the repertoire had none.
+        """
+        if kind != "append_log":
+            return False
+        target = getattr(self, "_scratch", None)
+        if target is None:
+            return False
+        path = Path(target) / "actions.log"
+        try:
+            if not path.exists():
+                return False
+            lines = path.read_text().splitlines()
+            if len(lines) <= self.LOG_LINES:
+                return False
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            with local_internal_governed_scope("subject_core.action_probe"):
+                get_file_write_gateway().write_text(
+                    path,
+                    "\n".join(lines[-self.LOG_LINES:]) + "\n",
+                    source="subject_core.action_probe",
+                )
+            return True
+        except OSError as exc:
+            logger.debug("could not roll the action log: %s", exc)
+            return False
+
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
 
@@ -1187,7 +1259,14 @@ class SubjectRuntime:
         kind = self._chosen_action()
         intended = f"{kind} for turn {self.turn}: {objective[:80]}"
         ok = False
+        partial = False
         observed = ""
+        # What she expects, before she finds out. Read from what this kind of
+        # action did for her last time rather than assumed: a prediction that is
+        # always "it will work" is not a prediction, and the difference between
+        # being right and being wrong about her own effect is one of the things
+        # the ownership experiment has to span.
+        predicted = self._expects_to_succeed(kind)
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -1225,6 +1304,69 @@ class SubjectRuntime:
                         if ok
                         else f"there is no room {path.name}"
                     )
+                elif kind == "paint_panel":
+                    # A surface rather than a record: what it leaves behind is
+                    # rendered for looking at, and it is correct only if what
+                    # came back can be read as the panel she drew.
+                    path = room / "panel.txt"
+                    body = f"| {intended[:40]:<40} |"
+                    rule = "+" + "-" * 42 + "+"
+                    gateway.write_text(
+                        path, f"{rule}\n{body}\n{rule}\n", source="subject_core.action_probe"
+                    )
+                    drawn = path.read_text().splitlines()
+                    ok = len(drawn) == 3 and drawn[1] == body
+                    observed = f"the panel is {len(drawn)} lines wide {len(rule)}"
+                elif kind == "visit_room":
+                    # Going somewhere rather than changing something. Nothing
+                    # in the world is different afterwards, which is the point:
+                    # an action whose whole effect is on where she is.
+                    rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
+                    here = str(self.state.world.facts.get("location", "") or "")
+                    ahead = [name for name in rooms if name > here] or rooms
+                    if ahead:
+                        self.state.world.facts["location"] = ahead[0]
+                        ok = True
+                        observed = f"standing in {ahead[0]} of {len(rooms)}"
+                    else:
+                        observed = "there is nowhere to go"
+                elif kind == "finish_task":
+                    # A thing that takes more than one step, so completion is
+                    # a different outcome from progress. Two steps in is a
+                    # partial success, and a repertoire with no partial success
+                    # has nothing between done and failed.
+                    path = room / "task.txt"
+                    prior = path.read_text().splitlines() if path.exists() else []
+                    steps = prior + [f"step {len(prior) + 1}: {intended[:60]}"]
+                    gateway.write_text(
+                        path, "\n".join(steps) + "\n", source="subject_core.action_probe"
+                    )
+                    done = len(steps) % 3 == 0
+                    ok = done
+                    partial = not done
+                    observed = f"{len(steps)} steps, {'finished' if done else 'still going'}"
+                elif kind == "tidy_room":
+                    # Half works by design. It clears what it can reach and
+                    # leaves the directories, so a room with anything in it
+                    # comes back partly tidy — and the ledger sees an attempt
+                    # that neither succeeded nor failed.
+                    rooms = sorted(
+                        (p for p in room.glob("room_*") if p.is_dir()), reverse=True
+                    )
+                    if not rooms:
+                        observed = "there is nothing to tidy"
+                    else:
+                        target_room = rooms[0]
+                        inside = sorted(target_room.iterdir())
+                        removed = 0
+                        for item in inside:
+                            if item.is_file():
+                                item.unlink()
+                                removed += 1
+                        left = len(list(target_room.iterdir()))
+                        ok = removed > 0 and left == 0
+                        partial = removed > 0 and left > 0
+                        observed = f"{target_room.name}: cleared {removed}, {left} left"
                 else:
                     path = room / "notes.txt"
                     gateway.write_text(
@@ -1241,15 +1383,29 @@ class SubjectRuntime:
         # four readings were constant for want of a caller, not for want of
         # anything to say.
         self._through_the_intention_loop(intended, ok, actor, kind)
+        outcome = "succeeded" if ok else ("partial" if partial else "failed")
+        # An outcome she caused and did not mean to. The log rolls itself when
+        # it gets long, so an append can remove lines nobody asked to remove —
+        # her hand, her consequence, and no intention of it anywhere.
+        accidental = self._roll_the_log_if_long(kind)
         record = {
             "intended": intended,
             "verified": ok,
             "at": time.time(),
             "actor": actor,
-            # Which of the four things she can do this was, so an experiment
-            # over action kinds can say which one it measured.
+            # Which of the things she can do this was, so an experiment over
+            # action kinds can say which one it measured.
             "kind": kind,
+            # And what shape it came back as. "Failed" and "half done" are
+            # different things to have done, and a self-model that tells them
+            # apart is doing something a boolean cannot show.
+            "outcome": outcome,
+            "predicted": predicted,
+            "prediction_correct": bool(predicted) == bool(ok),
+            "accidental": accidental,
+            "deliberate": bool(actor == "self" and not accidental),
         }
+        self._remember_outcome(kind, ok)
         self.state.world.facts["last_action"] = record
         self.last_action = dict(record)
         # The same world state, attributed. This is the one call that separates

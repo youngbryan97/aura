@@ -158,10 +158,39 @@ class Checker:
         return done.returncode == 0, f"exit {done.returncode}: {command}"
 
 
+#: Command checks run at once. Each one spawns an interpreter and most of them
+#: spawn pytest, so a hundred and thirty of them in a row is twenty minutes of
+#: import cost and a gate nobody runs. They are independent — no command check
+#: writes anything another one reads — so they run together, bounded because
+#: the host usually has a campaign on it.
+COMMAND_WORKERS: int = 8
+
+
+def _run_commands_first(evidence: dict[str, Any], checker: Checker) -> dict[str, tuple[bool, str]]:
+    """Every command check, at once, keyed by its command line.
+
+    Keyed by the command rather than by the item, because the same command
+    appears under several items and running it once is the same answer.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    commands: dict[str, dict[str, Any]] = {}
+    for claim in evidence.values():
+        for check in claim.get("checks", []):
+            if check.get("kind") == "command":
+                commands.setdefault(check["command"], check)
+    if not commands:
+        return {}
+    with ThreadPoolExecutor(max_workers=COMMAND_WORKERS) as pool:
+        done = list(pool.map(checker.run, commands.values()))
+    return dict(zip(commands, done, strict=True))
+
+
 def evaluate() -> tuple[list[dict[str, Any]], Checker]:
     items = json.loads(ITEMS.read_text())["items"]
     evidence = json.loads(EVIDENCE.read_text()) if EVIDENCE.is_file() else {}
     checker = Checker()
+    answered = _run_commands_first(evidence, checker)
     rows: list[dict[str, Any]] = []
     for item in items:
         claim = evidence.get(item["id"])
@@ -172,7 +201,12 @@ def evaluate() -> tuple[list[dict[str, Any]], Checker]:
         if claim:
             row["note"] = claim.get("note", "")
             checks = claim.get("checks", [])
-            results = [checker.run(check) for check in checks]
+            results = [
+                answered.get(check["command"]) or checker.run(check)
+                if check.get("kind") == "command"
+                else checker.run(check)
+                for check in checks
+            ]
             row["why"] = [message for _, message in results]
             if claim.get("status") == "not_applicable":
                 row["status"] = "n/a" if all(ok for ok, _ in results) else "open"
