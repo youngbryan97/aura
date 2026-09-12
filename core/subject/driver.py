@@ -1023,6 +1023,13 @@ class SubjectRuntime:
         "append_log": "the line is on the end of the log",
         "make_room": "the room is there",
         "read_room": "the room from last turn is there to look in",
+        # The four added so ownership is asked of more than one shape of acting.
+        # Each says what its own check in `_act` verifies, so the ledger learns
+        # four capabilities rather than one called "the action lands".
+        "paint_panel": "the panel reads back as she drew it",
+        "visit_room": "she is standing in the next room",
+        "finish_task": "the task has all three of its steps",
+        "tidy_room": "the room has nothing left in it",
     }
 
     def _through_the_intention_loop(
