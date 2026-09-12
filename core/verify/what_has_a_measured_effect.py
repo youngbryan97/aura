@@ -42,15 +42,30 @@ __all__ = [
     "the_declared_lesions",
     "the_baseline",
     "what_is_still_unmeasured",
+    "what_the_substrate_trials_found",
 ]
 
 BASELINE = Path(__file__).resolve().parents[2] / "config" / "measured_effect_baseline.json"
 
+#: Verdicts from paired trials run against a named substrate by
+#: ``tools/run_influence_trials_on_the_substrate.py``. A separate count from
+#: the live one and it must stay separate: a verdict at Qwen2.5-1.5B is not a
+#: verdict at the 27B, and merging the two numbers would let the small model
+#: discharge the large model's obligation.
+SUBSTRATE_TRIALS = (
+    Path(__file__).resolve().parents[2] / "artifacts" / "influence" / "substrate_trials.json"
+)
+
 
 #: Every spelling of "make this channel lesionable". A registration through
 #: one of these is what makes a faculty falsifiable at all.
+#:
+#: ``lesionable`` is the decorator form, and leaving it out was the same
+#: mistake this file warns about elsewhere: the affective valence engine binds
+#: its channel to the class's own ``lesion()`` method, which is a registration
+#: by any reading, and the count said the channel did not exist.
 _THE_WAYS_TO_REGISTER: frozenset[str] = frozenset(
-    {"register_lesion", "register_flag_lesion", "register_value_lesion"}
+    {"register_lesion", "register_flag_lesion", "register_value_lesion", "lesionable"}
 )
 
 
@@ -71,6 +86,58 @@ def _a_channel_name(node: Any, path: Path) -> str:
     # A bare name is a variable — a wrapper passing its own argument through.
     # Counting it added a channel called "channel" to the list.
     return ""
+
+
+def _channels_a_loop_binds(tree: Any) -> dict[str, set[str]]:
+    """Loop variables that take a channel name, and which names they take.
+
+    Three of these are registered in a ``for`` over a literal tuple of
+    ``(channel, source)`` pairs. The argument at the call is then a bare
+    ``ast.Name``, which this file deliberately refuses to count — so the
+    spiking, imagination and bicameral sampling biases were registered in the
+    source, registered at runtime, and absent from the declared count. The
+    ratchet undercounted the apparatus by three.
+
+    Only literal iterables. A loop over something computed is a channel set
+    this cannot know statically, and guessing at one is how a static count
+    starts disagreeing with the runtime it is meant to describe.
+    """
+    import ast
+
+    bound: dict[str, set[str]] = {}
+
+    def elements(node: Any) -> list[Any]:
+        return list(node.elts) if isinstance(node, (ast.Tuple, ast.List)) else []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.For):
+            continue
+        rows = elements(node.iter)
+        if not rows:
+            continue
+        targets = (
+            [node.target] if isinstance(node.target, ast.Name) else elements(node.target)
+        )
+        for position, target in enumerate(targets):
+            if not isinstance(target, ast.Name):
+                continue
+            for row in rows:
+                cells = elements(row) if len(targets) > 1 else [row]
+                if position >= len(cells):
+                    continue
+                name = _a_channel_name(cells[position], Path("."))
+                if name:
+                    bound.setdefault(target.id, set()).add(name)
+    return bound
+
+
+def _every_name_for(node: Any, path: Path, bound: dict[str, set[str]]) -> set[str]:
+    """The channel names this argument can carry, literal or loop-bound."""
+    import ast
+
+    if isinstance(node, ast.Name) and node.id in bound:
+        return set(bound[node.id])
+    return {_a_channel_name(node, path)}
 
 
 def the_declared_lesions(root: Path | None = None) -> list[str]:
@@ -99,6 +166,7 @@ def _declared_lesions(here: Path) -> tuple[str, ...]:
             tree = ast.parse(path.read_text("utf-8", errors="ignore"))
         except (SyntaxError, OSError, ValueError):
             continue
+        bound = _channels_a_loop_binds(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
@@ -110,9 +178,9 @@ def _declared_lesions(here: Path) -> tuple[str, ...]:
             # said zero while seven were registered.
             for keyword in node.keywords:
                 if keyword.arg == "channel":
-                    found.add(_a_channel_name(keyword.value, path))
+                    found.update(_every_name_for(keyword.value, path, bound))
             for argument in node.args[:1]:
-                found.add(_a_channel_name(argument, path))
+                found.update(_every_name_for(argument, path, bound))
     found.discard("")
     return tuple(sorted(found))
 
@@ -149,6 +217,16 @@ def how_much_is_measured() -> dict[str, Any]:
     unmeasured = by_verdict.get(str(Verdict.UNMEASURED), [])
     influential = by_verdict.get(str(Verdict.INFLUENTIAL), [])
     inert = by_verdict.get(str(Verdict.INERT), [])
+    on_the_substrate = what_the_substrate_trials_found()
+    # The declared list carries constant names and the ledger carries channel
+    # ids, so without this the two halves of the report cannot be joined:
+    # AFFECT_CIRCUMPLEX_SAMPLING would read as unmeasured beside a verdict for
+    # affect.circumplex_sampling and nobody could tell they were one channel.
+    with_a_substrate_verdict = sorted(
+        name
+        for name in unmeasured
+        if _the_channel_id(name) in on_the_substrate["channels"]
+    )
     return {
         "declared_services": len(declared_services),
         "declared_lesions": len(declared),
@@ -159,11 +237,83 @@ def how_much_is_measured() -> dict[str, Any]:
         "influential": sorted(influential),
         "inert": sorted(inert),
         "still_unmeasured": sorted(unmeasured),
+        # Held apart from `measured` on purpose. These are verdicts, reached
+        # by paired trials against a real model, and they are verdicts at a
+        # 1.5B — which is a boundary, not a hedge.
+        "measured_at_substrate": on_the_substrate["measured"],
+        "substrate": on_the_substrate["substrate"],
+        "substrate_verdicts": dict(on_the_substrate["channels"]),
+        "measured_at_substrate_not_live": with_a_substrate_verdict,
         # The sentence the counts are for.
         "what_this_means": (
             "a channel wired to a consumer is not a measured downstream "
             "effect; only `measured` is evidence"
         ),
+    }
+
+
+@functools.lru_cache(maxsize=1)
+def _by_constant_name() -> dict[str, str]:
+    """Constant name to channel id, from the one module that owns both.
+
+    Importing a leaf of constants is not the import-order problem the counting
+    above avoids: nothing registers a lesion on the way in.
+    """
+    from core.verify import influence_channels
+
+    return {
+        name: value
+        for name, value in vars(influence_channels).items()
+        if name.isupper() and isinstance(value, str)
+    }
+
+
+def _the_channel_id(constant_or_id: str) -> str:
+    return _by_constant_name().get(constant_or_id, constant_or_id)
+
+
+def what_the_substrate_trials_found() -> dict[str, Any]:
+    """Channels with a verdict from paired trials, and at which substrate.
+
+    The live campaign measures nothing today and the reason is structural
+    rather than statistical: its generator asks the gate for a background
+    generation, and every ``apply_channel`` site sits behind a guard that a
+    background call does not pass — the circumplex behind
+    ``not is_background and origin_is_user_facing``, the live-mind and
+    sampling-bias sites inside the clean-user-surface contract. So the hourly
+    job was rotating through nine channels none of which its own generator
+    could move.
+
+    A direct call CAN move four of them, because the advisory frames, the
+    circumplex and the production sampling fold all run without a turn. That
+    is what these trials are, and the substrate is named in the result
+    because it is a boundary: 1.5B, forty paired trials, the token budget
+    free to move because half of each channel is the budget.
+    """
+    try:
+        payload = json.loads(SUBSTRATE_TRIALS.read_text("utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.debug("no substrate influence trials: %s", exc)
+        return {"substrate": "", "measured": 0, "channels": {}}
+    if not isinstance(payload, dict):
+        return {"substrate": "", "measured": 0, "channels": {}}
+    findings = payload.get("findings")
+    channels: dict[str, str] = {}
+    if isinstance(findings, dict):
+        for channel, finding in findings.items():
+            verdict = (finding or {}).get("verdict") if isinstance(finding, dict) else None
+            name = str((verdict or {}).get("verdict") or "").lower()
+            if name in {"influential", "inert"}:
+                channels[str(channel)] = name
+    return {
+        "substrate": str(payload.get("substrate") or ""),
+        "trials_per_channel": payload.get("trials_per_channel"),
+        "measured": len(channels),
+        "channels": channels,
+        "unreachable_from_a_direct_call": list(
+            payload.get("not_measurable_by_a_direct_call") or ()
+        ),
+        "what_this_is_not": str(payload.get("what_this_is_not") or ""),
     }
 
 

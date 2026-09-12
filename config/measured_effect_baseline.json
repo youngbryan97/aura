@@ -1,14 +1,26 @@
 {
-  "note": "A channel wired to a consumer is not a measured downstream effect. declared_lesions and measured only go up; a channel that had a verdict may not lose it.",
-  "declared_lesions": 6,
+  "note": "A channel wired to a consumer is not a measured downstream effect. declared_lesions, measured and measured_at_substrate only go up; a channel that had a verdict may not lose it. measured is the live path and is still zero; measured_at_substrate is paired trials against a named small model and is a different claim.",
+  "declared_lesions": 10,
   "measured": 0,
   "measured_channels": [],
+  "measured_at_substrate": 4,
+  "substrate": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "substrate_verdicts": {
+    "affect.circumplex_sampling": "inert",
+    "bicameral.sampling_bias": "inert",
+    "imagination.sampling_bias": "inert",
+    "spiking.sampling_bias": "inert"
+  },
   "still_unmeasured": [
     "AFFECT_CIRCUMPLEX_SAMPLING",
+    "AFFECT_GENERATION_CONTROLS",
+    "BICAMERAL_SAMPLING_BIAS",
+    "IMAGINATION_SAMPLING_BIAS",
     "LIVE_MIND_CONTEXT_BLOCK",
     "LIVE_MIND_GENERATION_CONTROLS",
     "LIVE_MIND_RECURRENT_LOOPS",
     "LIVE_MIND_STEERING_ALPHA",
-    "QUALIA_RICHNESS"
+    "QUALIA_RICHNESS",
+    "SPIKING_SAMPLING_BIAS"
   ]
 }
