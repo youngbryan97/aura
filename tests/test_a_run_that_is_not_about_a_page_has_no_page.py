@@ -13,18 +13,46 @@ belongs to, and had never been applied to the page.
 
 from __future__ import annotations
 
+import ast
 import inspect
+import textwrap
 
 from core.skills import screen_pursuit
 
 SOURCE = inspect.getsource(screen_pursuit.pursue_on_screen)
+BEARINGS = inspect.getsource(screen_pursuit._take_the_run_its_bearings)
+
+
+def _about_a_page_in(source: str) -> list[str]:
+    """Every ``about_a_page = ...`` in one function, as unparsed source.
+
+    Through the syntax tree, not as a line of text. These checks matched
+
+        about_a_page = bool(open_page or expect_page)
+
+    exactly, and the expression was later rewrapped over three lines and given
+    a third clause. The coupling they guard was intact and wider; four checks
+    across two files reported it gone. A guard that a reformat can break is one
+    somebody deletes the next time they reformat.
+    """
+    tree = ast.parse(textwrap.dedent(source))
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "about_a_page"
+            for target in node.targets
+        ):
+            found.append(ast.unparse(node.value))
+    return found
 
 
 def test_the_page_anchor_asks_whether_the_run_is_about_a_page():
+    decided = _about_a_page_in(SOURCE)
+    assert decided, "pursue_on_screen no longer decides whether it is about a page"
+    assert all("open_page" in d and "expect_page" in d for d in decided), decided
+
     at = SOURCE.index('if not anchor["page"]:')
-    nearby = SOURCE[at : at + 1400]
-    assert "about_a_page = bool(open_page or expect_page)" in nearby
-    assert "if about_a_page else" in nearby
+    assert "if about_a_page else" in SOURCE[at : at + 1400]
 
 
 def test_a_caller_that_named_a_page_still_gets_one():
@@ -41,8 +69,7 @@ def test_the_application_anchor_asks_the_same_question():
 
 def test_it_is_asked_once_and_used_for_both():
     """One question, two answers that must agree."""
-    asked = SOURCE.count("about_a_page = bool(open_page or expect_page)")
-    assert asked == 1
+    assert len(_about_a_page_in(SOURCE)) == 1, _about_a_page_in(SOURCE)
 
 
 # ── and the same question, asked when the run takes its bearings ─────────
@@ -51,9 +78,13 @@ def test_it_is_asked_once_and_used_for_both():
 def test_taking_its_bearings_does_not_call_an_open_browser_a_page_task():
     """The test included whether any page was open anywhere, which is true
     whenever a browser is running."""
-    bearings = inspect.getsource(screen_pursuit._take_the_run_its_bearings)
-    assert "about_a_page = bool(open_page or expect_page)" in bearings
-    assert "page.get(\"url\"))" not in bearings.split("about_a_page = ")[1][:80]
+    decided = _about_a_page_in(BEARINGS)
+    assert decided, "_take_the_run_its_bearings no longer asks the question"
+    for expression in decided:
+        assert "open_page" in expression, expression
+        assert "expect_page" in expression, expression
+        # What is asked for, never what happens to be open.
+        assert "url" not in expression, expression
 
 
 def test_a_run_that_names_an_application_belongs_to_it():
