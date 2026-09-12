@@ -34,10 +34,14 @@ def test_the_plan_can_choose_a_change_to_her_terms(loop, monkeypatch):
         "what_to_do_next",
         lambda *a, **k: type("D", (), {"action": AnAction()})(),
     )
-    assert (
-        loop._what_she_could_change_about_her_own_terms()
-        == "a way of computing she wrote"
-    )
+    # The decision, not its name. The planner returns what was decided so the
+    # executor can run THAT action; returning a name means asking again, and
+    # the choice among unpriced actions is a draw — so it would run a
+    # different action from the one the plan was made on. The caller reads it
+    # the way this does, through `.action.name`.
+    decided = loop._what_she_could_change_about_her_own_terms()
+    assert decided is not None
+    assert getattr(decided.action, "name", None) == "a way of computing she wrote"
 
 
 def test_nothing_registered_is_an_answer_and_not_a_failure(loop, monkeypatch):

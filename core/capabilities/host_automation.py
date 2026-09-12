@@ -1252,7 +1252,10 @@ class HostAutomationProvider:
         wanted = [str(key or "").strip().lower() for key in keys]
         wanted = [key for key in wanted if key]
         if not wanted:
-            return AutomationReceipt(action="hotkeys", target="", success=False, error="no keys given")
+            return AutomationReceipt(
+                action="hotkeys", target="", adapter="applescript",
+                success=False, error="no keys given",
+            )
 
         refusal = await self._ensure_input_target(expect_app, "hotkeys")
         if refusal is not None:
@@ -1271,6 +1274,7 @@ class HostAutomationProvider:
             return AutomationReceipt(
                 action="hotkeys",
                 target=" ".join(wanted),
+                adapter="applescript",
                 success=False,
                 error=f"not plain keys: {', '.join(unknown)}",
             )

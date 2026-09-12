@@ -112,7 +112,10 @@ def test_the_same_reference_leads_nowhere_when_only_one_store_is_looked_at():
     alone = references_that_lead_nowhere({"knowledge_graph": graphs["knowledge_graph"]})
     assert len(alone) == 1
     assert alone[0]["id"] == aura.node_id
-    assert alone[0]["why"] == "a placeholder"
+    # The node's own kind, not a word for it: `references_that_lead_nowhere`
+    # reports A_PLACEHOLDER so the reason is in the vocabulary the graph
+    # already uses, which is what the sibling test below asserts too.
+    assert alone[0]["why"] == A_PLACEHOLDER
 
 
 def test_a_placeholder_is_what_dangling_looks_like_here():

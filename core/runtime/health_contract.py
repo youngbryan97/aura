@@ -1765,7 +1765,11 @@ def _runtime_integrity_block() -> dict[str, Any]:
     try:
         phi_core = get_runtime_service("phi_core", default=None)
         if phi_core is not None and hasattr(phi_core, "grassmann_history_depth"):
-            history = {"grassmann_states": int(phi_core.grassmann_history_depth())}
+            # Typed wide because the publishers key below carries either the
+            # per-hook diagnostics or a sentence saying why there are none.
+            history: dict[str, Any] = {
+                "grassmann_states": int(phi_core.grassmann_history_depth())
+            }
             # A depth of zero has four possible causes and they are not the
             # same problem: no hook was ever called, the encoder is still
             # filling its window, the encoder is refusing every sample, or

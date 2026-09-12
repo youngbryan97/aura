@@ -627,7 +627,7 @@ def validate_launch_source(
             "manifest": {},
         }
 
-    issues: list[str] = []
+    issues = []
     manifest_path_text = str(environment.get("AURA_LAUNCH_MANIFEST_PATH") or "").strip()
     executable_text = str(environment.get("AURA_LAUNCH_APP_EXECUTABLE") or "").strip()
     expected_root = str(environment.get("AURA_LAUNCH_EXPECTED_ROOT") or "").strip()
@@ -671,7 +671,7 @@ def validate_launch_source(
         if not _manifest_belongs_to_executable(manifest_path, executable):
             issues.append("manifest_outside_app_bundle")
 
-    actual: dict[str, Any] = {}
+    actual = {}
     try:
         identity = _git_identity(canonical_input)
         actual.update(identity)
@@ -692,11 +692,11 @@ def validate_launch_source(
         ),
         "bundle_identifier": (expected_bundle_id, EXPECTED_BUNDLE_ID),
     }
-    for field, (expected, observed) in identity_comparisons.items():
-        if expected and str(expected) != str(observed or ""):
+    for field, (wanted, seen) in identity_comparisons.items():
+        if wanted and str(wanted) != str(seen or ""):
             issues.append(f"{field}_mismatch")
         manifest_value = manifest.get(field) if manifest else None
-        if expected and str(expected) != str(manifest_value or ""):
+        if wanted and str(wanted) != str(manifest_value or ""):
             issues.append(f"manifest_{field}_mismatch")
 
     runtime_values = {
@@ -743,8 +743,8 @@ def validate_launch_source(
         "branch": (expected_branch, actual.get("branch")),
         "workspace_state_sha256": (expected_workspace, actual.get("workspace_state_sha256")),
     }
-    for field, (expected, observed) in freshness_comparisons.items():
-        if expected and str(expected) != str(observed or ""):
+    for field, (wanted, seen) in freshness_comparisons.items():
+        if wanted and str(wanted) != str(seen or ""):
             runtime_drift.append(field)
 
     # BUNDLE FRESHNESS remains useful audit evidence, but an intentionally thin
@@ -758,8 +758,8 @@ def validate_launch_source(
             actual.get("workspace_state_sha256"),
         ),
     }
-    for field, (expected, observed) in bundle_comparisons.items():
-        if expected and str(expected) != str(observed or ""):
+    for field, (wanted, seen) in bundle_comparisons.items():
+        if wanted and str(wanted) != str(seen or ""):
             bundle_drift.append(field)
 
     # Identity findings decide whether this signed bundle belongs to this
