@@ -6791,7 +6791,7 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     missing = [
         name
         for name, present in (
-            ("a model identity", bool(identity)),
+            ("model identity", bool(identity)),
             ("an attached steering engine", engine is not None),
             ("steering hooks", bool(hooks)),
             ("a loaded model", model is not None),
@@ -6804,10 +6804,10 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
         if not _FUSION_SELF_CERTIFY_REFUSAL_LOGGED:
             _FUSION_SELF_CERTIFY_REFUSAL_LOGGED = True
             logger.info(
-                "The fusion channel cannot be measured on this worker: it has no %s. "
+                "The fusion channel cannot be measured on this worker; it has no %s. "
                 "The channel stays shut and this is not retried usefully, so the "
                 "reason is here rather than in a silence repeated every minute.",
-                " and no ".join(missing),
+                ", no ".join(missing),
             )
         return False
     try:

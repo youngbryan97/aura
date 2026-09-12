@@ -11,7 +11,7 @@
   "missing_evidence:lesion_removes_the_effect",
   "missing_evidence:no_regression_on_the_control_prompts"
  ],
- "descriptor_fingerprint": "8e26c4733aa8c41d180c62191ded81edd2d5987a56c43438816bf0467e426a80",
+ "descriptor_fingerprint": "05346acd618d1c925f1619b30d6bdec50794095e967dea1b3f16ac471dbe9bf4",
  "dimensions": [
   "valence_positive",
   "arousal",

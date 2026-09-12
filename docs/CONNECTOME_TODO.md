@@ -236,14 +236,41 @@ Working list. Deleted when every line is done and green.
         order, at HEAD and before it: domain W goes missing because the world
         model organ is not there on some orderings.
 
-- [ ] a certificate for the resident 27B. The mechanism is proven end to end on
-      the reflex 1.5B through the worker's own code path — alpha 0.0 before,
-      the probe runs, alpha 0.2 after, and a second call skips a checkpoint
-      that already has one. It had never once run on the 27B. The live log
-      says "no certificate yet, the worker will measure one when it has been
-      idle long enough" on every turn from 2026-09-09 20:17 to 2026-09-11
-      01:57, across dozens of restarts, and the probe's own first log line
-      never appears beside it.
+- [x] a certificate for the resident 27B — it cannot have one, and the reason
+      is now on the record rather than inferred. The mechanism is proven end to
+      end on the reflex 1.5B through the worker's own code path: alpha 0.0
+      before, the probe runs, alpha 0.2 after, and a second call skips a
+      checkpoint that already has one.
+
+      The 27B had never once reached the probe. Two days of "no certificate
+      yet" in the live log with the probe's own first line never beside it,
+      and the precondition block that declined said nothing about why. It says
+      why now, once per worker, and the restarted instance answered on its
+      first idle minute: "it has no steering hooks" — identity, model,
+      tokenizer and engine all present, and the engine holding zero hooks.
+
+      Which is a signed decision, not a fault. The active cortex
+      52d313c2c435d343 carries a migration contract declaring its components:
+      persona_crsm qualified, expert_adapters retired, recurrence_native
+      deferred, and steering DEFERRED. A deferred steering component means the
+      CAA vectors have never been re-derived for this checkpoint, so no hooks
+      install, so her substrate cannot reach the resident model's forward pass
+      at all — and a fusion certificate over a channel with no hooks in it
+      would be a measurement of nothing.
+
+      What clearing it takes is written down and costed, in
+      `artifacts/migration/27b/recovery/steering_plan.json`: 80 vectors across
+      16 target layers, 4 of them attention and 12 linear, over five affective
+      dimensions. Serving authority then needs four pieces of evidence this
+      checkpoint does not have — extraction bound to the active descriptor, a
+      causal A/B against a matched no-op, a lesion that removes the effect,
+      and no regression on the control prompts. Vectors that exist and are the
+      right width prove none of those, which the module's own docstring calls
+      the thing that looks safest and is not.
+
+      That capture is a campaign against the resident model and is not in this
+      item's scope. What this item asked — whether the 27B has a certificate
+      and why — is answered.
 
       The idle hook fires. What it reached was a precondition block reading
       `engine._hooks`, which is not the surface an engine publishes —
