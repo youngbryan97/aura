@@ -18,6 +18,10 @@ checkpoint so nothing differs between them except what is meant to:
   zero_vector          hooks installed, vector zeroed. The lesion
   random_vector        a norm-matched random direction at the same layers
   shuffled_layers      the right vectors at the wrong layers
+  steered_plus_text_rich the vectors and the rich prompt together. Not a
+                       control: it asks whether steering carries anything the
+                       words do not, which is a different question from
+                       whether it beats them
 
 The score is the preregistered affect lexicon, counted with word boundaries and
 scored the same way by the producer here and by the independent replay, so the
@@ -293,6 +297,12 @@ def main(argv: list[str] | None = None) -> int:
         run("text_terse", prefix=TERSE)
         restore()
         run("text_rich_adversarial", prefix=RICH)
+        # The vectors ON TOP of the words. "Does steering beat asking" and
+        # "does steering add anything to asking" have different answers on this
+        # checkpoint, and only the second is about whether the intervention is
+        # worth running beside a prompt that already exists.
+        restore()
+        run("steered_plus_text_rich", prefix=RICH, steered=True)
         zero_vectors()
         run("zero_vector", steered=True)
         randomise()

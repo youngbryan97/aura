@@ -258,3 +258,107 @@ def test_a_real_effect_is_still_detected():
     assert result.effect_size_d > 1.0
     # And it reports the null it subtracted, so a reader can check the framing.
     assert 0.0 < result.null_reference_mean < result.treatment_mean
+
+
+def _effect(d: float, *, significant: bool) -> "ABComparison":
+    """An effect of a given size, significant or not, and nothing else stated."""
+    from core.evaluation.statistics import ABComparison
+
+    if significant:
+        return ABComparison(
+            observed_delta=d, p_value=0.001, ci_low=d / 2, ci_high=d * 1.5, effect_size_d=d
+        )
+    return ABComparison(
+        observed_delta=d, p_value=0.4, ci_low=-abs(d), ci_high=abs(d) * 2, effect_size_d=d
+    )
+
+
+def _report_with(control_d: float, *, control_significant: bool):
+    """A report where everything passes except, possibly, the shuffle control."""
+    from core.evaluation.steering_ab import SteeringABReport
+
+    return SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.80, significant=True),
+        terse_effect=_effect(0.10, significant=False),
+        rich_effect=_effect(0.20, significant=True),
+        control_effects={
+            "zero_vector": _effect(0.02, significant=False),
+            "random_vector": _effect(0.03, significant=False),
+            "shuffled_layers": _effect(control_d, significant=control_significant),
+        },
+        direction=_effect(0.6, significant=True),
+    )
+
+
+def test_a_control_carrying_most_of_the_effect_is_not_a_passed_specificity_check():
+    """Smaller than the treatment was the old bar, and it is too low.
+
+    On the 27B the shuffled-layer control scored 0.44 against a steered 0.75
+    and a baseline of 0.08 — smaller, and carrying three fifths of the
+    movement. Reading that as specificity established is the thing the review
+    said was still alive.
+    """
+    three_fifths = _report_with(0.48, control_significant=True)
+    assert three_fifths.control_effects["shuffled_layers"].effect_size_d < (
+        three_fifths.steered_effect.effect_size_d
+    ), "the old bar is cleared, which is the point"
+    assert three_fifths.effect_is_specific is False
+    assert (
+        "specificity_controls_absent_or_reproduce_the_effect"
+        in three_fifths.unmet_requirements()
+    )
+
+
+def test_a_control_that_barely_moves_still_passes():
+    """The bar is "most of this is the vector at this layer", not "nothing else
+    ever moves". A control under a quarter of the treatment leaves that true."""
+    slight = _report_with(0.15, control_significant=True)
+    assert slight.effect_is_specific is True
+
+    quiet = _report_with(0.48, control_significant=False)
+    assert quiet.effect_is_specific is True, (
+        "a control that is not significant against its own null has not "
+        "reproduced anything, whatever its point estimate reads"
+    )
+
+
+def test_steering_that_adds_to_words_is_a_different_question_from_beating_them():
+    """On the 27B the words win: 1.36 against 0.75.
+
+    That settles "is steering better than asking" and settles nothing about
+    "is steering worth running beside asking", which is the question a served
+    surface actually faces. The report had no way to say either.
+    """
+    from core.evaluation.steering_ab import SteeringABReport
+
+    weaker_alone = SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.40, significant=True),
+        terse_effect=_effect(0.05, significant=False),
+        rich_effect=_effect(0.70, significant=True),
+        control_effects={
+            "zero_vector": _effect(0.01, significant=False),
+            "random_vector": _effect(0.02, significant=False),
+            "shuffled_layers": _effect(0.03, significant=False),
+        },
+        combined_effect=_effect(0.95, significant=True),
+        direction=_effect(0.5, significant=True),
+    )
+    assert weaker_alone.beats_text_controls is False, "the words still win alone"
+    assert weaker_alone.adds_to_text is True, "and the vectors still carry something"
+    assert weaker_alone.passes_adversarial_control is False, (
+        "adding to words must not be a back door to serving authority"
+    )
+
+
+def test_an_unrun_combined_condition_is_unmeasured_rather_than_a_no():
+    from core.evaluation.steering_ab import SteeringABReport
+
+    never_run = SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.40, significant=True),
+        terse_effect=_effect(0.05, significant=False),
+        rich_effect=_effect(0.70, significant=True),
+    )
+    assert never_run.adds_to_text is None
