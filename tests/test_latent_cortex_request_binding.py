@@ -65,34 +65,40 @@ def test_a_missing_digest_is_still_refused():
 
 def test_the_client_publishes_the_digest_it_bound():
     """Without this the facade has nothing to confirm against."""
-    import inspect
+    # The whole client family. Latent reasoning moved to
+    # `mlx_latent_reasoning` when mlx_client went back under the size ceiling,
+    # and reading the one file reported a missing binding rather than a moved
+    # one. `mlx_source` exists for exactly this and already lists the module.
+    from mlx_source import client_source
 
-    from core.brain.llm import mlx_client
-
-    source = inspect.getsource(mlx_client)
+    source = client_source()
     assert '"request_payload_sha256_bound": expected_request_sha256' in source
 
 
 def test_the_client_still_refuses_a_mismatch_itself():
     """The facade's check is a second line, not a replacement for the
     client's own binding against the payload it sent."""
-    import inspect
+    from mlx_source import client_source
 
-    from core.brain.llm import mlx_client
-
-    source = inspect.getsource(mlx_client)
+    source = client_source()
     assert 'identity_errors.append("request_payload_sha256_mismatch")' in source
 
 
 @pytest.mark.parametrize("evidence", [{}, {"baseline_text": "private", "baseline_tokens": [1]}, None])
 def test_client_success_mapping_preserves_private_validation_evidence(evidence):
     import ast
-    from pathlib import Path
 
-    source = Path("core/brain/llm/mlx_client.py").read_text()
-    tree = ast.parse(source)
+    from mlx_source import client_modules
+
+    # Across the client family, and by absolute path. The mapping moved to
+    # `mlx_latent_reasoning` when mlx_client went back under the size ceiling,
+    # so reading the one file found no mapping at all — and the relative path
+    # meant the same read depended on where pytest was started from.
     mappings = [
-        node for node in ast.walk(tree) if isinstance(node, ast.Dict)
+        node
+        for module in client_modules()
+        for node in ast.walk(ast.parse(module.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Dict)
         and any(isinstance(key, ast.Constant) and key.value == "request_payload_sha256_bound"
                 for key in node.keys)
     ]

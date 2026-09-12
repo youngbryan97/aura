@@ -362,3 +362,46 @@ def test_an_unrun_combined_condition_is_unmeasured_rather_than_a_no():
         rich_effect=_effect(0.70, significant=True),
     )
     assert never_run.adds_to_text is None
+
+
+def test_the_combined_condition_survives_the_replay():
+    """A question the campaign paid for and the replay threw away.
+
+    ``_condition_outputs`` kept only the required set, so a campaign that had
+    just spent thirty-six generations on ``steered_plus_text_rich`` had
+    ``adds_to_text`` come back None — unmeasured — every time. A mechanism
+    that cannot fire.
+    """
+    from core.evaluation.caa_causal_evaluation import _condition_outputs
+    from core.evaluation.steering_ab import (
+        COMBINED_CONDITION,
+        REQUIRED_CONDITIONS,
+        SPECIFICITY_CONTROLS,
+    )
+
+    names = [*REQUIRED_CONDITIONS, *SPECIFICITY_CONTROLS, COMBINED_CONDITION]
+    outputs = {
+        name: [f"{name} sample {index} with enough words to be a reply" for index in range(24)]
+        for name in names
+    }
+    kept = _condition_outputs({"condition_outputs": outputs})
+    assert COMBINED_CONDITION in kept
+    assert len(kept[COMBINED_CONDITION]) == 24
+
+
+def test_a_result_without_the_combined_condition_still_replays():
+    """Older campaigns predate it, and unmeasured must stay unmeasured."""
+    from core.evaluation.caa_causal_evaluation import _condition_outputs
+    from core.evaluation.steering_ab import (
+        COMBINED_CONDITION,
+        REQUIRED_CONDITIONS,
+        SPECIFICITY_CONTROLS,
+    )
+
+    names = [*REQUIRED_CONDITIONS, *SPECIFICITY_CONTROLS]
+    outputs = {
+        name: [f"{name} sample {index} with enough words to be a reply" for index in range(24)]
+        for name in names
+    }
+    kept = _condition_outputs({"condition_outputs": outputs})
+    assert COMBINED_CONDITION not in kept

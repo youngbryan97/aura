@@ -449,7 +449,13 @@ def test_the_markers_never_match_lowercase_prose():
 def test_the_path_wall_check_stays_non_proof():
     """Unlike the symbolic markers there is no exact token separating a
     telemetry wall from a path-aware proof answer."""
-    source = inspect.getsource(worker)
+    # The whole worker family. The surface quality gate moved out when
+    # mlx_worker went back under the size ceiling, and reading the one file
+    # reported a missing check rather than a moved one — which is the thing
+    # `mlx_source` was written to stop.
+    from mlx_source import worker_source
+
+    source = worker_source()
 
     assert "if not is_proof:\n        slash_count" in source
 
@@ -474,7 +480,14 @@ def test_corruption_is_refused_in_every_mode():
 
     for is_proof in (True, False):
         assert worker._sanitize_telemetry_leakage(corrupted, is_proof=is_proof) is None
-        assert "corrupted_language" in worker._telemetry_sanitization_failure_reasons(
+        # From the module that owns it. The surface quality gate moved out of
+        # mlx_worker for size and only some of its names were re-exported;
+        # adding another re-export would grow the file the split shrank.
+        from core.brain.llm.mlx_worker_surface_quality import (
+            _telemetry_sanitization_failure_reasons,
+        )
+
+        assert "corrupted_language" in _telemetry_sanitization_failure_reasons(
             corrupted, is_proof=is_proof
         )
 

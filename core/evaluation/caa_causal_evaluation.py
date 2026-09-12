@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from core.evaluation.steering_ab import (
+    COMBINED_CONDITION,
     REQUIRED_CONDITIONS,
     SPECIFICITY_CONTROLS,
     affect_target_score,
@@ -123,9 +124,17 @@ def _condition_outputs(result: Mapping[str, Any]) -> dict[str, list[str]]:
     required = {*REQUIRED_CONDITIONS, *SPECIFICITY_CONTROLS}
     if not isinstance(raw, Mapping) or not required.issubset(raw):
         raise CAACausalEvaluationError("caa_replay_outputs_incomplete")
+    # The combined condition is optional — older results predate it — but when
+    # a campaign ran it, it has to survive this filter. It did not: the replay
+    # kept only the required set, so `analyze_steering_ab` never saw the
+    # condition and `adds_to_text` came back None on a campaign that had just
+    # spent thirty-six generations answering exactly that question.
+    wanted = set(required)
+    if COMBINED_CONDITION in raw:
+        wanted.add(COMBINED_CONDITION)
     outputs: dict[str, list[str]] = {}
     sample_count: int | None = None
-    for name in sorted(required):
+    for name in sorted(wanted):
         values = raw.get(name)
         if (
             not isinstance(values, Sequence)

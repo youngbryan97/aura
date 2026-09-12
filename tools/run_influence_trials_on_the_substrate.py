@@ -199,6 +199,10 @@ def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
                 "generation_failures": report.generation_failures,
                 "intact_sampling": _named(_sampling_under("intact", frames)),
                 "lesioned_sampling": _named(_lesioned_sampling(channel, frames)),
+                "what_moved": _what_moved(
+                    _sampling_under("intact", frames),
+                    _lesioned_sampling(channel, frames),
+                ),
                 "verdict": verdict.as_dict(),
             }
             print(
@@ -226,14 +230,32 @@ def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
         "findings": findings,
         "what_this_is_not": (
             "a verdict at the 27B. The substrate is a 1.5B and the result is "
-            "a result at that substrate, sampling at the temperature the "
-            "faculty asked for."
+            "a result at that substrate. Read `what_moved` per channel before "
+            "reading its verdict: a channel whose budget half did not move was "
+            "measured on its temperature alone."
         ),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(receipt, indent=2, sort_keys=True), encoding="utf-8")
     print(f"\nwritten to {out}")
     return 0
+
+
+def _what_moved(intact: tuple[float, int], lesioned: tuple[float, int]) -> list[str]:
+    """Which halves of the channel this trial actually varied.
+
+    Not every channel moves both. The circumplex sets the token budget only
+    when the caller has not already fixed one, so on this harness its budget
+    half never moves and the trial measures its temperature alone — a verdict
+    of INERT for it is INERT for the temperature, and saying otherwise would
+    claim more than was varied.
+    """
+    moved: list[str] = []
+    if abs(intact[0] - lesioned[0]) > 1e-6:
+        moved.append("temperature")
+    if intact[1] != lesioned[1]:
+        moved.append("max_tokens")
+    return moved
 
 
 def _named(sampling: tuple[float, int]) -> dict[str, Any]:

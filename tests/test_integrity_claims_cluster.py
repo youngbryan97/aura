@@ -177,9 +177,15 @@ class TestServiceGateRequiresEvidence:
         ) is True
 
     def test_refuted_is_reported_separately_from_unproven(self):
-        from core.brain import latent_cortex_service
+        # The receipt contract and its evidence reader, which are where these
+        # two refusals live now. They were in `latent_cortex_service` until it
+        # was split for size, and reading that module found neither — which
+        # from a test looks like the separation having been dropped.
+        from core.brain import latent_receipt_contract, latent_receipt_evidence
 
-        source = inspect.getsource(latent_cortex_service)
+        source = inspect.getsource(latent_receipt_contract) + inspect.getsource(
+            latent_receipt_evidence
+        )
         assert "checkpoint_invariant_refuted" in source
         assert "fast_weight_erase_refuted" in source
 
@@ -191,9 +197,12 @@ class TestServiceGateRequiresEvidence:
         latent cortex down rather than make it honest. Contradiction needs
         no producer: if digests exist and disagree, weights really changed.
         """
-        from core.brain import latent_cortex_service
+        # Same move as the test above: the verdict is computed in the receipt
+        # contract now, and splitting the old module's source on a marker it
+        # no longer holds raised IndexError rather than saying so.
+        from core.brain import latent_receipt_contract
 
-        source = inspect.getsource(latent_cortex_service)
+        source = inspect.getsource(latent_receipt_contract)
         block = source.split('params_verdict = _integrity_verdict', 1)[1][:400]
         assert 'if params_verdict == "refuted"' in block
 

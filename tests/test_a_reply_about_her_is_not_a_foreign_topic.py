@@ -46,9 +46,13 @@ def test_a_question_about_anything_else_is_not(asked):
 def test_the_block_reads_the_question_before_it_reads_the_reply():
     import inspect
 
-    from interface.routes import chat
+    # The module that holds both lines, because the claim is about their
+    # ORDER. The block moved to `chat_reply_assessment` when the route was
+    # split for size, and reading `chat.py` raised "substring not found" —
+    # which from here is indistinguishable from the check being deleted.
+    from interface.routes import chat_reply_assessment
 
-    source = inspect.getsource(chat)
+    source = inspect.getsource(chat_reply_assessment)
     where = source.index("_asked_about_her_own_workings(user_message)")
     drift = source.index("drift = assess_subject_drift(reply)")
     assert where < drift
