@@ -98,6 +98,32 @@ def _tree_hash() -> str:
     return digest.hexdigest()
 
 
+def _git_bytes(*args: str) -> bytes | None:
+    """A blob exactly as git holds it, or None if git could not produce it.
+
+    `_git` strips and decodes, which is right for a listing and wrong for
+    content that is about to be hashed: the digest has to be over the bytes,
+    not over a round-trip through str. Same owner, same receipt, no decode.
+    """
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    try:
+        out = get_subprocess_gateway().run(
+            ["git", *args],
+            cwd=REPO,
+            capture_output=True,
+            text=False,
+            timeout=60,
+            check=False,
+            read_only=True,
+            source="subject_core.provenance.git_blob",
+            accelerator_capability="none",
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return bytes(out.stdout or b"") if out.returncode == 0 else None
+
+
 def tree_hash_at(commit: str) -> str:
     """The same hash, over the files as they were at one commit.
 
@@ -112,14 +138,11 @@ def tree_hash_at(commit: str) -> str:
         return ""
     digest = hashlib.blake2b(digest_size=16)
     for name in sorted(names):
-        blob = subprocess.run(
-            ["git", "-C", str(REPO), "show", f"{commit}:{name}"],
-            capture_output=True, check=False, timeout=60,
-        )
-        if blob.returncode != 0:
+        blob = _git_bytes("-C", str(REPO), "show", f"{commit}:{name}")
+        if blob is None:
             continue
         digest.update(name.encode())
-        digest.update(blob.stdout)
+        digest.update(blob)
     return digest.hexdigest()
 
 

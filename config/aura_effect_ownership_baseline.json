@@ -16025,6 +16025,14 @@
       "scope": "<module>._git"
     },
     {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/subject/provenance.py",
+      "scope": "<module>._git_bytes"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16426,6 +16434,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "a66571c1ca5125f34fe1f3c621d39876bd5a14c375ecd889258ebf890995abb0",
+  "inventory_sha256": "8a3f3d848e45e5877972c670306ee9d235b568e5a33dffc2e09ed891d00fbb65",
   "schema_version": 1
 }
