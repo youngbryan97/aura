@@ -26,6 +26,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 from core.ontogeny.experience import OutcomeKind
+from core.runtime.sqlite_support import connecting
 from core.verify.invariants import Severity, Violation, invariant
 
 #: Below this observation rate a deciding head is no longer learning from what
@@ -60,7 +61,13 @@ def _corpus_is_lived() -> Iterator[Violation]:
     if spine is None or spine.store_kind != "live":
         return
     try:
-        with spine._connect() as conn:  # noqa: SLF001 — the invariant guards this file
+        # `connecting`, not the connection's own context manager. A sqlite3
+        # connection used as a context manager commits or rolls back and does
+        # NOT close, so every invariant sweep left an open handle on the
+        # experience database -- which the hermetic guard sees as three leaked
+        # files, the db and its write-ahead log and shared-memory index. Every
+        # other call site in this package already wraps it.
+        with connecting(spine._connect()) as conn:  # noqa: SLF001 — the invariant guards this file
             rows = conn.execute(
                 "SELECT provenance, COUNT(*) FROM episodes WHERE provenance != 'live' GROUP BY 1"
             ).fetchall()
@@ -139,7 +146,7 @@ def _unobserved_has_no_utility() -> Iterator[Violation]:
     if spine is None:
         return
     try:
-        with spine._connect() as conn:  # noqa: SLF001
+        with connecting(spine._connect()) as conn:  # noqa: SLF001
             count = conn.execute(
                 "SELECT COUNT(*) FROM episodes WHERE outcome_kind = ? "
                 "AND outcome_utility IS NOT NULL",
