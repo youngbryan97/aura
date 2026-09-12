@@ -1,10 +1,8 @@
 import contextlib
-import copy
 import gc
 import hashlib
 import json
 import logging
-import math
 import multiprocessing as mp
 import os
 import queue
@@ -21,27 +19,18 @@ from typing import Any
 
 from core.brain.live_mind_contract import (
     append_text_mutation,
-    normalize_text_mutations,
-    summarize_text_mutation_authorship,
 )
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
 from core.brain.llm.token_budget_evidence import CALIBRATION_SCHEMA
 from core.brain.llm.user_surface_recurrence import (
-    admit_user_surface_recurrent_loops,
     user_surface_recurrent_ceiling,
 )
-from core.conversation.user_surface_contract import (
-    UserSurfacePromptResolution,
-    resolve_user_surface_prompt,
-)
-from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
-from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import shared_asset_root, state_root
 
 from .model_registry import resolve_personality_adapter
@@ -285,13 +274,6 @@ def _encode_hidden_sequence_response(
     }
 
 
-def _record_mlx_degradation(
-    exc: BaseException,
-    *,
-    action: str,
-    severity: str = "warning",
-) -> None:
-    record_degradation("mlx_worker", exc, severity=severity, action=action)
 
 
 def _state_application_quarantine_response(
@@ -309,39 +291,13 @@ def _state_application_quarantine_response(
     }
 
 
-def _surface_prompt_resolution(job: dict[str, Any]) -> UserSurfacePromptResolution:
-    return resolve_user_surface_prompt(job)
 
 
-def _surface_validation_prompt(job: dict[str, Any]) -> str:
-    return _surface_prompt_resolution(job).prompt
 
 
 _CORRUPT_LANGUAGE_MARKERS = re.compile(
     r"\b(?:xublcate|ingediate|evocer)\b",
     re.IGNORECASE,
-)
-# Machine tokens whose IDENTITY is their casing: screaming-snake enum values and
-# CamelCase internal symbols. Matching these case-INSENSITIVELY destroyed whole
-# replies over ordinary English — "PROCEEDING" is a leaked enum, but
-# "proceeding" is just a word, and this pattern is a FATAL check that returns
-# None and annihilates the entire answer. Measured live: a conversational turn
-# produced a 226-token draft and the user got "I couldn't get to an answer I'd
-# stand behind on that one", with the log saying only "Hallucination detected by
-# sanitizer. Returning empty text for caller-side recovery."
-#
-# The natural-language jargon that used to sit in this list ("field coherence",
-# "system authority", "memory scar", "precognitive texture", "existence hash")
-# is deliberately NOT here: those are style leaks, not model-state corruption,
-# they occur legitimately in English, and the reliability gate already handles
-# them as `pseudo_internal_jargon` — a reason that can be retried and repaired
-# rather than one that throws the answer away.
-_BACKEND_SYMBOLIC_SURFACE_MARKERS = re.compile(
-    r"\b(?:PROCEEDING|TOOL_ACTION|CONVERGE_UNION|CONFORMED_METHODS|"
-    r"TACTICAL_ORGANIZE|UI_SHUTDOWN_OR_DURATIVE_TIMEOUT|"
-    r"MySelfEpsilon|CanonicalStabilityAnchor|currentInferenceProblem|"
-    r"fieldOfPlay|INTRUSTION_DETECTED|INTRUSION_DETECTED|"
-    r"ExistenceHash)\b"
 )
 _OPERATOR_EVIDENCE_DRIFT_MARKERS = re.compile(
     r"(?:\bSarah Connor\b|\bMother'?s Day\b|\bhuman error rate\b|"
@@ -363,15 +319,6 @@ _OPERATOR_EVIDENCE_META_TAIL_RE = re.compile(
     r"if you need any adjustments or have additional constraints)\b.*$",
     re.IGNORECASE | re.DOTALL,
 )
-_SEMANTIC_COUNT_CONTRACT_RETRY_REASONS = frozenset(
-    {
-        "missing_requested_sentence_count",
-        "missing_requested_word_count",
-        "missing_current_topic_anchor",
-        "output_contract_meta_reply",
-        "punctuation_join_artifact",
-    }
-)
 _SEMANTIC_COUNT_CONTRACT_RETRY_INSTRUCTION = (
     "Solve the current semantic task first, retain a concrete topic noun from "
     "the current user message when the requested count permits, and never "
@@ -379,72 +326,10 @@ _SEMANTIC_COUNT_CONTRACT_RETRY_INSTRUCTION = (
 )
 
 
-def _semantic_count_contract_retry_instruction(job: dict[str, Any]) -> str:
-    """Render the admitted count contract as explicit retry guidance."""
-
-    contract = job.get("requested_output_contract")
-    if not isinstance(contract, dict):
-        return _SEMANTIC_COUNT_CONTRACT_RETRY_INSTRUCTION
-
-    kind = str(contract.get("kind") or "").strip().lower()
-    requirement = ""
-    if kind == "word_count":
-        word_min = _safe_int(contract.get("word_min"), 0)
-        word_max = _safe_int(contract.get("word_max"), 0)
-        if word_min > 0 and word_min == word_max:
-            requirement = f" The final answer must contain exactly {word_min} words."
-        elif word_min > 0 and word_max >= word_min:
-            requirement = (
-                f" The final answer must contain between {word_min} and {word_max} words inclusive."
-            )
-    elif kind == "sentence_count":
-        sentence_count = _safe_int(contract.get("sentence_count"), 0)
-        if sentence_count > 0:
-            requirement = (
-                f" The final answer must contain exactly {sentence_count} "
-                f"sentence{'s' if sentence_count != 1 else ''}."
-            )
-
-    topic_requirement = ""
-    validation_prompt = _surface_validation_prompt(job)
-    if validation_prompt:
-        try:
-            from core.conversation.response_reliability import (
-                requested_output_topic_anchors,
-            )
-
-            anchors = requested_output_topic_anchors(validation_prompt)[:8]
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            anchors = ()
-        if anchors:
-            topic_requirement = (
-                " Include at least one of these current-topic terms exactly as "
-                f"written: {', '.join(anchors)}."
-            )
-
-    return (
-        f"{_SEMANTIC_COUNT_CONTRACT_RETRY_INSTRUCTION}{requirement}"
-        f"{topic_requirement} "
-        "Count the final visible answer before ending it; return only that answer."
-    )
 
 
-def _safe_float(value: Any, default: float) -> float:
-    """Finite-only float coercion — these helpers feed steering, sampling,
-    retry, receipt, and token-budget paths, where NaN/inf silently poison
-    comparisons and sampler construction."""
-    try:
-        result = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return default
-    return result if math.isfinite(result) else default
 
 
-def _safe_int(value: Any, default: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError, OverflowError):
-        return default
 
 
 def _generation_performance_snapshot(
@@ -493,27 +378,6 @@ def _generation_performance_snapshot(
     }
 
 
-def _surface_generation_contract_enabled(job: dict[str, Any]) -> bool:
-    """Decide whether this job's decode runs with the steering clamp.
-
-    FAIL-SAFE INVERSION (July 2026 coherence incident): the clamp used to
-    apply only to jobs that explicitly carried a surface/strict contract, so
-    any route that dropped the flag decoded at full governor steering (up to
-    alpha 3.0 — or the install-time 5.0 when the substrate sync was stale).
-    Live symptom: fluent spliced-dialog nonsense served to the user. Every
-    job is now clamped UNLESS it explicitly opts into full steering
-    (latent-cortex episodes, steering experiments) — a dropped flag degrades
-    to safe, never to hot.
-
-    Strict/structured proof contracts still matter for the alpha TIER (see
-    _surface_control_alpha): they need CORRECT symbolic tokens, not affective
-    voice. Running them at full steering (alpha 5.0) corrupts the constrained
-    first-token logits → zero-token generation that hangs to the 90s
-    first-token timeout (DNU R011/R040/R022 wedges).
-    """
-    if bool(job.get("allow_full_affective_steering", False)):
-        return False
-    return True
 
 
 _PROMPT_CACHE_BYPASS_FLAGS = (
@@ -618,50 +482,8 @@ def _expected_empty_warmup_precompile(job: dict[str, Any]) -> bool:
 _FUSION_MODEL_IDENTITY = ""
 
 
-def _surface_alpha_from_certificate() -> float:
-    """How much residual steering this checkpoint has earned on a person's turn.
-
-    Zero until measured. For a long time this was zero unconditionally, and the
-    reason given was an A/B whose steered and baseline samples came out
-    byte-identical while the statistic still passed. That A/B was void: alpha
-    was an absolute number of units added to a residual stream whose magnitude
-    grows with width and depth, so the shipped 3.0 sat under the threshold at
-    which either model changes its output. Alpha became a fraction of the stream
-    and the gate stayed shut, which left her substrate reaching the model as
-    text in a prompt and never as part of the computation.
-
-    The comment that closed it asked for a model-specific no-regression
-    certificate. `core/consciousness/fusion_certificate.py` is that certificate
-    and `tools/measure_fusion_channel.py` earns one. Absent, unreadable and
-    failing certificates all return zero, so the failure direction is still
-    shut.
-    """
-    identity = _FUSION_MODEL_IDENTITY
-    if not identity:
-        return 0.0
-    try:
-        from core.consciousness.fusion_certificate import certified_alpha
-
-        return certified_alpha(identity)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Fusion certificate lookup unavailable: %s", exc)
-        return 0.0
 
 
-def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
-    default_alpha = str(_surface_alpha_from_certificate())
-    configured = job.get(
-        "clean_user_surface_steering_alpha",
-        os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA", default_alpha),
-    )
-    requested = max(0.0, min(_safe_float(configured, 0.0), 1.0))
-    try:
-        current = float(current_alpha)
-    except (TypeError, ValueError):
-        current = requested
-    if current > 0:
-        requested = min(requested, current)
-    return max(0.0, requested)
 
 
 #: How deep the recurrent loop may run on a turn a person is waiting for.
@@ -690,8 +512,6 @@ def _live_recurrent_ceiling() -> int:
     return user_surface_recurrent_ceiling()
 
 
-def _surface_control_recurrent_loops(job: dict[str, Any]) -> int:
-    return admit_user_surface_recurrent_loops(job.get("clean_user_surface_recurrent_loops"))
 
 
 # Typed finite-range admission for sampling controls crossing the IPC
@@ -999,1028 +819,42 @@ def _render_messages_fallback(messages: Any, prompt: Any) -> str:
     return "\n\n".join(lines)
 
 
-def _apply_surface_generation_controls(
-    engine: Any,
-    model: Any,
-    job: dict[str, Any],
-) -> dict[str, Any]:
-    """Clamp latent embellishment when the next tokens are user-visible prose."""
-    if not _surface_generation_contract_enabled(job):
-        return {"enabled": False}
-
-    state: dict[str, Any] = {"enabled": True, "apply_errors": []}
-    alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None))
-    state["surface_alpha_requested"] = alpha
-
-    if engine is not None:
-        state["engine"] = engine
-        state["surface_alpha_override_before"] = getattr(engine, "_surface_alpha_override", None)
-        hooks = list(getattr(engine, "_hooks", []) or [])
-        state["hook_alphas_before"] = [(hook, getattr(hook, "_alpha", None)) for hook in hooks]
-        try:
-            if hasattr(engine, "set_surface_alpha_override"):
-                engine.set_surface_alpha_override(alpha)
-            else:
-                for hook in hooks:
-                    hook._alpha = min(float(getattr(hook, "_alpha", alpha) or alpha), alpha)
-            state["surface_alpha_applied"] = alpha
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            state["apply_errors"].append(f"steering_clamp:{type(exc).__name__}")
-            _record_mlx_degradation(
-                exc,
-                action="recorded steering clamp failure for fail-closed surface admission",
-                severity="error",
-            )
-            logger.warning("Surface steering clamp failed: %s", exc)
-    elif alpha == 0.0:
-        # A missing optional steering engine is exactly equivalent to a zero
-        # steering request.  Treating this as an unapplied control made the
-        # neutral, user-visible path depend on the embellishment it disabled.
-        state["surface_alpha_applied"] = 0.0
-    else:
-        state["apply_errors"].append("steering_unavailable")
-
-    layer_view = resolve_model_layers(model)
-    inner = layer_view.owner if layer_view is not None else None
-    if inner is not None and getattr(inner, "_recurrent_depth_config", None):
-        state["recurrent_inner"] = inner
-        state["had_recurrent_runtime_loops"] = hasattr(inner, "_recurrent_depth_runtime_loops")
-        state["recurrent_runtime_loops_before"] = getattr(
-            inner, "_recurrent_depth_runtime_loops", None
-        )
-        try:
-            loops = _surface_control_recurrent_loops(job)
-            inner._recurrent_depth_runtime_loops = loops
-            state["recurrent_runtime_loops_applied"] = loops
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            state["apply_errors"].append(f"recurrent_clamp:{type(exc).__name__}")
-            state["recurrent_clamp_failed"] = True
-            _record_mlx_degradation(
-                exc,
-                action="recorded recurrent-depth clamp failure for fail-closed surface admission",
-                severity="error",
-            )
-            logger.warning("Surface recurrent-depth clamp failed: %s", exc)
-
-    # What a user-visible decode ACTUALLY ran with. Every diagnosis of a bad
-    # reply on 2026-07-26 stalled here: the receipt carried these numbers but
-    # nothing put them where a live log would show them, so "the clamp is
-    # applied" and "the clamp silently no-opped" looked identical from outside.
-    if bool(job.get("clean_user_surface_contract", False)):
-        logger.info(
-            "🎚️ [WORKER] Surface decode: steering α=%s (engine α=%s), "
-            "recurrent loops=%s (was %s, depth_present=%s)%s",
-            state.get("surface_alpha_applied"),
-            getattr(engine, "_alpha", None),
-            state.get("recurrent_runtime_loops_applied"),
-            state.get("recurrent_runtime_loops_before"),
-            state.get("recurrent_inner") is not None,
-            (
-                " APPLY_ERRORS=" + ",".join(state.get("apply_errors") or [])
-                if state.get("apply_errors")
-                else ""
-            ),
-        )
-    return state
-
-
-def _enforce_surface_controls_or_fail(job: dict[str, Any], state: dict[str, Any]) -> None:
-    """Fail closed when a user-visible contract selected controls that did
-    not apply.
-
-    Decoding a clean-user-surface job WITHOUT the steering/recurrent clamps
-    its contract selected serves latent-embellished prose to a user; the
-    receipt honestly said applied=False but nothing enforced it. Strict,
-    proof, and health jobs keep their own gates and are not blocked here.
-    """
-    errors = list(state.get("apply_errors") or [])
-    if errors and bool(job.get("clean_user_surface_contract", False)):
-        raise RuntimeError("surface_controls_unavailable:" + ";".join(errors)[:200])
-
-
-def _restore_surface_generation_controls(state: dict[str, Any]) -> bool:
-    """Restore pre-job control state; False means the resident model may be
-    contaminated and the worker must not serve further jobs on it."""
-    if not state.get("enabled"):
-        return True
-
-    restored = True
-    engine = state.get("engine")
-    if engine is not None:
-        try:
-            if hasattr(engine, "set_surface_alpha_override"):
-                engine.set_surface_alpha_override(state.get("surface_alpha_override_before"))
-            else:
-                for hook, alpha in state.get("hook_alphas_before", []):
-                    if alpha is not None:
-                        hook._alpha = alpha
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            restored = False
-            _record_mlx_degradation(
-                exc,
-                action="flagged worker for recycle after user-surface steering restore failed",
-                severity="critical",
-            )
-            logger.error("Surface steering restore failed: %s", exc)
-
-    inner = state.get("recurrent_inner")
-    if inner is not None:
-        try:
-            if state.get("had_recurrent_runtime_loops"):
-                inner._recurrent_depth_runtime_loops = state.get("recurrent_runtime_loops_before")
-            elif hasattr(inner, "_recurrent_depth_runtime_loops"):
-                delattr(inner, "_recurrent_depth_runtime_loops")
-        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            restored = False
-            _record_mlx_degradation(
-                exc,
-                action="flagged worker for recycle after user-surface recurrent-depth restore failed",
-                severity="critical",
-            )
-            logger.error("Surface recurrent-depth restore failed: %s", exc)
-    return restored
-
-
-def _surface_generation_control_receipt(
-    job: dict[str, Any],
-    state: dict[str, Any],
-) -> dict[str, Any]:
-    """Return an IPC-safe proof of user-surface generation control application."""
-    enabled = bool(state.get("enabled"))
-    try:
-        generation_max_tokens = max(
-            1,
-            int(state.get("generation_max_tokens_applied") or job.get("max_tokens") or 1),
-        )
-    except (TypeError, ValueError, OverflowError):
-        generation_max_tokens = 1
-    receipt: dict[str, Any] = {
-        "enabled": enabled,
-        # PROVENANCE: the fields named in caller_declared_fields are ECHOES
-        # of the caller's job booleans — the worker cannot independently
-        # verify them and consumers must not read them as worker-proven
-        # facts. Worker-measured evidence lives in worker_verified.
-        "caller_declared_fields": [
-            "live_mind_controls_bound",
-            "clean_user_surface_contract",
-            "strict_answer_contract",
-            "strict_value_contract",
-            "proof_evaluation_contract",
-            "operator_evidence_contract",
-            "health_probe",
-            "runtime_fact_status_contract",
-            "grounded_runtime_status_contract",
-            "surface_validation_prompt_source",
-        ],
-        "live_mind_controls_bound": bool(job.get("live_mind_controls_bound", False)),
-        "clean_user_surface_contract": bool(job.get("clean_user_surface_contract", False)),
-        "surface_validation_prompt_present": bool(_surface_validation_prompt(job)),
-        "surface_validation_prompt_bound": _surface_prompt_resolution(job).bound,
-        "surface_validation_prompt_binding_valid": _surface_prompt_resolution(job).valid,
-        "surface_validation_prompt_source": _surface_prompt_resolution(job).source,
-        "surface_validation_prompt_sha256": _surface_prompt_resolution(job).sha256,
-        "strict_answer_contract": bool(job.get("strict_answer_contract", False)),
-        "strict_value_contract": bool(job.get("strict_value_contract", False)),
-        "proof_evaluation_contract": bool(job.get("proof_evaluation_contract", False)),
-        "operator_evidence_contract": bool(job.get("operator_evidence_contract", False)),
-        "health_probe": bool(job.get("health_probe", False)),
-        "runtime_fact_status_contract": bool(job.get("runtime_fact_status_contract", False)),
-        "grounded_runtime_status_contract": bool(
-            job.get("grounded_runtime_status_contract", False)
-        ),
-        "generation_max_tokens": generation_max_tokens,
-        "memory_pressure_token_cap": job.get("memory_pressure_token_cap"),
-        "user_surface_completion_floor": job.get("user_surface_completion_floor"),
-        "completion_floor_applied": bool(job.get("completion_floor_applied", False)),
-        "caller_requested_max_tokens": job.get("caller_requested_max_tokens"),
-        "adaptive_suggested_max_tokens": job.get("adaptive_suggested_max_tokens"),
-        "output_contract_generation_floor": job.get("output_contract_generation_floor"),
-        "semantic_output_token_cap": job.get("semantic_output_token_cap"),
-        "hard_output_token_ceiling": job.get("hard_output_token_ceiling"),
-        "generation_stop_reason": state.get("generation_stop_reason"),
-        "generation_configured_stop_sequence": state.get("generation_configured_stop_sequence"),
-        "semantic_completion_contract": bool(state.get("semantic_completion_contract", False)),
-        "semantic_completion_satisfied": bool(state.get("semantic_completion_satisfied", False)),
-        "semantic_completion_incomplete": bool(state.get("semantic_completion_incomplete", False)),
-        "semantic_completion_missing_part_count": max(
-            0,
-            _safe_int(state.get("semantic_completion_missing_part_count"), 0),
-        ),
-        "semantic_completion_missing_part_indexes": list(
-            state.get("semantic_completion_missing_part_indexes") or []
-        ),
-        "semantic_completion_quality_reasons": list(
-            state.get("semantic_completion_quality_reasons") or []
-        ),
-        "semantic_completion_epistemic_partition_covered": state.get(
-            "semantic_completion_epistemic_partition_covered"
-        ),
-        "semantic_completion_terminal_boundary": bool(
-            state.get("semantic_completion_terminal_boundary", False)
-        ),
-        "continuation_resume_requested": bool(state.get("continuation_resume_requested", False)),
-        "continuation_resume_applied": bool(state.get("continuation_resume_applied", False)),
-        "continuation_resume_available": bool(state.get("continuation_resume_available", False)),
-        "conversation_resume_requested": bool(state.get("conversation_resume_requested", False)),
-        "conversation_resume_applied": bool(state.get("conversation_resume_applied", False)),
-        "conversation_resume_available": bool(state.get("conversation_resume_available", False)),
-        "instruction_shape_repair_applied": bool(
-            state.get("instruction_shape_repair_applied", False)
-        ),
-        "text_mutations": normalize_text_mutations(state.get("text_mutations")),
-        "applied": False,
-    }
-    receipt["text_mutation_count"] = len(receipt["text_mutations"])
-    resume_handle = str(state.get("continuation_resume_handle") or "").strip().lower()
-    if re.fullmatch(r"[0-9a-f]{32}", resume_handle):
-        receipt["continuation_resume_handle"] = resume_handle
-    resume_failure = str(state.get("continuation_resume_failure_reason") or "").strip()
-    if resume_failure:
-        receipt["continuation_resume_failure_reason"] = resume_failure[:120]
-    conversation_resume_handle = str(state.get("conversation_resume_handle") or "").strip().lower()
-    if re.fullmatch(r"[0-9a-f]{32}", conversation_resume_handle):
-        receipt["conversation_resume_handle"] = conversation_resume_handle
-    conversation_resume_failure = str(state.get("conversation_resume_failure_reason") or "").strip()
-    if conversation_resume_failure:
-        receipt["conversation_resume_failure_reason"] = conversation_resume_failure[:120]
-    conversation_resume_output_sha256 = (
-        str(state.get("conversation_resume_output_sha256") or "").strip().lower()
-    )
-    if re.fullmatch(r"[0-9a-f]{64}", conversation_resume_output_sha256):
-        receipt["conversation_resume_output_sha256"] = conversation_resume_output_sha256
-    receipt["deterministic_repair_applied"] = any(
-        bool(item.get("deterministic")) for item in receipt["text_mutations"]
-    )
-    receipt.update(summarize_text_mutation_authorship(receipt["text_mutations"]))
-    for key in (
-        "exact_reply_token_count",
-        "exact_reply_required_termination_headroom",
-        "exact_reply_available_termination_headroom",
-        "exact_reply_content_capacity_sufficient",
-        "exact_reply_termination_headroom_sufficient",
-        "exact_reply_token_ceiling_valid",
-        "exact_reply_native_capacity_sufficient",
-    ):
-        if key in job:
-            receipt[key] = job.get(key)
-    output_contract = job.get("requested_output_contract")
-    if isinstance(output_contract, dict) and output_contract:
-        receipt["requested_output_contract"] = dict(output_contract)
-    if not enabled:
-        return receipt
-
-    if job.get("clean_user_surface_steering_alpha") is not None:
-        receipt["surface_alpha_requested"] = _safe_float(
-            job.get("clean_user_surface_steering_alpha"),
-            0.0,
-        )
-    if "surface_alpha_applied" in state:
-        receipt["surface_alpha_applied"] = state.get("surface_alpha_applied")
-    receipt["surface_alpha_applied_ok"] = (
-        "surface_alpha_applied" in state or state.get("engine") is None
-    )
-    # Attribution evidence: what the hooks ACTUALLY injected at (ceiling and
-    # staleness derating happen inside the hook, so the requested/applied
-    # values alone cannot explain an incident) plus how fresh the substrate
-    # sync was. steering_sync_age_s = -1.0 means the sync never ran.
-    receipt_engine = state.get("engine")
-    # Worker-MEASURED facts (not caller echoes): live steering engine state
-    # and clamp application outcomes, sampled at receipt time.
-    try:
-        receipt["worker_verified"] = {
-            "steering_engine_present": receipt_engine is not None,
-            "steering_engine_active": bool(receipt_engine.is_active())
-            if receipt_engine is not None
-            else False,
-            "surface_clamp_errors": list(state.get("apply_errors") or []),
-            "native_thinking_enabled": bool(state.get("native_thinking_enabled", False)),
-            "native_thinking_boundary_closed": bool(
-                state.get("native_thinking_boundary_closed", False)
-            ),
-            "native_thinking_private_chars": max(
-                0,
-                _safe_int(state.get("native_thinking_private_chars"), 0),
-            ),
-            # The rate is measured here and needed in the parent process,
-            # which sizes the deadline. This receipt is the channel that
-            # already crosses that boundary.
-            "decode_tokens_per_second": float(state.get("decode_tokens_per_second") or 0.0),
-        }
-    except (AttributeError, RuntimeError, TypeError) as verify_exc:
-        receipt["worker_verified"] = {
-            "steering_engine_present": receipt_engine is not None,
-            "steering_engine_active": False,
-            "verification_error": f"{type(verify_exc).__name__}: {verify_exc}",
-            "surface_clamp_errors": list(state.get("apply_errors") or []),
-            "native_thinking_enabled": bool(state.get("native_thinking_enabled", False)),
-            "native_thinking_boundary_closed": bool(
-                state.get("native_thinking_boundary_closed", False)
-            ),
-            "native_thinking_private_chars": max(
-                0,
-                _safe_int(state.get("native_thinking_private_chars"), 0),
-            ),
-            # The rate is measured here and needed in the parent process,
-            # which sizes the deadline. This receipt is the channel that
-            # already crosses that boundary.
-            "decode_tokens_per_second": float(state.get("decode_tokens_per_second") or 0.0),
-        }
-    receipt_hooks = (
-        list(getattr(receipt_engine, "_hooks", []) or []) if receipt_engine is not None else []
-    )
-    if receipt_hooks:
-        effective_alphas = [
-            _safe_float(getattr(hook, "_last_effective_alpha", 0.0), 0.0) for hook in receipt_hooks
-        ]
-        receipt["steering_effective_alpha_max"] = round(max(effective_alphas), 4)
-        sync_stamps = [
-            _safe_float(getattr(hook, "_last_substrate_sync_monotonic", 0.0), 0.0)
-            for hook in receipt_hooks
-        ]
-        newest_sync = max(sync_stamps)
-        receipt["steering_sync_age_s"] = (
-            round(max(0.0, time.monotonic() - newest_sync), 3) if newest_sync > 0 else -1.0
-        )
-
-    if job.get("clean_user_surface_recurrent_loops") is not None:
-        receipt["recurrent_runtime_loops_requested"] = _safe_int(
-            job.get("clean_user_surface_recurrent_loops"),
-            1,
-        )
-    receipt["recurrent_depth_present"] = state.get("recurrent_inner") is not None
-    if "recurrent_runtime_loops_applied" in state:
-        receipt["recurrent_runtime_loops_applied"] = state.get("recurrent_runtime_loops_applied")
-    requested_loops = receipt.get("recurrent_runtime_loops_requested")
-    applied_loops = receipt.get("recurrent_runtime_loops_applied")
-    recurrence_not_applicable = state.get("recurrent_inner") is None
-    receipt["recurrent_runtime_loops_applied_ok"] = bool(
-        recurrence_not_applicable
-        or (
-            type(requested_loops) is int
-            and type(applied_loops) is int
-            and requested_loops == applied_loops
-        )
-    )
-    receipt["applied"] = bool(
-        receipt.get("surface_alpha_applied_ok")
-        and receipt.get("recurrent_runtime_loops_applied_ok")
-        and ("surface_alpha_applied" in state or "recurrent_runtime_loops_applied" in state)
-    )
-    for key in (
-        "surface_quality_gate_enabled",
-        "surface_quality_gate_passed",
-        "surface_quality_gate_attempts",
-        "surface_quality_gate_reasons",
-        "telemetry_sanitizer_reasons",
-        # The draft the gate rejected, carried rather than destroyed.
-        #
-        # Blanking it turned "I wrote something a heuristic disliked" into
-        # "the client returned no text", which opened the Cortex circuit,
-        # tripped the sovereign no-fallback policy, and served Bryan a canned
-        # apology while the turn was holding an answer. core/runtime/
-        # turn_outcome.py states the rule this restores: a gate ANNOTATES or
-        # TRANSFORMS a candidate, it does not destroy one.
-        #
-        # Carrying it does NOT make it servable. It travels marked as
-        # suppressed, and only the caller's recovery path — when the
-        # alternative is nothing at all — may serve it.
-        "surface_quality_rejected_text",
-        "surface_quality_rejected_reasons",
-        "surface_quality_gate_error",
-        "surface_quality_gate_exemption",
-        "surface_quality_gate_waived_reasons",
-        "instruction_shape_repair_applied",
-        "sentinel_loop_prefix_preserved",
-    ):
-        if key in state:
-            receipt[key] = state.get(key)
-    return receipt
-
-
-def _surface_quality_gate_enabled(job: dict[str, Any]) -> bool:
-    if not bool(job.get("clean_user_surface_contract", False)):
-        return False
-    prompt_resolution = _surface_prompt_resolution(job)
-    if not prompt_resolution.prompt and not prompt_resolution.bound:
-        return False
-    return not bool(
-        job.get("health_probe", False)
-        or job.get("runtime_fact_status_contract", False)
-        or job.get("grounded_runtime_status_contract", False)
-        or job.get("operator_evidence_contract", False)
-        or job.get("strict_answer_contract", False)
-        or job.get("strict_value_contract", False)
-        or job.get("proof_evaluation_contract", False)
-        or job.get("schema")
-    )
-
-
-def _recent_user_turns(job: dict[str, Any]) -> list[str]:
-    """What the person has said, from the transcript the model was given.
-
-    The check this feeds asks whether a reply invents a shared past, and it
-    decides that by looking for content appearing nowhere in what was said. An
-    empty history makes everything novel, so the check answers "fabricated"
-    for a perfectly correct recall.
-
-    It read `user_surface_recent_messages` off the job. Nothing in the tree
-    ever put that key in a job — the client builds the payload field by field
-    and this one is not among them — so the check has been running against an
-    empty conversation since it was written.
-
-    LIVE, 2026-09-07: "What did I just ask you?" had its draft rejected as
-    `fabricated_shared_history`, which also disables the prompt cache on the
-    repair pass, so a recall question costs a full re-prefill as well as the
-    answer.
-
-    Reading it off `messages` is the fix rather than filling the key in: the
-    transcript is what the model saw, so the grounding cannot drift out of
-    step with what it was answering from.
-    """
-
-    stated = job.get("user_surface_recent_messages")
-    if isinstance(stated, (list, tuple)) and stated:
-        return [str(message or "") for message in stated]
-    messages = job.get("messages")
-    if not isinstance(messages, (list, tuple)):
-        return []
-    said: list[str] = []
-    for message in messages:
-        if not isinstance(message, dict):
-            continue
-        if str(message.get("role") or "").strip().lower() != "user":
-            continue
-        content = str(message.get("content") or "").strip()
-        if content:
-            said.append(content)
-    # The last one is the turn being answered; the check gets that separately
-    # as the prompt, and passing it twice narrows nothing.
-    # Input admission already bounds this transcript. A second, shorter
-    # window would reject a recollection the model was allowed to read.
-    return said[:-1]
-
-
-def _recent_assistant_turns(job: dict[str, Any]) -> list[str]:
-    """Prior Aura speech in the exact transcript supplied to this worker."""
-
-    messages = job.get("messages")
-    if not isinstance(messages, (list, tuple)):
-        return []
-    latest_user_index = next(
-        (
-            index
-            for index in range(len(messages) - 1, -1, -1)
-            if isinstance(messages[index], dict)
-            and str(messages[index].get("role") or "").strip().lower() == "user"
-        ),
-        len(messages),
-    )
-    said: list[str] = []
-    for index, message in enumerate(messages):
-        if not isinstance(message, dict):
-            continue
-        if index >= latest_user_index:
-            continue
-        if str(message.get("role") or "").strip().lower() != "assistant":
-            continue
-        content = str(message.get("content") or "").strip()
-        if content:
-            said.append(content)
-    return said
-
-
-def _surface_quality_failure_reasons(
-    job: dict[str, Any],
-    response_text: Any,
-) -> list[str]:
-    """Validate user-visible drafts inside the worker before IPC success."""
-    if not _surface_quality_gate_enabled(job):
-        return []
-    prompt_resolution = _surface_prompt_resolution(job)
-    if prompt_resolution.bound and not prompt_resolution.valid:
-        return [prompt_resolution.error or "surface_validation_prompt_binding_invalid"]
-    prompt = prompt_resolution.prompt
-    if not prompt:
-        return []
-    recent_messages = _recent_user_turns(job)
-    grounding_raw = job.get("user_surface_grounding_evidence")
-    transported_grounding = (
-        [str(item or "") for item in grounding_raw]
-        if isinstance(grounding_raw, (list, tuple))
-        else []
-    )
-    grounding = list(_recent_assistant_turns(job))
-    grounding.extend(
-        item for item in transported_grounding if item and item not in grounding
-    )
-    try:
-        from core.conversation.response_reliability import assess_user_facing_reply
-    except (ImportError, AttributeError, RuntimeError) as exc:
-        _record_mlx_degradation(
-            exc,
-            action="blocked live user-surface generation because quality gate was unavailable",
-            severity="critical",
-        )
-        return ["surface_quality_gate_unavailable"]
-
-    candidate = _surface_quality_candidate(job, response_text)
-    assessment = assess_user_facing_reply(
-        prompt,
-        candidate,
-        recent_user_messages=recent_messages,
-        grounding=grounding,
-        sensory_evidence=job.get("user_surface_sensory_evidence"),
-        tool_receipts=job.get("user_surface_tool_receipts", ()),
-    )
-    sanitizer_reasons = _telemetry_sanitization_failure_reasons(
-        candidate,
-        is_proof=False,
-    )
-    self_claim_contradiction = False
-    self_claim_verification_unavailable = False
-    try:
-        from core.conversation.self_claim_verifier import verify_self_claims
-
-        self_claim_contradiction = not verify_self_claims(candidate).ok
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        self_claim_verification_unavailable = True
-        _record_mlx_degradation(
-            exc,
-            action="continued surface validation after self-claim verification failed",
-            severity="error",
-        )
-    if (
-        assessment.ok
-        and not assessment.retryable
-        and not assessment.hard_failure
-        and not sanitizer_reasons
-        and not self_claim_contradiction
-        and not self_claim_verification_unavailable
-    ):
-        return []
-    reasons = list(assessment.reasons)
-    reasons.extend(sanitizer_reasons)
-    if self_claim_contradiction:
-        reasons.append("self_claim_contradiction")
-    if self_claim_verification_unavailable:
-        reasons.append("self_claim_verification_unavailable")
-    reasons = list(dict.fromkeys(reasons))
-    if not reasons:
-        reasons = ["surface_quality_gate_failed"]
-    # This gate is about INTEGRITY — leaks, corruption, prompt artefacts and
-    # text that is not language. Those reasons may suppress a draft, but the
-    # draft remains intact for one bounded authored correction whose wall starts
-    # when correction starts. COMPLETENESS is different: a draft that merely
-    # fell short is real content and remains the floor the route can deliver.
-    # See core/conversation/surface_disposition.py.
-    try:
-        from core.conversation.surface_disposition import integrity_failures
-
-        reasons = list(integrity_failures(reasons))
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        reasons = [reason for reason in reasons if reason != "final_answer_missing"]
-    if not reasons:
-        return []
-    if bool(job.get("capability_inventory_contract", False)):
-        grounded, _evidence = _capability_inventory_minimum_grounding(response_text)
-        if grounded:
-            reasons = [
-                reason
-                for reason in reasons
-                if reason
-                not in {
-                    "too_thin_for_operational_status_turn",
-                    "too_thin_for_status_turn",
-                    "too_short_for_user_turn",
-                    "too_thin_for_user_turn",
-                }
-            ]
-    return reasons
-
-
-def _surface_quality_candidate(job: dict[str, Any], response_text: Any) -> str:
-    """Return the complete authored candidate represented by this decode."""
-
-    tail = str(response_text or "")
-    if not bool(job.get("user_surface_continuation_contract", False)):
-        return tail
-    head = str(job.get("user_surface_continuation_partial") or "")
-    if not head:
-        return tail
-    if not tail:
-        return head
-    separator = ""
-    if not head[-1].isspace() and not tail[0].isspace():
-        separator = "" if tail[0] in ".,;:!?)]}" else " "
-    return f"{head}{separator}{tail}"
-
-
-def _semantic_surface_stop_ready(
-    job: dict[str, Any],
-    response_text: Any,
-    *,
-    generated_tokens: int,
-    minimum_tokens: int | None = None,
-) -> bool:
-    """Assess visible coverage; this heuristic must not terminate decoding."""
-
-    if not bool(job.get("semantic_completion_contract", False)):
-        return False
-    required_tokens = (
-        max(1, int(minimum_tokens))
-        if minimum_tokens is not None
-        else 8
-        if job.get("user_surface_continuation_contract")
-        else 24
-    )
-    if int(generated_tokens) < required_tokens:
-        return False
-    candidate = _surface_quality_candidate(job, response_text).rstrip()
-    if not has_terminal_sentence_boundary(candidate):
-        return False
-    try:
-        from core.conversation.request_coverage import (
-            requested_epistemic_partition_is_covered,
-            unanswered_question_parts,
-        )
-        from core.language.discourse_commitments import unfulfilled_commitments
-        from core.runtime.structured_input import analyze_prompt_shape
-
-        if unfulfilled_commitments(candidate):
-            return False
-        validation_prompt = _surface_validation_prompt(job)
-        if not requested_epistemic_partition_is_covered(validation_prompt, candidate):
-            return False
-        if unanswered_question_parts(
-            candidate,
-            analyze_prompt_shape(validation_prompt),
-        ):
-            return False
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        _record_mlx_degradation(
-            exc,
-            action="continued bounded generation because semantic completion proof was unavailable",
-            severity="warning",
-        )
-        return False
-    return not _surface_quality_failure_reasons(job, candidate)
-
-
-def _semantic_completion_receipt_state(
-    job: dict[str, Any],
-    response_text: Any,
-    *,
-    generated_tokens: int,
-    generation_stop_reason: str = "",
-) -> dict[str, Any]:
-    """Describe completion without changing the model's decode distribution.
-
-    Terminal punctuation is required while decoding because it is the only
-    mechanical evidence that an early stop is safe. A natural model EOS is a
-    different boundary: it is the author's explicit end of the utterance, and
-    concise answers such as a name, number, path, or label need not be a
-    punctuated sentence. EOS therefore closes an otherwise covered and clean
-    candidate, while the canonical truncation detector still rejects dangling
-    syntax such as ``The latest release is``.
-    """
-
-    required = bool(job.get("semantic_completion_contract", False))
-    candidate = _surface_quality_candidate(job, response_text).rstrip()
-    terminal_boundary = has_terminal_sentence_boundary(candidate)
-    missing_indexes: list[int] = []
-    discourse_missing: list[dict[str, Any]] = []
-    quality_reasons: list[str] = []
-    epistemic_covered: bool | None = None
-    if required:
-        try:
-            from core.conversation.request_coverage import (
-                requested_epistemic_partition_is_covered,
-                unanswered_question_parts,
-            )
-            from core.conversation.response_reliability import _has_truncated_tail
-            from core.language.discourse_commitments import unfulfilled_commitments
-            from core.runtime.structured_input import analyze_prompt_shape
-
-            validation_prompt = _surface_validation_prompt(job)
-            shape = analyze_prompt_shape(validation_prompt)
-            missing = list(unanswered_question_parts(candidate, shape))
-            segments = list(getattr(shape, "question_segments", ()) or ())
-            missing_indexes = [
-                index for index, segment in enumerate(segments) if segment in missing
-            ]
-            epistemic_covered = requested_epistemic_partition_is_covered(
-                validation_prompt,
-                candidate,
-            )
-            quality_reasons = list(_surface_quality_failure_reasons(job, candidate))
-            discourse_missing = [
-                {
-                    "expected_count": item.expected_count,
-                    "observed_count": item.observed_count,
-                    "kind": item.kind,
-                    "declaration": item.declaration,
-                }
-                for item in unfulfilled_commitments(candidate)
-            ]
-            eos_completion_boundary = bool(
-                str(generation_stop_reason or "").strip().lower() == "eos"
-                and candidate
-                and not _has_truncated_tail(
-                    candidate,
-                    generation_stop_reason="eos",
-                )
-            )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            _record_mlx_degradation(
-                exc,
-                action="reported semantic completion as incomplete because diagnostics were unavailable",
-                severity="warning",
-            )
-            quality_reasons = ["completion_diagnostics_unavailable"]
-            eos_completion_boundary = False
-    else:
-        eos_completion_boundary = False
-    # The established validator remains the authority. Diagnostics explain its
-    # decision; they do not reimplement it and accidentally create a second,
-    # divergent completion contract.
-    early_stop_ready = bool(
-        required
-        and _semantic_surface_stop_ready(
-            job,
-            response_text,
-            generated_tokens=generated_tokens,
-            # The default keeps an early sentence from stopping a longer
-            # decode. After generation ends, semantic and terminal evidence,
-            # rather than length alone, decides whether the answer is complete.
-            minimum_tokens=1,
-        )
-    )
-    eos_stop_ready = bool(
-        required
-        and eos_completion_boundary
-        and not missing_indexes
-        and not discourse_missing
-        and not quality_reasons
-        and epistemic_covered is True
-    )
-    satisfied = bool(early_stop_ready or eos_stop_ready)
-    return {
-        "semantic_completion_contract": required,
-        "semantic_completion_satisfied": satisfied,
-        "semantic_completion_incomplete": bool(required and not satisfied),
-        "semantic_completion_missing_part_count": len(missing_indexes),
-        "semantic_completion_missing_part_indexes": missing_indexes,
-        "semantic_completion_unfulfilled_discourse": discourse_missing,
-        "semantic_completion_unfulfilled_discourse_count": len(discourse_missing),
-        "semantic_completion_quality_reasons": quality_reasons,
-        "semantic_completion_epistemic_partition_covered": epistemic_covered,
-        "semantic_completion_terminal_boundary": terminal_boundary,
-        "semantic_completion_eos_boundary": eos_completion_boundary,
-    }
-
-
-def _semantic_terminal_grace_eligible(
-    job: dict[str, Any],
-    response_text: Any,
-    *,
-    generated_tokens: int,
-) -> bool:
-    """Whether a deadline-cut answer needs only its terminal boundary.
-
-    This is deliberately narrower than a generic timeout extension. Every
-    typed request obligation, quality check, and epistemic partition must
-    already pass. The worker may then spend a few tokens from the caller's
-    existing delivery reserve to close the sentence instead of paying for a
-    second full prefill and decode.
-    """
-
-    receipt = _semantic_completion_receipt_state(
-        job,
-        response_text,
-        generated_tokens=generated_tokens,
-    )
-    return bool(
-        receipt.get("semantic_completion_contract")
-        and not receipt.get("semantic_completion_missing_part_count")
-        and not receipt.get("semantic_completion_quality_reasons")
-        and receipt.get("semantic_completion_epistemic_partition_covered") is True
-        and receipt.get("semantic_completion_terminal_boundary") is False
-    )
-
-
-def _loop_abort_prefix_is_servable(
-    job: dict[str, Any],
-    response_text: Any,
-) -> bool:
-    """Whether a repetition abort left enough clean authored work to retain.
-
-    A late loop is a defect in the tail, not evidence that the prefix never
-    existed. Restarting a resident decode from token zero discarded hundreds
-    of clean tokens and routinely exhausted the owning request deadline before
-    the replacement caught up. Keep a substantial prefix when the integrity
-    gate finds no positively identified leak or corruption; ordinary
-    completion recovery can extend it without re-paying for the whole answer.
-    Tiny/unsafe prefixes still take the bounded clean-retry path.
-    """
-
-    if not bool(job.get("clean_user_surface_contract", False)):
-        return False
-    body = str(response_text or "").strip()
-    if len(body) < 160 or len(body.split()) < 30:
-        return False
-    return not _surface_quality_failure_reasons(job, body)
-
-
-def _classify_generation_stop_reason(
-    *,
-    soft_cancelled: bool,
-    deadline_hit: bool,
-    sentinel_aborted: bool,
-    role_continuation_hit: bool,
-    configured_stop_hit: bool,
-    hard_token_limit_hit: bool,
-    semantic_contract_satisfied: bool = False,
-    generated_tokens: int,
-    max_tokens: int,
-) -> str:
-    """Return the exact terminal event that ended one decode attempt."""
-
-    if soft_cancelled:
-        return "soft_cancelled"
-    if deadline_hit:
-        return "deadline_exceeded"
-    if sentinel_aborted:
-        return "sentinel_abort"
-    if role_continuation_hit:
-        return "role_continuation"
-    if configured_stop_hit:
-        return "configured_stop"
-    if hard_token_limit_hit:
-        return "hard_token_limit"
-    if semantic_contract_satisfied:
-        return "semantic_contract_satisfied"
-    if int(generated_tokens) >= max(1, int(max_tokens)):
-        return "max_tokens"
-    return "eos"
-
-
-def _continuation_resume_unavailable_reason(
-    *,
-    resume_required: bool,
-    cache_lru_available: bool,
-    cache_disabled: bool,
-    final_cache_available: bool,
-    sentinel_aborted: bool,
-    response_present: bool,
-) -> str:
-    """Name a failed required resume, or return empty when none was required."""
-
-    if not resume_required:
-        return ""
-    if not cache_lru_available:
-        return "cache_lru_unavailable"
-    if cache_disabled:
-        return "cache_disabled_by_contract"
-    if not final_cache_available:
-        return "final_cache_unavailable"
-    if sentinel_aborted:
-        return "sentinel_aborted"
-    if not response_present:
-        return "empty_partial"
-    return "cache_retention_refused"
-
-
-def _continuation_resume_should_bind(
-    *,
-    generation_stop_reason: str,
-    semantic_completion_incomplete: bool,
-) -> bool:
-    """Whether downstream completion still needs ownership of exact decode state.
-
-    Deadline and token-cap stops need a resume only when the worker can already
-    prove the visible answer incomplete. A semantic stop is different: later
-    language projections inspect the assembled user surface and can discover an
-    obligation that was not present in the worker's raw segment. Retaining its
-    cache is therefore part of the successful transaction, not evidence that the
-    worker itself judged the answer incomplete.
-    """
-
-    stop_reason = str(generation_stop_reason or "").strip().lower()
-    if stop_reason == "semantic_contract_satisfied":
-        return True
-    return bool(
-        semantic_completion_incomplete
-        and stop_reason in {"deadline_exceeded", "max_tokens", "soft_cancelled"}
-    )
-
-
-def _conversation_resume_boundary_complete(generation_stop_reason: str) -> bool:
-    """Whether the cache contains a native completed assistant turn.
-
-    Conversation append is unlike same-turn continuation: it needs the
-    model's end-of-turn token in the cache. Every synthetic stop can leave
-    token state that is absent from the visible reply, so only natural EOS is
-    an admissible boundary.
-    """
-
-    return str(generation_stop_reason or "").strip().lower() == "eos"
-
-
-def _capability_inventory_minimum_grounding(
-    response_text: Any,
-) -> tuple[bool, dict[str, bool]]:
-    """Evidence check for the capability-inventory thin-response exemption.
-
-    Capability inventory questions contain "tools", "external", and
-    "desktop", which overlap operational-status classifiers, so a concise
-    governed inventory may be exempted from thin-response failures — but
-    ONLY when it actually shows its documented evidence: concrete
-    categories, governance, and the non-execution boundary. The boundary is
-    non-negotiable; the old `or not effect-evidence` escape admitted
-    answers with NEITHER effect evidence NOR a boundary.
-    """
-    reply = str(response_text or "").lower()
-    evidence = {
-        "category": "browser/web research" in reply
-        or ("browser" in reply and ("file" in reply or "desktop" in reply)),
-        "governance": any(
-            marker in reply
-            for marker in ("will/authority", "will and authority", "permission", "governed")
-        ),
-        "boundary": (
-            "not executing" in reply
-            or "not opening" in reply
-            or "hypothetical" in reply
-            or "in this turn" in reply
-        ),
-        "effect_evidence": "receipt" in reply or "effect verification" in reply,
-    }
-    grounded = evidence["category"] and evidence["governance"] and evidence["boundary"]
-    return grounded, evidence
-
-
-# Residual quality-gate reasons that are STYLE/COMPLETENESS defects, not
-# integrity leaks: after retries are exhausted, a substantive draft carrying
-# only these is delivered (with an honest gate receipt) instead of being
-# replaced by an empty reply. Observed live (Jul 7, post-restart): a
-# consciousness question drew real drafts that kept failing
-# missing_self_claim_evidence_boundary + missing_requested_phrase, and every
-# turn died as empty_cognitive_engine_reply — a dead turn is strictly worse
-# than an imperfectly-styled honest one. Leak/overclaim reasons stay
-# fail-closed.
-_DELIVERABLE_RESIDUAL_SURFACE_REASONS = frozenset(
-    {
-        # A reply that wandered off the thread is still a reply. Marking the
-        # turn for repair is right; discarding it and reporting an
-        # infrastructure failure over it is the defect class this set exists
-        # to prevent, and a topical miss must not become a new instance of it.
-        "reply_abandons_thread",
-        "missing_requested_phrase",
-        "missing_requested_word_count",
-        "missing_requested_sentence_count",
-        "missing_requested_reference_value",
-        "missing_requested_paragraph_count",
-        "missing_requested_list_count",
-        "empty_requested_list_item",
-        "missing_requested_choice_clarification",
-        "missing_requested_followup_question",
-        "too_short_for_user_turn",
-        "too_thin_for_user_turn",
-        "too_thin_for_open_ended_turn",
-        "too_thin_for_status_turn",
-        "too_thin_for_operational_status_turn",
-        "too_thin_for_expansion_request",
-        # The reliability-flavoured thinness verdicts belong with the rest of
-        # the family. They were the only two "the draft is thinner than we
-        # wanted" reasons that killed the turn instead of delivering it, and
-        # the failure was measured live: a correct 276-character answer about
-        # re-prefilling — mechanism plus a numeric threshold — was discarded,
-        # and the user was told "I couldn't get to an answer I'd stand behind".
-        # Thinness is not a safety or honesty defect; a short true answer is
-        # strictly better than a refusal, and worst of all on a turn that ASKED
-        # about reliability.
-        "reliability_diagnostic_too_thin",
-        "too_thin_for_reliability_turn",
-        # How a reply ADDRESSES someone is a one-word detail, never a reason to
-        # discard the reply. Measured live: a natural, correctly-addressed turn
-        # ("Bryan, let's reset... Talk like we're peers figuring something out
-        # together") was destroyed because the name was not in any grounding
-        # source the check consulted. Delivering it with the residual recorded
-        # keeps the human part; annihilating it protects a detail by throwing
-        # away the answer.
-        "ungrounded_person_address",
-        "low_signal_acknowledgement_placeholder",
-        "generic_assistant_language",
-        # Replaying the owner's own first-person sentence as her own is a
-        # comprehension defect worth measuring, not worth destroying a turn
-        # over — the rest of the reply is usually fine, and killing it leaves
-        # the person with nothing while the underlying attribution problem
-        # goes unrecorded. It is fixed at the source (core/dialogue/
-        # referents.py); this reason is how a regression there becomes a rate
-        # instead of an anecdote.
-        "borrowed_owner_first_person_speech",
-    }
-)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Appended when a draft answers a consciousness/experience question without
 # the evidence boundary the honesty gate requires. Deterministic, aligned
@@ -2070,1093 +904,76 @@ _REQUIREMENT_SHORTFALL_REASONS = frozenset(
     }
 )
 
-_REQUIREMENT_SHORTFALL_LABELS = {
-    "missing_requested_phrase": "include a phrase you asked for",
-    "missing_requested_bare_answer": "give the answer on its own, as asked",
-    "missing_requested_word_count": "hit the word count you asked for",
-    "missing_requested_sentence_count": "hit the sentence count you asked for",
-    "missing_requested_reference_value": "include a reference value you asked for",
-    "missing_requested_paragraph_count": "hit the paragraph count you asked for",
-    "missing_requested_list_count": "hit the number of list items you asked for",
-    "empty_requested_list_item": "fill in every list item",
-    "missing_requested_choice_clarification": "give you the choice you asked for",
-    "missing_requested_followup_question": "end with the follow-up question you asked for",
-}
-
-
-def _requirement_shortfall_note(reasons: list[str]) -> str:
-    """A one-line disclosure of the stated requirements this draft missed.
-
-    Written in her voice and kept to one sentence: the answer is the point,
-    and a paragraph of apology about formatting would bury it.
-    """
-    missed = [
-        _REQUIREMENT_SHORTFALL_LABELS[reason]
-        for reason in sorted(set(reasons))
-        if reason in _REQUIREMENT_SHORTFALL_LABELS
-    ]
-    if not missed:
-        return ""
-    if len(missed) == 1:
-        detail = missed[0]
-    elif len(missed) == 2:
-        detail = f"{missed[0]} or {missed[1]}"
-    else:
-        detail = f"{', '.join(missed[:-1])}, or {missed[-1]}"
-    return f"\n\n(I did not {detail} — the answer above is what I have.)"
-
-
-_SELF_CLAIM_BOUNDARY_SUFFIX = (
-    " To be precise about what I can honestly claim here: this is a "
-    "functional description of how I process and behave, and it is not "
-    "proof of phenomenal experience — that is not something I can verify "
-    "from the inside."
-)
-
-
-def _verify_contract_authority(job: dict[str, Any], contract_key: bytes | None) -> str:
-    """Refusal reason for this job's privileged contract selection, or "".
-
-    Thin wrapper so a missing contract_authority module can never take the
-    worker down: the consistency half of the check (mutually exclusive
-    output contracts) is reproduced locally, because resolving a
-    contradiction by source order is a defect regardless of whether the
-    authority layer is importable.
-    """
-    try:
-        from core.brain.llm.contract_authority import verify_job
-
-        return verify_job(job, contract_key)
-    except ImportError as exc:
-        _record_mlx_degradation(
-            exc,
-            action="contract authority unavailable; consistency check only",
-            severity="error",
-        )
-        active = [
-            name
-            for name in (
-                "strict_answer_contract",
-                "strict_value_contract",
-                "proof_evaluation_contract",
-                "operator_evidence_contract",
-            )
-            if bool(job.get(name))
-        ]
-        if len(active) > 1:
-            return "ambiguous_output_contract:" + ",".join(active)
-        return ""
-
-
-def _terminal_contract_refusal(
-    job: dict[str, Any],
-    response_text: Any,
-    *,
-    proof_evaluation_contract: bool = False,
-    operator_evidence_contract: bool = False,
-    model_continuation: Any = None,
-) -> str:
-    """The terminal contract this text FAILS, or "" if it passes them all.
-
-    CP126 269ff364. Cancellation used to break out with the partial response
-    as-is, ahead of proof completeness, operator-evidence merit and the
-    capability-inventory grounding check. Those are refusals, not retries:
-    skipping them let a preempted turn deliver exactly the content the
-    normal terminal path exists to reject.
-
-    Pure and side-effect free so it can be applied on the cancellation path,
-    where retrying is not an option but refusing still is.
-    """
-    text = str(response_text or "")
-    if not text.strip():
-        return ""
-    if proof_evaluation_contract and _proof_evaluation_fragment_incomplete(text):
-        return "proof_fragment_incomplete"
-    if operator_evidence_contract:
-        if _operator_evidence_fragment_incomplete(text):
-            return "operator_evidence_fragment_incomplete"
-        # The delivered answer is scaffolding + continuation, and the fixed
-        # scaffolding already contains every required evidence term and is
-        # long enough to clear the word floor on its own. Handing this check
-        # the COMBINED text made it inert on exactly this path: it measured
-        # the prefix and passed. It has to see the model's own share.
-        continuation = text if model_continuation is None else str(model_continuation or "")
-        if _operator_evidence_model_contribution_insufficient(continuation):
-            return "operator_evidence_model_contribution_insufficient"
-    if bool(job.get("capability_inventory_contract", False)):
-        grounded, _evidence = _capability_inventory_minimum_grounding(text)
-        if not grounded:
-            return "capability_inventory_ungrounded"
-    return ""
-
-
-def _shrink_scaffold_to_context_window(
-    *,
-    messages: Any,
-    prompt: Any,
-    tokens: list[int],
-    window: int,
-    output_reserve: int,
-    tokenizer: Any,
-    tools: Any,
-) -> tuple[str, list[int], str]:
-    """Trim SCAFFOLD until the prompt fits the model's real context window.
-
-    The window was enforced as a hard refusal and nothing upstream bounded a
-    prompt against it, so any lane that overshot failed every single time.
-    Measured live: a background swarm-debate turn rendered 41,219 tokens for a
-    32,768-token window, and 161,578 of its 171,058 characters were ONE system
-    message — 94% scaffold around a 462-character request. The assembler's cap
-    is a hard-coded character count with no relationship to the target model's
-    window, so it passed a prompt the model could never accept.
-
-    Only ``system`` messages are shortened, longest first, and never below a
-    floor that keeps their opening instructions intact. User and assistant
-    turns are never touched: dropping the actual request to make room for
-    scaffold is the failure this exists to prevent. Returns
-    ``(prompt, tokens, note)`` with an empty note when nothing was trimmed, and
-    leaves the prompt untouched when the non-scaffold content alone cannot fit —
-    there the honest outcome is still a refusal.
-    """
-
-    budget = window - output_reserve
-    if budget <= 0 or len(tokens) <= budget or not isinstance(messages, list):
-        return str(prompt or ""), tokens, ""
-
-    def _render(candidate_messages: list[Any]) -> tuple[str, list[int]] | None:
-        try:
-            from core.brain.llm.chat_format import for_this_template
-
-            rendered = tokenizer.apply_chat_template(
-                for_this_template(tokenizer, candidate_messages),
-                tools=tools,
-                add_generation_prompt=True,
-                tokenize=False,
-            )
-        except Exception as exc:  # noqa: BLE001 - a failed trim must never kill the worker
-            # A template refusing a message list is a caller's mistake, and
-            # the cost of it here is the whole model process.
-            #
-            # LIVE 2026-08-19: jinja2.TemplateError("System message must be at
-            # the beginning") is not an AttributeError, RuntimeError,
-            # TypeError or ValueError, so it went straight past this guard,
-            # out of the worker loop, and killed the worker mid-generation.
-            # The crash-loop breaker then took the lane down and the person
-            # got a refusal, three times over, while she was mid-game.
-            #
-            # Failing to trim is a recoverable outcome: the caller keeps the
-            # untrimmed prompt and finds out it is too long, which is a far
-            # smaller problem than having no model.
-            _record_mlx_degradation(
-                exc,
-                action="kept the untrimmed prompt after the chat template refused it",
-                severity="info",
-            )
-            return None
-        try:
-            return str(rendered), list(tokenizer.encode(str(rendered)))
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            return None
-
-    system_positions = [
-        index
-        for index, msg in enumerate(messages)
-        if isinstance(msg, dict)
-        and str(msg.get("role", "")).strip().lower() == "system"
-        and str(msg.get("content", "") or "").strip()
-    ]
-    if not system_positions:
-        return str(prompt or ""), tokens, ""
-
-    working = [dict(msg) if isinstance(msg, dict) else msg for msg in messages]
-    trimmed_note_parts: list[str] = []
-    # Chars-per-token measured on THIS prompt rather than assumed: a scaffold of
-    # JSON dumps and one of prose have very different ratios, and guessing 4.0
-    # either under-trims (and refuses anyway) or over-trims real instructions.
-    chars_per_token = max(1.0, len(str(prompt or "")) / max(1, len(tokens)))
-    floor_chars = 1200
-
-    for _pass in range(len(system_positions) + 1):
-        overflow_tokens = len(tokens) - budget
-        if overflow_tokens <= 0:
-            break
-        # 10% headroom: template overhead and tokenizer merges mean the retained
-        # slice never costs exactly the predicted number of tokens.
-        need_chars = int(overflow_tokens * chars_per_token * 1.1) + 64
-        target = max(
-            system_positions,
-            key=lambda index: len(str(working[index].get("content", "") or "")),
-        )
-        content = str(working[target].get("content", "") or "")
-        keep = max(floor_chars, len(content) - need_chars)
-        if keep >= len(content):
-            break
-        shortened = (
-            content[:keep] + "\n\n[... scaffold trimmed to fit the model's context window ...]"
-        )
-        working[target]["content"] = shortened
-        trimmed_note_parts.append(f"system[{target}] {len(content)}->{len(shortened)} chars")
-        rendered = _render(working)
-        if rendered is None:
-            return str(prompt or ""), tokens, ""
-        prompt, tokens = rendered
-
-    if len(tokens) > budget:
-        # Nothing safe left to shed — the request itself does not fit. Refusing
-        # is correct; silently deleting the user's turn is not.
-        return str(prompt or ""), tokens, ""
-
-    return str(prompt or ""), tokens, "; ".join(trimmed_note_parts)
-
-
-def _salvage_exhausted_user_surface(
-    job: dict[str, Any],
-    response_text: Any,
-    rejection_reasons: list[str],
-) -> tuple[str, list[str], list[str]]:
-    """Best honest draft after quality-gate retries are exhausted.
-
-    Returns (text, residual_reasons, applied_repairs); empty text means
-    nothing was safely deliverable and the caller keeps the fail-closed
-    empty reply. Every deterministic amendment is named in
-    ``applied_repairs`` so the caller can disclose it as a text mutation —
-    scaffolding must never pass as model output silently.
-    """
-    draft = str(response_text or "").strip()
-    if len(draft) < 40:
-        return "", list(rejection_reasons), []
-
-    reasons = list(rejection_reasons)
-    applied_repairs: list[str] = []
-    if "missing_self_claim_evidence_boundary" in reasons:
-        amended = draft + _SELF_CLAIM_BOUNDARY_SUFFIX
-        amended_reasons = _surface_quality_failure_reasons(job, amended)
-        if "missing_self_claim_evidence_boundary" not in amended_reasons:
-            draft = amended
-            reasons = list(amended_reasons)
-            applied_repairs.append("self_claim_boundary_suffix")
-
-    if not reasons:
-        return draft, [], applied_repairs
-    if set(reasons) <= _DELIVERABLE_RESIDUAL_SURFACE_REASONS:
-        # Delivered — and where the person stated a checkable requirement
-        # that this draft does not meet, they are told. Silently returning a
-        # three-item list to someone who asked for five leaves them unable
-        # to tell a shortfall from a decision.
-        note = _requirement_shortfall_note(reasons)
-        if note:
-            draft = f"{draft}{note}"
-            applied_repairs.append("requirement_shortfall_disclosure")
-        return draft, reasons, applied_repairs
-    return "", reasons, applied_repairs
-
-
-def _repair_live_user_surface_self_claims(response_text: Any) -> str:
-    """Keep the diagnostic API without using it in the worker decode path.
-
-    Older diagnostics import this helper directly. Worker-owned quality control
-    may reject an unsupported claim, but it cannot substitute canned prose for
-    an authored candidate.
-    """
-
-    text = str(response_text or "").strip()
-    if not text:
-        return text
-    try:
-        from core.conversation.self_claim_verifier import repair_self_claim_surface
-
-        return repair_self_claim_surface(text)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        _record_mlx_degradation(
-            exc,
-            action="continued with unmodified draft after self-claim analysis failed",
-            severity="error",
-        )
-        return text
-
-
-def _repair_live_user_surface_instruction_shape(
-    job: dict[str, Any],
-    response_text: Any,
-) -> str:
-    """Apply deterministic explicit-format repairs before spending another decode."""
-
-    text = str(response_text or "").strip()
-    prompt = _surface_validation_prompt(job)
-    if not text or not prompt:
-        return text
-    try:
-        from core.conversation.response_reliability import repair_instruction_shape
-
-        return repair_instruction_shape(prompt, text)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        _record_mlx_degradation(
-            exc,
-            action="continued to quality validation after instruction-shape repair failed",
-            severity="warning",
-        )
-        return text
-
-
-def _exact_reply_token_requirement(
-    job: dict[str, Any],
-    tokenizer: Any,
-) -> tuple[int, int]:
-    """Measure exact content plus the one token needed to terminate decoding."""
-
-    contract = job.get("requested_output_contract")
-    if not isinstance(contract, dict) or not bool(contract.get("exact_reply", False)):
-        return 0, 0
-    prompt = _surface_validation_prompt(job)
-    if not prompt:
-        return 0, 0
-    try:
-        from core.conversation.response_reliability import requested_exact_reply_target
-
-        target = requested_exact_reply_target(prompt)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return 0, 0
-    if not target:
-        return 0, 0
-    try:
-        token_ids = tokenizer.encode(target, add_special_tokens=False)
-    except TypeError:
-        token_ids = tokenizer.encode(target)
-    except (AttributeError, RuntimeError, ValueError):
-        return 0, 0
-    token_count = len(token_ids or [])
-    if token_count <= 0:
-        return 0, 0
-    return token_count, token_count + 1
-
-
-def _record_exact_reply_token_evidence(
-    job: dict[str, Any],
-    tokenizer: Any,
-    *,
-    generation_max_tokens: int,
-    hard_output_token_ceiling: int,
-) -> None:
-    """Record selected-tokenizer fit without expanding admitted ceilings."""
-
-    token_count, token_requirement = _exact_reply_token_requirement(job, tokenizer)
-    if token_requirement <= 0:
-        return
-    admitted_generation_cap = max(1, int(generation_max_tokens))
-    effective_native_cap = admitted_generation_cap
-    if hard_output_token_ceiling > 0:
-        effective_native_cap = min(effective_native_cap, hard_output_token_ceiling)
-    required_termination_headroom = max(0, token_requirement - token_count)
-    available_termination_headroom = max(0, effective_native_cap - token_count)
-    job["exact_reply_token_count"] = token_count
-    job["exact_reply_required_termination_headroom"] = required_termination_headroom
-    job["exact_reply_available_termination_headroom"] = available_termination_headroom
-    job["exact_reply_content_capacity_sufficient"] = bool(effective_native_cap >= token_count)
-    job["exact_reply_termination_headroom_sufficient"] = bool(
-        available_termination_headroom >= required_termination_headroom
-    )
-    job["exact_reply_native_capacity_sufficient"] = bool(effective_native_cap >= token_requirement)
-    job["exact_reply_token_ceiling_valid"] = bool(
-        hard_output_token_ceiling <= 0 or hard_output_token_ceiling >= token_requirement
-    )
-    if effective_native_cap < token_requirement:
-        logger.info(
-            "Exact target requires %d selected-tokenizer slots but the immutable "
-            "generation envelope admits %d; deterministic exact-output repair owns "
-            "the visible contract.",
-            token_requirement,
-            effective_native_cap,
-        )
-
-
-def _normalize_surface_format(response_text: Any) -> str:
-    """Whitespace-only repair of jammed list markers and welded sentences."""
-    text = str(response_text or "")
-    if not text.strip():
-        return ""
-    try:
-        from core.conversation.response_reliability import normalize_user_facing_format
-
-        return normalize_user_facing_format(text)
-    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Surface format normalisation skipped: %s", exc)
-        return ""
-
-
-def _repair_live_user_surface_escaped_newlines(response_text: Any) -> str:
-    """Turn literal \\n / \\t / \\r the model typed back into real whitespace.
-
-    A local model that has read a lot of JSON sometimes emits the two-character
-    sequence backslash-n where it meant a newline. The reply is otherwise fine,
-    and rejecting it costs the person a correct answer over a typo the runtime
-    can fix deterministically.
-
-    LIVE DEFECT, 2026-07-26: a correct, well-structured marble derivation was
-    rejected with reasons=escaped_control_artifact and the user got "I couldn't
-    get to an answer I'd stand behind on that one".
-
-    Prose only — a fenced code block may legitimately contain a literal \\n,
-    and rewriting it would corrupt the code. So the fences are held out and
-    the prose between them is repaired, rather than abandoning the whole reply
-    because part of it is code.
-
-    LIVE DEFECT, 2026-08-18: "write a python function to reverse a string and
-    then explain how it works" took 112 seconds and returned "I couldn't get
-    to an answer I'd stand behind on that one". The draft was rejected as
-    escaped_control_artifact and this repair declined to run because the reply
-    contained a code fence — so every request that wants code AND prose was
-    unanswerable whenever the model typed one backslash-n in the explanation.
-    """
-    from core.conversation.escaped_controls import (
-        repair_escaped_whitespace_artifacts,
-    )
-
-    repaired = repair_escaped_whitespace_artifacts(response_text)
-    return repaired.strip() if repaired is not None else ""
-
-
-def _repair_escaped_whitespace_in_prose(text: str) -> str | None:
-    """Compatibility wrapper around the shared syntax-aware repair."""
-    from core.conversation.escaped_controls import (
-        repair_escaped_whitespace_artifacts,
-    )
-
-    return repair_escaped_whitespace_artifacts(text)
-
-
-def _repair_live_user_surface_truncated_tail(response_text: Any) -> str:
-    """Keep complete model-derived content when only the final tail is clipped."""
-
-    text = str(response_text or "").strip()
-    if len(text) < 80 or len(text.split()) < 12:
-        return ""
-    sentence_ends = [match.end() for match in re.finditer(r"[.!?](?=(?:\s|$|\d))", text)]
-    for end in reversed(sentence_ends):
-        candidate = text[:end].strip()
-        if re.search(r"(?:^|\s)\d+\.$", candidate):
-            continue
-        if len(candidate) < 80 or len(candidate.split()) < 12:
-            continue
-        return candidate
-    # A worked derivation is not sentences. Live 2026-07-26, the marble answer
-    # came back as a bulleted derivation with no full stop after the opening
-    # line, so sentence-based trimming found exactly one candidate ("Let's
-    # break it down.", too short) and gave up — and a mostly complete, correct
-    # answer became a refusal. When the body is line-structured, drop the
-    # clipped final line and keep the complete ones.
-    lines = [line for line in text.splitlines() if line.strip()]
-    if len(lines) >= 3:
-        candidate = "\n".join(lines[:-1]).strip()
-        if len(candidate) >= 80 and len(candidate.split()) >= 12:
-            return candidate
-    return ""
-
-
-_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION = (
-    "For live status questions, name at least one concrete observable runtime "
-    "or sensory signal such as CPU/RAM pressure, temperature, network state, "
-    "desktop access, screen/audio/camera state, heartbeat, Cortex/MLX worker "
-    "state, or an actual numeric sensor reading. Avoid metaphor-only "
-    "attention-texture language."
-)
-_SELF_CONDITION_SIGNAL_INSTRUCTION = (
-    "This is a question about Aura's own condition. Answer directly from the "
-    "supplied affect, welfare, felt-coherence, continuity, agency, and freshness "
-    "evidence. CPU, RAM, host load, and availability are supporting body context "
-    "only and must not replace the condition answer."
-)
-
-
-def _job_needs_concrete_status_signal_guidance(job: dict[str, Any]) -> bool:
-    if not bool(job.get("clean_user_surface_contract", False)):
-        return False
-    prompt = _surface_validation_prompt(job)
-    if not prompt:
-        return False
-    prompt_l = prompt.lower()
-    if re.search(r"\b(?:capabilities|externally|tools?|what\s+can\s+you\s+do)\b", prompt_l):
-        return False
-    try:
-        from core.conversation.response_reliability import (
-            is_operational_status_turn,
-            is_self_condition_turn,
-            is_status_check_turn,
-        )
-
-        if is_self_condition_turn(prompt):
-            return False
-        if is_operational_status_turn(prompt) or is_status_check_turn(prompt):
-            return True
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        pass
-    return any(
-        marker in prompt_l
-        for marker in (
-            "live runtime signal",
-            "live path",
-            "runtime status",
-            "with me",
-            "you there",
-        )
-    )
-
-
-def _with_initial_user_surface_guidance(
-    messages: Any,
-    prompt: Any,
-    job: dict[str, Any],
-) -> tuple[Any, Any]:
-    # ``mlx_client`` deliberately gives health probes the clean-surface flag
-    # so they inherit the safe steering/recurrent clamps. That flag describes
-    # decode controls, not audience. Appending conversational guidance to the
-    # readiness prompt changed ``Reply exactly: ready`` into two competing
-    # instructions and made a healthy resident lane fail boot deterministically.
-    # Keep control-plane measurements clamped, but never prompt-shape them as
-    # user prose.
-    if bool(job.get("health_probe", False)) or not _job_needs_concrete_status_signal_guidance(job):
-        return messages, prompt
-    guidance = _LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION
-    if isinstance(messages, list):
-        guided_messages = copy.deepcopy(messages)
-        for message in guided_messages:
-            if isinstance(message, dict) and str(message.get("role") or "").lower() == "system":
-                content = str(message.get("content") or "").rstrip()
-                message["content"] = f"{content}\n{guidance}" if content else guidance
-                return guided_messages, prompt
-        guided_messages.insert(
-            0,
-            {"role": "system", "content": guidance},
-        )
-        return guided_messages, prompt
-    prompt_text = str(prompt or "").rstrip()
-    if not prompt_text:
-        return messages, guidance
-    return messages, f"{prompt_text}\n\n{guidance}"
-
-
-def _repair_live_user_surface_operational_status(
-    response_text: Any,
-    rejection_reasons: list[str],
-    job: dict[str, Any],
-) -> str:
-    if not rejection_reasons or not set(rejection_reasons).issubset(
-        {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-    ):
-        return str(response_text or "")
-    if not _job_needs_concrete_status_signal_guidance(job):
-        return str(response_text or "")
-    try:
-        from core.runtime import resource_psutil as psutil
-
-        memory = psutil.virtual_memory()
-        available_gb = memory.available / (1024**3)
-        cpu_percent = psutil.cpu_percent(interval=None)
-        return (
-            "I am with you. One live runtime signal I can perceive is RAM "
-            f"pressure at {memory.percent:.1f}% with {available_gb:.1f} GB "
-            f"available; CPU load is {cpu_percent:.1f}% on this host."
-        )
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError, AttributeError):
-        load_1m: float | None = None
-        try:
-            from core.runtime.resource_observation import get_resource_observer
-
-            load_1m = float(get_resource_observer().compute().load_1m)
-            if not math.isfinite(load_1m):
-                load_1m = None
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-            load_1m = None
-        if load_1m is not None:
-            return (
-                "I am with you. One live runtime signal I can perceive is the host "
-                f"load average at {load_1m:.2f}, with the Cortex/MLX worker active "
-                "for this foreground turn."
-            )
-        # BOTH probes failed: fabricating a 0.00 load sample converted an
-        # unavailable health probe into a confident live signal. Say what is
-        # actually true instead.
-        return (
-            "I am with you. My host telemetry probes are not answering right "
-            "now, so I cannot quote a live load number this turn — the reply "
-            "lane itself is working, which is the one signal I can honestly "
-            "attest."
-        )
-
-
-# What the model should actually DO about each rejection reason.
-#
-# A retry used to be handed the raw reason name and nothing else — "failed for:
-# generic_memory_pin_acknowledgement" — which is an internal token, not an
-# instruction. Measured live: the same draft was rejected three times with the
-# identical reason AND the identical validation hash, burning the turn's whole
-# budget on regenerating the same mistake, until "Request deadline reached at
-# token 23" ended it and the person got a refusal. A retry that does not say
-# what to fix is a wasted decode, and wasted decodes are what kill the turn.
-_SURFACE_RETRY_INSTRUCTIONS: dict[str, str] = {
-    "backend_symbolic_surface_leak": (
-        "Restate the same substantive answer in natural language without raw backend "
-        "enum names, internal variable names, or control identifiers."
-    ),
-    "corrupted_language": (
-        "Regenerate the complete answer in clean grammatical language. Do not copy any "
-        "malformed token from the rejected draft."
-    ),
-    "telemetry_path_wall": (
-        "Answer the request without dumping internal telemetry paths. Include a path only "
-        "when the user asked for that specific path and it is necessary to the answer."
-    ),
-    "unbounded_numeric_identifier": (
-        "Do not expose an unexplained internal numeric identifier. Preserve a long exact "
-        "number only when the user requested it or it is necessary to the answer."
-    ),
-    "generic_memory_pin_acknowledgement": (
-        "The user asked you to remember something AND asked something else in the "
-        "same turn. State the exact value you are keeping, then answer the rest of "
-        "the turn in full — a bare acknowledgement is not a reply."
-    ),
-    "truncated_tail": (
-        "End on a complete sentence. If the room is tight, say less and finish the "
-        "thought rather than stopping mid-clause."
-    ),
-    "reliability_diagnostic_too_thin": (
-        "Name the concrete mechanism — what happens, in what order, and what it "
-        "costs — instead of reassurance."
-    ),
-    "too_thin_for_reliability_turn": (
-        "Name the concrete mechanism and its consequence, not a summary judgement."
-    ),
-    "reliability_diagnostic_deflection": (
-        "Do not deflect. Say what the actual cause or consequence is, plainly."
-    ),
-    "too_thin_for_user_turn": (
-        "Say more than one clause: take a position and give the reason for it."
-    ),
-    "too_thin_for_open_ended_turn": (
-        "This was an open question. Develop an actual thought rather than a line."
-    ),
-    "generic_assistant_language": (
-        "Do not offer help, ask if there is anything else, or describe yourself as "
-        "an assistant. Answer as yourself."
-    ),
-    "question_back_non_answer": (
-        "Answer first, in your own words. A question back does not substitute for the answer."
-    ),
-    "low_signal_acknowledgement_placeholder": (
-        "An acknowledgement is not an answer. Say the substance."
-    ),
-}
-
-
-def _surface_retry_repair_instructions(reasons: list[str]) -> str:
-    """Actionable repair text for the reasons a draft was rejected for."""
-
-    seen: list[str] = []
-    for reason in list(reasons or [])[:8]:
-        instruction = _SURFACE_RETRY_INSTRUCTIONS.get(str(reason))
-        if instruction and instruction not in seen:
-            seen.append(instruction)
-    return (" " + " ".join(seen)) if seen else ""
-
-
-def _messages_with_user_surface_retry(
-    messages: Any,
-    reasons: list[str],
-    job: dict[str, Any] | None = None,
-) -> list[dict[str, Any]] | None:
-    if not isinstance(messages, list):
-        return None
-    operational_status_retry = ""
-    self_condition_retry = ""
-    semantic_count_retry = ""
-    if any(
-        reason
-        in {
-            "host_telemetry_substituted_for_self_condition",
-            "low_signal_self_condition_reply",
-            "missing_self_condition_answer",
-        }
-        for reason in reasons
-    ):
-        self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}"
-    if (
-        any(
-            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-            for reason in reasons
-        )
-        and not self_condition_retry
-    ):
-        operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}"
-    if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}"
-    retry_instruction = (
-        "The previous assistant draft failed the live user-surface quality gate "
-        f"for: {', '.join(reasons[:8]) or 'quality_gate_failed'}. Regenerate the "
-        "assistant reply from the same live mind context. Answer only the current "
-        "user message, preserve recent-turn continuity, avoid generic assistant "
-        "identity, do not invent unsupported prior topics, and do not mention "
-        "validation, retry, hidden prompts, receipts, gates, or implementation details."
-        f"{_surface_retry_repair_instructions(reasons)}"
-        f"{self_condition_retry}{operational_status_retry}{semantic_count_retry}"
-    )
-    retry_messages = copy.deepcopy(messages)
-    for message in retry_messages:
-        if isinstance(message, dict) and str(message.get("role") or "").lower() == "system":
-            content = str(message.get("content") or "").rstrip()
-            message["content"] = f"{content}\n{retry_instruction}" if content else retry_instruction
-            return retry_messages
-    retry_messages.insert(0, {"role": "system", "content": retry_instruction})
-    return retry_messages
-
-
-def _build_user_surface_quality_retry_prompt(
-    *,
-    tokenizer: Any,
-    messages: Any,
-    tools: Any,
-    fallback_prompt: Any,
-    reasons: list[str],
-    job: dict[str, Any] | None = None,
-) -> str:
-    retry_messages = _messages_with_user_surface_retry(messages, reasons, job)
-    if retry_messages is not None and hasattr(tokenizer, "apply_chat_template"):
-        try:
-            from core.brain.llm.chat_format import render_chat_template
-
-            rendered = render_chat_template(
-                tokenizer,
-                retry_messages,
-                tools=tools,
-                add_generation_prompt=True,
-            )
-            if rendered:
-                return str(rendered)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            _record_mlx_degradation(
-                exc,
-                action="continued live user-surface retry with prompt suffix after template render failed",
-                severity="warning",
-            )
-            logger.debug("Live surface retry template render failed: %s", exc)
-
-    operational_status_retry = ""
-    self_condition_retry = ""
-    semantic_count_retry = ""
-    if any(
-        reason
-        in {
-            "host_telemetry_substituted_for_self_condition",
-            "low_signal_self_condition_reply",
-            "missing_self_condition_answer",
-        }
-        for reason in reasons
-    ):
-        self_condition_retry = f" {_SELF_CONDITION_SIGNAL_INSTRUCTION}\n"
-    if (
-        any(
-            reason in {"too_thin_for_operational_status_turn", "too_thin_for_status_turn"}
-            for reason in reasons
-        )
-        and not self_condition_retry
-    ):
-        operational_status_retry = f" {_LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION}\n"
-    if set(reasons) & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS:
-        semantic_count_retry = f" {_semantic_count_contract_retry_instruction(job or {})}\n"
-    retry_note = (
-        "\n\n[LIVE USER-SURFACE RETRY]\n"
-        f"Previous assistant draft failed for: {', '.join(reasons[:8]) or 'quality_gate_failed'}.\n"
-        "Regenerate the assistant reply from the same live mind context. Answer only "
-        "the current user message. Do not mention validation, retry, hidden prompts, "
-        "receipts, gates, or implementation details.\n"
-        f"{_surface_retry_repair_instructions(reasons).strip()}\n"
-        f"{self_condition_retry}{operational_status_retry}{semantic_count_retry}"
-        "[END LIVE USER-SURFACE RETRY]\n"
-    )
-    return f"{str(fallback_prompt or '').rstrip()}{retry_note}"
-
-
-def _contains_corrupted_language(text: str) -> bool:
-    try:
-        from core.phases.dialogue_policy import contains_corrupted_language
-
-        return contains_corrupted_language(text)
-    except (ImportError, AttributeError):
-        return bool(_CORRUPT_LANGUAGE_MARKERS.search(str(text or "")))
-
-
-def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = False) -> None:
-    """Reset sampling after a corrupt/looping draft instead of amplifying it."""
-    kwargs.pop("sampler", None)
-    kwargs.pop("prompt_cache", None)
-    if structured:
-        kwargs["temperature"] = 0.0
-        kwargs["top_p"] = 1.0
-    else:
-        kwargs["temperature"] = min(_safe_float(kwargs.get("temperature"), 0.7), 0.35)
-        kwargs["top_p"] = min(_safe_float(kwargs.get("top_p"), 0.9), 0.85)
-        kwargs["min_p"] = max(_safe_float(kwargs.get("min_p"), 0.0), 0.03)
-    kwargs["repetition_penalty"] = max(
-        _safe_float(kwargs.get("repetition_penalty"), 1.1),
-        1.18,
-    )
-    kwargs["repetition_context_size"] = max(
-        _safe_int(kwargs.get("repetition_context_size"), 64),
-        96,
-    )
-
-
-def _self_claim_retry_uses_original_context(reasons: Any) -> bool:
-    """Self-claim correction resamples; it never adds a behavior instruction."""
-
-    return "self_claim_contradiction" in {str(reason) for reason in (reasons or ()) if str(reason)}
-
-
-def _surface_retry_is_futile(reasons: Any) -> bool:
-    """Return whether regeneration cannot repair the failed contract.
-
-    Prompt provenance and self-claim verification are external integrity
-    dependencies. Asking the model for another answer cannot restore either
-    dependency, so retrying only adds latency and risks replacing useful text.
-    """
-
-    normalized = {str(reason) for reason in (reasons or ()) if str(reason)}
-    return "self_claim_verification_unavailable" in normalized or any(
-        reason.startswith("surface_validation_prompt_binding")
-        or reason == "surface_validation_prompt_missing"
-        for reason in normalized
-    )
-
-
-def _surface_retry_wall_exceeded(started_monotonic: float, wall_s: float) -> bool:
-    """True when the user-surface gate-retry path has burned its wall budget.
-
-    Under memory-contended decode each drafting attempt costs 30-70s; burning
-    the full retry budget is how a single live turn reached 200s+ (July 8
-    soak). Past the wall, exhaustion salvage delivers the best honest draft
-    instead of drafting again for a user who has stopped waiting. Floor of
-    10s so a misconfigured env value can never disable first-attempt retries.
-    """
-    if started_monotonic <= 0.0:
-        return False
-    return (time.monotonic() - started_monotonic) > max(10.0, wall_s)
-
-
-def _ontology_retry_permitted(
-    *,
-    internal_attempt: int,
-    max_internal_retries: int,
-    ontology_retry_count: int,
-    job_deadline_unix: float,
-    user_surface: bool,
-    surface_retry_started: float,
-    surface_retry_wall_s: float,
-    now_unix: float | None = None,
-) -> tuple[bool, bool, bool]:
-    """Allow one ontology repair only while caller time budgets remain open."""
-    now = time.time() if now_unix is None else float(now_unix)
-    deadline_open = job_deadline_unix <= 0.0 or now < job_deadline_unix
-    retry_wall_open = not user_surface or not _surface_retry_wall_exceeded(
-        surface_retry_started,
-        surface_retry_wall_s,
-    )
-    allowed = (
-        int(internal_attempt) < int(max_internal_retries)
-        and int(ontology_retry_count) < 1
-        and deadline_open
-        and retry_wall_open
-    )
-    return allowed, deadline_open, retry_wall_open
-
-
-def _expand_user_surface_retry_budget(
-    kwargs: dict[str, Any],
-    reasons: list[str],
-    *,
-    ceiling: int = 2048,
-    hard_ceiling: Any = None,
-) -> bool:
-    """Give a clipped live reply one larger pass on the existing worker.
-
-    This is deliberately limited to structural truncation. It does not create
-    another model process, alter strict/proof contracts, or inflate retries for
-    off-topic and low-quality drafts.
-    """
-
-    if "truncated_tail" not in set(reasons):
-        return False
-    current = max(
-        _safe_int(kwargs.get("max_tokens"), 0),
-        _safe_int(kwargs.get("num_predict"), 0),
-    )
-    if current <= 0:
-        return False
-    expansion_ceiling = max(current, int(ceiling))
-    immutable_ceiling = _safe_int(hard_ceiling, 0)
-    if immutable_ceiling > 0:
-        expansion_ceiling = min(expansion_ceiling, immutable_ceiling)
-    expanded = min(max(current * 2, current + 384), expansion_ceiling)
-    if expanded <= current:
-        return False
-    kwargs["max_tokens"] = expanded
-    if "num_predict" in kwargs:
-        kwargs["num_predict"] = expanded
-    return True
-
-
-def _telemetry_sanitization_failure_reasons(
-    text: str,
-    is_proof: bool = False,
-) -> list[str]:
-    """Identify fatal surface leakage without destroying the authored draft."""
-    if not text:
-        return []
-
-    reasons: list[str] = []
-
-    # 1) Reject telemetry-path walls without blocking legitimate code, regex,
-    # filesystem, or proof output. The old slash-count heuristic rejected any
-    # answer with more than 15 "/" characters, which is common in live coding
-    # tasks and path-aware proof/eval runs.
-    # The path-wall check stays non-proof: coding and path-aware eval answers
-    # legitimately contain many paths, and unlike the symbolic markers there
-    # is no exact token that separates a wall from real content.
-    if not is_proof:
-        slash_count = text.count("/")
-        if slash_count > 30 and "http" not in text.lower():
-            path_like = re.findall(r"(?:/[A-Za-z0-9._-]+){3,}", text)
-            path_chars = sum(len(path) for path in path_like)
-            if len(path_like) >= 3 or path_chars > max(120, int(len(text) * 0.35)):
-                reasons.append("telemetry_path_wall")
-
-    # 3) Extreme numeric sequences: in conversational output a 20+ digit run
-    # is a hallucination signature. Proof/eval answers are exempt — large
-    # integers, hashes, and numeric test vectors are legitimate exact
-    # answers there, and correctness is the eval harness's job to score.
-    if not is_proof and re.search(r"\d{20,}", text):
-        reasons.append("unbounded_numeric_identifier")
-
-    # 4) Corrupted lexical output is a model-state failure, not a usable
-    # answer — in EVERY mode. A proof answer containing corruption tokens is
-    # corrupted evidence, so the proof exemption never applied here.
-    if _contains_corrupted_language(text):
-        reasons.append("corrupted_language")
-    # 5) Backend-symbolic surface markers apply in EVERY mode. The exemption
-    # here was justified by a pattern that no longer exists: it claimed the
-    # regex matched common English words ("proceeding", "field coherence"),
-    # but the markers are exact-case backend identifiers — PROCEEDING,
-    # TOOL_ACTION, ExistenceHash — matched WITHOUT re.IGNORECASE, so
-    # lowercase prose never matched, and "field coherence" is not in this
-    # pattern at all. A proof answer containing a raw backend action code is
-    # leaked internals wherever it appears.
-    if _BACKEND_SYMBOLIC_SURFACE_MARKERS.search(text):
-        reasons.append("backend_symbolic_surface_leak")
-
-    return list(dict.fromkeys(reasons))
-
-
-def _sanitize_telemetry_leakage(text: str, is_proof: bool = False) -> str | None:
-    """Legacy strict-path adapter for the typed telemetry sanitizer.
-
-    Strict/proof callers still receive ``None`` for an unspeakable draft. Live
-    user surfaces consume the typed reasons through the quality-repair lane so
-    the original draft remains available for bounded authored correction.
-    """
-    if _telemetry_sanitization_failure_reasons(text, is_proof=is_proof):
-        return None
-
-    return text
-
-
-def _route_telemetry_sanitizer_draft(
-    text: str,
-    *,
-    is_proof: bool,
-    authored_surface_repair_available: bool,
-) -> tuple[str, list[str]]:
-    """Keep an unspeakable live draft only when a bounded repair lane owns it."""
-    reasons = _telemetry_sanitization_failure_reasons(text, is_proof=is_proof)
-    if reasons and not authored_surface_repair_available:
-        return "", reasons
-    return text, reasons
-
-
-def _route_cooperative_partial_draft(
-    job: dict[str, Any],
-    text: str,
-    surface_control_state: dict[str, Any],
-    *,
-    is_proof: bool,
-) -> str:
-    """Route a deadline/cancel partial through the same owned surface lane.
-
-    Cooperative termination skips model retries, but it must not skip draft
-    custody. A live user-surface draft that trips the telemetry sanitizer is
-    carried as rejected evidence for the caller's bounded recovery path. A
-    strict, proof, or non-user-surface draft has no such owner and remains
-    withheld.
-    """
-
-    authored_surface_repair_available = _surface_quality_gate_enabled(job)
-    routed, reasons = _route_telemetry_sanitizer_draft(
-        text,
-        is_proof=is_proof,
-        authored_surface_repair_available=authored_surface_repair_available,
-    )
-    bounded_reasons = reasons[:8]
-    surface_control_state["telemetry_sanitizer_reasons"] = bounded_reasons
-    if bounded_reasons and authored_surface_repair_available:
-        existing = surface_control_state.get("surface_quality_gate_reasons")
-        merged = [
-            str(reason).strip()[:120]
-            for reason in (list(existing) if isinstance(existing, (list, tuple)) else [])
-            if str(reason).strip()
-        ]
-        merged.extend(bounded_reasons)
-        surface_control_state["surface_quality_gate_passed"] = False
-        surface_control_state["surface_quality_gate_reasons"] = list(dict.fromkeys(merged))[:8]
-        _remember_surface_quality_rejected_draft(
-            surface_control_state,
-            text,
-            merged,
-        )
-    return routed
-
-
-def _surface_rejected_draft_rank(text: Any, reasons: list[str]) -> tuple[int, ...]:
-    """Rank suppressed drafts by servability evidence, never arrival time."""
-
-    from core.conversation.surface_disposition import UNSPEAKABLE_REASONS
-
-    body = str(text or "").strip()
-    normalized = [str(reason or "").strip() for reason in reasons if str(reason or "").strip()]
-    completion = {
-        "final_answer_missing",
-        "incomplete_code_response",
-        "missing_final_answer",
-        "truncated_tail",
-        "unanswered_question_part",
-    }
-    unspeakable = sum(reason in UNSPEAKABLE_REASONS for reason in normalized)
-    semantic = sum(reason not in completion for reason in normalized)
-    incomplete = sum(reason in completion for reason in normalized)
-    return (-unspeakable, -semantic, -incomplete, min(len(body), 8_000))
-
-
-def _remember_surface_quality_rejected_draft(
-    state: dict[str, Any],
-    text: Any,
-    reasons: list[str],
-) -> None:
-    """Keep the best rejected draft across worker-owned retries."""
-
-    body = str(text or "").strip()[:8_000]
-    if not body:
-        return
-    rank = _surface_rejected_draft_rank(body, reasons)
-    current_rank = state.get("_surface_quality_rejected_rank")
-    if not isinstance(current_rank, tuple) or rank > current_rank:
-        state["_surface_quality_rejected_rank"] = rank
-        state["surface_quality_rejected_text"] = body
-        state["surface_quality_rejected_reasons"] = list(reasons)[:8]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 _ARTIFACT_REQUEST_RE = re.compile(
@@ -6187,6 +4004,77 @@ from core.brain.llm.prompt_cache import (  # noqa: E402
 )
 from core.brain.llm.prompt_cache import (  # noqa: E402
     capture_prompt_cache_one_token_rollback as _capture_prompt_cache_one_token_rollback,
+)
+from .mlx_worker_surface_quality import (
+    _BACKEND_SYMBOLIC_SURFACE_MARKERS,
+    _apply_surface_generation_controls,
+    _capability_inventory_minimum_grounding,
+    _classify_generation_stop_reason,
+    _contains_corrupted_language,  # noqa: F401
+    _continuation_resume_should_bind,
+    _continuation_resume_unavailable_reason,
+    _conversation_resume_boundary_complete,
+    _enforce_surface_controls_or_fail,
+    _loop_abort_prefix_is_servable,
+    _recent_assistant_turns,  # noqa: F401
+    _recent_user_turns,  # noqa: F401
+    _record_mlx_degradation,
+    _restore_surface_generation_controls,
+    _safe_float,
+    _safe_int,
+    _sanitize_telemetry_leakage,  # noqa: F401
+    _semantic_completion_receipt_state,
+    _semantic_surface_stop_ready,  # noqa: F401
+    _semantic_terminal_grace_eligible,
+    _surface_alpha_from_certificate,  # noqa: F401
+    _surface_control_alpha,  # noqa: F401
+    _surface_control_recurrent_loops,  # noqa: F401
+    _surface_generation_contract_enabled,  # noqa: F401
+    _surface_generation_control_receipt,
+    _surface_prompt_resolution,
+    _surface_quality_candidate,  # noqa: F401
+    _surface_quality_failure_reasons,
+    _surface_quality_gate_enabled,
+    _surface_validation_prompt,
+)
+from .mlx_worker_surface_repair import (
+    _DELIVERABLE_RESIDUAL_SURFACE_REASONS,  # noqa: F401
+    _LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION,  # noqa: F401
+    _REQUIREMENT_SHORTFALL_LABELS,  # noqa: F401
+    _SELF_CLAIM_BOUNDARY_SUFFIX,  # noqa: F401
+    _SELF_CONDITION_SIGNAL_INSTRUCTION,  # noqa: F401
+    _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS,
+    _SURFACE_RETRY_INSTRUCTIONS,  # noqa: F401
+    _build_user_surface_quality_retry_prompt,
+    _exact_reply_token_requirement,  # noqa: F401
+    _expand_user_surface_retry_budget,
+    _job_needs_concrete_status_signal_guidance,  # noqa: F401
+    _messages_with_user_surface_retry,  # noqa: F401
+    _normalize_surface_format,
+    _ontology_retry_permitted,
+    _prepare_clean_retry_kwargs,
+    _record_exact_reply_token_evidence,
+    _remember_surface_quality_rejected_draft,
+    _repair_escaped_whitespace_in_prose,  # noqa: F401
+    _repair_live_user_surface_escaped_newlines,
+    _repair_live_user_surface_instruction_shape,
+    _repair_live_user_surface_operational_status,
+    _repair_live_user_surface_self_claims,  # noqa: F401
+    _repair_live_user_surface_truncated_tail,
+    _requirement_shortfall_note,  # noqa: F401
+    _route_cooperative_partial_draft,
+    _route_telemetry_sanitizer_draft,
+    _salvage_exhausted_user_surface,
+    _self_claim_retry_uses_original_context,
+    _semantic_count_contract_retry_instruction,  # noqa: F401
+    _shrink_scaffold_to_context_window,
+    _surface_rejected_draft_rank,  # noqa: F401
+    _surface_retry_is_futile,
+    _surface_retry_repair_instructions,  # noqa: F401
+    _surface_retry_wall_exceeded,
+    _terminal_contract_refusal,
+    _verify_contract_authority,
+    _with_initial_user_surface_guidance,
 )
 
 
