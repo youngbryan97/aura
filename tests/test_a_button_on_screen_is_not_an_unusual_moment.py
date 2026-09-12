@@ -8,9 +8,11 @@ made every ordinary move a moment worth weighing.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from pathlib import Path
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 BODY = SOURCE[SOURCE.index("async def pursue_on_screen") :]
 
 

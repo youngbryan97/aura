@@ -13,6 +13,8 @@ was never set. The first run that set it crashed on the next move.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 import re
 
@@ -20,7 +22,7 @@ from core.skills import screen_pursuit
 
 
 def test_every_reason_written_into_the_tally_can_be_counted():
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     named = set(re.findall(r'dropped\[([\'"])(.+?)\1\]', source))
     assert named, "the tally is written somewhere"
     tally: object = None
@@ -39,7 +41,7 @@ def test_every_reason_written_into_the_tally_can_be_counted():
 
 
 def test_the_tally_is_declared_as_one_that_cannot_miss_a_key():
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "dropped: Counter[str] = Counter()" in source
 
 

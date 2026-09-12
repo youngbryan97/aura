@@ -19,6 +19,8 @@ slower.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import time
 
 import pytest
@@ -47,7 +49,7 @@ def _refusing(monkeypatch, why: str) -> None:
     async def check():
         return _Refused(why)
 
-    monkeypatch.setattr(sp, "evaluate_screen_capture_admission_async", check, raising=False)
+    patch_pursuit(monkeypatch, "evaluate_screen_capture_admission_async", check, raising=False)
     import core.security.screen_capture_policy as policy
 
     monkeypatch.setattr(policy, "evaluate_screen_capture_admission_async", check)

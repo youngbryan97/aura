@@ -24,6 +24,8 @@ The chain is anchor, verify, restore, refuse:
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import asyncio
 
 import pytest
@@ -57,11 +59,11 @@ def browser(monkeypatch):
     async def frontmost(_app):
         return True
 
-    monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "_restore_tab", focus, raising=False)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "_restore_tab", focus, raising=False)
     return state
 
 
@@ -98,7 +100,7 @@ def test_navigating_away_stops_the_run_instead_of_acting_there(browser, monkeypa
     async def unrecoverable(_match):
         return False
 
-    monkeypatch.setattr(sp, "_ensure_page", unrecoverable)
+    patch_pursuit(monkeypatch, "_ensure_page", unrecoverable)
 
     result = asyncio.run(
         sp.pursue_on_screen(
@@ -123,7 +125,7 @@ def test_the_policy_is_never_asked_on_a_foreign_page(browser, monkeypatch):
     async def unrecoverable(_match):
         return False
 
-    monkeypatch.setattr(sp, "_ensure_page", unrecoverable)
+    patch_pursuit(monkeypatch, "_ensure_page", unrecoverable)
 
     asyncio.run(
         sp.pursue_on_screen(

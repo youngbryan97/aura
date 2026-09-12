@@ -17,6 +17,8 @@ stopping is the right response to it.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import pytest
 
 from core.perception.why_nothing_answers import (
@@ -120,7 +122,7 @@ def test_the_pursuit_fixes_what_it_can_and_carries_on():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert "work_out_why(" in source
     assert "if why.can_fix:" in source
     doing = [ln for ln in source.splitlines() if not ln.strip().startswith("#")]
@@ -135,5 +137,5 @@ def test_and_only_stops_when_it_has_really_ended():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert "why.because == ENDED" in source

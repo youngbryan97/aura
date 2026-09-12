@@ -13,6 +13,10 @@ exactly where those two come apart.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
+from screen_pursuit_support import pursuit_source
+
 import inspect
 
 import pytest
@@ -63,8 +67,8 @@ def _sees(monkeypatch, *answers: str):
         above = await everything(mine, over=over)
         return above[0] if above else ""
 
-    monkeypatch.setattr(screen_pursuit, "_whats_on_top", on_top)
-    monkeypatch.setattr(screen_pursuit, "_everything_on_top", everything)
+    patch_pursuit(monkeypatch, "_whats_on_top", on_top)
+    patch_pursuit(monkeypatch, "_everything_on_top", everything)
 
 
 # ── what she sends ───────────────────────────────────────────────────────
@@ -109,14 +113,14 @@ async def test_nothing_in_front_is_nothing_to_clear(keyboard):
 # ── when she tries ───────────────────────────────────────────────────────
 
 def test_she_clears_it_before_reading_or_acting():
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     clears = source.index("in_front = await _whats_on_top(")
     blocker = source.index("blocker = await clear_blocker(observation)")
     assert clears < blocker
 
 
 def test_one_that_will_not_close_is_not_pressed_at_once_a_cycle():
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     where = source.index("in_front = await _whats_on_top(")
     window = source[where : where + 300]
     assert 'in_front != in_the_way["last"]' in window

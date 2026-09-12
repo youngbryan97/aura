@@ -12,11 +12,13 @@ than a part of it, and a reading was actually taken.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 
 from core.skills import screen_pursuit
 
-SOURCE = inspect.getsource(screen_pursuit.pursue_on_screen)
+SOURCE = pursuit_loop_source()
 
 
 def test_the_settled_reading_is_kept():

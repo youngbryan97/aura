@@ -8,12 +8,14 @@ hand-off and the pursuit began counting when it began running.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import json
 from pathlib import Path
 
 COMPUTER_USE = Path("core/skills/computer_use.py").read_text()
 DESKTOP_TASK = Path("core/skills/desktop_task.py").read_text()
-PURSUIT = Path("core/skills/screen_pursuit.py").read_text()
+PURSUIT = pursuit_source()
 
 
 def test_the_task_stamps_a_deadline_when_it_plans_the_step():

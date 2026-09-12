@@ -9,11 +9,13 @@ into the measure, with nothing ever filling it in.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 
 from core.skills import screen_pursuit
 
-SOURCE = inspect.getsource(screen_pursuit.pursue_on_screen)
+SOURCE = pursuit_loop_source()
 
 
 def test_it_is_carried_in_from_what_she_learned_here():

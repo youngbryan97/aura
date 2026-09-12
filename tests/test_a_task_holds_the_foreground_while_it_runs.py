@@ -14,6 +14,8 @@ curriculum loop running against the model she needed to choose a move with.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 
 import core.skills.screen_pursuit as sp
@@ -42,7 +44,7 @@ def test_the_lease_names_who_holds_it():
 
 def test_a_pursuit_takes_one():
     """The defect: it never did, so the task ran as background."""
-    source = inspect.getsource(sp.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "begin_foreground_turn" in source, (
         "a task somebody asked for still runs as background work"
     )
@@ -50,7 +52,7 @@ def test_a_pursuit_takes_one():
 
 def test_a_pursuit_gives_it_back():
     """Held past the end, everything after it would be starved instead."""
-    source = inspect.getsource(sp.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "holding_the_foreground.close()" in source
     before = source.index("begin_foreground_turn")
     closed = source.index("holding_the_foreground.close()")
@@ -62,7 +64,7 @@ def test_a_pursuit_gives_it_back():
 
 def test_a_guard_that_will_not_answer_does_not_stop_the_task():
     """Not being able to claim the foreground is not a reason to refuse work."""
-    source = inspect.getsource(sp.pursue_on_screen)
+    source = pursuit_loop_source()
     where = source.index("begin_foreground_turn")
     around = source[where - 400 : where + 700]
     assert "except" in around

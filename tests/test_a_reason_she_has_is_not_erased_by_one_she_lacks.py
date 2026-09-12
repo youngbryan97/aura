@@ -8,6 +8,8 @@ and the ordinary option carries no rationale.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 from types import SimpleNamespace
 
 import pytest
@@ -25,8 +27,8 @@ class _Chosen:
 @pytest.fixture
 def spoken(monkeypatch):
     lines: list[str] = []
-    monkeypatch.setattr(screen_pursuit, "_tell", lines.append)
-    monkeypatch.setattr(screen_pursuit, "_publish_decision", lambda *a, **k: None)
+    patch_pursuit(monkeypatch, "_tell", lines.append)
+    patch_pursuit(monkeypatch, "_publish_decision", lambda *a, **k: None)
     return lines
 
 

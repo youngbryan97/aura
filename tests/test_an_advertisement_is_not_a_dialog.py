@@ -12,6 +12,8 @@ takes the whole task away from them, so it cannot ask for less.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.perception.blocking_overlay import MIN_HINTS_FOR_BARE_ESCAPE, assess_overlay
 
 
@@ -114,7 +116,7 @@ def test_handing_the_task_back_waits_to_see_the_same_thing_twice():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     where = source.index('needs_person["times"]')
     block = source[where - 400 : where + 400]
     assert "TWICE_BEFORE_HANDING_BACK" in block

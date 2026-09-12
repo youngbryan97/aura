@@ -8,13 +8,15 @@ terminal, with the game open one window back and never brought forward.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import ast
 import inspect
 from pathlib import Path
 
 from core.capabilities.browser_controller import BrowserController
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 
 
 def _assignment(name: str) -> str:

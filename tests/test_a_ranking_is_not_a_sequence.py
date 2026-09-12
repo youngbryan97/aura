@@ -19,6 +19,8 @@ claim, it can be checked.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.skills.screen_pursuit import a_run_she_can_carry
 
 CHOICES = ["up", "down", "left", "right"]
@@ -109,7 +111,7 @@ def test_the_pursuit_checks_a_named_sequence_before_committing_to_it():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     named = source.index('getattr(made, "then", ())')
     assert "a_run_she_can_carry(" in source[named : named + 900]
 
@@ -122,7 +124,7 @@ def test_every_act_of_a_run_is_counted_however_the_run_was_made():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index('expected["took"] = len(follow_on) + 1')
     before = source[:at]
     line_start = before.rindex("\n") + 1

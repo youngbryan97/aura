@@ -28,59 +28,134 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
-from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
 from core.cognition.does_this_world_repeat import DoesItRepeat
-from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
 from core.cognition.getting_ready_for_what_is_coming import WhatUsuallyComes
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.marks_she_leaves_behind import MarksOnTheGround
-from core.cognition.something_she_keeps_true import (
-    what_it_rules_out,
-    what_to_hold_now,
-)
 from core.cognition.the_furthest_she_has_got import TheFurthestSheHasGot
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
-from core.cognition.two_ways_out import how_long_it_holds
 from core.cognition.what_an_act_costs_beyond_now import WhatEachActHasLeft
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
-from core.cognition.what_is_still_open import what_is_still_open
-from core.cognition.what_nobody_could_show import WhatIsHidden
-from core.cognition.what_she_cannot_afford_to_lose import (
-    what_she_cannot_afford_to_lose,
-)
 from core.cognition.what_she_has_set_in_motion import WhatIsComing
 from core.cognition.what_works_against_what import WhatBeatsWhat
-from core.cognition.what_would_have_to_be_true import a_way_to_get_there
-from core.cognition.when_the_move_is_forbidden import a_way_round
-from core.cognition.when_to_say_it_outright import whether_to_say_it
 from core.cognition.which_way_to_win import which_way_to_win
-from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
-from core.runtime.watched_goal import BROWSERS, PURSUIT_SECONDS, a_cycle_took
+from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.runtime.task_ownership import create_owned_asyncio_task
+from .screen_pursuit_surface import (
+    DECLINES_AND_NOTHING_ELSE,  # noqa: F401
+    _looks_like,  # noqa: F401
+    LABEL_REACH,  # noqa: F401
+    PRESSABLE_KEYS,
+    _a_pass_in_moves,  # noqa: F401
+    _bound_to_a_window,  # noqa: F401
+    _matches,  # noqa: F401
+    _screen_size,  # noqa: F401
+    _the_part_of,
+    _value_is_on_screen,  # noqa: F401
+    _who_the_screen_belongs_to,
+    click_normalized,
+    goal_reached,
+    labelled_by,  # noqa: F401
+    press,
+    window_bounds,
+)
+from .screen_pursuit_bearings import (
+    RESTART_LABELS,  # noqa: F401
+    _is_a_thing_laid_out,  # noqa: F401
+    a_way_back_that_was_not_there,  # noqa: F401
+    restart_controls,  # noqa: F401
+    A_SCREENFUL_AT_LEAST,  # noqa: F401
+    DEFAULT_MOVES,
+    ENOUGH_TO_BE_A_THING,  # noqa: F401
+    LANGUAGE_EVERY,
+    MOST_OF_A_SCREEN,  # noqa: F401
+    PRESS_ON,  # noqa: F401
+    SAY_LESS,  # noqa: F401
+    SCREENFULS_TO_LOOK,  # noqa: F401
+    SEE_IT_THROUGH,  # noqa: F401
+    SETTLE_AFTER_SCROLL_S,  # noqa: F401
+    SLOW_DOWN,  # noqa: F401
+    START_OVER,
+    _AS_IT_USUALLY_IS,  # noqa: F401
+    _a_screenful,  # noqa: F401
+    _a_step_back,  # noqa: F401
+    _ask_again_after,  # noqa: F401
+    _both_of_the_thing,  # noqa: F401
+    _bring_it_into_view,
+    _by_how_much_room,  # noqa: F401
+    _how_much_the_tally_moved,  # noqa: F401
+    _in_the_same_grid,  # noqa: F401
+    _moves_she_will_not_make,  # noqa: F401
+    _moves_that_leave_her_nothing,  # noqa: F401
+    _she_got_further,  # noqa: F401
+    _take_the_run_its_bearings,  # noqa: F401
+    _the_biggest_thing_on_it,  # noqa: F401
+    _time_left,  # noqa: F401
+    _was_of_that_window,  # noqa: F401
+    _what_she_is_not_reading,  # noqa: F401
+    _what_there_is_to_aim_at,  # noqa: F401
+    _within_a_move,  # noqa: F401
+    _within_the_run,
+    _worth_holding,  # noqa: F401
+    a_run_she_can_carry,  # noqa: F401
+    am_i_there,  # noqa: F401
+    pacing_options,  # noqa: F401
+    restart_control,
+    screen_options,  # noqa: F401
+    ways_out,
+)
+from .screen_pursuit_looking import (
+    _how_long_a_look_takes,  # noqa: F401
+    _no_more_than_a_fresh_one_is_worth,  # noqa: F401
+    _the_kind_of_world_this_is,  # noqa: F401
+    ASKING_TO_CONFIRM,  # noqa: F401
+    LONGER_THAN_USUAL,  # noqa: F401
+    OBSERVE_TIMEOUT_S,  # noqa: F401
+    PASSES_ON_ITS_OWN,
+    _ANSWERING_TOOK,  # noqa: F401
+    _WHY_SHE_CANNOT_LOOK,
+    _answer_own_confirmation,
+    _bring_the_thing_back_to_the_front,
+    _covers,
+    _expected_of,  # noqa: F401
+    _her_reasoning,
+    _how_full,  # noqa: F401
+    _how_long_to_wait,  # noqa: F401
+    _move_her_own_surface_aside,  # noqa: F401
+    _narrate,  # noqa: F401
+    _say_intent,  # noqa: F401
+    _say_line,
+    _settled_after,  # noqa: F401
+    _the_best_reading_available,  # noqa: F401
+    _the_thing_she_is_acting_in,  # noqa: F401
+    _what_being_refused_a_look_means,
+    _what_she_could_not_learn_from,  # noqa: F401
+    _where,  # noqa: F401
+    _where_clicked,  # noqa: F401
+    _where_it_asks,  # noqa: F401
+    _why_nothing_answers,  # noqa: F401
+    clear_what_is_in_front,  # noqa: F401
+    wait_for_a_screen_to_look_at,
+)
+from types import SimpleNamespace
+from .screen_pursuit_blockers import clear_what_blocks_the_run
+from .screen_pursuit_decision import decide_the_next_move
+from .screen_pursuit_observing import observe_the_screen
 
 logger = logging.getLogger("Aura.ScreenPursuit")
 
-#: Keys the loop is allowed to press, by the name a person would use.
-#: Bounded on purpose — a loop that can press anything can press ⌘Q.
-PRESSABLE_KEYS = (
-    "up", "down", "left", "right",
-    "return", "enter", "tab", "space", "escape",
-)
 
 #: How many times a blocker may be attacked before the run reports it.
 #:
@@ -95,28 +170,9 @@ PRESSABLE_KEYS = (
 #: loop's: the honest end is a named obstacle, never a spin.
 MAX_BLOCKER_ATTEMPTS = 3
 
-#: How long a single observation may take before the cycle is abandoned. A
-#: screen read finishes well inside this. A capture still running when the
-#: timeout expires is wedged, and waiting on it only makes the loop less
-#: responsive.
-OBSERVE_TIMEOUT_S = 8.0
-#: The moves offered when a caller does not name its own. Arrow keys are the
-#: universal keyboard affordance: they mean something on a board, a list, a
-#: map, a carousel, a form. A caller with a richer vocabulary passes its own.
-DEFAULT_MOVES: tuple[str, ...] = ("up", "down", "left", "right")
 #: How many graded attempts travel into the next decision. Enough to notice a
 #: move that stopped working, short enough that old evidence stops steering.
 RECENT_ATTEMPTS = 4
-#: How often language is consulted on a run of routine moves.
-#:
-#: A board changes a little each move, so re-reasoning every single one buys
-#: little and costs the whole cycle: measured live, a language pass took
-#: about eight seconds and a decision from evidence takes none, on a loop
-#: that needs hundreds of moves. Language is asked when the answer is most
-#: likely to differ — the first move, after a restart, when what she is doing
-#: has stopped working — and periodically in between so the commentary stays
-#: hers rather than a run of bandit statistics.
-LANGUAGE_EVERY = 5
 #: How many times one run will go back and look up how the task is done.
 #: How many readings in a row have to show the same thing before a run is
 #: handed back to the person. A page carries things that go away on their
@@ -195,134 +251,12 @@ class ScreenPursuitInput(BaseModel):
 ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
-async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
-    """The front window rectangle of `app_name` in pixels, or None."""
-    if not app_name:
-        return None
-    from core.capabilities.host_automation import get_host_automation
-
-    script = (
-        f'tell application "System Events" to tell process {app_name!r} '
-        "to get {position, size} of front window"
-    ).replace("'", '"')
-    try:
-        receipt = await get_host_automation().execute_applescript(script)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as why:
-        logger.debug("could not read the window's bounds: %s", why)
-        return None
-    if not getattr(receipt, "success", False):
-        logger.debug(
-            "could not read the window's bounds: %s",
-            getattr(receipt, "error", "") or "the host refused",
-        )
-        return None
-    numbers = re.findall(r"-?\d+", str(getattr(receipt, "result", "") or ""))
-    if len(numbers) < 4:
-        return None
-    x, y, width, height = (int(value) for value in numbers[:4])
-    if width <= 0 or height <= 0:
-        return None
-    return (x, y, width, height)
 
 
-def _a_pass_in_moves(costs: dict[str, float]) -> float:
-    """What a language pass costs, counted in moves not made.
-
-    A pass on a small model costs a fraction of a move and one on a resident
-    model under memory pressure costs the time of ten. Whether an answer is
-    worth asking for depends on both halves, and only one of them was ever
-    looked at.
-
-    One until both have been measured, which is what the caller assumed all
-    along.
-    """
-    passes, quiet = costs.get("passes", 0.0), costs.get("quiet", 0.0)
-    if passes < 1.0:
-        return 1.0
-    a_pass = costs.get("pass_s", 0.0) / passes
-    if quiet >= 1.0:
-        a_quiet_move = costs.get("quiet_s", 0.0) / quiet
-        if a_quiet_move > 0.0:
-            return max(1.0, a_pass / a_quiet_move)
-    # Nothing to compare a pass against, because there has not been a quiet
-    # move — and there never will be while a pass is priced at one.
-    #
-    # Both halves had to be measured before either counted, so a run that
-    # thought about its first move could not find out that thinking was
-    # expensive: no quiet move, so a pass costs one, so the bar stays where a
-    # pass is cheap, so she thinks again. Live 2026-09-07: forty-eight passes
-    # for nineteen moves, every one of them about ten seconds.
-    #
-    # What she has instead is the pass itself against what the rest of a cycle
-    # takes — looking, deciding, pressing. A pass that takes longer than
-    # everything else put together is expensive whether or not she has ever
-    # done without one.
-    a_cycle = costs.get("cycle_s", 0.0) / max(1.0, costs.get("cycles", 0.0))
-    without_it = a_cycle - a_pass
-    if a_cycle > 0.0 and without_it > 0.0:
-        return max(1.0, a_pass / without_it)
-    return 1.0
 
 
-def _looks_like(foretold: Any, band: Any, lattice: Any) -> Any:
-    """A test for "this is the arrangement she said the move would make".
-
-    None where she foretold nothing, which is the ordinary case early on and
-    the honest answer for a world she cannot predict — then waiting for
-    stillness is all she has.
-    """
-    if foretold is None or lattice is None or not getattr(lattice, "held", False):
-        return None
-    from core.perception.how_it_moves import prediction_held  # noqa: PLC0415
-    from core.perception.where_it_responds import what_is_there  # noqa: PLC0415
-
-    def it_did(now: dict[str, Any]) -> bool:
-        placed = what_is_there(now, band.band(), None, None, lattice)
-        return bool(prediction_held(foretold, placed))
-
-    return it_did
 
 
-def _who_the_screen_belongs_to(app: str) -> tuple[str, bool]:
-    """Who owns the front window now, and whether ``app`` is drawing one at all.
-
-    The window server answers both from one list: it reports only the windows
-    being drawn at this moment, front to back. Two different ways a picture of
-    her window's rectangle is a picture of something else — another
-    application over her, and her window sitting on a Space that is not the
-    one on screen — and the second leaves her bounds exactly as they were.
-
-    An unanswerable question says nothing: no window server, no verdict.
-    """
-    try:
-        import Quartz  # noqa: PLC0415
-
-        windows = Quartz.CGWindowListCopyWindowInfo(
-            Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID
-        )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info", action="looked without knowing whose screen it was"
-        )
-        return "", True
-    wanted = str(app or "").strip().lower()
-    front, drawing = "", False
-    for window in windows or []:
-        try:
-            layer = int(window.get("kCGWindowLayer", 0) or 0)
-            owner = str(window.get("kCGWindowOwnerName", "") or "")
-        except (TypeError, ValueError, AttributeError):
-            continue
-        # Ordinary windows only. The menu bar and the dock are always drawn
-        # and answer neither question.
-        if layer != 0 or not owner:
-            continue
-        if not front:
-            front = owner
-        lowered = owner.lower()
-        if wanted and (wanted in lowered or lowered in wanted):
-            drawing = True
-    return front, drawing
 
 
 async def read_screen(
@@ -404,207 +338,19 @@ async def read_screen(
     }
 
 
-def _the_part_of(
-    window: tuple[int, int, int, int], over: tuple[float, float, float, float]
-) -> tuple[int, int, int, int]:
-    """The pixels of a window that a band names."""
-    x, y, wide, tall = (int(edge) for edge in window)
-    left, top, right, bottom = over
-    return (
-        x + int(left * wide),
-        y + int(top * tall),
-        max(1, int((right - left) * wide)),
-        max(1, int((bottom - top) * tall)),
-    )
-
-
-def _matches(pattern: str, text: str, *, whole_region: bool = False) -> bool:
-    """Regex when the pattern is one, plain text when it is not.
-
-    ``whole_region`` requires the text to BE the pattern rather than contain
-    it. A bare number is the case that needs it: "128" appears inside
-    "SCORE 128" and inside "1284", and neither is the thing being waited for.
-    """
-    body = str(text or "").strip()
-    if whole_region:
-        return body.replace(",", "") == str(pattern or "").strip().replace(",", "")
-    try:
-        return re.search(pattern, body, re.IGNORECASE) is not None
-    except re.error:
-        return pattern.lower() in body.lower()
 
 
 
-#: How far from a number a word can be and still be its label, as a share of
-#: the screen. A label sits against the value it names; anything further away
-#: is a different thing on the page.
-LABEL_REACH = 0.16
 
 
-def labelled_by(region: dict[str, Any], layout: Sequence[dict[str, Any]]) -> str:
-    """The word this number is the value of, if it is a value of anything.
-
-    A bare number beside a word is that word's number. "SCORE" and "128" are
-    separate text regions, so wholeness cannot tell a score from a tile — but
-    a tile has nothing sitting next to it saying what it counts, and a score
-    does.
-
-    LIVE 2026-08-19: asked to play until a 128 tile, she matched the 128 in
-    the header and reported the goal met without a move. General to any
-    screen: "Total 99", "Items: 42", "BEST 6068".
-    """
-    try:
-        x = float(region.get("x", region.get("center_x", 0.0)))
-        y = float(region.get("center_y", region.get("y", 0.0)))
-    except (TypeError, ValueError):
-        return ""
-    height = float(region.get("height", 0.03) or 0.03)
-    for other in layout or []:
-        if other is region:
-            continue
-        word = str(other.get("text") or "").strip()
-        if not word or not re.search(r"[A-Za-z]", word) or len(word) > 24:
-            continue
-        try:
-            ox = float(other.get("x", other.get("center_x", 0.0)))
-            ow = float(other.get("width", 0.0) or 0.0)
-            oy = float(other.get("center_y", other.get("y", 0.0)))
-        except (TypeError, ValueError):
-            continue
-        same_line = abs(oy - y) <= max(height, 0.02)
-        to_the_left = 0.0 <= x - (ox + ow) <= LABEL_REACH
-        directly_above = 0.0 < y - oy <= LABEL_REACH and abs(ox - x) <= LABEL_REACH
-        if (same_line and to_the_left) or directly_above:
-            return word
-    return ""
 
 
-def content_text(
-    observation: dict[str, Any],
-    *,
-    region_top: float = 0.0,
-    region_bottom: float = 1.0,
-) -> str:
-    """The reading inside the content band, with the furniture left out.
-
-    A caller that names a band has already said where the task lives, and
-    everything outside it is the application's own chrome. Asking a question
-    about a stuck position is where that matters most: a whole-screen reading
-    of a game puts the score, the best-ever score and the site footer into
-    the question, and a search for those returns nothing about the position.
-    """
-    if region_top <= 0.0 and region_bottom >= 1.0:
-        return str(observation.get("text") or "")
-    said: list[str] = []
-    for region in observation.get("layout") or []:
-        try:
-            middle = float(region.get("center_y", region.get("y", 0.0)))
-        except (TypeError, ValueError):
-            continue
-        if region_top <= middle <= region_bottom:
-            text = str(region.get("text") or "").strip()
-            if text:
-                said.append(text)
-    return " ".join(said) if said else str(observation.get("text") or "")
 
 
-def _value_is_on_screen(value: str, observation: dict[str, Any]) -> bool:
-    """Whether the screen is showing this value as a thing in its own right.
-
-    A value that is the whole of a text region is a value the screen is
-    showing; one inside a longer run is part of a sentence about something
-    else, and one sitting beside a word is that word's number.
-    """
-    regions = list(observation.get("layout") or [])
-    return any(
-        _matches(value, str(region.get("text") or ""), whole_region=True)
-        and not labelled_by(region, regions)
-        for region in regions
-    )
 
 
-def goal_reached(
-    observation: dict[str, Any],
-    success_when: str,
-    *,
-    region_top: float = 0.0,
-    region_bottom: float = 1.0,
-) -> bool:
-    """Whether this reading shows the goal met.
 
-    Tested against what was actually read, not against a belief about what the
-    action should have done. That distinction is the reason to look again at
-    all: an action that ran is not an action that worked.
 
-    When a band is given, only text whose measured position falls inside it
-    counts. The layout was already being returned by every reading and this
-    function ignored it, so the goal could be satisfied by the browser tab
-    rather than the content — on play2048.co the word "2048" is in the tab, the
-    heading and a welcome modal, and the board is 300 pixels below all three.
-    A predicate that cannot say WHERE is a predicate that reports victory on
-    the furniture.
-    """
-    pattern = str(success_when or "").strip()
-    if not pattern:
-        return False
-
-    # A bare value has to BE something on screen, not appear inside something.
-    #
-    # LIVE 2026-08-19: asked to play until a 128 tile, she opened the game,
-    # read "SCORE 128" from the header, and reported the goal reached in 1.2
-    # seconds without making a move. The number was on screen; it was not a
-    # tile. A value that is the whole of a text region is a value the screen
-    # is showing as a thing; one inside a longer run is part of a sentence
-    # about something else.
-    bare_value = bool(re.fullmatch(r"[0-9][0-9,]*", pattern))
-
-    band_is_whole_screen = region_top <= 0.0 and region_bottom >= 1.0
-    if band_is_whole_screen:
-        text = str(observation.get("text") or "")
-        if not bare_value:
-            if bool(text) and _matches(pattern, text):
-                return True
-            # A description that names one value is waiting for that value.
-            #
-            # Her own goal reader turns "play until you get a 128 tile" into
-            # "128", so the usual path never sees a sentence. A caller that
-            # passes the description straight through would otherwise wait
-            # forever with the tile in front of her — measured: 494 moves, a
-            # 128 on the board, and the run reported out of time. Only tried
-            # once the condition as written has failed, so nothing that
-            # matches today changes.
-            values = re.findall(r"\b\d[\d,]*\b", pattern)
-            if len(values) != 1:
-                return False
-            return _value_is_on_screen(values[0], observation)
-        # With no band and no geometry there is nothing to check a bare value
-        # against, so every region is examined instead of the flattened text.
-        return _value_is_on_screen(pattern, observation)
-
-    layout = observation.get("layout") or []
-    if not layout:
-        # A band was asked for and no geometry came back. Refusing is the
-        # honest answer: matching the flat text would silently ignore the
-        # constraint the caller added precisely because it mattered.
-        return False
-    top, bottom = (region_top, region_bottom) if region_top <= region_bottom else (
-        region_bottom,
-        region_top,
-    )
-    for region in layout:
-        try:
-            y = float(region.get("center_y", region.get("y", -1.0)))
-        except (TypeError, ValueError):
-            continue
-        if not (top <= y <= bottom):
-            continue
-        if not _matches(pattern, str(region.get("text") or ""), whole_region=bare_value):
-            continue
-        if bare_value and labelled_by(region, layout):
-            # This number is something's total, not the thing itself.
-            continue
-        return True
-    return False
 
 
 async def current_page_identity() -> dict[str, str]:
@@ -620,208 +366,18 @@ async def current_page_identity() -> dict[str, str]:
         return {"url": "", "title": "", "error": f"unavailable: {type(why).__name__}: {why}"}
 
 
-async def _ensure_page(expect_page: str) -> bool:
-    """True when the browser is on `expect_page`, restoring it if it can.
-
-    Identity, not appearance. A loop that only reads pixels cannot tell that
-    the page changed under it — measured live, a stray click navigated the
-    browser to a different site and the run kept reading and acting for
-    cycles, every layer working and none of them knowing where they were.
-
-    Restores by tab rather than by reload, because a task's page usually still
-    exists in another tab and reloading would throw away whatever progress the
-    task had made on it.
-    """
-    if not expect_page:
-        return True
-    wanted = expect_page.strip().lower()
-    page = await current_page_identity()
-    here = f"{page.get('url', '')} {page.get('title', '')}".lower()
-    if wanted in here:
-        return True
-    try:
-        from core.capabilities.browser_controller import get_browser_controller
-
-        receipt = await get_browser_controller().focus_tab(expect_page)
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as why:
-        logger.info("could not bring %r to the front: %s", expect_page, why)
-        return False
-    if not getattr(receipt, "success", False):
-        logger.info(
-            "could not bring %r to the front: %s",
-            expect_page,
-            getattr(receipt, "error", "") or "the browser refused",
-        )
-        return False
-    page = await current_page_identity()
-    here = f"{page.get('url', '')} {page.get('title', '')}".lower()
-    return wanted in here
 
 
-async def _ensure_frontmost(app_name: str) -> bool:
-    """Bring `app_name` forward if it is not already. True when it is."""
-    from core.capabilities.host_automation import get_host_automation
-
-    host = get_host_automation()
-    context = await host.get_frontmost_window_context()
-    observed = str(getattr(context, "result", "") or "").split("|", 1)[0].strip().lower()
-    wanted = app_name.strip().lower()
-    if observed and (wanted in observed or observed in wanted):
-        return True
-    receipt = await host.launch_app(app_name)
-    return bool(getattr(receipt, "success", False))
 
 
-async def click_normalized(
-    x: float,
-    y: float,
-    *,
-    expect_app: str = "",
-    bounds: Sequence[int] | None = None,
-) -> bool:
-    """Click a point given in 0..1 coordinates, top-left origin.
-
-    `bounds` is the rectangle those coordinates are normalized AGAINST — the
-    window when the reading was scoped to one, the whole display otherwise.
-
-    Passing it is not optional bookkeeping. Scoping perception to a window
-    changed what 0..1 means, and this converter still assumed the display, so
-    every dismissal click landed hundreds of pixels from its target: the loop
-    saw the dialog, decided correctly to close it, clicked somewhere else, and
-    tried again for forty cycles. Two halves of one system disagreeing about a
-    coordinate frame is silent by construction — both look right in isolation.
-
-    The same focus guard applies as for keystrokes, because a click at the
-    wrong window is a click on someone else's document.
-    """
-    from core.capabilities.host_automation import get_host_automation
-
-    host = get_host_automation()
-    if expect_app:
-        refusal = await host._refuse_if_not_frontmost(expect_app, "click_at")
-        if refusal is not None:
-            return False
-
-    if bounds and len(bounds) >= 4:
-        left, top, width, height = (int(value) for value in bounds[:4])
-    else:
-        left, top = 0, 0
-        width, height = await _screen_size()
-    if not width or not height:
-        return False
-    at_x, at_y = int(round(left + x * width)), int(round(top + y * height))
-
-    # A place she can see is not always a place she can reach.
-    #
-    # A window can hang off the edge of the display, and the capture she reads
-    # is of the WINDOW — so the part hanging off is in the reading, at
-    # perfectly ordinary coordinates, and nothing about it looks unreachable.
-    # LIVE 2026-09-02: the game's window ran to 1844 on a display 1728 wide,
-    # so the New Game button sat at x=0.89 of the window and the click went to
-    # 1763, off the end of the screen. It reported success — the click was
-    # made — and three runs in a row ended after one move at a board that had
-    # already finished, each of them having pressed a button that was not
-    # there.
-    #
-    # Refused rather than clamped. Sliding it to the nearest visible pixel
-    # clicks something she did not choose, which is worse than not clicking.
-    across, down = await _screen_size()
-    if across and down and not (0 <= at_x < across and 0 <= at_y < down):
-        logger.info(
-            "not clicking (%d, %d): outside the display, which is %dx%d — "
-            "the window hangs off the edge and that part cannot be reached",
-            at_x, at_y, across, down,
-        )
-        return False
-
-    receipt = await host.click_at(at_x, at_y)
-    return bool(getattr(receipt, "success", False))
 
 
-async def _screen_size() -> tuple[int, int]:
-    """Main display size in pixels, or (0, 0) when it cannot be read."""
-    try:
-        from AppKit import NSScreen
-
-        frame = NSScreen.mainScreen().frame()
-        return int(frame.size.width), int(frame.size.height)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return (0, 0)
 
 
-def _bound_to_a_window(key: str, expect_app: str) -> bool:
-    """Whether this keystroke knows what will receive it.
-
-    The rule was written down and not enforced: every keystroke but one has to
-    be bound to a window, and a run that could not name what it was looking at
-    sent its keys with nothing bound and the guard passed them through. That
-    is not a weaker version of aiming, it is the unaimed case the rule exists
-    for — thirty-five moves of a game played into a chat window, every one of
-    them reported as a success.
-
-    Knowing what she is acting on is a precondition of acting, not a detail of
-    it. Where she cannot say whether the keyboard belongs to a browser, a
-    terminal or the window she was reading, she has no business pressing
-    anything into it.
-    """
-    if str(key or "").strip().lower() == DECLINES_AND_NOTHING_ELSE:
-        return True
-    return bool(str(expect_app or "").strip())
 
 
-async def press(key: str, *, expect_app: str = "") -> bool:
-    """Press one of the allowed keys. False if it is not one of them.
-
-    `expect_app` is passed through to the focus guard. A loop that acts on what
-    it sees must aim its input at the window it was looking at: measured live,
-    a run opened a page in Chrome, read the board correctly, and sent its keys
-    to whatever the person had clicked since — reported as success, with the
-    board untouched.
-    """
-    name = str(key or "").strip().lower()
-    if name not in PRESSABLE_KEYS:
-        return False
-    if not _bound_to_a_window(name, expect_app):
-        logger.info("not pressing %r: nothing is bound to receive it", name)
-        return False
-    from core.capabilities.host_automation import get_host_automation
-
-    receipt = await get_host_automation().hotkey(name, expect_app=expect_app)
-    return bool(getattr(receipt, "success", False))
 
 
-async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
-    """Press several allowed keys in order, in one call. Returns how many landed.
-
-    Spawning the automation costs about a third of a second whatever it
-    carries, so a loop pressing one key at a time pays that on every move.
-    The focus guard still runs, once for each key, because focus can move
-    part-way through a batch.
-
-    The count is what a caller narrating its own moves needs. One flag for
-    the batch would let her say four moves when the window went away after
-    the second, and what she says has to be what her body did.
-    """
-    wanted = [str(key or "").strip().lower() for key in keys]
-    wanted = [key for key in wanted if key in PRESSABLE_KEYS]
-    if not wanted:
-        return 0
-    if not all(_bound_to_a_window(key, expect_app) for key in wanted):
-        logger.info("not pressing %s: nothing is bound to receive them", wanted)
-        return 0
-    from core.capabilities.host_automation import get_host_automation
-
-    receipt = await get_host_automation().hotkeys(wanted, expect_app=expect_app)
-    evidence = dict(getattr(receipt, "evidence", None) or {})
-    if "keys_sent" in evidence:
-        try:
-            return max(0, min(len(wanted), int(evidence["keys_sent"])))
-        except (TypeError, ValueError) as why:
-            # How many keys landed is the whole question here, so a count that
-            # will not parse is worth saying rather than falling through to a
-            # guess from the success flag.
-            logger.info("the host reported an unreadable key count: %s", why)
-    return len(wanted) if bool(getattr(receipt, "success", False)) else 0
 
 
 class ScreenPursuitSkill(BaseSkill):
@@ -873,351 +429,36 @@ class ScreenPursuitSkill(BaseSkill):
 
 
 
-def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
-    """The moves really available on a screen, each carrying its own test.
-
-    An option states what should be different once it lands, so the check is
-    made by measurement rather than by asking the same faculty that chose.
-    For a keypress the honest claim is narrow: the view is not what it was.
-    A key that changes nothing is a key that did nothing, whatever the
-    keystroke's own receipt said.
-    """
-    from core.agency.deliberate_action import ActionOption, Expectation
-
-    options: list[Any] = []
-    for key in keys:
-        name = str(key).strip().lower()
-        if name not in PRESSABLE_KEYS:
-            continue
-        options.append(
-            ActionOption(
-                name=name,
-                detail=f"press {name}",
-                expectation=Expectation(
-                    changed=True,
-                    describes=f"the view to be different after {name}",
-                ),
-            )
-        )
-    return options
 
 
 
-#: Controls that begin a task again, by the words they are usually labelled
-#: with. Matched against what is really on screen — never inferred, and never
-#: clicked unless the run has actually stopped getting anywhere.
-RESTART_LABELS = ("new game", "restart", "play again", "try again", "start over", "reset")
-#: The two ways out of an impasse that are not "keep pressing".
-START_OVER = "start over"
-SEE_IT_THROUGH = "see it through"
-
-
-def restart_controls(observation: dict[str, Any]) -> frozenset[str]:
-    """Every control on screen that would begin the task again, by its words.
-
-    The set rather than the first one, because what says a task has finished
-    is a way back that was NOT there a moment ago. A game that keeps "New
-    Game" above the board all game long puts "Try again" over it when it
-    ends, and only the second of those is news.
-    """
-    found: set[str] = set()
-    for region in observation.get("layout") or []:
-        text = str(region.get("text") or "").strip()
-        if not text or len(text) > 40:
-            continue
-        lowered = text.lower()
-        if any(label in lowered for label in RESTART_LABELS):
-            found.add(lowered)
-    return frozenset(found)
-
-
-def a_run_she_can_carry(
-    named: Sequence[str],
-    from_here: Any,
-    foresee: Any,
-    pick: Any,
-    choices: Sequence[str],
-    acted: int,
-    changed: int,
-) -> list[str]:
-    """The moves after this one that are still moves about the situation then.
-
-    A ranking is a judgement about alternatives at one moment. Sent as a
-    sequence it is four answers to the same question, executed in order: on a
-    page where a key may simply do nothing, the second-best thing to try is
-    the next thing to try, and on a board the second-best move is a move for
-    a board that no longer exists.
-
-    So a named run keeps going while each step is still what she would choose
-    from the board the step before it leaves. That is the same judgement
-    carried forward, which is what committing without words claims to be, and
-    it is checkable.
-
-    Where she cannot say what the board becomes, a run outlives its own first
-    act only where acting here has been SEEN to change nothing. ``acted`` and
-    ``changed`` are her own record of that, and the difference between "no
-    evidence" and "evidence of nothing" is the whole of it: read as the same
-    thing, a fresh world gets four keys a cycle from the first move, no pair
-    she learns from spans one act, so nothing is ever recorded as having
-    changed — and the condition that lets her go four at a time is the one
-    her going four at a time keeps true.
-
-    LIVE 2026-09-04: a ranking of four arrow keys went out as a four-move
-    plan every cycle, down then up then left then right, on a board where
-    each of them changed everything. Sixty moves a game, no rule ever formed,
-    and every pair the learner was handed named an act that did not produce
-    it.
-    """
-    if not named:
-        return []
-    if foresee is None or from_here is None or pick is None:
-        if acted <= 0:
-            # Nothing known about this place at all. One act, then look.
-            return []
-        return [] if changed > 0 else list(named)
-    kept: list[str] = []
-    where = from_here
-    for step in named:
-        if pick(where, list(choices)) != step:
-            break
-        went = foresee(where, step)
-        if went is None or went == where:
-            break
-        kept.append(step)
-        where = went
-    return kept
-
-
-def a_way_back_that_was_not_there(
-    now: frozenset[str], at_the_start: frozenset[str] | None
-) -> bool:
-    """Whether a way to begin the task again has APPEARED since it began.
-
-    The appearing is the whole signal. A control that has been on screen
-    since before she made a move is furniture — every form with a Reset,
-    every wizard with Start Over, every game with a permanent New Game — and
-    reading its mere presence as an ending finishes the task on cycle one.
-
-    ``at_the_start`` of None means nothing has been compared against yet, so
-    nothing can have appeared.
-    """
-    if at_the_start is None:
-        return False
-    return bool(now - at_the_start)
-
-
-def restart_control(observation: dict[str, Any]) -> tuple[str, float, float] | None:
-    """A control on screen that would begin the task again, if there is one."""
-    for region in observation.get("layout") or []:
-        text = str(region.get("text") or "").strip()
-        if not text or len(text) > 40:
-            continue
-        lowered = text.lower()
-        if not any(label in lowered for label in RESTART_LABELS):
-            continue
-        try:
-            return (
-                text,
-                float(region.get("center_x", region.get("x"))),
-                float(region.get("center_y", region.get("y"))),
-            )
-        except (TypeError, ValueError):
-            continue
-    return None
-
-
-def ways_out(observation: dict[str, Any], *, ended: bool = False) -> list[Any]:
-    """What she can do about being stuck, as options she chooses between.
-
-    A loop whose only moves are inside the task can only press harder at
-    something that has stopped working. These are moves about the task: begin
-    it again knowing what she now knows, or finish it badly on purpose,
-    because the ending is where the evidence about how it goes wrong is.
-
-    Offered only once the in-task moves have demonstrably stopped working, so
-    an ordinary run never sees them and nothing gets restarted casually.
-    """
-    from core.agency.deliberate_action import ActionOption, Expectation
-
-    options: list[Any] = [
-        ActionOption(
-            name=SEE_IT_THROUGH,
-            detail="keep playing this out and learn from how it ends",
-            # Needing a reason in words protects live work from being thrown
-            # away on a ranking. Where nothing answers any more there is no
-            # live work to protect, and the alternative to choosing is
-            # pressing keys into something that has finished.
-            needs_words=not ended,
-            expectation=Expectation(
-                changed=False, describes="to reach the end of this attempt and know why it failed"
-            ),
-        )
-    ]
-    control = restart_control(observation)
-    if control is not None:
-        label, x, y = control
-        options.insert(
-            0,
-            ActionOption(
-                name=START_OVER,
-                params={"label": label, "x": x, "y": y},
-                needs_words=not ended,
-                detail=f"begin again with {label!r}, knowing what this attempt taught",
-                expectation=Expectation(changed=True, describes="a fresh start on the same task"),
-            ),
-        )
-    return options
 
 
 
-#: What she can do when her voice falls behind her hands. Moves about
-#: herself rather than about the task, in the same shape as the ways out of
-#: an impasse: offered only when the situation is real, chosen through the
-#: ordinary deliberation, and recorded with a reason.
-SLOW_DOWN = "slow down"
-SAY_LESS = "say less"
-PRESS_ON = "press on"
 
 
-def narration_backlog() -> dict[str, int]:
-    """How far behind the voice is. Empty when there is no surface to speak to."""
-    try:
-        from core.perception.ambient_presence import get_ambient_presence
-
-        return dict(get_ambient_presence().narration_backlog())
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return {}
 
 
-def pacing_options(backlog: dict[str, int]) -> list[Any]:
-    """What she can do about acting faster than she can speak.
-
-    Two faculties running at once will not run at the same speed. Noticing
-    that is not enough on its own — noticing without a lever is a status
-    line — so each of these is something she can actually do: wait for the
-    voice to catch up, say less per move, or carry on and let some of it go
-    unsaid. Any of the three is a defensible answer, which is why it is a
-    decision and not a rule.
-    """
-    from core.agency.deliberate_action import ActionOption, Expectation
-
-    waiting = int(backlog.get("waiting", 0) or 0)
-    if waiting <= 0:
-        return []
-    return [
-        ActionOption(
-            name=SLOW_DOWN,
-            detail=f"wait for my commentary to catch up — {waiting} line(s) behind",
-            expectation=Expectation(changed=False, describes="my words to catch up with my hands"),
-        ),
-        ActionOption(
-            name=SAY_LESS,
-            detail="name each move without explaining it, and keep this pace",
-            expectation=Expectation(changed=False, describes="to keep up by saying less"),
-        ),
-        ActionOption(
-            name=PRESS_ON,
-            detail="carry on at this pace and let some of it go unsaid",
-            expectation=Expectation(changed=False, describes="to keep playing and lose some commentary"),
-        ),
-    ]
 
 
-async def let_the_voice_catch_up(before: dict[str, int], *, patience: float = 4.0) -> None:
-    """Wait for the backlog to drain, bounded, without inventing a delay.
-
-    Sized by the thing actually being waited for rather than by a number
-    somebody picked: it returns as soon as the queue is shorter than it was,
-    and gives up after ``patience`` seconds so a surface nobody is reading
-    cannot stall the run.
-    """
-    started = time.monotonic()
-    was = int(before.get("waiting", 0) or 0)
-    while time.monotonic() - started < patience:
-        await asyncio.sleep(0.25)
-        now = int(narration_backlog().get("waiting", 0) or 0)
-        if now < was:
-            return
 
 
-def _ask_again_after(asked_at: int) -> int:
-    """How many moves may pass before the question is put again.
-
-    A first plan can wait longer than a second one, because the first is
-    waiting for the screen to say which part of it is the task. The horizon
-    it waits to is the one past which an approach nobody revisits is a habit.
-    """
-    from core.agency.standing_strategy import RECONSIDER_AFTER
-
-    return LANGUAGE_EVERY if asked_at >= 0 else RECONSIDER_AFTER
 
 
-def _time_left(began: float, max_seconds: float, deadline_at: float) -> float:
-    """What is left of the budget, on whichever clock started first.
-
-    A caller that began counting before this action did says so, and its
-    deadline wins: otherwise the setup between the two is free time that the
-    outer deadline is then blamed for.
-    """
-    now = time.monotonic()
-    ends_at = began + float(max_seconds)
-    if deadline_at > 0.0:
-        ends_at = min(ends_at, float(deadline_at))
-    return max(1.0, ends_at - now)
 
 
-def _within_the_run(think: Any, ends_at: float) -> Any:
-    """Her thinking, bounded by what is left of the run rather than its own budget.
-
-    A cycle checks the clock at its top and then goes away to think. When the
-    thought outlasts the run, the deadline is only noticed after it returns,
-    and by then the caller outside — which has room to report and nothing
-    more — has already cancelled everything. LIVE 2026-08-26: twenty-nine
-    narrated moves, a 64 built into the corner, and "Operation took too long.
-    Completed 0/0 steps."
-    """
-    if think is None or ends_at <= 0.0:
-        return think
-
-    async def bounded(objective: str, evidence: Any) -> Any:
-        left = ends_at - time.monotonic()
-        if left <= 1.0:
-            raise TimeoutError("the run is out of time to think")
-        return await asyncio.wait_for(think(objective, evidence), timeout=left)
-
-    return bounded
 
 
-def _say_what_kind_of_problem(
-    knows: Any, acts: Any, state: Any, toward: str, said_already: dict[str, bool]
-) -> None:
-    """Name the shape of what she is in, once she has worked out enough to name it.
 
-    Recognising the kind of problem is the general part; what it calls for is
-    allowed to be as specialised as the problem is. Said out loud because a
-    watcher cannot otherwise tell a mind that recognised its situation from
-    one that got lucky in it.
-    """
-    if said_already.get("shape"):
-        return
-    try:
-        from core.agency.what_kind_of_problem import recognise  # noqa: PLC0415
 
-        suits = recognise(
-            acts=[getattr(option, "name", str(option)) for option in acts or ()],
-            knows_how_it_moves=getattr(knows, "rules", knows),
-            state=state,
-            toward=toward,
-        )
-    except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info", action="acted without naming the problem"
-        )
-        return
-    if not suits.shape.transition_known:
-        return
-    said_already["shape"] = True
-    _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
+
+
+
+
+
+
+
+
 
 
 #: The one heading every line she takes in a world is filed under.
@@ -1234,760 +475,60 @@ A_LINE_HERE = "the line to take here"
 #: has been tried.
 WORTH_TRYING_AT = 0.4
 
-#: How many screenfuls down she will look for the thing before deciding the
-#: page does not have one. A page is taller than a screen and what she came
-#: for is usually below the writing about it — six is enough to clear a
-#: heading, a paragraph and an advertising rail without walking a long article
-#: end to end.
-SCREENFULS_TO_LOOK = 6
-
-#: The least a reading has to hold before it counts as a thing laid out rather
-#: than as prose that happens to have numbers in it.
-ENOUGH_TO_BE_A_THING = 4
-
-
-def _is_a_thing_laid_out(reading: Any) -> bool:
-    """Whether this reading holds something arranged in rows and columns."""
-    rows = int(getattr(reading, "rows", 0) or 0)
-    columns = int(getattr(reading, "columns", 0) or 0)
-    occupied = getattr(reading, "occupied", None)
-    if rows < 2 or columns < 2 or not callable(occupied):
-        return False
-    return occupied() >= ENOUGH_TO_BE_A_THING
-
-
-async def _bring_it_into_view(look: Any, read: Any, cannot_see: dict[str, str] | None = None) -> int:
-    """Scroll down until what she came for is on screen, or the page runs out.
-
-    A page is taller than a screen. She opened a real sliding puzzle, read the
-    heading and the advertising above it, found no part of what she could see
-    that answered to her, and reported truthfully that nothing on screen
-    offered a move — with the board eleven screenfuls further down. LIVE
-    2026-08-27, and the run ended having made none.
-
-    Scrolling commits to nothing. It moves a view and is undone by moving
-    back, which is the same line drawn around every other input she is allowed
-    to try without knowing what it will do.
-
-    Returns how far down she had to go, so a caller can say so. ``cannot_see``
-    is filled in when the screen could not be read at all, which is a
-    different fact from finding nothing on it.
-    """
-    cannot_see = {} if cannot_see is None else cannot_see
-    from core.capabilities.host_automation import get_host_automation
-
-    try:
-        hands = get_host_automation()
-    except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation("screen_pursuit", exc, action="scroll to find the thing")
-        return 0
-    for down in range(SCREENFULS_TO_LOOK):
-        seen = await look()
-        if not seen.get("ok"):
-            why = str(seen.get("error") or "no reason given")
-            logger.info(
-                "looking for what she came for, %d down: nothing could be read (%s)", down, why
-            )
-            cannot_see["reason"] = why
-            return down
-        here = read(seen)
-        if _is_a_thing_laid_out(here):
-            logger.info(
-                "what she came for is %d screenful(s) down: %dx%d with %d thing(s) in it",
-                down,
-                here.rows,
-                here.columns,
-                here.occupied(),
-            )
-            return down
-        # Say what WAS there. A run that ends "nothing offered a move" names
-        # the symptom and hides whether she read a page with no grid on it, a
-        # grid too small to count, or nothing at all.
-        logger.info(
-            "%d down: read %d region(s), %dx%d with %d thing(s) — not a thing laid out yet",
-            down,
-            len(seen.get("layout") or ()),
-            here.rows,
-            here.columns,
-            here.occupied(),
-        )
-        try:
-            moved = await hands.scroll(dy=-_a_screenful(hands))
-        except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("screen_pursuit", exc, action="scroll to find the thing")
-            return down
-        # A scroll that did not happen will not have moved the page, so the
-        # next read is the same read and the wait before it buys nothing. The
-        # receipt was discarded, so a refused scroll cost the full six
-        # screenfuls and six settles — measured at 2.1 seconds a cycle with
-        # nothing to show for it.
-        if getattr(moved, "success", True) is False:
-            logger.info(
-                "the page did not scroll (%s); reading what is here instead",
-                getattr(moved, "error", "") or "no reason given",
-            )
-            return down
-        await asyncio.sleep(SETTLE_AFTER_SCROLL_S)
-    return SCREENFULS_TO_LOOK
-
-
-#: What one scroll goes if the screen cannot be measured. Small enough that
-#: nothing is stepped over on any display anyone still uses.
-A_SCREENFUL_AT_LEAST = 400
-
-#: The share of a screen one scroll moves. Not the whole of it, so a thing
-#: sitting across the fold is never skipped between two readings.
-MOST_OF_A_SCREEN = 0.8
-
-#: Long enough for a page to finish moving before it is read again.
-SETTLE_AFTER_SCROLL_S = 0.35
-
-
-def _a_screenful(hands: Any) -> int:
-    """How far one scroll should go, from the screen she is actually looking at.
-
-    A number picked in advance is wrong on every display but one. Most of a
-    screen rather than all of it, so something sitting across the fold is not
-    skipped between two readings.
-    """
-    measure = getattr(hands, "_main_screen_visible_frame", None)
-    if not callable(measure):
-        return A_SCREENFUL_AT_LEAST
-    try:
-        height = int(measure()[3])
-    except (RuntimeError, OSError, ImportError, TypeError, ValueError, IndexError):
-        return A_SCREENFUL_AT_LEAST
-    return max(A_SCREENFUL_AT_LEAST, int(height * MOST_OF_A_SCREEN))
-
-
-def _worth_holding(found: Any, whole: Any, seen: dict[Any, int] | None = None) -> Any:
-    """The block worth carrying to the next glance.
-
-    A reading taken before the page settles has no lattice in it — nothing
-    drawn yet, or a panel over the top — and what comes back is the whole
-    reading rather than a block of it. Held as though it were a block, it
-    forces every later reading back to the whole page, and she never finds the
-    thing at all. LIVE 2026-08-29: "reading 13x8" for an entire run on a
-    four-by-four board, every comparison after the first discarded as
-    unreadable, and no rule ever formed.
-
-    And the shape she carries is the one she has SETTLED on, not the one she
-    saw a moment ago. Anchoring on the last glance means one bad glance drops
-    the anchor and she begins again: live 2026-08-31 the readings went 3x4,
-    then unreadable, then 3x4, and one move in three could be compared with
-    another. A thing does not change shape, so the shape she has read most
-    often is the better guess about it than the shape she read last — and a
-    single misreading no longer costs her the thing.
-    """
-    if found is None or whole is None:
-        return None
-    inside = found.rows * found.columns < whole.rows * whole.columns
-    if not inside:
-        return None
-    # `is not None`, because an empty tally is falsy and the first shape would
-    # never be recorded — so it stayed empty, and nothing was ever settled.
-    if seen is not None:
-        seen[(found.rows, found.columns)] = seen.get((found.rows, found.columns), 0) + 1
-        settled = max(seen, key=lambda shape: (seen[shape], shape[0] * shape[1]))
-        if seen[settled] > 1 and (found.rows, found.columns) != settled:
-            # This glance disagrees with what it has usually been. Keep the
-            # shape rather than the glance; a short reading is placed inside a
-            # known shape, where a differently-shaped one cannot be compared
-            # at all.
-            return _AS_IT_USUALLY_IS.get(settled) or found
-        _AS_IT_USUALLY_IS[settled] = found
-    return found
-
-
-#: The last reading of each shape she has settled on, so a glance that
-#: disagrees can be placed in one rather than replace it.
-_AS_IT_USUALLY_IS: dict[Any, Any] = {}
-
-
-
-def _the_rest_of_the_run(
-    first: str,
-    from_here: Any,
-    expect: Callable[[Any, str], Any],
-    names: Sequence[str],
-    choose: Callable[[Any, Sequence[str]], str],
-    how_many: int,
-) -> tuple[list[str], Any]:
-    """The acts after this one, chosen on the board she expects rather than seen.
-
-    Where the model is trusted this is the whole saving. Reading the screen
-    costs about half a second and the thing answers about a second later, so
-    a move that is read, decided and confirmed costs over two — and a game of
-    five hundred moves is nineteen minutes of watching, none of which is
-    thinking. A person who knows how a board moves presses several keys and
-    then looks.
-
-    Hands back the acts and the board she expects to find at the end of them,
-    which is what makes the run checkable: if it is not there, the run broke,
-    and she says so rather than carrying on from a board she imagined.
-    """
-    rest: list[str] = []
-    where = expect(from_here, first)
-    for _again in range(max(0, how_many - 1)):
-        if where is None:
-            break
-        got = choose(where, names)
-        if not got:
-            break
-        after = expect(where, got)
-        if after is None or after == where:
-            break
-        rest.append(got)
-        where = after
-    return rest, where
-
-
-def _the_same_thing_without(reading: Any, cell: Any) -> Any:
-    """The same arrangement with one thing taken out of it.
-
-    Used to ask what a thing rests on: take a part away and see whether what
-    she is holding survives without it.
-    """
-    from core.perception.what_is_there import Arrangement  # noqa: PLC0415
-
-    return Arrangement(
-        rows=reading.rows,
-        columns=reading.columns,
-        cells=tuple(one for one in reading.cells if one is not cell),
-        down_at=getattr(reading, "down_at", ()),
-        across_at=getattr(reading, "across_at", ()),
-    )
-
-
-def _expects(knows: Any) -> Callable[[Any, str], Any] | None:
-    """Her rule for what an act would do, when she has one she trusts."""
-    rules = getattr(knows, "rules", None)
-    expect = getattr(rules, "expect", None)
-    sure = getattr(rules, "confidence", None)
-    if not callable(expect) or not callable(sure):
-        return None
-    try:
-        trusted = float(sure() or 0.0)
-    except (TypeError, ValueError):
-        # not a failure: a confidence that is not a number is not one.
-        return None
-    return expect if trusted > 0.0 else None
-
-
-def _how_much_the_tally_moved(
-    moving: Any, before: Any, after: Any
-) -> float | None:
-    """How far the score she found on the screen went, across one act.
-
-    None when she has not found one, which is not a failure — plenty of things
-    keep no score, and she has other ways of telling whether a stretch went
-    well. Where there IS one it is the honest measure, because it was put
-    there to be exactly that and she did not have to be told.
-    """
-    from core.perception.where_it_responds import places_and_text
-
-    tally = moving.what_measures_doing_well()
-    if not tally or not isinstance(before, dict) or not isinstance(after, dict):
-        return None
-    was, now = places_and_text(before), places_and_text(after)
-
-    def number(seen: dict[tuple[int, int], str], at: tuple[int, int]) -> float:
-        try:
-            return float(str(seen.get(at, "")).replace(",", "").strip() or 0.0)
-        except (TypeError, ValueError):
-            # not a failure: a place showing words is not showing a number.
-            return 0.0
-
-    return sum(max(0.0, number(now, at) - number(was, at)) for at in tally)
-
-
-def _by_how_much_room(
-    went: Sequence[tuple[Any, bool]],
-    names: Sequence[str],
-    expect: Callable[[Any, str], Any],
-) -> list[tuple[Any, bool]]:
-    """The same situations, judged by how much room each left her.
-
-    Whether a move went well is the caller's to say, and sometimes what it
-    says does not vary. Playing 2048 for three hundred moves, "the largest
-    thing did not get smaller" was true of very nearly every move she made, so
-    no property could tell the good states from the bad, so she committed to
-    nothing and ruled nothing out for the whole game. A measure that is always
-    true is not a measure.
-
-    What she always has instead is how much of her own future she can still
-    reach from here, which is what Klyubin and Polani's empowerment is for —
-    the thing to want when nobody has said what to want. It varies by
-    construction, because the split is at the middle of what she has actually
-    seen rather than at a number chosen for it.
-    """
-    if not went or not names:
-        return []
-
-    def step(one: Any, act: str) -> Any:
-        return _somewhere_else(one, act, expect)
-
-    # As far ahead as it takes for the measure to say something.
-    #
-    # One move ahead, nearly every 2048 board reaches four different places,
-    # so the measure was as flat as the one it was replacing. How crowded a
-    # thing is shows up in where she can get to, not in what she can press,
-    # and how far ahead that takes is a property of the thing rather than a
-    # number to pick: deepen while every situation still looks alike, and stop
-    # the moment they do not. Bounded by how many acts there are, because
-    # past that the tree is wider than the differences it could show.
-    room: list[int] = []
-    for ahead in range(1, max(2, len(names)) + 1):
-        room = [
-            what_is_still_open(
-                place, acts=names, step=step, named=repr, ahead=ahead
-            ).hers
-            for place, _ in went
-        ]
-        if len(set(room)) > 1:
-            break
-    if len(set(room)) < 2:
-        return list(went)
-    # The better half, by rank rather than by a level. A median split cannot
-    # come out all one way, which is the failure it is here to avoid.
-    ranked = sorted(range(len(room)), key=lambda one: room[one])
-    better = set(ranked[len(ranked) // 2 :])
-    return [
-        (place, at in better) for at, (place, _) in enumerate(went)
-    ]
-
-
-def _somewhere_else(place: Any, act: str, expect: Callable[[Any, str], Any]) -> Any:
-    """Where an act leaves things, or nothing when it leaves them as they were."""
-    try:
-        went_to = expect(place, act)
-    except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
-        return None
-    if went_to is None or went_to == place:
-        # not a failure: a move that changes nothing is not a move she has.
-        return None
-    return went_to
-
-
-def _in_the_same_grid(lattice: Any, before: Any, after: Any) -> bool:
-    """Whether both readings were laid into the grid she is holding.
-
-    Before she has one, a reading works out its own — and a reading of a game
-    that has not started yet puts the score, the best score, the title and the
-    instructions in it, because at that moment they are the only things there
-    to make a grid out of. Teaching the rule from those is teaching it that
-    pressing down moves the New Game button.
-
-    LIVE 2026-08-31, a hundred and fifty moves of the real game: every reading
-    after the third was four by four and the rule still only matched three in
-    four, because the first three were seven columns of furniture and every
-    comparison that touched one of them failed. A rule learned across two
-    different grids is not a rule about either.
-    """
-    if lattice is None or not getattr(lattice, "held", False):
-        return False
-    theirs = getattr(lattice, "down_at", ()), getattr(lattice, "across_at", ())
-    return all(
-        (getattr(one, "down_at", ()), getattr(one, "across_at", ())) == theirs
-        for one in (before, after)
-        if one is not None
-    )
-
-
-def _both_of_the_thing(app: str, before: Any, after: Any) -> bool:
-    """Whether both readings really are of the thing she is working in.
-
-    A reading that could not find the window is a reading of the WHOLE
-    DESKTOP, and it comes back looking like any other reading — same shape,
-    same fields, text and positions and all. Handed to the part of her that
-    works out where the thing's places are, it says the places are wherever
-    the dock and the menu bar and somebody's terminal happen to be.
-
-    LIVE 2026-08-31, playing the real game: focus slipped partway through a
-    hundred and thirteen moves, thirty-four readings were of the desktop, and
-    what she had worked out to be a four by four board became six by eighteen.
-    The rule she had already learned stopped matching, and nothing anywhere
-    said anything had gone wrong, because every one of those readings was a
-    perfectly good reading of something else.
-
-    Losing the window for a moment is ordinary and recoverable. Learning from
-    what was underneath it is not.
-    """
-    if not app:
-        return True
-    return all(
-        str((one or {}).get("scoped_to") or "") == app and _was_of_that_window(one, app)
-        for one in (before, after)
-        if isinstance(one, dict)
-    )
-
-
-def _was_of_that_window(reading: Any, app: str) -> bool:
-    """Whether the picture was taken while that application was in front.
-
-    The rectangle was hers; the pixels in it belong to whatever was drawn
-    there. A reading taken while something else was in front is a reading of
-    that something else, wearing her window's coordinates.
-
-    A reading from before this was recorded says nothing either way, and
-    ``True`` is what "says nothing" has always meant here.
-    """
-    if not (reading or {}).get("her_window_showing", True):
-        # Her window is exactly where it was and none of it is on the screen
-        # that was photographed.
-        return False
-    who = str((reading or {}).get("in_front_then") or "")
-    if not who:
-        return True
-    mine, theirs = app.strip().lower(), who.strip().lower()
-    return mine in theirs or theirs in mine
-
-
-def _moves_that_leave_her_nothing(
-    reading: Any,
-    names: Sequence[str],
-    expect: Callable[[Any, str], Any],
-    world: Any = None,
-) -> tuple[str, ...]:
-    """Moves after which she would have nothing left to do.
-
-    How much of its own future a thing can still reach through its own acts is
-    what Klyubin and Polani called empowerment, and the usual use of it is
-    keeping options open. The floor of it is not a preference: in a game that
-    ends when nothing can move, a move that leaves her nothing is the losing
-    move, whatever else can be said for it.
-
-    Counted as distinct places she could bring about rather than as moves she
-    could make, because several moves that all leave the world the same are one
-    option and not several.
-
-    Her move alone is the wrong thing to look at, and looking at it alone made
-    this unable to fire at all. A board like 2048 fills up when the WORLD puts
-    something down, not when she slides; a slide either merges and leaves a
-    gap or changes nothing, so no move of hers has a full board on the other
-    side of it and no move of hers ever looked fatal. What she has to survive
-    is her move and then the world's, so the world's turn is taken here when
-    she has worked out what it does.
-
-    Only ruled out when she has nothing left WHATEVER the world does. Where
-    some of what the world might do leaves her stuck and some does not, that is
-    a risk and not a certainty, and refusing on a risk is how a thing talks
-    itself out of every move it has.
-    """
-    if not names:
-        return ()
-
-    def step(place: Any, act: str) -> Any:
-        return _somewhere_else(place, act, expect)
-
-    def then_the_world(place: Any) -> tuple[Any, ...]:
-        might = getattr(world, "might_do", None)
-        if not callable(might):
-            return (place,)
-        try:
-            ways = might(place)
-        except (AttributeError, TypeError, ValueError):
-            # not a failure: a world she cannot ask is a world she takes as
-            # leaving things where they are.
-            return (place,)
-        return tuple(way for way, _share in ways) or (place,)
-
-    dead: list[str] = []
-    for act in names:
-        after = step(reading, act)
-        if after is None:
-            continue
-        if all(
-            what_is_still_open(
-                then, acts=list(names), step=step, named=repr
-            ).hers
-            == 0
-            for then in then_the_world(after)
-        ):
-            dead.append(act)
-    return tuple(dead)
-
-
-def _within_a_move(
-    wanted: Callable[[Any], bool],
-    reading: Any,
-    names: Sequence[str],
-    expect: Callable[[Any, str], Any],
-) -> bool:
-    """Whether what she wants is true here, or one move from here."""
-    try:
-        if wanted(reading):
-            return True
-    except (ArithmeticError, AttributeError, TypeError, ValueError):
-        return False
-    for act in names:
-        try:
-            went_to = expect(reading, act)
-        except (ArithmeticError, AttributeError, KeyError, TypeError, ValueError):
-            continue
-        if went_to is None:
-            continue
-        try:
-            if wanted(went_to):
-                return True
-        except (ArithmeticError, AttributeError, TypeError, ValueError):
-            continue
-    return False
-
-
-def _a_step_back(
-    wanted: Any,
-    went: Sequence[tuple[Any, bool]],
-    reading: Any,
-    names: Sequence[str],
-    expect: Callable[[Any, str], Any],
-) -> Any:
-    """What would have to be true for the thing she wants to be one move away.
-
-    Her own rule is what says whether something is near: a want is in reach of
-    a situation when one of her moves from there makes it true. One move and
-    not several, because the walking back supplies the depth — each thing it
-    finds is a move from the next, so a chain of three is three moves deep
-    without any of them being searched for together.
-    """
-
-    def in_reach(place: Any, want: Callable[[Any], bool]) -> bool:
-        return _within_a_move(want, place, names, expect)
-
-    way = a_way_to_get_there(
-        wanted.holds,
-        reading,
-        somewhere_like=[place for place, _ in went],
-        in_reach=in_reach,
-        called=wanted.name,
-    )
-    first = way.want_first
-    if first is None or first.name == wanted.name:
-        return None
-    logger.info("cannot hold that from here, so first: %s", first.name)
-    return first
-
-
-def _moves_she_will_not_make(
-    she_keeps: dict[str, Any],
-    went: Sequence[tuple[Any, bool]],
-    reading: Any,
-    names: Sequence[str],
-    knows: Any,
-    turn: int,
-    world: Any = None,
-) -> tuple[frozenset[str], str]:
-    """The moves she has already ruled out, before any looking ahead.
-
-    Two recordings of somebody playing well. Clearing 2048 in 989 moves, two
-    of the four directions evict the corner and they pressed neither, all
-    game. Beating a hard checkers engine three pieces down, every move that
-    would have broken their back row was never a candidate. The difference was
-    not that they searched further. Most of what a search considers, they were
-    not considering at all.
-
-    She needs something to hold before she can rule anything out, and it has to
-    be earned: at least one move watched for each move she could make, because
-    below that a property that separates the good from the bad has not been
-    given the chance to fail. That floor comes from the size of the choice
-    rather than from a number picked for it.
-
-    Only moves the rules can actually predict are ruled out. Anything she
-    cannot foresee the result of survives, which is why the way out and the
-    ways of asking are never removed by this.
-    """
-    if reading is None or not names or len(went) < len(names):
-        return frozenset(), ""
-    rules = getattr(knows, "rules", None)
-    expect = getattr(rules, "expect", None)
-    if not callable(expect):
-        return frozenset(), ""
-    sure = getattr(rules, "confidence", None)
-    if not callable(sure) or float(sure() or 0.0) <= 0.0:
-        return frozenset(), ""
-    if turn != she_keeps.get("at"):
-        kept, why = what_to_hold_now(she_keeps.get("it"), went)
-        if kept is None:
-            kept, why = what_to_hold_now(
-                she_keeps.get("it"), _by_how_much_room(went, list(names), expect)
-            )
-        she_keeps.update({"it": kept, "why": why, "at": turn})
-    it = she_keeps.get("it")
-    if it is None:
-        return frozenset(), ""
-    if not _within_a_move(it.holds, reading, list(names), expect):
-        # It is not true here and no move makes it true, so it cannot be held
-        # from where she is standing. Holding it anyway rules nothing out and
-        # steers nothing; it is a want with no purchase on the next move.
-        #
-        # This is where somebody clearing 2048 stopped wanting the far thing.
-        # Twenty moves from the tile they were playing for, no looking ahead
-        # reaches it, and they did not try. They wanted two of the thing below
-        # it instead, and every merge afterwards built the next merge's
-        # precondition. So walk back from what she is holding to what would
-        # put it within reach, and hold that.
-        nearer = _a_step_back(it, went, reading, list(names), expect)
-        if nearer is None:
-            return frozenset(), ""
-        she_keeps["it"] = it = nearer
-    keeps, breaks = what_it_rules_out(it, reading, list(names), expect=expect)
-    dead = _moves_that_leave_her_nothing(reading, list(names), expect, world)
-    if dead and len(dead) < len(names):
-        # A move after which she has no move is how a game like this is lost,
-        # and no property she happens to be holding makes one worth making.
-        # Ruled out on its own account, before the rest of the weighing.
-        breaks = tuple(dict.fromkeys([*breaks, *dead]))
-        keeps = tuple(one for one in keeps if one not in dead)
-    if not keeps or not breaks:
-        # Nothing to rule out, or everything — and refusing every move is not
-        # holding something, it is being stuck.
-        return frozenset(), ""
-    return (
-        frozenset(breaks),
-        f"holding that {it.name}, so not {', '.join(sorted(breaks))}",
-    )
-
-
-def _the_biggest_thing_on_it(reading: Any, reporting: Sequence[tuple[int, int]] = ()) -> float:
-    """The largest number among the things she is acting on.
-
-    Without the places that only report. A score sitting inside the thing's
-    own outline is larger than anything on the board almost at once, and it
-    is not something she made.
-    """
-    leave_out = set(reporting or ())
-    found = [
-        float(cell.says.replace(",", ""))
-        for cell in getattr(reading, "cells", ()) or ()
-        if (cell.row, cell.column) not in leave_out
-        and str(cell.says).replace(",", "").replace(".", "", 1).isdigit()
-    ]
-    return max(found, default=0.0)
-
-
-def _she_got_further(made: float, furthest: float) -> str:
-    """What to say when she has just built the biggest thing she has here.
-
-    Said only when it passes what she brought in, so a second game says
-    nothing until it is doing better than the first — which is what "furthest
-    she has got" means and what somebody watching wants to hear.
-    """
-    if made <= furthest:
-        return ""
-    if furthest <= 0.0:
-        return f"I have a {made:g} on the board."
-    return f"A {made:g} — the biggest I have made here. The best before was {furthest:g}."
-
-
-def _what_there_is_to_aim_at(reading: Any) -> str:
-    """What to prefer one situation over another by, when nobody said.
-
-    A request can name a process without naming a finish — "play it and work
-    out how it moves" — and then there is nothing to score a future against,
-    so she acts and looks for as long as the budget lasts and never uses the
-    model she is building. That is a waste of the thing she just worked out.
-
-    What she can read off the world instead is whether it counts, and how far
-    it could go. A laid-out thing that combines equal pairs cannot exceed one
-    doubling per place it has: sixteen places cannot hold more than two to the
-    sixteenth however well it is played. That ceiling is a fact about the thing
-    in front of her rather than a number anybody picked, and it is far enough
-    above where she is that being nearer to it stays worth something all the
-    way through — which a nearer goal does not, because arriving at one makes
-    every situation after it look equally good.
-
-    Measured 2026-08-27, played the way the loop plays it — the goal put
-    through the same gate, six games each, run to a dead board:
-
-        said "the largest"          median 128, and not one look ahead
-        read the ceiling off it     median 768, max 1024, 666 looks ahead
-
-    The first is random. Not because the words are wrong but because nothing
-    downstream can use them: worth_comparing refuses a goal it cannot measure,
-    the search never runs, and every move is a coin toss on a board she can
-    read perfectly well.
-
-    Where the things in front of her are not numbers, nothing here invents a
-    purpose: it says so, and she goes back to acting and looking.
-    """
-    numbers = getattr(reading, "numbers", None)
-    places = getattr(reading, "places", None)
-    if not callable(numbers) or not callable(places):
-        return ""
-    if not numbers():
-        return ""
-    room = int(places() or 0)
-    if room <= 0:
-        return ""
-    return f"{2 ** room}"
-
-
-def _left_her_better_off(
-    before: Any, after: Any, toward: str, approach: str
-) -> bool:
-    """Whether the move improved the situation, by the measure she is using.
-
-    The same measure that ranks futures ranks what actually happened, so what
-    she gets good at is what her own judgement says was worth doing rather
-    than a separate opinion about it.
-    """
-    try:
-        from core.agency.how_good_is_this import how_good
-
-        was = how_good(before, toward=toward, approach=approach)
-        now = how_good(after, toward=toward, approach=approach)
-    except (ImportError, AttributeError, TypeError, ValueError) as why:
-        logger.debug("could not weigh whether that left her better off: %s", why)
-        return False
-    return now >= was
-
-
-def _what_she_is_not_reading(rules: Any) -> str:
-    """Whether her own record proves a quantity she cannot see.
-
-    "How this moves is not worked out yet" is true of two different worlds and
-    says nothing about which. In one, a rule is there and she has not found it,
-    and more moves are the answer. In the other, the same board and the same
-    key came out two ways, so no rule reading only the board can ever fit, and
-    more moves are looking where the answer cannot be.
-
-    Watching is perception's; reading what the watching proves is not, so the
-    record leaves the model whole and the question is asked here.
-    """
-    from core.cognition.something_she_cannot_see import what_she_cannot_see
-
-    try:
-        record = rules.what_she_saw_happen()
-    except (AttributeError, TypeError):
-        return ""
-    if len(record) < 2:
-        return ""
-    found = what_she_cannot_see(
-        [((seen, did), then) for seen, did, then in record]
-    )
-    if not found.anything:
-        return ""
-    if found.she_can_compute_it:
-        return (
-            f" — and one thing she was not reading, which runs every "
-            f"{found.every} moves, so she can"
-        )
-    return (
-        f" — and one thing she was not reading, taking {found.how_many} values "
-        "in no cycle, so the world puts something there she does not control"
-    )
-
-
-def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
-    """Say it the once, when she first works out how a thing moves."""
-    rules = getattr(knows, "rules", None)
-    if rules is None or said_already.get("said"):
-        return
-    if getattr(rules, "rule", lambda: None)() is None:
-        return
-    said_already["said"] = True
-    logger.info("she can see ahead now: %s", rules.says())
-    _tell(f"I can see what my moves do here now — {rules.says()}.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 async def _frontmost() -> str:
@@ -2005,177 +546,14 @@ async def _frontmost() -> str:
         return ""
 
 
-def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:
-    """Whether this is the thing she was asked to act in.
-
-    She was asked to find something and act in it, and nothing anywhere
-    checked that she had: a reading is a reading, and anything with text laid
-    out in rows reads as something she could push. LIVE 2026-08-26, another
-    part of her closed the browser mid-run and she played twelve moves of 2048
-    into a chat window, narrating every one of them.
-
-    Identity where there is identity — an address, a title, the name of the
-    window — and the reading itself where there is not. What is not accepted
-    is silence: a name she was given and cannot find anywhere is a name she
-    has not arrived at.
-    """
-    name = " ".join(str(wanted or "").split()).lower()
-    if not name:
-        return True
-    said = [word for word in re.split(r"[^a-z0-9]+", name) if len(word) > 2]
-    if not said:
-        return True
-    # Identity first, and the reading only when there is no identity.
-    #
-    # A screen reading is of the screen, not of her window, so anything else
-    # visible counts as evidence that she has arrived. LIVE 2026-08-26: the
-    # word she was looking for was in a terminal on the same display, the test
-    # passed, and she played into that instead. What identifies a thing — an
-    # address, a title, the name of the window — cannot be borrowed from
-    # somebody else's window the way words on a screen can.
-    known = " ".join((str(page or ""), str(window or ""))).lower().strip()
-    if known:
-        return any(word in known for word in said)
-    return any(word in str(reading or "").lower() for word in said)
 
 
-async def _take_the_run_its_bearings(
-    anchor: dict[str, str],
-    *,
-    expect_page: str = "",
-    open_page: str = "",
-    target_app: str = "",
-) -> None:
-    """Work out which page and which window this run belongs to.
-
-    Done before anything depends on the answer, because everything does: what
-    is brought forward, what a keystroke is bound to, and whether she is in
-    the thing she was asked to act in at all.
-
-    A run that names an application is about that application, and one that
-    names a page is about that page. A browser having something open is not a
-    fact about the task: the test for "is this about a page" included whether
-    any page was open anywhere, which is true whenever a browser is running.
-
-    LIVE 2026-09-04, driving a desktop game: "this run belongs to '2048 Game'
-    on 'https://x.com/home'". Every cycle then checked that somebody's
-    timeline was still in front, and brought the browser forward over the
-    window it was driving to put it back.
-    """
-    # A run in a BROWSER is about a page whether or not the caller named one:
-    # the page is the thing being acted in, and the browser is only the window
-    # around it. Excluding it along with desktop applications left such a run
-    # with no anchor at all, so drift could not be detected — which is the
-    # thing this function exists to make possible.
-    about_a_page = bool(open_page or expect_page or names_any(target_app, BROWSERS))
-    page = await current_page_identity() if (about_a_page or not target_app) else {}
-    if not anchor["page"] and about_a_page:
-        anchor["page"] = str(
-            expect_page or page.get("url") or page.get("title") or ""
-        ).strip()
-    if not anchor["app"]:
-        # The application that holds the page, when this run is about a page
-        # at all. A task about a desktop application would otherwise anchor
-        # itself to a browser that happens to be open behind it.
-        holder = str(page.get("app") or "") if about_a_page else ""
-        anchor["app"] = (
-            str(target_app or "").strip() or holder or await _frontmost() or ""
-        ).strip()
-    if anchor["app"]:
-        logger.info(
-            "this run belongs to %r on %r", anchor["app"], anchor["page"][:60]
-        )
 
 
-#: The one key she may send without knowing where it will land.
-#:
-#: Every other keystroke needs to be bound to a window, and the reason is on
-#: the record: unbound arrow keys played thirty-five moves of a game into a
-#: chat window. Escape is different in kind rather than in degree. It declines,
-#: it commits to nothing, it is reversible, and it is the platform-standard
-#: way out of a modal on every desktop. Sending it at whatever has the
-#: keyboard is the only way to reach a thing that took the keyboard from her.
-DECLINES_AND_NOTHING_ELSE = "escape"
 
 
-async def _move_her_own_surface_aside(
-    over: tuple[float, float, float, float] | None,
-    mine: tuple[int, int, int, int] | None,
-) -> bool:
-    """Move her own window off the thing she is working on.
-
-    A window she owns and a window somebody else owns want opposite answers.
-    Declining is right for a dialog; it does nothing to her companion bubble,
-    which floats above everything by design and has no decline key — so in
-    companion mode the loop found something in front, pressed Escape at it,
-    reported that it would not close, and stopped, with the board visible the
-    whole time and her own window the only thing on it.
-
-    She can place that window. So she places it somewhere else, on the far
-    side from the work, and carries on. Nothing here closes it: it is how the
-    person is talking to her.
-    """
-    if over is None or mine is None:
-        return False
-    try:
-        from core.perception.ambient_presence import PresenceMode, get_ambient_presence
-
-        presence = get_ambient_presence()
-        placeable = (
-            presence.mode is PresenceMode.BUBBLE and presence.drawing_surface_attached()
-        )
-        where = presence.bubble_position() if placeable else None
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        placeable, where = False, None
-    if not placeable:
-        # Her whole window, which she cannot place but can put away.
-        #
-        # This covered only the companion bubble, so in desktop mode her own
-        # window sat over the work and nothing here touched it. LIVE
-        # 2026-08-31: asked to play a game in a browser, every reading for
-        # eighteen moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
-        # MEMORY, SETTINGS — and the board appeared in none of them. She
-        # pressed arrow keys into herself and her predictions about what would
-        # change were correct, which is why it looked like playing.
-        #
-        # Asking the thing to the front is not enough on its own: hers is
-        # drawn above everything by design and comes straight back. Hiding is
-        # what a person does with their own window when it is over their work.
-        # Nothing closes, nothing stops, and it returns the moment it is
-        # wanted.
-        return await _put_her_own_window_away()
-    if not where:
-        return False
-    left, top, right, bottom = (float(edge) for edge in over)
-    x, y, wide, tall = (float(edge) for edge in mine)
-    if wide <= 0.0 or tall <= 0.0:
-        return False
-    across = (float(where[0]) - x) / wide
-    down = (float(where[1]) - y) / tall
-    if not (left <= across <= right and top <= down <= bottom):
-        # It is above her window without being over the work, which is not in
-        # the way. Moving it would be fussing at the person's screen.
-        return False
-    # The far side from the work, in whichever direction there is more room.
-    room_left, room_right = left, 1.0 - right
-    room_up, room_down = top, 1.0 - bottom
-    if max(room_left, room_right) >= max(room_up, room_down):
-        across = 0.0 if room_left >= room_right else 1.0
-    else:
-        down = 0.0 if room_up >= room_down else 1.0
-    asked = presence.request_bubble_move(x + across * wide, y + down * tall)
-    if asked is None:
-        return False
-    logger.info("her own window was over the work; asked it to move aside")
-    return True
 
 
-def _how_full(reading: Any) -> float:
-    """What share of a reading's places hold something."""
-    places = int(getattr(reading, "rows", 0) or 0) * int(getattr(reading, "columns", 0) or 0)
-    if places <= 0:
-        return 0.0
-    return float(reading.occupied()) / float(places)
 
 
 #: What she learned in one world carries to another world of the same kind,
@@ -2194,128 +572,16 @@ def _how_full(reading: Any) -> float:
 CARRIES_TO_A_WORLD_LIKE_IT = ("moves", "acts", "skill", "world", "lines", "lines_held")
 
 
-def _what_she_could_not_learn_from(dropped: dict[str, int]) -> str:
-    """The moves she made and learned nothing from, said out loud.
-
-    A move whose before and after could not be compared is a move that cost
-    her a keystroke and taught her nothing, and it was thrown away in silence.
-    The only trace was the rule staying unworked-out, which reads as a hard
-    world rather than as evidence going missing on the way to the learner.
-    """
-    lost = {why: count for why, count in (dropped or {}).items() if count}
-    if not lost:
-        return ""
-    said = ", ".join(f"{count} to {why}" for why, count in sorted(lost.items()))
-    return f" | could not learn from {said}"
 
 
-def _placed_in(lattice: Any, places: Any) -> list[tuple[int, int]]:
-    """Places named in shares of the window, said as rows and columns.
-
-    The part of her that works out what moves counts places where they sit on
-    the screen; the part that works out how they move counts them by row and
-    column in the thing. The lattice is what turns one into the other, and
-    without it the two cannot tell each other anything.
-    """
-    down, across = getattr(lattice, "down_at", ()), getattr(lattice, "across_at", ())
-    if not down or not across:
-        return []
-    said: list[tuple[int, int]] = []
-    for place in places or ():
-        try:
-            x, y = float(place[0]) / 100.0, float(place[1]) / 100.0
-        except (IndexError, TypeError, ValueError):
-            continue
-        row = min(range(len(down)), key=lambda one: abs(down[one] - y))
-        column = min(range(len(across)), key=lambda one: abs(across[one] - x))
-        said.append((row, column))
-    return said
 
 
-def _how_it_has_been_going(began_at: dict[str, Any], now: Any) -> float:
-    """What she has been getting per act so far, positive when it is working.
-
-    The same statistic a trial is judged by — gain per observation — because
-    where she stands is not comparable across two stretches of a run and the
-    rate she is moving at is.
-    """
-    was = began_at.get("worth")
-    if was is None or now is None:
-        return 0.0
-    numbers = getattr(now, "numbers", None)
-    here = sum(numbers() or (0.0,)) if callable(numbers) else 0.0
-    return (here - float(was)) / max(1, int(began_at.get("seen") or 1))
 
 
-def _the_thing_she_is_acting_in(whole: Any, lattice: Any, like: Any = None) -> Any:
-    """The thing inside a reading — unless she is already holding its frame.
-
-    The crop keeps the largest regular block in a reading, and which block
-    that is depends on which places happen to be filled. So a reading placed
-    into a four-by-four lattice came back four by four and was then cut to
-    three by four, or four by three, differently almost every glance. The
-    comparison that teaches her how a world moves needs both readings in the
-    SAME frame, and it slices the frame's own lines along with the cells, so
-    nearly every pair was thrown away.
-
-    LIVE 2026-08-31 on the real game: a correct four-by-four lattice held
-    across forty acts, and one comparison out of forty reached the rule. So
-    "how this moves is not worked out yet" after fifty-four moves, and a full
-    language generation for every move of a world she had already read
-    correctly.
-
-    A lattice is what she has instead of a crop. Working the frame out afresh
-    from a reading that was just placed into one is asking the question she is
-    holding the answer to.
-    """
-    from core.perception.the_thing_itself import the_thing_itself  # noqa: PLC0415
-
-    if (
-        lattice is not None
-        and getattr(lattice, "held", False)
-        and whole is not None
-        and (whole.rows, whole.columns) == (lattice.rows, lattice.columns)
-    ):
-        return whole
-    return the_thing_itself(whole, like=like)
 
 
-def _the_kind_of_world_this_is(state: Any, acts: Sequence[str], toward: str) -> str:
-    """A name this world shares with every world that moves like it."""
-    try:
-        from core.agency.what_kind_of_problem import recognise  # noqa: PLC0415
-
-        return recognise(
-            acts=list(acts), knows_how_it_moves=None, state=state, toward=toward
-        ).shape.of_this_kind()
-    except (ImportError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info", action="acted without naming the kind"
-        )
-        return ""
 
 
-def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
-    """How much of another world's evidence to carry: the conclusion, not the
-    confidence.
-
-    A rule that survived two hundred acts somewhere else is not two hundred
-    acts of evidence about here. Carried whole it would take two hundred
-    disagreements to overturn, and she would play a world she had misread for
-    an hour rather than a handful of moves. Discounted to exactly what it
-    takes to establish a rule here from scratch, it starts her off knowing
-    what she knew and loses to the first few things this world does
-    differently — which is what evidence from somewhere else is worth.
-    """
-    from core.perception.how_it_moves import ENOUGH_TO_TRUST  # noqa: PLC0415
-
-    counts = [
-        value
-        for value in ((held or {}).get("tried") or {}).values()
-        if isinstance(value, (int, float))
-    ]
-    most = max(counts, default=0)
-    return min(1.0, ENOUGH_TO_TRUST / most) if most > ENOUGH_TO_TRUST else 1.0
 
 
 #: How many looks are kept to work out what looking costs here. Enough that
@@ -2323,126 +589,12 @@ def _no_more_than_a_fresh_one_is_worth(held: Any) -> float:
 #: that has become busy.
 LOOKS_REMEMBERED = 12
 
-#: How much longer than usual a look may take before it is a wedge rather than
-#: a busy machine. Four, because a read competing with a resident model for
-#: the same hardware was measured taking about three times its idle cost, and
-#: a bound at the thing being measured refuses the first read that reaches it.
-LONGER_THAN_USUAL = 4.0
 
 
-def _how_long_a_look_takes(took: Sequence[float]) -> float:
-    """How long to wait for a reading, from how long they have taken here.
-
-    A fixed bound is a guess about a machine. This one is a measurement of the
-    machine she is on, and it widens when the machine gets busy — which is
-    exactly when a read is slow and exactly when calling it broken is wrong.
-
-    Until she has looked enough times to have an opinion, the standing bound
-    applies, which is what every caller assumed before there was anything to
-    measure.
-    """
-    seen = [one for one in took or () if one > 0.0]
-    if len(seen) < 3:
-        return OBSERVE_TIMEOUT_S
-    usual = sorted(seen)[len(seen) // 2]
-    return max(OBSERVE_TIMEOUT_S, usual * LONGER_THAN_USUAL)
 
 
-async def _the_best_reading_available(
-    observation: dict[str, Any],
-    band: tuple[float, float, float, float] | None,
-    *,
-    like: Any,
-    in_a_browser: bool,
-    answering: frozenset[tuple[int, int]] | None = None,
-    lattice: Any = None,
-) -> Any:
-    """Ask the page what it is showing; look at the screen when it will not say.
-
-    A page knows exactly what it is showing and where. LIVE 2026-08-29 on
-    play2048.co the screen reading found five of the sixteen places on the
-    board, at two distinct columns out of four — no lattice in a handful of
-    scattered cells, so no thing to model, so nothing to look ahead over, so
-    every move fell through to a full language generation. The board was drawn
-    perfectly well the whole time.
-
-    The reader for this was written then and never called by anything. Taken
-    only when it sees MORE than the screen does, so a page that answers
-    poorly, or an application that is not a browser at all, changes nothing.
-    """
-    from core.perception.where_it_responds import (
-        what_is_there,
-        what_the_page_is_showing,
-    )
-
-    seen = what_is_there(
-        observation, band, like=like, answering=answering, lattice=lattice
-    )
-    if not in_a_browser:
-        return seen
-    try:
-        from core.perception.what_the_page_says import what_the_page_says
-
-        said = await what_the_page_says()
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info",
-            action="read the screen because the page would not say",
-        )
-        return seen
-    if not said:
-        return seen
-    from_page = what_the_page_is_showing(said, band, like=like, lattice=lattice)
-    # Whichever shows the THING more clearly, not whichever holds more text.
-    #
-    # A page that draws its board on a canvas has no text in the board at all,
-    # and plenty around it — a score, a best, a New Game, a footer. Preferring
-    # the reading with more things in it therefore preferred the furniture and
-    # threw the board away. What matters is the laid-out thing inside each
-    # reading, which is the question the crop already answers.
-    from core.perception.the_thing_itself import the_thing_itself
-
-    theirs = the_thing_itself(from_page)
-    mine = the_thing_itself(seen)
-    # By how full each one is, not by how much it holds. The crop hands back
-    # the reading unchanged when it finds no lattice, so an uncropped page of
-    # furniture — ten pieces of text with no grid among them, spread over
-    # thirty-five places — beat a real board of eight over twenty every time.
-    # A thing laid out is full of its own cells; a page with text scattered
-    # about it is not, and that is the difference between them.
-    # Both: more of the thing, and more thing than page. One cell read on its
-    # own is a full reading by the second measure alone.
-    if theirs.occupied() <= mine.occupied() or _how_full(theirs) <= _how_full(mine):
-        return seen
-    logger.info(
-        "the page shows the thing better: %dx%d with %d in it, against %dx%d with %d",
-        theirs.rows, theirs.columns, theirs.occupied(),
-        mine.rows, mine.columns, mine.occupied(),
-    )
-    return from_page
 
 
-#: What each way of being refused a look means for her, and what it takes to
-#: change it.
-#:
-#: Seven distinct refusals were reported as one sentence — "your screen is
-#: locked" — whatever had actually happened. A setting switched off was a
-#: locked screen. Something private in front was a locked screen. Not being
-#: able to tell what was in front was a locked screen. The person was told to
-#: unlock a screen that was not locked, and the one thing that would have
-#: helped went unsaid.
-#:
-#: Waiting is right for a condition that passes on its own: a person unlocks a
-#: screen, closes a private window, brings something forward. It is wrong for
-#: one that does not, and waiting out the whole budget on a setting nobody is
-#: going to change during the task is the same as failing, slower.
-PASSES_ON_ITS_OWN = frozenset({
-    "session_locked",
-    "private_foreground",
-    "private_visible",
-    "foreground_unknown",
-    "browser_title_unknown",
-})
 
 #: The refusals that mean there IS a screen and she cannot tell what is on it,
 #: which is a different situation from having nothing to look at: the thing
@@ -2450,302 +602,20 @@ PASSES_ON_ITS_OWN = frozenset({
 SOMETHING_ELSE_IS_IN_FRONT = frozenset({"foreground_unknown", "browser_title_unknown"})
 
 
-def _what_being_refused_a_look_means(why: str) -> str:
-    """The refusal in her own words, and what would change it."""
-    return {
-        "session_locked": (
-            "your screen is locked, so there is nothing for me to look at yet"
-        ),
-        "runtime_setting_disabled": (
-            "I am not allowed to read the screen at the moment — the setting "
-            "that lets me is switched off"
-        ),
-        "private_foreground": (
-            "something private is in front, so I am not reading the screen "
-            "while it is there"
-        ),
-        "private_visible": (
-            "something private is on screen, so I am not reading it while it "
-            "is showing"
-        ),
-        "foreground_unknown": (
-            "I cannot tell what is in front of me, so I will not act on it"
-        ),
-        "browser_title_unknown": (
-            "I cannot tell which page is in front, so I will not act on it"
-        ),
-        "policy_unavailable": (
-            "I could not check whether I am allowed to read the screen, so I "
-            "am not going to"
-        ),
-    }.get(str(why or ""), f"I am not able to read the screen ({why or 'no reason given'})")
 
 
-async def wait_for_a_screen_to_look_at(ends_at: float) -> bool:
-    """Wait for a locked screen, rather than failing at one.
-
-    A locked screen is a condition that passes, like a model still warming.
-    Failing at it turns "ask her, then sit down at the machine" into "ask her
-    again once you are there", and the person has no way to know that is what
-    happened — LIVE 2026-08-30, a request to play a game came back as a fault.
-
-    Bounded by the deadline the task already has, so nothing waits longer than
-    the work was given. Checked about once a second because that is the
-    granularity of the thing being waited for: a person reaching over and
-    unlocking. Checking faster cannot see it sooner.
-    """
-    from core.security.screen_capture_policy import (
-        evaluate_screen_capture_admission_async,
-    )
-
-    # Let the settings land before believing a refusal.
-    #
-    # Permission reads answer from a snapshot a worker keeps current, and
-    # until it has run once there is no snapshot — so every permission reads
-    # as denied, which is indistinguishable from the person having switched
-    # them all off. Measured on this machine with screen access ON: the first
-    # read said off, and the run reported having nothing to look at.
-    try:
-        from core.runtime.runtime_settings import wait_until_settled  # noqa: PLC0415
-
-        await asyncio.to_thread(wait_until_settled, 1.0)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info",
-            action="checked whether she may look before the settings had settled",
-        )
-
-    told = ""
-    while True:
-        try:
-            admission = await evaluate_screen_capture_admission_async()
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            _WHY_SHE_CANNOT_LOOK["value"] = ""
-            return True
-        why = str(getattr(admission.reason, "value", admission.reason) or "")
-        if admission.allowed:
-            if told:
-                logger.info("she can see the screen again; carrying on")
-            _WHY_SHE_CANNOT_LOOK["value"] = ""
-            return True
-        _WHY_SHE_CANNOT_LOOK["value"] = why
-        if why not in PASSES_ON_ITS_OWN:
-            # Nothing about waiting changes this one, and waiting out the
-            # whole budget on it is failing slowly.
-            logger.info("she cannot look and waiting will not help: %s", why)
-            return False
-        left = ends_at - time.monotonic()
-        if left <= 0.0:
-            logger.info("she could not look for the whole of this task: %s", why)
-            return False
-        if told != why:
-            logger.info("she cannot look yet (%s); waiting rather than failing", why)
-            # Say it. Waiting in silence for the whole deadline and then
-            # explaining is the same information delivered too late to act
-            # on — the person is the one who can change it, and they cannot
-            # do that if nothing tells them.
-            await _narrate(
-                f"{_what_being_refused_a_look_means(why).capitalize()}. "
-                "I will start the moment that changes."
-            )
-            told = why
-        await asyncio.sleep(min(max(1.0, left / 60.0), left))
 
 
-#: Why the last look was refused, for the caller that has to say so. Kept
-#: beside the wait rather than returned, so every existing caller keeps its
-#: boolean and none of them has to learn a new shape to stop lying.
-_WHY_SHE_CANNOT_LOOK: dict[str, str] = {"value": ""}
 
 
-async def clear_what_is_in_front(on_top: str) -> bool:
-    """Try to get whatever is covering her work out of the way.
-
-    A dialog in front of the thing she is acting in is an obstacle, not a
-    reason to stop — a person closes it and carries on. She could see one and
-    name it and had no way to move it, because every key she can send is bound
-    to her own window and the dialog is not in it.
-
-    Only ever the key that declines. She may clear something out of her way;
-    she may not agree to something on somebody's behalf, and a dialog asking
-    for a permission or a consent is exactly the case where those two come
-    apart. blocking_overlay.py holds the same line for a dialog inside a page:
-    it dismisses and never agrees.
-    """
-    if not str(on_top or "").strip():
-        return False
-    try:
-        from core.capabilities.host_automation import get_host_automation
-
-        logger.info("something is in front of her work (%s) — declining it", on_top)
-        await get_host_automation().hotkeys([DECLINES_AND_NOTHING_ELSE])
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info", action="could not decline what was in front"
-        )
-        return False
-    # Ask whether THAT is still there, not whether something else is.
-    #
-    # This called _whats_on_top(on_top), whose first argument names the window
-    # to leave OUT — so the check for "did it close" excluded the very thing
-    # it was checking for, and reported success whenever the overlay was the
-    # only thing above her. Every claim it made was unfalsifiable. LIVE
-    # 2026-08-29: "UserNotificationCenter was in front of this. Closed it."
-    # four times over, with the notification exactly where it had been.
-    above = await _everything_on_top("")
-    wanted = str(on_top).strip().lower()
-    if any(name.strip().lower() == wanted for name in above):
-        logger.info("%r is still in front and will not decline", on_top)
-        return False
-    logger.info("%s is out of the way", on_top)
-    return True
 
 
-async def _put_her_own_window_away() -> bool:
-    """Hide her own application, so what she was asked to act in is visible."""
-    from core.config import get_config
-
-    named = ""
-    try:
-        named = str(getattr(get_config(), "app_name", "") or "").strip()
-    except (AttributeError, RuntimeError, TypeError, ValueError) as why:
-        logger.debug("could not read her own app name from the config: %s", why)
-        named = ""
-    for candidate in (named, "Aura"):
-        if not candidate:
-            continue
-        try:
-            from core.capabilities.host_automation import get_host_automation
-
-            receipt = await get_host_automation().hide_app(candidate)
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            logger.debug("could not put %r away", candidate, exc_info=True)
-            continue
-        if bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False)):
-            logger.info("put her own window away so the thing is visible")
-            return True
-    return False
 
 
-async def _bring_the_thing_back_to_the_front(app: str) -> bool:
-    """Raise the window she was asked to act in, rather than close what is over it.
-
-    Whatever is in front, the thing she wants is behind it, and asking for it
-    is both gentler and more general than closing the other: it works for her
-    own window, for a notification, for anything.
-
-    LIVE 2026-08-31, asked to play a game in a browser: her own desktop window
-    was frontmost the whole run, so every reading was of her own interface —
-    LIVE NEURAL FEED, TELEMETRY, MEMORY, SETTINGS — and not one was of the
-    board. She pressed keys into herself for eighteen moves. Moving her own
-    surface aside covered only the companion bubble, which is not the window
-    that was in the way.
-    """
-    named = str(app or "").strip()
-    if not named:
-        return False
-    try:
-        from core.capabilities.host_automation import get_host_automation
-
-        host = get_host_automation()
-        receipt = await host.focus_app(named)
-        raised = bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False))
-        if not raised:
-            # Not in front because it is not running.
-            #
-            # Raising a window asks the window system for a process by name,
-            # and there is no process. Asked to play a game that was not open,
-            # she would fail to raise it, read whatever happened to be
-            # frontmost, and play that instead — which on this machine means
-            # pressing arrow keys into somebody's editor. Starting it is the
-            # same request, one step earlier.
-            receipt = await host.launch_app(named)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        logger.debug("could not raise %r", named, exc_info=True)
-        return False
-    raised = bool(getattr(receipt, "ok", False) or getattr(receipt, "success", False))
-    if raised:
-        logger.info("brought %r back to the front", named)
-    return raised
 
 
-async def _why_nothing_answers(
-    mine: str, over: tuple[float, float, float, float] | None = None
-) -> str:
-    """Why nothing she does is changing anything, before blaming the thing.
-
-    A world that has stopped answering and a world she cannot reach look
-    identical from inside the loop: keys reported sent, her window reported in
-    front, and nothing moving. LIVE 2026-08-26, a system permission dialog sat
-    above every window, took the keyboard, and swallowed every keystroke for
-    an hour — and what she said was that the game had ended.
-
-    Something else holding the keyboard is a different thing from a thing that
-    is finished, and it has a different answer: one of them somebody can fix.
-    """
-    on_top = await _whats_on_top(mine, over=over)
-    if on_top:
-        # Hers first. A window she owns is moved, not declined — declining
-        # does nothing to it and stopping because of it is stopping because
-        # of herself.
-        hers = await window_bounds(mine) if over else None
-        if await _move_her_own_surface_aside(over, hers):
-            return (
-                "My own window was over the board. I have moved it aside — "
-                "carrying on."
-            )
-        # Ask for the thing back before closing anything. It is gentler and it
-        # covers every occluder rather than the one kind she can place.
-        if await _bring_the_thing_back_to_the_front(mine):
-            return f"{on_top} was in front. I have brought {mine} back — carrying on."
-        # Try to move it before saying it cannot be moved.
-        if await clear_what_is_in_front(on_top):
-            return f"{on_top} was in front of this. I have closed it — carrying on."
-        return (
-            f"Nothing I do is reaching this — {on_top} is in front of it and taking "
-            "the keyboard, and it will not close. Nothing I press is getting through."
-        )
-    return "Nothing I do is changing anything here — this attempt is over."
 
 
-def _covers(
-    window: Any, over: tuple[float, float, float, float], mine: tuple[int, int, int, int]
-) -> bool:
-    """Whether a window actually overlaps the part of her window she is using.
-
-    Being above her window is not the same as being in her way. A notification
-    banner sits in a corner; the thing she is acting on is somewhere else, and
-    nothing about the banner stops her.
-
-    ``over`` is a band, and a band means a share of the WINDOW she is driving —
-    that is the space read_screen measures in, deliberately, so that a band is
-    portable across window sizes and monitors. So the overlay's rectangle,
-    which the window server gives in screen pixels, is put into that same space
-    before the two are compared. Measured against the screen instead, a banner
-    halfway down the display reads as sitting on a board halfway down a window
-    that starts lower, and the answer is wrong in both directions.
-    """
-    try:
-        bounds = window.get("kCGWindowBounds") or {}
-        if not bounds:
-            # No bounds is not a window of no size. It is a window she cannot
-            # place, and she cannot place it in front of or beside anything.
-            return True
-        x, y = float(bounds.get("X", 0.0)), float(bounds.get("Y", 0.0))
-        wide, tall = float(bounds.get("Width", 0.0)), float(bounds.get("Height", 0.0))
-    except (AttributeError, TypeError, ValueError, KeyError):
-        # Unreadable bounds mean she cannot tell, and cannot tell is in the way.
-        return True
-    ox, oy, ow, oh = (float(edge) for edge in mine)
-    if ow <= 0.0 or oh <= 0.0:
-        return True
-    left, top, right, bottom = over
-    return not (
-        (x - ox) / ow >= right
-        or (x + wide - ox) / ow <= left
-        or (y - oy) / oh >= bottom
-        or (y + tall - oy) / oh <= top
-    )
 
 
 async def _whats_on_top(
@@ -2812,18 +682,8 @@ async def _everything_on_top(
 ABOVE_EVERYTHING = 20
 
 
-def _her_reasoning(stakes: float) -> Any:
-    """Her own judgement, sized to what rides on the move."""
-    from core.agency.her_reasoning import reasoning_for
-
-    return reasoning_for(stakes)
 
 
-def _reasoning_for_a_plan() -> Any:
-    """Her judgement on how to go about something, which is not a move."""
-    from core.agency.her_reasoning import reasoning_for_a_plan
-
-    return reasoning_for_a_plan()
 
 
 async def pursue_on_screen(
@@ -2863,44 +723,28 @@ async def pursue_on_screen(
     reasoning, keeping the predict-and-check loop around it.
     """
     from core.agency import what_she_is_doing as doing
-    from core.agency.deliberate_action import Attempt, confirm, deliberate
+    from core.agency.deliberate_action import Attempt
     from core.agency.how_good_is_this import (
         AS_GOOD_A_GUESS_AS_ANY,
         INVENTED,
         promote,
-        terms,
-        worth_comparing,
     )
     from core.agency.how_good_is_this import a_trial_is_running as _a_trial_is_running
     from core.agency.inventing_a_measure import measure_named
-    from core.agency.looking_ahead import (
-        at_the_worlds_mercy,
-        look_ahead,
-        whether_to_take_the_wide_option,
-        worth_finding_out,
-    )
-    from core.agency.standing_strategy import Strategy, settle_on_an_approach, still_holds
-    from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
+    from core.agency.standing_strategy import Strategy
     from core.agency.what_i_can_do_here import WhatWorksHere
     from core.agency.what_i_cannot_explain import WhatICannotExplain
     from core.agency.what_makes_it_good_here import WhatMakesItGoodHere
     from core.agency.what_worked_before import WhatWorkedBefore
-    from core.agency.worth_thinking_about import worth_a_pass
     from core.perception.how_it_moves import HowItMoves
     from core.perception.the_lattice_she_holds import TheLatticeSheHolds
     from core.perception.what_moves_within_itself import MovesWithinItself
     from core.perception.what_the_world_does import WhatTheWorldDoes
-    from core.perception.where_am_i import where_am_i
     from core.perception.where_it_responds import (
         Responsive,
         describe,
-        noticed,
-        places_and_text,
-        the_places_that_answer,
         what_is_there,
-        within,
     )
-    from core.perception.why_nothing_answers import ELSEWHERE, ENDED, work_out_why
     from core.skills.fluid_executor import FluidExecutor, Step
     from core.world_model.unified_world_model import UnifiedWorldModel
 
@@ -3097,148 +941,19 @@ async def pursue_on_screen(
     plan: dict[str, Any] = {"held": None, "changes": 0, "asked_at": -1}
 
     async def observe() -> dict[str, Any]:
-        # Put the target back in front before looking at it.
-        #
-        # Over a long run focus wanders: a notification, a click that lands
-        # outside the window, the person switching away. Without this the loop
-        # refuses every keystroke for the rest of the run and reads whatever
-        # replaced its target — technically correct and completely stuck. A
-        # task that is meant to last minutes has to be able to recover the
-        # conditions it needs rather than only detect that they are gone.
-        # The window this run belongs to, named by the caller or learned on
-        # the first cycle. Either way it has to be in front to be acted in.
-        # Work out what this run belongs to before anything depends on it.
-        #
-        # This whole block sat inside "if the run has a window", and the only
-        # thing that could give it one was inside the block. With nothing
-        # named the run never acquired an anchor, never brought anything
-        # forward, and sent every key to whatever happened to be in front —
-        # for want of a first cycle it could never have. LIVE 2026-08-26:
-        # thirty-five moves into a terminal with the game one window back.
-        if not anchor["page"] or not anchor["app"]:
-            await _take_the_run_its_bearings(
-                anchor,
+        """Lifted to screen_pursuit_observing.py; the scope is handed over per call."""
+        return await observe_the_screen(
+            SimpleNamespace(
+                anchor=anchor,
+                at_rest=at_rest,
+                drawn=drawn,
                 expect_page=expect_page,
+                lost_page=lost_page,
                 open_page=open_page,
+                reading_took=reading_took,
                 target_app=target_app,
-            )
-        mine = target_app or anchor["app"]
-        # Whether anything had to be moved to get here. A reading taken
-        # before a window was brought forward is a reading of what was in
-        # front instead.
-        undisturbed = True
-        if mine:
-            try:
-                undisturbed = await _ensure_frontmost(mine)
-                # Anchor to the page this run STARTED on when the caller did
-                # not name one.
-                #
-                # Otherwise a run is bound to an application and nothing more,
-                # and an application is not a context: the browser holds the
-                # task's page and a dozen others. A run that only knows "Google
-                # Chrome" will send its keys to whatever tab is in front, so
-                # arrow keys meant for a game land on a video, a form, or
-                # someone's mail — each keystroke legitimately delivered to the
-                # wrong world. Measured live: a stray click moved the browser to
-                # a different site and the loop kept acting there.
-                #
-                # Anchoring on the first cycle means a caller never has to
-                # remember, and drift is always detectable rather than only
-                # detectable when someone thought to declare an expectation.
-                if not anchor["page"]:
-                    page = await current_page_identity()
-                    # A run that is not about a page has no page.
-                    #
-                    # This took whatever a browser happened to be showing.
-                    # Driving a desktop application, the run anchored itself
-                    # to somebody's open tab — and then every cycle checked
-                    # that the tab was still in front and brought the BROWSER
-                    # forward to restore it, over the window it was driving.
-                    #
-                    # LIVE 2026-09-04: "this run belongs to '2048 Game' on
-                    # 'https://x.com/home'", and readings of the board that
-                    # came back full of a timeline. The same care is two lines
-                    # below, deciding which application the run belongs to,
-                    # and was never applied to the page.
-                    about_a_page = bool(
-                        open_page or expect_page or names_any(target_app, BROWSERS)
-                    )
-                    anchor["page"] = str(
-                        expect_page
-                        or (page.get("url") or page.get("title") or "" if about_a_page else "")
-                    ).strip()
-                    # And the window it is in, so a keystroke has somewhere it
-                    # belongs.
-                    #
-                    # Nothing named meant nothing checked: an empty target is
-                    # read as "no constraint" rather than "I do not know where
-                    # I am", so every guard passed and every key went to
-                    # whatever happened to be in front. LIVE 2026-08-26:
-                    # another part of her closed the browser mid-run, and she
-                    # played twelve moves of 2048 into a chat window.
-                    if not anchor["app"]:
-                        # The application that holds the page, when this run is
-                        # about a page at all. A task about a desktop
-                        # application would otherwise anchor itself to a
-                        # browser that happens to be open behind it.
-                        holder = str(page.get("app") or "") if about_a_page else ""
-                        anchor["app"] = (holder or await _frontmost() or "").strip()
-                        if anchor["app"]:
-                            logger.info("this run belongs to %r", anchor["app"])
-                if anchor["page"] and not await _ensure_page(anchor["page"]):
-                    # The page this run is about is no longer in front and
-                    # could not be brought back. Reading on would be reading
-                    # someone else's page.
-                    lost_page["value"] = True
-                    return {
-                        "ok": False, "text": "", "layout": [],
-                        "error": "navigated_away", "at": time.time(),
-                    }
-            except (OSError, RuntimeError, TypeError, ValueError) as exc:
-                record_degradation(
-                    "screen_pursuit",
-                    exc,
-                    severity="info",
-                    action="continued a pursuit without refocusing the target window",
-                )
-        ready = at_rest["reading"]
-        at_rest["reading"] = None
-        if ready is not None and undisturbed and drawn["where"] is None:
-            # She has just watched this surface come to rest. Photographing
-            # it again asks the same question of the same still picture.
-            return ready
-        # As long as reading has taken here, not a number chosen elsewhere.
-        #
-        # A read and a language pass want the same machine, so a read that
-        # takes a second and a half on its own takes many while a resident
-        # model is generating. Bounded by a constant, that difference reads as
-        # a wedged capture: live 2026-09-07, "no reading inside 8.0s" and a
-        # run that ended saying it could not see, on a screen it had been
-        # reading perfectly a moment earlier. A busy machine and a broken one
-        # are not the same thing and do not have the same answer.
-        patience = _how_long_a_look_takes(reading_took)
-        began_looking = time.monotonic()
-        try:
-            seen = await asyncio.wait_for(
-                read_screen(target_app, over=drawn["where"]), timeout=patience
-            )
-        except TimeoutError:
-            # A wedged capture is not a reason to keep acting blind.
-            logger.info(
-                "the screen did not answer inside %.1fs, and looking has been "
-                "taking %.1fs here",
-                patience,
-                (sum(reading_took) / len(reading_took)) if reading_took else 0.0,
-            )
-            return {
-                "ok": False,
-                "text": "",
-                "layout": [],
-                "error": f"observe_timeout: no reading inside {patience:.1f}s",
-            }
-        reading_took.append(time.monotonic() - began_looking)
-        del reading_took[:-LOOKS_REMEMBERED]
-        return seen
+            ),
+        )
 
     def satisfied(observation: dict[str, Any]) -> bool:
         reached = goal_reached(
@@ -3265,150 +980,17 @@ async def pursue_on_screen(
         return reached
 
     async def clear_blocker(observation: dict[str, Any]) -> Step | None:
-        """A Step that clears whatever is covering the content, or None.
-
-        Tried BEFORE the policy on every cycle, because a dialog owning the
-        screen makes every other decision meaningless: the reading is of the
-        dialog, and the keys go to the dialog. Measured live — a page opened,
-        was read correctly, and six moves in a row changed nothing because a
-        modal had focus, with every keystroke reporting success.
-
-        The judgement lives in core/perception/blocking_overlay.py, which
-        dismisses and never agrees: a dialog offering only acceptance is
-        reported as the person's decision and is left alone. This loop
-        inherits that and adds nothing to it.
-        """
-        try:
-            from core.perception.blocking_overlay import assess_overlay
-        except ImportError as why:
-            logger.info("cannot judge what is covering the content: %s", why)
-            return None
-        verdict = assess_overlay(observation, intending=intending["value"])
-        if verdict.needs_person:
-            # A dialog only the person can answer means the task cannot go on.
-            #
-            # This used to fall through to the policy, which then acted into a
-            # dialog that owned the keyboard: measured live, forty moves that
-            # each reported success while the board behind the dialog never
-            # changed. Continuing past a question addressed to the person is
-            # not perseverance, it is acting blind — and it is how a run
-            # eventually stumbles into answering that question by accident.
-            # Seen twice before the task is handed back.
-            #
-            # Handing it back ends the run, and a page carries things that go
-            # away on their own: an advertising rail rotates, a toast appears
-            # and fades, a banner loads late. Measured live, a run stopped
-            # after twelve moves over a rail that had already changed by the
-            # next reading. A dialog only the person can answer is still
-            # there a second later, which is the whole difference.
-            same = verdict.needs_person == needs_person["seen"]
-            needs_person["seen"] = verdict.needs_person
-            needs_person["times"] = needs_person["times"] + 1 if same else 1
-            if needs_person["times"] < TWICE_BEFORE_HANDING_BACK:
-                return None
-            needs_person["reason"] = verdict.needs_person
-            return None
-        if not verdict.present:
-            # Whatever it was is gone, so it was not the thing that stops a run.
-            needs_person["seen"] = ""
-            needs_person["times"] = 0
-            return None
-
-        # A caller may declare its OWN way forward.
-        #
-        # The detector deliberately refuses to guess at unlabelled controls,
-        # because clicking an unknown thing on someone's screen is how a tab
-        # gets closed or a row deleted. But a task usually knows its own
-        # affordance — "New Game", "Start", "Continue", "Begin" — and that
-        # knowledge belongs to whoever set the goal, not to a generic reader.
-        #
-        # Declared rather than inferred: the loop still never guesses, it just
-        # accepts an instruction. Matched case-insensitively against the placed
-        # text, and only when something is genuinely in the way.
-        if unblock_with:
-            wanted = unblock_with.strip().lower()
-            candidates: list[tuple[float, float]] = []
-            for region in observation.get("layout") or []:
-                if wanted not in str(region.get("text") or "").strip().lower():
-                    continue
-                try:
-                    candidates.append(
-                        (
-                            float(region.get("center_x", region.get("x"))),
-                            float(region.get("center_y", region.get("y"))),
-                        )
-                    )
-                except (TypeError, ValueError):
-                    continue
-            if candidates:
-                # The one ON the dialog, when the label appears more than once.
-                #
-                # "New Game", "Start" and "Continue" routinely name both a
-                # dialog's button and a permanent control in the app's own
-                # toolbar. Measured live: four regions matched, and the first
-                # was the toolbar — clicking it started a game BEHIND the
-                # dialog and left the dialog up, so the run stayed blocked
-                # while every step reported success.
-                from core.perception.blocking_overlay import (
-                    overlay_box,
-                    overlay_focus,
-                )
-
-                box = overlay_box(observation)
-                if box is not None:
-                    left, top, right, bottom = box
-                    # Inside the dialog's horizontal span, at or below its
-                    # text. A margin, because a button may sit slightly wider
-                    # than the sentence above it; and downward only, because a
-                    # dialog's controls are under its message.
-                    margin = 0.08
-                    inside = [
-                        point
-                        for point in candidates
-                        if left - margin <= point[0] <= right + margin
-                        and top - 0.02 <= point[1] <= bottom + 0.35
-                    ]
-                    if inside:
-                        candidates = inside
-                focus = overlay_focus(observation)
-                if focus is not None:
-                    candidates.sort(
-                        key=lambda point: (point[0] - focus[0]) ** 2
-                        + (point[1] - focus[1]) ** 2
-                    )
-                ux, uy = candidates[0]
-                label = unblock_with
-                frame = list(observation.get("bounds") or [])
-
-                async def click_declared() -> bool:
-                    return await click_normalized(
-                        ux, uy, expect_app=target_app or anchor["app"], bounds=frame
-                    )
-
-                return Step(
-                    name=f"clear the way with {label!r}", action=click_declared
-                )
-
-        if verdict.suggested_key:
-            key = verdict.suggested_key
-
-            async def press_away() -> bool:
-                return await press(key, expect_app=target_app or anchor["app"])
-
-            return Step(name=f"dismiss overlay with {key}", action=press_away)
-
-        if verdict.click_x is not None:
-            label, x, y = verdict.label, verdict.click_x, verdict.click_y
-
-            frame = list(observation.get("bounds") or [])
-
-            async def click_away() -> bool:
-                return await click_normalized(
-                    x, y, expect_app=target_app or anchor["app"], bounds=frame
-                )
-
-            return Step(name=f"dismiss overlay via {label!r}", action=click_away)
-        return None
+        """Lifted to screen_pursuit_blockers.py; the scope is handed over per call."""
+        return await clear_what_blocks_the_run(
+            observation,
+            SimpleNamespace(
+                anchor=anchor,
+                intending=intending,
+                needs_person=needs_person,
+                target_app=target_app,
+                unblock_with=unblock_with,
+            ),
+        )
 
     #: ``count`` is the consecutive run, reset the moment the screen is clear,
     #: because that is what decides whether dismissal is working. ``dismissed``
@@ -3575,1843 +1157,85 @@ async def pursue_on_screen(
     in_the_way: dict[str, str] = {"last": ""}
 
     async def decide(observation: dict[str, Any]) -> Step | None:
-        # How long a whole move takes when she does not stop to put it into
-        # words. Measured between the starts of two cycles, so it is the
-        # reading, the deciding and the act — which is what a pass is being
-        # weighed against.
-        _began_deciding = time.monotonic()
-        if costs["at"] > 0.0:
-            costs["cycle_s"] += _began_deciding - costs["at"]
-            costs["cycles"] += 1.0
-        if costs["at"] > 0.0 and costs.get("was_quiet"):
-            costs["quiet_s"] += _began_deciding - costs["at"]
-            costs["quiet"] += 1.0
-        costs["at"] = _began_deciding
-        costs["was_quiet"] = 0.0
-        # The moves really on offer, named before anything can ask for them.
-        #
-        # A caller with its own policy skips the whole deliberation, and the
-        # part that decides how far to commit reads this — so hoisting one
-        # line out of the branch that used to guard it turned a policy-driven
-        # run into UnboundLocalError on its first move.
-        available: list[Any] = []
-        # Something in front of her work is cleared before anything else.
-        #
-        # Not once it has cost her four moves discovering that nothing
-        # answers: a dialog that owns the keyboard makes every reading and
-        # every keystroke of this cycle meaningless, and a person closes it
-        # and carries on rather than playing on underneath it.
-        # Over the part of the screen she is using, not merely above her
-        # window. Before the answering part is worked out this is None and
-        # anything on top counts, which is the honest reading while she does
-        # not yet know where the task lives.
-        in_front = await _whats_on_top(
-            target_app or anchor["app"], over=responds["state"].band()
-        )
-        if in_front and in_front != in_the_way["last"]:
-            in_the_way["last"] = in_front
-            if await clear_what_is_in_front(in_front):
-                in_the_way["last"] = ""
-                if narrate:
-                    _tell(f"{in_front} was in front of this. Closed it.")
-                no_move["because"] = "a blocker was cleared, so this cycle is spent"
-                return None
-
-        blocker = await clear_blocker(observation)
-        if blocker is not None:
-            # Verified, not assumed. A blocker still present after the previous
-            # attempt means that attempt did not work, whatever its receipt
-            # said.
-            if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
-                blocker_attempts["last"] = blocker.name
-                no_move["because"] = "something is in front of it that will not move"
-                return None
-            blocker_attempts["count"] += 1
-            blocker_attempts["dismissed"] += 1
-            blocker_attempts["last"] = blocker.name
-            return blocker
-        if needs_person["reason"]:
-            no_move["because"] = "declining what is in front of it"
-            return None
-        blocker_attempts["count"] = 0
-        if not observation.get("ok"):
-            # What the reading actually said went wrong.
-            #
-            # Every failed read was reported as something being in front of
-            # the thing and waited out. A read that timed out on a busy
-            # machine, a capture that errored, a window that had gone — all
-            # of them came back as an occlusion, which is a diagnosis of a
-            # cause nobody had established, and the answer to it is to wait,
-            # so she waited. Live 2026-09-07: three of those in a row ended
-            # the run as "no move available" after seventeen moves, with
-            # nothing on screen in front of anything.
-            went_wrong = str(observation.get("error") or "").strip()
-            no_move["because"] = (
-                f"the last reading did not come back: {went_wrong}"
-                if went_wrong
-                else "the last reading did not come back, and did not say why"
-            )
-            logger.info("no move this cycle: %s", no_move["because"])
-            return None
-
-        # What she is looking at, kept to the part that answers to her.
-        #
-        # A reading of a screen is everything on it. On the page holding a
-        # game that is the board, the score, two advertising rails and a
-        # copyright line, so what she recalls about "a situation like this
-        # one" is dominated by whichever advertisement was loaded — and two
-        # readings of the same board look like different situations because
-        # the advertising rotated under her.
-        #
-        # Which part is the task is not written anywhere on the page, but it
-        # is answered by what happens when she acts. Until enough acts have
-        # answered it, this is the whole reading, because a guess about where
-        # the task is would be worse.
-        if not drawn["asked"]:
-            drawn["asked"] = True
-            from core.perception.what_the_page_says import where_the_drawing_is
-
-            drawn["where"] = await where_the_drawing_is()
-            if drawn["where"] and narrate:
-                _tell("The page told me where it is drawing — I will look there.")
-
-        # Where the task lives, asked rather than worked out, when it can be.
-        #
-        # The band is normally learned: act, look, and see which places
-        # changed. That is right for anything that cannot be questioned, and
-        # slow — it takes many moves, and until it settles she is reading
-        # browser tabs and advertising rails as part of the thing. A page that
-        # draws its content can say exactly where it draws, and then she knows
-        # on the first cycle what would otherwise take twenty.
-        #
-        # LIVE 2026-08-29: play2048.co draws its board on a canvas. She was
-        # reading the whole screen and finding five of the sixteen places on
-        # it, and no model ever formed.
-        # Not applied twice. When the reading IS the part, every position in
-        # it is already a share of that part, and filtering again would cut
-        # the thing down by its own outline.
-        already = str(observation.get("read_within") or "") == "the part"
-        band = None if already else (drawn["where"] or responds["state"].band())
-        # Whether this reading is OF the thing rather than of everything.
-        #
-        # It was read off "is there a band", which stopped meaning that the
-        # moment a reading could be scoped by photographing only the part —
-        # then the band is None BECAUSE she is already looking at the right
-        # place, and every guard that tested for one read it as the opposite.
-        # She played on without learning anything from a board she was finally
-        # reading properly.
-        # And a picture taken through somebody else's window is not a
-        # reading of the thing however well it is scoped or cropped.
-        looking_at_the_thing = (already or band is not None) and _was_of_that_window(
-            observation, target_app or anchor["app"]
-        )
-        seen = within(observation, band, responds["state"])
-        # Which places answer to her, not merely their outline. See
-        # what_is_there: furniture inside the outline defines columns the
-        # board does not have, and a rule about sliding along a row cannot
-        # match rows that are not the board's.
-        lattice = responds["lattice"]
-        # Which of the things that could be wrong is left, from what has been
-        # ruled out. Evidence from a failure to produce settles several
-        # candidates at once where a sighting settles one.
-        why_not = WhatIsHidden(
-            candidates=("nothing there", "something over it", "it has ended", "she is early"),
-            parties=("the reading", "the band", "the rule"),
-        )
-        if observation.get("layout"):
-            why_not.could_not_produce("the reading", ["nothing there"])
-        if not responds["state"].nothing_answers():
-            why_not.could_not_produce("the band", ["it has ended"])
-        if not responds["lattice"].looks_covered():
-            why_not.could_not_produce("the rule", ["something over it"])
-        if lattice.looks_covered() and not in_the_way["last"]:
-            # Something is over the thing, and reading through it gives an
-            # answer that looks well formed and is wrong.
-            logger.info(
-                "something is sitting over what she is reading (%s)",
-                why_not.describe(),
-            )
-            # Something that has come before, and what it wanted when it did.
-            coming.it_came(
-                "something over the thing",
-                at=time.monotonic(),
-                needing=["her own window away", "the thing brought forward"],
-            )
-            await _put_her_own_window_away()
-            if target_app:
-                await _bring_the_thing_back_to_the_front(target_app)
-        if lattice.has_changed():
-            # Several readings in a row that will not go into it is the thing
-            # having been replaced — a new game, a resized window — rather than
-            # a run of poor glances.
-            logger.info("what she was looking at has changed shape")
-            responds["lattice"] = lattice = TheLatticeSheHolds()
-            responds["moving"] = MovesWithinItself()
-        answering = the_places_that_answer(responds["state"])
-        # And of those, the ones whose contents move about rather than arrive.
-        #
-        # LIVE 2026-08-31, on the native app with a clean reading of one
-        # window: the tiles landed on columns 0, 3, 4 and 6 of a nine-column
-        # lattice, because a score and a title answer to her too and their
-        # positions were defining columns the board has not got. Five attempts
-        # to tell them apart inside one frame all failed, and had to: in one
-        # picture a board and a score panel are the same object.
-        moving = responds["moving"]
-        if moving.settled():
-            itself = moving.the_thing_itself()
-            if itself:
-                # Not intersected with the band. The band is where things
-                # happen and a score happens as reliably as a board does, so
-                # intersecting throws away places this found and the band
-                # missed, for nothing. Measured on a full run of the chain:
-                # intersecting gave three places and a two-by-two reading.
-                answering = itself
-                # And those places, gathered over acts rather than read off
-                # one glance, are what the grid is built from.
-                was = (responds["lattice"].rows, responds["lattice"].columns)
-                if responds["lattice"].built_from(
-                    itself,
-                    moving.acts,
-                    # A grid worked out from what moves cannot be believed
-                    # until she has moved every way she can.
-                    tried=responds["state"].tried,
-                    available=move_keys,
-                ):
-                    now = (responds["lattice"].rows, responds["lattice"].columns)
-                    if was != now and knows.rules is not None:
-                        # Everything counted while the grid was the wrong
-                        # shape was counted about a thing that does not exist.
-                        knows.rules.learned_through_a_different_reading()
-            # And which of its places only report, told rather than re-derived.
-            #
-            # The rule learner works this out for itself, and needs many
-            # observations to do it — while every observation it is learning
-            # from is scored against a rule that is wrong about a score every
-            # single time. So it could not get the evidence until it had the
-            # answer. This split is worked out from the same acts and settles
-            # far sooner. Measured on a board with a score above it: the right
-            # rule scored nought out of five.
-            reporting = moving.the_things_that_report()
-            if reporting and knows.rules is not None:
-                told = knows.rules.told_these_report(
-                    _placed_in(responds["lattice"], reporting)
-                )
-                if told:
-                    logger.info(
-                        "%d place(s) only report; they are not hers to move", told
-                    )
-        # The same reading, with a place for each thing in it. What she reads
-        # is the string; what her claims are checked against is this.
-        # The thing she is acting on, not the page it is drawn on.
-        #
-        # A reading of a screen is a reading of everything on it. Handed all
-        # of it, the shape is called open because two hundred places is not
-        # small, no rule about movement can match because most of a page never
-        # moves, and two readings a second apart disagree about how many rows
-        # there are. LIVE 2026-08-29: readings of 12x17 then 7x7 of a board
-        # that is four by four, "how this moves is not worked out yet" after
-        # eighty-four moves, and therefore a full language generation for
-        # every single one of them — about twenty-eight seconds a move.
-        whole = await _the_best_reading_available(
+        """Lifted to screen_pursuit_decision.py; the scope is handed over per call."""
+        return await decide_the_next_move(
             observation,
-            band,
-            like=pending["whole"],
-            in_a_browser=bool(anchor["page"]),
-            answering=answering,
-            lattice=lattice,
-        )
-        laid_out = _the_thing_she_is_acting_in(
-            whole,
-            lattice,
-            like=_worth_holding(
-                pending["arranged"], pending["whole"], pending.setdefault("shapes", {})
+            SimpleNamespace(
+                anchor=anchor,
+                asked=asked,
+                at_rest=at_rest,
+                beats=beats,
+                began=began,
+                began_at=began_at,
+                blocker_attempts=blocker_attempts,
+                busy=busy,
+                can_do=can_do,
+                cannot_explain=cannot_explain,
+                clear_blocker=clear_blocker,
+                coming=coming,
+                confirmed_here=confirmed_here,
+                costs=costs,
+                drawn=drawn,
+                dropped=dropped,
+                ends_at=ends_at,
+                expect_page=expect_page,
+                expected=expected,
+                far=far,
+                foreseen=foreseen,
+                furthest=furthest,
+                goal=goal,
+                got_to=got_to,
+                graph=graph,
+                history=history,
+                in_flight=in_flight,
+                in_the_way=in_the_way,
+                intending=intending,
+                knowledge=knowledge,
+                knows=knows,
+                last_call=last_call,
+                like_it=like_it,
+                lines=lines,
+                lines_held=lines_held,
+                lived=lived,
+                marks=marks,
+                matters=matters,
+                move_keys=move_keys,
+                moves=moves,
+                narrate=narrate,
+                needs_person=needs_person,
+                no_move=no_move,
+                not_there=not_there,
+                observe=observe,
+                offered_a_restart=offered_a_restart,
+                open_page=open_page,
+                opens=opens,
+                pacing=pacing,
+                pending=pending,
+                plan=plan,
+                policy=policy,
+                reaches=reaches,
+                region_bottom=region_bottom,
+                region_top=region_top,
+                repeats=repeats,
+                research=research,
+                responds=responds,
+                restarts=restarts,
+                said_it_ended=said_it_ended,
+                seen_through=seen_through,
+                she_keeps=she_keeps,
+                skilled=skilled,
+                spine=spine,
+                stakes=stakes,
+                stretch=stretch,
+                success_when=success_when,
+                target_app=target_app,
+                think=think,
+                trying=trying,
+                undecided=undecided,
+                went=went,
+                world=world,
             ),
         )
-        # A frame to work in while the one she will believe is still settling.
-        #
-        # The grid she trusts is built from the places that answer to her,
-        # gathered over acts, and it is right to make that wait until the set
-        # has stopped growing. What it costs is the whole of the beginning:
-        # the set takes on about a place an act, so it is rarely still, and
-        # until it is there is no frame — so no two readings are comparable,
-        # so nothing is learned from the moves she is making meanwhile.
-        # Measured on a run through her own reasoning: three of twenty-nine
-        # moves reached the rule.
-        #
-        # The crop is a second source and a better-behaved one. It sees the
-        # whole of a thing laid out in one glance rather than accumulating it,
-        # so two glances of a steady board offer the same lines and it settles
-        # in a couple of cycles. Offered through the same settling rule, and
-        # replaced the moment the places that answer settle into something
-        # else, because that one is about what she can act on and this one is
-        # only about what is drawn.
-        if not lattice.held and _is_a_thing_laid_out(laid_out):
-            down, across = laid_out.down_at, laid_out.across_at
-            if len(down) >= 2 and len(across) >= 2:
-                corners = [
-                    (int(round(x * 100)), int(round(y * 100)))
-                    for y in down
-                    for x in across
-                ]
-                if lattice.built_from(corners, len(moves)):
-                    logger.info(
-                        "holding the frame she can see, for now: %dx%d",
-                        lattice.rows, lattice.columns,
-                    )
-
-        # Is this the thing she was asked to act in.
-        #
-        # Checked before a key is pressed rather than after, because a
-        # keystroke into the wrong window is not something a later cycle can
-        # take back.
-        # How far the way in got last time, replayed rather than rethought.
-        if not confirmed_here["value"] and got_to.frontier:
-            logger.info("the way in, as far as it went before: %s", got_to.describe())
-        if not confirmed_here["value"]:
-            confirmed_here["value"] = am_i_there(
-                open_page or expect_page, seen, anchor["page"], anchor["app"]
-            )
-            if confirmed_here["value"]:
-                # Arriving at a window is not the same as reading it.
-                #
-                # This check is about identity — the address, the title, the
-                # name of the window — and it is right to be: words on a
-                # screen can be borrowed from anyone's window. But the pixels
-                # she then reads are whatever is drawn on top, and her own
-                # interface is drawn on top of everything by design. LIVE
-                # 2026-08-31: Chrome held the address she was sent to, she
-                # confirmed she was there, and every reading for eighteen
-                # moves was of her own panels — LIVE NEURAL FEED, TELEMETRY,
-                # MEMORY, SETTINGS. She pressed keys into herself and her
-                # predictions about what would change were correct.
-                #
-                # So before the first key: her own window goes away and the
-                # thing is asked to the front. Asking alone is not enough —
-                # hers is drawn above everything and comes straight back —
-                # and putting hers away alone leaves the wrong window
-                # frontmost. Both, in that order, are what make the pixels
-                # agree with the identity.
-                await _put_her_own_window_away()
-                await _bring_the_thing_back_to_the_front(anchor["app"] or target_app)
-            if not confirmed_here["value"]:
-                not_there["reason"] = (
-                    f"{(open_page or expect_page)!r} is not what is in front of me — "
-                    f"{anchor['app'] or 'this window'} is"
-                )
-                logger.info("she is not where she was asked to be: %s", not_there["reason"])
-                no_move["because"] = "she is not where she was asked to be"
-                return None
-
-        # Grade the last prediction before making another one.
-        #
-        # This is the difference between a loop that acts and one that steers.
-        # The move it just made claimed something would be different; this
-        # reading is the only chance to find out. A prediction that held is
-        # weak evidence the move was understood, and one that broke is strong
-        # evidence it was not — measured live, a run pressed the same key
-        # forty times because nothing ever checked that the board moved.
-        previous = pending["deliberation"]
-        if previous is not None:
-            attempt = confirm(
-                previous,
-                pending["before"],
-                seen,
-                spine=spine,
-                graph=graph,
-                toward=success_when,
-                seen_before=pending["arranged"],
-                seen_after=laid_out,
-            )
-            history.append(attempt)
-            if pending["arranged"] is not None and attempt.progressed is not None:
-                went.append((pending["arranged"], bool(attempt.progressed)))
-                # And against WHAT KIND of situation it went that way, which
-                # is the fact that carries to a place she has not been.
-                if previous.chosen is not None:
-                    was = pending["arranged"]
-                    kind = was.as_shape() if hasattr(was, "as_shape") else ""
-                    if kind:
-                        beats.it_went(
-                            previous.chosen.name,
-                            against=kind,
-                            well=bool(attempt.progressed),
-                        )
-                        repeats.she_saw(kind, previous.chosen.name, laid_out)
-            # Was the world where she said it would be? That is what decides
-            # how far she goes next time, and it is the only thing that does.
-            in_flight.it_landed(previous.chosen.name if previous.chosen else "")
-            if expected["took"] >= 1 and expected["after"] is not None:
-                # Came out, meaning nothing she predicted is missing. Not
-                # meaning identical: in a world that deals a tile after every
-                # move of hers, the board she predicted is never the board
-                # that is there, and asking for identical is asking for a run
-                # that can never come out. What matters is whether her acts
-                # did what she thought — an arrival she never claimed to know
-                # about is the world's business, and she has somewhere else
-                # to put those.
-                said = {
-                    (one.row, one.column): one.says
-                    for one in getattr(expected["after"], "cells", ())
-                }
-                really = {
-                    (one.row, one.column): one.says
-                    for one in getattr(laid_out, "cells", ())
-                }
-                same = bool(said) and all(
-                    really.get(where) == what for where, what in said.items()
-                )
-                (far.it_was_where_she_said if same else far.it_was_not)(
-                    expected["took"]
-                )
-                if not same:
-                    logger.info("the run did not come out: %s", far.describe())
-                expected["after"], expected["took"] = None, 0
-            # What leaning on these acts has come to. The tally she found on
-            # the screen herself is the measure where there is one, because
-            # nobody has told her what progress is and something on the screen
-            # has been keeping score the whole time.
-            rose = _how_much_the_tally_moved(
-                responds["moving"], pending["watched"], observation
-            )
-            if rose is not None:
-                reaches.went(rose)
-                if rose > 0:
-                    stretch["rises"] += 1
-                # And what the situation this move left was like, against how
-                # much the world's own count rose for it. That is a grade no
-                # weight of hers can shift, which is what makes it able to
-                # teach her the weights.
-                if laid_out is not None and looking_at_the_thing:
-                    was_worked_out = matters.worked_out()
-                    matters.what_came_of_it(
-                        terms(
-                            laid_out,
-                            toward=success_when or _what_there_is_to_aim_at(laid_out),
-                            approach=plan["held"].approach if plan["held"] is not None else "",
-                        ),
-                        rose,
-                    )
-                    if matters.worked_out() and not was_worked_out:
-                        logger.info("%s", matters.says())
-                        if narrate:
-                            _tell(f"I know what matters here now — {matters.says()}.")
-            if previous.chosen is not None:
-                # A key that never changes anything is not one of her actions
-                # in this world, whoever wrote it down.
-                can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
-                # And what stood around it when it did no harm — the two
-                # pieces either side of a gap, found by taking things away
-                # rather than by being described.
-                if (
-                    attempt.verdict.observed_change
-                    and pending["arranged"] is not None
-                    and previous.chosen is not None
-                    and len(getattr(pending["arranged"], "cells", ())) <= 24
-                ):
-                    shape = what_makes_it_safe(
-                        pending["arranged"],
-                        previous.chosen.name,
-                        safe=lambda one, act: bool(
-                            knows.rules.expect(one, act) is not None
-                        ),
-                        parts_of=lambda one: list(getattr(one, "cells", ())),
-                        without=_the_same_thing_without,
-                        where_of=lambda one: (one.row, one.column),
-                        kind_of=lambda one: one.says,
-                        about=lambda act: (0, 0),
-                    )
-                    if shape.around and shape.established:
-                        logger.debug("what made %r safe: %s", previous.chosen.name, shape.describe())
-                # And what was true at the time, so an act that does nothing
-                # can become an act that needs something.
-                opens.she_tried(
-                    previous.chosen.name,
-                    holding=[
-                        one
-                        for one in (
-                            "the thing in front" if confirmed_here["value"] else "",
-                            "nothing over it" if not in_the_way["last"] else "",
-                            "a grid she trusts" if responds["lattice"].held else "",
-                        )
-                        if one
-                    ],
-                    it_worked=bool(attempt.verdict.observed_change),
-                )
-                # Whether she is alive here or merely still going. Two acts
-                # that work are two ways out; one is a thing standing until
-                # something takes it.
-                stands = how_long_it_holds(
-                    can_do,
-                    ways_out=lambda one: [
-                        name for name in one.told if one.does_something(name)
-                    ]
-                    if hasattr(one, "told") and hasattr(one, "does_something")
-                    else [],
-                    room=lambda one: len(getattr(one, "told", ()) or ()),
-                )
-                if not stands.alive and stands.ways_out == 1:
-                    logger.info("one way out here: %s", stands.describe())
-                if can_do.dead() and not foreseen.get("acts"):
-                    foreseen["acts"] = True
-                    logger.info("what works here: %s", can_do.says())
-            # Her own move, and what it did. Three things she already had and
-            # threw away after one glance, which is why she could never try a
-            # move without making it.
-            # Learned from the part that answers to her, once she knows which
-            # part that is.
-            #
-            # Before the band settles a reading is the whole page — the tabs,
-            # the address, the score, a Give Feedback button — and no rule
-            # about what her own act moves can match one. Learning from it
-            # anyway fills the counters with failures that then take longer to
-            # recover from than starting clean. LIVE 2026-08-26: nineteen
-            # moves in, every hypothesis discredited, and she was choosing
-            # blind on a board she could read perfectly well.
-            if (
-                pending["arranged"] is not None
-                and previous.chosen is not None
-                and not looking_at_the_thing
-            ):
-                dropped["not the thing itself"] += 1
-            # And nothing is learned from acts the world was not taking.
-            #
-            # A move that changed nothing is evidence about that move only
-            # while other moves are changing things — then it means "not
-            # here", which is worth knowing. When NOTHING she does changes
-            # anything, it means the thing has ended, and none of it is
-            # evidence about how the thing works.
-            #
-            # Measured live 2026-09-02, three games back to back on the real
-            # app. The first went well: she began already knowing the rule at
-            # 71%, looked ahead on 178 of 220 moves, three moves changed
-            # nothing, and she reached 512. Then it finished, and she went on
-            # pressing keys at a finished board: seventy-eight of eighty-three
-            # moves changed nothing, and what she wrote down at the end was
-            # "this does not move", right 98% of 62 — over a rule that had
-            # been confirmed 236 times. The third game began holding that,
-            # looked ahead on nothing at all, and was over in fifteen moves.
-            #
-            # So one ended game undid everything she knew and cost her the
-            # two after it. What she keeps is only as good as her refusing to
-            # learn from a world that has stopped answering.
-            if (
-                pending["arranged"] is not None
-                and previous.chosen is not None
-                and looking_at_the_thing
-                and responds["state"].nothing_answers()
-            ):
-                dropped["the thing had stopped answering"] += 1
-            if (
-                pending["arranged"] is not None
-                and previous.chosen is not None
-                and looking_at_the_thing
-                and not responds["state"].nothing_answers()
-            ):
-                # What a rule said would happen, before it is folded in. The
-                # difference between that and what she actually saw is the
-                # world's doing, and it is free at exactly this moment.
-                foretold = knows.rules.expect(pending["arranged"], previous.chosen.name)
-                world.watched(foretold, knows.rules.the_thing(laid_out))
-                if expected["took"] > 1:
-                    # Several acts, one reading. Which of them did what cannot
-                    # be told from a board seen only at the end, and crediting
-                    # the first is not weak evidence — it is a claim about an
-                    # act that did not produce this.
-                    #
-                    # LIVE 2026-09-02, the sitting that first went more than
-                    # one act between looks: a rule carried in at 82% fell to
-                    # one right out of sixty four, because every pair she
-                    # learned from named the wrong act.
-                    dropped["more than one act, one reading"] += 1
-                elif _in_the_same_grid(
-                    responds["lattice"], pending["arranged"], laid_out
-                ):
-                    knows.watched(pending["arranged"], previous.chosen.name, laid_out)
-                else:
-                    # Counted, because it used to be silent.
-                    #
-                    # A pair thrown away here is a move she made and learned
-                    # nothing from, and nothing said so. LIVE 2026-08-31:
-                    # fifty-four moves, one of them watched, and the only
-                    # trace was a line saying how this moves is not worked out
-                    # yet — which reads as a hard world rather than as
-                    # evidence going missing on the way to the learner.
-                    dropped["a different frame"] += 1
-                # And whether it left her better off, against the kind of
-                # position it was made from. This is experience turning into
-                # skill: the same triple she learns the world's rules from
-                # also says which move is worth making again from a shape
-                # like that one.
-                went_well = _left_her_better_off(
-                    pending["arranged"],
-                    laid_out,
-                    success_when,
-                    plan["held"].approach if plan["held"] is not None else "",
-                )
-                if plan["held"] is not None:
-                    lines.learned(A_LINE_HERE, plan["held"].approach, went_well)
-                    lines_held[plan["held"].approach] = plan["held"].as_memory()
-                # What she was in, what she made of it, and what it came to.
-                #
-                # Two situations she scores alike, one of which went on to do
-                # much better, is a difference her measure cannot account for —
-                # and the only honest place a property nobody wrote can come
-                # from. Gathered here because this is where both halves exist.
-                from core.agency.how_good_is_this import (
-                    how_good as _how_good,
-                )
-                from core.agency.how_good_is_this import (
-                    how_the_trial_is_going as _how_the_trial_is_going,
-                )
-
-                _worth_here = sum(laid_out.numbers() or (0.0,))
-                if began_at["worth"] is None:
-                    began_at["worth"] = _worth_here
-                began_at["seen"] += 1
-                _for = success_when or _what_there_is_to_aim_at(laid_out)
-                if pending["arranged"] is not None and _for:
-                    cannot_explain.been_here(
-                        pending["arranged"],
-                        _how_good(
-                            pending["arranged"],
-                            toward=_for,
-                            approach=plan["held"].approach if plan["held"] is not None else "",
-                        ),
-                        _worth_here,
-                    )
-                if trying["name"]:
-                    verdict = _how_the_trial_is_going(trying["name"], _worth_here)
-                    if verdict:
-                        if narrate:
-                            _tell(
-                                f"{trying['name']} {'earned its place' if verdict == 'kept' else 'did not earn its place'}."
-                            )
-                        trying["name"] = ""
-                skilled.learned(
-                    pending["arranged"].as_shape(),
-                    previous.chosen.name,
-                    _left_her_better_off(
-                        pending["arranged"],
-                        laid_out,
-                        success_when,
-                        plan["held"].approach if plan["held"] is not None else "",
-                    ),
-                )
-                # And when she has just built the biggest thing she has ever
-                # built here, which is the thing somebody watching came for.
-                # Only once she knows what the thing itself is. Before the
-                # grid settles the reading is the whole window, and the
-                # largest number in it is somebody's best score: LIVE
-                # 2026-09-04, "I have a 5292 on the board" on a board holding
-                # a 4 and two 2s.
-                # And not from a reading taken after it stopped answering.
-                #
-                # What is on the screen then is an ending — an overlay, a
-                # score, a way to begin again — and its words land in the
-                # board's places like anything else. LIVE 2026-09-04: "A
-                # 11619 — the biggest I have made here", said over a finished
-                # game whose best tile was 128.
-                made = (
-                    _the_biggest_thing_on_it(
-                        laid_out,
-                        _placed_in(
-                            responds["lattice"],
-                            responds["moving"].the_things_that_report(),
-                        ),
-                    )
-                    if responds["lattice"].held
-                    and responds["moving"].settled()
-                    and not responds["state"].nothing_answers()
-                    else 0.0
-                )
-                # A record she has not been able to earn again is not one.
-                #
-                # It is written from a reading, and a reading can be wrong: a
-                # single bad one put 11619 in this record for a board whose
-                # best tile was 128, and because the record only ever goes up
-                # she could never say anything about her own progress here
-                # again. Everything else she carries comes back discounted for
-                # exactly this reason.
-                #
-                # So a carried record has to turn up again before it counts,
-                # which is the same rule the places she remembers are held to.
-                furthest["again"] = max(furthest["again"], made)
-                beaten = (
-                    furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"]
-                )
-                further = _she_got_further(made, beaten)
-                if further:
-                    furthest["here"] = max(furthest["here"], made)
-                    if narrate:
-                        _tell(further)
-                _say_what_she_worked_out(knows, foreseen)
-                _say_what_kind_of_problem(
-                    knows, screen_options(move_keys), laid_out, success_when, foreseen
-                )
-                if len(moves) % 6 == 0 and knows.rules is not None:
-                    logger.info(
-                        "after %d move(s): %s%s | reading %dx%d%s",
-                        len(moves),
-                        knows.rules.says(),
-                        _what_she_is_not_reading(knows.rules),
-                        laid_out.rows,
-                        laid_out.columns,
-                        _what_she_could_not_learn_from(dropped),
-                    )
-            # Learned from the same measurement. A move that changed nothing
-            # is the control: whatever still changed across it was changing
-            # on its own, and a page whose advertising animates as often as
-            # the task does cannot be separated any other way.
-            if pending["watched"] and _both_of_the_thing(
-                target_app or anchor["app"], pending["watched"], observation
-            ):
-                # The same places `noticed` uses, so the two sets can be
-                # intersected at all.
-                responds["moving"].saw(
-                    places_and_text(pending["watched"]),
-                    places_and_text(observation),
-                )
-                noticed(
-                    responds["state"],
-                    pending["watched"],
-                    observation,
-                    # Whether the act had an effect, not whether her claim
-                    # about it was right.
-                    #
-                    # These were the same answer while the only claim a move
-                    # carried was that the view would differ, and they came
-                    # apart the moment a claim could say something. A move
-                    # that moved the board and did not do the specific thing
-                    # she predicted was being counted as a move that did
-                    # nothing — the control for working out which part of the
-                    # screen answers to her — so the band stopped settling and
-                    # nothing downstream of it could form.
-                    worked=attempt.verdict.observed_change,
-                    # Which act it was, so a run of one thing doing nothing
-                    # is not read as the world having ended.
-                    acting=previous.chosen.name if previous.chosen is not None else "",
-                )
-            if moves:
-                moves[-1]["held"] = attempt.verdict.held
-                moves[-1]["outcome"] = attempt.verdict.why()
-            pending["deliberation"] = None
-
-        if policy is not None:
-            try:
-                intent = await policy(observation)
-            except (RuntimeError, TypeError, ValueError, KeyError) as exc:
-                record_degradation(
-                    "screen_pursuit",
-                    exc,
-                    severity="info",
-                    action="ended a screen pursuit cycle without a move",
-                )
-                no_move["because"] = "the policy raised rather than answered"
-                return None
-            if not intent:
-                no_move["because"] = "the policy offered no move"
-                return None
-            key = str(intent.get("key") or "").strip().lower()
-            if key not in PRESSABLE_KEYS:
-                no_move["because"] = "the policy named a key nothing can press"
-                return None
-            because = str(intent.get("because") or "").strip()
-            # What reaches the learner is read off `pending`, and only the
-            # deliberating branch below ever wrote it — a run driven by a
-            # policy pressed keys and learned nothing at all, forever,
-            # because the pair it moved through was never recorded as one.
-            # A policy is a way of choosing, not a different kind of move, so
-            # it is recorded the same way: the reading it chose from, the
-            # name it chose, and why.
-            from core.agency.deliberate_action import ActionOption, Deliberation
-
-            pending["deliberation"] = Deliberation(
-                goal=goal,
-                situation=seen,
-                chosen=ActionOption(name=key, detail=because),
-                rationale=because,
-            )
-            pending["before"] = seen
-            pending["arranged"] = laid_out
-            pending["whole"] = whole
-            pending["watched"] = observation
-        else:
-            # Find out how this is done — at the start, and again when what
-            # she is doing has stopped working.
-            #
-            # A loop that only reads the screen in front of it can play badly
-            # forever: it has the board, the moves and its own last few
-            # outcomes, and none of that contains the thing a person would go
-            # and look up. Being stuck is the signal, because a run of broken
-            # predictions means the current approach is not working whatever
-            # the reason.
-            if knowledge["held"] is None or (
-                stuck(history) and knowledge["relearned"] < MAX_RELEARNS
-            ):
-                if knowledge["held"] is not None:
-                    knowledge["relearned"] += 1
-                relearning = knowledge["held"] is not None
-                knowledge["meant"] = []
-                knowledge["held"] = await learn_about(
-                    goal,
-                    search=research,
-                    remember=not relearning,
-                    because_stuck=relearning,
-                    situation=content_text(
-                        observation, region_top=region_top, region_bottom=region_bottom
-                    ),
-                    history=history[-RECENT_ATTEMPTS:],
-                )
-            learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
-            # Work out what it means HERE before deciding with it.
-            #
-            # Retrieving advice is not applying it. "Keep your largest tile in
-            # a corner" is a fact about the game; what it means depends on
-            # where the tiles actually are, and that comparison is the step
-            # between reading something and playing differently.
-            if knowledge["held"] is not None and knowledge["held"].known and not knowledge["meant"]:
-                knowledge["meant"] = await work_out_what_it_means(
-                    knowledge["held"],
-                    seen,
-                    screen_options(move_keys),
-                    think=_within_the_run(think or _her_reasoning(stakes), ends_at),
-                    history=history[-RECENT_ATTEMPTS:],
-                )
-            learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
-
-            # The line she is taking, and the thing that would end it.
-            #
-            # Choosing a move from what is on screen is reacting: it assumes
-            # the world sits still and corrects once the world says
-            # otherwise. Anywhere the world keeps moving while she works, an
-            # approach is the missing middle — a line held across moves, with
-            # the condition that would make it wrong named when she adopts it
-            # rather than discovered when it fails. The condition is checked
-            # here, before she acts, so a pivot is something she was watching
-            # for and not something that happened to her.
-            holding, ended = still_holds(plan["held"], seen, len(moves))
-            if plan["held"] is not None and holding is False:
-                logger.info("the line she was taking stopped holding: %s", ended)
-            # A pivot is immediate; a first attempt is not retried every move.
-            #
-            # The condition breaking is news and is worth the pass that
-            # answers it. Having no stated approach yet is not news, and a run
-            # that asks for one every cycle pays a full language pass per move
-            # for an answer that was not there last time either.
-            # Asked when there is something to base an approach on.
-            #
-            # This asked on the first cycle, when the only thing she has seen
-            # is a whole screen: on a page holding a game that is the board,
-            # the score, the browser's own tabs and bookmarks, an "Ask Gemini"
-            # button and a copyright line. Live 2026-08-26, she was asked how
-            # she would play and answered by reading the page back, three
-            # runs in a row, because that is what the question was about.
-            #
-            # The part of the screen that answers to her is known a few moves
-            # in, from what changed when she acted. That is the first moment
-            # the question has a subject. The count is still a backstop, so a
-            # screen that never resolves into anything is not a screen she
-            # goes on playing with no line at all.
-            # A pivot costs a move: she cannot judge a line she never tried.
-            #
-            # The condition on a fresh approach is checked on the very next
-            # cycle, before she has acted under it, and an anchor bound to a
-            # tile that merges away breaks at once. Live 2026-08-26: ten
-            # approaches decided for nine moves made, each one a full pass at
-            # her reasoning, and the run spent its whole budget deciding how
-            # to play rather than playing.
-            tried_it = len(moves) > plan["asked_at"]
-            time_to_ask = (
-                holding is False
-                and plan["held"] is not None
-                and tried_it
-                or len(moves) - plan["asked_at"] >= _ask_again_after(plan["asked_at"])
-                or (plan["asked_at"] < 0 and looking_at_the_thing)
-            )
-            if not holding and time_to_ask:
-                plan["asked_at"] = len(moves)
-                fresh = await settle_on_an_approach(
-                    goal,
-                    seen,
-                    screen_options(move_keys),
-                    # Deciding the line she will hold across a hundred moves
-                    # is not the same question as deciding one of them, and
-                    # asking it with the thinking that suits a move got the
-                    # model's own warm-up handed back as a plan.
-                    think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
-                    knowledge=learned,
-                    history=history[-RECENT_ATTEMPTS:],
-                    previous=plan["held"],
-                    moves_made=len(moves),
-                )
-                if fresh is not None:
-                    changing = plan["held"] is not None
-                    plan["held"] = fresh
-                    plan["changes"] += 1 if changing else 0
-                    # Held where the rest of her can see it, not in this loop.
-                    doing.going_about_it(
-                        fresh.approach,
-                        because=fresh.because,
-                        watching_for=fresh.holds_while.describes,
-                        alternatives=fresh.otherwise,
-                        spine=spine,
-                        lived=lived,
-                    )
-                    if narrate:
-                        said = fresh.narrate()
-                        _tell(f"{said} ({ended})" if changing and ended else said)
-            if plan["held"] is not None:
-                learned = learned + plan["held"].as_evidence()
-
-            # When nothing in the task is working, the task itself becomes a
-            # choice. Both ways out are hers, and both are recorded as
-            # decisions with reasons rather than happening to her.
-            available = screen_options(can_do.available() or move_keys)
-            # The ways out are offered when what she is doing has stopped
-            # working, and when the thing itself has stopped responding.
-            #
-            # Two different facts. Predictions breaking says her moves are
-            # wrong; nothing answering at all says the attempt is over — a
-            # finished game, an expired session, a form already submitted.
-            # Measured live: she played to Game Over and went on pressing
-            # arrow keys into a dead board, because a run of broken
-            # predictions had not accumulated in the way the first test
-            # wanted.
-            # Nothing is answering. WHICH of the three is it?
-            #
-            # "Nothing I do changes anything" is a good ending test and a poor
-            # diagnosis: it is equally true of a finished game, a dialog over
-            # the board, and somebody else's window in front. Those want
-            # opposite responses, and collapsing them is what had her pressing
-            # keys into a finished board and narrating moves as though a game
-            # were happening. LIVE 2026-08-29: the page said "Game Over, 940
-            # points scored in 100 moves" and she went on saying "Going right".
-            ended = responds["state"].nothing_answers()
-            # A way to start again, offered where there was none before, is the
-            # thing saying it has finished.
-            #
-            # The other test asks whether what she was acting on is gone, and
-            # on a board that keeps its tiles under a "Play Again" overlay it
-            # never fires — so she went on pressing keys into a game that was
-            # over, which is the failure it exists to prevent. A control that
-            # appears only at the end is better evidence than the absence of
-            # one, and it is general: a finished form, an expired session and
-            # a lost game all put one up.
-            ways_back = restart_controls(observation)
-            appeared = a_way_back_that_was_not_there(
-                ways_back, offered_a_restart["was_there"]
-            )
-            if offered_a_restart["was_there"] is None:
-                # The first reading of this task settles what counts as
-                # furniture here. Nothing before this line has been compared
-                # against, so nothing before it can have appeared.
-                offered_a_restart["was_there"] = ways_back
-            if not ended and appeared:
-                if not offered_a_restart["said"]:
-                    offered_a_restart["said"] = True
-                    logger.info(
-                        "a way to start again has appeared, so this has ended"
-                    )
-                ended = True
-            if ended:
-                mine_now = target_app or anchor["app"]
-                why = work_out_why(
-                    mine=mine_now,
-                    in_front=await _frontmost(),
-                    on_top=await _whats_on_top(mine_now, over=responds["state"].band()),
-                    still_there=_is_a_thing_laid_out(laid_out),
-                )
-                if why.can_fix:
-                    # Not an ending. Something she can do something about, and
-                    # the doing is the answer rather than the reporting.
-                    if narrate and not said_it_ended["value"]:
-                        _tell(why.says())
-                    mended = (
-                        await _ensure_page(anchor["page"])
-                        if why.because == ELSEWHERE
-                        else await clear_what_is_in_front(why.what)
-                    )
-                    if mended:
-                        # Reachable again, so this cycle is not an ending. The
-                        # rest of it proceeds normally: she has her window
-                        # back and there is a move to choose.
-                        responds["state"].began_again()
-                        ended = False
-                elif why.because == ENDED and narrate and not said_it_ended["value"]:
-                    said_it_ended["value"] = True
-                    _tell(why.says())
-            if (stuck(history) or ended) and not seen_through["value"]:
-                out = ways_out(observation, ended=ended)
-                if ended and out:
-                    # Pressing a move key into something that has finished is
-                    # not one of the things she could do. Offering it beside
-                    # the real choices made every cycle look like a decision
-                    # between four keys and a restart, so she went on playing
-                    # a game that was over — measured live, thirty-nine moves
-                    # after Game Over, each one costing a language pass
-                    # because the situation was unusual.
-                    available = out
-                else:
-                    available = available + out
-                if ended and not said_it_ended["value"]:
-                    said_it_ended["value"] = True
-                    if narrate:
-                        _tell(
-                            await _why_nothing_answers(
-                                target_app or anchor["app"],
-                                over=responds["state"].band(),
-                            )
-                        )
-            # Her own pacing is hers to decide, once there is really a gap.
-            behind = narration_backlog() if narrate else {}
-            # A pace chosen because the commentary was behind ends when it
-            # is not. Left standing, one choice governs the whole run and she
-            # never gets asked again.
-            if pacing["choice"] and not behind.get("waiting"):
-                pacing["choice"] = ""
-                pacing["brief"] = False
-            offered_pacing = bool(behind.get("waiting")) and not pacing["choice"]
-            if offered_pacing:
-                available = available + pacing_options(behind)
-
-            # Effort follows what rides on this one. A routine move is a
-            # routine move; a run that has stopped getting anywhere, or one
-            # weighing whether to start over, is worth more than one pass.
-            # What is unusual is the situation, not the number of buttons.
-            #
-            # This counted the options: a way out is appended whenever the
-            # screen has one, and a game page has a New Game button on it
-            # permanently — so every ordinary move was treated as a moment
-            # worth weighing, and paid a language pass for it. Measured live
-            # 2026-08-26: seventeen passes for fourteen moves, twenty seconds
-            # a move, and a run that spent its budget deliberating over a
-            # button she was never going to press.
-            held_line = plan["held"].approach if plan["held"] is not None else ""
-            unusual = stuck(history) or ended or offered_pacing
-            weight = stakes if unusual else min(stakes, 0.3)
-            # What she has decided to keep true takes moves off the table
-            # before anything looks ahead, which is where holding something
-            # pays: the tree it searches is smaller at every level.
-            wont, ruled_out = _moves_she_will_not_make(
-                she_keeps,
-                went,
-                laid_out,
-                [option.name for option in available],
-                knows,
-                len(moves),
-                world,
-            )
-            if wont:
-                available = [one for one in available if one.name not in wont]
-                if ruled_out != she_keeps.get("said"):
-                    she_keeps["said"] = ruled_out
-                    logger.info("%s", ruled_out)
-
-            # And an act that has done nothing since the last time anything
-            # happened is not the act to take again.
-            #
-            # "It has worked here before" is a lifetime record; the board in
-            # front of her is now. LIVE 2026-09-04: fifteen presses of up
-            # into a board with nothing above anything, each one chosen
-            # because up had worked earlier in the same game.
-            #
-            # The record clears the moment anything answers, so this is the
-            # freshest evidence there is about the next move — and it never
-            # empties the choice, because every act failing is the thing
-            # having ended, which is judged elsewhere.
-            doing_nothing = responds["state"].unanswered_by
-            if doing_nothing:
-                still_worth = [
-                    one for one in available if one.name not in doing_nothing
-                ]
-                if still_worth:
-                    available = still_worth
-
-            # And of what is left, the one she reaches for.
-            #
-            # Watching somebody clear 2048: two of the four keys, almost
-            # exclusively, and a third only when the board left them nothing
-            # else. Measured on the game, leaning on two of the four reaches
-            # more than twice what taking any legal move reaches, and beats
-            # every property of the board she could have held instead. It is
-            # not a fact about the board, so looking at the board never finds
-            # it; it is found by leaning on things and seeing what came of it.
-            foreseeable = [
-                one.name
-                for one in available
-                if _somewhere_else(laid_out, one.name, _expects(knows)) is not None
-            ] if laid_out is not None and _expects(knows) is not None else []
-            if foreseeable:
-                if not reaches.leaning_on:
-                    took_up = reaches.start_a_stretch(foreseeable)
-                    if took_up:
-                        logger.info("leaning on %s for a while", ", ".join(took_up))
-                elif stretch["rises"] >= len(reaches.ways_of_leaning(foreseeable)):
-                    reaches.end_the_stretch()
-                    stretch["rises"] = 0
-                    reaches.start_a_stretch(foreseeable)
-                # The ones she is leaning on, not one of them.
-                #
-                # A habit that picks the member as well as the set leaves
-                # nothing for looking ahead to do: the choice arrived at the
-                # deliberation with one option in it, every move came back
-                # "the only thing available", and the search she has never
-                # ran. Leaning on two acts means those two are the moves she
-                # considers, and which the position calls for is the question
-                # the model answers.
-                wants = reaches.the_ones_to_consider(foreseeable)
-                # And it has to leave her something to consider.
-                #
-                # A leaning of one act, applied as a filter, is not a
-                # preference — it is the whole policy, and it takes her
-                # looking ahead off the board altogether: the deliberation
-                # arrives with one option and reports "the only thing
-                # available". Her search is worth far more than any leaning
-                # (offline, median 512 against 128 for taking any legal move),
-                # so a habit must never be able to replace it.
-                if len(wants) < 2:
-                    wants = ()
-                if wants and len(wants) < len(foreseeable):
-                    # Everything she cannot foresee stays on the table: the way
-                    # out and the ways of asking are never narrowed by a habit.
-                    available = [
-                        one
-                        for one in available
-                        if one.name in wants or one.name not in foreseeable
-                    ]
-
-            # Has she been anywhere LIKE this before.
-            #
-            # What she learns is filed under the thing she learned it in, so
-            # a second world that moves in exactly the same way used to start
-            # as ignorant as the first, and the fortieth was no better off
-            # than the second. Two worlds are of a kind when they are the
-            # same size, take the same acts and are countable in the same
-            # ways — and worlds of a kind move alike, which is the whole of
-            # what gets carried.
-            #
-            # Asked once, on the first reading worth naming a kind from, and
-            # only where this world has taught her nothing yet.
-            if (
-                not like_it["looked"]
-                and laid_out is not None
-                and laid_out.occupied()
-                and knows.rules is not None
-                and not knows.rules.seen
-            ):
-                like_it["looked"] = True
-                like_it["kind"] = _the_kind_of_world_this_is(
-                    laid_out,
-                    [option.name for option in available],
-                    success_when or _what_there_is_to_aim_at(laid_out),
-                )
-                elsewhere = recall(like_it["kind"]) if like_it["kind"] else {}
-                # And only from a world she was reading through a grid of
-                # this shape. A rule that survived somewhere else is about the
-                # thing it was watched in; read through a grid of another
-                # shape it is not weak evidence about this one, it is about
-                # something that is not here. Discounting it does not help,
-                # because early on a handful of counts is the whole difference
-                # between looking ahead and not.
-                if elsewhere and responds["lattice"].held:
-                    read_through = (elsewhere.get("moves") or {}).get("read_through")
-                    here = [responds["lattice"].rows, responds["lattice"].columns]
-                    if list(read_through or ()) != here:
-                        elsewhere = {}
-                if elsewhere:
-                    carried = _no_more_than_a_fresh_one_is_worth(elsewhere.get("moves"))
-                    knows.rules.__dict__.update(
-                        HowItMoves.from_memory(
-                            elsewhere.get("moves") or {}, carried
-                        ).__dict__
-                    )
-                    skilled.__dict__.update(
-                        WhatWorkedBefore.from_memory(
-                            elsewhere.get("skill") or {}, carried
-                        ).__dict__
-                    )
-                    world.__dict__.update(
-                        WhatTheWorldDoes.from_memory(
-                            elsewhere.get("world") or {}, carried
-                        ).__dict__
-                    )
-                    _tell(
-                        f"I have been somewhere like this before — {like_it['kind']} — "
-                        "so I will start from what that moved like."
-                    )
-                    logger.info(
-                        "borrowed from %r at %.2f trust: %s",
-                        like_it["kind"], carried, knows.rules.says(),
-                    )
-
-            # Where each move would lead, when she has worked out how this
-            # moves and there is anything to prefer one future over another by.
-            ahead: dict[str, tuple[float, str]] = {}
-            # What she is playing for, which the request does not always say.
-            aiming_at = success_when or _what_there_is_to_aim_at(laid_out)
-            if worth_comparing(aiming_at, held_line):
-                # As far ahead as there is time to look, which is decided from
-                # what a level of looking has been measured costing.
-                ahead = look_ahead(
-                    knows.rules,
-                    laid_out,
-                    [option.name for option in available],
-                    toward=aiming_at,
-                    approach=held_line,
-                    budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
-                    world=world,
-                    # What matters HERE, once she has watched enough to say.
-                    weights=matters.weights(),
-                )
-            # And what a move would TELL her, which is a different question
-            # from where it leads.
-            #
-            # Two rules that both fit everything she has seen disagree about
-            # some acts and agree about others. An act they agree on can go
-            # well and still leave her exactly as unsure as before; an act
-            # they split over settles which of them is right whatever happens.
-            # Being right about the rule improves every move after this one,
-            # so early on it is worth more than the position it costs — which
-            # is why a person pushes a thing one way once, early, and then
-            # never needs to again.
-            #
-            # It goes to nought by itself as the evidence rules them out, so
-            # there is nothing to turn off.
-            telling = worth_finding_out(
-                knows.rules,
-                laid_out,
-                [option.name for option in available],
-                ahead,
-                # And, before any of that can mean anything, the acts she has
-                # not taken here.
-                never_tried=[
-                    option.name
-                    for option in available
-                    if option.name not in responds["state"].tried
-                ],
-            )
-            if telling:
-                if ahead:
-                    ahead = {
-                        name: (value + telling.get(name, 0.0), reason)
-                        for name, (value, reason) in ahead.items()
-                    }
-                else:
-                    ahead = {
-                        name: (value, "this is the one that would settle how this moves")
-                        for name, value in telling.items()
-                    }
-                logger.info(
-                    "acting to find out: %s",
-                    ", ".join(
-                        f"{name} {value:.3f}"
-                        for name, value in sorted(
-                            telling.items(), key=lambda pair: -pair[1]
-                        )[:4]
-                    ),
-                )
-            # And how much of what happens next is the world's rather than
-            # hers, which is the other thing looking ahead averages away.
-            #
-            # A position where every reply leaves her fine is not the same as
-            # one where the average reply leaves her fine and one of them
-            # ruins her. That difference is what a grip buys: a hand on a
-            # wrist does not improve the position and is not free, and what
-            # it gets is that whatever happens next she is still where she
-            # was. Keeping the largest thing in a corner buys exactly that.
-            #
-            # Which way to lean on it is not a temperament. Ahead with time
-            # to spare, an uncertain position is worth avoiding — she only
-            # has to keep doing what works. Behind with the clock going, it
-            # is worth seeking, because the average outcome of what she is
-            # doing is already a loss and the spread is the only thing that
-            # contains a win. Both come off the run: how much budget is left,
-            # and what she has been getting per act.
-            exposed = at_the_worlds_mercy(
-                knows.rules,
-                laid_out,
-                [option.name for option in available],
-                toward=success_when or _what_there_is_to_aim_at(laid_out),
-                approach=held_line,
-                world=world,
-            )
-            if exposed and ahead:
-                worths = [value for value, _why in ahead.values()]
-                spread = max(worths) - min(worths)
-                lean = whether_to_take_the_wide_option(
-                    max(0.0, ends_at - time.monotonic()) / max(1e-9, ends_at - began),
-                    _how_it_has_been_going(began_at, laid_out),
-                )
-                if spread > 0.0 and lean:
-                    ahead = {
-                        name: (value + lean * spread * exposed.get(name, 0.0), why)
-                        for name, (value, why) in ahead.items()
-                    }
-                    logger.info(
-                        "the world could swing this; leaning %+.2f: %s",
-                        lean,
-                        ", ".join(
-                            f"{name} {share:.2f}"
-                            for name, share in sorted(
-                                exposed.items(), key=lambda pair: -pair[1]
-                            )[:4]
-                        ),
-                    )
-            # What she is aiming at, where it names a number or a band.
-            #
-            # "More is better" is true of some goals and quietly false of many:
-            # a load high enough to be worth running and low enough to survive,
-            # a bid over one number and under another. Overshooting looks like
-            # success right up to the moment it is a disaster, because the
-            # measure that says more says more all the way past the edge.
-            if ahead and aiming_at:
-                numbers = [
-                    float(one)
-                    for one in re.findall(r"-?\d+(?:\.\d+)?", str(aiming_at))
-                ][:2]
-                if len(numbers) == 2 and numbers[0] < numbers[1]:
-                    band = AWindow(at_least=numbers[0], at_most=numbers[1])
-                    landing = which_act_lands_in_it(
-                        list(ahead),
-                        now=0.0,
-                        what_it_moves=lambda one: ahead[one][0],
-                        window=band,
-                    )
-                    if landing and not landing[0][2]:
-                        ahead = {landing[0][0]: ahead[landing[0][0]]}
-                elif len(numbers) == 1:
-                    # A bar rather than a band: which most often clears it,
-                    # which is not the same as which averages best.
-                    took = the_one_most_likely_to_do(
-                        {one: [worth] for one, (worth, _why) in ahead.items()},
-                        needs=numbers[0],
-                    )
-                    if took is not None and took.clears_it > 0:
-                        ahead = {took.name: ahead[took.name]}
-
-            # And where the move she wants is not one she may make, something
-            # elsewhere that obliges the world to let her.
-            if wont and ahead:
-                blocked = [one for one in ahead if one in wont]
-                if blocked:
-                    round_it = a_way_round(
-                        blocked[0],
-                        allowed=lambda one: one not in wont,
-                        elsewhere=[option.name for option in available],
-                        they_must_answer=lambda one: float(ahead.get(one, (0.0, ""))[0]),
-                        after_they_answer=lambda one: None,
-                        worth_of_the_fight=0.0,
-                    )
-                    if round_it.found and round_it.spend_a_turn_on in ahead:
-                        logger.info("cannot take %s — %s", blocked[0], round_it.describe())
-
-            # And a routine move in a fast loop does not always need words.
-            #
-            # What a thought is worth here, rather than how long since the
-            # last one. A counter cannot tell a forced move from the one that
-            # decides the shape of the next thirty, so it spends the same on
-            # both and is wrong about both.
-            # What has worked before from a position of this kind, if anything.
-            #
-            # Recognition is what frees her from deciding. Where it disagrees
-            # with the arithmetic, that disagreement is the surest sign this
-            # position is not the routine one it looked like, and it buys a
-            # thought rather than saving one.
-            kind = laid_out.as_shape() if laid_out is not None else ""
-            # A mark where she has been, so a place is recognised rather than
-            # recalled — and so the way back is on the ground.
-            if kind:
-                marks.she_marked(kind, saying=aiming_at or goal)
-            # What she has learned about this KIND of situation, where the
-            # world is the sort that repeats. Where it is dealt fresh, a fact
-            # about one place is noise she would be storing at her own
-            # expense, and the ordering falls back to what it was.
-            if kind and beats.against and repeats.worth_remembering_places():
-                liked = [
-                    one
-                    for one, _how, tried in beats.in_order(
-                        [option.name for option in available], against=kind
-                    )
-                    if tried
-                ]
-                if liked:
-                    order = {name: at for at, name in enumerate(liked)}
-                    available = sorted(
-                        available, key=lambda one: order.get(one.name, len(order))
-                    )
-            recognised = (
-                skilled.suggests(kind, tuple(option.name for option in available))
-                if kind
-                else ""
-            )
-            asking, because_of = worth_a_pass(
-                ahead,
-                stakes=weight,
-                since_words=len(moves) - asked["at"],
-                horizon=LANGUAGE_EVERY,
-                unusual=unusual or not moves or restarts["count"] > asked["after_restarts"],
-                recognised=recognised,
-                # How far she can trust her own arithmetic here, which is how
-                # often the rule she is using has been right about this world.
-                how_sure=(
-                    knows.rules.confidence() if knows.rules is not None else 0.0
-                ),
-                # What a pass costs, in moves not made, from this run's own
-                # clock. Live on a resident model it was about ten.
-                costs_moves=_a_pass_in_moves(costs),
-            )
-            if recognised and not asking:
-                skilled.took(kind)
-            if asking != last_call["asked"] or last_call["why"] != because_of:
-                last_call.update({"asked": asking, "why": because_of})
-                logger.info("%s: %s", "thinking about this one" if asking else "no need to think", because_of)
-            if asking:
-                asked["at"] = len(moves)
-                asked["after_restarts"] = restarts["count"]
-            thinking_from = time.monotonic()
-            chosen = await deliberate(
-                goal,
-                seen,
-                available,
-                foresight=ahead or None,
-                seeing=laid_out,
-                think=_within_the_run(think or _her_reasoning(weight), ends_at) if asking else None,
-                knowledge=learned,
-                history=history[-RECENT_ATTEMPTS:],
-                stakes=stakes,
-                control_point="screen_pursuit.next_move",
-                # Her plan reaches the moves she does not put into words,
-                # which is most of them.
-                approach=plan["held"].approach if plan["held"] is not None else "",
-                lived=lived,
-                spine=spine,
-                graph=graph,
-                # Reported once, when the body acts, with the reasoning on it.
-                announce=False,
-            )
-            if asking:
-                costs["pass_s"] += time.monotonic() - thinking_from
-                costs["passes"] += 1.0
-            else:
-                costs["was_quiet"] = 1.0
-            if not chosen.reached:
-                # Stop rather than press something for no reason. A loop that
-                # keeps acting once its judgement is out of reach is the exact
-                # failure this decision path was built to end.
-                undecided["reason"] = chosen.reason
-                no_move["because"] = "she could not settle on one"
-                return None
-            key = chosen.chosen.name
-            because = chosen.rationale
-
-            if key in {SLOW_DOWN, SAY_LESS, PRESS_ON}:
-                # A decision about herself. It changes how the next moves are
-                # made rather than being one, so the cycle ends here and the
-                # next one acts on it.
-                pacing["choice"] = key
-                pacing["because"] = because
-                pacing["brief"] = key == SAY_LESS
-                if key == SLOW_DOWN:
-                    await let_the_voice_catch_up(behind)
-                    pacing["waits"] += 1
-                    # Chosen once and then re-decided as the gap changes,
-                    # rather than committing the rest of the run to one pace.
-                    pacing["choice"] = ""
-                no_move["because"] = "she chose a pace rather than a move"
-                return None
-
-            if key == SEE_IT_THROUGH:
-                # Chosen once. It says "stop offering me the way out", not
-                # "do something", so the loop carries on with the moves it has.
-                seen_through["value"] = True
-                seen_through["because"] = because
-                no_move["because"] = "she chose to see it through"
-                return None
-
-            if key == START_OVER:
-                # Not while there is something here she cannot get back.
-                #
-                # Starting over is the one act of hers that destroys what she
-                # has made. Everywhere else a bad move costs a move; here it
-                # costs the whole thing, and she reaches for it exactly when
-                # she is stuck — which is also when a position is at its most
-                # developed and worth the most.
-                #
-                # What is precious is not declared. Take a part of the thing
-                # away and ask whether what she is holding survives without
-                # it: a board's largest tile is what "the largest thing is at
-                # the far end" rests on, so losing it is losing the plan, and
-                # a board of small ones costs nothing to leave.
-                keeping = she_keeps.get("it")
-                if keeping is not None and laid_out is not None and available:
-                    precious = what_she_cannot_afford_to_lose(
-                        laid_out,
-                        holding=keeping.holds,
-                        parts_of=lambda one: list(getattr(one, "cells", ())),
-                        without=_the_same_thing_without,
-                    )
-                    others = [
-                        one.name for one in available if one.name != START_OVER
-                    ]
-                    if precious and others:
-                        # And how sure she would have to be, given what it
-                        # costs to be wrong. Starting over destroys what is
-                        # here; another move costs a move. Those are different
-                        # sizes, so the certainty needed is not a level — it
-                        # is the comparison.
-                        say_it = whether_to_say_it(
-                            how_sure=float(chosen.confidence),
-                            being_wrong_costs=float(len(precious)),
-                            another_look_costs=1.0,
-                            waiting_might_lose_it=(
-                                1.0 if responds["state"].nothing_answers() else 0.0
-                            ),
-                            what_it_is_worth=float(len(precious)),
-                        )
-                        if not say_it.now:
-                            logger.info(
-                                "not starting over: %d thing(s) she cannot get back "
-                                "(%s)",
-                                len(precious),
-                                say_it.describe(),
-                            )
-                            no_move["because"] = (
-                                "there is something here worth keeping"
-                            )
-                            return None
-                params = dict(chosen.chosen.params)
-                label = str(params.get("label") or "")
-                rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
-                frame = list(observation.get("bounds") or [])
-                # Always a reason, even when her wording was unusable. The
-                # filters drop an echo of the evidence, which is right, and a
-                # decision with no recorded reason is not much better than an
-                # unexplained one.
-                restarts["because"] = because or "nothing here was moving the board"
-                intending["value"] = START_OVER
-                history.clear()
-                was_showing = seen
-
-                async def begin_again() -> bool:
-                    clicked = await click_normalized(
-                        rx, ry, expect_app=target_app or anchor["app"], bounds=frame
-                    )
-                    if not clicked:
-                        return False
-                    # Deciding to start again is not starting again.
-                    #
-                    # The verdict that nothing answers was cleared when she
-                    # CHOSE to restart, so a click that landed on nothing left
-                    # her believing the world was fresh — and she went back to
-                    # pressing keys into a finished game. LIVE 2026-08-26:
-                    # "Nothing I do is changing anything here — this attempt is
-                    # over", and then "Going right", at a board reading Game
-                    # Over the whole time.
-                    #
-                    # A click reports success for having happened. Only the
-                    # screen can say whether it did anything.
-                    after = await observe()
-                    now_showing = within(after, responds["state"].band(), responds["state"])
-                    if now_showing.strip() == was_showing.strip():
-                        logger.info("the restart did not take — the screen is unchanged")
-                        return False
-                    restarts["count"] += 1
-                    responds["state"].began_again()
-                    logger.info("began again: %s", label or "restart")
-                    return True
-
-                return Step(name=f"begin again with {label!r}", action=begin_again)
-
-            # What she actually expects to see, when she knows how this moves.
-            #
-            # A move carries a claim, and the claim is what her being right
-            # gets measured by — the length of her plans, which part of the
-            # screen she believes answers to her, and what her moves are worth
-            # are all read off that verdict. The claim on offer was "the view
-            # will be different", which almost any keystroke satisfies: LIVE
-            # 2026-09-01 every move on a real board came back
-            # predicted='the view to be different after left', held=True, and
-            # holding meant nothing.
-            #
-            # She has a better claim available and was not making it. The rule
-            # she worked out by watching says what the arrangement becomes,
-            # exactly, and that claim can be wrong — which is the only kind
-            # worth checking, because being wrong about it is her model of
-            # this world being wrong.
-            foretold_by_the_rule = None
-            try:
-                foretold_by_the_rule = knows.rules.expect(laid_out, key)
-            except (AttributeError, TypeError, ValueError):
-                foretold_by_the_rule = None
-            if foretold_by_the_rule is not None:
-                from core.perception.how_it_moves import prediction_held
-
-                was = chosen.expected or chosen.chosen.expectation
-                chosen.expected = replace(
-                    was,
-                    becomes=foretold_by_the_rule,
-                    # Checked the way the rules themselves are scored, so a
-                    # tile the world deals does not read as her being wrong.
-                    becomes_holds=(
-                        lambda after, foretold=foretold_by_the_rule: prediction_held(
-                            foretold, knows.rules.the_thing(after)
-                        )
-                    ),
-                    describes=(
-                        was.describes
-                        or f"the thing to become what {key} makes of it"
-                    ),
-                )
-            pending["deliberation"] = chosen
-            pending["before"] = seen
-            pending["arranged"] = laid_out
-            pending["whole"] = whole
-            # Kept whole for the comparison that finds where she has effects,
-            # which cannot use a band it has not worked out yet.
-            pending["watched"] = observation
-
-        # The first move is recorded when it lands, like every other one.
-        #
-        # Written here, before the body was asked to do anything, it counted
-        # whether or not the keystroke reached a window. LIVE 2026-08-26:
-        # thirty-five moves in the record, a board that had not changed once,
-        # and no correction said out loud — because only the FOLLOW-ONS of a
-        # sequence were written from what landed, and a plan of one has no
-        # follow-ons.
-        about_to = {"key": key, "because": because, "at": time.time()}
-        # Nothing is said here on purpose.
-        #
-        # Every decision is published to the deliberation stream as it is
-        # made, and a narrator — if one is running — speaks about it on its
-        # own schedule. Saying the line inline made the next move wait on
-        # language, which is backwards: she should be able to play at full
-        # speed and describe it, play silently, or narrate something else
-        # entirely, and the loop should read the same in all three cases.
-
-        made = pending["deliberation"]
-        named = [option.name for option in getattr(made, "then", ()) or ()] if made else []
-        # And where she named no sequence, one taken on the model instead.
-        expected["after"], expected["took"] = None, 0
-        foresee = _expects(knows)
-        choices = [option.name for option in available]
-
-        def pick(board: Any, names: Sequence[str]) -> str:
-            ahead_now = look_ahead(
-                knows.rules, board, list(names),
-                toward=aiming_at, approach=held_line,
-                budget_s=0.05, world=world, weights=matters.weights(),
-            )
-            return max(ahead_now, key=lambda one: ahead_now[one][0]) if ahead_now else ""
-
-        # A sequence she cannot carry from one step to the next is a list of
-        # alternatives, not a plan.
-        follow_on = a_run_she_can_carry(
-            named,
-            foresee(pending["arranged"], key)
-            if (foresee is not None and pending["arranged"] is not None)
-            else None,
-            foresee,
-            pick,
-            choices,
-            int(getattr(responds["state"], "acts", 0) or 0),
-            int(getattr(responds["state"], "effective", 0) or 0),
-        )
-        if not follow_on and foresee is not None and pending["arranged"] is not None:
-            going = far.how_many(trusted=float(knows.rules.confidence()))
-            if going > 1:
-                follow_on, _ = _the_rest_of_the_run(
-                    key,
-                    pending["arranged"],
-                    foresee,
-                    choices,
-                    pick,
-                    going,
-                )
-                if follow_on:
-                    logger.info(
-                        "going %d without looking (%s)",
-                        len(follow_on) + 1,
-                        far.describe(),
-                    )
-        # How many acts the next reading will be the result of, and what she
-        # expects it to be. Said once, for both ways a run gets made.
-        #
-        # This used to be counted only for the run she built herself from the
-        # model. A deliberation that named its own sequence left it at one
-        # while four keys went out — so the guard that refuses to learn from
-        # several acts and one reading never fired, and every pair the learner
-        # was handed named an act that did not produce it.
-        #
-        # LIVE 2026-09-04 on the real board: four keys a cycle, nine
-        # comparisons kept, and the best hypothesis right once. The board was
-        # being read perfectly the whole time; the learner was being told the
-        # wrong question.
-        expected["took"] = len(follow_on) + 1
-        if foresee is not None and pending["arranged"] is not None:
-            # Folded over the whole run, because a claim about one act is not
-            # a claim about the board she will actually be looking at.
-            where: Any = pending["arranged"]
-            for step in (key, *follow_on):
-                where = foresee(where, step)
-                if where is None:
-                    break
-            expected["after"] = where
-        logger.info(
-            "about to press %r then %s (brief=%s, made=%s)",
-            key,
-            follow_on,
-            pacing["brief"],
-            made is not None,
-        )
-
-        async def act() -> bool:
-            # Said after the body did it, never before.
-            #
-            # The line has to correspond to what actually happened. Announcing
-            # a decision announces an intention: a keystroke refused for focus,
-            # or sent to the wrong window, would have been described as a move
-            # she made. What she says she did is now what her body did, in the
-            # order it did it.
-            # One call for the whole sequence she settled on.
-            #
-            # Looking and deciding cost about three seconds; the keystroke
-            # itself costs a third of one, and spawning the automation is most
-            # of that. A run that re-reads the board between every key of a
-            # pattern it has already chosen pays the whole cycle per move —
-            # measured live, about one move every three seconds, where a
-            # person plays several a second.
-            # Saying less is about her mouth, not her hands.
-            #
-            # Choosing it collapsed every committed sequence to a single key
-            # for the rest of the run, so one decision about commentary cost
-            # her all multi-move play: measured live 2026-08-26, forty-eight
-            # cycles that had committed to two to four moves each produced
-            # fifty-three moves between them, one screen reading apiece.
-            sequence = [key, *follow_on] if follow_on else [key]
-            started_acting = time.monotonic()
-            # Before the body moves: is this where she should be.
-            #
-            # Everything that asked this before asked the machine — is the
-            # right application frontmost, what window was the reading scoped
-            # to, what address does the browser report. All of that can be
-            # perfectly true while she types into the wrong thing, because a
-            # reading scoped to the right application contains whatever that
-            # application is showing, and after a stray click that is a
-            # different page.
-            #
-            # She can see the screen, so she answers it the way anybody does:
-            # the thing she is acting in is the thing whose places she has
-            # been acting on, and she is holding those places.
-            here = where_am_i(laid_out, lattice=lattice, asked_for=goal)
-            if not here.the_thing_is_here:
-                if narrate:
-                    _tell(here.said())
-                logger.info("not pressing anything: %s", here.said())
-                # And not being able to see it is evidence about the frame.
-                #
-                # Otherwise a frame worked out from a poor first glance locks
-                # her out of the thing for the rest of the run: every reading
-                # fails to be it, she declines to press, and nothing ever
-                # revises the frame that is doing the declining. Several in a
-                # row is the thing having changed rather than one bad look,
-                # which is the judgement the lattice already makes.
-                lattice.would_not_fit += 1
-                if lattice.has_changed():
-                    logger.info("the frame I was holding was not the thing after all")
-                    responds["lattice"] = TheLatticeSheHolds()
-                    responds["moving"] = MovesWithinItself()
-                if target_app:
-                    await _bring_the_thing_back_to_the_front(target_app)
-                pending["arranged"] = None
-                pending["whole"] = None
-                return None
-            # Intent, then action. Said before the body moves, because that is
-            # the order a person doing something narrates it in.
-            #
-            # Only the first one carries the reason she gave. The rest are
-            # the same decision continuing, and repeating its reason under
-            # each of them says something false: live, she committed to
-            # left-then-right and narrated "Going right — left has worked."
-            for position, step in enumerate(sequence):
-                reason = (None if pacing["brief"] else made) if position == 0 else None
-                # Under a quiet pace only the first of a sequence is spoken.
-                # The moves still happen; what she asked for is fewer words.
-                aloud = narrate and (position == 0 or not pacing["brief"])
-                _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
-            if len(sequence) > 1:
-                # Only the keys that really landed are spoken for. Focus can
-                # move part-way through a batch, and a commentary describing
-                # moves the window never received is the disconnect this
-                # whole path exists to avoid.
-                arrived = await press_many(sequence, expect_app=target_app or anchor["app"])
-            else:
-                arrived = 1 if await press(key, expect_app=target_app or anchor["app"]) else 0
-            for position, step in enumerate(sequence[:arrived]):
-                if position == 0:
-                    about_to["at"] = time.time()
-                    moves.append(about_to)
-                else:
-                    moves.append(
-                        {"key": step, "because": "part of the same plan", "at": time.time()}
-                    )
-                doing.a_step_taken()
-            for step in sequence[arrived:]:
-                # An intention she stated and did not carry out is corrected
-                # out loud. The record of what she did is written only from
-                # what landed, so the two can never drift.
-                _say_it_did_not_land(step, out_loud=narrate)
-            if arrived:
-                # Let the world answer before anything reads it again.
-                #
-                # There was no wait here at all. The keystroke returned, the
-                # loop came round, and the next reading was of a board
-                # mid-slide — or of one the game had not started moving yet.
-                # Compared with the reading before it, that says nothing
-                # happened.
-                #
-                # It is not a small error. Of what she had kept about playing
-                # this game on 2026-08-30, ninety-eight of a hundred acts were
-                # written down as having changed nothing, and the only rule
-                # she ever confirmed was "this does not move", ninety-eight
-                # times. She was playing correctly and recording the opposite,
-                # and every part of her that learns from what happened —
-                # which acts do anything, how the thing moves, where it
-                # answers her — was being taught from that.
-                came_to_rest, _ = await _settled_after(
-                    pending["watched"] or {},
-                    target_app or anchor["app"],
-                    arrived=_looks_like(
-                        expected["after"], responds["state"], responds["lattice"]
-                    ),
-                )
-                # Only a reading it actually took. Where every capture timed
-                # out it hands back the one it was given, and that is the
-                # picture from BEFORE the act — which as the next cycle's
-                # observation would be a move recorded against the board it
-                # was made from.
-                at_rest["reading"] = (
-                    came_to_rest if came_to_rest is not pending["watched"] else None
-                )
-                # How long she could not do anything else for, measured by
-                # doing it rather than guessed at.
-                busy.an_act_took(key, time.monotonic() - started_acting)
-                # Started and not yet seen to land.
-                if expected["after"] is not None:
-                    in_flight.she_started(
-                        key,
-                        at=started_acting,
-                        lands_at=time.monotonic() + _how_long_to_wait(),
-                        brings=str(expected["took"]),
-                    )
-                busy.the_world_moved(
-                    time.monotonic() - started_acting,
-                    times=1 if world.acts_with_arrivals else 0,
-                )
-            if arrived and pacing["choice"] == SLOW_DOWN:
-                await let_the_voice_catch_up(narration_backlog())
-            return arrived > 0
-
-        return Step(name=f"press {key}", action=act)
 
     # Get to where the task happens before looking at anything.
     #
@@ -5901,55 +1725,10 @@ def _tell(line: str) -> None:
         record_degradation("screen_pursuit", exc, severity="info", action="held a plan without saying it")
 
 
-def _say_intent(
-    key: str, chosen: Any = None, *, out_loud: bool = False, following_on: bool = False
-) -> None:
-    """Say what she is about to do, before her body does it.
-
-    A commentary that only ever reports finished moves is a log. Somebody
-    watching wants the intention and then the action, in that order, because
-    that is the order a person doing something narrates it in.
-
-    The reason this was ever the other way round is real and does not go
-    away: an intention is not an act, and a keystroke refused for focus would
-    be described as a move she made. So the intention is said here and the
-    body is watched afterwards — an intention that was not carried out is
-    corrected out loud by :func:`_say_it_did_not_land`, and the RECORD of
-    what she did is still written only from what landed.
-    """
-    said = f"Going {str(key).strip().lower()}"
-    # A reason she did not give does not erase the one she has.
-    #
-    # This read the other way round and the assignment was unconditional, so
-    # a choice carrying no rationale of its own — the ordinary case — wiped
-    # out "same plan" and left a bare keystroke. LIVE 2026-08-26: a whole
-    # game of "Going up", "Going down", with every reason she had for them
-    # discarded one line before it was said.
-    because = str(getattr(chosen, "rationale", "") or "") if chosen is not None else ""
-    if not because and following_on:
-        because = "same plan"
-    _publish_decision(said, because, _expected_of(chosen), chosen)
-    if out_loud:
-        _tell(f"{said} — {because}" if because else said)
 
 
-def _say_it_did_not_land(key: str, *, out_loud: bool = False) -> None:
-    """Say that what she meant to do did not happen.
-
-    Without this, saying the intention first would let the commentary drift
-    from the body the moment anything refused a keystroke — which is the
-    failure that put the narration after the act in the first place.
-    """
-    said = f"{str(key).strip().capitalize()} did not land"
-    _publish_decision(said, "the window did not take it", "", None)
-    if out_loud:
-        _tell(said)
 
 
-def _expected_of(chosen: Any) -> str:
-    option = getattr(chosen, "chosen", None)
-    expectation = getattr(option, "expectation", None)
-    return str(getattr(expectation, "describes", "") or "")
 
 
 def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> None:
@@ -5990,242 +1769,26 @@ def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> No
         record_degradation("screen_pursuit", exc, severity="info", action="acted without saying so")
 
 
-#: The longest a change has taken to appear, and how long a poll takes, both
-#: measured rather than chosen. Waiting is bounded by what this world has
-#: actually done, so a slow surface is waited for and a fast one is not.
-_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0}
-
-
-def _how_long_to_wait() -> float:
-    """How long to give the world to answer, from how long it has taken.
-
-    Nothing is chosen here. Before she has seen a change there is no
-    measurement, so the old default stands; after that it is a little more
-    than the longest one she has seen, which is what "long enough" means when
-    the thing being waited on is the same thing every time.
-    """
-    longest = _ANSWERING_TOOK["longest"]
-    return max(1.0, longest * 2) if longest else 4.0
-
-
-async def _settled_after(
-    before: dict[str, Any],
-    app: str,
-    *,
-    patience: float = 0.0,
-    arrived: Callable[[dict[str, Any]], bool] | None = None,
-) -> tuple[dict[str, Any], bool]:
-    """The screen once it has changed AND stopped changing, and whether it did.
-
-    An action that moves a surface is not done when the keystroke returns; it
-    is done when the surface says so. Waiting on the change rather than on a
-    fixed delay means a slow page is waited for and a fast one is not.
-
-    Waiting for it to stop as well as to start is the part that was missing.
-    A board mid-slide has half moved, and half a move is not a state any rule
-    describes: taken as the result of the move it disagrees with every
-    hypothesis, including the true one.
-
-    The second value is the part that matters. A click that lands on nothing
-    still reports success — the click happened — so a caller that only waits
-    goes on to claim a reset that never occurred. Measured live: "Began again
-    1 time(s)" while the score sat unchanged at 996 the whole time.
-    """
-    # Compared by WHERE things are, not by what words are on the screen.
-    #
-    # A thing sliding across a surface changes no text at all: the same
-    # numbers are there throughout, in different places. So a board mid-slide
-    # reads identical to the board before the move, the settle finished on
-    # the first look, and whatever was still travelling was read at wherever
-    # it had got to.
-    #
-    # LIVE 2026-09-04 on a correctly read four by four board: the row nearest
-    # the direction pressed came back unmoved, move after move, while every
-    # other row landed exactly where the rule said. The true rule sat at 59%
-    # of 29 — under the bar to be trusted, so nothing ever looked ahead, all
-    # game, on a board she was reading perfectly.
-    from core.perception.where_it_responds import places_and_text  # noqa: PLC0415
-
-    def _reading(observation: dict[str, Any]) -> tuple[Any, str]:
-        """Where things are, and what the whole reading says.
-
-        Positions alone miss a change that happens in place. A score going from
-        996 to 0 does not move anything, and the reset that produced it is
-        exactly what this function was written to notice — measured live,
-        "Began again 1 time(s)" while the score sat unchanged. Positions alone
-        also cannot be dropped: a board mid-slide has the same words in
-        different places, and comparing words alone calls that unchanged.
-        """
-        return places_and_text(observation), str(observation.get("text") or "")
-
-    was = _reading(before)
-    started = time.monotonic()
-    seen = before
-    moved = False
-    while time.monotonic() - started < (patience or _how_long_to_wait()):
-        await asyncio.sleep(0.3)
-        try:
-            now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
-        except TimeoutError:
-            continue
-        said = _reading(now)
-        if not moved and said != was:
-            moved = True
-            _ANSWERING_TOOK["longest"] = max(
-                _ANSWERING_TOOK["longest"], time.monotonic() - started
-            )
-            # Where she foretold the result, recognising it is knowing it has
-            # landed.
-            #
-            # Watching until it stops changing is what she has to do when she
-            # cannot say what the change will be. When she can, the arrival of
-            # exactly that is the same fact and costs one reading instead of
-            # two — and a reading is most of what a move costs. Measured on
-            # the real board: about four seconds a move, of which nearly two
-            # were the second look.
-            if arrived is not None:
-                try:
-                    if arrived(now):
-                        return now, True
-                except (AttributeError, TypeError, ValueError) as exc:
-                    record_degradation(
-                        "screen_pursuit", exc, severity="info",
-                        action="waited for stillness rather than for what she foretold",
-                    )
-        elif moved and said == _reading(seen):
-            # Changed, and now the same twice running: it has finished.
-            return now, True
-        seen = now
-    return seen, moved
 
 
 
-#: Words a dialog uses when it is asking whether you meant it.
-ASKING_TO_CONFIRM = ("are you sure", "do you want to", "confirm", "this will")
 
 
 
-def _where_it_asks(observation: dict[str, Any]) -> float | None:
-    """How far down the question sits, when something is asking one."""
-    for region in observation.get("layout") or []:
-        text = str(region.get("text") or "").strip().lower()
-        if any(phrase in text for phrase in ASKING_TO_CONFIRM):
-            try:
-                return float(region.get("center_y", region.get("y")))
-            except (TypeError, ValueError) as why:
-                # A region whose position will not parse is a region dropped
-                # from the reading, and the reading is what everything about
-                # the board is worked out from.
-                logger.info(
-                    "a region was dropped for an unreadable position: %s", why
-                )
-                return None
-    return None
 
 
-async def _answer_own_confirmation(
-    before: dict[str, Any], app: str, label: str
-) -> tuple[dict[str, Any], bool]:
-    """Finish a reset that asked "are you sure".
-
-    A consequential control usually asks. An agent that clicks it and walks
-    away leaves the question open and nothing happens — measured live: the
-    click on "New Game" landed correctly, play2048 asked "Are you sure you
-    want to start a new game?", and the score sat unchanged while the run
-    reported it had begun again.
-
-    The dialog's own button is found by the question, not by classifying the
-    dialog: whatever is asking sits next to the control that answers it, and
-    the control that answers is not the one already pressed. On that page the
-    question is "Are you sure you want to start a new game?" and the answer
-    is "Start New Game", directly below it.
-
-    Only ever done when she chose the action being confirmed, and only for a
-    control carrying the label she already decided to press.
-    """
-    seen, changed = await _settled_after(before, app)
-
-    # A change that is a question is not a completed action.
-    #
-    # The screen does change when a dialog opens, so "it changed" would have
-    # been read as "it worked" — and the run would carry on with the question
-    # still up and nothing actually done.
-    asked_at = _where_it_asks(seen)
-    if asked_at is None:
-        return seen, changed
-
-    pressed = _where_clicked(before, label)
-    best: tuple[float, float, float] | None = None
-    for region in seen.get("layout") or []:
-        text = str(region.get("text") or "").strip().lower()
-        if not any(word in text for word in RESTART_LABELS):
-            continue
-        try:
-            cx = float(region.get("center_x", region.get("x")))
-            cy = float(region.get("center_y", region.get("y")))
-        except (TypeError, ValueError):
-            continue
-        if pressed is not None and abs(cx - pressed[0]) < 0.02 and abs(cy - pressed[1]) < 0.02:
-            # The control she already pressed. Pressing it again re-asks.
-            continue
-        # The answer sits below the question and near it.
-        if cy <= asked_at:
-            continue
-        distance = cy - asked_at
-        if best is None or distance < best[0]:
-            best = (distance, cx, cy)
-
-    if best is None:
-        return seen, False
-    _distance, cx, cy = best
-    if not await click_normalized(cx, cy, expect_app=app, bounds=list(seen.get("bounds") or [])):
-        return seen, False
-    answered, moved = await _settled_after(seen, app)
-    # And it is only done when nothing is still asking.
-    return answered, bool(moved and _where_it_asks(answered) is None)
 
 
-def _where_clicked(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
-    """Where the control she pressed was, so it is not pressed again."""
-    found = restart_control(observation)
-    if found is None:
-        return None
-    _label, x, y = found
-    return (x, y)
 
 
-def _where(region: Any) -> tuple[str, float, float]:
-    """A text run's identity: what it says and roughly where it says it."""
-    try:
-        return (
-            str(region.get("text") or "").strip().lower(),
-            round(float(region.get("center_x", region.get("x", 0.0))), 2),
-            round(float(region.get("center_y", region.get("y", 0.0))), 2),
-        )
-    except (TypeError, ValueError, AttributeError):
-        return ("", 0.0, 0.0)
 
 
-async def _say_line(line: str) -> None:
-    """Hand one line to every surface a person might be watching. Never raises."""
-    try:
-        from core.agency.narrator import Narrator
-
-        Narrator.say_everywhere(line)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        await _narrate(line)
 
 
-async def _narrate(line: str, because: str = "") -> None:
-    """Offer one line to whatever surface is listening. Never raises."""
-    try:
-        from core.perception.ambient_presence import get_ambient_presence
 
-        get_ambient_presence().offer_utterance(
-            f"{line} — {because}" if because else line
-        )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        logger.debug("screen pursuit narration unavailable: %s", line)
+
+
+
 
 
 __all__ = [

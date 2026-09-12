@@ -12,6 +12,8 @@ written only from what landed.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit, pursuit_loop_source
+
 import pytest
 
 from core.skills import screen_pursuit as sp
@@ -72,13 +74,13 @@ def body(monkeypatch):
     def missed(key, *, out_loud=False):
         state["said"].append(f"{str(key).capitalize()} did not land")
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "press_many", press_many)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "_say_intent", intended)
-    monkeypatch.setattr(sp, "_say_it_did_not_land", missed)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "press_many", press_many)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "_say_intent", intended)
+    patch_pursuit(monkeypatch, "_say_it_did_not_land", missed)
 
     from core.agency import task_knowledge as tk
 
@@ -289,7 +291,7 @@ def test_the_decision_is_not_also_announced_separately():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "announce=False" in source
 
 

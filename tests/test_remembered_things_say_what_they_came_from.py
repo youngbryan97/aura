@@ -6,6 +6,8 @@ down about playing 2048 on this machine.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import json
 
 from core.agency.what_worked_before import WhatWorkedBefore
@@ -84,8 +86,7 @@ def test_the_pursuit_drops_the_whole_group_together() -> None:
     """All three were read through the same grid, so all three go together."""
     from core.skills import screen_pursuit
 
-    with open(screen_pursuit.__file__, encoding="utf-8") as handle:
-        text = handle.read()
+    text = pursuit_source()
     at = text.index("learned_through_a_different_reading()")
     near = text[at : at + 900]
     assert "skilled.forget_what_was_read_differently()" in near
@@ -98,8 +99,7 @@ def test_she_will_not_borrow_from_a_world_shaped_differently() -> None:
     this one, it is about something that is not here."""
     from core.skills import screen_pursuit
 
-    with open(screen_pursuit.__file__, encoding="utf-8") as handle:
-        text = handle.read()
+    text = pursuit_source()
     at = text.index("_no_more_than_a_fresh_one_is_worth(elsewhere")
     near = text[at - 900 : at]
     assert "read_through" in near

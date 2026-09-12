@@ -18,6 +18,8 @@ act, read again.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import asyncio
 
 import pytest
@@ -69,14 +71,14 @@ def screen(monkeypatch):
     async def to_the_front(_app=""):
         return True
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
     # The host stays out of this. Left real, these call the machine's window
     # server: three seconds a cycle, and applications brought to the front on
     # whatever desktop the suite happens to be running on.
-    monkeypatch.setattr(sp, "_frontmost", frontmost)
-    monkeypatch.setattr(sp, "_ensure_frontmost", ensure_frontmost)
-    monkeypatch.setattr(sp, "_bring_the_thing_back_to_the_front", to_the_front)
+    patch_pursuit(monkeypatch, "_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", ensure_frontmost)
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", to_the_front)
     return state
 
 
@@ -192,8 +194,8 @@ def test_a_wedged_capture_ends_the_cycle_rather_than_acting_blind(monkeypatch):
     async def hang(app_name="", over=None):
         await asyncio.sleep(30)
 
-    monkeypatch.setattr(sp, "read_screen", hang)
-    monkeypatch.setattr(sp, "OBSERVE_TIMEOUT_S", 0.05)
+    patch_pursuit(monkeypatch, "read_screen", hang)
+    patch_pursuit(monkeypatch, "OBSERVE_TIMEOUT_S", 0.05)
 
     called: list[str] = []
 
@@ -362,9 +364,9 @@ def _blocked_screen(monkeypatch, labels, *, tiles_after_clear=True):
         state["cleared"] = True
         return True
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "click_normalized", click)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "click_normalized", click)
     return state
 
 
@@ -480,8 +482,8 @@ def _nothing_above_her_work(monkeypatch):
     async def on_top(_mine, over=None):
         return ""
 
-    monkeypatch.setattr(sp, "_everything_on_top", above, raising=False)
-    monkeypatch.setattr(sp, "_whats_on_top", on_top, raising=False)
+    patch_pursuit(monkeypatch, "_everything_on_top", above, raising=False)
+    patch_pursuit(monkeypatch, "_whats_on_top", on_top, raising=False)
 
     # And the wait for the screen to answer.
     #
@@ -492,7 +494,7 @@ def _nothing_above_her_work(monkeypatch):
     # for a test about what the loop decides. Shortened, not removed — the
     # waiting is the behaviour, and a test that skipped it would pass on a
     # loop that had stopped waiting.
-    monkeypatch.setattr(sp, "_how_long_to_wait", lambda: 0.05)
+    patch_pursuit(monkeypatch, "_how_long_to_wait", lambda: 0.05)
 
     # And the host, for every test in this file rather than for the ones that
     # remembered. A test naming a target application sent the loop to bring
@@ -508,10 +510,9 @@ def _nothing_above_her_work(monkeypatch):
     async def to_the_front(_app=""):
         return True
 
-    monkeypatch.setattr(sp, "_frontmost", frontmost, raising=False)
-    monkeypatch.setattr(sp, "_ensure_frontmost", ensure_frontmost, raising=False)
-    monkeypatch.setattr(
-        sp, "_bring_the_thing_back_to_the_front", to_the_front, raising=False
+    patch_pursuit(monkeypatch, "_frontmost", frontmost, raising=False)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", ensure_frontmost, raising=False)
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", to_the_front, raising=False
     )
 
     # And the wait for a screen that is not locked.
@@ -525,8 +526,7 @@ def _nothing_above_her_work(monkeypatch):
     async def a_screen_is_there(_ends_at):
         return True
 
-    monkeypatch.setattr(
-        sp, "wait_for_a_screen_to_look_at", a_screen_is_there, raising=False
+    patch_pursuit(monkeypatch, "wait_for_a_screen_to_look_at", a_screen_is_there, raising=False
     )
 
 
@@ -557,8 +557,8 @@ def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
         state["pressed"].append(key)
         return True  # succeeds, and changes nothing — the live case
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
 
     result = asyncio.run(
         sp.pursue_on_screen(

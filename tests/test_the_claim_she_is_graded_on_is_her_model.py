@@ -15,6 +15,8 @@ wrong, which is the only kind worth checking.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import pytest
 
 from core.agency.deliberate_action import Expectation
@@ -79,7 +81,7 @@ def test_a_checker_that_raises_does_not_call_her_wrong() -> None:
 def test_the_pursuit_loop_attaches_the_rule_to_the_claim() -> None:
     from pathlib import Path
 
-    source = Path("core/skills/screen_pursuit.py").read_text(encoding="utf-8")
+    source = pursuit_source()
     assert "knows.rules.expect(laid_out, key)" in source
     assert "becomes_holds=" in source
     # Scored the way the rules themselves are, so a dealt tile is not her error.

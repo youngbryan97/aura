@@ -16,6 +16,8 @@ than things that happen to her.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import pytest
 
 from core.runtime.stuck_detector import Remedy
@@ -104,11 +106,11 @@ def screen(monkeypatch):
     async def identity():
         return {"url": "https://play2048.co/", "title": "2048", "error": ""}
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "click_normalized", click)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "click_normalized", click)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
     return state
 
 

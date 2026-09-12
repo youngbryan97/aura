@@ -11,6 +11,8 @@ companion mode repeated one line for fifty-two seconds.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 
 import pytest
@@ -94,5 +96,5 @@ def test_the_difference_is_said_in_her_own_evidence():
 def test_the_loop_tells_the_check_what_it_is_aiming_at():
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "toward=success_when" in source

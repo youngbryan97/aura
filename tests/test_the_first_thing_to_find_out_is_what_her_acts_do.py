@@ -11,6 +11,8 @@ nothing anywhere said why.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.agency.looking_ahead import worth_finding_out
 
 ACTS = ["up", "down", "left", "right"]
@@ -59,7 +61,7 @@ def test_the_pursuit_names_the_acts_she_has_not_taken():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("telling = worth_finding_out(")
     nearby = source[at : at + 600]
     assert "never_tried=[" in nearby

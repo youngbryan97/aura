@@ -12,6 +12,8 @@ is a decision and not a rule.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit, pursuit_loop_source
+
 import pytest
 
 from core.skills import screen_pursuit as sp
@@ -102,15 +104,15 @@ def body(monkeypatch):
     async def catch_up(before, patience=4.0):
         state["backlog"] = 0
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "press_many", press_many)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "_say_intent", said)
-    monkeypatch.setattr(sp, "_say_it_did_not_land", lambda key, *, out_loud=False: None)
-    monkeypatch.setattr(sp, "narration_backlog", lambda: {"waiting": state["backlog"]})
-    monkeypatch.setattr(sp, "let_the_voice_catch_up", catch_up)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "press_many", press_many)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "_say_intent", said)
+    patch_pursuit(monkeypatch, "_say_it_did_not_land", lambda key, *, out_loud=False: None)
+    patch_pursuit(monkeypatch, "narration_backlog", lambda: {"waiting": state["backlog"]})
+    patch_pursuit(monkeypatch, "let_the_voice_catch_up", catch_up)
 
     from core.agency import task_knowledge as tk
 
@@ -249,7 +251,7 @@ def test_a_routine_move_is_treated_as_routine():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "min(stakes, 0.3)" in source, "every step was being paid for at full weight"
     where = source.index("min(stakes, 0.3)")
     assert "stuck(history)" in source[max(0, where - 300) : where], (
@@ -322,7 +324,7 @@ def test_language_is_asked_where_it_changes_the_answer():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     # Asserted as the property. This read the inline condition by the name
     # "asking = (" and looked for LANGUAGE_EVERY inside it; the condition was
     # renamed and its cadence moved into a helper, and the test failed for a
@@ -436,7 +438,7 @@ def test_a_pivot_is_immediate_and_a_first_attempt_is_not_retried_every_move():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     where = source.index("time_to_ask = (")
     condition = source[where : where + 300]
     assert 'plan["held"] is not None' in condition, "a real pivot is answered at once"

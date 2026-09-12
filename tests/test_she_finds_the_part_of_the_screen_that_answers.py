@@ -10,6 +10,8 @@ Nothing on the page says which part is the task. Something about her does.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.perception.where_it_responds import (
     ENOUGH_ACTS,
     Responsive,
@@ -117,7 +119,7 @@ def test_the_loop_reasons_from_the_part_that_answers():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "seen = within(observation, band, responds[" in source
     # Learned from the same measurement that grades the move, so the control
     # is the move that had no effect.
@@ -161,7 +163,7 @@ def test_the_loop_offers_a_way_out_when_the_thing_has_ended():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     where = source.index("ended = responds[")
     block = source[where : where + 300]
     assert "nothing_answers()" in block

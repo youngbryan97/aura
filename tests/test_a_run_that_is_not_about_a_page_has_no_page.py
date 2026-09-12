@@ -13,13 +13,15 @@ belongs to, and had never been applied to the page.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import ast
 import inspect
 import textwrap
 
 from core.skills import screen_pursuit
 
-SOURCE = inspect.getsource(screen_pursuit.pursue_on_screen)
+SOURCE = pursuit_loop_source()
 BEARINGS = inspect.getsource(screen_pursuit._take_the_run_its_bearings)
 
 

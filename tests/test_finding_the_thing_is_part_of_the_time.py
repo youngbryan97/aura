@@ -7,10 +7,12 @@ has room to report — and reported to the person as "Completed 0/0 steps".
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import re
 from pathlib import Path
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 
 
 def test_the_clock_starts_before_the_page_is_found():

@@ -7,6 +7,8 @@ run, because while that verdict stood she was only ever offered the ways out.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_function_source, pursuit_source
+
 from core.perception.where_it_responds import Responsive
 
 
@@ -49,8 +51,14 @@ def test_it_can_die_again_afterwards():
 
 from pathlib import Path  # noqa: E402
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
-RESTART = SOURCE[SOURCE.index("async def begin_again") : SOURCE.index("async def begin_again") + 1600]
+SOURCE = pursuit_source()
+# The decision, on its own. Ordering has to be read inside one function: the
+# concatenated pursuit holds several modules now, and an index comparison
+# across them compares where two files happen to sit.
+DECISION = pursuit_function_source("decide_the_next_move")
+RESTART = DECISION[
+    DECISION.index("async def begin_again") : DECISION.index("async def begin_again") + 1600
+]
 
 
 def test_the_verdict_is_not_cleared_when_she_merely_decides_to_restart():
@@ -59,9 +67,9 @@ def test_the_verdict_is_not_cleared_when_she_merely_decides_to_restart():
     # began_again in it, which belongs to the branch that gets her window
     # back after something covered it — a different repair, hundreds of lines
     # earlier — so the ordering this protects was never being read at all.
-    decides = SOURCE.index('intending["value"] = START_OVER')
-    clicks = SOURCE.index("clicked = await click_normalized(", decides)
-    clears = SOURCE.index('responds["state"].began_again()', decides)
+    decides = DECISION.index('intending["value"] = START_OVER')
+    clicks = DECISION.index("clicked = await click_normalized(", decides)
+    clears = DECISION.index('responds["state"].began_again()', decides)
     assert decides < clicks < clears
 
 
