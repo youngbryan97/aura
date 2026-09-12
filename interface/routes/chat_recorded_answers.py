@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import uuid
 from typing import Any
 
@@ -69,7 +70,6 @@ from interface.routes.chat_turn_evidence import (  # noqa: E402,F401
     _worker_receipt_transaction_id,
 )
 
-from .chat import _SERVED_COUNT_OPENING, _SERVED_FROM_RECORD_OPENINGS, _SERVED_TABULAR_OPENING
 from .chat_lane_bookkeeping import (  # noqa: E402
     _finalize_regenerated_reply_write,
     _schedule_late_regeneration_finalizer,
@@ -88,7 +88,7 @@ from .chat_own_source import (
     _explains_the_finding,  # noqa: F401
     _serve_repo_diagnosis,
     _turn_asks_where_that_came_from,  # noqa: F401
-    )
+)
 from .chat_reply_shaping import (  # noqa: E402
     _correct_false_capability_denials,
 )
@@ -104,6 +104,30 @@ from .chat_served_answers import (  # noqa: E402
     _serve_solved_game,
     _serve_tabular_answer,
     _serve_worked_out_sequence,
+)
+
+#: Openings the served-fact composers use. A reply that begins with one of
+#: these was read off a record rather than generated, whatever the draft it
+#: replaced scored.
+_SERVED_FROM_RECORD_OPENINGS = (
+    "Earlier today you asked me:",
+    "My record holds",
+    "Positions I have actually revised",
+    # The trailing space is load-bearing: it is the word boundary that keeps
+    # "Awake 61.6 days" in and "Awakening" out.
+    "Awake ",
+)
+#: The queued-work answer opens with a count, so it is recognised by shape.
+_SERVED_COUNT_OPENING = re.compile(r"^\d+\s+jobs?\s+waiting\s+to\s+run\b")
+#: The tabular answer opens "By <column>, <aggregation> <column> ... (N of M
+#: rows):". It used to be recognised by the prefix "By " alone, which is two
+#: letters of ordinary English — "By the way", "By default the timeout is
+#: 30s". A generated reply opening that way was read as a served record and
+#: therefore not badged as a guess, which is the wrong direction for a mistake
+#: to run. The row count the composer always emits is what no ordinary
+#: sentence carries.
+_SERVED_TABULAR_OPENING = re.compile(
+    r"^By \S[^\n,]*,[^\n]*\(\d+ of \d+ rows\):"
 )
 
 

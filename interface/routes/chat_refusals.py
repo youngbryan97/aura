@@ -62,16 +62,70 @@ from interface.routes.chat_turn_evidence import (  # noqa: E402,F401
     _worker_receipt_transaction_id,
 )
 
-from .chat import (
-    _A_PROOF_ABOUT_THE_BOOKKEEPING,
-    _BLOCKER_IN_WORDS,
-    _THE_ANSWER_ITSELF_IS_UNFINISHED,
-)
 from .chat_lane_bookkeeping import (  # noqa: E402
     _mark_conversation_lane_state,
 )
 from .chat_reply_shaping import (  # noqa: E402
     _append_turn_text_mutation,
+)
+
+#: Internal names for the things that keep her from answering, and what each
+#: of them means to the person waiting.
+_BLOCKER_IN_WORDS: tuple[tuple[str, str], ...] = (
+    ("worker_not_alive", "My mind is still starting up."),
+    ("model_not_loaded", "My mind is still loading."),
+    ("warmup", "I am still warming up."),
+    ("cortex", "My main reasoning is still coming online."),
+    ("foreground_owner", "I am still finishing something else."),
+    ("recovery", "I am recovering from a problem a moment ago."),
+    ("memory", "I am still loading what I remember."),
+)
+#: Proofs that say the ANSWER is unfinished, as opposed to the bookkeeping.
+#:
+#: `chat_turn_contract` makes this distinction in a comment and nothing acted
+#: on it: "one of them is not a statement about the answer at all". A draft cut
+#: off mid-clause or judged semantically short is a reason to withhold what she
+#: wrote. A retry counter reaching its limit, or a receipt nobody bound, is a
+#: reason to say so — not to replace her answer with an apology.
+_THE_ANSWER_ITSELF_IS_UNFINISHED = (
+    "authored_answer_incomplete:generation_cut_off",
+    "authored_answer_incomplete:semantically_short",
+    "authored_answer_incomplete:semantic_contract_unmet",
+    "authored_answer_incomplete",
+    "final_output_contract_unsatisfied",
+    "latent_cortex_output_quality_unproven",
+    # Her mind did not answer, or its answer was refused. Whatever text is in
+    # hand did not come from the turn this contract is about.
+    "engine_think_not_invoked",
+    "engine_reply_not_accepted",
+    "engine_reply_failed",
+)
+#: Proofs about a RECEIPT — who owned the generation, whether a snapshot was
+#: bound, whether anybody checked. None of them is a statement that the text is
+#: wrong, so none is a reason to replace what she wrote with an apology.
+#:
+#: Prefixes, because three of these names carry a suffix naming which of
+#: several conditions failed, and the set they were matched against held the
+#: bare form. `live_mind_controls_unbound:not_applied` never matched
+#: `live_mind_controls_unbound`, so it fell through to "withhold" — and
+#: `live_mind_snapshot_unbound` was listed here while the contract emits
+#: `live_mind_snapshot_not_ready`, so that entry had never matched anything at
+#: all.
+_A_PROOF_ABOUT_THE_BOOKKEEPING = (
+    "authored_answer_incomplete:retry_exhausted",
+    "authored_answer_incomplete:nobody_checked",
+    "live_mind_controls_unbound",
+    "architecture_context_unbound",
+    "live_mind_snapshot_not_ready",
+    # LIVE, 2026-09-08: this is the one that fired. A 2,826-character answer,
+    # on topic, high confidence, `assessment=ok`, was replaced by "I couldn't
+    # get my full attention onto that one" because nothing had recorded WHICH
+    # lane owned the generation. That is a receipt about provenance and says
+    # nothing about the text.
+    "foreground_model_generation_ownership_unproven",
+    "latent_cortex_path_unproven",
+    "qualified_recurrent_path_unproven",
+    "final_output_contract_not_evaluated",
 )
 
 

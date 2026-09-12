@@ -58,7 +58,6 @@ from interface.routes.chat_self_reply import (  # noqa: E402,F401
     _same_live_self_reflection_prompt_class,
 )
 
-from .chat import _EXPLANATION_CHARS
 from .chat_desktop_evidence import (  # noqa: E402
     _extract_repo_probe_request,
 )
@@ -82,6 +81,9 @@ from .chat_reply_shaping import (  # noqa: E402
     _append_turn_text_mutation,
     _readable_result,
 )
+
+#: Below this a reply is a remark, not an account of what was found.
+_EXPLANATION_CHARS = 200
 
 _REPO_PROBE_MAX_BYTES = 2 * 1024 * 1024
 

@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 145896,
+  "oversize_budget_lines": 145765,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3959,
@@ -14,32 +14,32 @@
       "max_class_methods": 37
     },
     "core/affect/damasio_v2.py": {
-      "lines": 1599,
-      "max_class_methods": 37
+      "lines": 1484,
+      "max_class_methods": 33
     },
     "core/agency/agency_core.py": {
       "lines": 3686,
       "max_class_methods": 57
     },
     "core/agency/autonomous_task_engine.py": {
-      "lines": 3342,
-      "max_class_methods": 72
+      "lines": 3011,
+      "max_class_methods": 56
     },
     "core/agency/task_commitment_verifier.py": {
       "lines": 1405,
-      "max_class_methods": 37
+      "max_class_methods": 35
     },
     "core/autonomic/allostasis.py": {
       "lines": 2274,
       "max_class_methods": 43
     },
     "core/autonomy/autonomous_initiative_loop.py": {
-      "lines": 1874,
-      "max_class_methods": 44
+      "lines": 1563,
+      "max_class_methods": 35
     },
     "core/brain/cognitive_engine.py": {
       "lines": 5702,
-      "max_class_methods": 66
+      "max_class_methods": 57
     },
     "core/brain/frontier_evidence_v5.py": {
       "lines": 2102,
@@ -51,11 +51,11 @@
     },
     "core/brain/inference_gate.py": {
       "lines": 12965,
-      "max_class_methods": 188
+      "max_class_methods": 151
     },
     "core/brain/latent_cortex_service.py": {
-      "lines": 5866,
-      "max_class_methods": 29
+      "lines": 4161,
+      "max_class_methods": 24
     },
     "core/brain/llm/context_assembler.py": {
       "lines": 2837,
@@ -106,8 +106,8 @@
       "max_class_methods": 32
     },
     "core/brain/llm/mlx_client.py": {
-      "lines": 15423,
-      "max_class_methods": 165
+      "lines": 15349,
+      "max_class_methods": 158
     },
     "core/brain/llm/mlx_worker.py": {
       "lines": 8783,
@@ -115,7 +115,7 @@
     },
     "core/brain/llm_health_router.py": {
       "lines": 4684,
-      "max_class_methods": 52
+      "max_class_methods": 42
     },
     "core/brain/personality_engine.py": {
       "lines": 1605,
@@ -127,7 +127,7 @@
     },
     "core/capabilities/host_automation.py": {
       "lines": 1726,
-      "max_class_methods": 32
+      "max_class_methods": 31
     },
     "core/capabilities/web_interlocutor.py": {
       "lines": 4781,
@@ -135,7 +135,7 @@
     },
     "core/capability_engine.py": {
       "lines": 7404,
-      "max_class_methods": 122
+      "max_class_methods": 115
     },
     "core/cognition/paraconsistent_logic.py": {
       "lines": 836,
@@ -154,16 +154,16 @@
       "max_class_methods": 32
     },
     "core/consciousness/affective_steering.py": {
-      "lines": 2640,
-      "max_class_methods": 19
+      "lines": 2627,
+      "max_class_methods": 16
     },
     "core/consciousness/liquid_substrate.py": {
-      "lines": 1844,
-      "max_class_methods": 48
+      "lines": 1507,
+      "max_class_methods": 36
     },
     "core/consciousness/neural_mesh.py": {
       "lines": 1459,
-      "max_class_methods": 38
+      "max_class_methods": 32
     },
     "core/consciousness/neurochemical_system.py": {
       "lines": 1141,
@@ -172,10 +172,6 @@
     "core/consciousness/phi_core.py": {
       "lines": 2939,
       "max_class_methods": 56
-    },
-    "core/consciousness/unified_field.py": {
-      "lines": 1407,
-      "max_class_methods": 32
     },
     "core/container.py": {
       "lines": 1666,
@@ -194,8 +190,8 @@
       "max_class_methods": 39
     },
     "core/executive/authority_gateway.py": {
-      "lines": 2388,
-      "max_class_methods": 52
+      "lines": 2171,
+      "max_class_methods": 44
     },
     "core/executive/executive_core.py": {
       "lines": 1636,
@@ -242,8 +238,8 @@
       "max_class_methods": 13
     },
     "core/memory/episodic_memory.py": {
-      "lines": 2233,
-      "max_class_methods": 54
+      "lines": 2117,
+      "max_class_methods": 51
     },
     "core/memory/knowledge_graph.py": {
       "lines": 871,
@@ -254,8 +250,8 @@
       "max_class_methods": 61
     },
     "core/mind_tick.py": {
-      "lines": 2390,
-      "max_class_methods": 26
+      "lines": 2070,
+      "max_class_methods": 21
     },
     "core/mycelium.py": {
       "lines": 4697,
@@ -263,7 +259,7 @@
     },
     "core/ontogeny/service.py": {
       "lines": 1027,
-      "max_class_methods": 34
+      "max_class_methods": 33
     },
     "core/orchestrator/main.py": {
       "lines": 3249,
@@ -275,19 +271,15 @@
     },
     "core/organism/model_validation.py": {
       "lines": 3136,
-      "max_class_methods": 10
-    },
-    "core/perception/ambient_presence.py": {
-      "lines": 1154,
-      "max_class_methods": 33
+      "max_class_methods": 8
     },
     "core/phases/response_generation.py": {
       "lines": 3217,
-      "max_class_methods": 24
+      "max_class_methods": 20
     },
     "core/phases/response_generation_unitary.py": {
-      "lines": 7821,
-      "max_class_methods": 102
+      "lines": 7725,
+      "max_class_methods": 90
     },
     "core/reality_reach/attachments.py": {
       "lines": 2298,
@@ -334,8 +326,8 @@
       "max_class_methods": 37
     },
     "core/runtime/runtime_hygiene.py": {
-      "lines": 2298,
-      "max_class_methods": 57
+      "lines": 2222,
+      "max_class_methods": 53
     },
     "core/runtime/settings_control_plane.py": {
       "lines": 1525,
@@ -346,20 +338,20 @@
       "max_class_methods": 34
     },
     "core/self_improvement/program_dna.py": {
-      "lines": 3005,
-      "max_class_methods": 55
+      "lines": 2756,
+      "max_class_methods": 44
     },
     "core/senses/voice_engine.py": {
       "lines": 2829,
       "max_class_methods": 82
     },
     "core/skills/computer_use.py": {
-      "lines": 4963,
-      "max_class_methods": 78
+      "lines": 4571,
+      "max_class_methods": 74
     },
     "core/skills/desktop_task.py": {
-      "lines": 6345,
-      "max_class_methods": 129
+      "lines": 6119,
+      "max_class_methods": 116
     },
     "core/skills/os_automation.py": {
       "lines": 1648,
@@ -386,7 +378,7 @@
       "max_class_methods": 33
     },
     "interface/routes/chat.py": {
-      "lines": 19158,
+      "lines": 12156,
       "max_class_methods": 6
     },
     "interface/routes/chat_memory_state.py": {
