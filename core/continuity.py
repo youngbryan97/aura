@@ -27,6 +27,7 @@ from core.state.aura_state import (
     _is_speculative_autonomy_label,
     _normalize_goal_text,
 )
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 _CONTINUITY_PATH: Path | None = None
@@ -115,7 +116,7 @@ def _persist_continuity_record(path: Path, record: "ContinuityRecord", source: s
     else:
         # A newer snapshot must never be overwritten by an older slow write.
         tails = _WRITE_TAILS.setdefault(loop, {})
-        task = loop.create_task(_deferred(tails.get(path)))
+        task = create_owned_asyncio_task(_deferred(tails.get(path)))
         tails[path] = task
         _PENDING_WRITES.add(task)
 

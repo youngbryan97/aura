@@ -213,12 +213,25 @@ class AstLinter(ast.NodeVisitor):
         #: through the gateway under a governed scope, and every one of its
         #: three call sites was reported as an unapproved direct write.
         self.functions_defined_here: set[str] = set()
+        #: The file's lines, for rules that read a reason written beside the
+        #: code rather than in a list somewhere else.
+        self._source_lines: list[str] = []
+        #: Names bound to a directory this scope created and will delete, and
+        #: the paths derived from them. A static checker writes a candidate
+        #: into one so a linter can read it; that file is gone before the
+        #: function returns, and the file write gateway exists to govern the
+        #: writes that are still there afterwards.
+        self._scratch_dirs: set[str] = set()
+        self._scratch_paths: set[str] = set()
 
     def add(self, severity: str, kind: str, node: ast.AST, message: str) -> None:
         if self.rel in EXEMPT_FILES:
             return  # Audited and exempted from strict lints
         if kind in {"unapproved_direct_subprocess", "unapproved_direct_network", "unapproved_direct_file_write", "raw_dynamic_code"}:
             if is_approved_direct_surface(self.rel, kind):
+                return
+            reviewed = self.REVIEWED_MARKERS.get(kind)
+            if reviewed and self._line_carries(node, reviewed):
                 return
         self.findings.append(
             LintFinding(severity, kind, self.rel, getattr(node, "lineno", 0), message)
@@ -275,6 +288,16 @@ class AstLinter(ast.NodeVisitor):
             for target in node.targets:
                 if isinstance(target, ast.Name):
                     self.in_memory_binary_vars.add(target.id)
+        if self._scratch_dirs:
+            mentioned = {
+                inner.id
+                for inner in ast.walk(node.value)
+                if isinstance(inner, ast.Name)
+            }
+            if mentioned & (self._scratch_dirs | self._scratch_paths):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        self._scratch_paths.add(target.id)
         self.generic_visit(node)
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
@@ -318,6 +341,9 @@ class AstLinter(ast.NodeVisitor):
         } or task_owner.endswith("_loop")
         if name in {"asyncio.create_task", "asyncio.ensure_future"} or raw_loop_task:
             if self.rel == "core/runtime/task_ownership.py" and name == "asyncio.create_task":
+                self.generic_visit(node)
+                return
+            if self._line_says_raw_is_the_point(node):
                 self.generic_visit(node)
                 return
             self.add(
@@ -415,6 +441,9 @@ class AstLinter(ast.NodeVisitor):
             if name in self.functions_defined_here:
                 self.generic_visit(node)
                 return
+            if self._writes_into_scratch(node):
+                self.generic_visit(node)
+                return
             if self._is_file_gateway_write_call(node):
                 self.generic_visit(node)
                 return
@@ -508,6 +537,76 @@ class AstLinter(ast.NodeVisitor):
             return node.func.value.id
         return ""
 
+    #: The phrase a line uses to say the raw primitive is what it is about.
+    RAW_TASK_IS_THE_POINT = "raw task, deliberately"
+
+    #: The ecosystem codes the enterprise gate already reads for these same
+    #: two rules. One vocabulary across both, so a line that has been reviewed
+    #: once does not have to be reviewed again in another spelling.
+    REVIEWED_MARKERS = {
+        "raw_dynamic_code": "noqa: S102",
+        "unapproved_direct_subprocess": "noqa: S603",
+    }
+
+    def _line_carries(self, node: ast.AST, marker: str) -> bool:
+        line = getattr(node, "lineno", 0)
+        if not line or not self._source_lines or line > len(self._source_lines):
+            return False
+        if marker in self._source_lines[line - 1]:
+            return True
+        window = self._source_lines[max(0, line - 6) : line]
+        return any(
+            marker in text and text.lstrip().startswith("#") for text in window
+        )
+
+    def _line_says_raw_is_the_point(self, node: ast.Call) -> bool:
+        """A site whose subject IS the untracked task.
+
+        Two of them demonstrate what `asyncio.create_task` does to a trace
+        context, which is the thing the trace test exists to measure; one is
+        the cancellation primitive itself, and wrapping it in the tracker
+        would put the tracker inside the mechanism that implements
+        cancellation. Per-line, like every other reviewed escape here: a file
+        allowlist blesses whatever is added to the file next.
+        """
+        line = getattr(node, "lineno", 0)
+        if not line or not self._source_lines:
+            return False
+        window = self._source_lines[max(0, line - 6) : line]
+        return any(
+            self.RAW_TASK_IS_THE_POINT in text.lower() and text.lstrip().startswith("#")
+            for text in window
+        )
+
+    def visit_With(self, node: ast.With) -> None:
+        for item in node.items:
+            call = item.context_expr
+            if not isinstance(call, ast.Call):
+                continue
+            if self._call_name(call) not in {
+                "tempfile.TemporaryDirectory",
+                "TemporaryDirectory",
+            }:
+                continue
+            if isinstance(item.optional_vars, ast.Name):
+                self._scratch_dirs.add(item.optional_vars.id)
+        self.generic_visit(node)
+
+    visit_AsyncWith = visit_With  # type: ignore[assignment]
+
+    def _writes_into_scratch(self, node: ast.Call) -> bool:
+        """Is this write aimed at a path under a directory this scope made?"""
+        func = node.func
+        if not isinstance(func, ast.Attribute):
+            return False
+        receiver = func.value
+        if isinstance(receiver, ast.Name):
+            return receiver.id in self._scratch_paths
+        return any(
+            isinstance(inner, ast.Name) and inner.id in self._scratch_dirs
+            for inner in ast.walk(receiver)
+        )
+
     def _is_file_gateway_write_call(self, node: ast.Call) -> bool:
         if not isinstance(node.func, ast.Attribute):
             return False
@@ -556,6 +655,7 @@ def scan_file(path: Path) -> list[LintFinding]:
         if rel not in EXEMPT_FILES:
             findings.extend(hardcoded_local_path_findings(tree, rel))
         visitor = AstLinter(rel)
+        visitor._source_lines = source.splitlines()
         visitor.functions_defined_here = {
             node.name
             for node in ast.walk(tree)

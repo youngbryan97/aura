@@ -119,6 +119,8 @@ async def call(
     on its own timeout — and whatever ``work`` raised where the work failed.
     """
     one = ACall(what=str(what), by=str(by))
+    # Raw task, deliberately: this is the cancellation primitive. Creating it through the tracker
+    # would put the tracker inside the mechanism that cancels.
     running = asyncio.ensure_future(work(one))
     one.task = running
     try:

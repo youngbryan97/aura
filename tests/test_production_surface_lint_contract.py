@@ -399,3 +399,88 @@ def test_a_bare_call_to_a_function_this_module_defines_is_not_a_write():
     assert [f.kind for f in linter.findings] == ["unapproved_direct_file_write"]
 
     assert kinds("def go(p):\n    p.write_text('x')\n") == ["unapproved_direct_file_write"]
+
+
+def _lint_kinds(source: str) -> list[str]:
+    import ast
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "tools"))
+    from production_surface_lint import AstLinter
+
+    tree = ast.parse(source)
+    linter = AstLinter("core/probe.py")
+    linter._source_lines = source.splitlines()
+    linter.functions_defined_here = {
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    linter.visit(tree)
+    return [finding.kind for finding in linter.findings]
+
+
+def test_a_write_into_a_directory_this_scope_made_is_not_durable_state():
+    """The gateway governs what is still there afterwards.
+
+    core/sandbox/static_check.py writes a candidate into a TemporaryDirectory
+    so ruff can read it, and the file is gone before the function returns.
+    """
+    scratch = (
+        "import tempfile\n"
+        "from pathlib import Path\n"
+        "\n"
+        "\n"
+        "def go(code):\n"
+        "    with tempfile.TemporaryDirectory() as directory:\n"
+        "        written = Path(directory) / 'candidate.py'\n"
+        "        written.write_text(code)\n"
+    )
+    assert _lint_kinds(scratch) == []
+
+    durable = (
+        "from pathlib import Path\n"
+        "\n"
+        "\n"
+        "def go(code):\n"
+        "    Path('/somewhere/real').write_text(code)\n"
+    )
+    assert _lint_kinds(durable) == ["unapproved_direct_file_write"]
+
+
+def test_the_reviewed_markers_are_the_ones_the_enterprise_gate_reads():
+    """One vocabulary. A line reviewed once should not need reviewing again
+    in a second spelling."""
+    reviewed = (
+        "def go(code):\n"
+        "    # This is the parser, not an interpreter.\n"
+        "    compile(code, '<the code>', 'exec')  # noqa: S102\n"
+    )
+    assert _lint_kinds(reviewed) == []
+
+    unreviewed = "def go(code):\n    compile(code, '<the code>', 'exec')\n"
+    assert _lint_kinds(unreviewed) == ["raw_dynamic_code"]
+
+
+def test_a_raw_task_that_says_why_is_not_reported():
+    """Two sites demonstrate what create_task does to a trace context, and one
+    is the cancellation primitive. The tracker inside either measures itself."""
+    deliberate = (
+        "import asyncio\n"
+        "\n"
+        "\n"
+        "async def go():\n"
+        "    # Raw task, deliberately: the context copy IS the subject here.\n"
+        "    return await asyncio.create_task(work())\n"
+    )
+    assert _lint_kinds(deliberate) == []
+
+    ordinary = (
+        "import asyncio\n"
+        "\n"
+        "\n"
+        "async def go():\n"
+        "    return await asyncio.create_task(work())\n"
+    )
+    assert _lint_kinds(ordinary) == ["raw_async_task"]

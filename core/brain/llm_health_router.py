@@ -77,6 +77,7 @@ logger = logging.getLogger("Brain.HealthRouter")
 # a truthful saturation failure — stacking is the one outcome that can
 # never happen again.
 import threading as _threading  # noqa: E402 - gate lives with its rationale block
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 
 def generation_concurrency_limit(env: Mapping[str, str] | None = None) -> int:
@@ -541,7 +542,7 @@ async def _await_while_it_is_working(
 
     progress = capture_progress()
     owned_foreground = user_facing and person_is_waiting and current_turn() is not None
-    task = asyncio.ensure_future(coro)
+    task = create_owned_asyncio_task(coro)
     started = time.monotonic()
     try:
         done, _ = await asyncio.wait({task}, timeout=budget_s)
@@ -602,7 +603,7 @@ async def _await_while_it_is_working(
                             a_person_waits,
                         )
 
-                watcher = asyncio.ensure_future(_say_when_it_passes_a_persons_patience())
+                watcher = create_owned_asyncio_task(_say_when_it_passes_a_persons_patience())
                 try:
                     return await task
                 finally:

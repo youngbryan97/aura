@@ -81,11 +81,15 @@ async def _awaited() -> str:
 
 async def _spawned_task() -> str:
     """asyncio.create_task copies the current context by default."""
+    # Raw task, deliberately: what asyncio.create_task does to the current context IS the
+        # subject here; the owned sink copies a context of its own.
     return await asyncio.create_task(_awaited())
 
 
 async def _spawned_task_with_a_fresh_context() -> str:
     """A task given an empty context, which is how a trace is really lost."""
+    # Raw task, deliberately: a task given an empty context is what losing a trace looks like, and
+        # this measures it. Tracking it would measure the tracker.
     return await asyncio.create_task(_awaited(), context=contextvars.Context())
 
 

@@ -68,6 +68,7 @@ from .llm.context_assembler import ContextAssembler
 from .reasoning_strategies import ReasoningStrategies, StrategyType
 from .request_contract import project_user_surface_resume_capability
 from .types import ThinkingMode, Thought
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 
@@ -3227,7 +3228,7 @@ class CognitiveEngine:
                         ))
                     ),
                 ):
-                    _clock_keeper = asyncio.create_task(
+                    _clock_keeper = create_owned_asyncio_task(
                         _keep_the_cycle_open_while_it_is_working(
                             _cycle_clock,
                             ceiling_at=time.monotonic()

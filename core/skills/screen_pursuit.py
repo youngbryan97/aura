@@ -71,6 +71,7 @@ from core.runtime.watched_goal import BROWSERS, PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger("Aura.ScreenPursuit")
 
@@ -5983,7 +5984,7 @@ def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> No
             # running, and closing the coroutine is the tidy way to say so.
             coroutine.close()
             return
-        task = loop.create_task(coroutine)
+        task = create_owned_asyncio_task(coroutine)
         task.add_done_callback(lambda done: done.exception())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("screen_pursuit", exc, severity="info", action="acted without saying so")

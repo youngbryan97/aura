@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Any
 from weakref import WeakKeyDictionary
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class SharedRead:
                 entry.task = None
                 return value
 
-            task = loop.create_task(collect(), name="shared_read")
+            task = create_owned_asyncio_task(collect(), name="shared_read")
             entry.task = task
             # A waiter may leave before an exception arrives. Retrieve it
             # here as well; awaiting the task still raises the same failure.

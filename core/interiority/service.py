@@ -63,6 +63,7 @@ from core.interiority.senses import availability, live_channels
 from core.interiority.stakes import StakeFeed
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 
 def _key_covers(claim_key: str, memory_key: str) -> bool:
@@ -492,7 +493,7 @@ class InteriorityService:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return False
-        task = loop.create_task(self.apply(state))
+        task = create_owned_asyncio_task(self.apply(state))
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
         return True

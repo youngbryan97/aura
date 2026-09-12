@@ -17,6 +17,7 @@ from typing import Any
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger("Aura.ActionLog")
 
@@ -165,7 +166,7 @@ class UnifiedActionLog:
                     record_degradation("unified_action_log", exc)
                     logger.debug("Action-log append failed: %s", exc)
             else:
-                loop.create_task(self._persist_entry(entry))
+                create_owned_asyncio_task(self._persist_entry(entry))
 
     async def _persist_entry(self, entry: dict[str, Any]) -> None:
         try:

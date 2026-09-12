@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger("Aura.Doing")
 
@@ -248,7 +249,7 @@ def _publish(said: str, *, priority: float) -> None:
         except RuntimeError:
             coroutine.close()
             return
-        task = loop.create_task(coroutine)
+        task = create_owned_asyncio_task(coroutine)
         task.add_done_callback(lambda done: done.exception())
     except _RECOVERABLE as exc:
         record_degradation("what_she_is_doing", exc, severity="info", action="say what she is doing")
