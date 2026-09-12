@@ -69,10 +69,36 @@ def test_silent_channel_demotes_a_live_claim():
 
 
 def test_never_written_channel_demotes_a_live_claim():
+    """A declared channel with no reading demotes, whichever way it got there.
+
+    The demotion is the property. The sentence explaining it is not one
+    sentence: a publisher that ran and left the channel empty is a fault in
+    the organ behind it, and no publisher at all means this process is simply
+    not the one taking readings. This asserted the first wording while setting
+    up the second state, so it broke when the two were told apart -- which was
+    the improvement, not the regression.
+    """
     _declare("test.never_written")
     resolved, note, _ = effective_evidence(Evidence.MEASURED_LIVE, ["test.never_written"])
     assert resolved is Evidence.UNMEASURED
-    assert "never been written" in note
+    assert "test.never_written" in note, note
+
+
+def test_the_two_ways_a_channel_can_be_empty_read_differently(monkeypatch):
+    """No publisher here is not the same finding as a publisher that wrote nothing."""
+    import core.organism.claim_liveness as liveness
+
+    _declare("test.two_ways")
+
+    monkeypatch.setattr(liveness, "_a_publisher_ran_for", lambda channel: False)
+    nobody = channel_liveness("test.two_ways")
+    assert nobody.sampled_here is False
+    assert "no publisher running in this process" in nobody.reason()
+
+    monkeypatch.setattr(liveness, "_a_publisher_ran_for", lambda channel: True)
+    ran_and_wrote_nothing = channel_liveness("test.two_ways")
+    assert ran_and_wrote_nothing.sampled_here is True
+    assert "has never been written" in ran_and_wrote_nothing.reason()
 
 
 def test_unbound_claim_is_unchanged():
