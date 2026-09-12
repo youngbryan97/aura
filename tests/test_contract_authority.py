@@ -13,6 +13,8 @@ after signing fails instead of taking effect).
 """
 from __future__ import annotations
 
+from mlx_source import client_source, worker_source
+
 import ast
 import inspect
 
@@ -204,7 +206,7 @@ class TestWiring:
     def test_the_worker_verifies_before_generating(self):
         from core.brain.llm import mlx_worker
 
-        source = inspect.getsource(mlx_worker)
+        source = worker_source()
         assert "_verify_contract_authority(job, contract_key)" in source
 
     def test_a_missing_authority_module_still_blocks_contradictions(self):
@@ -272,9 +274,10 @@ class TestWiring:
         ), "every MLX request-queue submission must cross _authorize_job"
 
     def test_each_principal_is_named(self):
-        from core.brain.llm import mlx_client
-
-        source = inspect.getsource(mlx_client)
+        # The client is several modules now — the latent and adapter
+        # principals moved with their lanes — so the source is asked for by
+        # what it is rather than by module object.
+        source = client_source()
         for principal in (
             "mlx_client.generate",
             "mlx_client.latent_reason",

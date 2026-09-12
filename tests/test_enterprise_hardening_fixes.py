@@ -1918,7 +1918,13 @@ def test_dnu_runner_uses_live_message_path_for_full_aura_tasks():
 
 def test_health_router_preserves_inference_gate_context_for_direct_generate():
     root = Path(__file__).resolve().parents[1]
-    source = (root / "core" / "brain" / "llm_health_router.py").read_text(encoding="utf-8")
+    # The router's background-deferral half moved to its own module when the
+    # class went back under the size gate's method ceiling. Both halves are
+    # the router; which file holds a line is not what this checks.
+    source = "\n".join(
+        (root / "core" / "brain" / name).read_text(encoding="utf-8")
+        for name in ("llm_health_router.py", "llm_background_deferral.py")
+    )
 
     assert "is_strict_proof_answer_prompt," in source
     assert "mlx_strict_answer_contract_enabled," in source

@@ -17,6 +17,8 @@ congratulations.
 
 from __future__ import annotations
 
+from mlx_source import worker_source
+
 import pytest
 
 from core.conversation.response_reliability import (
@@ -95,4 +97,4 @@ def test_it_can_be_said_back_as_something_to_do():
 
     import inspect
 
-    assert "give the answer on its own, as asked" in inspect.getsource(mlx_worker)
+    assert "give the answer on its own, as asked" in worker_source()

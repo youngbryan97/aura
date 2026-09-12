@@ -10,6 +10,8 @@ get a near-off alpha, while normal conversational turns keep full steering.
 """
 from __future__ import annotations
 
+from mlx_source import client_source, worker_source
+
 from pathlib import Path
 
 import pytest
@@ -153,13 +155,13 @@ def test_strict_value_contract_does_not_repair_wrong_literal():
 
 def test_strict_value_expected_literal_is_forwarded_to_worker():
     root = Path(__file__).resolve().parents[1]
-    client_source = (root / "core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
-    worker_source = (root / "core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+    client = client_source()
+    worker = worker_source()
     dnu_source = (root / "tools/agi/run_dnu_agi_proof_battery.py").read_text(encoding="utf-8")
 
-    assert '"expected_strict_value": str(kwargs.get("expected_strict_value") or "")' in client_source
-    assert "Rendering exact strict-value prompt" in worker_source
-    assert "Native strict-value template" not in worker_source
+    assert '"expected_strict_value": str(kwargs.get("expected_strict_value") or "")' in client
+    assert "Rendering exact strict-value prompt" in worker
+    assert "Native strict-value template" not in worker
     assert 'expected_strict_value="ok"' in dnu_source
 
 
@@ -265,10 +267,9 @@ def test_diagnostic_self_claim_repair_remains_available_without_worker_substitut
     assert "cannot guarantee" in repaired
     assert _surface_quality_failure_reasons(job, repaired) == []
 
-    worker_source = (
-        Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_worker.py"
-    ).read_text(encoding="utf-8")
-    assert worker_source.count("_repair_live_user_surface_self_claims(") == 1
+    # One call site, wherever the repair now lives: the point is that a
+    # diagnostic repair is not attempted twice, not which module holds it.
+    assert worker_source().count("_repair_live_user_surface_self_claims(") == 1
 
 
 @pytest.mark.parametrize(

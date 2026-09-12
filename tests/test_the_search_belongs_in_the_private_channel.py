@@ -13,6 +13,8 @@ before a conclusion.
 
 from __future__ import annotations
 
+from mlx_source import worker_source
+
 from pathlib import Path
 
 from core.brain.llm.chat_format import thinking_enabled_for_generation
@@ -72,7 +74,7 @@ def test_a_derived_answer_is_not_forced_closed() -> None:
 def test_an_unclosed_boundary_is_written_down() -> None:
     from pathlib import Path
 
-    body = Path("core/brain/llm/mlx_worker.py").read_text()
+    body = worker_source()
     assert "Generation ended inside the private channel" in body
     assert "and not native_channels.boundary_closed" in body
 

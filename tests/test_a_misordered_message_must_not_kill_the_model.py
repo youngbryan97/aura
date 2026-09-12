@@ -17,6 +17,8 @@ caller's mistake, and the cost of it should be a reordered list.
 """
 from __future__ import annotations
 
+from mlx_source import worker_source
+
 from core.brain.llm.chat_format import system_first
 from core.utils.injected_blocks import stamp_grounding
 
@@ -272,7 +274,7 @@ def test_the_trimmer_cannot_kill_the_worker_with_a_template_error():
 
     from core.brain.llm import mlx_worker
 
-    source = inspect.getsource(mlx_worker)
+    source = worker_source()
     where = source.index("def _render(candidate_messages")
     body = source[where : where + 1200]
     assert "for_this_template(" in body, (

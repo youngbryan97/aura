@@ -5095,7 +5095,7 @@ from .mlx_latent_reasoning import _ReasonsInLatentSpace
 from .mlx_warmup_and_adapters import _WarmsUpAndSwapsAdapters
 
 
-from .mlx_worker_identity import _KnowsWhichWorkerItIsTalkingTo
+from .mlx_client_worker_identity import _KnowsWhichWorkerItIsTalkingTo
 
 
 class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane):
