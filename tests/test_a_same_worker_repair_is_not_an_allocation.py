@@ -17,7 +17,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-CHAT = Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat.py"
+#: The desktop-mode lane, which is where the admission lives now. It was in
+#: `chat.py` until the route was split for size, and reading that file raised
+#: "substring not found" — a shorter file and a deleted admission look the
+#: same from a test.
+CHAT = (
+    Path(__file__).resolve().parents[1] / "interface" / "routes" / "chat_desktop_mode.py"
+)
 
 
 def _admission_body() -> str:

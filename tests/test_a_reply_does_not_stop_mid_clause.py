@@ -18,7 +18,12 @@ from pathlib import Path
 
 from core.conversation.response_reliability import complete_truncated_tail
 
-CHAT = Path(__file__).resolve().parents[1] / "interface/routes/chat.py"
+#: The lane that serves a recorded answer, which is where the correction
+#: chain lives now. It was in `chat.py` until the route was split for size,
+#: and the ORDER these tests assert is only meaningful inside the one module
+#: that holds all three markers — concatenating the lane would make the order
+#: an artefact of module sequence.
+CHAT = Path(__file__).resolve().parents[1] / "interface/routes/chat_recorded_answers.py"
 
 CUT_OFF = (
     "The issue is likely in how the balance is handled. If this line causes the "

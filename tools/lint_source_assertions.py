@@ -53,12 +53,61 @@ def _imported_modules(tree: ast.AST) -> dict[str, str]:
     return found
 
 
+def _read_text_of(node: ast.AST, paths: dict[str, str]) -> str | None:
+    """``CHAT.read_text()`` where CHAT names a source file in the repo."""
+    if (
+        isinstance(node, ast.Call)
+        and getattr(node.func, "attr", "") == "read_text"
+        and isinstance(getattr(node.func, "value", None), ast.Name)
+    ):
+        return paths.get(node.func.value.id)
+    return None
+
+
 def _module_file(dotted: str) -> Path | None:
     candidate = ROOT / Path(*dotted.split("."))
     for path in (candidate.with_suffix(".py"), candidate / "__init__.py"):
         if path.is_file():
             return path
     return None
+
+
+def _is_repo_rooted(node: ast.AST, roots: set[str]) -> bool:
+    """Whether a path chain starts at this repo rather than at a tmp dir.
+
+    ``tmp_path / "core" / "terminal_monitor.py"`` has the same literal tail as
+    the real module and is a file the test WROTE. Reading the repo's copy of
+    it and reporting a missing string is a finding about nothing, so the head
+    has to be anchored: ``Path(__file__)…`` directly, or a name bound to one.
+    """
+    for inner in ast.walk(node):
+        if isinstance(inner, ast.Name) and (inner.id == "__file__" or inner.id in roots):
+            return True
+    return False
+
+
+def _path_literal(node: ast.AST) -> str | None:
+    """The repo-relative source file a ``Path(...) / "a/b.py"`` chain names.
+
+    The other half of the same defect. Half of these tests never call
+    ``getsource`` at all — they build ``CHAT = Path(__file__).parents[1] /
+    "interface/routes/chat.py"`` and read it. When the route is split, that
+    read finds a shorter file exactly the same way.
+
+    Only the literal segments matter: whatever the ``Path(...)`` head is, the
+    strings after it are the path inside the repo, and one of them has to end
+    in ``.py`` for this to be a module read.
+    """
+    parts: list[str] = []
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            parts.insert(0, node.right.value)
+        else:
+            return None
+        node = node.left
+    if not parts or not parts[-1].endswith(".py"):
+        return None
+    return "/".join(parts)
 
 
 def _getsource_target(node: ast.AST) -> str | None:
@@ -95,6 +144,25 @@ def _source_reads(tree: ast.AST) -> list[tuple[int, str, str, dict[str, str]]]:
     # `"_gates_required_for(bool(is_forged)" in source or "..." in source` is
     # written exactly that way, and flagging the first half reported a passing
     # test.
+    # Module-level `CHAT = Path(...) / "interface/routes/chat.py"` and the
+    # locals that read it.
+    paths: dict[str, str] = {}
+    # Names that stand for the repo root, so `ROOT / "interface/..."` counts
+    # and `tmp_path / "core/..."` does not.
+    roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target = node.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            if _path_literal(node.value) is None and _is_repo_rooted(node.value, roots):
+                roots.add(target.id)
+                continue
+            named = _path_literal(node.value)
+            if named and _is_repo_rooted(node.value, roots):
+                paths[target.id] = named
+    outer_paths: dict[str, str] = {}
+
     alternatives: set[int] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
@@ -106,11 +174,11 @@ def _source_reads(tree: ast.AST) -> list[tuple[int, str, str, dict[str, str]]]:
         if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
         scope_imports = _imported_modules(scope)
-        held: dict[str, str] = {}
+        held: dict[str, str] = dict(outer_paths)
         for node in ast.walk(scope):
             if isinstance(node, ast.Assign) and len(node.targets) == 1:
                 target = node.targets[0]
-                read = _getsource_target(node.value)
+                read = _getsource_target(node.value) or _read_text_of(node.value, paths)
                 if isinstance(target, ast.Name):
                     # Rebound to something else: the name stops standing for a
                     # module's source, and keeping the old binding is how a
@@ -180,10 +248,13 @@ def look(paths: list[Path]) -> list[dict[str, object]]:
         # Module-level imports are the fallback; a test's own import wins.
         outer = _imported_modules(tree)
         for line, name, literal, inner in _source_reads(tree):
-            dotted = inner.get(name) or outer.get(name)
-            if not dotted:
-                continue
+            # `name` is either a local bound to an import, or — for the
+            # `Path(...) / "a/b.py"` spelling — the repo-relative file itself.
+            dotted = inner.get(name) or outer.get(name) or name
             target = _module_file(dotted)
+            if target is None and dotted.endswith(".py"):
+                candidate = ROOT / dotted
+                target = candidate if candidate.is_file() else None
             if target is None:
                 continue
             try:

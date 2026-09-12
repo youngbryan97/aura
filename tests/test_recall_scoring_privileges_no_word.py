@@ -29,7 +29,10 @@ import pytest
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "core" / "phases" / "response_generation_unitary.py"
+#: The scorer's own module. It left `response_generation_unitary` when that
+#: file was split for size, and splitting the old source on a marker it no
+#: longer holds raised IndexError instead of failing the check.
+SOURCE = ROOT / "core" / "phases" / "unitary_memory_recall.py"
 
 
 def _score(candidate: str, objective: str) -> float:

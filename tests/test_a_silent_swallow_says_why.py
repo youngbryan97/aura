@@ -175,3 +175,50 @@ def test_one_name_in_two_tests_is_two_different_modules(tmp_path):
         encoding="utf-8",
     )
     assert look([probe]) == []
+
+
+def test_it_reads_the_path_spelling_too(tmp_path):
+    """Half these tests never call getsource — they read the file.
+
+    `CHAT = Path(__file__).resolve().parents[1] / "interface/routes/chat.py"`
+    and then `CHAT.read_text()`. When the route is split, that read finds a
+    shorter file exactly the same way.
+    """
+    from tools.lint_source_assertions import look
+
+    probe = tmp_path / "test_probe.py"
+    probe.write_text(
+        "from pathlib import Path\n"
+        "\n"
+        'ROOT = Path(__file__).resolve().parents[1]\n'
+        'TARGET = ROOT / "core/verify/influence_channels.py"\n'
+        "\n"
+        "def test_one():\n"
+        "    source = TARGET.read_text()\n"
+        '    assert "a string this module has never held" in source\n',
+        encoding="utf-8",
+    )
+    stale = look([probe])
+    assert len(stale) == 1
+    assert stale[0]["reads"].endswith("influence_channels.py")
+
+
+def test_a_file_the_test_wrote_itself_is_not_the_repo_module(tmp_path):
+    """`tmp_path / "core" / "terminal_monitor.py"` has the same tail.
+
+    It is a fixture the test creates and then reads back. Reading the repo's
+    copy and reporting a missing string is a finding about nothing.
+    """
+    from tools.lint_source_assertions import look
+
+    probe = tmp_path / "test_probe.py"
+    probe.write_text(
+        "def test_one(tmp_path):\n"
+        '    written = tmp_path / "core" / "terminal_monitor.py"\n'
+        "    written.parent.mkdir(parents=True)\n"
+        '    written.write_text("nothing at all")\n'
+        "    text = written.read_text()\n"
+        '    assert "a string the repo module does hold somewhere" in text\n',
+        encoding="utf-8",
+    )
+    assert look([probe]) == []

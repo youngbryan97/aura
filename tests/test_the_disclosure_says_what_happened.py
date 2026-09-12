@@ -18,7 +18,10 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-CHAT = ROOT / "interface/routes/chat.py"
+#: The foreground lane, where the disclosure is composed now. It was in
+#: `chat.py` until the route was split for size, and `body.index(...)` on the
+#: old file raised rather than reporting a missing sentence.
+CHAT = ROOT / "interface/routes/chat_foreground_lane.py"
 
 
 def _disclosure_source() -> str:
