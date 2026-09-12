@@ -1457,6 +1457,61 @@ def _input_type(value: SemanticValue) -> str:
     return "integer" if isinstance(value, int) else "integer_sequence"
 
 
+def _prefix_feasible_arguments(
+    options_by_position: Sequence[Sequence[tuple[float, int, TokenSpan]]],
+    *,
+    arguments: Sequence[Sequence[int]],
+    spans: Sequence[Sequence[TokenSpan]],
+    dependencies: Sequence[Sequence[int]],
+    operation_nodes: Sequence[_OperationNode],
+    n_inputs: int,
+    contract: RegisterUseContract,
+    beam: int,
+) -> list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]]:
+    """Spend the beam on continuations feasible for this graph prefix."""
+
+    partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
+    prefix_counts = Counter(register for step in arguments for register in step)
+    used_spans = tuple(span for step in spans for span in step)
+    final_operation = len(arguments) + 1 == len(operation_nodes)
+    for position, options in enumerate(options_by_position):
+        candidates = []
+        for total, registers, mentions in partial:
+            for score, register, span in options:
+                if any(_overlap(span, previous) for previous in (*used_spans, *mentions)):
+                    continue
+                if contract.distinct_arguments and register in registers:
+                    continue
+                next_registers = (*registers, register)
+                counts = prefix_counts + Counter(next_registers)
+                if not contract.allows_partial(counts, n_inputs=n_inputs):
+                    continue
+                next_dependencies = (
+                    *dependencies,
+                    tuple(sorted({value - n_inputs for value in next_registers if value >= n_inputs})),
+                )
+                complete = final_operation and position + 1 == len(options_by_position)
+                if _operation_order(
+                    next_dependencies, operation_nodes, require_connected=complete
+                ) is None:
+                    continue
+                if complete:
+                    referenced = {value for values in next_dependencies for value in values}
+                    sink = next(index for index in range(len(operation_nodes)) if index not in referenced)
+                    if not contract.accepts_complete(
+                        counts, n_inputs=n_inputs, operation_count=len(operation_nodes), sink=sink
+                    ):
+                        continue
+                candidates.append((total + score, next_registers, (*mentions, span)))
+        partial = sorted(
+            candidates,
+            key=lambda item: (-item[0], item[1], tuple((s.start, s.end) for s in item[2])),
+        )[:beam]
+        if not partial:
+            break
+    return partial
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1556,6 +1611,7 @@ def _assign_typed_arguments(
             tuple[tuple[int, ...], ...],
         ]
     ] = [(0.0, (), (), ())]
+    prefix_feasible = model.training_receipt.get("argument_search_strategy") == "prefix_feasible_v1"
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1567,6 +1623,7 @@ def _assign_typed_arguments(
             hidden_channel_widths=model.hidden_channel_widths,
         )
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
+        options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
@@ -1638,6 +1695,9 @@ def _assign_typed_arguments(
                 ),
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end),
             )
+            if prefix_feasible:
+                options_by_position.append(options)
+                continue
             partial = sorted(
                 (
                     (
@@ -1670,7 +1730,20 @@ def _assign_typed_arguments(
             ]
         ] = []
         for total, arguments, spans, dependencies in states:
-            for step_score, step_arguments, step_spans in partial:
+            continuations = (
+                _prefix_feasible_arguments(
+                    options_by_position,
+                    arguments=arguments,
+                    spans=spans,
+                    dependencies=dependencies,
+                    operation_nodes=operation_nodes,
+                    n_inputs=len(inputs),
+                    contract=model.register_use_contract,
+                    beam=_ARGUMENT_BEAM,
+                )
+                if prefix_feasible else partial
+            )
+            for step_score, step_arguments, step_spans in continuations:
                 if any(
                     _overlap(current, previous)
                     for current in step_spans

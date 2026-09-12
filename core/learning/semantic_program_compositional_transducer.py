@@ -503,6 +503,8 @@ class CompositionalSemanticProgramTransducer:
             or not 1 <= self.operation_chart_beam <= _OPERATION_CHART_BEAM
             or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
+            or receipt.get("argument_search_strategy", "legacy_global_v1")
+            not in {"legacy_global_v1", "prefix_feasible_v1"}
             or (
                 self.schema
                 in {
@@ -810,6 +812,15 @@ class CompositionalSemanticProgramTransducer:
             operation_chart_beam=1,
             training_receipt={**body, "receipt_sha256": _sha(body)},
         )
+
+    def with_prefix_feasible_arguments(self) -> CompositionalSemanticProgramTransducer:
+        """Create a separately identified search candidate without refitting tissue."""
+
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "prefix_feasible_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
         """Remove only the source-learned graph-use bounds."""

@@ -605,6 +605,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
+  A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
+  four and regresses one on 28 exposed cases; no promotion. Existing relation
+  diagnostic resolves 450/480 gold references with runtime definitions.
+  Reference proposals and graph ranking still require development work.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
