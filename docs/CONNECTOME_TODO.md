@@ -198,11 +198,11 @@ Working list. Deleted when every line is done and green.
       ceiling allows. Noise is still at its rail and excitation near its own,
       and neither of those axes has been swept, so they stay as they are
 
-- [ ] the full offline suite green. Nineteen of forty chunks have run and 56
-      distinct failures have surfaced. Every one traced so far is either fixed
-      or pre-existing, and the pre-existing ones cluster in files another agent
-      is editing while this runs — checked by re-running them at this session's
-      own commits, where they fail too.
+- [ ] the full offline suite green. Nineteen of forty chunks have run in this
+      pass and every failure they surfaced is traced. The ones left are four
+      ratchets carrying the whole team's accumulated debt, and they cannot be
+      refreshed: the module-size tool refuses to grandfather a new God object
+      at all.
 
       Fixed here: a common noun claiming an application, a browser run with no
       anchor, an ambient percept that lost its provenance, a silent handler
@@ -216,22 +216,29 @@ Working list. Deleted when every line is done and green.
       wallpaper, a module count and a moved report, six handlers that caught
       everything, two personal paths in test data, and an eval on an
       arithmetic tree.
+      Then: a store held open by a background writer and called a leak, a
+      stall test anchored to the function the work had moved out of, a service
+      name lost whenever the container was cleared, a gate that took 70s
+      against its own 60s timeout because its worker pool was sized from a
+      machine it could not import, an evidence row whose run was never
+      committed, six enterprise regressions including a JSON file handed to
+      eval, an action that reported a change and left nothing sayable, two
+      cognition tests reading a record every other test writes to, and a
+      requirements scanner reading a Markdown list continuation as an
+      obligation of its own.
 
-      Open, all pre-existing and none of them this session's:
-      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` — the tree
-        is 32,690 lines over its size budget, dominated by `mlx_client`,
-        `mlx_worker` and `inference_gate`. Refreshing the baseline launders it;
-        closing it is a repo-wide extraction. `neural_mesh` took its own 213
-        off by moving its wiring out.
+      Open, and each is the same shape — a ratchet whose debt is the team's:
+      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` — 33,210
+        lines over budget and nine new God objects, in `screen_pursuit`,
+        `sovereign_browser`, the two `semantic_program_*` modules and four
+        more. `core/subject/driver.py` was the tenth and is off the list: its
+        fork machinery moved to `core/subject/snapshot.py`, 509 lines.
       * `test_effect_ownership_tiers` — 1,903 against a ceiling of 1,840.
-      * `test_cognition_discipline`, `test_complexity_and_replication`,
-        `test_every_bias_channel_has_a_reader` — failing at this session's
-        first commit.
+      * the swallowed-except ratchet — 2,441 against a baseline of 2,175.
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
-        `test_gap_atlas_campaigns`, `test_inherited_*` and the rest of the
-        later chunks — in the perception and desktop work another agent has in
-        flight.
+        `test_gap_atlas_campaigns` and the rest of the later chunks — in the
+        perception and desktop work another agent has in flight.
       * `test_subject_core_findings` — flaky about half the time under random
         order, at HEAD and before it: domain W goes missing because the world
         model organ is not there on some orderings.
