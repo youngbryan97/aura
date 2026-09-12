@@ -92,6 +92,57 @@ class TestTheWriteLeavesTheLock:
         ]
         assert not offenders, offenders
 
+    def test_consolidation_inside_an_observation_does_not_hold_the_lock_on_the_disk(
+        self, immune, tmp_path
+    ):
+        """The live splat that held the lock twice.
+
+        `_observe_core` holds `_lock` and calls `dream_consolidate` when a
+        dream is due, so the reentrant lock is held at two depths. Handing
+        the fsync to the writer thread is not enough if the consolidating
+        thread then waits for it with the outer lock still held: every other
+        caller of the immune ecology queues behind the disk exactly as
+        before. So the write is made slow here, and another thread has to
+        get the lock while it is in flight.
+        """
+        immune.flush_state()
+        started = threading.Event()
+        release = threading.Event()
+        original = immune._state_writer._write
+
+        def slow_write(payload):
+            started.set()
+            release.wait(timeout=10.0)
+            original(payload)
+
+        immune._state_writer._write = slow_write
+        nested_done = threading.Event()
+
+        def observation_with_a_due_dream():
+            with immune._lock:
+                immune.dream_consolidate()
+            nested_done.set()
+
+        worker = threading.Thread(target=observation_with_a_due_dream)
+        try:
+            worker.start()
+            assert started.wait(timeout=5.0), "consolidation never reached a write"
+
+            got_it = immune._lock.acquire(timeout=2.0)
+            if got_it:
+                immune._lock.release()
+            assert got_it, "the immune lock was held for the whole disk write"
+            assert nested_done.wait(timeout=2.0)
+        finally:
+            release.set()
+            worker.join(timeout=10.0)
+            immune._state_writer._write = original
+
+        assert immune.flush_state() is True
+        assert json.loads(_state_file(tmp_path).read_text())["last_dream_at"] == (
+            immune._observation_count
+        )
+
     def test_flush_refuses_under_the_lock(self, immune):
         """Waiting for the disk under the lock costs what the fsync cost."""
         with immune._lock:
