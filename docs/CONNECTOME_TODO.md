@@ -235,14 +235,21 @@ Working list. Deleted when every line is done and green.
       beside the writer they hand their payload to, and the class is 63
       methods against a ceiling of 64.
 
-      Open, and each is the same shape — a ratchet whose debt is the team's:
-      * the swallowed-except ratchet — 2,350 against a baseline of 2,175. Was
-        2,441. Ninety-one explained so far: eighteen in `model_lane_control`
-        and seventy-three in `mlx_client`, each read and given either the
-        exception on a debug line or a sentence saying the value it returns is
-        an answer rather than a fault. The gate could not see six of its own
-        notes, because it matched "not a failure:" case-sensitively and a note
-        that opens a sentence is capitalised.
+      And the swallowed-except ratchet: 2,441 -> 2,167 against a baseline of
+      2,175. Two hundred and twenty-six handlers read one at a time — 210 now
+      carry the exception to a debug line and 16 say in words that the value
+      they return is an answer. Two files had no logger at all, which is why
+      every claim in `model_validation` could go unverified and unremarked when
+      its subsystem would not import. The gate could not see six of its own
+      notes either: it matched "not a failure:" case-sensitively, and a note
+      that opens a sentence is capitalised.
+
+      Explaining a handler costs a line and all nine files are oversize, so
+      that put the size ratchet 218 over. Paid back by lifting `how_big_is_the
+      _checkpoint` out of `mlx_client` and `_load_state` into the immune
+      persistence mixin, not by raising anything. Budget 145,567.
+
+      Open, and not this pass's to close:
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
         `test_gap_atlas_campaigns` and the rest of the later chunks — in the
