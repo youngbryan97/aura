@@ -346,7 +346,7 @@ def test_the_conversation_does_not_collapse_repeated_moves():
 
 
 @pytest.mark.asyncio
-async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(body):
+async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(body, monkeypatch):
     """The workspace broadcasts one winner a tick.
 
     That is the right way to decide what she is ATTENDING to and the wrong
@@ -359,9 +359,10 @@ async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(
     def said(key, chosen=None, *, out_loud_flag=None, **kw):
         out_loud.append(bool(kw.get("out_loud")))
 
-    import core.skills.screen_pursuit as sp_module
-
-    sp_module._say_intent = said
+    # Set across every pursuit module: the narration moved out of
+    # screen_pursuit.py and an assignment on that one module alone reaches
+    # nothing that calls it.
+    patch_pursuit(monkeypatch, "_say_intent", said)
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
@@ -377,15 +378,16 @@ async def test_a_requested_commentary_is_delivered_not_entered_in_a_competition(
 
 
 @pytest.mark.asyncio
-async def test_a_silent_run_still_publishes_but_does_not_speak(body):
+async def test_a_silent_run_still_publishes_but_does_not_speak(body, monkeypatch):
     spoken = []
 
     def said(key, chosen=None, **kw):
         spoken.append(bool(kw.get("out_loud")))
 
-    import core.skills.screen_pursuit as sp_module
-
-    sp_module._say_intent = said
+    # Set across every pursuit module: the narration moved out of
+    # screen_pursuit.py and an assignment on that one module alone reaches
+    # nothing that calls it.
+    patch_pursuit(monkeypatch, "_say_intent", said)
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",

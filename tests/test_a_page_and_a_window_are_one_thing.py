@@ -33,7 +33,10 @@ def _assignment(name: str) -> str:
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        if node.name != "observe":
+        # `observe` was a closure; the bearings it takes are their own
+        # function now, and the assignment this is about moved with them. The
+        # coupling is what the test is about, not which function holds it.
+        if node.name not in {"observe", "observe_the_screen", "_take_the_run_its_bearings"}:
             continue
         for inner in ast.walk(node):
             if isinstance(inner, ast.Assign) and any(

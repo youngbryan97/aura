@@ -19,7 +19,7 @@ claim, it can be checked.
 
 from __future__ import annotations
 
-from screen_pursuit_support import pursuit_loop_source
+from screen_pursuit_support import pursuit_function_source, pursuit_loop_source
 
 from core.skills.screen_pursuit import a_run_she_can_carry
 
@@ -124,8 +124,26 @@ def test_every_act_of_a_run_is_counted_however_the_run_was_made():
 
     from core.skills import screen_pursuit
 
-    source = pursuit_loop_source()
-    at = source.index('expected["took"] = len(follow_on) + 1')
-    before = source[:at]
-    line_start = before.rindex("\n") + 1
-    assert source[line_start:at] == " " * 8
+    # At the decision's own level, not nested inside a branch of it. This
+    # used to be spelled as eight spaces, which was the decision's body indent
+    # while it was a closure; it is a module-level function now and the same
+    # statement sits at four. The property is "not nested", so it is written
+    # that way.
+    import ast
+
+    source = pursuit_function_source("decide_the_next_move")
+    tree = ast.parse(source)
+    decision = tree.body[0]
+    body_indent = min(
+        statement.col_offset
+        for statement in decision.body
+        if not (
+            isinstance(statement, ast.Expr)
+            and isinstance(statement.value, ast.Constant)
+        )
+    )
+    marker = 'expected["took"] = len(follow_on) + 1'
+    line = next(
+        one for one in source.splitlines() if one.strip().startswith(marker)
+    )
+    assert len(line) - len(line.lstrip()) == body_indent

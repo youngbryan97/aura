@@ -7,6 +7,8 @@ moves — nineteen minutes of watching a screen, and none of it is the thinking.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from pathlib import Path
 
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
@@ -98,7 +100,7 @@ def test_the_loop_checks_a_run_of_any_length_including_one() -> None:
 
     from core.skills import screen_pursuit
 
-    text = Path(screen_pursuit.__file__).read_text(encoding="utf-8")
+    text = pursuit_source()
     assert 'expected["took"] >= 1' in text, "a run of one has to be checked"
     at = text.index('expected["took"] = len(follow_on) + 1')
     near = text[at : at + 500]

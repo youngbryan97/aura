@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from screen_pursuit_support import patch_pursuit
 
-from screen_pursuit_support import pursuit_source
+from screen_pursuit_support import pursuit_function_source, pursuit_source
 
 import asyncio
 from pathlib import Path
@@ -22,7 +22,8 @@ from core.skills import screen_pursuit
 from core.skills.screen_pursuit import _take_the_run_its_bearings
 
 SOURCE = pursuit_source()
-BODY = SOURCE[SOURCE.index("async def observe") :]
+# `observe` is its own function now; the guard it holds is read from it.
+BODY = pursuit_function_source("observe_the_screen")
 
 
 def test_the_bearings_are_taken_before_the_window_is_needed():

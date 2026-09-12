@@ -9,6 +9,8 @@ interactive session is unavailable".
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import time
 
 import pytest
@@ -86,7 +88,7 @@ async def test_the_person_is_told_while_she_waits(monkeypatch):
     async def narrate(line, because=""):
         said.append(line)
 
-    monkeypatch.setattr("core.skills.screen_pursuit._narrate", narrate)
+    patch_pursuit(monkeypatch, "_narrate", narrate)
     monkeypatch.setattr(
         "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
         _answers(LOCKED, LOCKED, OPEN),
@@ -102,7 +104,7 @@ async def test_an_unlocked_screen_says_nothing(monkeypatch):
     async def narrate(line, because=""):
         said.append(line)
 
-    monkeypatch.setattr("core.skills.screen_pursuit._narrate", narrate)
+    patch_pursuit(monkeypatch, "_narrate", narrate)
     monkeypatch.setattr(
         "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
         _answers(OPEN),

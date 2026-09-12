@@ -12,7 +12,7 @@ she ever confirmed was "this does not move", ninety-eight times.
 
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
+from screen_pursuit_support import patch_pursuit, pursuit_function_source
 
 import asyncio
 
@@ -76,9 +76,7 @@ def test_how_long_to_wait_comes_from_how_long_it_has_taken() -> None:
 
 def test_the_move_path_waits_at_all() -> None:
     """The mechanism existed and was wired only to the restart path."""
-    source = screen_pursuit.__file__
-    with open(source, encoding="utf-8") as handle:
-        text = handle.read()
-    act = text[text.index("        async def act() -> bool:") :]
-    act = act[: act.index("        return Step(")]
+    # The act was a closure inside the decision until the module went back
+    # under the size gate's ceiling. Asked for by name rather than sliced.
+    act = pursuit_function_source("carry_out_the_move")
     assert "_settled_after(" in act, "a keystroke must be given time to land"

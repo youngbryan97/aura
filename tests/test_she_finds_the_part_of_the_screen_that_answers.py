@@ -10,7 +10,7 @@ Nothing on the page says which part is the task. Something about her does.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import pursuit_loop_source
+from screen_pursuit_support import pursuit_function_source, pursuit_loop_source
 
 from core.perception.where_it_responds import (
     ENOUGH_ACTS,
@@ -123,7 +123,10 @@ def test_the_loop_reasons_from_the_part_that_answers():
     assert "seen = within(observation, band, responds[" in source
     # Learned from the same measurement that grades the move, so the control
     # is the move that had no effect.
-    assert "worked=attempt.verdict.held," in source
+    # `held` was renamed `observed_change`: the same measurement, and the
+    # one that grades the move. This assertion has been naming a string
+    # that is not in the file since the rename.
+    assert "worked=attempt.verdict.observed_change," in source
 
 
 def test_a_world_that_has_stopped_answering_is_recognised_without_reading_it():
@@ -163,9 +166,11 @@ def test_the_loop_offers_a_way_out_when_the_thing_has_ended():
 
     from core.skills import screen_pursuit
 
-    source = pursuit_loop_source()
+    source = pursuit_function_source("decide_the_next_move")
     where = source.index("ended = responds[")
-    block = source[where : where + 300]
+    # Wide enough to reach the guard: the comment between them explains a
+    # live failure and runs to fifty lines.
+    block = source[where : where + 3000]
     assert "nothing_answers()" in block
     assert "stuck(history) or ended" in block
 
