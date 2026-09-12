@@ -329,7 +329,11 @@ def test_the_latent_client_returns_the_answer_tokens():
     was inert on the live path."""
     import re
 
-    source = pathlib.Path("core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
+    # The latent lane moved to its own module when MLXLocalClient went back
+    # under the gate's method ceiling. The client is several files now.
+    from mlx_source import client_source
+
+    source = client_source()
     marker = '"ok": True,\n                    "text": answer,'
     assert marker in source
     payload = source[source.index(marker) : source.index(marker) + 1800]

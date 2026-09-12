@@ -138,8 +138,10 @@ async def test_live_mind_collection_timeout_is_explicit_and_fail_closed(monkeypa
         release.wait(2.0)
         return {"required_subsystems_ok": True}
 
-    monkeypatch.setattr(chat_routes, "_build_live_mind_context_payload", blocking_collector)
-    monkeypatch.setattr(chat_routes, "_CHAT_LIVE_MIND_COLLECTION_TIMEOUT_S", 0.05)
+    # Set across every lane module: the collector and its timeout moved to
+    # chat_desktop_mode, and a patch on chat.py alone lands nowhere.
+    patch_chat_lane(monkeypatch, "_build_live_mind_context_payload", blocking_collector)
+    patch_chat_lane(monkeypatch, "_CHAT_LIVE_MIND_COLLECTION_TIMEOUT_S", 0.05)
     try:
         result = await chat_routes._collect_live_mind_context_payload(
             user_message="Are you here?",
