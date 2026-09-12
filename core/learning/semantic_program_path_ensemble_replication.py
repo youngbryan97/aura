@@ -18,12 +18,18 @@ from core.learning.semantic_program_campaign import training_examples_from_featu
 from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
-    build_semantic_program_natural_alias_source_corpus,
+)
+from core.learning.semantic_program_corpus_replication import (
     build_semantic_program_natural_branch_replication_corpus,
-    build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_replication_corpus,
+)
+from core.learning.semantic_program_corpus_natural import (
+    build_semantic_program_natural_alias_source_corpus,
+    build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
+)
+from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_reserved_alias_corpus,
     build_semantic_program_sequence_role_binding_corpus,

@@ -14,6 +14,8 @@ from typing import Any, Final
 from core.brain.llm.latent_cortex.experiments import extract_final_numeric_claim
 from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
+)
+from core.learning.semantic_program_corpus_replication import (
     build_semantic_program_natural_weave_replication_corpus,
 )
 from core.learning.semantic_program_frozen_path_replication import (
