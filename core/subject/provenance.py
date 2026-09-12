@@ -27,16 +27,17 @@ import json
 import platform
 import subprocess
 import sys
-import time
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 from core.subject.clock import real_time
 
 __all__ = [
+    "TREE_PATHS",
     "campaign",
     "campaign_v25",
+    "tree_hash_at",
     "environment",
     "fingerprint",
     "run_fingerprint",
@@ -70,22 +71,22 @@ def _git(*args: str) -> str:
     return str(out.stdout or "").strip()
 
 
-def _tree_hash() -> str:
-    """A hash over the tracked files that decide the answer.
+#: What "the same code" means for a campaign. The whole tree would change with
+#: every artifact written, so this is the measurement code and the organism it
+#: measures — what a second run would have to match to be the same campaign.
+TREE_PATHS: tuple[str, ...] = (
+    "core/subject",
+    "core/consciousness",
+    "core/phases",
+    "core/agency",
+    "core/ontogeny",
+    "tools/run_subject_core.py",
+)
 
-    The whole tree would change with every artifact written, so this covers the
-    measurement code and the organism it measures, which is what a second run
-    would have to match to be the same campaign.
-    """
-    paths = _git(
-        "ls-files",
-        "core/subject",
-        "core/consciousness",
-        "core/phases",
-        "core/agency",
-        "core/ontogeny",
-        "tools/run_subject_core.py",
-    ).splitlines()
+
+def _tree_hash() -> str:
+    """A hash over the tracked files that decide the answer, as they are now."""
+    paths = _git("ls-files", *TREE_PATHS).splitlines()
     digest = hashlib.blake2b(digest_size=16)
     for name in sorted(paths):
         target = REPO / name
@@ -94,6 +95,31 @@ def _tree_hash() -> str:
             digest.update(target.read_bytes())
         except OSError:
             continue
+    return digest.hexdigest()
+
+
+def tree_hash_at(commit: str) -> str:
+    """The same hash, over the files as they were at one commit.
+
+    A run records the working-tree digest. Checking later that a result still
+    describes its commit means recomputing the digest from that commit's blobs,
+    not from whatever the tree holds now — those differ as soon as anyone
+    commits anything, which is not the same fact as a rewritten history.
+    """
+    listing = _git("ls-tree", "-r", "--name-only", commit, "--", *TREE_PATHS)
+    names = [line for line in listing.splitlines() if line]
+    if not names:
+        return ""
+    digest = hashlib.blake2b(digest_size=16)
+    for name in sorted(names):
+        blob = subprocess.run(
+            ["git", "-C", str(REPO), "show", f"{commit}:{name}"],
+            capture_output=True, check=False, timeout=60,
+        )
+        if blob.returncode != 0:
+            continue
+        digest.update(name.encode())
+        digest.update(blob.stdout)
     return digest.hexdigest()
 
 
@@ -127,12 +153,12 @@ def campaign(
     from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE, THRESHOLDS
     from core.subject.causal import (
         DEFAULT_DELTA,
-        SUSTAINED,
         DIVERGENCE_CEILING,
         EDGE_EFFECT,
         EDGE_QVALUE,
         EDGE_REPLICATION,
         SIGN_FLIP_DRAWS,
+        SUSTAINED,
     )
     from core.subject.driver import CONDITIONS, SECONDS_PER_TURN, SUBSTRATE_BODY
     from core.subject.irreducibility import COMPONENTS, FOLDS
@@ -241,6 +267,7 @@ def campaign_v25(
     from core.subject.driver import CONDITIONS, SECONDS_PER_TURN
     from core.subject.state import DOMAINS, feature_names
     from core.subject.steppable import LAYERS
+    from core.subject.v25_cut import ANCHOR_STEP, OPENING_ANCHORS
 
     # Imported from the runner so the frozen values are the ones in force
     # rather than a second copy that can drift away from them.
@@ -252,7 +279,6 @@ def campaign_v25(
         LAGS,
         SUFFICIENCY_TOLERANCE,
     )
-    from core.subject.v25_cut import ANCHOR_STEP, OPENING_ANCHORS
 
     schema = feature_names()
     frozen: dict[str, Any] = {

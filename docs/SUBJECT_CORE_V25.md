@@ -188,6 +188,32 @@ A clean confirmatory v25 result moves the physical side to L5. L6 needs the
 bridge validated against human and animal consciousness under novel
 perturbations, which is not work this repository can do.
 
+## Which definition is authoritative where
+
+The battery requires the graph to be strongly connected in at least three of
+the eight ordinary conditions. The stronger reading of the equation would
+require it in every condition. Those are different tests and the specification
+asks which one governs, so:
+
+**The battery's three-of-eight is authoritative for ISC-v1, and it does not
+move.** Every threshold in the battery is hashed into the campaign
+fingerprint, and changing one after seeing a result starts a different
+campaign; changing this one retroactively would falsify the record of the runs
+already taken against it. v1 keeps its own bar and is kept forever for
+provenance, whatever later generations decide.
+
+**v25 does not inherit the question.** It asks whether a closed recurrent
+irreducible carrier exists at the grain the system selects, and a condition is
+part of the environment rather than part of the carrier: anchors are probed
+under all eight so the environment cannot define the causal state, and a run
+that used fewer refuses to be authoritative. Replication across conditions is
+answered in v25 by confirming on new anchors and a new seed with the grain
+frozen, not by requiring every condition to clear a graph bar of its own.
+
+So the per-condition graph stays a v1 criterion, reported per condition on
+every run, and the stronger claim it gestures at is made by v25's confirmation
+step instead.
+
 ## How to read 24/24 after this
 
 24/24 is a rich, self-involving, developmentally persistent operational subject

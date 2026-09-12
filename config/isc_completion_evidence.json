@@ -863,6 +863,22 @@
     "note": "irreducibility falls when the partition is cut",
     "status": "done"
   },
+  "P14.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "^CLAMPED_FIELDS: dict\\[str, tuple\\[str, \\.\\.\\.\\]\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "^RESERVOIR_FIELDS: tuple\\[str, \\.\\.\\.\\]"
+      }
+    ],
+    "note": "the registry is CLAMPED_FIELDS: per domain, the fields that carry that domain's state to anything else, named beside the schema that reads them",
+    "status": "done"
+  },
   "P14.12": {
     "checks": [
       {
@@ -877,6 +893,17 @@
       }
     ],
     "note": "the node clamp is kept and reported under its own name",
+    "status": "done"
+  },
+  "P14.2": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_a_clamped_domain_is_actually_held.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "a channel crossing the cut is a source one side's schema reads, and every one of them is in the registry",
     "status": "done"
   },
   "P14.3": {
@@ -915,6 +942,38 @@
       }
     ],
     "note": "and so does the other, in its own arm",
+    "status": "done"
+  },
+  "P14.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "def compose"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/clamp.py",
+        "pattern": "removed and both sides' internal dynamics intact"
+      }
+    ],
+    "note": "only the cross-partition influence is removed: each side's columns are taken from the arm where it ran free, so both keep their own dynamics",
+    "status": "done"
+  },
+  "P14.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_clamped_domain_is_actually_held.py",
+        "pattern": "clamping \\{domain\\} does not hold"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_clamped_domain_is_actually_held.py::test_every_source_a_domain_reads_is_held_when_it_is_clamped -q -p no:randomly",
+        "kind": "command",
+        "timeout": 600
+      }
+    ],
+    "note": "no field a schema reads escapes its own clamp, and a new column that did would fail the build",
     "status": "done"
   },
   "P14.9": {
@@ -1096,6 +1155,38 @@
       }
     ],
     "note": "the conditions differ: their graphs are not the same graph",
+    "status": "done"
+  },
+  "P16.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "The battery.s three-of-eight is authoritative for ISC-v1"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "v25 does not inherit the question"
+      }
+    ],
+    "note": "the battery's three-of-eight stands for v1 and is never changed retroactively; v25 states the stronger requirement and is a separate campaign",
+    "status": "done"
+  },
+  "P16.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "The battery.s three-of-eight is authoritative for ISC-v1"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE_V25.md",
+        "pattern": "v25 does not inherit the question"
+      }
+    ],
+    "note": "the equation does not win here: v25 asks about the carrier at its own grain and answers replication by confirming on new anchors, while the per-condition graph stays a v1 criterion that does not move",
     "status": "done"
   },
   "P16.2": {
@@ -6924,6 +7015,96 @@
     "note": "which mind answered, with a hash of its code",
     "status": "done"
   },
+  "P48.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "def _tag_name"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "a tag that can be repointed is a label"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_result_stays_checkable.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 900
+      }
+    ],
+    "note": "an authoritative run is tagged for its campaign fingerprint, and the tag is refused rather than moved if it already points elsewhere",
+    "status": "done"
+  },
+  "P48.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "\"signing key configured\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "Signing, branch protection and CI are reported rather than performed"
+      }
+    ],
+    "note": "whether a signing key is configured is read and reported; signing is the operator's, and a tool that claimed it would be claiming what it cannot do",
+    "status": "done"
+  },
+  "P48.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "^DEFINING_TESTS: tuple\\[str, \\.\\.\\.\\]"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "def _tests"
+      },
+      {
+        "command": "{python} -m pytest tests/test_a_result_stays_checkable.py::test_the_defining_suites_exist -q -p no:randomly",
+        "kind": "command",
+        "timeout": 1800
+      }
+    ],
+    "note": "the suites that define the evaluation are named and run before a tag is written, because a result measured on a commit whose own tests fail is a result about a broken instrument",
+    "status": "done"
+  },
+  "P48.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "\"branch protection\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "not something this can read or set"
+      }
+    ],
+    "note": "branch protection is reported as a repository setting rather than asserted",
+    "status": "done"
+  },
+  "P48.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/provenance.py",
+        "pattern": "def tree_hash_at"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "Recomputed from the commit's own blobs"
+      }
+    ],
+    "note": "a rewritten history shows as an unreachable commit or a tree that no longer hashes the same, recomputed from the commit's own blobs",
+    "status": "done"
+  },
   "P48.6": {
     "checks": [
       {
@@ -6940,6 +7121,17 @@
       }
     ],
     "note": "the commit, the hash of the tree that decides the answer and whether it was dirty are recorded with every run",
+    "status": "done"
+  },
+  "P48.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/seal_evaluation_run.py",
+        "pattern": "\"status\": \"ready\" if done\\.returncode == 0 else \"blocked\""
+      }
+    ],
+    "note": "the tag is not written while a defining suite is red",
     "status": "done"
   },
   "P48.8": {
