@@ -379,3 +379,42 @@ def test_a_sweep_that_scored_nothing_says_so() -> None:
     row = blank.as_dict()
     assert row["measured_nothing"] is True
     assert row["cuts_unscorable"] == 1
+
+
+# ── a reporting stage that crashes discards the run ───────────────────────
+
+
+def test_an_unmeasurable_invariance_check_is_not_a_crash() -> None:
+    """It ran two hours of recording, grain and cuts, then raised on a report.
+
+    A stage that cannot run has to say so and leave what was already measured
+    on disk. Four rows is below what the cross-fitted estimator folds over.
+    """
+    import numpy as np
+
+    from tools.run_subject_core_v25 import _invariance
+
+    thin = {key: np.zeros((4, 3)) for key in ("intact", "cut", "sham_a", "sham_b")}
+    out = _invariance(thin, tau_seconds=1.0, seed=0)
+    assert out["measured"] is False
+    assert out["representation_invariant"] is None
+    assert out["why"]
+
+
+def test_an_unmeasurable_null_block_is_not_a_crash() -> None:
+    import numpy as np
+
+    from tools.run_subject_core_v25 import _v25_nulls
+
+    thin = {key: np.zeros((4, 3)) for key in ("intact", "cut", "sham_a", "sham_b")}
+    out = _v25_nulls(thin, tau_seconds=1.0, seed=0)
+    assert out["measured"] is False
+    assert out["playback_is_zero"] is None
+
+
+def test_unmeasured_is_a_blocker_and_not_a_pass() -> None:
+    """`not None` and `not False` read the same to an `if`, and they are not."""
+    source = (REPO / "tools" / "run_subject_core_v25.py").read_text(encoding="utf-8")
+    assert 'if invariance and not invariance.get("measured")' in source
+    assert 'if nulls and not nulls.get("measured")' in source
+    assert "representation invariance was not measured" in source

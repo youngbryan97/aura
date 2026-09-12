@@ -342,12 +342,20 @@ def _invariance(
         return float(estimate.excess_rate)
 
     keys = ("intact", "cut", "sham_a", "sham_b")
-    raw = rate(samples)
+    try:
+        raw = rate(samples)
+    except ValueError as exc:
+        # Not measured, and it says so. This is a reporting stage: a crash here
+        # discards the recording, the grain and every cut that came before it,
+        # and an unmeasured invariance check has to read differently from one
+        # that passed.
+        return {"measured": False, "why": str(exc), "representation_invariant": None}
     recoded = rate({**samples, **{k: _recoded(samples[k], seed + 31) for k in keys}})
     doubled = rate({**samples, **{k: np.hstack([samples[k], samples[k]]) for k in keys}})
     spread = max(abs(raw - recoded), 0.0)
     reference = max(abs(raw), 1e-9)
     return {
+        "measured": True,
         "raw": round(raw, 6),
         "invertibly_recoded": round(recoded, 6),
         "duplicated_channels": round(doubled, 6),
@@ -377,7 +385,12 @@ def _v25_nulls(
             ).excess_rate
         )
 
-    playback = rate(samples["intact"], samples["intact"].copy(), samples["sham_a"], samples["sham_b"])
+    try:
+        playback = rate(
+            samples["intact"], samples["intact"].copy(), samples["sham_a"], samples["sham_b"]
+        )
+    except ValueError as exc:
+        return {"measured": False, "why": str(exc), "playback_is_zero": None}
     duplicate = rate(
         np.hstack([samples["intact"], samples["intact"]]),
         np.hstack([samples["cut"], samples["cut"]]),
@@ -390,6 +403,7 @@ def _v25_nulls(
         _recoded(samples["sham_a"], seed + 41), _recoded(samples["sham_b"], seed + 41),
     )
     return {
+        "measured": True,
         "playback": round(playback, 6),
         "playback_is_zero": bool(playback <= max(1e-6, honest * 0.25)),
         "duplicate_coordinates": round(duplicate, 6),
@@ -595,10 +609,21 @@ async def main() -> int:
         )
         samples = held[best_lag]
         tau_best = float(best_lag) * frame_seconds
-        evidence["representation_invariance"] = _invariance(
-            samples, tau_seconds=tau_best, seed=args.seed
-        )
-        evidence["v25_nulls"] = _v25_nulls(samples, tau_seconds=tau_best, seed=args.seed)
+        try:
+            evidence["representation_invariance"] = _invariance(
+                samples, tau_seconds=tau_best, seed=args.seed
+            )
+            evidence["v25_nulls"] = _v25_nulls(
+                samples, tau_seconds=tau_best, seed=args.seed
+            )
+        except (ValueError, KeyError, IndexError) as exc:
+            # Same reason as inside them: what is already measured is worth
+            # writing down, and a stage that could not run is a blocker rather
+            # than a lost run.
+            reason = f"{type(exc).__name__}: {exc}"
+            evidence["representation_invariance"] = {"measured": False, "why": reason}
+            evidence["v25_nulls"] = {"measured": False, "why": reason}
+            _log(f"  neither could be measured: {reason}")
         _log(
             f"  invariant: {evidence['representation_invariance']['representation_invariant']}, "
             f"playback zero: {evidence['v25_nulls']['playback_is_zero']}"
@@ -721,11 +746,20 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append("tau-star is still horizon-bound at the ceiling")
     if undecided:
         blockers.append(f"{len(undecided)} cut(s) had insufficient power to decide cut against sham")
-    if invariance and not invariance.get("representation_invariant"):
-        blockers.append("the rate moved under an invertible re-encoding")
-    if invariance and not invariance.get("duplication_did_not_help"):
-        blockers.append("duplicated channels raised the rate")
-    if nulls and not nulls.get("playback_is_zero"):
+    if invariance and not invariance.get("measured"):
+        blockers.append(
+            f"representation invariance was not measured: {invariance.get('why', 'no reason recorded')}"
+        )
+    elif invariance:
+        if not invariance.get("representation_invariant"):
+            blockers.append("the rate moved under an invertible re-encoding")
+        if not invariance.get("duplication_did_not_help"):
+            blockers.append("duplicated channels raised the rate")
+    if nulls and not nulls.get("measured"):
+        blockers.append(
+            f"the v25 nulls were not measured: {nulls.get('why', 'no reason recorded')}"
+        )
+    elif nulls and not nulls.get("playback_is_zero"):
         blockers.append("the playback null did not collapse")
     if "note" in closure:
         blockers.append("no periphery could be read, so closure is NOT_MEASURED")
