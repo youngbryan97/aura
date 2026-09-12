@@ -21,8 +21,10 @@ act and must not be used to normalize unexplained growth.
 from __future__ import annotations
 
 import ast
+import os
 import sys
 from collections.abc import Iterable, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -944,6 +946,26 @@ def _canonical_owner(category: str, relative_path: str) -> bool:
     return relative_path in owners
 
 
+#: One parse per file, shared by every scan in this module.
+#:
+#: Two separate full-repo walks each read and parsed every source file, so the
+#: tree was built twice for most of them and the whole sweep took 147 seconds
+#: against the 60 the test allows it. Keyed by path and modification time, so
+#: an edit between scans is re-read rather than served stale.
+_PARSE_CACHE: dict[tuple[str, int, int], ast.AST] = {}
+
+
+def _parsed(path: Path, relative: str) -> ast.AST:
+    """The file's tree, parsed once however many scans ask for it."""
+    stat = path.stat()
+    key = (str(path), stat.st_mtime_ns, stat.st_size)
+    tree = _PARSE_CACHE.get(key)
+    if tree is None:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
+        _PARSE_CACHE[key] = tree
+    return tree
+
+
 def _iter_source_files(root: Path) -> Iterable[Path]:
     for top in SCAN_ROOTS:
         base = root / top
@@ -1052,24 +1074,44 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
                 )
 
 
+def _declarations_in_one(job: tuple[str, str]) -> list[tuple[str, str]]:
+    """Scan one file for gateway calls with no declared accelerator intent."""
+    path_text, relative = job
+    try:
+        tree = ast.parse(
+            Path(path_text).read_text(encoding="utf-8"), filename=relative
+        )
+    except (OSError, UnicodeError, SyntaxError) as exc:
+        return [(relative, f"declaration_scan_failed:{type(exc).__qualname__}:{exc}")]
+    visitor = _SubprocessDeclarationVisitor(relative_path=relative)
+    visitor.visit(tree)
+    return [(problem.path, problem.problem) for problem in visitor.violations]
+
+
 def audit_subprocess_accelerator_declarations(
     root: Path = ROOT,
 ) -> list[ScanProblem]:
     """Return every production gateway call missing accelerator intent."""
 
-    violations: list[ScanProblem] = []
-    for path in _iter_subprocess_declaration_source_files(root):
-        relative = path.relative_to(root).as_posix()
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=relative)
-        except (OSError, UnicodeError, SyntaxError) as exc:
-            violations.append(
-                ScanProblem(relative, f"declaration_scan_failed:{type(exc).__qualname__}:{exc}")
-            )
-            continue
-        visitor = _SubprocessDeclarationVisitor(relative_path=relative)
-        visitor.visit(tree)
-        violations.extend(visitor.violations)
+    # Across processes for the same reason as `scan_repository`: 4,318 files
+    # that do not need to know about each other. The result is sorted before it
+    # is returned, so which worker finished first changes nothing.
+    jobs = [
+        (str(path), path.relative_to(root).as_posix())
+        for path in _iter_subprocess_declaration_source_files(root)
+    ]
+    workers = min(os.cpu_count() or 1, 8)
+    if workers > 1 and len(jobs) > 64:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            batches = list(pool.map(_declarations_in_one, jobs, chunksize=32))
+    else:
+        batches = [_declarations_in_one(job) for job in jobs]
+
+    violations = [
+        ScanProblem(relative, problem)
+        for batch in batches
+        for relative, problem in batch
+    ]
     return sorted(violations, key=lambda problem: (problem.path, problem.problem))
 
 
@@ -1094,24 +1136,43 @@ def _scan_tree_scoped(
     return counts
 
 
+def _scan_one(job: tuple[str, str]) -> tuple[str, dict, str]:
+    """Read, parse and count one file. Runs in a worker, so it returns data."""
+    path_text, relative = job
+    try:
+        tree = ast.parse(
+            Path(path_text).read_text(encoding="utf-8"), filename=relative
+        )
+    except (OSError, UnicodeError) as exc:
+        return relative, {}, f"read_failed:{type(exc).__qualname__}:{exc}"
+    except SyntaxError as exc:
+        return relative, {}, f"parse_failed:{exc.lineno}:{exc.offset}:{exc.msg}"
+    return relative, _scan_tree_scoped(tree, relative), ""
+
+
 def scan_repository(root: Path = ROOT) -> tuple[list[EffectBucket], list[ScanProblem]]:
     counts: dict[tuple[str, str, str, str], int] = {}
     problems: list[ScanProblem] = []
-    for path in _iter_source_files(root):
-        relative = path.relative_to(root).as_posix()
-        try:
-            source = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as exc:
-            problems.append(ScanProblem(relative, f"read_failed:{type(exc).__qualname__}:{exc}"))
+
+    # Across processes, because this is 3,695 files that do not need to know
+    # about each other and it was 93 seconds of one core while the gate that
+    # runs it allows 60. Ordering is restored by sorting the results, so the
+    # report does not depend on which worker finished first.
+    jobs = [
+        (str(path), path.relative_to(root).as_posix())
+        for path in _iter_source_files(root)
+    ]
+    workers = min(os.cpu_count() or 1, 8)
+    if workers > 1 and len(jobs) > 64:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(_scan_one, jobs, chunksize=32))
+    else:
+        results = [_scan_one(job) for job in jobs]
+
+    for relative, scoped_counts, problem in sorted(results):
+        if problem:
+            problems.append(ScanProblem(relative, problem))
             continue
-        try:
-            tree = ast.parse(source, filename=relative)
-        except SyntaxError as exc:
-            problems.append(
-                ScanProblem(relative, f"parse_failed:{exc.lineno}:{exc.offset}:{exc.msg}")
-            )
-            continue
-        scoped_counts = _scan_tree_scoped(tree, relative)
         for key, count in scoped_counts.items():
             counts[key] = counts.get(key, 0) + count
 
