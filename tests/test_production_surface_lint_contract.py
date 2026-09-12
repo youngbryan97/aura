@@ -358,3 +358,44 @@ def run(code_object, globals_dict):
     )
 
     assert "raw_dynamic_code" not in kinds
+
+
+def test_a_bare_call_to_a_function_this_module_defines_is_not_a_write():
+    """`write_text(...)` with no receiver names whatever the module defines.
+
+    core/subject/archive.py defines a write_text that routes through the file
+    write gateway inside a governed scope, and all three of its call sites
+    were reported as unapproved direct writes. Whether that helper writes
+    directly is decided where it is defined, which this same scan reads.
+    """
+    import ast
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "tools"))
+    from production_surface_lint import AstLinter
+
+    def kinds(source: str) -> list[str]:
+        tree = ast.parse(source)
+        linter = AstLinter("core/probe.py")
+        linter.functions_defined_here = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        linter.visit(tree)
+        return [finding.kind for finding in linter.findings]
+
+    defined_here = "def write_text(path, body):\n    pass\n\n\ndef go(p):\n    write_text(p, 'x')\n"
+    assert kinds(defined_here) == []
+
+    # The two readings it must still catch: a name this module does not
+    # define, and the Path method itself.
+    linter_sees_a_stranger = "def go(p):\n    write_text(p, 'x')\n"
+    tree = ast.parse(linter_sees_a_stranger)
+    linter = AstLinter("core/probe.py")
+    linter.functions_defined_here = set()
+    linter.visit(tree)
+    assert [f.kind for f in linter.findings] == ["unapproved_direct_file_write"]
+
+    assert kinds("def go(p):\n    p.write_text('x')\n") == ["unapproved_direct_file_write"]

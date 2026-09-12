@@ -19,9 +19,28 @@ from core.brain.llm import mlx_client
 
 
 def _cancel_block() -> str:
+    """The whole function that decides whether to cancel, not a window into it.
+
+    This used to return 1,100 characters either side of `prefilling = (`. The
+    function grew past that, and `test_the_livelock_ceiling_still_applies`
+    started failing on a line that is still there — the slice had simply
+    stopped reaching it. A test that measures how long a block is, while
+    claiming to measure what it does, fails for a reason it cannot report.
+    """
+    import ast
+
     source = inspect.getsource(mlx_client)
-    where = source.index("prefilling = (")
-    return source[where - 200 : where + 900]
+    at = source[: source.index("prefilling = (")].count("\n") + 1
+    tree = ast.parse(source)
+    holding = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.lineno <= at <= (node.end_lineno or 0)
+    ]
+    assert holding, "nothing in mlx_client contains the prefill decision any more"
+    innermost = max(holding, key=lambda node: node.lineno)
+    return ast.get_source_segment(source, innermost) or ""
 
 
 def test_prefill_in_flight_lifts_the_callers_first_token_ceiling():

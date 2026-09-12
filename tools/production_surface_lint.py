@@ -206,6 +206,13 @@ class AstLinter(ast.NodeVisitor):
         self.file_gateway_vars: set[str] = set()
         self.in_memory_binary_vars: set[str] = set()
         self.import_aliases: dict[str, str] = {}
+        #: Functions this module defines. A bare `write_text(...)` naming one
+        #: of them is a call to it, not a write — and whether IT writes
+        #: directly is decided where it is defined, which this same scan
+        #: reads. core/subject/archive.py defines a write_text that routes
+        #: through the gateway under a governed scope, and every one of its
+        #: three call sites was reported as an unapproved direct write.
+        self.functions_defined_here: set[str] = set()
 
     def add(self, severity: str, kind: str, node: ast.AST, message: str) -> None:
         if self.rel in EXEMPT_FILES:
@@ -405,6 +412,9 @@ class AstLinter(ast.NodeVisitor):
             or name.endswith(".write_bytes")
             or name in {"write_text", "write_bytes"}
         ):
+            if name in self.functions_defined_here:
+                self.generic_visit(node)
+                return
             if self._is_file_gateway_write_call(node):
                 self.generic_visit(node)
                 return
@@ -546,6 +556,11 @@ def scan_file(path: Path) -> list[LintFinding]:
         if rel not in EXEMPT_FILES:
             findings.extend(hardcoded_local_path_findings(tree, rel))
         visitor = AstLinter(rel)
+        visitor.functions_defined_here = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
         visitor.visit(tree)
         findings.extend(visitor.findings)
     except SyntaxError as exc:
