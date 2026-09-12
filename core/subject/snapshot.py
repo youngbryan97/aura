@@ -470,6 +470,229 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
                 continue
 
 
+#: Files a fork leaves to their owners. SQLite manages its own journals, and
+#: logs, locks and keys are not state an arm reads back.
+_STORE_SKIP_SUFFIXES: tuple[str, ...] = ("-wal", "-shm", "-journal", ".lock", ".log", ".pem")
+
+#: What the fork holds in memory for one run's state root. A quick run's root
+#: was 24 MB over 3,178 files, most of them episodic memories and their write
+#: receipts; a root past this bound is not one run's own, and holding it would
+#: be holding other runs' history in every arm.
+STORE_BOUND_BYTES: int = 1024 * 1024 * 1024
+
+#: The latest bytes of every file, keyed by path and by the size and
+#: modification time they were read at. A snapshot stats every file and reads
+#: only the ones that moved, and two snapshots share the bytes of every file
+#: that did not change between them. A whole-root copy per arm scaled with the
+#: root; this scales with what one arm changed.
+_STORE_CACHE: dict[str, tuple[tuple[tuple[int, int], str], tuple[str, bytes]]] = {}
+
+
+def _store_root() -> Path | None:
+    """The run's own state root, or None when the process was not isolated.
+
+    Only an injected root is forked. A process on the shared default root is
+    already not a valid run, and forking its gigabytes of history into each
+    arm would hide that behind a slow run.
+    """
+    injected = os.environ.get("AURA_STATE_ROOT", "")
+    if not injected:
+        return None
+    root = Path(injected)
+    return root if root.is_dir() else None
+
+
+def _stamp(path: Path) -> tuple[int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (int(stat.st_size), int(stat.st_mtime_ns))
+
+
+def _sqlite_stamp(path: Path) -> tuple[int, int] | None:
+    """A database's stamp includes its write-ahead log, where fresh writes land."""
+    own = _stamp(path)
+    if own is None:
+        return None
+    wal = _stamp(path.with_name(path.name + "-wal")) or (0, 0)
+    return (own[0] + wal[0], max(own[1], wal[1]))
+
+
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def _is_sqlite(path: Path) -> bool:
+    """A database by its header, not by whether opening it raised.
+
+    Opening a database can fail for a reason that has nothing to do with what
+    the file is, a lock held a moment too long. Deciding "not a database" from
+    that downgraded a real store to a byte copy of its main file, whose stamp
+    does not move while fresh writes sit in the write-ahead log.
+    """
+    try:
+        with path.open("rb") as handle:
+            return handle.read(16) == _SQLITE_MAGIC
+    except OSError:
+        return False
+
+
+def _sqlite_image(path: Path) -> tuple[bytes, bool]:
+    """A consistent image of a database other connections may hold open.
+
+    Through SQLite's backup API, which reads under SQLite's own locks, and not
+    a byte copy of a file in write-ahead mode. Returns the image and whether the
+    store was in write-ahead mode.
+
+    A write-ahead database serializes with the file-format version bytes at
+    offsets 18 and 19 set to 2, and an in-memory connection cannot open such an
+    image: deserializing it fails with "unable to open database file". Every
+    store a run keeps is in that format, so the image is kept with both bytes
+    set to 1, and the restore puts the journal mode back.
+    """
+    source = sqlite3.connect(str(path), timeout=5.0)
+    try:
+        image = sqlite3.connect(":memory:")
+        try:
+            source.backup(image)
+            raw = bytes(image.serialize())
+        finally:
+            image.close()
+    finally:
+        source.close()
+    write_ahead = len(raw) > 19 and raw[18] == 2
+    if write_ahead:
+        raw = raw[:18] + b"\x01\x01" + raw[20:]
+    return raw, write_ahead
+
+
+def _sqlite_restore(path: Path, image: bytes, write_ahead: bool) -> None:
+    """Write an image back through SQLite, so an open connection sees it whole."""
+    held = sqlite3.connect(":memory:")
+    try:
+        held.deserialize(image)
+        live = sqlite3.connect(str(path), timeout=5.0)
+        try:
+            held.backup(live)
+            if write_ahead:
+                live.execute("PRAGMA journal_mode=WAL")
+        finally:
+            live.close()
+    finally:
+        held.close()
+
+
+def _cached(name: str, path: Path, stamp: tuple[int, int], is_database: bool) -> tuple[str, bytes]:
+    """The bytes for this path at this stamp, read only when the stamp moved.
+
+    A failure to read raises. A state file the fork could not capture is a
+    file an arm can leak through, and skipping it silently is how the first
+    version left every database unrestored.
+    """
+    entry = _STORE_CACHE.get(name)
+    if entry is not None and entry[0][0] == stamp:
+        return entry[1]
+    if is_database:
+        payload, write_ahead = _sqlite_image(path)
+        kind = "database-wal" if write_ahead else "database"
+    else:
+        payload, kind = path.read_bytes(), "file"
+    _STORE_CACHE[name] = ((stamp, kind), (kind, payload))
+    return (kind, payload)
+
+
+def _store_state() -> dict[str, Any] | None:
+    """Every state file in the run's own root, read only where it moved."""
+    root = _store_root()
+    if root is None:
+        return None
+    entries: dict[str, tuple[str, tuple[int, int], bytes]] = {}
+    directories: list[str] = []
+    total = 0
+    for item in sorted(root.rglob("*")):
+        relative = item.relative_to(root)
+        if "logs" in relative.parts:
+            continue
+        name = str(relative)
+        if item.is_dir():
+            directories.append(name)
+            continue
+        if not item.is_file() or name.endswith(_STORE_SKIP_SUFFIXES):
+            continue
+        is_database = _is_sqlite(item)
+        stamp = _sqlite_stamp(item) if is_database else _stamp(item)
+        if stamp is None:
+            continue
+        kind, payload = _cached(name, item, stamp, is_database)
+        entries[name] = (kind, stamp, payload)
+        total += len(payload)
+        if total > STORE_BOUND_BYTES:
+            raise RuntimeError(
+                f"state root {root} holds more than {STORE_BOUND_BYTES} bytes; it is not "
+                "one run's own, and forking it into every arm would copy other runs' history"
+            )
+    for name in list(_STORE_CACHE):
+        if name not in entries:
+            del _STORE_CACHE[name]
+    return {"root": str(root), "entries": entries, "directories": directories}
+
+
+def _restore_stores(saved: dict[str, Any] | None) -> None:
+    """Put the run's state files back to what they held when the fork was taken."""
+    if not saved:
+        return
+    root = _store_root()
+    if root is None or str(root) != saved["root"]:
+        # The root moved since the snapshot. Writing old bytes into a new root
+        # would be writing one run's state into another's.
+        return
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    gateway = get_file_write_gateway()
+    entries: dict[str, tuple[str, tuple[int, int], bytes]] = saved["entries"]
+    keep = set(entries) | set(saved["directories"])
+    with local_internal_governed_scope("subject_core.fork"):
+        for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
+            relative = item.relative_to(root)
+            name = str(relative)
+            if "logs" in relative.parts or name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
+                continue
+            try:
+                gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
+            except OSError:
+                continue
+            _STORE_CACHE.pop(name, None)
+        for name in saved["directories"]:
+            gateway.ensure_directory(root / name, source="subject_core.fork")
+        failures: list[str] = []
+        for name, (kind, stamp, payload) in entries.items():
+            target = root / name
+            try:
+                if kind.startswith("database"):
+                    # Compared with the stamp that counts the write-ahead log,
+                    # where a fresh write lands before it reaches the file.
+                    if _sqlite_stamp(target) != stamp:
+                        _sqlite_restore(target, payload, kind == "database-wal")
+                        _STORE_CACHE[name] = ((_sqlite_stamp(target) or stamp, kind), (kind, payload))
+                    continue
+                if _stamp(target) == stamp:
+                    continue
+                gateway.ensure_directory(target.parent, source="subject_core.fork")
+                gateway.write_bytes(target, payload, source="subject_core.fork")
+                # Its old modification time back, so a service caching on the
+                # stamp reloads the restored bytes, and the next snapshot finds
+                # the cached copy still current instead of reading it again.
+                os.utime(target, ns=(stamp[1], stamp[1]))
+                _STORE_CACHE[name] = ((stamp, kind), (kind, payload))
+            except (OSError, sqlite3.Error) as exc:
+                failures.append(f"{name}: {type(exc).__name__}: {exc}")
+    if failures:
+        # Raised, not skipped. The first version caught these and carried on,
+        # and an arm whose store was not put back contaminates every arm after.
+        raise RuntimeError(f"the fork could not restore {len(failures)} state file(s): {failures[:6]}")
+
+
 def _intentions_state(loop: Any) -> list[tuple] | None:
     """Every row the intention database holds.
 
@@ -1017,6 +1240,11 @@ class Snapshot:
     #: right about her own effect is one of the things the ownership experiment
     #: has to span.
     outcomes_by_kind: dict[str, bool] = field(default_factory=dict)
+    #: The run's own state files. The services' Python state was forked and
+    #: the files they write and read back were not, so an arm of three turns
+    #: left seventeen changed files and three new episodic memories for the
+    #: next arm to recall.
+    stores: dict[str, Any] | None = None
 
 
 #: The three names other modules ask the driver for. Kept as aliases rather

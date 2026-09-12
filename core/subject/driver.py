@@ -302,10 +302,12 @@ from core.subject.snapshot import (  # noqa: E402
     _restore_organ,
     _restore_services,
     _restore_singletons,
+    _restore_stores,
     _restore_torch_random,
     _restore_world,
     _service_state,
     _singleton_state,
+    _store_state,
     _torch_random_state,
     _world_state,
 )
@@ -628,6 +630,7 @@ class SubjectRuntime:
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
             world=_world_state(getattr(self, "_scratch", None)),
+            stores=_store_state(),
             intentions=_intentions_state(self._intentions),
         )
 
@@ -663,6 +666,7 @@ class SubjectRuntime:
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
         _restore_world(getattr(self, "_scratch", None), snapshot.world)
+        _restore_stores(snapshot.stores)
         _restore_intentions(self._intentions, snapshot.intentions)
         if self.clock is not None and snapshot.clock_at is not None:
             # The clock is the state as far as a phase reading elapsed time is
