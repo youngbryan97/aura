@@ -268,9 +268,37 @@ Working list. Deleted when every line is done and green.
       right width prove none of those, which the module's own docstring calls
       the thing that looks safest and is not.
 
-      That capture is a campaign against the resident model and is not in this
-      item's scope. What this item asked — whether the 27B has a certificate
-      and why — is answered.
+      The capture ran. 80 vectors over 16 target layers in 43 seconds, one
+      forward pass per prompt with every layer read from it, each file stamped
+      with the registry's descriptor and the manifest reopened and checked
+      against every file's size and digest. The vectors exist and they inject:
+      steered, zeroed and randomised outputs differ from each other and from
+      baseline.
+
+      They do not yet earn serving authority, and the four requirements are
+      right to refuse them. Treatment wins 6 of 24 and the matched no-op wins 6
+      as well; the lesions win 4, 5 and 4. Only the text control separates, at
+      +1.42 against every other condition inside 0.04 to 0.21, so the affect
+      lexicon cannot resolve an effect this size at 24 samples. At alpha 0.4
+      the answer also degrades — one steered sample is the single word "Sure!".
+
+      Three rig defects had to be removed before that negative meant anything,
+      and each would have produced a confident wrong answer. Forty-eight-token
+      samples that never reached past the model's reasoning preamble, where
+      every condition including the explicit-emotion control scored zero.
+      Hooks that were never handed a substrate, so there was no composite to
+      add and all four steering conditions came back byte-identical to
+      baseline — three lesions removing an effect that had never been applied.
+      And injection at the twelve linear-attention layers, where state advances
+      along the sequence and a constant added there compounds token by token
+      into "to to and to to for for": `steering_regeneration`'s own docstring
+      warned about that and it was walked past.
+
+      What remains is calibration, and it is one knob with everything else in
+      place. Alpha 0.4 degrades and alpha 0.2 was coherent in the greedy check
+      — "and specific about my experience" against a baseline of "I don't
+      experience feelings". A sweep between them, and a score with more
+      resolution than a 36-word lexicon over 24 samples, is the next run.
 
       The idle hook fires. What it reached was a precondition block reading
       `engine._hooks`, which is not the surface an engine publishes —

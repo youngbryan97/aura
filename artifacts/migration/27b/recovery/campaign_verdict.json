@@ -1,0 +1,33 @@
+{
+  "schema": "aura.caa.campaign_verdict.v1",
+  "alpha": 0.4,
+  "layers": "full_attention only (4 of 16 target layers)",
+  "max_tokens": 256,
+  "temperature": 0.7,
+  "samples_per_condition": 24,
+  "condition_means": {
+    "baseline": 0.0833,
+    "baseline_replicate": 0.2083,
+    "random_vector": 0.0417,
+    "shuffled_layers": 0.0833,
+    "steered_black_box": 0.1667,
+    "text_rich_adversarial": 1.4167,
+    "text_terse": 0.125,
+    "zero_vector": 0.1667
+  },
+  "treatment_successes": 6,
+  "matched_control_successes": 6,
+  "lesion_successes": {
+    "random_vector": 4,
+    "shuffled_layers": 5,
+    "zero_vector": 4
+  },
+  "no_regression": false,
+  "causal_effect_positive": false,
+  "unmet_requirements": [
+    "specificity_controls_absent_or_reproduce_the_effect",
+    "text_prompt_moves_output_at_least_as_far",
+    "intended_direction_not_measured_or_not_significant"
+  ],
+  "reading": "The vectors inject: steered, zeroed and randomised outputs differ from each other and from baseline, which the first two runs of this campaign could not say. They do not yet separate from their controls. Treatment and the matched no-op win equally often, the lesions win nearly as often, and at alpha 0.4 the answer degrades. Only the text control moves the score clearly, at +1.42 against everything else inside 0.04 to 0.21, so the affect lexicon cannot resolve an effect this size at 24 samples. Serving authority is refused, which is what the requirement is for."
+}
