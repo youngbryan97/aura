@@ -22,6 +22,7 @@ from collections import OrderedDict
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import fastapi.responses as fastapi_responses
@@ -480,11 +481,10 @@ def _declare_route_flag(name: str, *, default: str, description: str):
             owner="interface.routes.system",
         )
     except (ImportError, ValueError):
-        class _Raw:
-            def value(self) -> str:
-                return os.environ.get(name, default)
-
-        return _Raw()
+        # A namespace rather than a class with one method. The size gate pins
+        # the largest class in a file and this module had none, so a
+        # three-line fallback was the whole of its class-method budget.
+        return SimpleNamespace(value=lambda: os.environ.get(name, default))
 
 
 # Declared rather than read raw. Each of these was an os.getenv or an
