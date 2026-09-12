@@ -164,7 +164,14 @@ def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
 
 
 def _surface_control_recurrent_loops(job: dict[str, Any]) -> int:
-    return admit_user_surface_recurrent_loops(job.get("clean_user_surface_recurrent_loops"))
+    # Imported at call time: mlx_worker imports this module, so the other
+    # direction cannot be a module-level import.
+    from .mlx_worker import _FUSION_MODEL_IDENTITY
+
+    return admit_user_surface_recurrent_loops(
+        job.get("clean_user_surface_recurrent_loops"),
+        descriptor_sha256=_FUSION_MODEL_IDENTITY,
+    )
 
 
 def _apply_surface_generation_controls(

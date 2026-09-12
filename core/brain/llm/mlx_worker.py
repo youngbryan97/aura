@@ -509,7 +509,11 @@ _FUSION_MODEL_IDENTITY = ""
 #: So the ceiling is 1 until an accuracy gate says otherwise. Raising it is an
 #: experiment and has to be asked for.
 def _live_recurrent_ceiling() -> int:
-    return user_surface_recurrent_ceiling()
+    # The checkpoint in memory, so a gate's receipt for THIS one can be found.
+    # `_FUSION_MODEL_IDENTITY` is the same digest the fusion certificate is
+    # looked up by, and it is empty until a checkpoint has been remembered —
+    # which reads as the identity depth, which is the right answer then.
+    return user_surface_recurrent_ceiling(_FUSION_MODEL_IDENTITY)
 
 
 
