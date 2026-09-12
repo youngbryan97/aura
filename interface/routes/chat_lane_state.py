@@ -326,6 +326,26 @@ def _lane_status_message_body(
     return _with_mood(_mood_prefix, "the answer path is not ready yet; the readiness state is recorded on the live lane.")
 
 
+#: When the lane last entered a recovery cooldown, and how long one lasts.
+#:
+#: These sat in chat.py while `_enter_recovery_cooldown` sat in the lane
+#: module, so the write landed on one module's global and
+#: `_in_recovery_cooldown` read the other's. It returned False for every
+#: recovery there has ever been. State goes with the pair that uses it.
+_last_recovery_cooldown_at: float = 0.0
+
+# [STABILITY v50] Reduced from 5s to 1s. The old 5s cooldown amplified single
+# failures into multi-turn outages by fast-rejecting the person's immediate
+# retry. 1s is enough to stop a request pileup without blocking a real retry.
+_RECOVERY_COOLDOWN_SECONDS: float = 1.0
+
+
+def _in_recovery_cooldown() -> bool:
+    if _last_recovery_cooldown_at <= 0:
+        return False
+    return (time.monotonic() - _last_recovery_cooldown_at) < _RECOVERY_COOLDOWN_SECONDS
+
+
 def _enter_recovery_cooldown() -> None:
     global _last_recovery_cooldown_at
     _last_recovery_cooldown_at = time.monotonic()

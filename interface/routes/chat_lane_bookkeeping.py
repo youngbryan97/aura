@@ -43,6 +43,7 @@ from .chat_lane_state import (
     _conversation_lane_needs_instant_social_contract,  # noqa: F401
     _cortex_is_cold_loading,  # noqa: F401
     _enter_recovery_cooldown,  # noqa: F401
+    _in_recovery_cooldown,  # noqa: F401
     _force_clear_mlx_foreground_owner,  # noqa: F401
     _host_condition,  # noqa: F401
     _known_answer_for_this_turn,  # noqa: F401

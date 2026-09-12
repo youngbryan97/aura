@@ -675,6 +675,7 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _cortex_is_cold_loading,
     _early_chat_json_response,
     _enter_recovery_cooldown,
+    _in_recovery_cooldown,
     _env_float,
     _export_json_default,
     _fetch_deep_memory_context,
@@ -8361,8 +8362,6 @@ def _conversation_lane_user_message(
     return message + _lane_status_repeat_suffix(message)
 
 
-_last_recovery_cooldown_at: float = 0.0
-_RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s. The old 5s cooldown amplified single failures into multi-turn outages by fast-rejecting the user's immediate retry. 1s is enough to prevent request pileup without blocking a legitimate retry.
 _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
 _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 300.0
 _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 360.0
@@ -8374,12 +8373,6 @@ _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 360.0
 # creating a resource contention spiral. 45s gives the kernel real time to
 # respond on turn 1. Subsequent turns (model warm, KV cache hot) are <5s.
 _KERNEL_SOFT_REPLY_SLA_SECONDS: float = 180.0
-
-
-def _in_recovery_cooldown() -> bool:
-    if _last_recovery_cooldown_at <= 0:
-        return False
-    return (time.monotonic() - _last_recovery_cooldown_at) < _RECOVERY_COOLDOWN_SECONDS
 
 
 def _kernel_is_congested(lane: dict[str, Any] | None) -> bool:
