@@ -273,6 +273,10 @@ def campaign(
             "|".join(schema).encode(), digest_size=16
         ).hexdigest()},
         "seed": seed,
+        # Every run in its own state root, empty when it starts. A run that
+        # inherits another run's world model, self model and ledgers is not
+        # the experiment its thresholds describe.
+        "state_root": "per_run",
     }
     return {
         "frozen": frozen,
@@ -374,6 +378,10 @@ def campaign_v25(
             "hash": hashlib.blake2b("|".join(schema).encode(), digest_size=16).hexdigest(),
         },
         "seed": seed,
+        # Every run in its own state root, empty when it starts. A run that
+        # inherits another run's world model, self model and ledgers is not
+        # the experiment its thresholds describe.
+        "state_root": "per_run",
     }
     return {
         "frozen": frozen,

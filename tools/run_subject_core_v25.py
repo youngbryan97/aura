@@ -481,6 +481,12 @@ async def main() -> int:
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
     run_dir = next_run_directory(args.out)
     run_dir.mkdir(parents=True, exist_ok=True)
+    # Its own state root, before the organism is built. Sharing one with other
+    # runs made every run start from what the ones before it had trained; see
+    # core.subject.isolation.
+    from core.subject.isolation import isolate_state, state_leaks
+
+    isolate_state(run_dir)
     started = time.monotonic()
     fingerprint = campaign_v25(
         seed=args.seed,
@@ -495,6 +501,10 @@ async def main() -> int:
     _log(f"building the offline organism in {run_dir}")
 
     runtime = build_runtime(run_dir, seed=args.seed)
+    if state_leaks():
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
+        )
     await start_organism(runtime)
     clock = await calibrate_clock(runtime, conditions)
     frame_seconds = float(clock.get("step", 1.0 / 33.0))

@@ -175,6 +175,21 @@ async def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
+    # The run's own directory, and its state root inside it, before any core
+    # module is imported. A run never overwrites the one before it: the run
+    # that did not come out well is the one a reader most needs, and `--out`
+    # pointing at a fixed directory quietly destroyed it every time. And a run
+    # never shares state with another. Every tool that built the organism left
+    # the state root unset, so each campaign started from whatever the runs
+    # before it had trained, and two runs with one fingerprint were two
+    # experiments.
+    from core.subject.isolation import isolate_state
+    from core.subject.provenance import next_run_directory
+
+    root = args.out
+    args.out = next_run_directory(root) if not args.here else root
+    state_root_path = isolate_state(args.out)
+
     from core.subject.agency import run_agency
     from core.subject.archive import save_arms, save_edge_table, write_json
     from core.subject.battery import assemble
@@ -207,18 +222,12 @@ async def main() -> int:
         environment,
         manifest,
         mind_identity,
-        next_run_directory,
     )
     from core.subject.recording import build_recording
     from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
     from core.subject.synergy import synergy_suite
 
     started = time.monotonic()
-    # A run never overwrites the one before it. The run that did not come out
-    # well is the one a reader most needs, and `--out` pointing at a fixed
-    # directory quietly destroyed it every time.
-    root = args.out
-    args.out = next_run_directory(root) if not args.here else root
     evidence: dict[str, Any] = {
         "notes": {},
         "campaign": campaign(
@@ -251,6 +260,16 @@ async def main() -> int:
     evidence["perception"] = _attach_tape(runtime, args)
     organism = await start_organism(runtime)
     evidence["organism"] = organism
+    # Whether anything kept a path into the root the process would otherwise
+    # have used. Fifty-eight modules build such a path when they are imported,
+    # and the organism imports most of them on the way up.
+    from core.subject.isolation import state_leaks
+
+    evidence["notes"]["state"] = {
+        "root": str(state_root_path),
+        "policy": "per_run",
+        "leaks": state_leaks(),
+    }
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
     if organism["down"]:
         _log(f"  did not come up: {organism['down']}")
@@ -1050,6 +1069,10 @@ def _authority_blockers(
     failed_layers = layers.get("failures") or {}
     if failed_layers:
         blocking.append(f"a layer raised while being stepped: {sorted(failed_layers)}")
+
+    leaks = ((evidence.get("notes", {}) or {}).get("state", {}) or {}).get("leaks") or []
+    if leaks:
+        blocking.append(f"a module kept a path into the shared state root: {leaks[:6]}")
 
     down = (evidence.get("organism", {}) or {}).get("down") or {}
     if down:

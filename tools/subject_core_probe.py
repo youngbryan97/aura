@@ -70,6 +70,10 @@ async def main() -> int:
     out = args.out or (REPO / "artifacts" / "subject_core" / "probe")
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(out / "logs"))
+    # Its own state root, before the organism is built; see core.subject.isolation.
+    from core.subject.isolation import isolate_state, state_leaks
+
+    isolate_state(out)
 
     from core.subject.causal import DEFAULT_DELTA, _arm
     from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, start_organism
@@ -85,6 +89,10 @@ async def main() -> int:
 
     _log(f"building the offline organism in {out}")
     runtime = build_runtime(out / "runtime", seed=args.seed)
+    if state_leaks():
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
+        )
     organism = await start_organism(runtime, quiet=True)
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
 

@@ -152,10 +152,20 @@ async def main() -> int:
 
     run_dir = next_run_directory(args.out)
     run_dir.mkdir(parents=True, exist_ok=True)
+    # Its own state root, before the organism is built. Sharing one with other
+    # runs made every run start from what the ones before it had trained; see
+    # core.subject.isolation.
+    from core.subject.isolation import isolate_state, state_leaks
+
+    isolate_state(run_dir)
     started = time.monotonic()
     _log(f"dose-response run {run_dir.name}")
 
     runtime = build_runtime(run_dir, seed=args.seed)
+    if state_leaks():
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
+        )
     await start_organism(runtime)
     await calibrate_clock(runtime, CONDITIONS)
 

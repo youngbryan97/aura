@@ -59,8 +59,17 @@ async def blind_asks() -> list[dict[str, object]]:
     from core.subject.driver import build_runtime, start_organism
 
     workdir = REPO / "artifacts" / "subject_core" / "seam_audit"
+    # Its own state root, not the one every test and campaign shares; see
+    # core.subject.isolation.
+    from core.subject.isolation import isolate_state, state_leaks
+
+    isolate_state(workdir)
     runtime = build_runtime(workdir, seed=1)
     await start_organism(runtime, quiet=True)
+    if state_leaks():
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
+        )
 
     from core.container import ServiceContainer
 
