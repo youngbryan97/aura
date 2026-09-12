@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
 import time
@@ -151,6 +150,7 @@ async def main() -> int:
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
     from core.subject.agency import run_agency
+    from core.subject.archive import save_arms, save_edge_table, write_json
     from core.subject.battery import assemble
     from core.subject.causal import build_edges, power_note, run_interventions
     from core.subject.clamp import clamped
@@ -176,11 +176,6 @@ async def main() -> int:
         toy_recording,
     )
     from core.subject.pci import perturbational_complexity
-    from core.subject.recording import build_recording
-    from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
-    from core.subject.synergy import synergy_suite
-
-    from core.subject.archive import save_arms, save_edge_table, write_json
     from core.subject.provenance import (
         campaign,
         environment,
@@ -188,6 +183,9 @@ async def main() -> int:
         mind_identity,
         next_run_directory,
     )
+    from core.subject.recording import build_recording
+    from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
+    from core.subject.synergy import synergy_suite
 
     started = time.monotonic()
     # A run never overwrites the one before it. The run that did not come out
@@ -204,6 +202,13 @@ async def main() -> int:
             turns=args.turns,
             lesion_rounds=0 if args.skip_lesion else args.lesion_rounds,
         ),
+        # What it ran on, beyond the commit. `environment()` was imported and
+        # never called, so every report carried nothing about its machine — and
+        # a result cannot be compared across machines when a run does not say
+        # which one it was. None of this enters the fingerprint: two machines
+        # running one campaign are one campaign, and whether their numbers
+        # agree is the question a second machine is run to answer.
+        "environment": environment(),
     }
     _log(
         f"run {args.out.name} on {evidence['campaign']['commit'][:12]}"

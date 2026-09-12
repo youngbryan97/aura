@@ -7378,6 +7378,170 @@
     "note": "a consumer that raised is recorded as a degradation rather than swallowed",
     "status": "done"
   },
+  "P50.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "lesion_deficit_phi"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "rescue_phi"
+      }
+    ],
+    "note": "the lesion deficit and the rescue are both carried, per measure",
+    "status": "done"
+  },
+  "P50.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "machine_effect"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "criteria_that_disagreed"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_a_gap_smaller_than_one_hosts_own_noise_is_not_a_machine_effect"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_a_gap_larger_than_it_is_named"
+      }
+    ],
+    "note": "the machine effect is the between-host spread against the within-host spread; a gap smaller than one machine's own noise is not a machine effect, and criteria that answered differently are named",
+    "status": "done"
+  },
+  "P50.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "same_campaign"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "allow-different-campaigns"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_different_campaigns_are_two_experiments"
+      }
+    ],
+    "note": "the comparison refuses two runs that are not the same campaign on the same code, so identical source is enforced rather than asserted",
+    "status": "done"
+  },
+  "P50.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/runbooks/replicate-subject-core-second-machine.md",
+        "pattern": "Run the frozen campaign whole"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/runbooks/replicate-subject-core-second-machine.md",
+        "pattern": "run_subject_core.py --rounds 60"
+      }
+    ],
+    "note": "the runbook runs the frozen campaign whole on the second machine and says why a shortened run answers a different question",
+    "status": "done"
+  },
+  "P50.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "def _topology"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_the_topology_is_compared_edge_by_edge"
+      }
+    ],
+    "note": "kept edges compared edge by edge, with the ones that differ named",
+    "status": "done"
+  },
+  "P50.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "\"phi_do\""
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "within_machine_spread"
+      }
+    ],
+    "note": "irreducibility reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "status": "done"
+  },
+  "P50.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "\"d_eff\""
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "within_machine_spread"
+      }
+    ],
+    "note": "effective dimension reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "status": "done"
+  },
+  "P50.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "\"spread\""
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "within_machine_spread"
+      }
+    ],
+    "note": "perturbational spread reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "status": "done"
+  },
+  "P50.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/compare_across_machines.py",
+        "pattern": "def _synergy_passing"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_synergy_is_compared_triple_by_triple"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_machine_effect_is_larger_than_one_machines_noise.py",
+        "pattern": "def test_a_triple_that_passed_on_one_run_only_is_named"
+      }
+    ],
+    "note": "synergy compared triple by triple, and a triple that cleared its null on one run only is named; the numbers can agree while the verdicts do not",
+    "status": "done"
+  },
   "P52.1": {
     "checks": [
       {

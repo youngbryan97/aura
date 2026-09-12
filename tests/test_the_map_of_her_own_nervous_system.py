@@ -2373,7 +2373,7 @@ def test_each_station_claims_the_phase_assigned_to_it():
 # ---------------------------------------------------------------------------
 
 
-def test_a_lesion_puts_the_cell_back_even_when_the_body_raises():
+def test_a_lesion_puts_the_cell_back_even_when_the_body_raises(allows_a_lesion):
     """A cut that does not heal turns one experiment into every later one."""
     from core.connectome import intervene
     from core.connectome.volume import VolumeReconstructor
@@ -2388,7 +2388,7 @@ def test_a_lesion_puts_the_cell_back_even_when_the_body_raises():
     assert VolumeReconstructor.build is before
 
 
-def test_a_silenced_cell_absorbs_its_calls_and_says_how_many():
+def test_a_silenced_cell_absorbs_its_calls_and_says_how_many(allows_a_lesion):
     from core.connectome import intervene
 
     with intervene.silence("core.connectome.types:CellClass"):
@@ -2412,7 +2412,7 @@ def test_a_silenced_cell_absorbs_its_calls_and_says_how_many():
         del types_module._probe_holder
 
 
-def test_an_async_cell_is_replaced_by_something_awaitable():
+def test_an_async_cell_is_replaced_by_something_awaitable(allows_a_lesion):
     """Handing a coroutine's caller a plain value measures the crash, not the cut."""
     import asyncio
 
@@ -2433,7 +2433,7 @@ def test_an_async_cell_is_replaced_by_something_awaitable():
         del types_module._probe_async
 
 
-def test_a_lesion_refuses_what_it_cannot_cut():
+def test_a_lesion_refuses_what_it_cannot_cut(allows_a_lesion):
     from core.connectome import intervene
 
     for uid in (
@@ -2475,7 +2475,25 @@ def test_the_control_is_matched_on_both_degrees():
     assert degree_matched_control(snapshot, "hub") == "twin"
 
 
-def test_an_intervention_reports_a_lesion_that_never_bit():
+def test_a_lesion_refuses_a_process_that_did_not_ask(monkeypatch):
+    """The guard is the reason the tests above take a fixture.
+
+    They passed under `make test`, which exports AURA_TESTING, and refused when
+    the file was run on its own. Clearing both signals here keeps that fact
+    checked rather than remembered.
+    """
+    from core.connectome import intervene
+    from core.runtime.proof_policy import proof_active_env_names
+
+    for name in proof_active_env_names():
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("AURA_ALLOW_LESION", raising=False)
+    with pytest.raises(intervene.LesionRefusedError, match="AURA_TESTING"):
+        with intervene.silence("core.connectome.types:CellClass"):
+            pass
+
+
+def test_an_intervention_reports_a_lesion_that_never_bit(allows_a_lesion):
     """A cell nothing called is not a lesion, and looks exactly like a null one."""
     from core.connectome.intervene import run_intervention
     import core.connectome.types as types_module

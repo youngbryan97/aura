@@ -2357,6 +2357,21 @@ def not_a_proof_run(monkeypatch):
 
 
 @pytest.fixture
+def allows_a_lesion(monkeypatch):
+    """Say in the test that this process may cut a live module attribute.
+
+    ``core.connectome.intervene`` refuses a lesion unless AURA_TESTING is 1 or
+    the caller sets AURA_ALLOW_LESION, because patching a module attribute in
+    the live runtime is how one experiment becomes every later one. AURA_TESTING
+    comes from whatever ran pytest, so the lesion tests passed under `make test`
+    and refused when the file was run on its own — the test did not say what it
+    needed and inherited it.
+    """
+
+    monkeypatch.setenv("AURA_ALLOW_LESION", "1")
+
+
+@pytest.fixture
 def restores_environ():
     """Put os.environ back exactly as it was.
 
