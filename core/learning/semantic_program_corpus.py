@@ -1716,18 +1716,56 @@ __all__ = [
     "build_semantic_program_corpus",
     "build_semantic_program_fork_join_factorial_corpus",
     "build_semantic_program_fork_join_corpus",
-    "build_semantic_program_natural_alias_source_corpus",
-    "build_semantic_program_natural_branch_replication_corpus",
-    "build_semantic_program_natural_identity_source_corpus",
-    "build_semantic_program_natural_request_corpus",
-    "build_semantic_program_natural_replication_corpus",
-    "build_semantic_program_natural_source_corpus",
-    "build_semantic_program_natural_weave_replication_corpus",
-    "build_semantic_program_sequence_binary_corpus",
-    "build_semantic_program_sequence_cataphoric_corpus",
-    "build_semantic_program_sequence_corpus",
-    "build_semantic_program_sequence_reserved_alias_corpus",
-    "build_semantic_program_sequence_role_binding_corpus",
+    "build_semantic_program_natural_alias_source_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_branch_replication_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_identity_source_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_request_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_replication_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_source_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_natural_weave_replication_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_sequence_binary_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_sequence_cataphoric_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_sequence_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_sequence_reserved_alias_corpus",  # noqa: F822 - resolved by __getattr__
+    "build_semantic_program_sequence_role_binding_corpus",  # noqa: F822 - resolved by __getattr__
     "project_register_definition_spans",
     "project_example_to_ir",
 ]
+
+
+#: Where each builder went when this file was split for size, and where an
+#: import from here still finds it.
+#:
+#: The split moved twelve builders out and left their names in ``__all__``, so
+#: every caller that imported one from here broke and the lint gate reported
+#: twelve undefined names. A plain re-export cannot work: all three of those
+#: modules import this one, so the import would be a cycle. Resolving on
+#: attribute access instead costs one dict lookup the first time and keeps the
+#: import surface the split was never meant to change.
+_MOVED_TO: Final[dict[str, str]] = {
+    "build_semantic_program_natural_alias_source_corpus": "semantic_program_corpus_natural",
+    "build_semantic_program_natural_identity_source_corpus": "semantic_program_corpus_natural",
+    "build_semantic_program_natural_request_corpus": "semantic_program_corpus_natural",
+    "build_semantic_program_natural_source_corpus": "semantic_program_corpus_natural",
+    "build_semantic_program_natural_branch_replication_corpus": "semantic_program_corpus_replication",
+    "build_semantic_program_natural_replication_corpus": "semantic_program_corpus_replication",
+    "build_semantic_program_natural_weave_replication_corpus": "semantic_program_corpus_replication",
+    "build_semantic_program_sequence_binary_corpus": "semantic_program_corpus_sequences",
+    "build_semantic_program_sequence_cataphoric_corpus": "semantic_program_corpus_sequences",
+    "build_semantic_program_sequence_corpus": "semantic_program_corpus_sequences",
+    "build_semantic_program_sequence_reserved_alias_corpus": "semantic_program_corpus_sequences",
+    "build_semantic_program_sequence_role_binding_corpus": "semantic_program_corpus_sequences",
+}
+
+
+def __getattr__(name: str) -> object:
+    where = _MOVED_TO.get(name)
+    if where is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from importlib import import_module
+
+    return getattr(import_module(f"core.learning.{where}"), name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_MOVED_TO))
