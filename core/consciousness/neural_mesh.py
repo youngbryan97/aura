@@ -32,6 +32,11 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.NeuralMesh")
 
+from core.consciousness.mesh_wiring import (  # noqa: E402
+    _from_human_connectome,
+    _is_human_island,
+)
+
 _RECOVERABLE_NEURAL_MESH_ERRORS = (
     AttributeError,
     ImportError,
@@ -227,25 +232,14 @@ SPIKE_SIGMA = 3.0
 #: estimate is small for no reason and the threshold is crossed by everything:
 #: unguarded, the mesh fired 8,370 of its 8,373 spikes in one burst in the
 #: first few ticks and was silent for the next five thousand.
+SPIKE_STATISTICS_MINIMUM = 10
+
 #: The largest gain the criticality regulator may ask this mesh for.
 #:
 #: Mirrors the regulator's own clamp, and is stated here rather than imported
 #: because the mesh must not depend on its regulator. A test holds the two
 #: together, because the tighter of two ceilings decides and does it silently.
 CRITICALITY_GAIN_CEILING: float = 3.5
-
-
-SPIKE_STATISTICS_MINIMUM = 10
-
-
-def _from_human_connectome(name: str, fallback: float) -> float:
-    """One number from the human connectome reference, or the fallback."""
-    try:
-        from core.connectome.rich_club import HUMAN_RICH_CLUB
-
-        return float(HUMAN_RICH_CLUB[name])
-    except (ImportError, KeyError, TypeError, ValueError):
-        return float(fallback)
 
 
 #: Which index of a weight matrix is the cell that receives.
@@ -267,14 +261,6 @@ def _from_human_connectome(name: str, fallback: float) -> float:
 #: Written here rather than in each builder because the mistake is the same one
 #: three times.
 RECEIVER_IS_THE_ROW = True
-
-
-def _is_human_island(index: int, cfg: Any) -> bool:
-    """Whether this column takes its local wiring from H01. -1 means all of them."""
-    declared = int(getattr(cfg, "human_island_columns", 0) or 0)
-    if declared < 0:
-        return True
-    return index < declared
 
 
 #: The one seed every structural stream is derived from.

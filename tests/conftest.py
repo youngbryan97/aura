@@ -680,6 +680,15 @@ class HermeticResourceSandbox:
             gc.collect()
             leaks = self.leaks()
 
+        # One more look, because the writer runs on a timer nobody here sets.
+        # Waiting it out above settles the write that was in flight then; the
+        # flusher's next tick is two seconds away and the steps between take
+        # milliseconds, so a teardown can still land on the following one.
+        # Cheap: only reached when something already looks like a leak.
+        if leaks.get("open_files") and wait_out_declared_background_writers():
+            gc.collect()
+            leaks = self.leaks()
+
         if leaked_leases or any(leaks.values()):
             pytest.fail(
                 "hermetic resource leak detected: "

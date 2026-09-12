@@ -3123,8 +3123,22 @@ def test_the_mesh_reads_the_derived_constants_rather_than_repeating_them():
     assert config.dt != pytest.approx(derived["dt"]["value"])
 
 
-def test_the_measured_density_sits_closer_to_criticality_than_the_chosen_one():
-    """The reason for adopting it, run rather than asserted."""
+def test_neither_density_decides_how_near_criticality_this_mesh_runs():
+    """The reason for adopting the measured density is not this one.
+
+    It was written as "the measured density sits closer to criticality than
+    the chosen one", on one seed, and it is false. Seven seeds, and the CHOSEN
+    density is the nearer one on all seven — by 0.0003, in the same direction
+    every time, so the difference is real and it is the wrong way round.
+
+    What the run actually says is that the question was the wrong one. Both
+    densities put this mesh at a branching ratio near 0.837 under this drive,
+    which is 0.16 from critical; a 0.0003 gap between them decides nothing.
+    The measured density is worth adopting because it comes from a measurement
+    of cortex rather than from somebody picking a number, and that is an
+    anatomical reason, not a dynamical one. The regulator is what steers
+    branching, and it does it with gain.
+    """
     from dataclasses import replace
 
     import numpy as np
@@ -3143,9 +3157,25 @@ def test_the_measured_density_sits_closer_to_criticality_than_the_chosen_one():
             counts.append(float((np.abs(mesh.get_field_state()) > 0.1).sum()))
         return branching_ratio_mr(np.asarray(counts))
 
-    measured = branching(MeshConfig())
-    chosen = branching(replace(MeshConfig(), intra_column_density=0.80, inter_column_density=0.05))
-    assert abs(measured.m - 1.0) < abs(chosen.m - 1.0), (
-        f"the measured density sits at {measured.m:.4f} and the chosen one at "
-        f"{chosen.m:.4f}; the reason for adopting it was that it is nearer 1.0"
+    chosen_config = replace(
+        MeshConfig(), intra_column_density=0.80, inter_column_density=0.05
+    )
+    seeds = (1, 2, 3)
+    gaps = []
+    for seed in seeds:
+        measured = branching(MeshConfig(), seed=seed)
+        chosen = branching(chosen_config, seed=seed)
+        gaps.append(abs(measured.m - 1.0) - abs(chosen.m - 1.0))
+        assert abs(measured.m - 1.0) > 0.1, (
+            f"seed {seed}: the measured density alone put branching at "
+            f"{measured.m:.4f}; if either density reached criticality on its "
+            "own this test is about the wrong thing"
+        )
+        assert abs(chosen.m - 1.0) > 0.1, f"seed {seed}: {chosen.m:.4f}"
+
+    worst = max(abs(gap) for gap in gaps)
+    assert worst < 0.01, (
+        "the two densities are supposed to be indistinguishable in how near "
+        f"criticality they put this mesh; the widest gap over {len(seeds)} "
+        f"seeds was {worst:.4f}"
     )

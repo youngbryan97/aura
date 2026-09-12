@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
+from typing import Any
 
 import numpy as np
 
@@ -289,3 +290,21 @@ class MeshWiring:
                         weights[j, i] = self._rng_feedback.standard_normal() * 0.02
 
         self._feedback_W = weights.astype(np.float32)
+
+
+def _from_human_connectome(name: str, fallback: float) -> float:
+    """One number from the human connectome reference, or the fallback."""
+    try:
+        from core.connectome.rich_club import HUMAN_RICH_CLUB
+
+        return float(HUMAN_RICH_CLUB[name])
+    except (ImportError, KeyError, TypeError, ValueError):
+        return float(fallback)
+
+
+def _is_human_island(index: int, cfg: Any) -> bool:
+    """Whether this column takes its local wiring from H01. -1 means all of them."""
+    declared = int(getattr(cfg, "human_island_columns", 0) or 0)
+    if declared < 0:
+        return True
+    return index < declared

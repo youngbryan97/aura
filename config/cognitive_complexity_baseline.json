@@ -1,9 +1,9 @@
 {
   "organs": 122,
   "cross_package_edges": 1996,
-  "dependency_entropy": 9.1531,
-  "kernel_lines": 604259,
-  "at_commit": "cd96073c069a3e4b21e522e7d81689b233e1b500",
+  "dependency_entropy": 9.1527,
+  "kernel_lines": 604286,
+  "at_commit": "86e5819ef814d0c4acef944c779f44cf9d763b42",
   "history": [
     {
       "raised": [
@@ -262,6 +262,44 @@
         "commits_by_author": {
           "Claude": 396,
           "Codex": 57
+        }
+      }
+    },
+    {
+      "raised": [
+        "kernel_lines"
+      ],
+      "from": {
+        "kernel_lines": 604259
+      },
+      "to": {
+        "kernel_lines": 604286
+      },
+      "because": "Twenty-seven kernel lines from this session's own fixes, named rather than absorbed. Twenty are the action loop in core/cognition/sequence_induction.py, which now asks whether the language gained the word before it stops searching \u2014 without that she answered the first question of a family and none of the later ones. The rest are checked_lock imports in packages whose raw locks lockdep could not see, so a deadlock among them was invisible to the tool that exists to find one. Both cost lines and both are worth them. The measurement below is the window, not a sentence about it.",
+      "landed": {
+        "since": "cd96073c069a3e4b21e522e7d81689b233e1b500",
+        "net_kernel_lines": 22,
+        "files_touched": 3,
+        "per_package": {
+          "cognition": 21,
+          "brain": 1
+        },
+        "largest_files": [
+          {
+            "path": "core/cognition/sequence_induction.py",
+            "net_lines": 20
+          },
+          {
+            "path": "core/brain/llm/who_got_the_room.py",
+            "net_lines": 1
+          },
+          {
+            "path": "core/cognition/what_a_change_measured_about_itself.py",
+            "net_lines": 1
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 2
         }
       }
     }

@@ -6817,22 +6817,6 @@
       "scope": "<module>.SubjectRuntime._act"
     },
     {
-      "callee": "<file_write_gateway>.ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 2,
-      "path": "core/subject/driver.py",
-      "scope": "<module>._restore_world"
-    },
-    {
-      "callee": "<file_write_gateway>.write_bytes",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/subject/driver.py",
-      "scope": "<module>._restore_world"
-    },
-    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6863,6 +6847,22 @@
       "count": 1,
       "path": "core/subject/recording.py",
       "scope": "<module>.Recording.save"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_world"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_world"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -16434,6 +16434,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "8a3f3d848e45e5877972c670306ee9d235b568e5a33dffc2e09ed891d00fbb65",
+  "inventory_sha256": "8b41de30c2110711d22bcea7c475f850d64b8a0ece18e312fdf14f92336169fd",
   "schema_version": 1
 }
