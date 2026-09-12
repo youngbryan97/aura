@@ -64,3 +64,47 @@ def test_the_baseline_says_which_way_it_moves() -> None:
     held = json.loads((ROOT / BASELINE).read_text("utf-8"))
     assert "only goes down" in held["note"].lower()
     assert held["unexplained"] <= held["silent_handlers"]
+
+
+def test_the_marker_is_seen_when_a_sentence_capitalises_it():
+    """A gate that matches one casing of its own marker cannot be used.
+
+    Eighteen handlers in ``model_lane_control`` were explained and six of them
+    still counted, because the note opened a sentence — "Not a failure:" — and
+    the check looked for the lowercase form only. Same shape as the keyword
+    ratchet that could not see an identifier.
+    """
+    import ast
+
+    from tools.lint_swallowed_reasons import _Swallowed
+
+    for marker in ("not a failure:", "Not a failure:", "NOT A FAILURE:"):
+        source = (
+            "def read(row):\n"
+            "    try:\n"
+            "        return int(row)\n"
+            "    except ValueError:\n"
+            f"        # {marker} a cell that is not a number is not one.\n"
+            "        return None\n"
+        )
+        walker = _Swallowed(Path("probe.py"), source.splitlines())
+        walker.visit(ast.parse(source))
+        assert walker.found == [], marker
+
+
+def test_a_handler_with_no_note_still_counts():
+    """The marker must be the thing that clears it, not the shape."""
+    import ast
+
+    from tools.lint_swallowed_reasons import _Swallowed
+
+    source = (
+        "def read(row):\n"
+        "    try:\n"
+        "        return int(row)\n"
+        "    except ValueError:\n"
+        "        return None\n"
+    )
+    walker = _Swallowed(Path("probe.py"), source.splitlines())
+    walker.visit(ast.parse(source))
+    assert [kind for _line, kind, _said in walker.found] == ["a failure value"]

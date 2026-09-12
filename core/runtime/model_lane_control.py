@@ -145,8 +145,8 @@ def process_identity_for_pid(
         process = (observer or get_resource_observer()).process(pid)
         if process is not None:
             return ProcessIdentity(pid, float(process.create_time))
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Process identity unreadable, reporting an unknown start time: %s", exc)
     return ProcessIdentity(pid, 0.0)
 
 
@@ -627,7 +627,8 @@ def _path_size_gb(model_path: str) -> float:
             except OSError:
                 continue
         return float(weights or everything) / float(1024**3)
-    except OSError:
+    except OSError as exc:
+        logger.debug("Checkpoint size unreadable, reporting 0GB: %s", exc)
         return 0.0
 
 
@@ -696,6 +697,8 @@ def _is_registered_non_model_python_probe(argv: tuple[str, ...]) -> bool:
         module_index = argv.index("-m") + 1
         module = argv[module_index]
     except (ValueError, IndexError):
+        # Not a failure: argv holding no -m is the question being asked. The absence is the
+        # answer, not a fault in reading argv.
         return False
     return module in _REGISTERED_NON_MODEL_PROBE_MODULES
 
@@ -720,12 +723,16 @@ def _is_import_only_python_probe(argv: tuple[str, ...]) -> bool:
         inline_index = argv.index("-c")
         source = argv[inline_index + 1]
     except (ValueError, IndexError):
+        # Not a failure: argv holding no -c means no inline program was passed, which is what
+        # this is looking for.
         return False
     if len(source) > 600:
         return False
     try:
         module = ast.parse(source, mode="exec")
     except SyntaxError:
+        # Not a failure: source that will not parse is not one of the accepted probe shapes.
+        # Fail-closed is the answer here, and a SyntaxError is how it arrives.
         return False
     if not module.body:
         return False
@@ -882,6 +889,8 @@ def _directly_executes_model_command(command: Iterable[str]) -> bool:
             module_index = argv.index("-m") + 1
             module = str(argv[module_index]).lower()
         except (ValueError, IndexError):
+            # Not a failure: no -m in argv means no module was named. The empty string says so and
+            # the check below reads it that way.
             module = ""
         if module:
             return module.startswith(_DIRECT_MODEL_MODULE_PREFIXES)
@@ -1064,7 +1073,8 @@ def discover_external_model_processes(
             try:
                 process_group_id = int(os.getpgid(pid))
                 process_session_id = int(os.getsid(pid))
-            except (OSError, ProcessLookupError, ValueError):
+            except (OSError, ProcessLookupError, ValueError) as exc:
+                logger.debug("Process group and session unreadable, recording neither: %s", exc)
                 process_group_id = 0
                 process_session_id = 0
             if (
@@ -1176,7 +1186,8 @@ async def evict_managed_process_owner(owner: LaneOwnerObservation, reason: str) 
             return False
     except ProcessLookupError:
         return _tree_liveness() is ProcessLiveness.DEAD
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("SIGTERM not delivered and liveness unproven: %s", exc)
         return False
 
     deadline = time.monotonic() + 5.0
@@ -1193,7 +1204,8 @@ async def evict_managed_process_owner(owner: LaneOwnerObservation, reason: str) 
             return False
     except ProcessLookupError:
         return _tree_liveness() is ProcessLiveness.DEAD
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("SIGKILL not delivered and liveness unproven: %s", exc)
         return False
     kill_deadline = time.monotonic() + 5.0
     while time.monotonic() < kill_deadline:
@@ -1228,7 +1240,8 @@ async def wait_for_model_job_headroom(
             if not memory.available:
                 return False
             available_gb = float(memory.available_bytes) / float(1024**3)
-        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Memory unreadable, refusing the claim on an absent measurement: %s", exc)
             return False
         if available_gb >= float(claim.request_gb):
             return True
@@ -1721,7 +1734,8 @@ class ModelLaneController:
                 try:
                     observed_group_id = int(os.getpgid(identity.pid))
                     observed_session_id = int(os.getsid(identity.pid))
-                except (OSError, ProcessLookupError, TypeError, ValueError):
+                except (OSError, ProcessLookupError, TypeError, ValueError) as exc:
+                    logger.debug("Observed group and session unreadable for a managed process: %s", exc)
                     observed_group_id = 0
                     observed_session_id = 0
                 if (
@@ -2406,7 +2420,8 @@ class ModelLaneController:
                 AttributeError,
                 TypeError,
                 ValueError,
-            ):
+            ) as exc:
+                logger.debug("Expired compensation claim not restored: %s", exc)
                 restored = False
             await asyncio.shield(
                 asyncio.to_thread(
@@ -3431,6 +3446,8 @@ class ModelLaneController:
         try:
             os.kill(pid_int, 0)
         except ProcessLookupError:
+            # Not a failure: a field that will not convert to an int is not naming a process, which
+            # is what this is deciding. Treating it as no live holder is the answer.
             return False
         except (PermissionError, OSError):
             return True
@@ -3728,7 +3745,8 @@ class ModelLaneController:
                 if child_process is None:
                     return False
                 observed_parent_pid = int(child_process.ppid)
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Child process unreadable, so its parent cannot be confirmed: %s", exc)
                 return False
             if observed_parent_pid != int(parent_pid):
                 return False
@@ -3777,6 +3795,8 @@ class ModelLaneController:
             requested_gb_value = float(requested_gb)
             ttl_s_value = float(ttl_s)
         except (TypeError, ValueError):
+            # Not a failure: a request whose size or lifetime is not a number is not a request this
+            # can admit. Refusing is the answer, not a dropped fault.
             return False
         if not math.isfinite(requested_gb_value) or requested_gb_value <= 0.0:
             return False
@@ -3821,7 +3841,8 @@ class ModelLaneController:
                     for value in (metadata.get("allowed_inherited_model_roots") or ())
                     if str(value)
                 )
-            except (OSError, RuntimeError, TypeError, ValueError):
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Model paths would not resolve, refusing the nested child: %s", exc)
                 return False
             if child_path != parent_path and not any(
                 child_path == root or child_path.is_relative_to(root)
@@ -3841,7 +3862,8 @@ class ModelLaneController:
                     int(owner_metadata.get("process_group_id") or 0) == os.getpgrp()
                     and int(owner_metadata.get("process_session_id") or 0) == os.getsid(0)
                 )
-            except (OSError, TypeError, ValueError):
+            except (OSError, TypeError, ValueError) as exc:
+                logger.debug("Process boundary unreadable, refusing the nested child: %s", exc)
                 return False
             if not process_boundary_valid:
                 return False
@@ -4008,7 +4030,8 @@ class ModelLaneController:
         try:
             self.snapshot()
             return True
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RuntimeError, ValueError) as exc:
+            logger.debug("Lane snapshot failed, reporting the controller as not alive: %s", exc)
             return False
 
     def is_ready(self) -> bool:
