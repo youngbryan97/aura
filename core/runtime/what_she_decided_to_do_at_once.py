@@ -34,6 +34,8 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_semaphore
 
 logger = logging.getLogger("Aura.WhatSheDecidedToDoAtOnce")
 
@@ -153,7 +155,7 @@ class TheLedger:
         self._by_id: dict[str, AnOutcome] = {
             one.id: AnOutcome(action_id=one.id) for one in batch.actions
         }
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.runtime.what_she_decided_to_do_at_once.self._lock")
 
     def note(
         self,
@@ -216,7 +218,7 @@ class TheLedger:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.what_she_decided_to_do_at_once.LOCK")
 _KEEP = 100
 
 
@@ -242,7 +244,7 @@ async def run_the_batch(
                 said="a finishing action came first",
             )
 
-    room = asyncio.Semaphore(batch.at_once)
+    room = checked_semaphore("core.runtime.what_she_decided_to_do_at_once.room", batch.at_once)
 
     async def one_of_them(action: AnAction) -> None:
         refused = may_it_run(action) if may_it_run else ""

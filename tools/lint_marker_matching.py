@@ -22,6 +22,15 @@ buried mid-word belongs to something else: "test" in "latest", "gui" in
 The collision vocabulary is this project's own prose. A word the documentation
 uses is a word a person types.
 
+Some sites are substring matches on purpose, and they say so. A status CODE
+("guard_blocked"), a receipt FIELD NAME ("surface_quality"), a redaction key
+("api_token"), an identifier off the syntax tree ("_write_gateway") — the word
+is compounded in all of them, and word matching would stop seeing it. Write
+`Substring, deliberately:` in the comment block above the line and say which
+of those it is; a site carrying that phrase is not reported. Per-line, and not
+a file allowlist, for the reason every other gate here gives: blessing a file
+also blesses every marker added to it later.
+
 Usage:
     python tools/lint_marker_matching.py            # check against baseline
     python tools/lint_marker_matching.py --report   # list every finding
@@ -101,11 +110,37 @@ def _literals(node: ast.AST, named: dict[str, list[str]]) -> list[str]:
     return []
 
 
+#: The phrase a site uses to say its substring match is the point. Matched in
+#: a COMMENT, above the line it clears, so the reason is where the reader is.
+REVIEWED = "substring, deliberately"
+
+#: How far above the line the comment block may start. Long enough for the
+#: four-line explanations these sites carry, short enough that a paragraph
+#: about something else cannot reach down and clear a line it never mentioned.
+REVIEWED_REACH = 12
+
+
+def reviewed_lines(source: str) -> set[int]:
+    """Lines cleared by a `Substring, deliberately:` comment above them."""
+    said_at = [
+        number
+        for number, line in enumerate(source.splitlines(), start=1)
+        if REVIEWED in line.lower() and line.lstrip().startswith("#")
+    ]
+    return {
+        number
+        for start in said_at
+        for number in range(start, start + REVIEWED_REACH + 1)
+    }
+
+
 def scan_file(path: Path, vocabulary: collections.Counter[str]) -> list[tuple[int, str, list[str]]]:
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        tree = ast.parse(source)
     except (SyntaxError, OSError):
         return []
+    cleared = reviewed_lines(source)
     named: dict[str, list[str]] = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -118,6 +153,8 @@ def scan_file(path: Path, vocabulary: collections.Counter[str]) -> list[tuple[in
             continue
         if not (isinstance(node.elt, ast.Compare) and node.elt.ops
                 and isinstance(node.elt.ops[0], ast.In)):
+            continue
+        if node.lineno in cleared:
             continue
         for generator in node.generators:
             for marker in _literals(generator.iter, named):

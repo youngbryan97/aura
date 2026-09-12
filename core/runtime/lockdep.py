@@ -869,6 +869,57 @@ class CheckedSemaphore:
         self.release()
 
 
+class CheckedThreadSemaphore:
+    """A ``threading.Semaphore`` whose acquire is bounded, for the same reason.
+
+    The asyncio sibling above says why a counting semaphore registers no lock
+    ordering. This one exists because the bounded lanes that run at boot are
+    taken from threads, not from the loop: `AVersionedStore` lets four stores
+    parse and migrate at once, and `with semaphore:` on the raw primitive waits
+    forever if a permit is never returned. A boot that wedges there looks
+    exactly like a boot that is merely slow.
+    """
+
+    __slots__ = ("_budget_s", "_name", "_semaphore")
+
+    def __init__(self, name: str, value: int = 1, *, budget_s: float = ACQUIRE_BUDGET_S):
+        if value < 1:
+            raise ValueError("semaphore value must be at least 1")
+        self._name = str(name)
+        self._budget_s = float(budget_s)
+        self._semaphore = threading.Semaphore(value)
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def acquire(self, blocking: bool = True, timeout: float | None = None) -> bool:
+        budget = self._budget_s if timeout is None else float(timeout)
+        got = self._semaphore.acquire(blocking, budget if blocking else None)
+        if not got and blocking:
+            _VALIDATOR.report_external(
+                kind="semaphore_timeout",
+                signature=f"semaphore:{self._name}",
+                message=(
+                    f"semaphore {self._name} not acquired within "
+                    f"{budget:.1f}s; permits are being held longer "
+                    "than the budget allows"
+                ),
+                held=[],
+            )
+        return bool(got)
+
+    def release(self) -> None:
+        self._semaphore.release()
+
+    def __enter__(self) -> CheckedThreadSemaphore:
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.release()
+
+
 class CheckedAsyncCondition:
     """An ``asyncio.Condition`` whose mutex is visible to lockdep.
 
@@ -945,6 +996,12 @@ def checked_semaphore(
     name: str, value: int = 1, *, budget_s: float = ACQUIRE_BUDGET_S
 ) -> CheckedSemaphore:
     return CheckedSemaphore(name, value, budget_s=budget_s)
+
+
+def checked_thread_semaphore(
+    name: str, value: int = 1, *, budget_s: float = ACQUIRE_BUDGET_S
+) -> CheckedThreadSemaphore:
+    return CheckedThreadSemaphore(name, value, budget_s=budget_s)
 
 
 def checked_lock(
@@ -1054,6 +1111,7 @@ __all__ = [
     "checked_async_lock",
     "checked_lock",
     "checked_semaphore",
+    "checked_thread_semaphore",
     "get_validator",
     "instrument",
     "lockdep_clean",

@@ -27,6 +27,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from core.runtime.who_gets_it_next import THE_RESOURCES, claim
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.ClaimingMoreThanOne")
 
@@ -62,7 +63,7 @@ def in_order(wanted: Iterable[str]) -> tuple[str, ...]:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.claiming_more_than_one.LOCK")
 _KEEP = 200
 
 

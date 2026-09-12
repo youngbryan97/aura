@@ -37,6 +37,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Literal
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.Errors")
 
@@ -638,9 +639,7 @@ def record_degradation(
     elif (
         severity == "degraded"
         and _is_timeout
-        and any(
-            marker in _action_text.lower() for marker in handled_fallback_markers
-        )
+        and names_any(_action_text.lower(), handled_fallback_markers)
     ):
         # Degraded-but-handled. Still recorded, still visible, but it is not an
         # incident-worthy failure when the caller's own action says it carried

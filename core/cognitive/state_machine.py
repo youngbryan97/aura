@@ -32,6 +32,7 @@ from core.utils.prompt_compression import compress_history_block, compress_syste
 from core.utils.task_tracker import get_task_tracker
 
 from .router import Intent
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.StateMachine")
 
@@ -1097,9 +1098,7 @@ class StateMachine:
 
     def _looks_like_live_coding_artifact_request(self, user_input: str) -> bool:
         text = str(user_input or "").lower()
-        wants_code = any(
-            token in text
-            for token in (
+        wants_code = names_any(text, (
                 "code",
                 "coding",
                 "program",
@@ -1113,11 +1112,8 @@ class StateMachine:
                 "create",
                 "write",
                 "implement",
-            )
-        )
-        wants_artifact = any(
-            token in text
-            for token in (
+            ))
+        wants_artifact = names_any(text, (
                 "make",
                 "build",
                 "create",
@@ -1127,8 +1123,7 @@ class StateMachine:
                 "put it in",
                 "game of",
                 "snake",
-            )
-        )
+            ))
         return wants_code and wants_artifact
 
     def _infer_live_artifact_path(self, user_input: str) -> str:

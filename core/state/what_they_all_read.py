@@ -31,6 +31,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatTheyAllRead")
 
@@ -138,7 +139,7 @@ def _same(a: Any, b: Any) -> bool:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_HISTORY_LOCK = threading.Lock()
+_HISTORY_LOCK = checked_lock("core.state.what_they_all_read.HISTORY_LOCK")
 _KEEP = 200
 
 

@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_lock, checked_thread_semaphore
 
 logger = logging.getLogger("Aura.AVersionedStore")
 
@@ -49,7 +49,7 @@ __all__ = [
 #: Bounded rather than serialised: one at a time makes boot the sum of every
 #: load, which is the other way to be wrong about this.
 TOO_MANY_AT_ONCE = 4
-_LOADING = threading.Semaphore(TOO_MANY_AT_ONCE)
+_LOADING = checked_thread_semaphore("core.persistence.a_versioned_store.loading", TOO_MANY_AT_ONCE)
 
 
 class CannotRead(RuntimeError):
@@ -94,7 +94,7 @@ class AVersionedStore:
         self._read_only = bool(read_only)
         self._source = str(source)
         self._lock = checked_lock(f"a_versioned_store:{self._path.name}")
-        self._io_lane = threading.Semaphore(1)
+        self._io_lane = checked_lock("core.persistence.a_versioned_store.self._io_lane")
         self._pending: dict[str, Any] | None = None
         self._written_at = 0.0
 

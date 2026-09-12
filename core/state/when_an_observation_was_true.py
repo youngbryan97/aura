@@ -32,6 +32,7 @@ import time
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhenAnObservationWasTrue")
 
@@ -75,7 +76,7 @@ class AChannelReading:
 _HOW: dict[str, HowItIsRead] = {}
 _LAST: dict[str, AChannelReading] = {}
 _TICK = {"now": 0}
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.state.when_an_observation_was_true.LOCK", reentrant=True)
 
 
 def declare_a_channel(channel: str, how: HowItIsRead) -> None:

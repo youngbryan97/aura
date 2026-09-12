@@ -32,6 +32,7 @@ import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatIsOnItsWayOut")
 
@@ -300,7 +301,7 @@ THE_SHIMS: tuple[AShim, ...] = (
 
 _DECLARED: dict[str, AShim] = {f"{s.where}::{s.name}": s for s in THE_SHIMS}
 _CALLED: dict[str, int] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.what_is_on_its_way_out.LOCK")
 
 
 def going_away(

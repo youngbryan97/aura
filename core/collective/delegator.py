@@ -24,6 +24,7 @@ from core.container import ServiceContainer
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("core.collective.delegator")
 
@@ -91,7 +92,7 @@ def _deferred_generation_reason(result: Any) -> str:
         if value is None and isinstance(result, dict):
             value = result.get(field)
         text = str(value or "").strip().lower()
-        if text and any(m in text for m in _GENERATION_DEFERRAL_MARKERS):
+        if text and names_any(text, _GENERATION_DEFERRAL_MARKERS):
             return str(value)
     return ""
 

@@ -28,6 +28,7 @@ from typing import Any
 from core.being.aura_now import BodyState
 from core.runtime.consequence_bus import ConsequenceBus, ConsequenceEvent
 from core.runtime.errors import record_degradation
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.BodyStateService")
 
@@ -157,7 +158,7 @@ def _is_refusal_outcome(event: Any) -> bool:
     ).lower()
     if not text.strip():
         return False
-    return any(marker in text for marker in _REFUSAL_OUTCOME_MARKERS)
+    return names_any(text, _REFUSAL_OUTCOME_MARKERS)
 
 
 class BodyStateService:

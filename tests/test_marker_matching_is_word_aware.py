@@ -107,3 +107,65 @@ def test_the_ratchet_is_wired_and_only_goes_down() -> None:
     }
 
     assert not grown, f"new substring markers: {grown}"
+
+
+def _scan(tmp_path, body: str) -> list:
+    """What the marker linter reports for one file."""
+    from tools.lint_marker_matching import prose_vocabulary, scan_file
+
+    source = tmp_path / "m.py"
+    source.write_text(body, encoding="utf-8")
+    return scan_file(source, prose_vocabulary())
+
+
+def test_an_undocumented_substring_marker_is_reported(tmp_path) -> None:
+    body = 'MARKERS = ("system",)\n\n\ndef f(text):\n    return any(m in text for m in MARKERS)\n'
+    hits = _scan(tmp_path, body)
+    assert hits, "`system` is a fragment of `filesystem`; this has to be reported"
+
+
+def test_a_site_that_says_why_it_is_a_substring_is_not_reported(tmp_path) -> None:
+    """A status code, a receipt field, a redaction key — the word is compounded.
+
+    Per-line, and not a file allowlist, for the reason every other gate here
+    gives: blessing a file also blesses every marker added to it later.
+    """
+    body = (
+        'MARKERS = ("system",)\n'
+        "\n"
+        "\n"
+        "def f(name):\n"
+        "    # Substring, deliberately: `name` is a subsystem KEY —\n"
+        "    # `filesystem_writes` — where the word is compounded.\n"
+        "    return any(m in name for m in MARKERS)\n"
+    )
+    assert _scan(tmp_path, body) == []
+
+
+def test_the_phrase_only_clears_what_it_sits_above(tmp_path) -> None:
+    """Reach is bounded, so a paragraph cannot clear a line it never mentioned."""
+    from tools.lint_marker_matching import REVIEWED_REACH
+
+    filler = "".join(f"    x = {index}\n" for index in range(REVIEWED_REACH + 4))
+    body = (
+        'MARKERS = ("system",)\n'
+        "\n"
+        "\n"
+        "def f(text):\n"
+        "    # Substring, deliberately: about something far above.\n"
+        + filler
+        + "    return any(m in text for m in MARKERS)\n"
+    )
+    assert _scan(tmp_path, body), "a distant comment must not clear this line"
+
+
+def test_the_phrase_has_to_be_in_a_comment(tmp_path) -> None:
+    body = (
+        'MARKERS = ("system",)\n'
+        "\n"
+        "\n"
+        "def f(text):\n"
+        '    note = "substring, deliberately"\n'
+        "    return any(m in text for m in MARKERS) and bool(note)\n"
+    )
+    assert _scan(tmp_path, body), "a string is not a review"

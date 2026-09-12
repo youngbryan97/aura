@@ -39,6 +39,7 @@ from typing import Any
 
 from core.runtime.what_is_left_to_spend import ABudget
 from core.runtime.what_must_never_be_retried import TryAgain, how_to_treat, why_not
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.HowACallIsMade")
 
@@ -159,7 +160,7 @@ _POLICIES: dict[str, APolicy] = {}
 _SEEN: dict[str, int] = {}
 _HISTORY: list[dict[str, Any]] = []
 _CACHE: dict[str, tuple[float, Any]] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.how_a_call_is_made.LOCK")
 _KEEP = 300
 
 

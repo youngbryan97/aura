@@ -4030,11 +4030,11 @@ def _number_sentences(sentences: list[str], count: int) -> str:
 
 def _default_followup_question(user_message: Any) -> str:
     user_norm = _normalize(user_message)
-    if any(marker in user_norm for marker in ("live path", "desktop path", "validate", "probe", "runtime")):
+    if names_any(user_norm, ("live path", "desktop path", "validate", "probe", "runtime")):
         return "What should I validate next on this same live path?"
     if any(marker in user_norm for marker in ("project", "next hour", "focus", "work on", "spend")):
         return "Which outcome would make the next hour feel most useful?"
-    if any(marker in user_norm for marker in ("demo", "show me", "open", "write", "search")):
+    if names_any(user_norm, ("demo", "show me", "open", "write", "search")):
         return "Which part should I do first so the whole chain stays visible and verifiable?"
     return "What outcome would make this most useful for you right now?"
 
@@ -4135,9 +4135,7 @@ def _has_unsupported_runtime_limits_claim(user_message: Any, reply_text: Any) ->
     if not raw or not _UNSUPPORTED_RUNTIME_LIMITS_CLAIM_RE.search(raw):
         return False
     prompt = _normalize(user_message)
-    asks_actual_capability = any(
-        marker in prompt
-        for marker in (
+    asks_actual_capability = names_any(prompt, (
             "could you actually",
             "can you actually",
             "try it",
@@ -4150,8 +4148,7 @@ def _has_unsupported_runtime_limits_claim(user_message: Any, reply_text: Any) ->
             "notes app",
             "tool",
             "tools",
-        )
-    )
+        ))
     if asks_actual_capability:
         return True
     return False
@@ -4413,7 +4410,7 @@ def is_reliability_concern(user_message: Any) -> bool:
     if any(marker in text for marker in _STRONG_RELIABILITY_CONCERN_MARKERS):
         return True
     has_chat_context = any(marker in text for marker in ("chat", "talk", "reply", "response", "conversation"))
-    has_reliability_pressure = any(marker in text for marker in _WEAK_RELIABILITY_CONCERN_MARKERS)
+    has_reliability_pressure = names_any(text, _WEAK_RELIABILITY_CONCERN_MARKERS)
     return bool(has_chat_context and has_reliability_pressure)
 
 
@@ -4451,7 +4448,7 @@ def is_substantive_introspection_request(user_message: Any) -> bool:
         "the two numbers",
         "numeric",
     )
-    return any(marker in text for marker in markers)
+    return names_any(text, markers)
 
 
 def is_status_check_turn(user_message: Any) -> bool:
@@ -4522,7 +4519,7 @@ def is_live_self_reflection_turn(user_message: Any) -> bool:
         return True
     if any(marker in text for marker in _SUBJECTIVE_SELF_REFLECTION_MARKERS):
         return True
-    return bool("right now" in text and any(anchor in text for anchor in _LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS))
+    return bool("right now" in text and names_any(text, _LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS))
 
 
 def is_self_process_question(user_message: Any) -> bool:
@@ -4531,7 +4528,7 @@ def is_self_process_question(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
         return False
-    if not any(marker in text for marker in ("you", "your", "aura")):
+    if not names_any(text, ("you", "your", "aura")):
         return False
     explicit_self_process_target = bool(
         re.search(
@@ -4586,7 +4583,7 @@ def is_self_process_question(user_message: Any) -> bool:
         "emotion",
         "curiosity",
     )
-    if not any(marker in text for marker in process_markers):
+    if not names_any(text, process_markers):
         return False
     question_shape = (
         "how " in text
@@ -4622,7 +4619,7 @@ def is_self_process_question(user_message: Any) -> bool:
         "cognition",
         "metacognition",
     )
-    if any(marker in text for marker in internal_state_markers):
+    if names_any(text, internal_state_markers):
         return True
 
     causal_process_markers = (
@@ -4693,7 +4690,7 @@ def _explicit_brevity_requested(user_message: Any) -> bool:
 
 def _is_task_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
-    return bool(text and any(marker in text for marker in _TASK_MARKERS))
+    return bool(text and names_any(text, _TASK_MARKERS))
 
 
 def is_practical_diagnostic_turn(user_message: Any) -> bool:
@@ -5264,9 +5261,7 @@ def _memory_pin_turn_answered_its_other_request(user_message: Any, reply_text: A
     if not prompt:
         return False
     # Did the turn ask for anything beyond the pin?
-    if "?" not in str(user_message or "") and not any(
-        marker in prompt for marker in _OPEN_ENDED_MARKERS
-    ):
+    if "?" not in str(user_message or "") and not names_any(prompt, _OPEN_ENDED_MARKERS):
         return False
     reply = _normalize(reply_text)
     if _word_count(reply) < 20:
@@ -5301,7 +5296,7 @@ def _requires_substantive_reply(user_message: Any) -> bool:
         return True
     if len(text.split()) >= 4:
         return True
-    return any(marker in text for marker in _OPEN_ENDED_MARKERS)
+    return names_any(text, _OPEN_ENDED_MARKERS)
 
 
 def _substantive_prompt_terms(user_message: Any) -> set[str]:
@@ -5373,7 +5368,7 @@ def _has_ungrounded_self_cause_claim(user_message: Any, reply_text: Any) -> bool
     reply_norm = _normalize(reply_text)
     if not reply_norm or not _SELF_CAUSE_CLAIM_RE.search(reply_norm):
         return False
-    return not any(marker in reply_norm for marker in _SELF_CAUSE_EVIDENCE_MARKERS)
+    return not names_any(reply_norm, _SELF_CAUSE_EVIDENCE_MARKERS)
 
 
 def _has_low_signal_acknowledgement_placeholder(user_message: Any, reply_text: Any) -> bool:
@@ -5434,9 +5429,9 @@ def _has_reliability_substance(reply_text: Any) -> bool:
         "i'm just thinking",
         "i am just thinking",
     )
-    if any(phrase in reply for phrase in presence_phrases):
+    if names_any(reply, presence_phrases):
         return True
-    if any(marker in reply for marker in _SUBSTANTIVE_RELIABILITY_MARKERS):
+    if names_any(reply, _SUBSTANTIVE_RELIABILITY_MARKERS):
         return True
     # A full, non-boilerplate sentence or two that engages the concern is valid
     # substance even without the specific diagnostic vocabulary — brevity itself
@@ -5476,11 +5471,9 @@ def _has_reliability_diagnostic_substance(reply_text: Any) -> bool:
     marker_hits = sum(1 for marker in _RELIABILITY_DIAGNOSTIC_SUBSTANCE_MARKERS if marker in reply)
     if marker_hits < 2:
         return False
-    if any(marker in reply for marker in _RELIABILITY_DIAGNOSTIC_MECHANISM_MARKERS):
+    if names_any(reply, _RELIABILITY_DIAGNOSTIC_MECHANISM_MARKERS):
         return True
-    return any(
-        action in reply
-        for action in (
+    return names_any(reply, (
             "capture",
             "fail",
             "fix",
@@ -5492,8 +5485,7 @@ def _has_reliability_diagnostic_substance(reply_text: Any) -> bool:
             "test",
             "trace",
             "verify",
-        )
-    )
+        ))
 
 
 _SELF_CONDITION_SUBSTANCE_RE = re.compile(
@@ -5602,7 +5594,7 @@ def _has_status_substance(reply_text: Any) -> bool:
         "i'm just thinking",
         "i am just thinking",
     )
-    if any(phrase in reply for phrase in presence_phrases):
+    if names_any(reply, presence_phrases):
         return True
     if _word_count(reply) < 10:
         return False
@@ -5610,7 +5602,7 @@ def _has_status_substance(reply_text: Any) -> bool:
         return False
     if _reply_has_pseudo_internal_jargon(reply_text):
         return False
-    return any(marker in reply for marker in _STATUS_SUBSTANCE_MARKERS)
+    return names_any(reply, _STATUS_SUBSTANCE_MARKERS)
 
 
 def _has_operational_status_substance(user_message: Any, reply_text: Any) -> bool:
@@ -5629,7 +5621,7 @@ def _has_operational_status_substance(user_message: Any, reply_text: Any) -> boo
         return _has_capability_inventory_substance(reply_text)
     if not is_operational_status_turn(user_message):
         return False
-    if any(marker in reply for marker in _OPERATIONAL_STATUS_SUBSTANCE_MARKERS):
+    if names_any(reply, _OPERATIONAL_STATUS_SUBSTANCE_MARKERS):
         return True
     return _has_concrete_operational_telemetry(reply)
 
@@ -5637,7 +5629,7 @@ def _has_operational_status_substance(user_message: Any, reply_text: Any) -> boo
 def _has_concrete_operational_telemetry(reply: str) -> bool:
     """Accept brief live-status answers only when they name a concrete signal."""
 
-    if not any(marker in reply for marker in _OPERATIONAL_STATUS_TELEMETRY_MARKERS):
+    if not names_any(reply, _OPERATIONAL_STATUS_TELEMETRY_MARKERS):
         return False
     return bool(
         re.search(
@@ -5664,8 +5656,8 @@ def _has_capability_inventory_substance(reply_text: Any) -> bool:
     )
     if category_hits < 3:
         return False
-    has_governance = any(marker in reply for marker in _CAPABILITY_GOVERNANCE_MARKERS)
-    has_effect_evidence = any(marker in reply for marker in _CAPABILITY_EVIDENCE_MARKERS)
+    has_governance = names_any(reply, _CAPABILITY_GOVERNANCE_MARKERS)
+    has_effect_evidence = names_any(reply, _CAPABILITY_EVIDENCE_MARKERS)
     has_hypothetical_boundary = any(marker in reply for marker in _CAPABILITY_HYPOTHETICAL_MARKERS)
     return has_governance and has_effect_evidence and has_hypothetical_boundary
 
@@ -5696,9 +5688,7 @@ def grounded_operational_status_reply(user_message: Any, reply_text: Any = "") -
         return ""
     raw = str(reply_text or "").strip()
     lower = _normalize(f"{user_message} {raw}")
-    mentions_tools = any(
-        marker in lower
-        for marker in (
+    mentions_tools = names_any(lower, (
             "tool",
             "tools",
             "desktop",
@@ -5708,8 +5698,7 @@ def grounded_operational_status_reply(user_message: Any, reply_text: Any = "") -
             "browser",
             "file",
             "document",
-        )
-    )
+        ))
     mentions_cognitive_path = any(
         marker in lower
         for marker in (
@@ -5789,7 +5778,7 @@ def _reply_has_pseudo_internal_jargon(reply_text: Any) -> bool:
     reply = _normalize(raw)
     return bool(
         re.search(r"\bfield\b", reply)
-        and any(marker in reply for marker in ("memory", "cognitive", "neural", "trauma", "temperature"))
+        and names_any(reply, ("memory", "cognitive", "neural", "trauma", "temperature"))
         and not any(marker in reply for marker in ("conversation", "thread", "attention", "focus", "with you"))
     )
 
@@ -5832,9 +5821,7 @@ def _has_stale_context_topic_bleed(prompt: Any, reply_text: Any) -> bool:
         return False
     if _STALE_PRIOR_TOPIC_BLEED_RE.search(str(reply_text or "")):
         return True
-    if any(
-        marker in prompt_norm
-        for marker in (
+    if names_any(prompt_norm, (
             "tool",
             "tools",
             "open",
@@ -5846,8 +5833,7 @@ def _has_stale_context_topic_bleed(prompt: Any, reply_text: Any) -> bool:
             "google docs",
             "pdf",
             "scenario",
-        )
-    ):
+        )):
         return False
     return bool(_STALE_CONTEXT_TOOL_BLEED_RE.search(str(reply_text or "")))
 
@@ -5932,9 +5918,7 @@ def _has_self_reflection_substance(reply_text: Any) -> bool:
         return False
     if _reply_has_pseudo_internal_jargon(reply_text):
         return False
-    concrete_attention = any(
-        marker in reply
-        for marker in (
+    concrete_attention = names_any(reply, (
             "attention",
             "focus",
             "noticing",
@@ -5957,9 +5941,8 @@ def _has_self_reflection_substance(reply_text: Any) -> bool:
             "question",
             "wonder",
             "matters",
-        )
-    )
-    return concrete_attention and any(marker in reply for marker in _SELF_REFLECTION_SUBSTANCE_MARKERS)
+        ))
+    return concrete_attention and names_any(reply, _SELF_REFLECTION_SUBSTANCE_MARKERS)
 
 
 def _missing_requested_self_process_coverage(prompt: Any, reply_text: Any) -> tuple[str, ...]:
@@ -6079,7 +6062,7 @@ def _has_unfounded_alarm_derailment(user_message: Any, reply_text: Any) -> bool:
     if not raw or not _UNFOUNDED_ALARM_RE.search(raw):
         return False
     user = _normalize(user_message)
-    if any(marker in user for marker in _ALARM_CONTEXT_MARKERS):
+    if names_any(user, _ALARM_CONTEXT_MARKERS):
         return False
     if _word_count(raw) <= 45:
         return True
@@ -6110,7 +6093,7 @@ def _has_unfounded_voice_intrusion(
     if not raw or not _UNFOUNDED_VOICE_INTRUSION_RE.search(raw):
         return False
     context = _conversation_context_norm(user_message, recent_user_messages)
-    if any(marker in context for marker in _VOICE_INTRUSION_CONTEXT_MARKERS):
+    if names_any(context, _VOICE_INTRUSION_CONTEXT_MARKERS):
         return False
     return True
 
@@ -6799,7 +6782,7 @@ def _has_context_object_support(
         current,
     ):
         return False
-    if any(marker in prior for marker in _CONTEXT_OBJECT_MARKERS):
+    if names_any(prior, _CONTEXT_OBJECT_MARKERS):
         return True
     return bool(
         re.search(
@@ -6822,7 +6805,7 @@ def _has_unsupported_context_continuation_claim(
     current = _normalize(user_message)
     if _has_context_object_support(user_message, recent_user_messages):
         return False
-    if any(marker in reply for marker in _CONTEXT_OBJECT_MARKERS):
+    if names_any(reply, _CONTEXT_OBJECT_MARKERS):
         return True
     return bool(
         any(marker in reply for marker in ("you just", "what you just", "the one you", "that one you"))
@@ -7145,7 +7128,7 @@ def _has_detail_request_deflection(user_message: Any, reply_text: Any) -> bool:
         "fallback",
         "gate",
     )
-    if any(marker in raw_norm for marker in concrete_markers) and _word_count(raw) >= 45:
+    if names_any(raw_norm, concrete_markers) and _word_count(raw) >= 45:
         return False
     return True
 
@@ -7352,7 +7335,7 @@ def _has_camelcase_internal_jargon(user_message: Any, reply_text: Any) -> bool:
         )
     ):
         return False
-    if any(marker in prompt for marker in ("architecture", "system", "kernel", "runtime", "code", "debug", "log")):
+    if names_any(prompt, ("architecture", "system", "kernel", "runtime", "code", "debug", "log")):
         return False
     allowed = {"OpenAI", "ChatGPT", "YouTube", "GitHub", "JavaScript"}
     allowed.update(match.group(0) for match in _CAMELCASE_INTERNAL_JARGON_RE.finditer(str(user_message or "")))
@@ -9174,7 +9157,7 @@ def _assess_user_facing_reply(
     _assess_operational_status_reply(exact_reply, memory_pin_confirmation, operational_status_turn, raw, reasons, reliability_diagnostic_turn, reliability_turn, strict_answer_tag_reply, user_message)
 
     if is_confusion_repair_turn(user_message) and _LOW_SIGNAL_REASSURANCE_RE.match(raw):
-        if not (_word_count(raw) >= 3 and any(w in raw.lower() for w in ("thinking", "working", "processing", "online"))):
+        if not (_word_count(raw) >= 3 and names_any(raw.lower(), ("thinking", "working", "processing", "online"))):
             reasons.append("too_thin_for_confusion_repair")
 
     # Information, not length. Checked here rather than inside the substantive

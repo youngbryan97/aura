@@ -29,6 +29,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CancellingTheCall")
 
@@ -97,7 +98,7 @@ class ACall:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.cancelling_the_call_and_not_just_the_wait.LOCK")
 _KEEP = 200
 
 

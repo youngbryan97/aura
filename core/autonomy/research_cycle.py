@@ -31,6 +31,7 @@ from core.runtime.errors import FallbackClassification, Severity, record_degrada
 from core.runtime.state_ownership import state_root
 from core.state.percepts import emit_percept
 from core.utils.task_tracker import get_task_tracker
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.ResearchCycle")
 
@@ -96,7 +97,7 @@ _RECEIPT_MARKERS = (
 
 def _needs_receipt(action: str) -> bool:
     lowered = str(action or "").lower()
-    return any(marker in lowered for marker in _RECEIPT_MARKERS)
+    return names_any(lowered, _RECEIPT_MARKERS)
 
 
 def _env_float(name: str, default: float) -> float:

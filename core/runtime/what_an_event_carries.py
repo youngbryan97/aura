@@ -32,6 +32,7 @@ import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatAnEventCarries")
 
@@ -68,7 +69,7 @@ class WhatATopicCarries:
     closed: bool = True
 
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.what_an_event_carries.LOCK")
 _DECLARED: dict[str, WhatATopicCarries] = {}
 _SEEN_UNDECLARED: dict[str, int] = {}
 _VIOLATIONS: list[dict[str, Any]] = []

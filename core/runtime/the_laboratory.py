@@ -39,6 +39,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.TheLaboratory")
 
@@ -53,7 +54,7 @@ __all__ = [
     "what_still_reads_the_wall_clock",
 ]
 
-_LOCK = threading.RLock()
+_LOCK = checked_lock("core.runtime.the_laboratory.LOCK", reentrant=True)
 _ACTIVE: "ALaboratory | None" = None
 _WALL_CLOCK_READERS: dict[str, int] = {}
 

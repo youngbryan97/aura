@@ -35,6 +35,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhyTheCampaignDidNotRun")
 
@@ -81,7 +82,7 @@ _SEEN: list[AConsideration] = []
 _COUNTS: dict[str, int] = {}
 _REASONS: dict[str, int] = {}
 _LAST_VERDICT_AT = [0.0]
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.verify.why_the_campaign_did_not_run.LOCK")
 
 
 def where_it_is_kept() -> Any:
