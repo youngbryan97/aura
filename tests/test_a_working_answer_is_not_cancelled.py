@@ -20,9 +20,20 @@ from core.brain.llm.mlx_client import MLXLocalClient
 
 
 class _Client:
-    """Just the progress bookkeeping the wait loop consults."""
+    """Just the progress bookkeeping the wait loop consults.
+
+    Both methods are borrowed from the real client rather than stubbed.
+    `_still_producing` grew a call to `_refresh_worker_job_activity`, the fake
+    did not have it, and three tests failed on a missing attribute rather than
+    on anything about staying alive. Borrowing it keeps that from happening
+    again for the next call it grows: the method reads its worker channel and
+    request sequence through `getattr` defaults, so on a fake that has neither
+    it reads nothing and does nothing, which is exactly the stand-in a fixed
+    `_last_token_progress_at` wants.
+    """
 
     _still_producing = MLXLocalClient._still_producing
+    _refresh_worker_job_activity = MLXLocalClient._refresh_worker_job_activity
 
     def __init__(self, last_token_at: float) -> None:
         self._last_token_progress_at = last_token_at
