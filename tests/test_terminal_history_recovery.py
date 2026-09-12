@@ -18,6 +18,7 @@ from core.runtime.chat_delivery_journal import (
 from interface.routes import chat, chat_delivery, chat_preflight
 from tests.test_chat_delivery_journal import _identity, _payload, _request, _request_hash
 from tests.test_terminal_exchange_custody import custody  # noqa: F401 - shared fixture
+from core.runtime.sqlite_support import connecting
 
 
 @pytest.fixture
@@ -72,7 +73,7 @@ async def test_history_acknowledgement_cannot_discard_a_different_reply(journal)
 @pytest.mark.asyncio
 async def test_history_insert_failure_rolls_back_the_terminal_seal(journal):
     admission = await journal.reserve(_identity(), _request_hash(), wait_timeout_s=0)
-    with sqlite3.connect(journal.db_path) as conn:
+    with connecting(sqlite3.connect(journal.db_path)) as conn:
         conn.execute("CREATE TRIGGER refuse_history BEFORE INSERT ON chat_delivery_history "
                      "BEGIN SELECT RAISE(ABORT, 'injected storage failure'); END")
     with pytest.raises(ChatDeliveryJournalCorruption):
@@ -88,7 +89,7 @@ async def test_history_insert_failure_rolls_back_the_terminal_seal(journal):
 @pytest.mark.parametrize("valid_hash", [False, True])
 async def test_recovery_rejects_corrupt_private_capture(journal, valid_hash):
     await seal(journal)
-    with sqlite3.connect(journal.db_path) as conn:
+    with connecting(sqlite3.connect(journal.db_path)) as conn:
         conn.execute("UPDATE chat_delivery_history SET capture_json=?, capture_hash=?",
                      ("{", hashlib.sha256(b"{").hexdigest() if valid_hash else "wrong"))
     with pytest.raises(ChatDeliveryJournalCorruption):

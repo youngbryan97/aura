@@ -112,7 +112,7 @@ def test_completed_exchange_metadata_survives_a_new_persistence_instance(tmp_pat
 
 def test_existing_conversation_schema_gains_bounded_turn_metadata(tmp_path):
     db_path = tmp_path / "legacy-conversation.db"
-    with sqlite3.connect(db_path) as con:
+    with connecting(sqlite3.connect(db_path)) as con:
         con.executescript(
             """
             CREATE TABLE sessions (
@@ -141,7 +141,7 @@ def test_existing_conversation_schema_gains_bounded_turn_metadata(tmp_path):
         metadata={"authority_proven": True},
     )
 
-    with sqlite3.connect(db_path) as con:
+    with connecting(sqlite3.connect(db_path)) as con:
         columns = {row[1] for row in con.execute("PRAGMA table_info(turns)")}
     assert "metadata_json" in columns
     assert store.get_session_history(session_id)[0]["metadata"] == {
