@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import math
 import os
 import sys
 import time
@@ -100,6 +101,14 @@ async def main() -> int:
     # rather than about whichever pathway the state happened to pick.
     parser.add_argument("--agency-trials", type=int, default=8)
     parser.add_argument("--lesion-rounds", type=int, default=30)
+    parser.add_argument(
+        "--lesion-cycles",
+        type=int,
+        default=3,
+        help="times the cut is made and released, sharing --lesion-rounds "
+        "between them. One cycle decides both criteria on a single reading "
+        "of each arm, with no scale to read the difference against",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(
         "--null-draws",
@@ -131,6 +140,13 @@ async def main() -> int:
         action="store_true",
         help="leave the lesion and rescue unmeasured; they read as failures, which is what an unmeasured criterion is",
     )
+    parser.add_argument(
+        "--sensory-tape",
+        type=Path,
+        help="a tape cut by tools/record_sensory_tape.py. Perception then comes "
+        "from the channels that recorded it instead of from the conditions' "
+        "scripted percepts, and the report says which channels carried it",
+    )
     parser.add_argument("--quick", action="store_true", help="a short run for wiring checks")
     parser.add_argument(
         "--allow-degraded",
@@ -145,6 +161,7 @@ async def main() -> int:
     if args.quick:
         args.rounds, args.trials, args.turns = 6, 2, 1
         args.agency_trials, args.lesion_rounds = 2, 4
+        args.lesion_cycles = 2
 
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
@@ -201,6 +218,7 @@ async def main() -> int:
             trials=args.trials,
             turns=args.turns,
             lesion_rounds=0 if args.skip_lesion else args.lesion_rounds,
+            lesion_cycles=0 if args.skip_lesion else args.lesion_cycles,
         ),
         # What it ran on, beyond the commit. `environment()` was imported and
         # never called, so every report carried nothing about its machine — and
@@ -218,6 +236,10 @@ async def main() -> int:
 
     _log(f"building the offline organism in {args.out}")
     runtime = build_runtime(args.out / "runtime", seed=args.seed)
+    # Perception, before the organism lives a frame. A tape has to be on the
+    # runtime for the calibration turns too, or the clock is calibrated against
+    # a different world from the one the run records.
+    evidence["perception"] = _attach_tape(runtime, args)
     organism = await start_organism(runtime)
     evidence["organism"] = organism
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
@@ -527,6 +549,33 @@ async def main() -> int:
     return 0
 
 
+def _attach_tape(runtime: Any, args: Any) -> dict[str, Any]:
+    """Put a recorded sensory stream on the runtime, or say it is scripted.
+
+    A run without a tape is not a run with an empty one. The conditions write
+    percepts of their own, and reporting that as real perception with no
+    channels on it would be the scripted stream under another name. So the
+    absence says so, in the same field a tape's coverage would occupy.
+    """
+    if not getattr(args, "sensory_tape", None):
+        return {
+            "source": "scripted",
+            "carried": [],
+            "note": "the conditions wrote the percepts; no sensory channel was read",
+        }
+    from core.subject.perception_replay import SensoryTape
+
+    tape = SensoryTape.load(args.sensory_tape)
+    runtime.tape = tape
+    coverage = tape.coverage()
+    coverage["path"] = str(args.sensory_tape)
+    _log(
+        f"perception from {args.sensory_tape.name}: {coverage['frames']} frames, "
+        f"{coverage['percepts']} percepts, carried by {coverage['carried'] or 'nothing'}"
+    )
+    return coverage
+
+
 async def _lesion(
     runtime: Any,
     conditions: Any,
@@ -556,6 +605,18 @@ async def _lesion(
     information crossing and its own pipeline intact, and the two recordings
     are composed column-wise. Both halves start from the same snapshot, and the
     experiment clock makes the two runs the same length of life.
+
+    The whole thing happens more than once. One cycle gives one reading of each
+    arm, and three single readings decided both criteria: whether the cut cost
+    anything, and whether putting it back brought anything home. A difference
+    between two single readings has no scale to be read against. So the budget
+    that used to buy one long cycle buys several shorter ones, which costs the
+    same life and returns a spread — and with a spread the run can say whether
+    it could have detected the effect it is claiming.
+
+    Each cycle also measures a plain life twice before cutting anything. Two
+    consecutive uncut arms differ by whatever ordinary drift there is over that
+    stretch of life, and a deficit smaller than that is drift.
     """
     from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE
 
@@ -565,27 +626,33 @@ async def _lesion(
 
     #: The sources perturbational spread is read from in a lesion arm. Three
     #: rather than ten, because each arm pays for its own intervention sweep
-    #: and the lesion is run five times now.
+    #: and every cycle runs five arms.
     watched = ("A", "G", "S")
 
-    async def _live() -> tuple[list[Any], Any]:
+    cycles = max(1, int(getattr(args, "lesion_cycles", 1)))
+    # The same life, divided. A cycle shorter than two rounds measures nothing,
+    # so the count comes down rather than the rounds going to one.
+    rounds = max(2, args.lesion_rounds // cycles)
+    cycles = max(1, min(cycles, max(1, args.lesion_rounds // 2)))
+
+    async def _live(workload: Sequence[Any], seed: int) -> tuple[list[Any], Any]:
         """One arm's life, and the interventions run inside whatever holds it."""
         frames: list[Any] = []
-        for _ in range(args.lesion_rounds):
-            for condition in conditions:
+        for _ in range(rounds):
+            for condition in workload:
                 frames.extend(await runtime.turn_once(condition))
         results = await run_interventions(
             runtime,
-            conditions[:3],
+            workload[:3],
             scale=scale,
             sources=watched,
             trials=max(2, args.trials // 3),
             turns=1,
-            seed=args.seed + 11,
+            seed=seed,
         )
         return frames, results
 
-    def _read(label: str, frames: list[Any], spread: float) -> dict[str, Any]:
+    def _read(label: str, frames: list[Any], spread: float) -> dict[str, float]:
         recording = build_recording(frames, notes={"arm": label}).by_turn()
         synergies = [item.normalised for item in synergy_suite(recording, seed=args.seed)]
         # Scored at the partition the lesion cuts, in every arm.
@@ -609,43 +676,101 @@ async def _lesion(
             np.mean([perturbational_complexity(results, source=key).spread for key in only])
         )
 
-    async def measure(label: str) -> dict[str, Any]:
-        frames, results = await _live()
+    async def measure(label: str, workload: Sequence[Any], seed: int) -> dict[str, float]:
+        frames, results = await _live(workload, seed)
         return _read(label, frames, _spread(results))
 
     from core.subject.clamp import compose
 
-    intact = await measure("intact")
-
-    # Each side once, with the other held at the cut. Both start from the same
-    # place, so the two recordings are the same life with the crossing removed
-    # — and each side's spread is read from the arm in which that side was
-    # free, because a displacement of a held domain is a displacement of
-    # nothing.
-    start = runtime.snapshot()
-    with clamped(runtime, right):
-        left_frames, left_results = await _live()
-    runtime.restore(start)
-    with clamped(runtime, left):
-        right_frames, right_results = await _live()
-    cut_spread = []
-    for key in watched:
-        source = left_results if key in set(left) else right_results
-        cut_spread.append(perturbational_complexity(source, source=key).spread)
-    cut = _read("cut", compose(left_frames, right_frames, left), float(np.mean(cut_spread)))
-
-    # And the node clamp beside it, kept because it is a useful ablation and
-    # reported as what it is rather than as the partition lesion.
-    runtime.restore(start)
-    with clamped(runtime, smaller):
-        clamped_side = await measure("clamped_side")
-
-    rescued = await measure("rescued")
-
     measures = ("phi_do", "spread", "synergy")
-    deltas = {key: round(intact[key] - cut[key], 5) for key in intact}
-    deficit = all(cut[key] < intact[key] for key in measures)
-    recovery = {key: round(rescued[key] - cut[key], 5) for key in intact}
+    every: list[dict[str, Any]] = []
+
+    for index in range(cycles):
+        # Each cycle drives the life from a different rotation of the workload,
+        # so across the run the lesion is measured under more than the first
+        # three conditions. What is read is the same in every cycle — spread at
+        # the same sources, irreducibility at the same partition — so the
+        # spread across cycles carries workload variation, which is variation
+        # the criterion should have to survive.
+        offset = index % max(1, len(conditions))
+        workload = list(conditions[offset:]) + list(conditions[:offset])
+        seed = args.seed + 11 + 101 * index
+
+        # Two plain lives, back to back, with nothing cut between them. What
+        # they differ by is ordinary drift over a stretch this long, and it is
+        # the floor the deficit has to clear.
+        intact = await measure("intact", workload, seed)
+        drift = await measure("drift", workload, seed + 1)
+
+        start = runtime.snapshot()
+        # Each side once, with the other held at the cut. Both start from the
+        # same place, so the two recordings are the same life with the crossing
+        # removed — and each side's spread is read from the arm in which that
+        # side was free, because a displacement of a held domain is a
+        # displacement of nothing.
+        #
+        # Which side runs first alternates between cycles. Running one side
+        # always first puts the whole of the other side's life later in the
+        # cycle, and anything that changes with time is then confounded with
+        # which half of the partition it belongs to.
+        first_is_left = index % 2 == 0
+        held_first, held_second = (right, left) if first_is_left else (left, right)
+        with clamped(runtime, held_first):
+            frames_first, results_first = await _live(workload, seed + 2)
+        runtime.restore(start)
+        with clamped(runtime, held_second):
+            frames_second, results_second = await _live(workload, seed + 3)
+        left_frames, left_results = (
+            (frames_first, results_first) if first_is_left else (frames_second, results_second)
+        )
+        right_frames, right_results = (
+            (frames_second, results_second) if first_is_left else (frames_first, results_first)
+        )
+        cut_spread = []
+        for key in watched:
+            source = left_results if key in set(left) else right_results
+            cut_spread.append(perturbational_complexity(source, source=key).spread)
+        cut = _read("cut", compose(left_frames, right_frames, left), float(np.mean(cut_spread)))
+
+        # And the node clamp beside it, kept because it is a useful ablation and
+        # reported as what it is rather than as the partition lesion.
+        runtime.restore(start)
+        with clamped(runtime, smaller):
+            clamped_side = await measure("clamped_side", workload, seed + 4)
+
+        # The rescue continues from the individual that was lesioned. Restoring
+        # a snapshot here would measure a fresh baseline and call it a recovery.
+        rescued = await measure("rescued", workload, seed + 5)
+
+        baseline = {key: (intact[key] + drift[key]) / 2.0 for key in measures}
+        every.append({
+            "cycle": index,
+            "left_ran_first": first_is_left,
+            "conditions": [c.name for c in workload],
+            "intact": intact,
+            "drift_arm": drift,
+            "baseline": baseline,
+            "lesioned": cut,
+            "rescued": rescued,
+            "node_clamp": clamped_side,
+            "deltas": {key: baseline[key] - cut[key] for key in measures},
+            "drift": {key: abs(intact[key] - drift[key]) for key in measures},
+            "recovery": {key: rescued[key] - cut[key] for key in measures},
+        })
+
+    def _mean(field: str, key: str) -> float:
+        return float(np.mean([cycle[field][key] for cycle in every]))
+
+    def _spread_of(field: str, key: str) -> float:
+        values = [cycle[field][key] for cycle in every]
+        return float(np.std(values, ddof=1)) if len(values) > 1 else float("nan")
+
+    intact_mean = {key: _mean("baseline", key) for key in measures}
+    cut_mean = {key: _mean("lesioned", key) for key in measures}
+    rescued_mean = {key: _mean("rescued", key) for key in measures}
+    deltas = {key: round(intact_mean[key] - cut_mean[key], 5) for key in measures}
+    recovery = {key: round(rescued_mean[key] - cut_mean[key], 5) for key in measures}
+    drift_mean = {key: _mean("drift", key) for key in measures}
 
     # A measure whose deficit was a rounding error has nothing to rescue, and
     # judging the rescue on it is judging noise. run_019's synergy fell by
@@ -655,9 +780,12 @@ async def _lesion(
     # when its own deficit was worth rescuing, and the share it has to lose to
     # count is fixed before the run rather than read off the result.
     real = {
-        key: abs(deltas[key]) >= DEFICIT_SHARE * max(abs(intact[key]), 1e-9)
+        key: abs(deltas[key]) >= DEFICIT_SHARE * max(abs(intact_mean[key]), 1e-9)
         for key in measures
     }
+    # And larger than the drift between two uncut arms. A deficit inside that
+    # band is what a stretch of life does on its own.
+    over_drift = {key: abs(deltas[key]) > drift_mean[key] for key in measures}
     fractions = {
         key: round(recovery[key] / deltas[key], 4) if abs(deltas[key]) > 1e-9 else None
         for key in measures
@@ -665,27 +793,116 @@ async def _lesion(
     # And a trivial improvement is not a rescue. Half the deficit has to come
     # back, which is a tolerance set before the experiment and not "rescued is
     # larger than cut", a comparison two noisy readings pass half the time.
-    judged = [key for key in measures if real[key]]
+    judged = [key for key in measures if real[key] and over_drift[key]]
+    deficit = bool(judged) and all(deltas[key] > 0 for key in judged)
     rescued_ok = bool(judged) and all(
         (fractions[key] or 0.0) >= RECOVERY_TOLERANCE for key in judged
     )
+    # How often each measure fell when cut and came back when released. A
+    # criterion carried by one cycle out of three is a different fact from one
+    # that held every time, and the verdict above cannot show the difference.
+    held = {
+        key: {
+            "fell_when_cut": sum(1 for c in every if c["deltas"][key] > 0),
+            "returned_when_released": sum(1 for c in every if c["recovery"][key] > 0),
+            "of": len(every),
+        }
+        for key in measures
+    }
     return {
         "cut": list(smaller),
         "severed": {"left": list(left), "right": list(right)},
-        "node_clamp": {k: round(v, 5) for k, v in clamped_side.items()},
-        "intact": {k: round(v, 5) for k, v in intact.items()},
-        "lesioned": {k: round(v, 5) for k, v in cut.items()},
-        "rescued": {k: round(v, 5) for k, v in rescued.items()},
+        "cycles": len(every),
+        "rounds_per_cycle": rounds,
+        "per_cycle": [
+            {
+                "cycle": c["cycle"],
+                "left_ran_first": c["left_ran_first"],
+                "conditions": c["conditions"],
+                **{
+                    field: {k: round(v, 5) for k, v in c[field].items()}
+                    for field in ("intact", "drift_arm", "lesioned", "rescued", "node_clamp",
+                                  "deltas", "drift", "recovery")
+                },
+            }
+            for c in every
+        ],
+        "node_clamp": {k: round(_mean("node_clamp", k), 5) for k in measures},
+        "intact": {k: round(v, 5) for k, v in intact_mean.items()},
+        "lesioned": {k: round(v, 5) for k, v in cut_mean.items()},
+        "rescued": {k: round(v, 5) for k, v in rescued_mean.items()},
         "deltas": deltas,
         "rescue": recovery,
+        "drift_between_uncut_arms": {k: round(v, 5) for k, v in drift_mean.items()},
+        "spread_across_cycles": {
+            field: {k: round(_spread_of(field, k), 5) for k in measures}
+            for field in ("baseline", "lesioned", "rescued")
+        },
+        "power": _lesion_power(every, measures),
+        "held_across_cycles": held,
         "recovery_fraction": fractions,
         "deficit_worth_rescuing": real,
+        "deficit_over_drift": over_drift,
         "judged_on": judged,
         "recovery_tolerance": RECOVERY_TOLERANCE,
         "deficit_share": DEFICIT_SHARE,
         "deficit": deficit,
         "rescued_ok": rescued_ok,
     }
+
+
+def _lesion_power(every: list[dict[str, Any]], measures: Sequence[str]) -> dict[str, Any]:
+    """Whether the experiment could have found what it is reporting.
+
+    A lesion that comes back "no deficit" from an experiment too small to find
+    one has reported the size of its own budget. With a reading per cycle there
+    is a standard error, and from that a smallest deficit this many cycles
+    could have separated from zero — and how many cycles the observed deficit
+    would need.
+
+    One cycle gives no spread and therefore no power statement. It says so
+    rather than returning a number, because an unmeasurable power reported as
+    zero reads as a refusal the experiment never made.
+    """
+    count = len(every)
+    if count < 2:
+        return {
+            "measured": False,
+            "why": "one cycle gives no spread, so nothing here can be estimated",
+            "cycles": count,
+        }
+    # Two-sided, alpha 0.05, and a conventional 80 per cent. Both fixed here
+    # rather than chosen after seeing which measure missed.
+    z_alpha, z_power = 1.959964, 0.8416212
+    out: dict[str, Any] = {"measured": True, "cycles": count, "alpha": 0.05, "power": 0.80}
+    for field, against in (("deltas", "lesion"), ("recovery", "rescue")):
+        rows: dict[str, Any] = {}
+        for key in measures:
+            values = [float(c[field][key]) for c in every]
+            observed = float(np.mean(values))
+            sigma = float(np.std(values, ddof=1))
+            if sigma <= 0.0:
+                rows[key] = {
+                    "observed": round(observed, 6),
+                    "sigma": 0.0,
+                    "detectable": 0.0,
+                    "cycles_needed": 1,
+                    "powered": True,
+                }
+                continue
+            detectable = (z_alpha + z_power) * sigma / math.sqrt(count)
+            needed = math.ceil(((z_alpha + z_power) * sigma / max(abs(observed), 1e-12)) ** 2)
+            rows[key] = {
+                "observed": round(observed, 6),
+                "sigma": round(sigma, 6),
+                # The smallest effect this many cycles could have separated
+                # from zero at these conventions.
+                "detectable": round(detectable, 6),
+                "cycles_needed": int(needed),
+                "powered": bool(abs(observed) >= detectable),
+            }
+        out[against] = rows
+    return out
 
 
 #: Phases whose failure makes a run unauthoritative. Not every phase: the

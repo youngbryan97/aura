@@ -800,6 +800,22 @@
     "note": "and the interaction term has to be there for the triple to mean anything",
     "status": "done"
   },
+  "P13.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "--lesion-cycles"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_cut_is_made_and_released_more_than_once"
+      }
+    ],
+    "note": "the lesion is measured over several cycles rather than once, so every arm is a mean with a spread instead of a single reading",
+    "status": "done"
+  },
   "P13.10": {
     "checks": [
       {
@@ -820,6 +836,86 @@
     "note": "synergy falls",
     "status": "done"
   },
+  "P13.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "seed = args.seed \\+ 11 \\+ 101 \\* index"
+      }
+    ],
+    "note": "each cycle runs on its own seed, so the cycles are independent draws rather than the same draw repeated",
+    "status": "done"
+  },
+  "P13.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "first_is_left = index % 2 == 0"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_side_that_runs_first_alternates"
+      }
+    ],
+    "note": "which side of the partition runs first alternates between cycles; running one side always first puts the other side's whole life later in the cycle",
+    "status": "done"
+  },
+  "P13.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"drift_between_uncut_arms\""
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "over_drift"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_deficit_inside_the_drift_between_two_uncut_arms_is_drift"
+      }
+    ],
+    "note": "two plain lives back to back in every cycle, with nothing cut between them; a deficit inside that band is ordinary drift and is not judged",
+    "status": "done"
+  },
+  "P13.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--lesion-rounds\", type=int, default=30"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "rounds = max\\(2, args.lesion_rounds // cycles\\)"
+      }
+    ],
+    "note": "--lesion-rounds is 30 by default and is divided between the cycles, so a cycle never falls under two rounds",
+    "status": "done"
+  },
+  "P13.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "run_interventions"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_each_cycle_drives_a_different_rotation_of_the_workload"
+      }
+    ],
+    "note": "each arm runs its own intervention sweep, and the sweep runs once per cycle rather than once per run",
+    "status": "done"
+  },
   "P13.4": {
     "checks": [
       {
@@ -829,6 +925,33 @@
       }
     ],
     "note": "the lesion arms are read at the partition that was cut, which is the comparison the main edge experiment makes within a column",
+    "status": "done"
+  },
+  "P13.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "workload = list\\(conditions\\[offset:\\]\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_each_cycle_drives_a_different_rotation_of_the_workload"
+      }
+    ],
+    "note": "each cycle drives the life from a different rotation of the conditions, so the lesion is measured under more than the first three",
+    "status": "done"
+  },
+  "P13.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"rounds_per_cycle\""
+      }
+    ],
+    "note": "rounds per cycle are reported beside the cycle count, so the horizon each arm was measured over is in the record rather than inferred",
     "status": "done"
   },
   "P13.7": {
@@ -1022,6 +1145,65 @@
       }
     ],
     "note": "the rescue arm runs on the same runtime after the lesion, so a recovery is a recovery of this life rather than of a fresh one",
+    "status": "done"
+  },
+  "P15.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"spread_across_cycles\""
+      }
+    ],
+    "note": "the arms alternate cut and released several times and the spread across cycles is reported; state left behind by one release would show as a baseline that moves cycle on cycle",
+    "status": "done"
+  },
+  "P15.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "held_first, held_second"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_side_that_runs_first_alternates"
+      }
+    ],
+    "note": "lesion ordering is counterbalanced across cycles",
+    "status": "done"
+  },
+  "P15.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"held_across_cycles\""
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_how_many_cycles_each_measure_held_in_is_reported"
+      }
+    ],
+    "note": "how many cycles each measure fell in and returned in is reported; a criterion carried by one cycle of three is a different fact from one that held every time",
+    "status": "done"
+  },
+  "P15.15": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_rescue_continues_the_lesioned_individual"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "Restoring\n    # a snapshot here would measure a fresh baseline"
+      }
+    ],
+    "note": "the rescue arm continues from the lesioned individual; two restores a cycle and none before the rescue, which a test counts",
     "status": "done"
   },
   "P15.2": {
@@ -3466,6 +3648,42 @@
     "note": "a tape of percepts as they arrived, cut from whatever is living",
     "status": "done"
   },
+  "P25.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "--sensory-tape"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "self\\.tape\\.play\\(self\\.state\\.world, self\\.turn"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/perception_replay.py",
+        "pattern": "def record_channels"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/record_sensory_tape.py",
+        "pattern": "def main"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_a_run_without_a_tape_says_its_perception_was_scripted"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_two_arms_at_the_same_turn_see_the_same_frame"
+      }
+    ],
+    "note": "the battery plays a recorded stream from the real channels instead of the conditions' scripted percepts, at the turn index so both arms of a paired trial see the same frame; a run without a tape says its perception was scripted rather than reporting no channels",
+    "status": "done"
+  },
   "P25.2": {
     "checks": [
       {
@@ -3475,6 +3693,111 @@
       }
     ],
     "note": "and replayed frame by frame, so two arms see the same world",
+    "status": "done"
+  },
+  "P25.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "Channel\\(\"screen\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "core\\.perception\\.screen_perception"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_every_channel_the_specification_names_is_declared"
+      }
+    ],
+    "note": "the screen channel is declared with the module that produces it, and a frame that carried nothing on it is recorded as silent rather than as perception",
+    "status": "done"
+  },
+  "P25.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "Channel\\(\"operating_system\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "core\\.perception\\.ambient_developer_stream"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_every_channel_the_specification_names_is_declared"
+      }
+    ],
+    "note": "the operating_system channel is declared with the module that produces it, and a frame that carried nothing on it is recorded as silent rather than as perception",
+    "status": "done"
+  },
+  "P25.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "Channel\\(\"audio\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "core\\.perception\\.sensory_runtime"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_every_channel_the_specification_names_is_declared"
+      }
+    ],
+    "note": "the audio channel is declared with the module that produces it, and a frame that carried nothing on it is recorded as silent rather than as perception",
+    "status": "done"
+  },
+  "P25.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "Channel\\(\"host\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "core\\.phases\\.proprioceptive_loop"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_every_channel_the_specification_names_is_declared"
+      }
+    ],
+    "note": "the host channel is declared with the module that produces it, and a frame that carried nothing on it is recorded as silent rather than as perception",
+    "status": "done"
+  },
+  "P25.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "Channel\\(\"user\""
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/sensory_channels.py",
+        "pattern": "core\\.perception\\.ambient_presence"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_perception_comes_from_a_sensor_or_says_it_did_not.py",
+        "pattern": "def test_every_channel_the_specification_names_is_declared"
+      }
+    ],
+    "note": "the user channel is declared with the module that produces it, and a frame that carried nothing on it is recorded as silent rather than as perception",
     "status": "done"
   },
   "P25.8": {
@@ -7726,6 +8049,43 @@
       }
     ],
     "note": "the lesion severs the channels across the partition rather than clamping a side",
+    "status": "done"
+  },
+  "P54.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "def _lesion_power"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_power_names_the_smallest_deficit_the_cycles_could_have_found"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_deficit_under_the_detectable_size_is_reported_unpowered"
+      }
+    ],
+    "note": "the lesion reports the smallest deficit its cycles could have separated from zero, and how many cycles the observed one would need",
+    "status": "done"
+  },
+  "P54.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\\(\"recovery\", \"rescue\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_one_cycle_says_it_cannot_speak_to_power"
+      }
+    ],
+    "note": "the same power statement for the recovery, from the same per-cycle spread",
     "status": "done"
   },
   "P54.15": {

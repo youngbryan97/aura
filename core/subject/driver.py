@@ -31,26 +31,28 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import importlib
 import inspect
 import logging
 import os
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field, fields as dataclass_fields, replace
+from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, ClassVar
 
 import numpy as np
 
 from core.soma.effort import note_effort
-from core.subject.steppable import Steps, step_once
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
     Organs,
     read_core_state,
 )
+from core.subject.steppable import Steps, step_once
 
 __all__ = [
     "CONDITIONS",
@@ -374,6 +376,12 @@ class SubjectRuntime:
     #: The live intention loop, so the probe's action takes the path a real one
     #: takes rather than writing the outcome straight into the state.
     _intentions: Any = None
+    #: A recorded sensory stream, or None for the scripted percepts the
+    #: conditions write. Played at the turn index rather than at a wall clock,
+    #: so both arms of a paired trial see the same frame of the same world and
+    #: the difference between them stays the intervention. See
+    #: `core.subject.perception_replay`.
+    tape: Any = None
 
     # ── forking ──────────────────────────────────────────────────────────
 
@@ -706,6 +714,15 @@ class SubjectRuntime:
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
+        if self.tape is not None:
+            # Perception as it actually arrived, at this turn's frame. The
+            # timestamp is the experiment's, not the tape's: an instant from
+            # the day the tape was cut puts every consumer that reasons about
+            # recency into a different decade from the run.
+            now = self.clock.now() if self.clock is not None else None
+            env["percepts_replayed"] = float(
+                self.tape.play(self.state.world, self.turn, now=now)
+            )
         self.state.cognition.current_objective = condition.objective or None
         self.state.cognition.current_origin = condition.origin
         env["objective_len"] = float(len(condition.objective))

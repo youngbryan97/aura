@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-__all__ = ["SensoryTape", "record_stream"]
+__all__ = ["SensoryTape", "record_channels", "record_stream"]
 
 #: What a percept carries. Anything else on the record is kept as it was.
 _REPLACED_ON_PLAY: tuple[str, ...] = ("timestamp",)
@@ -124,6 +124,63 @@ class SensoryTape:
     @classmethod
     def load(cls, path: Path) -> SensoryTape:
         return cls.from_dict(json.loads(Path(path).read_text()))
+
+    @property
+    def carried(self) -> tuple[str, ...]:
+        """Channels that put at least one percept on this tape.
+
+        The claim a run is entitled to make. A channel that opened and stayed
+        empty is not in here, because it contributed nothing a scripted percept
+        did not.
+        """
+        named = {
+            str(record.get("channel", ""))
+            for frame in self.frames
+            for record in frame
+            if record.get("channel")
+        }
+        return tuple(sorted(named))
+
+    def coverage(self) -> dict[str, Any]:
+        """What the tape is made of, for the run's record."""
+        return {
+            "frames": len(self.frames),
+            "percepts": self.percepts,
+            "carried": list(self.carried),
+            "declared": dict(self.notes.get("coverage", {})),
+            "source": self.notes.get("source", "world"),
+        }
+
+
+def record_channels(frames: int, *, wait: Any = None, only: tuple[str, ...] | None = None) -> SensoryTape:
+    """A tape cut from the real sensory channels rather than from a world.
+
+    `record_stream` keeps what a world already holds, which is right when the
+    organism is living in front of you and wrong when the question is what her
+    senses carried. This reads `core.subject.sensory_channels` directly, so the
+    tape holds the text a window held and the load the host was under.
+
+    The tape's notes carry which channels opened, which opened with nothing on
+    them, and which refused and why. A run that replays this tape can then say
+    what its perception was made of instead of asserting that it was real.
+    """
+    from core.subject.sensory_channels import capture
+
+    tape = SensoryTape(notes={"frames_requested": int(frames), "source": "sensory_channels"})
+    coverage: dict[str, dict[str, int]] = {}
+    for index in range(max(0, int(frames))):
+        if wait is not None and index:
+            wait()
+        frame = capture(only=only)
+        tape.frames.append(frame.percepts)
+        for name, why in frame.coverage.items():
+            row = coverage.setdefault(name, {"live": 0, "silent": 0, "refused": 0})
+            row["live" if why == "live" else "silent" if why == "silent" else "refused"] += 1
+            if why not in ("live", "silent"):
+                row.setdefault("reason", why)  # type: ignore[arg-type]
+    tape.notes["coverage"] = coverage
+    tape.notes["carried"] = sorted(n for n, row in coverage.items() if row["live"])
+    return tape
 
 
 def record_stream(world: Any, frames: int, step: Any) -> SensoryTape:

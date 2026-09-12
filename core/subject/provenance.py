@@ -162,7 +162,13 @@ def run_fingerprint(frozen: dict[str, Any]) -> str:
 
 
 def campaign(
-    *, seed: int, rounds: int, trials: int, turns: int, lesion_rounds: int = 0
+    *,
+    seed: int,
+    rounds: int,
+    trials: int,
+    turns: int,
+    lesion_rounds: int = 0,
+    lesion_cycles: int = 1,
 ) -> dict[str, Any]:
     """Everything a second run would have to match to be the same measurement."""
     from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE, THRESHOLDS
@@ -227,6 +233,12 @@ def campaign(
         # everything else that does.
         "lesion": {
             "rounds": lesion_rounds,
+            # How many times the cut is made and released. One cycle gives one
+            # reading of each arm and no way to tell a deficit from the noise
+            # around it; the count is frozen here because spending the same
+            # budget as three cycles instead of one changes what the lesion
+            # and rescue criteria are measured on.
+            "cycles": lesion_cycles,
             # How much of the deficit a rescue has to bring back, and how large
             # a deficit has to be before there is one to bring back. Fixed here
             # so a tolerance cannot be chosen after seeing which measure

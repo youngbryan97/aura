@@ -50,6 +50,15 @@ include_rules = [
     # Construct the same observation/action vectors the measured cycle uses.
     "+core.world_model.observe_cycle",
 
+    # Read what perception already captured, so P is measured on a stream the
+    # perception stack produced rather than on percepts the conditions wrote.
+    # Both are readers of a record that is already there — the battery never
+    # takes a capture, because a battery that screenshots the host is changing
+    # the world it is measuring. Named module by module, in the allowed
+    # direction: subject reads perception, perception never reads subject.
+    "+core.perception.ambient_developer_stream",
+    "+core.perception.observation_evidence",
+
     # Everything else.
     "+core.world_model",
     "-core",
