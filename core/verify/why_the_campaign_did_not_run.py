@@ -1,27 +1,37 @@
 """The influence campaign has an owner, a schedule, and no verdicts.
 
-Sixty-nine services are declared, six can be lesioned, and none carries an
-intervention verdict. The apparatus for producing one is complete: a probe
-that runs the trials, a ledger that persists across boots, a receipt that
-reports the result, and a conductor job that calls all three every hour.
+Sixty-nine services are declared, ten can be lesioned, and none carries an
+intervention verdict from the live path. The apparatus for producing one is
+complete: a probe that runs the trials, a ledger that persists across boots, a
+receipt that reports the result, and a conductor job that calls all three
+every hour.
 
 So the interesting question is not what is missing. It is why an hourly job
-has produced nothing, and the answer is in its admission bar. The campaign
-runs under the research background profile: fifteen minutes of no user
-activity, memory below 85%, conversation ready. A machine with a resident cortex
-sits above that memory line most of the time, and a machine somebody is
-working on is rarely idle for fifteen minutes. Both conditions are right for a
-job that spends three generations per trial. Together they are a job that
-never runs, and nothing said so — a deferral logged a reason and left no count,
-so "no verdicts yet" and "never once admitted" looked identical from outside.
+has produced nothing, and the first version of this file answered it wrong.
+It said the admission bar was never met — fifteen minutes of no user activity,
+memory below 85%, a machine with a resident cortex sitting above that line.
+Reasonable, and false. The conductor's own ledger shows 124 admissions over
+three weeks, each one running the job to completion.
+
+What actually happened is worse and needed counting to see. Every arm of every
+trial was refused by the inference gate before a model was called
+(``background_local_fallback_suppressed``), the caller turned the refusal into
+an empty string, and two empty strings are zero apart — so the ledger filled
+with a perfect null and a perfect treatment, three trials per channel, all
+0.0. And underneath that, none of the nine channels could have moved anyway:
+every ``apply_channel`` site sits behind a guard a background call does not
+pass.
 
 This counts. Every consideration, every deferral with its reason, every run,
-and how long since the last verdict. Two things fall out of that which a log
-line cannot give:
+every rotation with no reachable channel, and how long since the last verdict.
+Three things fall out of that which a log line cannot give:
 
 * whether the bar is ever met on this host, which is a fact about the bar
   rather than about the campaign;
-* which condition refuses most often, which is what you would change first.
+* which condition refuses most often, which is what you would change first;
+* whether a run that was admitted produced anything, which is the distinction
+  that hid this for three weeks — "ran" and "ran and recorded nothing" were
+  the same word.
 
 Nothing here relaxes anything. A campaign that degrades a live turn is worse
 than a campaign that never runs, and the point of measuring the refusals is to
@@ -31,10 +41,10 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
+
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhyTheCampaignDidNotRun")
