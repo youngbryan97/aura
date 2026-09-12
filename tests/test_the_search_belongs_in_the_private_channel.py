@@ -124,29 +124,34 @@ def test_a_generation_that_is_not_the_surface_is_left_alone() -> None:
     )
 
 
-def test_a_budget_proved_unable_to_close_the_channel_keeps_it_shut() -> None:
+def test_a_budget_that_cannot_hold_both_halves_keeps_the_channel_shut() -> None:
     """Nothing served is worse than partial working served.
 
     LIVE, 2026-08-27: three attempts in a row ended inside the channel, the
     last after 127 seconds and 3,411 characters of reasoning, and the turn
     served nothing each time. The same question with the channel closed had
     served a real partial derivation.
+
+    This was asserted through the record of a budget that had already run out.
+    That owner was retired on 2026-09-10 (1ab1b1f4e), because one runaway set
+    the mark and every ordinary turn was refused from then on. The protection
+    is the same and its owner is now the price: what the clock can decode in
+    the time this turn has, less the room the answer needs. All three of those
+    attempts had a budget the size of its own answer floor, which leaves
+    nothing for a channel in front of it.
     """
 
-    from core.brain.llm import thinking_reserve
+    import time as _time
 
-    thinking_reserve.forget()
-    try:
-        job = {"user_surface_completion_floor": 896, "max_tokens": 896}
-        assert _answer_is_derived_here(job)
-        thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=896)
-        assert not _answer_is_derived_here(job)
-        # A budget bigger than the one that failed is worth trying again.
-        assert _answer_is_derived_here(
-            {"user_surface_completion_floor": 896, "max_tokens": 1792}
-        )
-    finally:
-        thinking_reserve.forget()
+    budget_is_the_whole_answer = {
+        "user_surface_completion_floor": 896,
+        "max_tokens": 896,
+        "deadline_unix": _time.time() + 127,
+    }
+    assert not _answer_is_derived_here(budget_is_the_whole_answer)
+
+    room_for_both = dict(budget_is_the_whole_answer, max_tokens=4096)
+    assert _answer_is_derived_here(room_for_both)
 
 
 def test_a_job_with_no_budget_is_left_to_the_floor_alone() -> None:
@@ -170,7 +175,7 @@ def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
         def job(seconds_left: float) -> dict[str, object]:
             return {
                 "user_surface_completion_floor": 896,
-                "max_tokens": 896,
+                "max_tokens": 4096,
                 "deadline_unix": _time.time() + seconds_left,
             }
 
@@ -181,9 +186,11 @@ def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
             thinking_reserve.record_decode_rate(
                 generated_tokens=900, elapsed_s=150.0
             )
-        # 896 tokens at six a second is about 149 seconds.
+        # Thirty seconds at six a second is 180 tokens, and the answer alone
+        # needs 896 of them.
         assert not _answer_is_derived_here(job(30))
-        assert _answer_is_derived_here(job(300))
+        # Ten minutes is time for both halves.
+        assert _answer_is_derived_here(job(600))
         # A job that states no deadline is left to the other tests.
         assert _answer_is_derived_here(
             {"user_surface_completion_floor": 896, "max_tokens": 896}
