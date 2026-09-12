@@ -99,12 +99,14 @@ def test_a_triple_needs_the_interaction_gain_as_well() -> None:
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
         interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.02,
     )
     assert strong.passes is True
     flat = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
         interaction_gain=-0.01, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.02,
     )
     assert flat.passes is False
 
@@ -117,5 +119,58 @@ def test_a_triple_needs_the_raw_value_above_its_own_null() -> None:
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.05, normalised=0.5, null_q99=0.1,
         interaction_gain=0.05, rows=500, raw_null_q99=0.3,
+        null_draws=1000, null_spread=0.02,
     )
     assert thin.passes is False
+
+
+def test_a_margin_narrower_than_the_bars_own_spread_does_not_pass() -> None:
+    """`null_spread` was computed, reported, and decided nothing.
+
+    Its own comment beside the draw loop says what it is for: a synergy a
+    hundredth above a null estimated to within two hundredths has not cleared
+    it. The predicate read the quantile alone, so it did.
+    """
+    from core.subject.synergy import SynergyReport
+
+    wide_bar = SynergyReport(
+        sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
+        redundancy=0.2, synergy=0.5, normalised=0.11, null_q99=0.10,
+        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.02,
+    )
+    assert wide_bar.normalised > wide_bar.null_q99
+    assert wide_bar.passes is False, "a hundredth over a two-hundredth bar is not a margin"
+
+    tight_bar = SynergyReport(
+        sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
+        redundancy=0.2, synergy=0.5, normalised=0.11, null_q99=0.10,
+        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.005,
+    )
+    assert tight_bar.passes is True
+
+
+def test_a_bar_with_no_draws_behind_it_cannot_be_cleared() -> None:
+    """A spread of 0.0 from one draw is absence, not a measurement.
+
+    Comparing a margin against it passes everything, which is the absence of
+    a check reported as a passed check.
+    """
+    from core.subject.synergy import SynergyReport
+
+    unmeasured = SynergyReport(
+        sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
+        redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
+        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        null_draws=1, null_spread=0.0,
+    )
+    assert unmeasured.passes is False
+
+    measured = SynergyReport(
+        sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
+        redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
+        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.0,
+    )
+    assert measured.passes is True

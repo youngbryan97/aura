@@ -190,21 +190,33 @@ class SynergyReport:
 
     @property
     def passes(self) -> bool:
-        """Three things, and the third is a different estimator.
+        """Four things, and the last two are about the bar rather than the value.
 
         The information-theoretic quantity has to clear its absolute bar and
-        its own shifted null, on the fraction and on the raw value. And the
+        its own shifted null, on the fraction and on the raw value. The
         held-out interaction gain has to be positive, because a linear
         estimator cannot see an interaction and the two fail differently —
-        which is the whole reason both are computed. The interaction gain was
-        measured and reported and decided nothing, which made it a number
-        nobody checked.
+        which is the whole reason both are computed.
+
+        And the margin has to beat the bar's own spread. `null_spread` was
+        computed for exactly this — its comment beside the draw loop says "a
+        synergy a hundredth above a null estimated to within two hundredths
+        has not cleared it" — and then it was reported and read by nothing,
+        which is the same defect the interaction gain had before it was
+        wired in here.
+
+        A spread needs draws to be estimated from. With one draw or none it
+        is 0.0 by absence rather than by measurement, and a comparison
+        against it would pass everything: absence of a check reported as a
+        passed check. So the draws are required too.
         """
         return (
             self.normalised >= 0.10
             and self.normalised > self.null_q99
             and self.synergy > self.raw_null_q99
             and self.interaction_gain > 0.0
+            and self.null_draws > 1
+            and self.normalised - self.null_q99 >= self.null_spread
         )
 
     def as_dict(self) -> dict[str, Any]:
