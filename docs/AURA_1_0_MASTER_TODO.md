@@ -346,8 +346,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     this against a signed migration authority, logs it at info, and sent the
     parent the boolean without the reason. The disposition crosses the IPC
     now; an unexplained clear flag still warns. FIXED.
-- [ ] R09 Verify complete streaming, durable reconnect, one final answer per
+- [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
+  and latent Stop followed by successful turns; pending-window and reload
+  recovery; distinct repeated answers; complete multipart delivery; contextual
+  follow-up and older-topic correction after restart; 100 displayed exchanges.
+  The final three-turn resident-27B replay used one generation per turn, no
+  retries, and no text mutations. 153 rebased delivery/history regressions
+  and 164 smoke checks passed (one smoke skip). See the
+  [final acceptance matrix](evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md#r09-closeout-september-12)
+  and [live replay](evidence/R09_DELIVERY_REPLAY_2026-09-12.md).
+  This does not close R06/R08/R11, integration lint, endurance, or RLC gain.
   UPDATE 2026-09-10, session boundaries: the live replay exposed a three-session
   cutoff that hid a conversation still visible in the desktop. The durable
   reader now selects chronological authorized turns; UI restoration expands

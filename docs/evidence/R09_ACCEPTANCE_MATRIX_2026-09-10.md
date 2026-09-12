@@ -246,3 +246,40 @@ passed 122 checks in 37.49 seconds. Smoke passed 164 with one skipped in
 57.94 seconds; lint, compile, governance-lint and layering passed. A real
 spawned-child test continued publishing while the parent's event loop was
 deliberately blocked. Live deployment and R09 acceptance remain pending.
+
+## R09 closeout, September 12
+
+R09 is complete for the acceptance cases listed below. This table supersedes
+the open dispositions earlier in this record without changing those dated
+observations. The final live sequence ran on the resident 27B, PID 7761,
+workspace snapshot
+`a81ad0fedd37274043d0144e8220ade32e03b31274497270025f3931c7e10bf7`.
+It was a verified dirty-source deployment, not a clean-commit deployment.
+
+| Requirement | Result and retained evidence | Executable regression |
+| --- | --- | --- |
+| Complete public response | PASS. Delivery `aura-chat-24419db2-9302-495b-b6f4-310909c584c8` delivered three numbered points and two examples, without private reasoning or PARTIAL. One generation, zero retries or mutations. | `tests/test_chat_render_completeness.py`; `tests/js/chat_numbered_answers.mjs` |
+| Durable reconnect | PASS. Reload during that delivery restored the pending request, then one complete answer without another reload. Final reload retained all three September 12 turns. The earlier passive-window replay retained one owner across windows. | `tests/test_ui_durable_conversation_history.py`; `tests/test_chat_delivery_journal.py` |
+| One final answer per turn | PASS. The current sequence retained one bubble per identity after reload. The earlier consecutive OK deliveries remained two distinct answers, not one text-deduplicated answer. | `tests/test_chat_stream_identity.py`; `tests/test_chat_delivery_journal.py` |
+| Ordinary Stop and next turn | PASS. Worker job 5 acknowledged Stop at 20:22:13 on September 10; the next turn answered Gone Girl at 20:24:24 on PID 98193. | `tests/test_chat_delivery_cancellation.py` |
+| Tool-path Stop and next turn | PASS. Delivery `aura-chat-278d89c5-808c-40c3-b2c6-cbf21c91f12a` sealed Stop at 21:03:32 with no new fallback generation. Delivery `aura-chat-d7502048-b2ce-461b-a049-c9ef18bdcf2d` then answered correctly on the same process. | `tests/test_chat_delivery_cancellation.py`; `tests/test_chat_lane_can_run_a_tool.py` |
+| Latent Stop and next turn | PASS. Delivery `aura-chat-ca9c69dd-ddc2-4966-9d07-4817c503559f` received one Stop acknowledgement and job 5 recorded latent_reason_caller_cancelled. Delivery `aura-chat-86c2700a-f0c1-445f-8c1e-9cd1b34e5dd4` then recalled the corrected title and reason on the same process. | `tests/test_chat_delivery_cancellation.py`; `tests/test_latent_cortex_wiring.py`; `tests/test_mlx_soft_cancel.py` |
+| Follow-up semantics | PASS. The exact title-free paraphrase `aura-chat-c32f4d8b-5235-4761-bee1-0967cc3018a3` explained the earlier correction with no mutation or retry. September 12 delivery `aura-chat-24c34582-e132-4fdd-97f1-b3f11f8959d1` resolved "those processes" and retained its full example. | `tests/test_a_correction_answers_what_was_asked.py`; `tests/test_capability_ledger.py` |
+| Multi-turn context across topics and restart | PASS. September 12 delivery `aura-chat-5f8633e4-060a-45a8-b050-6842947ced9d` recovered the agreed title, original title, and correction after the science discussion and runtime restart. It used 40 admitted exchanges, one generation, and no retry or mutation. | `tests/test_ui_durable_conversation_history.py`; `tests/test_live_conversation_persistence.py` |
+| Display capacity | PASS. Bootstrap restores 100 exchanges and the browser displays 200 messages, including late durable history after an initial RAM-only response. This does not enlarge the model admission budget. | `tests/test_ui_durable_conversation_history.py` |
+
+The [September 11 record](R09_LIVE_DELIVERY_2026-09-11.md) contains the exact
+paraphrased and latent-Stop receipts. The
+[September 12 record](R09_DELIVERY_REPLAY_2026-09-12.md) contains the final
+sequence, source identity, measurements, and neural observations. All checks
+above exercise shared mechanisms; no expected title or canned science answer
+was added to the production system.
+
+Final focused validation passed 119 checks; the rebased delivery, cancellation,
+identity, history, rendering, and capability run passed 153. Smoke passed 164
+with one skipped. Compile and layering passed. Aggregate lint remained red
+on 69 unrelated integration findings; this is not an all-repository green
+certificate. R06 retains event-loop blocking, R08 retains incorrect telemetry
+meaning and other warnings, and R11 retains latency work. The earlier worker
+death and restart races remain recorded. This bounded delivery closeout does
+not prove failure-free endurance, arbitrary factual accuracy, or RLC gains.

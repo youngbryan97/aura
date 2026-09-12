@@ -56,3 +56,90 @@ source snapshot
 The restored live pane now renders the retained answer's ordinal markers as
 1, 2, 3. The unchanged multipart request was submitted at 16:08:01 PDT.
 Its completion and a clean follow-up are still pending at this entry.
+
+## Completed multipart and follow-up replay
+
+The multipart delivery `aura-chat-24419db2-9302-495b-b6f4-310909c584c8`,
+turn `223086a5c5904a679c0d58118e267884`, sealed in 76.24 seconds. The
+initiating browser was reloaded during prefill. It restored the pending
+question and received one complete answer without another manual reload.
+The answer contained all three numbered points and both everyday examples;
+the rendered ordinal markers were 1, 2, 3. There was no PARTIAL badge or
+private reasoning in the public answer. The journal records one attempt,
+one foreground generation, zero repair/completion retries, zero text
+mutations, and answer_delivery_proven=true.
+
+The next question, "Which of those processes cools the remaining liquid, and
+why?", was submitted through the same desktop input at 16:09:44 PDT.
+Delivery `aura-chat-24c34582-e132-4fdd-97f1-b3f11f8959d1`, turn
+`046513ede6594db39c3a7e8c06441db2`, sealed in 62.73 seconds. It identified
+evaporation, explained the loss of higher-energy molecules, and retained its
+sweating example without replacing it with Aura's vitals. The browser showed
+the complete answer at 16:10:47. The receipt again records one attempt, one
+generation, 40 admitted exchanges, no retries or text mutations, and an
+answer-delivery proof. These are contextual-delivery results; the discussion
+of boiling assumes continued heating and is not a proof about every boiling
+regime.
+
+The worker measured 2,400 prefill tokens in 13.44 seconds and 503 generated
+tokens in 46.63 seconds for the follow-up. First-token latency was 13.66
+seconds; peak worker memory was 16.64 GB. Stabilization took 285.94 ms and
+runtime reconciliation 9.88 ms. The repaired reader also recovered all 100
+display exchanges after the initial RAM-only bootstrap, without replacing
+the already visible current answers or raising model context admission.
+
+After rebasing onto the concurrent integration work, the delivery-journal,
+cancellation, stream-identity, UI-history, rendering, and capability suites
+passed 153 tests in 37.14 seconds.
+
+## Separate runtime observations
+
+The actual neural feed and terminal remained under observation throughout.
+At 16:15:35 the feed described a phi value as "2.02 out of 1". The terminal
+identified 2.02100 as the maximal six-node complex and 0.33943 as full-system
+phi, with state-summary rather than activation-level grounding. The displayed
+denominator is therefore not supported by that measurement; R08 owns the
+unit/meaning correction. Neither value is evidence of consciousness.
+
+A 60 ms hold of core.canonical.state.singleton on the event loop raised a
+lockdep splat during the next turn. R06 retains that blocking-work obligation.
+Background model admission and semantic-cache work yielded to the foreground;
+those deferrals did not cancel these two answers. R11 still owns measured
+latency improvement. The earlier worker death and launch races remain in
+their dated records; successful chat delivery does not erase them or certify
+the wider runtime.
+
+## Final retention and reload result
+
+At 16:15:47 the desktop submitted: "What novel did we settle on for the
+reading group, and why did we replace your first suggestion?" It supplied
+neither title nor the correction. Delivery
+`aura-chat-5f8633e4-060a-45a8-b050-6842947ced9d`, turn
+`8786c8d414a5485d8468e30924dee0ff`, completed in 99.56 seconds. The answer
+named Gone Girl by Gillian Flynn, identified the first suggestion as The
+Tell-Tale Heart, and explained that a short story did not meet the request
+for a novel with unreliable narration. Forty admitted exchanges crossed the
+turn boundary. The journal records one attempt, one generation, zero repair
+or completion retries, zero text mutations, and answer_delivery_proven=true.
+
+The initiating browser showed the complete answer at 16:17:26. Reloading it
+restored all three current-run questions and their answers, one bubble per
+turn, including the unchanged sweating example and the older-topic correction.
+The ordered list still displayed 1, 2, 3. Boot health at 16:18:44 reported
+PID 7761, ready=true, source_current=true, no revision issues, and the same
+workspace snapshot recorded above. No runtime replacement was needed between
+these turns. The restored answer timestamps use their exchange timestamps;
+they are not measurements of completion latency.
+
+This completes the remaining R09 replay. The final row-by-row disposition is
+in [the acceptance matrix](R09_ACCEPTANCE_MATRIX_2026-09-10.md#r09-closeout-september-12).
+It does not close R06, R08, R11, a long-duration soak, or any RLC reasoning-gain
+claim. The current ordinary answers used one recurrent loop and zero surface
+steering alpha; their success must not be attributed to untested tissue.
+
+Final cancellation verification after integration passed 37 selected checks
+in 16.41 seconds, including the tool fallback boundary, latent caller Stop,
+and MLX cooperative cancellation. Writing and governance-lint passed their
+existing baselines. Doc-drift reported one broken-reference regression each
+in README.md and docs/README.md; that aggregate gate remains red. No production
+code changed during these final checks.
