@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import importlib
 import inspect
 import threading
 
@@ -275,7 +276,15 @@ class TestCancellationAckIsBound:
         assert client._clean_latent_cancel_ack("soft_cancelled") is False
 
     def test_the_call_site_passes_the_binding(self):
-        source = inspect.getsource(mlx_client)
+        # The method itself says where it lives. This read mlx_client directly
+        # and broke when the latent lane moved to its own module — a failure
+        # about a binding, reported as a list index, pointing at a file that
+        # no longer holds the call.
+        source = inspect.getsource(
+            importlib.import_module(
+                mlx_client.MLXLocalClient._cancel_latent_request_cleanly.__module__
+            )
+        )
         block = source.split("if self._clean_latent_cancel_ack(", 1)[1][:300]
         assert "expected_request_id=req_id" in block
         assert "expected_request_sha256=expected_request_sha256" in block
