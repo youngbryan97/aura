@@ -1,8 +1,9 @@
 {
-  "organs": 117,
-  "cross_package_edges": 1894,
-  "dependency_entropy": 9.0777,
-  "kernel_lines": 565336,
+  "organs": 122,
+  "cross_package_edges": 1996,
+  "dependency_entropy": 9.1531,
+  "kernel_lines": 604259,
+  "at_commit": "cd96073c069a3e4b21e522e7d81689b233e1b500",
   "history": [
     {
       "raised": [
@@ -171,6 +172,98 @@
         "kernel_lines": 565336
       },
       "because": "the module-size grandfathering refusal and its tests"
+    },
+    {
+      "raised": [
+        "organs",
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "organs": 117,
+        "cross_package_edges": 1894,
+        "dependency_entropy": 9.0777,
+        "kernel_lines": 565336
+      },
+      "to": {
+        "organs": 122,
+        "cross_package_edges": 1996,
+        "dependency_entropy": 9.1531,
+        "kernel_lines": 604259
+      },
+      "because": "Eleven days between baselines, and the window is the problem as much as the growth. 38,926 net kernel lines over 319 files, five new organs \u2014 canonical, connectome, interiority, phenomenology, subject \u2014 and 102 more cross-package edges, across 453 commits by two agents. No sentence covers that, so the entry now carries the measurement beside it: cognition +16,659, runtime +8,745, consciousness +4,957, brain +4,751. Two of the five organs are this mandate's own, which is the review's point exactly \u2014 an organ is the cheapest way to address a deficit. The next raise reads against at_commit, so a window this wide cannot happen silently again.",
+      "landed": {
+        "since": "710d65c39",
+        "net_kernel_lines": 38926,
+        "files_touched": 319,
+        "per_package": {
+          "cognition": 16659,
+          "runtime": 8745,
+          "consciousness": 4957,
+          "brain": 4751,
+          "memory": 1554,
+          "evidence": 1260,
+          "knowledge": 762,
+          "world_model": 238,
+          "planning": 1,
+          "reasoning": -1
+        },
+        "largest_files": [
+          {
+            "path": "core/brain/llm/prompt_cache.py",
+            "net_lines": 841
+          },
+          {
+            "path": "core/cognition/a_rule_with_no_shape.py",
+            "net_lines": 679
+          },
+          {
+            "path": "core/cognition/primitive_invention.py",
+            "net_lines": 642
+          },
+          {
+            "path": "core/consciousness/workspace_feed.py",
+            "net_lines": 632
+          },
+          {
+            "path": "core/cognition/the_record_of_her_own_work.py",
+            "net_lines": 625
+          },
+          {
+            "path": "core/cognition/what_she_could_do_next.py",
+            "net_lines": 602
+          },
+          {
+            "path": "core/cognition/she_decides_to_develop.py",
+            "net_lines": 601
+          },
+          {
+            "path": "core/cognition/does_improving_compound.py",
+            "net_lines": 588
+          },
+          {
+            "path": "core/brain/advisory_passes.py",
+            "net_lines": 552
+          },
+          {
+            "path": "core/consciousness/neural_mesh.py",
+            "net_lines": 551
+          },
+          {
+            "path": "core/cognition/invention_depth.py",
+            "net_lines": 546
+          },
+          {
+            "path": "core/brain/llm/mlx_client.py",
+            "net_lines": 532
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 396,
+          "Codex": 57
+        }
+      }
     }
   ]
 }

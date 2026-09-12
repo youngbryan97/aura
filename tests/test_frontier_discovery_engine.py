@@ -200,6 +200,25 @@ def test_singleton_and_container_registration():
     assert ServiceContainer.has(FrontierDiscoveryEngine.SERVICE_NAME)
 
 
+def test_a_cleared_container_gets_the_engine_back():
+    """Registration used to happen once, beside construction.
+
+    So a container cleared afterwards lost the service name for the rest of
+    the process while the engine went on existing, and every lookup failed on
+    an object that was right there. This test failed inside a chunk and passed
+    alone, which is what that shape looks like from outside.
+    """
+    from core.container import ServiceContainer
+
+    engine = get_frontier_discovery_engine()
+    ServiceContainer.clear()
+    assert not ServiceContainer.has(FrontierDiscoveryEngine.SERVICE_NAME)
+
+    again = get_frontier_discovery_engine()
+    assert again is engine, "clearing the container must not build a second engine"
+    assert ServiceContainer.has(FrontierDiscoveryEngine.SERVICE_NAME)
+
+
 # ── response-lane wiring (live, causal) ──────────────────────────────────────
 async def test_response_lane_routes_discovery_question():
     from core.brain.reasoning_strategies import ReasoningStrategies, StrategyResult

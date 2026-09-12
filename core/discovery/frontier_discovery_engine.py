@@ -864,7 +864,12 @@ def get_frontier_discovery_engine(**kwargs: Any) -> FrontierDiscoveryEngine:
         with _engine_lock:
             if _engine is None:
                 _engine = FrontierDiscoveryEngine(**kwargs)
-                _register_in_container(_engine)
+    # Every call, not only the first. Registration used to happen beside
+    # construction, so a container that was cleared afterwards lost the
+    # service name for the rest of the process while the engine itself went
+    # on existing — every lookup failing on an object that was right there.
+    # The register is a no-op when the name is already held.
+    _register_in_container(_engine)
     return _engine
 
 
