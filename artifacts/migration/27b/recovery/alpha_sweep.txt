@@ -1,0 +1,8 @@
+hooks 4 at layers [27, 31, 35, 39]
+2026-09-11 22:24:20,714 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+alpha 0.0  mean score +0.00  scores [0, 1, 0, -1, 0, 0]  mean chars 821
+alpha 0.1  mean score +0.67  scores [0, 2, 1, -1, 0, 2]  mean chars 803
+alpha 0.2  mean score +0.83  scores [1, 1, 1, 1, 0, 1]  mean chars 683
+alpha 0.3  mean score +0.67  scores [0, 0, 2, 0, 0, 2]  mean chars 1073
+alpha 0.4  mean score +0.00  scores [0, 0, 0, 0, 0, 0]  mean chars 553
+alpha 0.6  mean score +0.00  scores [0, 0, 0, 0, 0, 0]  mean chars 10
