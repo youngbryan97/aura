@@ -160,6 +160,53 @@ def _reached_by_self_enumeration(
     return reached
 
 
+def _reached_by_a_conventional_module_in_every_package(
+    sources: list[Path], core_modules: dict[str, Path]
+) -> set[str]:
+    """Modules every package is expected to have, imported by that name.
+
+    The sibling of self-enumeration, and the same blind spot from the other
+    side. ``core/verify/a_promise_with_a_test.py`` walks ``core/``, and for
+    every package holding a ``_promises.py`` it imports
+    ``f"core.{entry.name}.{THE_MODULE}"``. The dotted path is built from a
+    directory listing and a module-level constant, so it is in no import
+    statement and in no string literal, and a scan looking for either calls
+    all thirteen of them dead — the same error that once called the forty-three
+    interiority faculties dead.
+
+    The shape that counts: a file calls ``import_module`` and holds a bare
+    module NAME as a constant — no dots, an identifier — and that name is a
+    file in at least two packages under ``core``. One package having it is a
+    coincidence; a convention is what several of them share.
+    """
+    conventional: set[str] = set()
+    for path in sources:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if "import_module" not in text:
+            continue
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            name = node.value
+            if not name.isidentifier():
+                continue
+            holders = [
+                module
+                for module in core_modules
+                if module.count(".") == 2 and module.endswith(f".{name}")
+            ]
+            if len(holders) >= 2:
+                conventional.update(holders)
+    return conventional
+
+
 def _with_ancestor_packages(name: str, core_modules: dict[str, Any]) -> list[str]:
     """The module, plus every package Python would import on the way to it.
 
@@ -250,6 +297,9 @@ def scan() -> dict[str, object]:
 
     referenced |= _catalog_reachable(core_modules)
     referenced |= _reached_by_self_enumeration(sources, core_modules)
+    referenced |= _reached_by_a_conventional_module_in_every_package(
+        sources, core_modules
+    )
 
     orphans = sorted(set(core_modules) - referenced)
     lines = 0
