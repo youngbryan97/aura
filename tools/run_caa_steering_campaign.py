@@ -318,6 +318,10 @@ def main(argv: list[str] | None = None) -> int:
             "schema": "aura.caa.campaign_result.v1",
             "model_descriptor_sha256": descriptor,
             "model_path": str(model_path),
+            # Which vector set produced these samples. Two runs of this file
+            # differ by exactly this and by alpha, and without it on the
+            # record the two result files are indistinguishable.
+            "vectors": str(arguments.vectors),
             "alpha": alpha,
             "held_out_tasks": list(HELD_OUT_TASKS),
             "n_trials_per_task": trials,

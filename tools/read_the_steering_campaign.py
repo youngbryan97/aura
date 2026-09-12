@@ -73,9 +73,16 @@ def main() -> int:
         default=REPO / "artifacts/migration/27b/recovery/campaign_result.json",
     )
     parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument(
+        "--vectors",
+        default="",
+        help="stamp the vector set on a result written before the campaign recorded it",
+    )
     arguments = parser.parse_args()
 
     result = json.loads(arguments.result.read_text(encoding="utf-8"))
+    if arguments.vectors and not result.get("vectors"):
+        result["vectors"] = str(arguments.vectors)
     verdict = read(result)
     out = arguments.out or arguments.result.with_name(
         arguments.result.stem.replace("campaign_result", "campaign_verdict") + ".json"
