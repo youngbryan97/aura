@@ -149,7 +149,10 @@ class Organs:
                 from core.container import ServiceContainer
 
                 return ServiceContainer.get(name, default=None)
-            except Exception:  # noqa: BLE001 - an absent container is an absent organ
+            except (ImportError, AttributeError, RuntimeError):
+                # An absent container is an absent organ. Anything else is a
+                # defect in the reader, and returning None for it would report
+                # the organ missing when it is there.
                 return None
 
         def runtime(name: str) -> Any:
@@ -157,7 +160,7 @@ class Organs:
                 from core.runtime.service_registry import get_runtime_service
 
                 return get_runtime_service(name, default=None)
-            except Exception:  # noqa: BLE001
+            except (ImportError, AttributeError, RuntimeError):
                 return None
 
         agency = None
@@ -186,7 +189,8 @@ def _agency_comparator() -> Any:
         from core.consciousness.agency_comparator import get_agency_comparator
 
         return get_agency_comparator()
-    except Exception:  # noqa: BLE001 - an absent comparator is an absent organ
+    except (ImportError, AttributeError, RuntimeError):
+        # An absent comparator is an absent organ; a broken one is not.
         return None
 
 

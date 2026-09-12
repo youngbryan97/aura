@@ -484,7 +484,8 @@ def _intentions_state(loop: Any) -> list[tuple] | None:
         return None
     try:
         return list(connection.execute("SELECT * FROM intentions"))
-    except Exception:  # noqa: BLE001 - a database that will not read is not carried
+    except sqlite3.Error:
+        # A database that will not read is not carried across the fork.
         return None
 
 
@@ -606,7 +607,8 @@ def _differs(left: Any, right: Any) -> bool:
         return left is not right
     try:
         return repr(left) != repr(right)
-    except Exception:  # noqa: BLE001 - unreadable is different
+    except (RecursionError, TypeError, ValueError):
+        # Unreadable counts as different: any doubt is a difference.
         return True
 
 
