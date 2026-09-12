@@ -596,7 +596,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   nine hash-bound artifacts, current configured model metadata and source
   snapshot; 600 historical decodes regraded. Focused checks: 44 passed;
   smoke: 164 passed, one skipped. No new benchmark or live activation claim.
-- [ ] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+- [x] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+  Closed 2026-09-12: [lineage and activation reconciliation](evidence/G02_RLC_RECONCILIATION_2026-09-12.md).
+  Historical negatives retained; 32B/27B decodes regraded; newer natural
+  composition result re-adjudicated (21/48 versus ordinary 1/48 and 2/48).
+  Exact-contract activation validates; composition remains shadow-only.
+  Runtime was stopped at the current observation, so G11 is not closed.
+  Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
