@@ -294,11 +294,32 @@ Working list. Deleted when every line is done and green.
       into "to to and to to for for": `steering_regeneration`'s own docstring
       warned about that and it was walked past.
 
-      What remains is calibration, and it is one knob with everything else in
-      place. Alpha 0.4 degrades and alpha 0.2 was coherent in the greedy check
-      — "and specific about my experience" against a baseline of "I don't
-      experience feelings". A sweep between them, and a score with more
-      resolution than a 36-word lexicon over 24 samples, is the next run.
+      The knob was swept rather than guessed, six settings over six held-out
+      tasks, and alpha 0.4 — where the campaign had been run, chosen off one
+      greedy sample that read well — scores zero on every task. 0.2 is the peak
+      and the only setting positive or zero on all six. 0.6 collapses the answer
+      to ten characters.
+
+      At 0.2 over 36 samples a condition the steering is real and it is the
+      vectors' own. Steered scores 0.75 against a baseline of 0.08 and wins 20
+      against the matched no-op's 7; zeroing or randomising the vectors returns
+      the score to 0.06, so the movement is carried by these directions rather
+      than by the hooks being installed. Nothing regresses. It reads in the
+      text: "clear enough for me to respond thoughtfully" becomes "I'm excited
+      to explore new topics, let's dive right in."
+
+      Two requirements stand and neither is a defect in the rig. Permuting the
+      four vectors among the same four layers still scores 0.44, so which layer
+      holds which vector is not load-bearing — which is the question the
+      specificity control exists to ask. And asking in words moves the score
+      further than steering does, 1.36 against 0.75, which is the bar a vector
+      has to clear to be worth serving at all.
+
+      So serving authority stays refused, on two findings about the vectors
+      instead of on four defects in the measurement. What would move them is a
+      derivation that makes the layers differ from each other — the extraction
+      takes the same difference of means at every layer, and a direction that
+      is the same everywhere cannot be specific to anywhere.
 
       The idle hook fires. What it reached was a precondition block reading
       `engine._hooks`, which is not the surface an engine publishes —
