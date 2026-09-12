@@ -892,14 +892,26 @@ def _a_word_the_language_was_missing(
             said = None
         finally:
             _ALREADY_DECIDING[0] = False
+        # An action reports what it did; whether the language can now say this
+        # is a separate question and the only one that matters here. The loop
+        # used to return on the first action that said anything, so an action
+        # describing a change that left nothing sayable ended the search with
+        # a truthy string and no word — and the caller, finding `induce_from`
+        # still empty, answered nothing at all.
+        #
+        # Which shows up only from the second occasion: on a cold record the
+        # actions run in written order and the one that works comes first, so
+        # the first question of a family is answered and every later one is
+        # not. That is the wrong way round.
+        worked = bool(said) and situation.sayable()
         note_an_episode(
             family,
-            route=decided.action.name if said else None,
+            route=decided.action.name if worked else None,
             walked=decided.worth.cost if decided.worth else costs_now,
-            admitted=decided.action.kind if said else None,
+            admitted=decided.action.kind if worked else None,
             about=pairs,
         )
-        if said:
+        if worked:
             logger.info(
                 "she chose %s (%s) and it gave %s",
                 decided.action.name,
@@ -907,6 +919,14 @@ def _a_word_the_language_was_missing(
                 said,
             )
             return said
+        if said:
+            logger.info(
+                "she chose %s (%s), it gave %s, and the language still cannot "
+                "say this; trying the next one",
+                decided.action.name,
+                decided.because,
+                said,
+            )
         left = [one for one in left if one.name != decided.action.name]
     return None
 
