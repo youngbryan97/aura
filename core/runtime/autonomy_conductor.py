@@ -38,6 +38,16 @@ _INFLUENCE_PROBE_PROMPT = (
 _INFLUENCE_PROBE_TIMEOUT_S = 90.0
 _INFLUENCE_CAMPAIGN_DEADLINE_S = 600.0
 
+
+class InfluenceArmRefused(RuntimeError):
+    """One arm of a causal trial did not generate, and why.
+
+    Carried as an exception rather than an empty string because the probe has
+    to drop the trial. A refusal that arrives as "" is recorded as a
+    divergence of zero, which is the number a perfectly stable channel would
+    produce — the measurement then reports itself as complete.
+    """
+
 _AUTONOMY_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -641,16 +651,40 @@ class AutonomyConductor:
         )
 
         async def generate() -> str:
+            # The gate returns None for a refusal and None for a model that
+            # said nothing, and its own comment says a caller cannot tell them
+            # apart. Flattening both to "" is what made three weeks of this
+            # campaign worthless: every arm was refused with
+            # ``background_local_fallback_suppressed``, every arm became the
+            # empty string, and the ledger recorded a perfect zero divergence
+            # in both the treatment arm and the null. The receipt is right
+            # there — read it, and let the arm fail by its real name.
+            probe_context: dict[str, Any] = {
+                "origin": "influence_probe",
+                "max_tokens": 96,
+                "messages": [{"role": "user", "content": _INFLUENCE_PROBE_PROMPT}],
+                # A measurement has no user waiting on it. The suppression
+                # this turns off exists to protect foreground latency, and the
+                # campaign is only admitted when there is no foreground turn.
+                "allow_background_local_fallback": True,
+            }
             result = await gate.generate(
                 _INFLUENCE_PROBE_PROMPT,
-                {
-                    "origin": "influence_probe",
-                    "max_tokens": 96,
-                    "messages": [{"role": "user", "content": _INFLUENCE_PROBE_PROMPT}],
-                },
+                probe_context,
                 timeout=_INFLUENCE_PROBE_TIMEOUT_S,
             )
-            return str(getattr(result, "text", result) or "")
+            text = str(getattr(result, "text", result) or "")
+            if text.strip():
+                return text
+            refusal = probe_context.get("inference_refusal")
+            if not isinstance(refusal, dict):
+                getter = getattr(gate, "last_refusal_receipt", None)
+                refusal = getter() if callable(getter) else None
+            if isinstance(refusal, dict) and refusal.get("reason"):
+                raise InfluenceArmRefused(
+                    f"{refusal.get('kind') or 'refused'}: {refusal.get('reason')}"
+                )
+            raise InfluenceArmRefused("the generation lane returned no text")
 
         report = await run_influence_campaign(
             generate=generate,
@@ -663,14 +697,22 @@ class AutonomyConductor:
         # A run that reached a verdict is a different event from a run that
         # added another sample, and only the first is what the apparatus was
         # built for.
+        # "Attempted" is not "measured". A campaign whose every arm was
+        # refused used to land here as a run, because the report carried a
+        # trial object per channel whether or not the trial produced anything.
+        went = "ran" if report.ran else ("produced_nothing" if report.trials else "deferred")
         note_a_consideration(
-            "ran" if report.ran else "deferred",
-            because="" if report.ran else "the campaign refused after admission",
+            went,
+            because=(
+                ""
+                if report.ran
+                else (report.why_nothing_landed or report.refused or "the campaign refused after admission")
+            ),
             channel=channel,
             reached_a_verdict=str(verdict.verdict) not in ("UNMEASURED", "Verdict.UNMEASURED"),
         )
         return {
-            "status": "ran" if report.ran else "deferred",
+            "status": went,
             "channel": channel,
             "verdict": str(verdict.verdict),
             "n_treatment": verdict.n_treatment,

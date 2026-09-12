@@ -39,7 +39,12 @@ from core.verify.lesion_registry import LesionUnavailable, get_lesion_registry
 
 logger = logging.getLogger("Verify.InfluenceProbe")
 
-__all__ = ["TrialReport", "measure_channel", "measure_channels"]
+__all__ = [
+    "TrialReport",
+    "arm_produced_nothing",
+    "measure_channel",
+    "measure_channels",
+]
 
 Generator = Callable[[], Awaitable[Any]]
 
@@ -75,21 +80,52 @@ class TrialReport:
         }
 
 
+def arm_produced_nothing(output: Any, metric: str = "text") -> bool:
+    """Whether this arm generated no content at all.
+
+    An arm that produced nothing has not been measured, and the distance
+    between two of them is not zero — it is undefined. The metrics cannot say
+    so: ``text_divergence("", "")`` is 0.0 and ``vector_divergence([], [])``
+    is 0.0, which are the same numbers a perfectly stable channel would give.
+
+    This is not hypothetical. The live campaign ran 124 times over three weeks
+    against nine channels. Every arm of every trial was refused by the
+    inference gate before any model was called, the caller flattened the
+    refusal to an empty string, and the ledger recorded 3 treatment samples
+    and 3 null samples per channel, all of them exactly 0.0 — a perfect null
+    and a perfect treatment, from a model that never ran. Nine generations
+    took four milliseconds and nothing said anything was wrong.
+    """
+
+    if output is None:
+        return True
+    if metric == "vector":
+        try:
+            return len(output) == 0
+        except TypeError:
+            return True
+    return not str(output).strip()
+
+
 async def _generate_once(
     generate: Generator,
     *,
     timeout_s: float,
+    metric: str,
 ) -> tuple[Any, str]:
     """One generation, bounded. Returns (output, failure_reason)."""
 
     try:
-        return (await asyncio.wait_for(generate(), timeout=timeout_s), "")
+        produced = await asyncio.wait_for(generate(), timeout=timeout_s)
     except asyncio.TimeoutError:
         return (None, "timeout")
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001 - a failed arm is data, not a crash
         return (None, f"{type(exc).__name__}: {exc}")
+    if arm_produced_nothing(produced, metric):
+        return (None, "no output")
+    return (produced, "")
 
 
 async def measure_channel(
@@ -140,7 +176,7 @@ async def measure_channel(
         trial_tag = turn_id or f"{channel}#{index}"
 
         intact_a, failure = await _generate_once(
-            generate, timeout_s=per_generation_timeout_s
+            generate, timeout_s=per_generation_timeout_s, metric=metric
         )
         report.generations += 1
         if failure:
@@ -150,7 +186,7 @@ async def measure_channel(
 
         with registry.lesion(channel):
             lesioned_out, failure = await _generate_once(
-                generate, timeout_s=per_generation_timeout_s
+                generate, timeout_s=per_generation_timeout_s, metric=metric
             )
         report.generations += 1
         if failure:
@@ -159,7 +195,7 @@ async def measure_channel(
             continue
 
         intact_b, failure = await _generate_once(
-            generate, timeout_s=per_generation_timeout_s
+            generate, timeout_s=per_generation_timeout_s, metric=metric
         )
         report.generations += 1
         if failure:
