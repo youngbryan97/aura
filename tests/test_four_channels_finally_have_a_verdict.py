@@ -270,3 +270,77 @@ def test_the_health_report_shows_the_substrate_count():
     assert shown["substrate"]
     assert len(shown["substrate_verdicts"]) >= 4
     assert shown["what_this_means"]
+
+
+def test_the_lesion_is_still_held_inside_the_probe_turn():
+    """The property the whole apparatus rests on, and the cheapest to lose.
+
+    The probe holds a channel lesioned and then generates. If the lesion is
+    not active by the time the turn's own code reads it, the treatment arm is
+    an intact arm and every verdict is a verdict about nothing.
+    """
+    import asyncio
+
+    from core.container import ServiceContainer
+    from core.verify import influence_channels
+    from core.verify.influence_turn_probe import run_probe_turn
+    from core.verify.lesion_registry import LesionHandle, get_lesion_registry
+
+    # Registered here rather than assumed: the channel registers when
+    # cognitive_engine imports, and this test must not depend on whether some
+    # other test in the selection happened to import it first.
+    registry = get_lesion_registry()
+    if not registry.is_registered(influence_channels.LIVE_MIND_STEERING_ALPHA):
+        registry.register(
+            LesionHandle(
+                channel=influence_channels.LIVE_MIND_STEERING_ALPHA,
+                lesion=lambda: None,
+                restore=lambda: None,
+                owner="test_four_channels_finally_have_a_verdict",
+                neutral_description="steering alpha forced to 0",
+                direct_actuation=True,
+            ),
+            replace=True,
+        )
+
+    seen: list[bool] = []
+
+    class _Watches:
+        async def think(self, *_args, **_kwargs):
+            registry = get_lesion_registry()
+            seen.append(
+                registry.is_lesioned(influence_channels.LIVE_MIND_STEERING_ALPHA)
+            )
+            return SimpleNamespace(content="a reply with words in it")
+
+    ServiceContainer.register("cognitive_engine", _Watches())
+    try:
+        with registry.lesion(influence_channels.LIVE_MIND_STEERING_ALPHA):
+            asyncio.run(run_probe_turn("anything"))
+        asyncio.run(run_probe_turn("anything"))
+    finally:
+        ServiceContainer.register("cognitive_engine", None)
+
+    assert seen == [True, False], "the lesion must be live inside the turn and not after"
+
+
+def test_the_probe_turn_carries_real_advisory_frames():
+    """The sampling-bias channels need a value to be lesioned out of.
+
+    A frame this module invented would make those channels measure a number
+    this module chose, which is the defect the whole pass is about.
+    """
+    from core.verify.influence_turn_probe import (
+        advisory_frames,
+        frames_carrying_a_bias,
+        probe_context,
+    )
+
+    frames = advisory_frames("Describe how you are approaching this moment.")
+    carried = frames_carrying_a_bias(frames)
+    assert carried, "no advisory pass produced a bias, so three channels cannot move"
+
+    context = probe_context(frames)
+    assert context["desktop_quick_reply_contract"] is True
+    for key in carried:
+        assert context[key] is frames[key]

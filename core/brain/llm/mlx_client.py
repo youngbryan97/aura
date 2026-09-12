@@ -1341,8 +1341,10 @@ def _expected_recurrent_loops_from_model_path(model_path: str) -> int:
     if _model_matches_class(model_path, ("32b", "cortex", "zenith")):
         # Must mirror MODEL_PROFILE_DEFAULTS in recurrent_depth.py: the parent
         # marks the lane required at this count, so a mismatch reports a
-        # readiness blocker for a pass that is actually correct.
-        return _read_recurrent_loop_env("AURA_RECURRENT_LOOPS_32B", 2)
+        # readiness blocker for a pass that is actually correct. One since
+        # 2026-09-12, when the interactive default went back to the identity
+        # depth — see the note above that table for why.
+        return _read_recurrent_loop_env("AURA_RECURRENT_LOOPS_32B", 1)
     if _model_matches_class(model_path, ("14b", "24b", "40b")):
         return _read_recurrent_loop_env("AURA_RECURRENT_LOOPS_14B", 1)
     return _read_recurrent_loop_env("AURA_RECURRENT_LOOPS_SMALL", 1)
@@ -8562,8 +8564,6 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         self._req_q = None
         self._res_q = None
         self._response_queue_generation += 1
-
-
 
 
 

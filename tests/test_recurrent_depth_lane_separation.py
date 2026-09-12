@@ -36,10 +36,25 @@ def _clear(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_the_interactive_32b_lane_keeps_its_configured_depth(monkeypatch):
+def test_the_interactive_lane_runs_at_the_identity_depth(monkeypatch):
+    """One loop, because nothing ever measured that two helped.
+
+    Eighteen tests cover this module's cache discipline and override bounds
+    and not one asserts an improvement. The only measurement anyone has is
+    against it — 21/40 to 2/40 on a 28-layer checkpoint — and the governed
+    version of the same idea is the RLC, which is proven and serving.
+    """
     _clear(monkeypatch)
+    assert resolve_loops_for_model(_Model(64)) == 1
+    assert _get_lane_defaults(64)[0] == 1
+
+
+def test_two_loops_is_still_one_environment_variable_away(monkeypatch):
+    """Turned off on the evidence, not removed. It has to be able to come
+    back the moment an arm on the resident checkpoint says it should."""
+    _clear(monkeypatch)
+    monkeypatch.setenv("AURA_RECURRENT_LOOPS_32B", "2")
     assert resolve_loops_for_model(_Model(64)) == 2
-    assert _get_lane_defaults(64)[0] == 2
 
 
 def test_the_training_lane_still_gets_two_loops(monkeypatch):
