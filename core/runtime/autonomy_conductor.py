@@ -39,7 +39,7 @@ _INFLUENCE_PROBE_TIMEOUT_S = 90.0
 _INFLUENCE_CAMPAIGN_DEADLINE_S = 600.0
 
 
-class InfluenceArmRefused(RuntimeError):
+class InfluenceArmRefusedError(RuntimeError):
     """One arm of a causal trial did not generate, and why.
 
     Carried as an exception rather than an empty string because the probe has
@@ -708,10 +708,10 @@ class AutonomyConductor:
                 getter = getattr(gate, "last_refusal_receipt", None)
                 refusal = getter() if callable(getter) else None
             if isinstance(refusal, dict) and refusal.get("reason"):
-                raise InfluenceArmRefused(
+                raise InfluenceArmRefusedError(
                     f"{refusal.get('kind') or 'refused'}: {refusal.get('reason')}"
                 )
-            raise InfluenceArmRefused("the generation lane returned no text")
+            raise InfluenceArmRefusedError("the generation lane returned no text")
 
         report = await run_influence_campaign(
             generate=generate,

@@ -149,7 +149,6 @@ def _say_with(model, tok, prompt: str, *, temperature: float, max_tokens: int) -
 def _run(trials: int, channels: tuple[str, ...], out: Path) -> int:
     from core.verify.causal_influence import get_influence_ledger
     from core.verify.influence_probe import measure_channel
-    from core.verify.lesion_registry import get_lesion_registry
 
     registered = _wake_the_faculties()
     missing = [c for c in channels if c not in registered]
