@@ -19,10 +19,8 @@ from core.conversation.surface_disposition import (
     PHYSICAL_COMPLETION_REASONS as _PHYSICAL_COMPLETION_REASONS,
 )
 from core.runtime.errors import record_degradation
-from core.runtime.shutdown_coordinator import record_shutdown_admission_event
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
-from datetime import datetime
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from interface.auth import relational_principal_id_for_request
@@ -31,17 +29,42 @@ from interface.routes import chat_memory_state as _chat_memory_state  # noqa: E4
 from interface.routes import chat_preflight as _chat_preflight  # noqa: E402
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS, _CHAT_SESSION_ID_MAX_CHARS, _ORGAN_ABSENCE_STREAKS, _ORGAN_INERT_STREAKS, _TOPIC_STOPWORDS, _conversation_log, logger
 from interface.routes.chat_self_reply import _is_identity_challenge_request
-from pathlib import Path
 from typing import Any
 import asyncio
-import dataclasses
 import hashlib
 import inspect
-import json
 import os
 import re
-import time
 from interface.routes import chat_conversation_repair as _chat_conversation_repair  # noqa: E402
+from .chat_lane_state import (
+    _canonical_runtime_model_label,  # noqa: F401
+    _conversation_lane_blocks_fallback,  # noqa: F401
+    _conversation_lane_is_standby,  # noqa: F401
+    _conversation_lane_needs_instant_social_contract,  # noqa: F401
+    _cortex_is_cold_loading,  # noqa: F401
+    _enter_recovery_cooldown,  # noqa: F401
+    _force_clear_mlx_foreground_owner,  # noqa: F401
+    _host_condition,  # noqa: F401
+    _known_answer_for_this_turn,  # noqa: F401
+    _lane_reply_confidence,  # noqa: F401
+    _lane_status_message_body,  # noqa: F401
+    _mark_conversation_lane_state,  # noqa: F401
+    _mark_conversation_lane_timeout,  # noqa: F401
+    _status_represents_memory_state_result,  # noqa: F401
+    _turn_count_ordinal,  # noqa: F401
+    _with_mood,  # noqa: F401
+    _with_the_same_readings,  # noqa: F401
+)
+from .chat_http_shapes import (
+    _early_chat_json_response,  # noqa: F401
+    _export_json_default,  # noqa: F401
+    _launcher_desktop_runtime_active,
+    _mark_http_turn_served,  # noqa: F401
+    _normalize_response_body,
+    _pre_gate_unavailable_response,  # noqa: F401
+    _request_from_local_desktop_client,
+    _runtime_shutdown_response,  # noqa: F401
+)
 
 
 def _env_float(name: str, default: float, *, minimum: float) -> float:
@@ -549,83 +572,8 @@ def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
     )
 
 
-def _host_condition() -> dict[str, Any]:
-    """The machine's own load, as the runtime already measures it."""
-
-    try:
-        from core.introspection.self_evidence import resolve_self_health
-
-        readings = {
-            reading.channel: reading for reading in resolve_self_health().readings
-        }
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation(
-            "chat.host_condition",
-            exc,
-            severity="debug",
-            action="left the machine's load out of her state snapshot",
-        )
-        return {}
-    condition: dict[str, Any] = {}
-    load = readings.get("host_load")
-    if load is not None and load.present:
-        values = dict(load.value or {})
-        for name in ("processor_percent", "memory_percent"):
-            try:
-                condition[name] = round(float(values.get(name)), 1)
-            except (TypeError, ValueError):
-                continue
-    thermal = readings.get("host_thermal")
-    if thermal is not None and thermal.present:
-        try:
-            condition["thermal_pressure"] = round(float(thermal.value), 2)
-        except (TypeError, ValueError):
-            pass
-    # Absent rather than zero: a load reported as 0% because nothing answered
-    # is worse than one that is missing, and she can say she does not know.
-    return condition
 
 
-def _canonical_runtime_model_label(lane: dict[str, Any] | None) -> str:
-    lane = dict(lane or {})
-    candidates = [
-        str(lane.get("desired_model") or ""),
-        str(lane.get("last_user_generation_endpoint") or ""),
-        str(lane.get("foreground_endpoint") or ""),
-        str(lane.get("desired_endpoint") or ""),
-        str(lane.get("model_path") or ""),
-    ]
-    joined = " ".join(candidates).lower()
-    # Which LANE this is stays a name match -- the lane names are the words in
-    # these fields. What the lane is CALLED comes from the registry, which
-    # holds the signed resident descriptor. Reading the size out of these
-    # strings could not match a 27B at all, and the "cortex" token was wired
-    # to a literal "Cortex (32B)", so the label named a checkpoint that had
-    # been replaced while its descriptor sat one call away.
-    try:
-        from core.brain.llm.model_registry import (
-            BRAINSTEM_ENDPOINT,
-            DEEP_ENDPOINT,
-            FALLBACK_ENDPOINT,
-            PRIMARY_ENDPOINT,
-            lane_display_label,
-        )
-    except ImportError:
-        lane_display_label = None
-    if lane_display_label is not None:
-        if "solver" in joined:
-            return lane_display_label(DEEP_ENDPOINT)
-        if "brainstem" in joined:
-            return lane_display_label(BRAINSTEM_ENDPOINT)
-        if "reflex" in joined:
-            return lane_display_label(FALLBACK_ENDPOINT)
-        if "cortex" in joined:
-            return lane_display_label(PRIMARY_ENDPOINT)
-    if lane.get("desired_model") or lane.get("foreground_endpoint"):
-        return str(lane.get("desired_model") or lane.get("foreground_endpoint"))
-    if lane_display_label is not None:
-        return lane_display_label(PRIMARY_ENDPOINT)
-    return "Cortex"
 
 
 def _requested_visible_required_phrases(user_message: str) -> tuple[str, ...]:
@@ -928,15 +876,6 @@ def _audit_recent_response_reasoning_sync(text: str) -> None:
         )
 
 
-def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
-    lane = dict(lane or {})
-    state = str(lane.get("state", "") or "").strip().lower()
-    return (
-        not bool(lane.get("conversation_ready", False))
-        and state in {"cold", "closed", ""}
-        and not bool(lane.get("warmup_attempted", False))
-        and not bool(lane.get("warmup_in_flight", False))
-    )
 
 
 def _request_requires_cognitive_engine(
@@ -974,253 +913,28 @@ def _request_allows_legacy_orchestrator_fallback(request: Request) -> bool:
     return header in {"1", "true", "yes", "allow"}
 
 
-def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> dict[str, Any]:
-    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
-
-    # Activate recovery cooldown so rapid follow-up messages are fast-rejected
-    # instead of piling into the inference pipeline.
-    _enter_recovery_cooldown()
-    _force_clear_mlx_foreground_owner(reason=reason, min_age_s=45.0)
-
-    try:
-        gate = ServiceContainer.get("inference_gate", default=None)
-        if gate and hasattr(gate, "note_foreground_timeout"):
-            gate.note_foreground_timeout(reason)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Conversation lane timeout mark failed: %s", exc)
-
-    lane = _chat_preflight._collect_conversation_lane_status()
-    lane["state"] = "recovering"
-    lane["conversation_ready"] = False
-    lane["last_failure_reason"] = reason
-    if not lane.get("foreground_endpoint"):
-        lane["foreground_endpoint"] = PRIMARY_ENDPOINT
-    return lane
 
 
-def _force_clear_mlx_foreground_owner(
-    *,
-    reason: str,
-    min_age_s: float = 45.0,
-) -> dict[str, Any]:
-    try:
-        from core.brain.llm.mlx_client import force_clear_foreground_owner
-
-        result = force_clear_foreground_owner(
-            reason=reason,
-            min_age_s=min_age_s,
-        )
-        if result.get("cleared"):
-            logger.warning(
-                "Cleared stale MLX foreground owner during chat recovery: %s",
-                result,
-            )
-        return result
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("MLX foreground owner recovery hook unavailable: %s", exc)
-        return {
-            "cleared": False,
-            "reason": reason,
-            "holder": None,
-            "age_s": 0.0,
-            "detail": "unavailable",
-        }
 
 
-def _mark_conversation_lane_state(reason: str, *, state: str) -> dict[str, Any]:
-    from core.brain.llm.model_registry import PRIMARY_ENDPOINT
-
-    lane = _chat_preflight._collect_conversation_lane_status()
-    lane["state"] = state
-    lane["conversation_ready"] = False
-    lane["last_failure_reason"] = reason
-    lane["warmup_attempted"] = True
-    if not lane.get("foreground_endpoint"):
-        lane["foreground_endpoint"] = PRIMARY_ENDPOINT
-    return lane
 
 
-def _status_represents_memory_state_result(status: str | None) -> bool:
-    return str(status or "").strip() in {
-        "owner_identity_recall",
-        "session_memory_pin",
-        "session_memory_pin_transient",
-        "session_memory_recall",
-        "session_memory_context_recall",
-        "conversation_recall",
-    }
 
 
-def _turn_count_ordinal(count: int) -> str:
-    value = max(0, int(count))
-    suffix = "th"
-    if not 10 <= value % 100 <= 20:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(value % 10, "th")
-    return f"{value}{suffix}"
 
 
-def _cortex_is_cold_loading(lane: object) -> bool:
-    """True while the cortex is doing its one-time load for this process.
-
-    The admission budget is the turn's remaining time minus a reserve, and the
-    reserve normally includes 60s held back for producing an answer. During a
-    COLD load that subtraction is backwards: it deducts time for answering from
-    the time needed to become able to answer at all.
-
-    LIVE 2026-08-17, measured four times: the first message after launch died
-    at 15s, 15s, 16s and 16s. The foreground timeout is ~80s and the reserve is
-    64s, so admission got ~16s — while a cortex cold load needs well over a
-    minute. The turn could not have succeeded at any point during boot, and the
-    person got "the live answer lane could not finish preparing", which reads
-    as a fault rather than as a model still loading.
-
-    A cold load is a one-time wait a person who just launched an app expects to
-    pay. There is no answer to reserve for until the weights are up, so during
-    that window only the response reserve is held back.
-    """
-
-    if not isinstance(lane, dict):
-        return False
-    try:
-        if bool(lane.get("conversation_ready")):
-            return False
-        if bool(lane.get("has_generated_successfully")):
-            return False  # served once already: this is a recovery, not a cold load
-        return float(lane.get("last_ready_at") or 0.0) <= 0.0
-    except (AttributeError, TypeError, ValueError):
-        return False
 
 
-def _with_the_same_readings(system_prompt: str, readings: list[str]) -> str:
-    """The identity, with whatever was read put in front of the model."""
-    if not readings:
-        return system_prompt
-    return "\n\n".join([system_prompt, *readings] if system_prompt else readings)
 
 
-def _lane_reply_confidence(served: object, default: str) -> str:
-    """How much to trust a reply the degraded path produced.
-
-    A deterministic result is the most reliable answer the runtime can give —
-    no model, no sampling, no lane. Live 2026-08-19 the exact product 50,420,273
-    was served and badged "No answer", which is the opposite of true and
-    exactly the kind of thing a person checking her work would catch.
-    """
-    body = str(served or "").strip()
-    known = _known_answer_for_this_turn()
-    return "computed" if known and body == known else str(default)
 
 
-def _lane_status_message_body(
-    lane: dict[str, Any],
-    *,
-    timed_out: bool = False,
-    status_override: str = "",
-) -> str:
-    """Generate a personality-infused status message instead of a robotic error.
-
-    [STABILITY v50] These messages now sound like Aura experiencing a
-    momentary lapse rather than a system displaying error codes. Uses
-    the live expression frame when available so Aura's current mood
-    colours even her recovery messages.
-    """
-    state = str(lane.get("state", "warming") or "warming")
-    failure_reason = str(lane.get("last_failure_reason", "") or "")
-    status_override = str(status_override or "")
-
-    # Hard infrastructure failures — keep these explicit for debugging
-    if failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:")):
-        model_label = _canonical_runtime_model_label(lane)
-        return (
-            f"The local {model_label} runtime could not start cleanly. I should not "
-            "fake a normal answer; the launcher logs have the failure details."
-        )
-    if (
-        "memory_pressure_refused_worker_spawn" in failure_reason
-        or "projected_process_tree_rss" in failure_reason
-        or "model_load_headroom" in failure_reason
-    ):
-        return (
-            "The local model lane was blocked by the unified-memory guard before loading. "
-            "I am protecting the desktop from an unsafe RAM spike instead of pretending Cortex is merely warming."
-        )
-
-    # Build a mood-aware prefix for softer messages
-    #
-    # Every line below is written to continue one: "Mmm, that answer took too
-    # long". With no mood to prefix, the sentence began lowercase and reached
-    # the person as a fragment — "that answer took too long to finish
-    # cleanly." LIVE 2026-08-26.
-    _mood_prefix = ""
-    try:
-        _pe = ServiceContainer.peek("personality_engine", default=None)
-        if _pe and hasattr(_pe, "get_emotional_context_for_response"):
-            _emo = _pe.get_emotional_context_for_response() or {}
-            _mood = str(_emo.get("mood", "") or "").lower()
-            if _mood in {"frustrated", "irritated", "tense"}:
-                _mood_prefix = "Ugh, "
-            elif _mood in {"tired", "drowsy", "low"}:
-                _mood_prefix = "Mmm, "
-            elif _mood in {"curious", "playful", "amused"}:
-                _mood_prefix = "Hmm — "
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Mood prefix unavailable for degraded reply: %s", exc)
-
-    if status_override == "warming_timeout":
-        return (
-            _with_mood(_mood_prefix, "the live answer lane exceeded its warm-up budget before "
-            "a reasoning turn began. I did not misclassify that boot delay as a failed answer.")
-        )
-    if status_override == "warming_failed":
-        return (
-            _with_mood(_mood_prefix, "the live answer lane could not finish preparing before "
-            "a reasoning turn began. I recorded the readiness failure separately from Aura's answer quality.")
-        )
-    if timed_out:
-        return _with_mood(_mood_prefix, "that answer took too long to finish cleanly. I logged the timeout and preserved the turn context.")
-    if _conversation_lane_is_standby(lane):
-        return _with_mood(_mood_prefix, "the local answer path is still preparing. I logged the cold lane instead of claiming Aura is ready.")
-    if state == "recovering":
-        return _with_mood(_mood_prefix, "the answer lane is recovering from the previous failure. I logged the degraded state instead of emitting a fragment.")
-    if state == "failed":
-        return _with_mood(_mood_prefix, "the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer.")
-    return _with_mood(_mood_prefix, "the answer path is not ready yet; the readiness state is recorded on the live lane.")
 
 
-def _enter_recovery_cooldown() -> None:
-    global _last_recovery_cooldown_at
-    _last_recovery_cooldown_at = time.monotonic()
 
 
-def _conversation_lane_blocks_fallback(lane: dict[str, Any]) -> bool:
-    """Avoid hiding a hard local backend failure behind a generic fallback reply."""
-    state = str(lane.get("state", "") or "").strip().lower()
-    failure_reason = str(lane.get("last_failure_reason", "") or "")
-    if state != "failed":
-        return False
-    return failure_reason.startswith(("mlx_runtime_unavailable:", "local_runtime_unavailable:"))
 
 
-def _conversation_lane_needs_instant_social_contract(lane: dict[str, Any]) -> bool:
-    """Return whether a low-risk presence turn should avoid cold-warming Cortex."""
-
-    state = str(lane.get("state", "") or "").strip().lower()
-    if state in {"cold", "warming", "recovering", "failed", "unavailable"}:
-        return True
-    if lane.get("conversation_ready") is False:
-        return True
-    blockers = lane.get("readiness_blockers") or ()
-    if isinstance(blockers, (list, tuple, set)) and blockers:
-        return True
-    if not str(lane.get("foreground_endpoint", "") or "").strip() and state not in {
-        "ready",
-        "healthy",
-    }:
-        return True
-    return False
 
 
 def _has_first_person_anchor(text: str) -> bool:
@@ -1789,172 +1503,22 @@ def _schedule_late_regeneration_finalizer(
         )
 
 
-def _export_json_default(value: Any) -> Any:
-    if dataclasses.is_dataclass(value):
-        return dataclasses.asdict(value)
-    model_dump = getattr(value, "model_dump", None)
-    if callable(model_dump):
-        return model_dump(mode="json")
-    if isinstance(value, (datetime, Path)):
-        return value.isoformat() if isinstance(value, datetime) else str(value)
-    if isinstance(value, (set, tuple)):
-        return list(value)
-    return str(value)
 
 
-def _early_chat_json_response(
-    payload: dict[str, Any],
-    *,
-    status_code: int,
-) -> JSONResponse:
-    """Return an early payload; the paired boundary settles actual delivery."""
-
-    return JSONResponse(payload, status_code=status_code)
 
 
-def _pre_gate_unavailable_response(gate: str) -> JSONResponse:
-    gate_label = {
-        "defensive_runtime": "security",
-        "conscience": "conscience",
-    }.get(str(gate), "required")
-    response = (
-        f"I could not safely process that turn because my {gate_label} preflight "
-        "is unavailable. I did not send the request into cognition or act on it. "
-        "Please retry after the runtime recovers."
-    )
-    return _early_chat_json_response(
-        {
-            "response": response,
-            "message": response,
-            "error": "chat_preflight_unavailable",
-            "status": "chat_preflight_unavailable",
-            "gate": str(gate),
-            "retryable": True,
-            "processed": False,
-            "response_confidence": "fail_closed",
-        },
-        status_code=503,
-    )
 
 
-def _mark_http_turn_served(outcome: Any, response: Any) -> None:
-    """Record what the person actually received, from the response itself."""
-
-    if outcome is None:
-        return
-    try:
-        payload = getattr(response, "body", None)
-        served = ""
-        if payload is not None:
-            data = json.loads(payload)
-            if isinstance(data, dict):
-                served = str(data.get("response") or "")
-                live_contract = data.get("live_turn_contract")
-                if isinstance(live_contract, dict):
-                    outcome.record_receipt(
-                        "served_response_authority",
-                        {
-                            # Use the turn ledger's redaction-safe evidence
-                            # vocabulary. Raw HTTP contract names containing
-                            # "auth" are intentionally redacted as possible
-                            # credentials by record_receipt().
-                            "evidence_kind": live_contract.get(
-                                "response_authority_kind"
-                            ),
-                            "authority_verified": live_contract.get(
-                                "response_authority_proven"
-                            )
-                            is True,
-                            "evidence_reason": live_contract.get(
-                                "response_authority_reason"
-                            ),
-                            "delivery_verified": live_contract.get(
-                                "answer_delivery_proven"
-                            )
-                            is True,
-                        },
-                    )
-        if served.strip():
-            outcome.mark_served(served)
-        else:
-            from core.runtime.turn_outcome import UserVisibleState
-
-            outcome.mark_served("", state=UserVisibleState.NOTHING_SERVED)
-    except (_CHAT_RECOVERABLE_ERRORS, json.JSONDecodeError) as exc:
-        record_degradation("chat.turn_outcome", exc, severity="info")
 
 
-def _runtime_shutdown_response(
-    checkpoint: str,
-    *,
-    slot_acquired: bool,
-    error: BaseException | None = None,
-) -> JSONResponse:
-    """The 503 a turn returns when the runtime is going down under it.
-
-    Module scope with `slot_acquired` passed in, rather than nested and
-    closing over `foreground_slot_acquired`. That was the only thing it took
-    from the turn, and one boolean is a cheaper contract than a closure.
-    """
-    outcome = "reaped" if slot_acquired else "suppressed"
-    record_shutdown_admission_event(
-        "chat.foreground_turn",
-        resource_kind="foreground_turn",
-        outcome=outcome,
-        detail=f"checkpoint={checkpoint}",
-    )
-    logger.info(
-        "Foreground chat stopped by runtime shutdown (checkpoint=%s error_type=%s).",
-        checkpoint,
-        type(error).__name__ if error is not None else "none",
-    )
-    return JSONResponse(
-        {
-            "response": (
-                "The runtime is shutting down, so I stopped this turn cleanly "
-                "before starting more cognitive work."
-            ),
-            "status": "runtime_shutdown",
-            "checkpoint": checkpoint,
-            "response_confidence": "not_generated",
-        },
-        status_code=503,
-        headers={"Retry-After": "1"},
-    )
 
 
-def _launcher_desktop_runtime_active() -> bool:
-    return any(
-        str(os.environ.get(name, "")).strip().lower() in {"1", "true", "yes", "on"}
-        for name in ("AURA_LAUNCHED_FROM_APP", "AURA_EXTERNAL_GUI_OWNER", "AURA_GUI_PROXY")
-    )
 
 
-def _request_from_local_desktop_client(request: Request) -> bool:
-    client = getattr(request, "client", None)
-    host = str(getattr(client, "host", "") or "").strip().lower()
-    if not host:
-        return True
-    return host in {"127.0.0.1", "::1", "localhost", "test", "local"}
 
 
-def _normalize_response_body(text: str) -> str:
-    return " ".join(str(text or "").split()).strip().lower()
 
 
-def _with_mood(prefix: str, sentence: str) -> str:
-    """A reply written to follow a mood prefix, said with or without one.
-
-    Each of these lines continues something: "Mmm, that answer took too long".
-    With no mood to continue from, the sentence has to start for itself —
-    otherwise it reaches the person as a fragment, which is how "that answer
-    took too long to finish cleanly." was read out lowercase. LIVE 2026-08-26.
-    """
-    said = str(sentence or "")
-    lead = str(prefix or "")
-    if lead:
-        return f"{lead}{said}"
-    return said[:1].upper() + said[1:] if said else said
 
 
 def _build_stateful_voice_reflex(frame: dict[str, Any], user_message: str = "") -> str:
@@ -2054,78 +1618,6 @@ def _replace_unified_transcript_aura_reply(
         )
 
 
-def _known_answer_for_this_turn() -> str:
-    """What the runtime can answer without the model, or empty.
-
-    A lane that is warming, timed out or recovering says nothing about whether
-    the answer is knowable. "what is 7919 * 6367?" has one exact answer, held
-    by a deterministic form that needs no generation at all, and it was
-    replaced by a sentence about the lane.
-    """
-    try:
-        from core.conversation.arithmetic_check import requested_arithmetic_result
-        from core.conversation.session_scope import current_user_question
-
-        question = current_user_question()
-        if not question:
-            return ""
-
-        # A seating problem the enumeration settles.
-        #
-        # LIVE, 2026-08-21: the solver produced the answer at 22:42:45 —
-        # "took 1 reading(s): the seating, worked out" — and the turn then
-        # spent another 105 seconds generating text that was replaced by that
-        # same answer at the end. An exact answer is not an improvement on a
-        # generated one, it is a reason not to generate.
-        from core.reasoning.positional_constraints import (
-            answer_positional_problem,
-            describe_positional_answer,
-        )
-
-        seating = describe_positional_answer(answer_positional_problem(question))
-        if seating:
-            return seating
-
-        # A game the preflight already enumerated. Worked out before anything
-        # was generated, so there is nothing here to improve on.
-        #
-        # A repository diagnosis is different: it is an observation, and what
-        # was asked for was an explanation of it. That one is composed with
-        # the reply instead of replacing it, further down.
-        from core.conversation.session_scope import solved_answers
-
-        solved = solved_answers()
-        settled = solved.get("finite_game", "")
-        if settled:
-            return settled
-        # Anything else the runtime worked out this turn.
-        #
-        # This function is asked twice: before generating, where only a
-        # preflight result exists, and again at the point of giving up, where
-        # the comment beside the apology says to ask whether the runtime
-        # already HOLDS the answer. A diagnosis is produced by a tool during
-        # generation, so it can never skip generation — it can only stop the
-        # turn ending in an apology while the finding sits in hand.
-        for value in reversed(list(solved.values())):
-            if value.strip():
-                return value
-
-        value = requested_arithmetic_result(question)
-        if value is None:
-            return ""
-        if isinstance(value, float) and value.is_integer():
-            value = int(value)
-        shown = f"{value:,}" if isinstance(value, int) else f"{value:,}"
-        return f"{shown}."
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation(
-            "chat.known_answer",
-            exc,
-            severity="debug",
-            action="served the lane status without checking for a computed answer",
-            enforce_failure_policy=False,
-        )
-        return ""
 
 
 def _worth_more_than_a_refusal(candidate: str, user_message: Any = "") -> bool:
