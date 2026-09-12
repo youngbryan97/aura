@@ -265,6 +265,25 @@ Working list. Deleted when every line is done and green.
         order, at HEAD and before it: domain W goes missing because the world
         model organ is not there on some orderings.
 
+- [ ] user-surface recurrent depth above one. The gate is closed and correct:
+      `user_surface_recurrent_ceiling` fails to 1 on every path, and a receipt
+      raises it only for a named checkpoint whose margin beats the shallower
+      arm's own binomial spread.
+
+      What is missing is the evidence, and the reason is worth writing down.
+      The two arms on disk — `artifacts/recurrent_depth/loops1.json` and
+      `loops2.json` — carry the same `responses_sha256`, the same accuracy of
+      0.625, no declared depth, and timestamps seventy seconds apart. They are
+      one run written twice. `tools/heldout_eval.py`, which produced them, has
+      no depth option at all, so the thing the filenames claim to compare was
+      never varied.
+
+      The control that would have to move is `clean_user_surface_recurrent_loops`,
+      a runtime control the latent cortex service validates at 1..2 and passes
+      into the worker. So a depth arm needs a worker, not a standalone grade,
+      and that is the harness that does not exist yet. The gate says all of
+      this in its own refusal, which is what a fail-closed gate is for.
+
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
       end on the reflex 1.5B through the worker's own code path: alpha 0.0
