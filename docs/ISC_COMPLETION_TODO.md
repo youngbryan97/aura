@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**733 done, 0 blocked, 0 not applicable, 170 open, of 903.**
+**735 done, 0 blocked, 0 not applicable, 168 open, of 903.**
 
 Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 
@@ -42,7 +42,7 @@ Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 
 ## Phase 1 — Rerun current Aura before adding more architecture
 
-- [ ] `P1.1` Run make subject-core-frozen on a frozen current head. — make subject-core-frozen ran three seeds, 7, 11 and 13, at 670f3e955 in one campaign; runs 026, 027 and 028 scored 17, 17 and 15 of 24, with fifteen criteria holding on all three
+- [x] `P1.1` Run make subject-core-frozen on a frozen current head. — make subject-core-frozen ran three seeds, 7, 11 and 13, at 670f3e955 in one campaign; runs 026, 027 and 028 scored 17, 17 and 15 of 24, with fifteen criteria holding on all three
 
 **Required work:**
 
@@ -935,7 +935,7 @@ Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 - [ ] `P49.4` Prefer 5 or more for statistical characterization.
 - [x] `P49.5` No seed selected based on result. — the seeds are in the target, chosen before any result
 - [ ] `P49.6` For the strongest claim, all 24 pass each run.
-- [ ] `P49.7` Otherwise report per-criterion pass frequency. — per-criterion pass frequency is what the scorecard reports, rather than a total
+- [x] `P49.7` Otherwise report per-criterion pass frequency. — per-criterion pass frequency is what the scorecard reports, rather than a total
 - [x] `P49.8` Report mean/std/range for continuous measures. — every tracked continuous measure carries its mean, spread, standard deviation and range
 - [x] `P49.9` Especially Phi. — irreducibility especially, with its own lower bound and standard error beside it
 - [x] `P49.10` Especially synergy. — synergy especially, per triple and by name

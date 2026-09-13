@@ -54,8 +54,8 @@ _COMPARE = {
 }
 
 
-def evaluate_report_expression(expr: str, report: Mapping[str, Any]) -> Any:
-    """Evaluate ``expr`` against ``report``. Raises ExpressionRefused, KeyError…
+def evaluate_report_expression(expr: str, report: Mapping[str, Any], *, root: str = "report") -> Any:
+    """Evaluate ``expr`` against ``report``, bound as ``root``. Raises ExpressionRefused, KeyError…
 
     A KeyError, IndexError or TypeError from the report's own shape travels
     out unchanged: the expression was readable and the report did not hold
@@ -66,7 +66,7 @@ def evaluate_report_expression(expr: str, report: Mapping[str, Any]) -> Any:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError as exc:
         raise ExpressionRefused(f"{expr!r} does not parse: {exc}") from exc
-    return _read(tree.body, {"report": report})
+    return _read(tree.body, {root: report})
 
 
 def _read(node: ast.AST, scope: dict[str, Any]) -> Any:
