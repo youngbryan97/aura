@@ -635,6 +635,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   pointer plus dependent proposal refitting. Source-test examples used for
   calibration are explicitly consumed, not fresh replication. Full refit
   evaluation remains pending; no promotion or G03 closure.
+  Completed argument refit is rejected: 47/48 weave answers and 342/500 source
+  answers versus the frozen parent's 346, with 44 gains and 48 regressions.
+  Coefficient ablations are retained. The operation-only candidate remains
+  stronger; no serving changes or G03 closure.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

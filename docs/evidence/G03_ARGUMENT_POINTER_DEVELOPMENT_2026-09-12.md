@@ -46,3 +46,40 @@ coefficients when an already-clean model is refitted and identical receipts
 with test examples omitted. Smoke: 164 passed, one skipped. Compilation, Ruff,
 and writing gates passed. The full source refit and evaluation are pending at
 this entry; G03 remains open.
+
+## Completed Evaluation
+
+The full refit completed with 728 training and 500 validation examples. Its
+dependent proposal fit used 3,296 positive and 52,736 negative rows; the selected
+proposal scale remained 0.875. Only argument-pointer and proposal-head
+coefficients changed relative to the operation-pointer parent.
+
+The candidate is rejected. It produced 47/48 weave programs and answers, losing
+one answer relative to the operation-only candidate. On 500 source-validation
+examples it produced 342 correct answers against the frozen parent's 346, with
+44 gains and 48 regressions. The operation-only candidate had scored 377.
+
+| Source family | Examples | Frozen parent answers | Argument refit answers |
+| --- | ---: | ---: | ---: |
+| Arithmetic | 128 | 97 | 82 |
+| Cataphoric | 48 | 4 | 15 |
+| Fork/join | 192 | 155 | 135 |
+| Role binding | 48 | 24 | 37 |
+| Reserved alias | 48 | 30 | 37 |
+| Natural source | 24 | 24 | 24 |
+| Natural alias source | 12 | 12 | 12 |
+
+A 24-example source pilot isolated pointer and proposal coefficients. On its
+12 arithmetic examples, the combined refit scored 9 answers, the new pointer
+alone 11, and new proposal heads alone 12. Reducing the combined candidate's
+pointer score scale to 1e-6 still scored 9. All four variants scored 12/12 on
+the pilot's fork/join examples. These selected pilot results cannot establish
+global admission or identify one exclusive cause. They show that suppressing
+the pointer score alone does not recover the observed arithmetic loss.
+
+The candidate and outcomes are hash-bound by
+`argument-pointer-evidence-receipt.json` in the evidence directory above. The
+artifact is retained outside the source tree; no serving authority was granted.
+The next development comparison uses the stronger operation-only candidate.
+The corrected sampler remains the training implementation, but label
+consistency alone has not solved source-general argument binding. G03 is open.
