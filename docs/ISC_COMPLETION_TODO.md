@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**735 done, 0 blocked, 0 not applicable, 168 open, of 903.**
+**737 done, 0 blocked, 0 not applicable, 166 open, of 903.**
 
 Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 
@@ -307,7 +307,7 @@ Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 - [ ] `P10.9` Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
 - [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
-- [ ] `P10.12` Preregister ISC-v2.
+- [x] `P10.12` Preregister ISC-v2. — ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported
 - [ ] `P10.13` Use a better differentiation measure.
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
 
@@ -782,7 +782,7 @@ Newest run with a report: `run_028` — 15/24 criteria, commit `670f3e955a85`.
 - [x] `P40.4` Determine whether a nondegenerate recurrent system can satisfy both Phi_do > 0.05 and D_eff/D >= 0.40 under the current estimator. — whether any coupling strength clears both at once is a measurement rather than an argument
 - [ ] `P40.5` If yes, demonstrate it.
 - [x] `P40.6` If no, formally document ISC-v1’s internal inconsistency. — and if none does, the run says the conjunction is internally impossible for the architecture the test was designed around
-- [ ] `P40.7` Design ISC-v2 before observing the next Aura result used for v2.
+- [x] `P40.7` Design ISC-v2 before observing the next Aura result used for v2. — the preregistration was committed while runs 029, 030 and 031 were still recording, names them as v1 results only, and applies v2 first to runs started after the commit that implements it
 - [x] `P40.8` Retain v1 forever for provenance. A test should be difficult, but it should not be internally impossible for the positive reference it is designed around. — the original one-sided reading is kept and reported beside the two-sided one on every run, rather than replaced
 
 ## Phase 41 — Improve the irreducibility null floor
