@@ -48,10 +48,21 @@ class TestProducedSnapshotsCarryTheirProvenance:
         assert isinstance(fresh["measured_at_monotonic"], float)
 
     def test_every_snapshot_exit_stamps(self):
-        """Both the measured and the probe-failed paths, in both builders."""
+        """Both the measured and the probe-failed paths, in both builders.
+
+        Read across the class and the bases it is built from, not off one
+        file. Two of the four builders moved to `_WatchesTheCortexComeUp` when
+        the gate went under the module ceiling, and `inspect.getsource` of the
+        subclass alone found two -- which is indistinguishable from two of them
+        having lost their stamp.
+        """
         import inspect
 
-        source = inspect.getsource(InferenceGate)
+        source = "".join(
+            inspect.getsource(klass)
+            for klass in InferenceGate.__mro__
+            if klass is not object
+        )
         assert source.count('"schema": ADMISSION_SNAPSHOT_SCHEMA,') == 4
         assert source.count('"measured_at_monotonic": time.monotonic(),') == 4
 

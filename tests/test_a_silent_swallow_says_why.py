@@ -135,6 +135,43 @@ def test_the_source_address_checker_catches_a_moved_string(tmp_path):
     assert stale[0]["reads"].endswith("influence_channels.py")
 
 
+def test_it_sees_a_class_read_and_the_bases_the_class_is_built_from(tmp_path):
+    """`getsource` of a CLASS goes stale the same way and was invisible.
+
+    The admission-snapshot test read `inspect.getsource(InferenceGate)` for
+    four builders. Two moved to a base class when the gate went under the
+    module ceiling, the subclass held two, and that is exactly what two of them
+    losing their stamp looks like from there — the defect this tool exists to
+    separate from a real deletion.
+    """
+    from tools.lint_source_assertions import look
+
+    stale = tmp_path / "test_probe.py"
+    stale.write_text(
+        "import inspect\n"
+        "from core.brain.inference_gate import InferenceGate\n"
+        "\n"
+        "def test_one():\n"
+        '    assert "a string the gate has never held" in inspect.getsource(InferenceGate)\n',
+        encoding="utf-8",
+    )
+    found = look([stale])
+    assert len(found) == 1
+    assert found[0]["reads"].endswith("inference_gate.py")
+
+    held = tmp_path / "test_probe_ok.py"
+    held.write_text(
+        "import inspect\n"
+        "from core.brain.inference_gate import InferenceGate\n"
+        "\n"
+        "def test_one():\n"
+        '    assert \'"schema": ADMISSION_SNAPSHOT_SCHEMA,\' in inspect.getsource(InferenceGate)\n',
+        encoding="utf-8",
+    )
+    # Found in a BASE, which is the half a subclass-only read cannot see.
+    assert look([held]) == []
+
+
 def test_it_does_not_flag_a_string_the_module_holds(tmp_path):
     from tools.lint_source_assertions import look
 

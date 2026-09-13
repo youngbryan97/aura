@@ -72,6 +72,54 @@ def _module_file(dotted: str) -> Path | None:
     return None
 
 
+def _class_surface(dotted: str) -> tuple[Path, str] | None:
+    """A class's own text plus that of the bases it is built from.
+
+    ``inspect.getsource(InferenceGate)`` goes stale the same way a module read
+    does and is invisible to the module resolver, because the dotted name ends
+    at a class rather than a file. When the gate went under the module ceiling,
+    two of its four admission-snapshot builders moved to a base class and the
+    subclass's own source held two -- which is exactly what two of them losing
+    their stamp looks like from there.
+
+    Bases are followed one level, through the defining module's own imports,
+    which is as far as a lift goes.
+    """
+    module_name, _, symbol = dotted.rpartition(".")
+    home = _module_file(module_name) if module_name else None
+    if home is None or not symbol:
+        return None
+    try:
+        text = home.read_text(encoding="utf-8", errors="ignore")
+        tree = ast.parse(text)
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+    bases: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == symbol:
+            bases = [
+                base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+                for base in node.bases
+            ]
+            break
+    else:
+        return None
+    wanted = {name for name in bases if name}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or not node.module:
+            continue
+        if not any(alias.name in wanted for alias in node.names):
+            continue
+        source = node.module
+        if node.level:
+            package = module_name.rsplit(".", node.level)[0] if "." in module_name else ""
+            source = f"{package}.{node.module}" if package else node.module
+        base_file = _module_file(source)
+        if base_file is not None:
+            text += base_file.read_text(encoding="utf-8", errors="ignore")
+    return home, text
+
+
 def _is_repo_rooted(node: ast.AST, roots: set[str]) -> bool:
     """Whether a path chain starts at this repo rather than at a tmp dir.
 
@@ -252,15 +300,20 @@ def look(paths: list[Path]) -> list[dict[str, object]]:
             # `Path(...) / "a/b.py"` spelling — the repo-relative file itself.
             dotted = inner.get(name) or outer.get(name) or name
             target = _module_file(dotted)
+            text: str | None = None
             if target is None and dotted.endswith(".py"):
                 candidate = ROOT / dotted
                 target = candidate if candidate.is_file() else None
             if target is None:
-                continue
-            try:
-                text = target.read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                continue
+                surface = _class_surface(dotted)
+                if surface is None:
+                    continue
+                target, text = surface
+            if text is None:
+                try:
+                    text = target.read_text(encoding="utf-8", errors="ignore")
+                except OSError:
+                    continue
             if literal in text:
                 continue
             stale.append(
