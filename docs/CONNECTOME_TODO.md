@@ -249,14 +249,24 @@ Working list. Deleted when every line is done and green.
       _checkpoint` out of `mlx_client` and `_load_state` into the immune
       persistence mixin, not by raising anything. Budget 145,567.
 
+      `make governance-lint` is green. Twenty-one call sites had changed owner
+      class in the size extractions landing this week — host automation's
+      screen reader, computer use's document maker, phantom browser's page
+      actions, the liquid substrate's state IO, the task ledger, the service
+      heads, the ambient bubble, the immune state writer. Every `raw_*` bucket
+      balanced exactly, three in and three out, two in and two out, so
+      recording them laundered nothing. One addition was a real defect:
+      `tidy_room` called `item.unlink()` raw while the branch two above wrote
+      through the gateway. It goes through `delete_file` now.
+
+      And eleven assertions across nine test files were reading an address the
+      code had left — a module split for size, the call moved to a sibling, and
+      a test reading the old file reporting a missing call site, which is what
+      a deleted one looks like from there. Three failed by RAISING rather than
+      asserting, so they landed nowhere near the claim.
+      `tools/lint_source_assertions.py` finds the shape now and reports zero.
+
       Open, and not this pass's to close:
-      * `make governance-lint` — twenty call sites that moved owner and
-        seventeen that left the old one, in the size extractions landing this
-        week: host automation's screen reader, computer use's document maker,
-        the task ledger, the service heads, the ambient bubble, and the immune
-        state writer. Same calls, new owner classes, which is what the gate
-        asks to be refreshed for — but refreshing it stamps another agent's
-        in-flight moves under whoever runs it, so it belongs to them.
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
         `test_gap_atlas_campaigns` and the rest of the later chunks — in the
