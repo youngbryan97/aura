@@ -12,6 +12,7 @@ import asyncio
 import re
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 
@@ -41,13 +42,13 @@ class _AnswersFromWhatSheRemembers:
             "recall what i said",
             "recall what i told",
         )
-        if any(marker in lowered for marker in explicit_markers):
+        if names_any(lowered, explicit_markers):
             return True
         # Require the word "remember" or "recall" explicitly paired with a
         # recall-specific question form. Generic words like "before", "earlier"
         # are NOT sufficient on their own -- they appear in normal conversation
         # (e.g. "wait before I do, what do YOU want?").
-        has_recall_verb = any(token in lowered for token in ("remember", "recall"))
+        has_recall_verb = names_any(lowered, ("remember", "recall"))
         has_recall_question = any(
             token in lowered
             for token in (
@@ -75,10 +76,10 @@ class _AnswersFromWhatSheRemembers:
             "when i was gone",
             "idle thought",
         )
-        if any(marker in lowered for marker in explicit_markers):
+        if names_any(lowered, explicit_markers):
             return True
-        return any(token in lowered for token in ("thinking", "thought", "idle")) and any(
-            token in lowered for token in ("between", "while", "during", "when i was gone")
+        return names_any(lowered, ("thinking", "thought", "idle")) and names_any(
+            lowered, ("between", "while", "during", "when i was gone")
         )
 
     @classmethod
@@ -368,8 +369,8 @@ class _AnswersFromWhatSheRemembers:
     ) -> str | None:
         candidates: list[tuple[str, str]] = []
         objective_norm = normalize_memory_intent_text(cls._normalize_text(objective)).rstrip("?")
-        if "conversation lane" in objective_norm and any(
-            marker in objective_norm for marker in ("died", "dead")
+        if "conversation lane" in objective_norm and names_any(
+            objective_norm, ("died", "dead")
         ):
             return (
                 "You meant the live conversation path had stopped behaving like a real conversation: "
@@ -476,7 +477,7 @@ class _AnswersFromWhatSheRemembers:
             return f'You told me: "{chosen}"'
         if "conversation lane" in objective_norm and (
             "stay with me" in objective_norm
-            or any(marker in objective_norm for marker in ("died", "dying", "dead"))
+            or names_any(objective_norm, ("died", "dying", "dead"))
         ):
             return (
                 "I remember you were worried that the conversation lane was dying. "

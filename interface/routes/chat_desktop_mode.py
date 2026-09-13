@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime import response_policy
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
@@ -772,17 +773,15 @@ def _select_cognitive_chat_mode(user_message: str, effective_user_message: str):
         "short",
         "two sentences",
     )
-    lightweight_requested = len(text) <= 600 and any(
-        marker in text for marker in lightweight_markers
-    )
-    if lightweight_requested and not any(marker in text for marker in complex_markers):
+    lightweight_requested = len(text) <= 600 and names_any(text, lightweight_markers)
+    if lightweight_requested and not names_any(text, complex_markers):
         return ThinkingMode.FAST
     if (
         bool(getattr(shape, "requires_single_reply_coverage", False))
         or bool(getattr(shape, "prefers_extended_answer", False))
         or int(getattr(shape, "question_parts", 0) or 0) >= 2
-        or any(marker in text for marker in complex_markers)
-        or (len(text) > 600 and any(marker in text for marker in ("explain", "plan", "why")))
+        or names_any(text, complex_markers)
+        or (len(text) > 600 and names_any(text, ("explain", "plan", "why")))
     ):
         return ThinkingMode.DEEP
     if len(str(effective_user_message or "")) > 1200:

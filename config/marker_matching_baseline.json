@@ -14,7 +14,6 @@
     "core/architect/code_graph.py": 14,
     "core/architect/mutation_classifier.py": 1,
     "core/audit/audit_logger.py": 2,
-    "core/autonomy/autonomous_initiative_loop.py": 1,
     "core/autonomy/depth_gate.py": 1,
     "core/autonomy/research_goal_filter.py": 4,
     "core/autonomy/research_text_policy.py": 2,
@@ -27,7 +26,6 @@
     "core/brain/llm/latent_cortex/runtime_identity.py": 2,
     "core/brain/llm/llm_router.py": 5,
     "core/brain/llm/mlx_client.py": 1,
-    "core/brain/llm/mlx_worker.py": 1,
     "core/brain/multimodal_orchestrator.py": 1,
     "core/brain/personality_engine.py": 6,
     "core/brain/reasoning_strategies.py": 3,
@@ -66,7 +64,6 @@
     "core/neuroweb/glue_factory.py": 13,
     "core/orchestrator/mixins/incoming_logic.py": 9,
     "core/orchestrator/mixins/learning_evolution.py": 1,
-    "core/orchestrator/mixins/response_processing.py": 11,
     "core/orchestrator/mixins/tool_execution.py": 1,
     "core/perception/action_gateway.py": 1,
     "core/perception/belief_state.py": 4,
@@ -77,7 +74,7 @@
     "core/phases/action_grounding.py": 4,
     "core/phases/affect_update.py": 6,
     "core/phases/dialogue_policy.py": 4,
-    "core/phases/response_generation_unitary.py": 34,
+    "core/phases/response_generation_unitary.py": 31,
     "core/planning/planner.py": 5,
     "core/pneuma/free_energy_oracle.py": 5,
     "core/resilience/degradation_repair.py": 1,
@@ -113,11 +110,11 @@
     "core/values/heuristic_imperatives.py": 3,
     "core/values/moral_responsibility.py": 1,
     "core/voice/duplex/mind_bridge.py": 1,
-    "interface/routes/chat.py": 26,
+    "interface/routes/chat.py": 6,
     "interface/routes/chat_capability_inventory.py": 12,
     "interface/routes/chat_conversation_repair.py": 4,
     "interface/routes/chat_preflight.py": 5,
     "interface/routes/subsystems.py": 2
   },
-  "total": 479
+  "total": 443
 }

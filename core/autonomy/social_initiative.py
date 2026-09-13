@@ -11,6 +11,7 @@ import asyncio
 import time
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.service_access import (
     optional_service,
 )
@@ -180,8 +181,8 @@ class _StartsSomethingSocial:
             "security alert",
             "verification code",
         )
-        urgent = any(marker in combined for marker in urgent_markers)
-        likely_noise = any(marker in combined for marker in noise_markers)
+        urgent = names_any(combined, urgent_markers)
+        likely_noise = names_any(combined, noise_markers)
         if is_auto:
             action = "skip_auto_reply"
         elif from_owner or urgent:

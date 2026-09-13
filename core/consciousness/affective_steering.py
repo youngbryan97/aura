@@ -1550,9 +1550,8 @@ class AffectiveSteeringHook:
                         # per-model guess.
                         scale = hook._residual_reference_scale(h)
                         mask = hook._completion_position_mask(h)
-                        h = _inject(
-                            h, (effective_alpha * scale) * composite, mask=mask
-                        )
+                        nudge = (effective_alpha * scale) * composite
+                        h = _inject(h, nudge, mask=mask)
 
                     # Diagnostic
                     hook._inject_count += 1

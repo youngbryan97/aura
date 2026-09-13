@@ -111,7 +111,11 @@ class TestAStatusCodeIsAnIdentifier:
     """
 
     def test_the_live_identifier_shapes_are_recognised(self):
-        from core.collective.delegator import _marks_a_deferral
+        from core.collective.delegator import _GENERATION_DEFERRAL_MARKERS
+        from core.conversation.word_markers import names_any_in_identifier
+
+        def _marks_a_deferral(status: str) -> bool:
+            return names_any_in_identifier(status, _GENERATION_DEFERRAL_MARKERS)
 
         for status in (
             "foreground_headroom_reserved",
@@ -125,14 +129,22 @@ class TestAStatusCodeIsAnIdentifier:
 
     def test_a_word_that_merely_contains_a_marker_is_not_one(self):
         """The word-awareness the boundary matching was for, kept."""
-        from core.collective.delegator import _marks_a_deferral
+        from core.collective.delegator import _GENERATION_DEFERRAL_MARKERS
+        from core.conversation.word_markers import names_any_in_identifier
+
+        def _marks_a_deferral(status: str) -> bool:
+            return names_any_in_identifier(status, _GENERATION_DEFERRAL_MARKERS)
 
         for status in ("headroomless", "readmission", "queuedish"):
             assert not _marks_a_deferral(status), status
 
     def test_a_worker_that_died_still_raises(self):
         """Deliberately absent from the markers, and it has to stay absent."""
-        from core.collective.delegator import _marks_a_deferral
+        from core.collective.delegator import _GENERATION_DEFERRAL_MARKERS
+        from core.conversation.word_markers import names_any_in_identifier
+
+        def _marks_a_deferral(status: str) -> bool:
+            return names_any_in_identifier(status, _GENERATION_DEFERRAL_MARKERS)
 
         assert not _marks_a_deferral("worker_died_during_generation")
         assert not _marks_a_deferral("ok")

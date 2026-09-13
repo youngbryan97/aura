@@ -15,6 +15,7 @@ import time
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any_in_identifier
 from core.runtime.errors import describe_error, record_degradation
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -543,10 +544,13 @@ async def _answer_from_fallback_ladder(
     # was said while the 27B had been resident for seven minutes and the real
     # cause was a latent-cortex receipt contract failing — so the person was
     # told to wait for something that was not going to change by waiting.
-    lowered = str(reason or "").lower()
-    still_coming = any(
-        marker in lowered
-        for marker in ("load", "warm", "booting", "starting", "not ready", "spawning")
+    # A reason code is an identifier -- `cortex_still_loading`,
+    # `worker_spawning`, `latent_receipt_contract_failed` -- so this asks the
+    # question of the words it is built from. Containment would have matched
+    # "load" inside "download" and "overload"; word boundaries would have
+    # matched none of them at all, because an underscore is a word character.
+    still_coming = names_any_in_identifier(
+        reason, ("load", "warm", "booting", "starting", "not ready", "spawning")
     )
     why = (
         "the main one is still loading"

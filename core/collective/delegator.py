@@ -21,6 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any_in_identifier
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
@@ -84,41 +85,6 @@ _GENERATION_DEFERRAL_MARKERS = (
 )
 
 
-def _status_words(text: str) -> list[str]:
-    """A status code broken into the words it is made of.
-
-    These values are IDENTIFIERS — ``foreground_headroom_reserved``,
-    ``model_load_admission_denied``, ``background_deferred:memory_pressure``.
-    Word-boundary matching cannot see inside one, because an underscore is a
-    word character to ``\b``: `names_any("foreground_headroom_reserved",
-    ("headroom",))` is False. Every marker below was therefore missed, this
-    function returned "" for every deferral, and a shard that never ran raised
-    "Swarm cognitive engine returned empty output" — the exact failure the
-    comment on the markers says was fixed.
-
-    Splitting on the separators an identifier is built from keeps what word
-    matching was for: "headroom" matches ``foreground_headroom_reserved`` and
-    does not match ``headroomless``.
-    """
-    return [word for word in re.split(r"[^a-z0-9]+", text.lower()) if word]
-
-
-def _marks_a_deferral(text: str) -> bool:
-    """Whether a status code names one of the deferral markers."""
-    words = _status_words(text)
-    for marker in _GENERATION_DEFERRAL_MARKERS:
-        wanted = _status_words(marker)
-        if not wanted:
-            continue
-        span = len(wanted)
-        if any(
-            words[start : start + span] == wanted
-            for start in range(len(words) - span + 1)
-        ):
-            return True
-    return False
-
-
 def _deferred_generation_reason(result: Any) -> str:
     """Return the deferral reason for an empty generation, or "" if it ran."""
     for field in ("status", "error", "reason", "deferral_reason"):
@@ -126,7 +92,7 @@ def _deferred_generation_reason(result: Any) -> str:
         if value is None and isinstance(result, dict):
             value = result.get(field)
         text = str(value or "").strip().lower()
-        if text and _marks_a_deferral(text):
+        if text and names_any_in_identifier(text, _GENERATION_DEFERRAL_MARKERS):
             return str(value)
     return ""
 

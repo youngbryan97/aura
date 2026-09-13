@@ -15,6 +15,7 @@ from typing import Any
 
 from fastapi.responses import JSONResponse
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import (
     analyze_prompt_shape,
@@ -159,7 +160,7 @@ def _repair_missing_followup_delta(user_message: str, reply_text: str) -> str:
     normalized_reply = _chat_memory_state._normalize_user_message(reply_text)
     if not normalized_user or not normalized_reply:
         return str(reply_text or "").strip()
-    if not any(marker in normalized_user for marker in ("add", "include", "give", "connect")):
+    if not names_any(normalized_user, ("add", "include", "give", "connect")):
         return str(reply_text or "").strip()
 
     additions: list[str] = []

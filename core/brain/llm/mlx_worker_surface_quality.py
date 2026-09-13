@@ -15,6 +15,7 @@ import re
 import time
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.brain.live_mind_contract import (
     normalize_text_mutations,
     summarize_text_mutation_authorship,
@@ -1118,9 +1119,8 @@ def _capability_inventory_minimum_grounding(
     evidence = {
         "category": "browser/web research" in reply
         or ("browser" in reply and ("file" in reply or "desktop" in reply)),
-        "governance": any(
-            marker in reply
-            for marker in ("will/authority", "will and authority", "permission", "governed")
+        "governance": names_any(
+            reply, ("will/authority", "will and authority", "permission", "governed")
         ),
         "boundary": (
             "not executing" in reply
