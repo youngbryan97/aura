@@ -578,3 +578,61 @@ def bicross_validated_rank(
     spread = per_block.std(axis=0, ddof=1) * np.sqrt(len(per_block))
     return int(np.flatnonzero(total <= total[best] + spread[best])[0])
 
+
+def _out_of_fold(features: np.ndarray, target: np.ndarray, *, folds: int, seed: int) -> np.ndarray:
+    from sklearn.linear_model import Ridge
+    from sklearn.model_selection import KFold
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    prediction = np.zeros_like(target)
+    for train, test in KFold(n_splits=folds, shuffle=True, random_state=seed).split(features):
+        model = make_pipeline(StandardScaler(), Ridge()).fit(features[train], target[train])
+        prediction[test] = model.predict(features[test])
+    return prediction
+
+
+def heldout_new_direction_gain(
+    raw_history: np.ndarray,
+    grain_state: np.ndarray,
+    heldout_future: np.ndarray,
+    *,
+    folds: int = 5,
+    seed: int = 2505,
+) -> float:
+    """How much of the held-out future the grain cannot reach, raw history reaches.
+
+    A grain of rank k predicts futures along at most k output directions. The
+    question sufficiency asks is whether history predicts the future along any
+    other direction, so both are fitted out of fold, the part of the future
+    orthogonal to the grain's predicted directions is taken, and the return is
+    the share of that part history's extra prediction removes.
+
+    The fractional gain beside this cannot ask that. A grain estimated from
+    noisy signatures is a noisy copy of the true state, and history that
+    determines the state exactly improves on the copy inside the grain's own
+    directions: on a twelve-variable system with a two-dimensional macrostate
+    the correct grain and a grain missing a whole dimension both scored a
+    margin near one over their shuffled floors. On the same systems this reads
+    about -0.2 for the correct grain and above 0.9 for the truncated one.
+    """
+    h = np.asarray(raw_history, dtype=np.float64)
+    z = np.asarray(grain_state, dtype=np.float64)
+    y = np.asarray(heldout_future, dtype=np.float64)
+    if not (len(h) == len(z) == len(y)):
+        raise ValueError("history, grain and future must have the same rows")
+    if z.ndim != 2 or z.shape[1] == 0:
+        raise ValueError("the grain must have at least one dimension")
+    centred = y - y.mean(axis=0)
+    from_grain = _out_of_fold(z, centred, folds=folds, seed=seed)
+    from_both = _out_of_fold(np.column_stack([z, h]), centred, folds=folds, seed=seed)
+    _, _, directions = np.linalg.svd(from_grain - from_grain.mean(axis=0), full_matrices=False)
+    reached = directions[: z.shape[1]].T
+    elsewhere = np.eye(centred.shape[1]) - reached @ reached.T
+    missing = (centred - from_grain) @ elsewhere
+    added = (from_both - from_grain) @ elsewhere
+    total = float(np.sum(missing * missing))
+    if total <= 0.0:
+        return 0.0
+    return 1.0 - float(np.sum((missing - added) ** 2)) / total
+
