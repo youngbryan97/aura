@@ -645,6 +645,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Explicit weave definitions recover 470/480 links; automatic selection is
   450/480 for the operation-only candidate and 286/480 for the rejected refit.
   Definition selection remains the active development issue.
+  [Fork definition refit](evidence/G03_FORK_DEFINITION_REFIT_2026-09-13.md)
+  corrects source-training annotations and recovers 46/48 weave answers, but
+  372/500 source answers with 66 regressions prevents promotion. Consistent
+  joint definition selection is the next development candidate.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

@@ -22,7 +22,9 @@ def test_refit_includes_anchor_and_symbolic_targets_only_from_training(monkeypat
         item.ir.input_spans = (TokenSpan(0, 1),)
         item.ir.instructions[0].operation_span = TokenSpan(2, 3)
         item.register_definition_spans = ()
+        item.register_definition_origin = "input_operation_fallback"
     symbolic.register_definition_spans = (TokenSpan(4, 5), TokenSpan(6, 7))
+    symbolic.register_definition_origin = "explicit_annotation"
     pointer = replace(parent.definition_pointer, start_bias=parent.definition_pointer.start_bias + 1)
 
     def fit(examples, *, spans):
@@ -37,6 +39,10 @@ def test_refit_includes_anchor_and_symbolic_targets_only_from_training(monkeypat
     assert {key for key in before if before[key] != after[key]} == {"definition_pointer"}
     receipt = result.training_receipt["definition_pointer_refit"]
     assert receipt["training_examples"] == 2
+    assert receipt["training_definition_origins"] == {
+        "input_operation_fallback": 1, "explicit_annotation": 1,
+    }
+    assert len(receipt["training_definition_targets_sha256"]) == 64
     assert receipt["test_examples_used"] == receipt["validation_examples_used_for_fitting"] == 0
     assert not receipt["serving_authority"]
     assert result.definition_relation_head is parent.definition_relation_head

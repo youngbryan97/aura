@@ -1402,8 +1402,8 @@ def refit_compositional_definition_pointer(
         raise ValueError("definition pointer refit neural basis differs from its parent")
     train_ids = {item.ir.source_text_sha256 for item in training}
     validation_ids = {item.ir.source_text_sha256 for item in validation}
-    if train_ids & validation_ids:
-        raise ValueError("definition pointer refit train and validation overlap")
+    if train_ids & validation_ids or len(train_ids) != len(training) or len(validation_ids) != len(validation):
+        raise ValueError("definition pointer refit source examples duplicate or overlap")
     pointer = _fit_shared_pointer(training, spans=_register_definition_spans)
     coefficient = model._coefficient_body()
     coefficient["definition_pointer"] = pointer.to_dict()
@@ -1418,6 +1418,17 @@ def refit_compositional_definition_pointer(
         "validation_example_ids_sha256": _sha(sorted(validation_ids)),
         "training_examples": len(training),
         "validation_examples": len(validation),
+        "training_definition_targets_sha256": _sha(sorted(
+            (
+                item.ir.source_text_sha256,
+                item.register_definition_origin,
+                [[span.start, span.end] for span in _register_definition_spans(item)],
+            )
+            for item in training
+        )),
+        "training_definition_origins": dict(Counter(
+            item.register_definition_origin for item in training
+        )),
         "test_examples_used": 0,
         "validation_examples_used_for_fitting": 0,
         "relation_coefficients_and_scale_preserved": True,

@@ -74,6 +74,7 @@ FAMILY_FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v3"
 GOLD_PROJECTION_SCHEMA: Final = "aura.semantic_program_gold_projection.v1"
 CHAIN_CORPUS_KIND: Final = "chain_3x2"
 FORK_JOIN_CORPUS_KIND: Final = "fork_join_4x3"
+FORK_JOIN_DEFINITION_CORPUS_KIND: Final = "fork_join_4x3_definitions_v1"
 FORK_JOIN_SOURCE_ORDER_CORPUS_KIND: Final = "fork_join_4x3_source_order"
 FORK_JOIN_FACTORIAL_CORPUS_KIND: Final = "fork_join_4x3_factorial16"
 SEQUENCE_CHAIN_CORPUS_KIND: Final = "sequence_chain_1x2_factorial"
@@ -93,6 +94,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
         FORK_JOIN_CORPUS_KIND,
+        FORK_JOIN_DEFINITION_CORPUS_KIND,
         FORK_JOIN_FACTORIAL_CORPUS_KIND,
         FORK_JOIN_SOURCE_ORDER_CORPUS_KIND,
         NATURAL_REQUEST_CORPUS_KIND,
@@ -213,10 +215,11 @@ def build_semantic_program_corpus_for_config(
             seed=config.seed,
             examples_per_operation_pair=config.examples_per_operation_pair,
         )
-    if config.corpus_kind == FORK_JOIN_CORPUS_KIND:
+    if config.corpus_kind in {FORK_JOIN_CORPUS_KIND, FORK_JOIN_DEFINITION_CORPUS_KIND}:
         return build_semantic_program_fork_join_corpus(
             seed=config.seed,
             examples_per_operation_triple=config.examples_per_operation_pair,
+            annotate_register_definitions=config.corpus_kind == FORK_JOIN_DEFINITION_CORPUS_KIND,
         )
     if config.corpus_kind == FORK_JOIN_SOURCE_ORDER_CORPUS_KIND:
         return build_semantic_program_fork_join_corpus(
@@ -1556,6 +1559,7 @@ __all__ = [
     "FEATURE_MANIFEST_SCHEMA",
     "FEATURE_RECORD_SCHEMA",
     "FORK_JOIN_CORPUS_KIND",
+    "FORK_JOIN_DEFINITION_CORPUS_KIND",
     "FORK_JOIN_FACTORIAL_CORPUS_KIND",
     "FORK_JOIN_SOURCE_ORDER_CORPUS_KIND",
     "LoadedSemanticFeatureBundle",
