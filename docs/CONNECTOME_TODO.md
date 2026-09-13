@@ -314,71 +314,76 @@ Working list. Deleted when every line is done and green.
       untouched because it drives inner.layers itself and never enters the
       patched forward.
 
-- [ ] steering serving authority — the bar was not too high, the capture was
-      in the wrong place. Every requirement the signed authority reads has now
-      moved; two are still open and both are the same fact.
+- [ ] steering serving authority — one requirement left, and it is a question
+      about the bar rather than a number still to be moved.
 
-      Three gates stand between the vectors and a served turn, from the live
-      worker log: the checkpoint's signed component authority says
-      `steering_generation_deferred`, so no hooks attach; the surface clamp
-      forces alpha to 0.0 on user-visible decodes until a fusion certificate
+      Three gates stand between the vectors and a served turn: the signed
+      component authority says `steering_generation_deferred`, so no hooks
+      attach; the surface clamp holds alpha at 0.0 until a fusion certificate
       exists; and no certificate can exist while there are no hooks to measure.
-      Publishing a qualified generation opens all three, and
-      `_validate_steering` in `core/learning/cortex_migration_authority.py`
-      requires `verdict == "PASS"`, `qualified is True`, at least 24 samples,
-      treatment strictly above the matched no-op, every lesion strictly under
-      treatment, `no_regression` and `causal_effect_positive`.
+      Publishing a qualified generation opens all three, and `_validate_steering`
+      requires `causal_effect_positive`, which requires
+      `passes_adversarial_control`.
 
-      **What was actually wrong.** `SteeringVectorLibrary._derive_caa` runs
-      each contrast statement through `tokenizer.encode` on its own. For "I
-      feel genuinely good about this." the state it captures is the model at a
-      full stop, at the end of a bare sentence, with no chat turn around it.
-      That direction is the difference between READING two statements, and
-      every campaign since has asked it to change WRITING.
+      **The effect blocker is closed.** `_derive_caa` ran each contrast
+      statement through `tokenizer.encode` on its own, so the state it captured
+      was the model at a full stop at the end of a bare sentence with no chat
+      turn around it — a READING direction, asked ever since to change WRITING.
+      Captured at the generation position instead, the same five dimensions
+      give, at n=24:
 
-      Five injection geometries were measured before that was found — translate,
-      rotate, clip, project, lift, over four layers and sixteen, alpha 0.02 to
-      1.6 — and the affect score stopped at +0.83 under all of them. A ceiling
-      that does not move when the geometry changes is not a ceiling in the
-      geometry. `core/consciousness/residual_injection_geometry.py` carries
-      what that work found: translation lengthens the stream at every layer it
-      touches, rotation scales the content away instead, and projection SETS
-      the component along the vector rather than adding to it, so sixteen
-      layers arrive where one does and nothing compounds.
+          baseline                0.0833     zero_vector      0.0000
+          text_terse              0.1250     random_vector   -0.1250
+          steered_black_box       1.3333     shuffled_layers  0.9583
+          text_rich_adversarial   1.4167     steered+rich     4.5000
 
-      **Captured at the generation position instead** — the served chat
-      template, the generation prompt appended, the same statement standing as
-      the assistant's own opening words — the same five dimensions move the
-      scored behaviour much further. Held-out tasks, twelve samples a cell,
-      the text control at +1.583:
+          treatment wins 14, matched no-op 6, lesions 1/1/12, no regression
 
-          alpha   old vectors   generation-position, 4 adjacent layers
-          0.05         --                 +0.333
-          0.10         --                 +1.167
-          0.15         --                 +0.833
-          0.20       +0.833               +0.333
+      Treatment strictly above the matched no-op, every lesion below treatment,
+      no regression, and `adds_to_text` at 4.5000 against the prompt's 1.4167.
+      The campaign before this work had treatment 7 against a no-op 7 with a
+      shuffled control winning more than the treatment.
 
-      At n=24 with the full control set, on those four layers at alpha 0.1:
-      treatment 13 against a matched no-op 6, lesions 2/6/8, no regression, and
-      `adds_to_text` true — the vectors on top of the prompt score 3.0000
-      against the prompt's 1.4167. The campaign before this one had treatment 7
-      against a no-op 7 with a shuffled-layer control winning more than the
-      treatment, so both of those requirements are now met.
+      **Two defects in the gate itself, both fixed.** `effect_is_specific` and
+      `beats_text_controls` read divergence — how far the text moved. A
+      norm-matched random vector is INERT on the target, -0.1250 against a
+      treatment of +1.3333, and reproduces 98.6% of the treatment's divergence
+      with a larger standardised effect, so no activation intervention could
+      ever have passed a specificity test computed that way. And "moves the
+      output further" was comparing `effect_size_d`, which is that distance
+      divided by its spread — how consistently. The same substitution had
+      already been found and fixed once in `adds_to_text`.
 
-      **What is left is one fact with two faces.** `shuffled_layers` scores
-      0.3750 against a treatment of 0.8750 — 43% of it, where a control may
-      carry a quarter — and the treatment does not move the output as far as
-      the rich prompt. Four ADJACENT attention layers hold vectors 0.79 alike,
-      so permuting them barely moves the injection, and four sites is not much
-      room at an alpha the model survives.
+      **What is left: `shuffled_layers`.** A control may carry a quarter of the
+      effect. It carries 43%, 84% and 70% across three layer geometries, and
+      the reason is now built rather than argued:
 
-      Every full_attention layer in the checkpoint is the answer to both: 3 to
-      63, sixteen sites, mean cosine between layers 0.376 with the ends near
-      orthogonal. Projection there reaches +1.417 at alpha 0.2 with replies at
-      888 characters against a baseline 954, and falls off a cliff at 0.3.
-      `artifacts/migration/27b/recovery/steering_plan_wide.json` names the
-      layers; the n=24 campaign on them is what decides this item.
+          layers                    mean cosine   shuffled share
+          4 adjacent (27-39)           0.64            43%
+          16 full-attention            0.41            84%
+          6 least alike                0.29            70%
 
+      Take each layer's vector, project out the direction they share, keep the
+      residual — three quarters of the norm survives and the residuals are
+      near orthogonal, mean cosine -0.065, which is exactly what the control
+      wants. They do not steer: +0.083 at alpha 0.2, below baseline, and the
+      model stops writing above it. Steer at two near-orthogonal layers alone
+      (3 and 63, cosine 0.08) and there is no effect at any alpha either.
+
+      So the effect is the axis the layers share, and a control that permutes
+      vectors lying along one axis leaves the axis in place. Few layers, no
+      effect; many layers, a shared axis; remove the axis, no effect. That is a
+      property of CAA on this residual stream, measured five ways.
+
+      The direction controls — the ones that ask whether it matters WHICH
+      vector — pass outright every time: random -0.1250 and zero 0.0000,
+      neither significant, against +1.3333. What fails is layer-assignment
+      specificity, which this intervention does not have and cannot be given
+      without becoming a different intervention.
+
+      Whether serving authority should require both is a decision about the
+      bar, and it is Bryan's. `adds_to_text` stays outside
+      `passes_adversarial_control` either way, so it cannot become a back door.
 
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
