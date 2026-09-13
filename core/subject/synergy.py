@@ -258,6 +258,13 @@ def _interaction_gain(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> float:
     return float((plain.loss - crossed.loss) / plain.loss)
 
 
+#: What a triple's information is about. ISC-v1 scores the target's next
+#: level; ISC-v2 scores its change, because a slow level shares information with
+#: a slid copy of any slow series and its shifted null rises with the drift
+#: (docs/ISC_V2_PREREGISTRATION.md). v1 stays the default and stays reported.
+TARGET_READINGS: tuple[str, ...] = ("level", "change")
+
+
 def synergy(
     recording: Recording,
     source_a: str,
@@ -265,11 +272,20 @@ def synergy(
     target: str,
     *,
     seed: int = 0,
+    of: str = "level",
 ) -> SynergyReport:
-    """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check."""
+    """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check.
+
+    ``of="change"`` scores Y_{t+1} - Y_t instead of Y_{t+1}. The null and the
+    interaction check read the same target, so the comparison stays one
+    comparison.
+    """
+    if of not in TARGET_READINGS:
+        raise ValueError(f"synergy is about a target's {' or '.join(TARGET_READINGS)}, not {of!r}")
     raw_a = _components(recording.domain(source_a)[:-1])
     raw_b = _components(recording.domain(source_b)[:-1])
-    raw_y = _components(recording.domain(target)[1:])
+    following = recording.domain(target)
+    raw_y = _components(following[1:] - following[:-1] if of == "change" else following[1:])
     rows = raw_a.shape[0]
     # The floor a partition is scored on, so an arm too short for one measure
     # is too short for both.
@@ -363,5 +379,5 @@ TRIPLES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def synergy_suite(recording: Recording, *, seed: int = 0) -> list[SynergyReport]:
-    return [synergy(recording, a, b, y, seed=seed) for a, b, y in TRIPLES]
+def synergy_suite(recording: Recording, *, seed: int = 0, of: str = "level") -> list[SynergyReport]:
+    return [synergy(recording, a, b, y, seed=seed, of=of) for a, b, y in TRIPLES]
