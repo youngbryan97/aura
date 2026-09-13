@@ -35,11 +35,15 @@ def main() -> int:
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--validation-output", type=Path)
     args = parser.parse_args()
     from core.learning.semantic_program_basis import (
         bind_training_examples_to_shared_representation,
     )
     from core.learning.semantic_program_campaign import training_examples_from_feature_bundle
+    from core.learning.semantic_program_compositional_campaign import (
+        select_compositional_program_candidate,
+    )
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
         refit_compositional_argument_proposals,
@@ -51,6 +55,11 @@ def main() -> int:
 
     if args.output.exists():
         raise FileExistsError(args.output)
+    if args.validation_output is not None and (
+        args.validation_output.exists()
+        or args.validation_output.resolve() == args.output.resolve()
+    ):
+        raise FileExistsError(args.validation_output)
     model = compositional_semantic_program_transducer_from_dict(
         json.loads(args.transducer.read_text("ascii"))
     )
@@ -74,6 +83,15 @@ def main() -> int:
     payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
     if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
         raise FileExistsError(args.output)
+    if args.validation_output is not None:
+        selection = select_compositional_program_candidate(
+            {"incumbent": model, "refit": candidate}, bound, incumbent="incumbent"
+        )
+        payload = json.dumps(selection, sort_keys=True, separators=(",", ":")) + "\n"
+        if not atomic_write_bytes_if_absent(
+            args.validation_output, payload.encode("ascii"), mode=0o400
+        ):
+            raise FileExistsError(args.validation_output)
     print(json.dumps({"receipt_sha256": candidate.receipt_sha256, "serving_authority": False}))
     return 0
 
