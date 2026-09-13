@@ -841,7 +841,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
     Zero failures at 1440x900, 1024x768 and 375x812, with no horizontal
     overflow at any of them.
-  Still open: truthful progress, and the rest of the polish pass.
+  - **Truthful progress, 2026-09-13.** The delivery journal publishes a
+    phase, a message and details — tokens read against the prompt's length,
+    tokens written so far, when it was observed — and the typing label showed
+    the message and dropped the numbers: "Working through the response." for
+    ninety seconds, a claim nothing behind it supported. The label reads the
+    details now: "Reading the conversation — 1,200 of 2,967 tokens" (the
+    prompt has a length), "Writing — 146 tokens so far" (the answer has a
+    ceiling, not a length, so no denominator), and a reading nothing has
+    updated in twenty seconds says "(nothing heard for 31s)" rather than
+    standing as current. `tests/test_the_typing_label_reads_the_numbers.py`
+    runs the shipped function through node. The turn's deadline the feed
+    shows is the one the route now waits on (666a845ae).
+  Still open: the rest of the polish pass.
 
 ## 5. Reliability, security, and release
 

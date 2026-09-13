@@ -5972,17 +5972,23 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
                 const message = String(progress && progress.message || '').trim();
                 if (!message) return;
                 const sequence = Number(progress.sequence || 0);
-                if (
+                // A repeated sequence is the same reading again, and the same
+                // reading again is what a quiet worker looks like: the label
+                // is rebuilt so its age shows, and nothing else changes.
+                const repeated = (
                     Number.isFinite(sequence)
                     && sequence > 0
                     && sequence <= Number(item.progressSequence || 0)
-                ) return;
-                if (Number.isFinite(sequence) && sequence > 0) {
+                );
+                if (!repeated && Number.isFinite(sequence) && sequence > 0) {
                     item.progressSequence = sequence;
                 }
-                item.progressMessage = message;
-                persistChatHandoff({ force: true });
-                updateTypingLabel(message);
+                const label = truthfulProgressLabel(progress);
+                if (!repeated) {
+                    item.progressMessage = label;
+                    persistChatHandoff({ force: true });
+                }
+                updateTypingLabel(label);
             },
         });
         if (outcome.deferred) return;
@@ -6624,6 +6630,52 @@ function updateTypingLabel(text) {
     if (DOM.typingLabel) {
         DOM.typingLabel.textContent = text;
     }
+}
+
+// What the typing label says while a turn is in flight, built from what the
+// runtime measured rather than from the message alone.
+//
+// The delivery journal publishes a phase, a message and details — the
+// tokens read so far against the prompt's length, the tokens written so far
+// — and the label showed the message and dropped the numbers. "Working
+// through the response." for ninety seconds is a claim about progress that
+// nothing behind it supports; "Writing — 146 tokens so far" is a reading.
+//
+// The prompt has a length, so reading it has a denominator. The answer has
+// a ceiling, not a prediction, so writing it does not: "146 of 1,143" would
+// say the answer will be that long, and it will not be.
+//
+// A reading that has gone quiet says so. The worker publishes every two
+// seconds while it works; a label that has not changed in twenty is a
+// worker that has not spoken in twenty, and the person is told that instead
+// of being shown the last thing it said as though it were current.
+const PROGRESS_QUIET_AFTER_S = 20;
+
+function truthfulProgressLabel(progress, nowSeconds) {
+    if (!progress || typeof progress !== 'object') return '';
+    const message = String(progress.message || '').trim();
+    const phase = String(progress.phase || '').toLowerCase();
+    const details = progress.details && typeof progress.details === 'object' ? progress.details : {};
+    const done = Number(details.completed_tokens);
+    const total = Number(details.total_tokens);
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    let label = message;
+    if (phase === 'prefill' && Number.isFinite(done) && done >= 0) {
+        label = Number.isFinite(total) && total > 0
+            ? `Reading the conversation — ${fmt(Math.min(done, total))} of ${fmt(total)} tokens`
+            : `Reading the conversation — ${fmt(done)} tokens so far`;
+    } else if (phase === 'generating' && Number.isFinite(done) && done > 0) {
+        label = `Writing — ${fmt(done)} tokens so far`;
+    }
+    const observedAt = Number(progress.observed_at);
+    const now = Number.isFinite(nowSeconds) ? nowSeconds : Date.now() / 1000;
+    if (Number.isFinite(observedAt) && observedAt > 0) {
+        const quiet = now - observedAt;
+        if (quiet >= PROGRESS_QUIET_AFTER_S) {
+            label = `${label} (nothing heard for ${Math.round(quiet)}s)`;
+        }
+    }
+    return label;
 }
 
 function laneIsStandby(lane) {
