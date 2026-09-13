@@ -320,17 +320,34 @@ class TestSpawnSeam:
         lanes = mc._observed_active_lanes(exclude_client=me)
         assert [lane.lane for lane in lanes] == ["brainstem"]
 
-    def test_runtime_overhead_excludes_observed_model_worker_memory(self, monkeypatch):
+    def test_runtime_overhead_is_the_main_process_and_its_helpers(self, monkeypatch):
+        """A worker no lane still knows is a worker, not base runtime.
+
+        The old arithmetic — the whole tree minus the workers a lane knew —
+        charged a 17GB worker being reaped during recovery against every
+        model load as "base runtime". LIVE, 2026-09-10: "brainstem request
+        34.2GB" for a 6GB model, thirty-four refusals in one afternoon.
+        """
+        import os
+
         from core.brain.llm import mlx_client as mc
 
-        owner = SimpleNamespace(observed_gb=9.0)
-        monkeypatch.setattr(
-            mc,
-            "get_memory_pressure_snapshot",
-            lambda: SimpleNamespace(process_rss_gb=31.7),
+        gib = 1024**3
+        root = os.getpid()
+        main = SimpleNamespace(pid=root, rss_bytes=int(4.1 * gib))
+        registered_worker = SimpleNamespace(pid=1001, rss_bytes=int(17.0 * gib))
+        reaping_worker = SimpleNamespace(pid=1002, rss_bytes=int(16.5 * gib))
+        helper = SimpleNamespace(pid=1003, rss_bytes=int(0.3 * gib))
+        observer = SimpleNamespace(
+            process=lambda pid: main if pid == root else None,
+            process_tree=lambda _root: SimpleNamespace(
+                processes=(main, registered_worker, reaping_worker, helper)
+            ),
         )
+        monkeypatch.setattr(mc, "get_resource_observer", lambda: observer)
+        owner = SimpleNamespace(observed_gb=17.0, process=SimpleNamespace(pid=1001))
 
-        assert mc._transient_runtime_footprint_gb([owner]) == pytest.approx(22.7)
+        assert mc._transient_runtime_footprint_gb([owner]) == pytest.approx(4.4)
 
     @pytest.mark.asyncio
     async def test_model_load_context_holds_and_releases_canonical_lease(

@@ -3141,6 +3141,19 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         self._last_refusal_receipt = receipt
         if isinstance(context, dict):
             context["inference_refusal"] = dict(receipt)
+        # And where the caller that gets None will look for the reason. The
+        # router records its deferrals there; the gate did not, so a refusal
+        # made here read upstream as the model having answered with nothing.
+        # LIVE, 2026-09-10: "kind=deferred reason=background_local_fallback_
+        # suppressed", and thirty-four emergency incidents titled "LLM returned
+        # no Python source; the model returned nothing at all" — for a model
+        # that was never asked.
+        try:
+            from core.brain.llm.deferral_record import record_deferral
+
+            record_deferral(origin=str(origin or ""), reason=f"{kind}: {reason}")
+        except (ImportError, TypeError, ValueError) as exc:
+            logger.debug("Refusal not recorded as a deferral: %s", exc)
         # Temporal continuity anchors on inference START, which happens while
         # generation parameters are still being assembled. A turn that refuses
         # after that point had moved the anchor for an inference that never

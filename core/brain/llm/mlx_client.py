@@ -1717,26 +1717,57 @@ def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
     return owners
 
 
+#: A child of the runtime holding more than this is a model worker, whether
+#: or not a lane still knows it. No helper the runtime spawns — a gateway
+#: subprocess, a plist conversion, a sandbox — comes near it, and the smallest
+#: model lane declares more than twice it.
+_A_CHILD_THIS_LARGE_IS_A_MODEL_WORKER_GB = 2.0
+
+
 def _transient_runtime_footprint_gb(owners: list[Any]) -> float:
-    """Measure Aura process-tree memory not owned by model workers.
+    """What the base runtime holds: the main process and its small helpers.
 
     Lane arbitration historically counted checkpoint workers while spawn
     admission counted the complete Aura tree. During primary recovery that
     disagreement let an idle fallback look compatible, then made the physical
     spawn gate reject the 32B. This cost is reservation-only so Aura's base
     runtime is not permanently double-counted on committed model owners.
+
+    It was the whole tree minus the workers a lane still knew, and a worker a
+    lane had let go of — one being reaped during recovery — fell into the
+    remainder and was charged against every model load as "base runtime".
+    LIVE, 2026-09-10: "brainstem request 34.2GB" for a 6GB model, thirty-four
+    refusals, and every background code generation in the Reimplementation Lab
+    reported as the model returning nothing. The base runtime is the main
+    process plus what it spawns that is not a model; a child the size of a
+    model is a model, registered or not, and is the lanes' business.
     """
 
     try:
-        snapshot = get_memory_pressure_snapshot()
-        process_rss_gb = max(0.0, float(snapshot.process_rss_gb or 0.0))
-        observed_worker_gb = sum(
-            max(0.0, float(getattr(owner, "observed_gb", 0.0) or 0.0)) for owner in owners
-        )
+        observer = get_resource_observer()
+        root = os.getpid()
+        main = observer.process(root)
+        base_gb = float(main.rss_bytes) / float(1024**3) if main is not None else 0.0
+        known = {
+            int(getattr(getattr(owner, "process", None), "pid", 0) or 0) for owner in owners
+        }
+        for child in observer.process_tree(root).processes:
+            if child.pid == root or child.pid in known:
+                continue
+            child_gb = float(child.rss_bytes) / float(1024**3)
+            if child_gb >= _A_CHILD_THIS_LARGE_IS_A_MODEL_WORKER_GB:
+                logger.debug(
+                    "Child %s holds %.1fGB and is not a registered lane; counted as a "
+                    "model worker, not as base runtime.",
+                    child.pid,
+                    child_gb,
+                )
+                continue
+            base_gb += child_gb
     except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("Transient runtime footprint unreadable, reporting 0GB: %s", exc)
         return 0.0
-    return max(0.0, process_rss_gb - observed_worker_gb)
+    return max(0.0, base_gb)
 
 
 #: How long an eviction waits to fence a lane before giving up. Short on

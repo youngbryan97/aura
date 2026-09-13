@@ -113,6 +113,9 @@ from typing import Any
 import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
+from core.consciousness.mood_weight import (
+    NEUTRAL_MOOD as _NEUTRAL_MOOD,  # noqa: F401 — read from here by its test
+)
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
