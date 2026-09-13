@@ -633,14 +633,9 @@
         "kind": "grep",
         "path": "core/subject/state.py",
         "pattern": "working_profile_"
-      },
-      {
-        "kind": "grep",
-        "path": "core/subject/state.py",
-        "pattern": "def _recency"
       }
     ],
-    "note": "active memory carries a content profile and a real recency",
+    "note": "active memory carries a content profile across fixed buckets over the newest items, beside whose word came last; the recency column was the newest item's age on the clock and is gone",
     "status": "done"
   },
   "P11.6": {
@@ -752,7 +747,7 @@
       {
         "kind": "grep",
         "path": "core/subject/synergy.py",
-        "pattern": "which made it a number\\n        nobody checked"
+        "pattern": "and self\\.null_draws > 1"
       }
     ],
     "note": "a triple passes only when the information-theoretic synergy clears its bar and its null on both the fraction and the raw value, and the held-out interaction gain is positive",
@@ -1034,12 +1029,12 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, right\\)"
+        "pattern": "with clamped\\(runtime, held_first\\)"
       },
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, left\\)"
+        "pattern": "with clamped\\(runtime, held_second\\)"
       }
     ],
     "note": "each side runs with the other held at the cut, so no information crosses and neither side is frozen inside",
@@ -1200,7 +1195,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "Restoring\n    # a snapshot here would measure a fresh baseline"
+        "pattern": "The rescue continues from the individual that was lesioned"
       }
     ],
     "note": "the rescue arm continues from the lesioned individual; two restores a cycle and none before the rescue, which a test counts",
@@ -1211,7 +1206,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "rescued = await measure\\(\\\"rescued\\\"\\)"
+        "pattern": "rescued = await measure\\(\"rescued\", workload, seed \\+ 5\\)"
       },
       {
         "kind": "grep",
@@ -1474,7 +1469,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _organ_state"
       }
     ],
@@ -1501,12 +1496,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1517,12 +1512,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1533,12 +1528,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1549,12 +1544,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1581,12 +1576,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1602,12 +1597,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1623,12 +1618,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1644,12 +1639,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1665,7 +1660,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "os\\.utime\\(target"
       }
     ],
@@ -2768,7 +2763,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       }
     ],
@@ -2801,7 +2796,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       }
     ],
@@ -2997,7 +2992,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _service_state"
       }
     ],
@@ -3076,7 +3071,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -3152,7 +3147,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _looks_like_an_instant"
       }
     ],
@@ -3269,7 +3264,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "^SUBSTRATE_BODY: tuple"
       },
       {
@@ -4249,7 +4244,7 @@
       {
         "kind": "grep",
         "path": "tools/run_ontogeny_lives.py",
-        "pattern": "the whole argument\\. Anything the frozen twin also shows"
+        "pattern": "frozen twin also shows is accumulation rather than development"
       },
       {
         "kind": "grep",
@@ -5450,8 +5445,8 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
-        "pattern": "The scratch world, byte for byte, and the intention database's rows"
+        "path": "core/subject/snapshot.py",
+        "pattern": "The scratch world, byte for byte, and the intention loop's rows and memory"
       }
     ],
     "note": "the intention database's rows are part of what the fork carries and what a restore puts back",
@@ -5461,12 +5456,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "Every byte under the scratch root, and where the directories are"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "Put the scratch root back to the bytes it held, and nothing else"
       }
     ],
@@ -5585,7 +5580,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "_MODULE_SINGLETONS"
       },
       {
@@ -5745,7 +5740,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "The file ends with\\n        # the same bytes either way"
+        "pattern": "the same bytes either way, the same fact is recorded"
       }
     ],
     "note": "the two arms end with the same file holding the same bytes",
@@ -5767,7 +5762,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "the same goal is\\n        # appended with the same text"
+        "pattern": "appended with the same text and the same verified outcome"
       }
     ],
     "note": "the same goal appended with the same text",
@@ -6408,7 +6403,7 @@
       {
         "kind": "grep",
         "path": "core/subject/nulls.py",
-        "pattern": "The two arms share a noise stream, so the sham floor is exactly\\n    zero"
+        "pattern": "The two arms share a noise stream, so the sham floor is exactly zero"
       }
     ],
     "note": "the null's two arms share a noise stream, so its floor is exactly zero, and that is stated where the comparison is made",
@@ -8333,7 +8328,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, right\\)"
+        "pattern": "with clamped\\(runtime, held_first\\)"
       },
       {
         "kind": "grep",
@@ -8558,7 +8553,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "shuffled_history_floor"
+        "pattern": "shuffled_new_direction_quantile"
       },
       {
         "kind": "grep",
@@ -8601,7 +8596,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "runtime, anchors, CONDITIONS, doses"
+        "pattern": "runtime, anchors, conditions, doses,"
       }
     ],
     "note": "every anchor is probed under all eight conditions rather than the one it arose from",
@@ -10440,7 +10435,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "a null is a distribution rather than one draw"
+        "pattern": "so a null is a distribution rather"
       }
     ],
     "note": "several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix",
@@ -10872,7 +10867,7 @@
       {
         "kind": "grep",
         "path": "core/subject/organism.py",
-        "pattern": "KEPT_TASKS: tuple[str, ...] = ("
+        "pattern": "KEPT_TASKS:\\ tuple\\[str,\\ \\.\\.\\.\\]\\ =\\ \\("
       }
     ],
     "note": "the wind-down cancels every free-running task but the state registry's notification dispatcher and stops the world model's trainer thread; no conversation, memory or tool-use arm ends with a task alive that it started, and none is alive after the restore",
@@ -10967,7 +10962,7 @@
       {
         "kind": "grep",
         "path": "core/consciousness/broadcast_consumers.py",
-        "pattern": "AFFECT_DRIVES: dict[str, str] = {"
+        "pattern": "AFFECT_DRIVES:\\ dict\\[str,\\ str\\]\\ =\\ \\{"
       },
       {
         "kind": "grep",
@@ -11343,7 +11338,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "HARNESS_ROUTES: dict[str, str] = {"
+        "pattern": "HARNESS_ROUTES:\\ dict\\[str,\\ str\\]\\ =\\ \\{"
       },
       {
         "kind": "grep",
