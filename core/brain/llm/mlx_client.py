@@ -5887,6 +5887,18 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         exact_decode = measured_decode
                 except (TypeError, ValueError, OverflowError) as exc:
                     logger.debug("Prefill and decode seconds are not numbers, recording no sample: %s", exc)
+                # Onto the turn's receipt, from the worker's own clock, so a
+                # turn can be read back as where its time went and not only
+                # as a rate the next deadline is built from.
+                try:
+                    from core.verify.turn_receipt import record_latency
+
+                    if exact_prefill is not None:
+                        record_latency("prefill", exact_prefill)
+                    if exact_decode is not None:
+                        record_latency("decode", exact_decode)
+                except (ImportError, ValueError) as exc:
+                    logger.debug("Turn latency not recorded: %s", exc)
                 # The rate every deadline is built from. MLX timed this
                 # inside the worker; the estimate this side keeps times how
                 # often it was told, which is a different quantity and was

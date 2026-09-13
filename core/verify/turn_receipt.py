@@ -45,6 +45,7 @@ __all__ = [
     "recording_turn",
     "record_phase",
     "record_response_path",
+    "record_latency",
     "record_model_generation",
     "current_receipt",
     "recent_receipts",
@@ -70,6 +71,15 @@ class TurnReceipt:
     started_at: float = field(default_factory=lambda: time.time())
     finished_at: float | None = None
     notes: list[str] = field(default_factory=list)
+    #: Where the turn's time went, in seconds, each from the thing that
+    #: measured it: queue (admission to the first worker activity), retrieval
+    #: (the memory retrieval phase), prefill and decode (MLX's own timing in
+    #: the worker), tool (time inside tool execution), delivery. A component
+    #: nobody measured is absent, not zero — a zero would read as "instant".
+    #: A component measured more than once on a turn (a repair retry, a
+    #: second generation) accumulates, and `latency_samples` says how often.
+    latency_s: dict[str, float] = field(default_factory=dict)
+    latency_samples: dict[str, int] = field(default_factory=dict)
 
     @property
     def full_pipeline_ran(self) -> bool:
@@ -105,8 +115,19 @@ class TurnReceipt:
                 if self.finished_at is not None
                 else None
             ),
+            "latency_s": {name: round(seconds, 4) for name, seconds in self.latency_s.items()},
+            "latency_samples": dict(self.latency_samples),
+            "unattributed_s": self.unattributed_s,
             "notes": list(self.notes),
         }
+
+    @property
+    def unattributed_s(self) -> float | None:
+        """The turn's wall time nothing above accounts for. Derived, never set."""
+        if self.finished_at is None:
+            return None
+        total = self.finished_at - self.started_at
+        return round(max(0.0, total - sum(self.latency_s.values())), 4)
 
 
 _CURRENT: ContextVar[TurnReceipt | None] = ContextVar("aura_turn_receipt", default=None)
@@ -157,6 +178,36 @@ def record_response_path(path: str, *, model_generation: bool) -> None:
     if receipt is not None:
         receipt.response_path = str(path)
         receipt.model_generation = bool(model_generation)
+
+
+#: The components a turn's latency is split into. A name outside this set is
+#: refused, so the receipt cannot grow a vocabulary nobody reads.
+LATENCY_COMPONENTS = frozenset({"queue", "retrieval", "prefill", "decode", "tool", "delivery"})
+
+
+def record_latency(component: str, seconds: float) -> None:
+    """Add a measured span to this turn's latency, by the thing that measured it.
+
+    R11 asked for prefill, decode, tool, retrieval and queue measured
+    separately. Prefill and decode were, in the worker; retrieval was, as a
+    phase duration; tool time and queue time were not written down anywhere a
+    turn could be read back from. One place now, and a component that was
+    never measured stays absent rather than reading as zero.
+    """
+    name = str(component or "").strip().lower()
+    if name not in LATENCY_COMPONENTS:
+        raise ValueError(f"{component!r} is not a latency component: {sorted(LATENCY_COMPONENTS)}")
+    try:
+        span = float(seconds)
+    except (TypeError, ValueError):
+        return
+    if not (span >= 0.0) or span != span:
+        return
+    receipt = _CURRENT.get()
+    if receipt is None:
+        return
+    receipt.latency_s[name] = receipt.latency_s.get(name, 0.0) + span
+    receipt.latency_samples[name] = receipt.latency_samples.get(name, 0) + 1
 
 
 def record_model_generation() -> None:

@@ -54,6 +54,7 @@ from core.verify.lesion_registry import (
 )
 from core.verify.turn_receipt import (
     TurnReceipt,
+    record_latency,
     record_phase,
     record_response_path,
     recording_turn,
@@ -3126,15 +3127,24 @@ class CognitiveEngine(_RunsItsAugmentors):
                                 error=_phase_error,
                                 objective=objective,
                             )
+                        phase_elapsed = time.perf_counter() - started_at
                         _record_legacy_pass(
                             phase_name,
                             ordinal,
-                            time.perf_counter() - started_at,
+                            phase_elapsed,
                             skipped=False,
                         )
                         # Marked after the phase returns, so a phase that timed
                         # out mid-execution is not recorded as having run.
                         record_phase(phase_name)
+                        # The retrieval phase is one of the five components a
+                        # turn's latency is split into (R11), and its duration
+                        # was only ever a "phase latency exceeded budget" line.
+                        if "retrieval" in str(phase_name).lower():
+                            try:
+                                record_latency("retrieval", phase_elapsed)
+                            except ValueError:
+                                pass
 
                     state = temp_state
                     record_response_path(

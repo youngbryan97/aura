@@ -12,6 +12,7 @@ Timeouts are kept tight (45s) for conversational responsiveness.
 """
 
 import asyncio
+import contextvars
 import copy
 import gc
 import hashlib
@@ -2559,6 +2560,13 @@ from .inference_gate_prompt import _BuildsAndFitsThePrompt
 
 
 from .inference_gate_cortex_warmup import _WatchesTheCortexComeUp
+
+
+#: When the current generate() call entered the gate; read where the first
+#: model attempt starts so the gap can be written on the turn's receipt.
+_GENERATE_ENTERED_AT: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "aura_generate_entered_at", default=None
+)
 
 
 class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
@@ -9730,6 +9738,11 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             else inherited_sink
         )
         sink_token = sink_slot.set(bound_sink)
+        # When this request entered the gate. Everything between here and the
+        # first model attempt — admission, the lane, prompt assembly — is the
+        # turn's queue time, one of the five components R11 asked to see
+        # separately, and nothing wrote it down.
+        entered_token = _GENERATE_ENTERED_AT.set(time.monotonic())
         try:
             return await self._generate_with_metadata_sink(
                 prompt,
@@ -9738,6 +9751,7 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             )
         finally:
             sink_slot.reset(sink_token)
+            _GENERATE_ENTERED_AT.reset(entered_token)
 
     async def _generate_with_metadata_sink(  # noqa: ASYNC109
         self,
@@ -12631,6 +12645,14 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
                         self._window_within(request_deadline, primary_timeout)
                     )
                     primary_attempt_started = time.monotonic()
+                    _entered = _GENERATE_ENTERED_AT.get()
+                    if _entered is not None:
+                        try:
+                            from core.verify.turn_receipt import record_latency
+
+                            record_latency("queue", primary_attempt_started - _entered)
+                        except (ImportError, ValueError) as _exc:
+                            logger.debug("Queue latency not recorded: %s", _exc)
                     tool_grounded = None
                     if _is_user_facing and not skip_initial_primary_attempt:
                         tool_grounded = await self._tool_grounded_answer(
