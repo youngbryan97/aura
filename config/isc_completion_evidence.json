@@ -11010,5 +11010,129 @@
     ],
     "note": "a scan of core fails on any line that cuts the affect_ prefix without going through AFFECT_DRIVES",
     "status": "done"
+  },
+  "P44.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_failed_action_is_perceived.py",
+        "pattern": "def test_a_skill_that_ran_and_failed_arrives_as_an_error"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_failed_action_is_perceived.py",
+        "pattern": "def test_the_response_phase_perceives_the_actions_it_grounded"
+      },
+      {
+        "kind": "grep",
+        "path": "core/phases/sensory_ingestion.py",
+        "pattern": "_origin_is_user_anchored"
+      }
+    ],
+    "note": "both percept kinds the conditions script now have production writers: interaction at sensory ingestion when a user-anchored message arrives, error at action grounding when a dispatched skill fails",
+    "status": "done"
+  },
+  "P63.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_a_layer_that_could_not_be_stepped_refuses"
+      }
+    ],
+    "note": "unsteppable layers and layer-step failures recorded during the run refuse authority",
+    "status": "done"
+  },
+  "P63.2": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_a_phase_that_raised_while_measuring_refuses"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_only_what_raised_after_measuring_began_counts"
+      }
+    ],
+    "note": "phase failures counted from the start of the baseline recording refuse authority, with the failure notes kept",
+    "status": "done"
+  },
+  "P63.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_a_periphery_walk_that_hit_its_cap_refuses"
+      }
+    ],
+    "note": "the closure evidence carries the periphery walk's coverage; a walk that hit its cap or whose reader failed refuses",
+    "status": "done"
+  },
+  "P63.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_a_reader_that_never_read_refuses"
+      }
+    ],
+    "note": "a state source that missed on every frame of the recording is listed and refuses authority",
+    "status": "done"
+  },
+  "P63.5": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_an_unresolved_history_refuses"
+      }
+    ],
+    "note": "an UNRESOLVED history walk, or a grain with no walk recorded, refuses authority",
+    "status": "done"
+  },
+  "P63.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_an_unstable_rank_refuses"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_a_rank_the_data_does_not_hold_is_unstable"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/intrinsic_v25.py",
+        "pattern": "def bicross_validated_rank"
+      }
+    ],
+    "note": "the rank is refit with each held-out fold removed and estimated again by bi-cross-validation under the one-standard-error rule; any disagreement refuses",
+    "status": "done"
+  },
+  "P55.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_the_ladder_stops_at_the_history_the_future_needs"
+      }
+    ],
+    "note": "the v25 grain walks 1, 2, 4, 8, 16 turns and stops at the first rung where older history adds no held-out prediction beyond a shuffled floor; known answers 1, 4 and 8",
+    "status": "done"
+  },
+  "P55.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_v25_report_refuses_what_it_did_not_measure.py",
+        "pattern": "def test_history_older_than_the_ladder_reaches_is_unresolved"
+      }
+    ],
+    "note": "a future that depends on history older than the ladder reaches is reported UNRESOLVED rather than given a grain",
+    "status": "done"
   }
 }
