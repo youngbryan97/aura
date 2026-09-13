@@ -375,6 +375,9 @@ class SubjectRuntime:
     #: moving rather than the intervention propagating. Freezing it is the
     #: matched-environment control every arm of a comparison needs.
     frozen_host: dict[str, float] | None = None
+    #: Whether this turn took the host hold itself, rather than a caller that
+    #: froze the host for a set of arms. Released when the turn ends.
+    turn_hold: bool = False
     frozen_latency: dict[str, float] | None = None
     #: The host observer held still for a trial, and whatever was installed
     #: before it.
@@ -763,6 +766,23 @@ class SubjectRuntime:
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
+        # The body senses the world the condition prepared, and nothing else.
+        # Arms held the host still and the recorded rounds did not, so between
+        # phases the proprioceptive loop read the real machine through the live
+        # observer and wrote it over the prepared reading. None of that reached
+        # E: run_028's host was busy with other work, `I.vram` varied three
+        # times as much as on the other two seeds, and intrinsic persistence
+        # fell from 0.52 to 0.0012, because the body followed a driver the
+        # environment did not record. A turn no caller has held takes the hold
+        # itself, from the reading the condition just prepared.
+        if self.turn_hold:
+            # A hold an earlier turn took and did not release, because that
+            # turn raised before it returned.
+            self.thaw_host()
+            self.turn_hold = False
+        if self.frozen_host is None:
+            self.freeze_host()
+            self.turn_hold = True
         if self.tape is not None:
             # Perception as it actually arrived, at this turn's frame. The
             # timestamp is the experiment's, not the tape's: an instant from
@@ -875,6 +895,9 @@ class SubjectRuntime:
 
         self.turn += 1
         self.frames_per_turn = len(frames)
+        if self.turn_hold:
+            self.thaw_host()
+            self.turn_hold = False
         return frames
 
     # ── the real subsystems the conditions reach for ─────────────────────

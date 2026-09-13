@@ -29,8 +29,13 @@ about the organism yet:
 
 - `intrinsic_persistence` read 0.5153 and 0.5335, then 0.0012 in run_028. That
   run's frames took 0.0152 s against 0.0077 s and 0.0074 s, because other work
-  was loading the host. The experiment clock is meant to keep host speed out of
-  every reading, and this one got through.
+  was loading the host. The arms held the host still and the recorded rounds did
+  not: between phases the proprioceptive loop read the real machine through the
+  live observer and wrote it over the body each condition had prepared, and the
+  environment channel records only the prepared load and heat. `I.vram` varied
+  three times as much in run_028 as on the other seeds, so the body followed a
+  driver the environment did not record. Every recorded turn now holds the body
+  at the reading its condition prepared.
 - `beats_every_null` needs the recurrent reference to pass the conjunction and
   every null to fail it. In run_028 the reference failed and the `low_rank` null
   passed. The toys' graphs and synergy moved with the campaign seed while their
@@ -58,21 +63,23 @@ reaches 2, and all fifteen pairs that do include D→M or N→M. On run_027's, D
 alone reaches 2. The other domains' edges into memory are exactly 0.0000 with
 p = 1.0 in both runs: nothing but attention could change what she recalled.
 
-**Mechanisms, each a function the live runtime lacks today.**
+**Mechanisms, each a function the live runtime lacked.**
 
 - *Recall asked again at a greater depth* (landed in `75ad78d9b`). Retrieval
   skipped any question it had already asked and compared the words alone,
   while its limit is set by affect's memory salience, flow, surprise and
   vitality. Keyed on the question and its limits, A, G, C and I gain a route
   into memory. Not yet measured.
-- *D→M: recall cued by her most pressing intention.* When no one has just
-  spoken, `MemoryRetrievalPhase` asks with `current_objective`, which routing
-  sets from input text, and her open goals never enter the cue. A goal pushed
-  to the top of her intentions should change what comes back to her.
-- *N→M: development sets how wide she searches.* `IntentionalRetriever`
-  consults the ontogeny control point `memory.retrieval_breadth`, and only the
-  harness's stand-in retriever calls it, in one condition of eight. Live recall
-  never asks.
+- *D→M: recall cued by her most pressing intention* (landed in `fad35f3f0`).
+  When no one has just spoken, `MemoryRetrievalPhase` asked with
+  `current_objective`, which routing sets from input text, and her open goals
+  never entered the cue. The most urgent open intention now joins the question.
+  Not yet measured.
+- *N→M: development sets how wide she searches* (landed in `fad35f3f0`).
+  `IntentionalRetriever` consults the ontogeny control point
+  `memory.retrieval_breadth`, and only the harness's stand-in retriever called
+  it, in one condition of eight. It is now one of the stores live recall asks.
+  Not yet measured.
 
 ## Perturbational spread of at least 0.6
 
@@ -104,6 +111,14 @@ source reaches everything downstream of its target. The routes the
 specification names are D→M and N→M above, D→W (what she did changes what she
 predicts), N→G (novelty changes what wins attention) and M→D (what she recalls
 changes what she plans).
+
+D→W had a reader and no writer in the running organism. Each cycle the world
+model is shown an action read off `world.facts["last_action"]`, and only the
+subject-core driver wrote that fact, so live, the model was shown that she never
+acted. The response path now records the skill it dispatched, in the same shape.
+What remains thin is the rest of that action input: deliberation reaches it as a
+count of open goals, which one displaced goal moves by the same step whatever
+the displacement.
 
 ## Synergy on the four declared triples
 
@@ -198,7 +213,7 @@ measured yet.
 
 1. Rerun the three seeds on a head with the instrument fixes and recall depth,
    on an idle host, and read what moved.
-2. D→M and N→M in live recall.
+2. D→M and N→M in live recall. Landed, not yet measured.
 3. D→W, N→G and M→D.
 4. The four joint computations of section 12, each checked against the null
    built the same way before it counts.
