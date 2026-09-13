@@ -524,6 +524,14 @@ def _child_names(node: Any) -> tuple[str, ...]:
     slots = getattr(type(node), "__slots__", None)
     if slots:
         return tuple(sorted(str(name) for name in slots))
+    held = getattr(node, "__dict__", None)
+    if isinstance(held, Mapping):
+        # An ordinary object with attributes. Returning nothing here made the
+        # walk watch the whole organ instead, so a phase that moved one field
+        # was recorded as having "changed affect" — true, and no use to anybody
+        # asking which decision moved what. The fanout limit above still
+        # decides when a surface is too wide to enumerate.
+        return tuple(sorted(str(name) for name in held if not str(name).startswith("_")))
     return ()
 
 
