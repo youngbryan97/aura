@@ -83,7 +83,14 @@ class _Runtime:
         self.restores += 1
 
 
-def _harness(*, cut_costs: float, rescue_returns: float, cycles: int = 3, drift: float = 0.0):
+def _harness(
+    *,
+    cut_costs: float,
+    rescue_returns: float,
+    cycles: int = 3,
+    drift: float = 0.0,
+    held_moves: dict[str, float] | None = None,
+):
     """Everything ``_lesion`` is handed, with the arms answering by design."""
     runtime = _Runtime()
     conditions = [_Condition(f"c{i}") for i in range(4)]
@@ -152,6 +159,7 @@ def _harness(*, cut_costs: float, rescue_returns: float, cycles: int = 3, drift:
         synergy_suite=synergy_suite,
         run_interventions=run_interventions,
         scale=None,
+        still=lambda _rows, _domains: dict(held_moves or {}),
     )
 
 
@@ -289,3 +297,19 @@ def test_a_cut_with_a_one_domain_side_still_reads_three_sources() -> None:
     rest = ("P", "I", "A", "G", "S", "M", "W", "D", "N")
     watched = _watched_across_the_cut(("C",), rest)
     assert len(watched) == 3 and watched[0] == "C"
+
+
+def test_a_held_side_that_moved_is_not_this_lesion() -> None:
+    """A deficit measured while information still crossed the cut is not the
+    deficit of the cut, however large it is."""
+    out = _run(cut_costs=0.5, rescue_returns=0.4, held_moves={"G.winner_source_2": 1.4})
+    assert out["severed_inactive"] is False
+    assert out["severed_moved"] == {"G.winner_source_2": 1.4}
+    assert out["deficit"] is False
+
+
+def test_a_held_side_that_stayed_still_is_reported_as_severed() -> None:
+    out = _run(cut_costs=0.5, rescue_returns=0.4)
+    assert out["severed_inactive"] is True
+    assert out["deficit"] is True
+

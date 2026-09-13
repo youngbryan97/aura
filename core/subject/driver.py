@@ -762,6 +762,13 @@ class SubjectRuntime:
             )
             await self._integrate_substrate(self.frame_index)
             self.frame_index += 1
+            # A held domain is written back here as well as after each phase.
+            # The layers and the substrate step inside this capture, after the
+            # last phase's write-back, and the turn's objective and origin are
+            # set before the first phase runs; without this each of them moved
+            # the held side before it was read.
+            if self.after_phase is not None:
+                self.after_phase()
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:

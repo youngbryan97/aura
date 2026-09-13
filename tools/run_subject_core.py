@@ -687,6 +687,8 @@ async def _lesion(
     synergy_suite: Any,
     run_interventions: Any,
     scale: Any,
+    *,
+    still: Any = None,
 ) -> dict[str, Any]:
     """Cut the channels across the cheapest partition, measure, restore, measure.
 
@@ -718,6 +720,9 @@ async def _lesion(
     stretch of life, and a deficit smaller than that is drift.
     """
     from core.subject.battery import DEFICIT_SHARE, RECOVERY_TOLERANCE
+
+    if still is None:
+        from core.subject.clamp import still
 
     smaller = min(phi.best_cut, key=len)
     larger = max(phi.best_cut, key=len)
@@ -819,9 +824,11 @@ async def _lesion(
         held_first, held_second = (right, left) if first_is_left else (left, right)
         with clamped(runtime, held_first):
             frames_first, results_first = await _live(workload, seed + 2)
+        moved_first = still(frames_first, held_first)
         runtime.restore(start)
         with clamped(runtime, held_second):
             frames_second, results_second = await _live(workload, seed + 3)
+        moved_second = still(frames_second, held_second)
         left_frames, left_results = (
             (frames_first, results_first) if first_is_left else (frames_second, results_second)
         )
@@ -849,6 +856,7 @@ async def _lesion(
             "cycle": index,
             "left_ran_first": first_is_left,
             "conditions": [c.name for c in workload],
+            "severed_moved": {"first": moved_first, "second": moved_second},
             "intact": intact,
             "drift_arm": drift,
             "baseline": baseline,
@@ -896,7 +904,15 @@ async def _lesion(
     # back, which is a tolerance set before the experiment and not "rescued is
     # larger than cut", a comparison two noisy readings pass half the time.
     judged = [key for key in measures if real[key] and over_drift[key]]
-    deficit = bool(judged) and all(deltas[key] > 0 for key in judged)
+    # A deficit measured while the held side still moved is not the deficit of
+    # this lesion, because information was still crossing the cut.
+    severed_moved: dict[str, float] = {}
+    for cycle in every:
+        for moved in cycle["severed_moved"].values():
+            for name, amount in moved.items():
+                severed_moved[name] = max(amount, severed_moved.get(name, 0.0))
+    severed_inactive = not severed_moved
+    deficit = bool(judged) and all(deltas[key] > 0 for key in judged) and severed_inactive
     rescued_ok = bool(judged) and all(
         (fractions[key] or 0.0) >= RECOVERY_TOLERANCE for key in judged
     )
@@ -948,6 +964,8 @@ async def _lesion(
         "judged_on": judged,
         "recovery_tolerance": RECOVERY_TOLERANCE,
         "deficit_share": DEFICIT_SHARE,
+        "severed_inactive": severed_inactive,
+        "severed_moved": dict(sorted(severed_moved.items(), key=lambda pair: -pair[1])),
         "deficit": deficit,
         "rescued_ok": rescued_ok,
     }
