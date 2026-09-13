@@ -35,6 +35,7 @@ from core.learning.semantic_input_grounding import (
     SemanticInputGroundingContract,
     semantic_input_grounding_contract_from_dict,
 )
+from core.learning.semantic_operation_view_refit import valid_operation_view_contract
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
@@ -451,7 +452,9 @@ class CompositionalSemanticProgramTransducer:
             or self.operation_pointer.width != self.hidden_size
             or self.argument_pointer.width != self.hidden_size
             or self.definition_pointer.width != self.hidden_size
-            or self.operation_head.modes != (_OPERATION_MODE,)
+            or not valid_operation_view_contract(
+                self.operation_head, receipt, self.hidden_channels, self.hidden_channel_widths
+            )
             or not self.argument_role_heads
             or len(self.argument_proposal_heads) != len(self.argument_role_heads)
             or any(
@@ -725,20 +728,21 @@ class CompositionalSemanticProgramTransducer:
             head.start_bias,
             np.zeros_like(head.end_weight),
             head.end_bias,
+            np.zeros_like(head.pair_weight) if head.pair_weight is not None else None,
         )
-        operation_component = self.operation_head.heads[0]
         return self._with_coefficients(
             operation_pointer=zero_pointer(self.operation_pointer),
             argument_pointer=zero_pointer(self.argument_pointer),
             definition_pointer=zero_pointer(self.definition_pointer),
             operation_head=MultiViewClassifierHead(
                 self.operation_head.modes,
-                (
+                tuple(
                     LinearClassifierHead(
                         operation_component.labels,
                         np.zeros_like(operation_component.weight),
                         operation_component.bias,
-                    ),
+                    )
+                    for operation_component in self.operation_head.heads
                 ),
             ),
             argument_role_heads=tuple(
@@ -771,6 +775,7 @@ class CompositionalSemanticProgramTransducer:
             self.definition_pointer.start_bias,
             np.zeros_like(self.definition_pointer.end_weight),
             self.definition_pointer.end_bias,
+            np.zeros_like(self.definition_pointer.pair_weight) if self.definition_pointer.pair_weight is not None else None,
         )
         return self._with_coefficients(
             definition_pointer=zero_definition_pointer,
@@ -1787,6 +1792,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
         float(value["start_bias"]),
         np.asarray(value["end_weight"], dtype=np.float32),
         float(value["end_bias"]),
+        value.get("pair_weight"),
     )
 
 
@@ -1801,20 +1807,20 @@ def compositional_semantic_program_transducer_from_dict(
     if (
         not isinstance(operation, Mapping)
         or operation.get("schema") != "aura.semantic_program_multiview_classifier.v1"
-        or operation.get("modes") != [_OPERATION_MODE]
+        or not isinstance(operation.get("modes"), list)
         or not isinstance(operation.get("heads"), list)
-        or len(operation["heads"]) != 1
+        or len(operation["heads"]) != len(operation["modes"])
     ):
         raise ValueError("compositional operation head payload is invalid")
-    raw_head = operation["heads"][0]
     operation_head = MultiViewClassifierHead(
-        (_OPERATION_MODE,),
-        (
+        tuple(operation["modes"]),
+        tuple(
             LinearClassifierHead(
                 tuple(raw_head["labels"]),
                 np.asarray(raw_head["weight"], dtype=np.float32),
                 np.asarray(raw_head["bias"], dtype=np.float32),
-            ),
+            )
+            for raw_head in operation["heads"]
         ),
     )
     relation = payload["definition_relation_head"]

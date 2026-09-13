@@ -621,14 +621,15 @@ def _operation_nodes(
         if any(_overlap(span, input_span) for input_span in input_spans):
             continue
         operation, confidence = classifier.predict(
-            (
+            tuple(
                 _operation_feature(
                     hidden,
                     span,
-                    mode=_OPERATION_MODE,
+                    mode=mode,
                     hidden_channels=hidden_channels,
                     hidden_channel_widths=hidden_channel_widths,
-                ),
+                )
+                for mode in classifier.modes
             )
         )
         score = float(pointer_score + math.log(max(confidence, 1e-12)))
@@ -1671,7 +1672,6 @@ def _select_operation_length_penalty(
             tuple[tuple[float, tuple[_OperationNode, ...]], ...],
         ]
     ] = []
-    average_scores: list[float] = []
     for item in validation:
         nodes = _operation_nodes(
             pointer=pointer,
@@ -1685,12 +1685,18 @@ def _select_operation_length_penalty(
         by_count = tuple(
             _best_nonoverlapping_nodes(nodes, count) for count in range(1, max_steps + 1)
         )
-        average_scores.extend(
-            score / count
-            for count, (score, _selected) in enumerate(by_count, start=1)
-            if math.isfinite(score)
-        )
         cached.append((item, by_count))
+    return _calibrate_operation_charts(cached)
+
+
+def _calibrate_operation_charts(cached):
+    """Calibrate source-ordered charts independently of execution order."""
+    average_scores = [
+        score / count
+        for _item, by_count in cached
+        for count, (score, _selected) in enumerate(by_count, start=1)
+        if math.isfinite(score)
+    ]
     if not average_scores:
         raise ValueError("compositional operation chart has no validation candidates")
     penalties = np.linspace(
@@ -1706,10 +1712,11 @@ def _select_operation_length_penalty(
         graph_exact = 0
         for item, by_count in cached:
             selected = _best_penalized_operation_chart(by_count, penalty=penalty)
+            expected = sorted(item.ir.instructions, key=lambda instruction: (instruction.operation_span.start, instruction.operation_span.end))
             expected_spans = tuple(
-                instruction.operation_span for instruction in item.ir.instructions
+                instruction.operation_span for instruction in expected
             )
-            expected_operations = tuple(instruction.op for instruction in item.ir.instructions)
+            expected_operations = tuple(instruction.op for instruction in expected)
             observed_spans = tuple(node.span for node in selected)
             observed_operations = tuple(node.operation for node in selected)
             span_exact += int(observed_spans == expected_spans)
@@ -1723,7 +1730,7 @@ def _select_operation_length_penalty(
                 "graph_exact": graph_exact,
                 "span_exact": span_exact,
                 "operation_exact": operation_exact,
-                "validation_examples": len(validation),
+                "validation_examples": len(cached),
             }
         )
     winner = max(

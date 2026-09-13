@@ -694,6 +694,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and scores 47/48 exposed weave answers; both causal controls score 0/48.
   Exhaustive solver tests cover consistent definitions across repeated uses.
   The candidate is development-only; G03 remains open.
+  [Operation-view selection](evidence/G03_OPERATION_VIEWS_2026-09-13.md)
+  corrects chart calibration's source/execution order mismatch. Predicted-chart
+  view selection reaches 454/500 source answers with five regressions; adding
+  the pairwise argument ranker reaches 458/500 with eight regressions. Both
+  retain 47/48 exposed weave answers and lose the gain under both controls.
+  Arithmetic diagnostics locate the remaining reversals in register linking,
+  despite correctly selected argument phrases and slots. No promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -706,6 +713,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
+  2026-09-13: the activation alarm detects a changed signed steering contract
+  with unchanged model path and zero drifted source files. G10/G11 must qualify
+  that configuration; the earlier evidence has not been relabeled.
 - [ ] G12 Evaluate frontier performance against named current baselines on
   independent broad tasks, with resource and tool access reported fairly.
 - [x] G13 Update public RLC documentation to precisely match measured claims.
