@@ -649,6 +649,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   corrects source-training annotations and recovers 46/48 weave answers, but
   372/500 source answers with 66 regressions prevents promotion. Consistent
   joint definition selection is the next development candidate.
+  [Joint definition selection](evidence/G03_JOINT_DEFINITIONS_2026-09-13.md)
+  reaches 444/500 source answers and 192/192 exact fork/join programs with
+  unchanged learned coefficients. It retains seven source answer regressions
+  and scores 47/48 exposed weave answers; both causal controls score 0/48.
+  Exhaustive solver tests cover consistent definitions across repeated uses.
+  The candidate is development-only; G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

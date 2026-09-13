@@ -513,6 +513,12 @@ class CompositionalSemanticProgramTransducer:
             not in {"positive_relation_v1", "joint_graph_v1"}
             or receipt.get("definition_boundary_policy", "register_neighbors_v1")
             not in {"register_neighbors_v1", "source_neighbors_v1"}
+            or receipt.get("definition_selection_policy", "pointer_first_v1")
+            not in {"pointer_first_v1", "joint_graph_v1"}
+            or (
+                receipt.get("definition_selection_policy") == "joint_graph_v1"
+                and receipt.get("argument_search_strategy") != "global_constraint_v1"
+            )
             or (
                 receipt.get("forward_reference_policy") == "joint_graph_v1"
                 and receipt.get("argument_search_strategy") != "global_constraint_v1"
@@ -873,6 +879,15 @@ class CompositionalSemanticProgramTransducer:
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
         body["definition_boundary_policy"] = "source_neighbors_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_joint_definition_graph(self) -> CompositionalSemanticProgramTransducer:
+        """Resolve one consistent definition per register using all selected uses."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["definition_selection_policy"] = "joint_graph_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
