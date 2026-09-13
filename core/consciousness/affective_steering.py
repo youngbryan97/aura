@@ -113,6 +113,7 @@ from typing import Any
 import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
+from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import state_root
@@ -1549,10 +1550,9 @@ class AffectiveSteeringHook:
                         # per-model guess.
                         scale = hook._residual_reference_scale(h)
                         mask = hook._completion_position_mask(h)
-                        if mask is not None:
-                            h = h + (mask * (effective_alpha * scale) * composite)
-                        else:
-                            h = h + (effective_alpha * scale) * composite
+                        h = _inject(
+                            h, (effective_alpha * scale) * composite, mask=mask
+                        )
 
                     # Diagnostic
                     hook._inject_count += 1

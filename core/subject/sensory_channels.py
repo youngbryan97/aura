@@ -155,7 +155,7 @@ def _audio() -> list[tuple[str, float]]:
 def _host() -> list[tuple[str, float]]:
     """Her own body: load, thermals, memory. Always available, and the reason
     this list is never empty even on a machine that grants nothing."""
-    import psutil
+    from core.runtime import resource_psutil as psutil
 
     load = float(psutil.cpu_percent(interval=None)) / 100.0
     memory = psutil.virtual_memory()

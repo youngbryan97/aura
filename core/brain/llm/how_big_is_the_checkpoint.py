@@ -27,7 +27,7 @@ import pathlib
 from pathlib import Path
 from typing import Any
 
-import psutil
+from core.runtime import resource_psutil as psutil
 
 logger = logging.getLogger("LLM.MLX")
 

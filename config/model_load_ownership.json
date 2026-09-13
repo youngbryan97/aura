@@ -678,6 +678,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/run_recurrent_depth_arms.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/run_recurrent_grpo_behavioral_canary.py",
       "purpose": "training"
     },
@@ -821,6 +832,17 @@
       ],
       "ownership_mode": "standalone_process",
       "path": "tools/selfplay_harvest.py"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
+      "path": "tools/sweep_steering_injection_geometry.py",
+      "purpose": "evaluation"
     },
     {
       "expected_load_references": 1,
