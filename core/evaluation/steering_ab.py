@@ -183,6 +183,15 @@ class SteeringABReport:
     #: direction was never measured — which is a failure to establish it, not
     #: a neutral omission.
     direction: ABComparison | None = None
+    #: The same movement for each specificity control. Specificity is a claim
+    #: about the BEHAVIOUR a control reproduces, and divergence cannot carry
+    #: it: measured on the 27B, a norm-matched random direction at sixteen
+    #: layers scored -0.0833 on the target against the treatment's +1.3333 —
+    #: inert — while reproducing 98.6% of the treatment's divergence and a
+    #: LARGER standardised effect. Judged on divergence that control fails the
+    #: predicate, and so would every activation intervention that has ever been
+    #: run, because what divergence measures is how hard the stream was pushed.
+    control_directions: dict[str, ABComparison] = field(default_factory=dict)
     #: How far the baseline moves from its own replicate. The number every
     #: divergence in this report has to be read against.
     baseline_self_distance: float = 0.0
@@ -223,29 +232,43 @@ class SteeringABReport:
         """
         if "zero_vector" not in self.control_effects:
             return False
-        if self.control_effects["zero_vector"].significant:
+        if self.direction is None:
             return False
-        steered_d = self.steered_effect.effect_size_d
+        treatment = self.direction.observed_delta
+        if treatment <= 0.0:
+            return False
+        zero = self.control_directions.get("zero_vector")
+        if zero is None or zero.significant:
+            return False
         for name in ("random_vector", "shuffled_layers"):
-            control = self.control_effects.get(name)
+            control = self.control_directions.get(name)
             if control is None:
-                return False
-            if control.effect_size_d >= steered_d:
                 return False
             if not control.significant:
                 continue
-            if steered_d <= 0.0:
-                return False
-            if control.effect_size_d > self.SPECIFICITY_CONTROL_CEILING * steered_d:
+            if control.observed_delta > self.SPECIFICITY_CONTROL_CEILING * treatment:
                 return False
         return True
 
     @property
     def beats_text_controls(self) -> bool:
-        """Steering must move the output further than the prompt conditions do."""
+        """Steering must move the output further than the prompt conditions do.
+
+        How FAR is `observed_delta`. This compared `effect_size_d`, which is
+        that distance divided by its spread across trials, and so asked how
+        CONSISTENTLY instead. The two parted company on the 27B: steering moved
+        the output 0.1769 against the rich prompt's 0.1275 and was called the
+        smaller effect, because a prompt prefix does the same thing to every
+        task and a vector does not.
+
+        The same substitution was already found and fixed once, in
+        :attr:`adds_to_text`, whose first version compared the combined
+        condition's `d` and reported False while the affect score went 1.36 to
+        3.61. This is that defect in the property next to it.
+        """
         return (
-            self.steered_effect.effect_size_d > self.terse_effect.effect_size_d
-            and self.steered_effect.effect_size_d > self.rich_effect.effect_size_d
+            self.steered_effect.observed_delta > self.terse_effect.observed_delta
+            and self.steered_effect.observed_delta > self.rich_effect.observed_delta
         )
 
     @property
@@ -324,6 +347,9 @@ class SteeringABReport:
                 name: asdict(effect) for name, effect in self.control_effects.items()
             },
             "direction": asdict(self.direction) if self.direction else None,
+            "control_directions": {
+                name: asdict(shift) for name, shift in self.control_directions.items()
+            },
             "baseline_self_distance": self.baseline_self_distance,
             "steered_vs_baseline_mean_distance": self.steered_vs_baseline_mean_distance,
             "rich_vs_baseline_mean_distance": self.rich_vs_baseline_mean_distance,
@@ -357,6 +383,33 @@ def _require_outputs(
         if len(values) != n:
             raise ValueError(f"condition {name} has {len(values)} trials, expected {n}")
     return required, controls
+
+
+def adversarial_control_fingerprint() -> str:
+    """A digest of the four predicates a verdict is refused by.
+
+    A committed verdict and its committed samples must not silently disagree,
+    and until now a disagreement had exactly one reading: somebody edited a
+    file. There is a second, and it happened -- a predicate was corrected, and
+    every verdict derived under the old one stopped re-deriving.
+
+    Recording this beside a verdict separates the two. The digest is taken from
+    the source of the predicates themselves, so it cannot go stale the way a
+    hand-kept version number does.
+    """
+    import hashlib
+    import inspect
+
+    source = "".join(
+        inspect.getsource(getattr(SteeringABReport, name).fget)
+        for name in (
+            "effect_exceeds_sampling_noise",
+            "effect_is_specific",
+            "beats_text_controls",
+            "direction_established",
+        )
+    )
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
 def analyze_steering_ab(
@@ -413,6 +466,18 @@ def analyze_steering_ab(
             seed=seed + 99,
         )
 
+    control_directions: dict[str, ABComparison] = {}
+    if target_scores and "baseline" in target_scores:
+        for index, name in enumerate(sorted(controls)):
+            if name == COMBINED_CONDITION or name not in target_scores:
+                continue
+            control_directions[name] = paired_score_shift(
+                target_scores[name],
+                target_scores["baseline"],
+                n_resamples=n_resamples,
+                seed=seed + 200 + index,
+            )
+
     combined_direction: ABComparison | None = None
     if target_scores and {COMBINED_CONDITION, "text_rich_adversarial"} <= set(
         target_scores
@@ -459,6 +524,7 @@ def analyze_steering_ab(
         combined_effect=combined_effect,
         combined_direction=combined_direction,
         direction=direction,
+        control_directions=control_directions,
         baseline_self_distance=round(baseline_self, 6),
         steered_vs_baseline_mean_distance=round(steered_baseline_dist, 6),
         rich_vs_baseline_mean_distance=round(rich_baseline_dist, 6),

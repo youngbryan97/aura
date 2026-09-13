@@ -94,6 +94,19 @@ def main(argv: list[str] | None = None) -> int:
         help="attention = the full-attention targets only; all = every target",
     )
     parser.add_argument(
+        "--layers",
+        default="",
+        help="explicit comma-separated layer indices, named 'chosen' in the "
+        "output. Overrides --layer-sets when given.",
+    )
+    parser.add_argument(
+        "--with-shuffle",
+        action="store_true",
+        help="run each steered cell twice, the second with the vectors "
+        "deranged among the steered layers. The specificity control the "
+        "campaign runs, measured before a campaign is spent on it.",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=REPO / "artifacts/migration/27b/recovery/injection_geometry_sweep.json",
@@ -110,7 +123,14 @@ def main(argv: list[str] | None = None) -> int:
     attention_targets = sorted(i for i, k in kinds.items() if k == "full_attention")
     layer_sets = {"attention": attention_targets, "all": all_targets}
 
-    wanted_sets = [name.strip() for name in arguments.layer_sets.split(",") if name.strip()]
+    chosen = [int(value) for value in arguments.layers.split(",") if value.strip()]
+    if chosen:
+        layer_sets = {"chosen": sorted(chosen)}
+        wanted_sets = ["chosen"]
+    else:
+        wanted_sets = [
+            name.strip() for name in arguments.layer_sets.split(",") if name.strip()
+        ]
     modes = [name.strip() for name in arguments.modes.split(",") if name.strip()]
     alphas = [float(value) for value in arguments.alphas.split(",") if value.strip()]
 
@@ -182,6 +202,33 @@ def main(argv: list[str] | None = None) -> int:
 
         settle()
 
+        saved = {index: dict(hook._vectors) for index, hook in hooks.items()}
+
+        def restore() -> None:
+            for index, hook in hooks.items():
+                hook._vectors = dict(saved[index])
+
+        def derange(layers: list[int], seed: int) -> None:
+            """The right vectors at the wrong layers, and no layer keeps its own.
+
+            The campaign's specificity control, run here so a layer set can be
+            chosen on what the control does to it rather than after a campaign
+            has been spent finding out.
+            """
+            import random
+
+            order = list(layers)
+            shuffler = random.Random(seed)
+            for _ in range(64):
+                shuffler.shuffle(order)
+                if all(a != b for a, b in zip(layers, order, strict=True)):
+                    break
+            else:  # pragma: no cover - a rotation is always a derangement
+                order = layers[1:] + layers[:1]
+            moved = {layer: dict(saved[source]) for layer, source in zip(layers, order, strict=True)}
+            for layer, vectors in moved.items():
+                hooks[layer]._vectors = vectors
+
         def set_alpha(layers: list[int], value: float) -> None:
             for index, hook in hooks.items():
                 hook._alpha = float(value) if index in layers else 0.0
@@ -210,8 +257,19 @@ def main(argv: list[str] | None = None) -> int:
 
         cells: list[dict] = []
 
-        def run_cell(label: str, *, prefix: str = "", layers=(), alpha=0.0, mode="translate"):
+        def run_cell(
+            label: str,
+            *,
+            prefix: str = "",
+            layers=(),
+            alpha=0.0,
+            mode="translate",
+            shuffled: bool = False,
+        ):
             os.environ["AURA_STEERING_INJECTION"] = mode
+            restore()
+            if shuffled:
+                derange(list(layers), seed=20260913)
             set_alpha(list(layers), alpha)
             outputs: list[str] = []
             began = time.time()
@@ -224,6 +282,7 @@ def main(argv: list[str] | None = None) -> int:
             row = {
                 "label": label,
                 "mode": mode,
+                "shuffled": shuffled,
                 "layers": list(layers),
                 "alpha": alpha,
                 "prefix": prefix,
@@ -284,7 +343,16 @@ def main(argv: list[str] | None = None) -> int:
                         alpha=alpha,
                         mode=mode,
                     )
+                    if arguments.with_shuffle:
+                        run_cell(
+                            f"{mode}/{set_name}/a{alpha} SHUFFLED",
+                            layers=layers,
+                            alpha=alpha,
+                            mode=mode,
+                            shuffled=True,
+                        )
 
+        restore()
         set_alpha([], 0.0)
         os.environ["AURA_STEERING_INJECTION"] = "translate"
 

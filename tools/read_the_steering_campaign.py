@@ -44,8 +44,14 @@ def read(result: dict) -> dict:
     analysis = replay.get("analysis") or {}
     trials = int(result.get("n_trials_per_task") or 0)
     tasks = len(result.get("held_out_tasks") or ())
+    from core.evaluation.steering_ab import adversarial_control_fingerprint
+
     return {
         "schema": "aura.caa.campaign_verdict.v2",
+        # Which adjudication refused it. A verdict and its samples disagreeing
+        # used to have one reading -- an edited file -- and it has a second:
+        # a corrected predicate, which is what happened on 2026-09-13.
+        "adjudication_sha256": adversarial_control_fingerprint(),
         "alpha": result.get("alpha"),
         "model_descriptor_sha256": result.get("model_descriptor_sha256"),
         "vectors": result.get("vectors") or "",
