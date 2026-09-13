@@ -1200,7 +1200,7 @@ def _nulls(
             toy = toy_recording(system, steps=2500, seed=args.seed + draw)
             values.append(round(phi_do(toy).phi, 5))
             if draw == 0:
-                edges = toy_edges(system, trials=16, seed=args.seed)
+                edges = toy_edges(system, trials=args.trials, seed=args.seed)
                 graphs.append(analyse_graph(domains, edges))
         graph = graphs[0]
         # And whether the null's own core is closed. A broker outside K makes

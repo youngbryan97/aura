@@ -32,7 +32,6 @@ over the same horizon, so the graph measures get a null too.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -567,6 +566,13 @@ def _peak_effects(
     return {pair: float(np.mean(values)) for pair, values in effects.items()}
 
 
+#: Where a dose search starts, how many trials each round reads, and the
+#: bounds that stop a domain no writer can move from running its dose away.
+DOSE_START: float = 0.5
+DOSE_TRIALS: int = 4
+DOSE_BOUNDS: tuple[float, float] = (0.05, 20.0)
+
+
 def toy_doses(
     system: ToySystem,
     *,
@@ -583,38 +589,195 @@ def toy_doses(
     """
     warm = toy_recording(system, steps=800, seed=seed + 1)
     scale = {key: float(np.mean(warm.domain(key).std(axis=0))) or 1.0 for key in DOMAINS}
-    deltas = {key: 0.5 for key in DOMAINS}
+    deltas = {key: DOSE_START for key in DOMAINS}
     for _ in range(max(1, rounds)):
         measured = _peak_effects(
-            system, deltas, scale, trials=4, horizon=horizon, seed=seed
+            system, deltas, scale, trials=DOSE_TRIALS, horizon=horizon, seed=seed
         )
         for key in DOMAINS:
             own = max(1e-6, measured[(key, key)])
-            deltas[key] = float(np.clip(deltas[key] * (target / own), 0.05, 20.0))
+            deltas[key] = float(np.clip(deltas[key] * (target / own), *DOSE_BOUNDS))
     return deltas, scale
+
+
+#: How many ordinary conditions the real battery runs, which is how many
+#: independent start regimes a null gets. A test holds it equal to the
+#: driver's list, so the replication bar asks the same count of both.
+NULL_CONDITIONS: int = 8
+
+#: Where in the arm the displacement lands, cycled over trials exactly as the
+#: real run cycles it.
+NULL_INJECTION_POINTS: tuple[int, ...] = (0, 8, 16)
+
+
+def _arm(
+    system: ToySystem,
+    state: dict[str, np.ndarray],
+    *,
+    horizon: int,
+    noise: int,
+    source: str | None = None,
+    dose: float = 0.0,
+    where: int = 0,
+) -> list[_ToyFrame]:
+    rng = np.random.default_rng(noise)
+    current = {key: value.copy() for key, value in state.items()}
+    frames: list[_ToyFrame] = []
+    for step in range(horizon):
+        if source is not None and step == where:
+            # A new dict. The last frame holds the old one, and writing the dose
+            # into it moved that frame too: a displacement at step eight showed
+            # at lag seven, before it happened, twice as large as it was.
+            current = {**current, source: current[source] + dose}
+        current = system.step(current, rng)
+        frames.append(_ToyFrame(current))
+    return frames
+
+
+def _doses_by_trial_divergence(
+    system: ToySystem,
+    scale: dict[str, np.ndarray],
+    *,
+    target: float,
+    horizon: int,
+    seed: int,
+) -> dict[str, float]:
+    """Each domain's dose, found with the measure its trials are scored with.
+
+    `toy_doses` corrects against a mean RMS gap over a domain's columns, and a
+    trial is scored by the largest per-column gap. Doses matched under the
+    first landed between two and ten standard deviations under the second on
+    the broadcast null, so the matching did not match what was measured. The
+    rounds, the trials per round and the bounds on a dose are `toy_doses`'s
+    own.
+    """
+    import inspect
+
+    from core.subject.causal import _paired_divergence
+
+    defaults = inspect.signature(toy_doses).parameters
+    rounds = defaults["rounds"].default
+    doses = {key: DOSE_START for key in DOMAINS}
+    for _ in range(rounds):
+        moved: dict[str, list[float]] = {key: [] for key in DOMAINS}
+        for trial in range(DOSE_TRIALS):
+            life = np.random.default_rng(seed + 100 + trial)
+            state = system.start(life)
+            for _ in range(20):
+                state = system.step(state, life)
+            noise = seed + 500 + trial
+            sham = _arm(system, state, horizon=horizon, noise=noise)
+            for source in DOMAINS:
+                displaced = _arm(
+                    system, state, horizon=horizon, noise=noise, source=source, dose=doses[source]
+                )
+                effect, _, _, _ = _paired_divergence(displaced, sham, sham, scale)
+                moved[source].append(effect.get(source, 0.0))
+        for source in DOMAINS:
+            reached = max(1e-6, float(np.median(moved[source])))
+            doses[source] = float(np.clip(doses[source] * (target / reached), *DOSE_BOUNDS))
+    return doses
+
+
+class _ToyFrame:
+    """One step of a toy system, readable the way a real frame is read."""
+
+    __slots__ = ("state",)
+
+    def __init__(self, state: dict[str, np.ndarray]) -> None:
+        self.state = state
+
+    def domain(self, key: str) -> np.ndarray:
+        return self.state[key]
+
+
+def toy_interventions(
+    system: ToySystem,
+    *,
+    trials: int,
+    conditions: int = NULL_CONDITIONS,
+    horizon: int = NULL_HORIZON,
+    seed: int = 0,
+    target: float = SELF_EFFECT_TARGET,
+) -> Any:
+    """Every paired trial the real run makes, made on a toy system.
+
+    The same shape as `core.subject.causal.run_interventions`: in each of
+    `conditions` start regimes the system lives on between trials, every domain
+    is displaced at a cycled point against two sham arms from the same state
+    and the same noise, and effect and floor are read off one column by
+    `_paired_divergence`. A toy has no workloads, so a condition here is an
+    independent start with its own warm-up and noise. That is a weaker kind of
+    variation than a different workload, and the count is the same.
+    """
+    from core.subject.causal import InterventionSet, Trial, _paired_divergence
+
+    warm = toy_recording(system, steps=800, seed=seed + 1)
+    scale = {key: np.asarray(warm.domain(key).std(axis=0), dtype=np.float64) for key in DOMAINS}
+    doses = _doses_by_trial_divergence(system, scale, target=target, horizon=horizon, seed=seed)
+    out = InterventionSet(scale=scale, delta=float(np.mean(list(doses.values()))))
+    for regime in range(conditions):
+        name = f"regime_{regime}"
+        life = np.random.default_rng(seed + 1000 + regime)
+        state = system.start(life)
+        for _ in range(20):
+            state = system.step(state, life)
+        for index in range(trials):
+            state = system.step(state, life)
+            where = NULL_INJECTION_POINTS[index % len(NULL_INJECTION_POINTS)]
+            noise = seed + 5000 + 1000 * regime + index
+            for source in DOMAINS:
+                arms = {
+                    "pert": _arm(
+                        system, state, horizon=horizon, noise=noise,
+                        source=source, dose=doses[source], where=where,
+                    ),
+                    "sham_a": _arm(system, state, horizon=horizon, noise=noise),
+                    "sham_b": _arm(system, state, horizon=horizon, noise=noise),
+                }
+                effect, floor, trace, floor_trace = _paired_divergence(
+                    arms["pert"], arms["sham_a"], arms["sham_b"], scale
+                )
+                out.trials.append(
+                    Trial(
+                        source=source,
+                        condition=name,
+                        index=index,
+                        effect=effect,
+                        floor=floor,
+                        trace=trace,
+                        floor_trace=floor_trace,
+                        took=True,
+                        self_effect=effect.get(source, 0.0) - floor.get(source, 0.0),
+                        injected_at=where,
+                    )
+                )
+        out.lags = max(out.lags, horizon)
+    return out
 
 
 def toy_edges(
     system: ToySystem,
     *,
-    trials: int = 40,
+    trials: int = 6,
+    conditions: int = NULL_CONDITIONS,
     horizon: int = NULL_HORIZON,
     seed: int = 0,
-    effect_min: float = 0.3,
     target: float = SELF_EFFECT_TARGET,
 ) -> list[tuple[str, str]]:
-    """Perturb each domain to a matched dose and keep the targets that moved.
+    """The edges a null's trials support, by the real run's rule.
 
-    Same bar as the real run, and the same number of frames to reach it, so
-    that "this architecture's graph is not strongly connected" is a statement
-    about the architecture.
+    The graph of a null used to be every pair whose mean peak displacement
+    reached 0.3: no sham floor, no test, no correction across the ninety pairs
+    and no replication, where the real graph needs all four. A null judged by a
+    looser rule than the organism is not a comparison. Its trials now go
+    through `build_edges` with the preregistered q-value, effect and
+    replication bars.
     """
-    deltas, scale = toy_doses(system, target=target, horizon=horizon, seed=seed)
-    measured = _peak_effects(
-        system, deltas, scale, trials=trials, horizon=horizon, seed=seed
+    from core.subject.causal import build_edges
+
+    results = toy_interventions(
+        system, trials=trials, conditions=conditions, horizon=horizon, seed=seed, target=target
     )
-    return [
-        pair
-        for pair, value in measured.items()
-        if pair[0] != pair[1] and value >= effect_min
-    ]
+    edges, _ = build_edges(results, seed=seed)
+    return [(edge.source, edge.target) for edge in edges]
