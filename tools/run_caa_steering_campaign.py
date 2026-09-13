@@ -251,7 +251,14 @@ def main(argv: list[str] | None = None) -> int:
         # in it. The replicate exists to give that null a width.
         sampler = make_sampler(temp=float(arguments.temperature), top_p=0.95)
 
-        def decode(prompt: str, seed: int) -> str:
+        def decode(prompt: str, seed: int, steered: bool = False) -> str:
+            # Re-stamped before every sample. `_effective_alpha` derates to
+            # _STALE_SAFE_ALPHA 120 seconds after the last substrate update, and
+            # a condition that settles once then decodes twenty-four samples
+            # runs most of them derated -- so the condition would carry the
+            # label of an alpha it stopped using after the fifth sample.
+            if steered:
+                settle(STATE_HIGH, rounds=2)
             mx.random.seed(seed)
             messages = [{"role": "user", "content": prompt}]
             text = tokenizer.apply_chat_template(
@@ -282,7 +289,11 @@ def main(argv: list[str] | None = None) -> int:
             for task_index, task in enumerate(HELD_OUT_TASKS):
                 for trial in range(trials):
                     outputs.append(
-                        decode(prefix + task, seed_base + task_index * 1000 + trial)
+                        decode(
+                            prefix + task,
+                            seed_base + task_index * 1000 + trial,
+                            steered=steered,
+                        )
                     )
             conditions[name] = outputs
             print(f"  {name:22s} {len(outputs)} samples", flush=True)
