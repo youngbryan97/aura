@@ -1375,9 +1375,16 @@ class ResearchSearchPipeline:
             )
         # Use much more content per source for M5/64GB — 8000 chars for deep, 4000 for standard
         chars_per_source = 8000 if len(top_chunks) <= 3 else 4000
+        # A fetched page is the whole of indirect prompt injection: it does
+        # not act, it persuades the instructions around it. Each source goes
+        # in behind a fence with a per-call id, so a page cannot end its own
+        # block and speak as the analyst. Threat model #13.
+        from core.security.prompt_fencing import fence
+
         for index, item in enumerate(top_chunks, start=1):
             prompt_lines.append(
-                f"[{index}] {item['title']} | {item['url']}\n{item['text'][:chars_per_source]}"
+                f"[{index}] {item['title']} | {item['url']}\n"
+                + fence(item["text"], label=f"fetched page {index}", limit=chars_per_source)
             )
 
         # Deep mode gets more synthesis time for thorough analysis
