@@ -283,21 +283,23 @@ CONDITIONS: tuple[Condition, ...] = (
 # imported rather than reachable only through it, because 29 call sites
 # already ask the driver for these names.
 from core.subject.snapshot import (  # noqa: E402
+    _UNFORKED_SERVICES,
     SUBSTRATE_BODY,
     Snapshot,
-    _HeldObserver,
-    _UNFORKED_SERVICES,
     _built_services,
     _differs,
     _effort_state,
+    _HeldObserver,
     _intentions_state,
     _lifetime_last,
+    _module_state,
     _moments_of,
     _organ_state,
     _reanchor,
     _restore_effort,
     _restore_intentions,
     _restore_lifetime_last,
+    _restore_module_state,
     _restore_moments,
     _restore_organ,
     _restore_services,
@@ -334,6 +336,7 @@ class SubjectRuntime:
     #: is what calibration itself runs under.
     forked_services: set[str] | None = None
     forked_phases: set[str] | None = None
+    forked_modules: set[str] | None = None
     #: Called after every phase when a lesion is in force. See core.subject.clamp.
     after_phase: Any = None
     #: Host readings held constant for the duration of a paired trial. The body
@@ -430,10 +433,12 @@ class SubjectRuntime:
         """
         before_services = _service_state(None)
         before_phases = self._phase_state()
+        before_modules = {key: kept for key, (_, kept) in _module_state(None, self._fork_skip()).items()}
         for condition in conditions:
             await self.turn_once(condition)
         after_services = _service_state(None)
         after_phases = self._phase_state()
+        after_modules = {key: kept for key, (_, kept) in _module_state(None, self._fork_skip()).items()}
 
         def moved(before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]) -> set[str]:
             names = set(before) | set(after)
@@ -441,40 +446,20 @@ class SubjectRuntime:
 
         self.forked_services = moved(before_services, after_services)
         self.forked_phases = moved(before_phases, after_phases)
+        self.forked_modules = moved(before_modules, after_modules)
         return {
             "services_carried": sorted(self.forked_services),
             "services_seen": len(before_services | after_services.keys()),
             "phases_carried": sorted(self.forked_phases),
+            "modules_carried": sorted(self.forked_modules),
+            "modules_seen": len(before_modules | after_modules.keys()),
         }
 
     def _phase_state(self, only: set[str] | None = None) -> dict[str, dict[str, Any]]:
         # Everything the container already holds is carried under its own name,
         # and the kernel is the machinery rather than the state. What is left
-        # is what a phase kept for itself — including the module-level
-        # singletons it caches, which no container knows about.
-        skip = frozenset(
-            {
-                id(self.kernel),
-                id(self),
-                *(id(obj) for obj in _built_services().values()),
-                # The organs are carried by name and are the largest objects in
-                # the process: the substrate alone holds a half-million weights,
-                # and copying it twice per fork is most of what a fork costs.
-                *(
-                    id(getattr(self.organs, field_name, None))
-                    for field_name in self.ORGAN_FIELDS
-                ),
-                # And the services the fork deliberately leaves alone. Reaching
-                # one of them through a phase is the same write the exclusion
-                # was written to prevent, and the mycelial topology logs a
-                # critical every time the guard refuses it.
-                *(
-                    id(obj)
-                    for name, obj in _built_services().items()
-                    if name in _UNFORKED_SERVICES
-                ),
-            }
-        )
+        # is what a phase kept for itself.
+        skip = self._fork_skip()
         out: dict[str, dict[str, Any]] = {}
         for phase in getattr(self.kernel, "_phases", []) or []:
             name = phase.__class__.__name__
@@ -497,6 +482,33 @@ class SubjectRuntime:
             if captured:
                 out[name] = captured
         return out
+
+    def _fork_skip(self) -> frozenset[int]:
+        """Objects carried under a name of their own, which a phase or a module
+        global reaching them must not carry a second time."""
+        return frozenset(
+            {
+                id(self.kernel),
+                id(self),
+                *(id(obj) for obj in _built_services().values()),
+                # The organs are carried by name and are the largest objects in
+                # the process: the substrate alone holds a half-million weights,
+                # and copying it twice per fork is most of what a fork costs.
+                *(
+                    id(getattr(self.organs, field_name, None))
+                    for field_name in self.ORGAN_FIELDS
+                ),
+                # And the services the fork deliberately leaves alone. Reaching
+                # one of them through a phase is the same write the exclusion
+                # was written to prevent, and the mycelial topology logs a
+                # critical every time the guard refuses it.
+                *(
+                    id(obj)
+                    for name, obj in _built_services().items()
+                    if name in _UNFORKED_SERVICES
+                ),
+            }
+        )
 
     def _restore_phases(self, saved: Mapping[str, dict[str, Any]]) -> None:
         if not saved:
@@ -621,6 +633,7 @@ class SubjectRuntime:
             lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
             singletons=_singleton_state(),
+            module_state=_module_state(self.forked_modules, self._fork_skip()),
             services=_service_state(self.forked_services),
             effort=_effort_state(),
             taken_at=time.time(),
@@ -662,6 +675,7 @@ class SubjectRuntime:
         _restore_torch_random(snapshot.torch_random)
         self._restore_phases(snapshot.phases)
         _restore_singletons(snapshot.singletons)
+        _restore_module_state(snapshot.module_state)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index

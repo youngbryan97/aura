@@ -18,11 +18,14 @@ import asyncio
 import contextlib
 import copy
 import enum
+import functools
 import importlib
 import inspect
 import logging
 import os
 import sqlite3
+import sys
+import types
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -1105,6 +1108,151 @@ def _restore_singletons(saved: Mapping[str, dict[str, Any]]) -> None:
             continue
 
 
+#: Packages whose module-level objects are the machinery rather than the mind:
+#: the seven foundation packages, whose DEPS files say what they may not reach,
+#: and the instrument. Rewinding the task tracker would forget tasks that are
+#: still running, rewinding lockdep would forget lock orders it has already
+#: proven, and an instrument that rewinds its own bookkeeping cannot report on
+#: the run it is keeping.
+_MACHINERY_PACKAGES: tuple[str, ...] = (
+    "core.fsw",
+    "core.health",
+    "core.observability",
+    "core.persistence",
+    "core.runtime",
+    "core.subject",
+    "core.utils",
+    "core.verify",
+)
+
+#: Where the organism's own code lives.
+_ORGANISM_PACKAGES: tuple[str, ...] = ("core", "interface", "llm", "skills")
+
+_CALLABLE_TYPES: tuple[type, ...] = (
+    types.FunctionType,
+    types.BuiltinFunctionType,
+    types.MethodType,
+    functools.partial,
+)
+
+_CONTAINERS: tuple[type, ...] = (dict, list, set, deque)
+
+
+def _in_packages(module_name: str, packages: tuple[str, ...]) -> bool:
+    return any(module_name == name or module_name.startswith(name + ".") for name in packages)
+
+
+def _is_held_state(value: Any) -> bool:
+    """Whether a module global is something the organism keeps, as opposed to
+    a constant, a class, a function or a handle."""
+    if isinstance(value, _CONTAINERS):
+        # A registry of callbacks is wiring. A deep copy of a bound method
+        # copies the object it is bound to, and restoring the copy would leave
+        # the registry calling an organ nobody else holds.
+        items = list(value.values()) if isinstance(value, dict) else list(value)
+        return not any(
+            isinstance(item, _CALLABLE_TYPES) or _is_process_furniture(item) for item in items
+        )
+    if (
+        isinstance(value, (type, enum.Enum, *_CALLABLE_TYPES))
+        or inspect.ismodule(value)
+        or _is_process_furniture(value)
+        or not _state_is_its_dict(value)
+    ):
+        return False
+    home = getattr(type(value), "__module__", "") or ""
+    return _in_packages(home, _ORGANISM_PACKAGES) and not _in_packages(home, _MACHINERY_PACKAGES)
+
+
+def _module_holdings(skip: frozenset[int] = frozenset()) -> dict[str, Any]:
+    """Every object the organism keeps at module scope, by `module:name`.
+
+    A service is carried under its name and a phase takes its own attributes
+    with it. Neither reaches the global behind an accessor: the peripheral
+    awareness engine, the narrative gravity centre, the higher-order thought
+    engine, the authority audit and more, each made on first use and kept in
+    an `_instance`-style name. Over three conversation arms off one snapshot,
+    every one of them started each arm a record longer than the arm before. So
+    they are found by scanning, and the two-entry hand list above is what
+    scanning replaced.
+    """
+    out: dict[str, Any] = {}
+    seen: set[int] = set(skip)
+    for module_name, module in sorted(sys.modules.items()):
+        if module is None or not _in_packages(module_name, _ORGANISM_PACKAGES):
+            continue
+        if _in_packages(module_name, _MACHINERY_PACKAGES):
+            continue
+        for name, value in list(vars(module).items()):
+            if name.startswith("__") or id(value) in seen or not _is_held_state(value):
+                continue
+            seen.add(id(value))
+            out[f"{module_name}:{name}"] = value
+    return out
+
+
+def _held(key: str) -> Any:
+    module_name, _, name = key.partition(":")
+    module = sys.modules.get(module_name)
+    return _ABSENT if module is None else vars(module).get(name, _ABSENT)
+
+
+def _module_state(
+    only: set[str] | None = None, skip: frozenset[int] = frozenset()
+) -> dict[str, tuple[Any, Any]]:
+    """Each module-held object, with a copy of what it holds.
+
+    The object itself is kept beside the copy, so a restore can put it back
+    under its name when the arm cleared or rebound the global.
+    """
+    if only is None:
+        holdings = _module_holdings(skip)
+    else:
+        holdings = {key: _held(key) for key in sorted(only)}
+    out: dict[str, tuple[Any, Any]] = {}
+    for key, value in holdings.items():
+        if value is _ABSENT or value is None:
+            continue
+        try:
+            captured = (
+                copy.deepcopy(value)
+                if isinstance(value, _CONTAINERS)
+                else _organ_state(value, skip=skip)
+            )
+        except (
+            ArithmeticError,
+            AttributeError,
+            ImportError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            copy.Error,
+        ):
+            # Not carried, by kind. Calibration reads the same capture, so a
+            # global that cannot be copied is also never counted as moving.
+            continue
+        out[key] = (value, captured)
+    return out
+
+
+def _restore_module_state(saved: Mapping[str, tuple[Any, Any]] | None) -> None:
+    if not saved:
+        return
+    for key, (held, captured) in saved.items():
+        module_name, _, name = key.partition(":")
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        if vars(module).get(name, _ABSENT) is not held:
+            setattr(module, name, held)
+        if isinstance(held, _CONTAINERS):
+            _restore_into(held, captured, set())
+        else:
+            _restore_organ(held, captured)
+
+
 def _torch_random_state() -> Any:
     try:
         import torch
@@ -1342,6 +1490,9 @@ class Snapshot:
     #: Module-level singletons the container does not hold. See
     #: `_MODULE_SINGLETONS`.
     singletons: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: What the organism keeps at module scope outside any container or phase,
+    #: by `module:name`: the object and a copy of what it held.
+    module_state: dict[str, tuple[Any, Any]] = field(default_factory=dict)
 
     #: Where the experiment clock stood. Restoring rewinds the state, and the
     #: clock the phases read is part of the state as far as they are concerned:
