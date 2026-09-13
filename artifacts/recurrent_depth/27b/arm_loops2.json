@@ -1,0 +1,29 @@
+{
+  "accuracy": 0.5,
+  "battery": {
+    "size": 40
+  },
+  "created_at": 1789256824.356354,
+  "elapsed_s": 886.9,
+  "max_tokens": 256,
+  "recurrent_depth_config": {
+    "coda_frac": 0.2,
+    "coda_start": 52,
+    "n_loops": 2,
+    "num_layers": 64,
+    "patch_scope": "instance_subclass",
+    "prelude_end": 12,
+    "prelude_frac": 0.2,
+    "recurrent_layers": 40,
+    "residual_alpha": 0.1
+  },
+  "recurrent_loops": 2,
+  "responses_sha256": "3a50c16bea9ba3f67561b8b66c412e7523137e71b74649d8eba1c48d17778f0b",
+  "result": {
+    "correct": 20,
+    "total": 40
+  },
+  "schema": "aura.recurrent_depth.arm.v1",
+  "temperature": 0.0,
+  "tool": "run_recurrent_depth_arms"
+}

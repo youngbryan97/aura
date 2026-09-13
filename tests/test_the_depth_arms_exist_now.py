@@ -26,6 +26,10 @@ import pytest
 ARMS = Path(__file__).resolve().parents[1] / "artifacts" / "recurrent_depth"
 SHALLOW = ARMS / "arm_loops1.json"
 DEEP = ARMS / "arm_loops2.json"
+#: The same comparison on the checkpoint that actually serves. The small-model
+#: arms answer "what does forcing two loops do to a model whose profile row
+#: says one"; these answer the question the ceiling is about.
+RESIDENT = ARMS / "27b"
 
 
 @pytest.fixture(scope="module")
@@ -86,3 +90,37 @@ def test_the_live_ceiling_is_still_one():
     from core.brain.llm.user_surface_recurrence import user_surface_recurrent_ceiling
 
     assert user_surface_recurrent_ceiling() == 1
+
+
+@pytest.fixture(scope="module")
+def resident_arms() -> tuple[dict, dict]:
+    shallow = RESIDENT / "arm_loops1.json"
+    deep = RESIDENT / "arm_loops2.json"
+    if not shallow.is_file() or not deep.is_file():
+        pytest.skip("no resident-checkpoint depth arms on disk")
+    return (
+        json.loads(shallow.read_text(encoding="utf-8")),
+        json.loads(deep.read_text(encoding="utf-8")),
+    )
+
+
+def test_the_resident_checkpoint_is_worse_at_depth_two(resident_arms):
+    """0.825 at one loop, 0.500 at two, on the 64-layer model that serves.
+
+    The small-model result could be dismissed as forcing depth onto a model
+    the policy already excluded. This one cannot: the 27B is exactly the
+    checkpoint whose profile row used to say two.
+    """
+    shallow, deep = resident_arms
+    assert shallow["recurrent_loops"] == 1
+    assert deep["recurrent_loops"] == 2
+    assert shallow["accuracy"] > deep["accuracy"]
+    assert shallow["responses_sha256"] != deep["responses_sha256"]
+    assert deep["recurrent_depth_config"]["recurrent_layers"] >= 30
+
+
+def test_the_interactive_default_matches_what_was_measured():
+    """The table says one loop, and two arms on the resident model say why."""
+    from core.brain.llm.recurrent_depth import _get_model_profile_defaults
+
+    assert _get_model_profile_defaults(64)[0] == 1

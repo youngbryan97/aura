@@ -286,11 +286,23 @@ Working list. Deleted when every line is done and green.
       finds no refusals — they are a real comparison — and authorises depth 1
       on a margin of -0.475 against the shallow arm's own spread of 0.079.
 
-      So the ceiling of one is the measurement now, not an absence. Re-running
-      the middle band twice at these settings destroys the answer on
-      Qwen2.5-1.5B-Instruct-4bit. Whether the resident 27B behaves the same
-      way is a separate arm on a separate substrate, which is why the receipt
-      the gate writes is named by descriptor.
+      And then on the checkpoint that serves. Aura-Qwen3.8-27B, 64 layers, a
+      40-layer recurrent band, same battery, same greedy decoding:
+
+        depth 1   33/40   0.8250   (495s)
+        depth 2   20/40   0.5000   (887s)
+
+      Margin -0.325 against the shallow arm's own spread of 0.060. Refused,
+      with no refusals of its own — a real comparison that says depth two is
+      worse and costs 1.8x the wall clock to be worse.
+
+      So the interactive profile row goes to one loop, which is where the
+      table now sits, and the ceiling of one is the measurement rather than an
+      absence. Two loops comes back the day an arm says it should:
+      AURA_RECURRENT_LOOPS_32B=2 is one variable, training is untouched
+      because it sets AURA_RECURRENT_LOOPS explicitly, and the RLC is
+      untouched because it drives inner.layers itself and never enters the
+      patched forward.
 
 - [ ] steering serving authority — refused by arithmetic, not by judgement.
       Worth writing down exactly where, because "turn it on" has no honest
