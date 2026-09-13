@@ -113,6 +113,8 @@ from typing import Any
 import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
+from core.consciousness.mood_weight import NEUTRAL_MOOD as _NEUTRAL_MOOD
+from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.model_layers import resolve_model_layers
@@ -360,6 +362,8 @@ AFFECTIVE_DIMENSIONS = [
 
 # ── Data Structures ────────────────────────────────────────────────────────────
 
+
+
 @dataclass
 class SteeringVector:
     """
@@ -416,16 +420,9 @@ class SteeringVector:
             "energy": "energy",
         }
         mood_key = key_map.get(self.key, "valence")
-        raw = float(moods.get(mood_key, 0.0))
-
-        # Adaptive mood coefficients are typically in [-1, 1], so we can just use them
-        # as weights (optionally scaled or clipped if needed).
-        if self.substrate_fn == "tanh":
-            return float(np.tanh(raw))
-        elif self.substrate_fn == "linear_half":
-            return float(np.clip(raw, -1.0, 1.0))
-        else:
-            return float(np.tanh(raw))
+        return _signed_weight(
+            float(moods.get(mood_key, 0.0)), self.substrate_fn
+        )
 
     def compute_weight_from_state(self, substrate_x: np.ndarray) -> float:
         """Map the live substrate vector index directly to a steering weight."""
@@ -434,9 +431,7 @@ class SteeringVector:
         raw = float(substrate_x[self.substrate_idx])
         if not math.isfinite(raw):
             return 0.0
-        if self.substrate_fn == "linear_half":
-            return float(np.clip(raw, -1.0, 1.0))
-        return float(np.tanh(raw))
+        return _signed_weight(raw, self.substrate_fn)
 
     def to_dict(self) -> dict:
         return {
