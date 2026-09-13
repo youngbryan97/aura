@@ -131,6 +131,14 @@ class Liveness:
 #: Declared once per process, the first time a claim asks about a channel.
 _DECLARATIONS_LOADED = False
 
+#: One channel from the group, asked for rather than assumed. The flag above
+#: only records that declaring was ATTEMPTED, and a dictionary that has been
+#: reset since — a test fixture clearing telemetry, a process rebuilding it —
+#: leaves the flag standing over specs that are gone. Every claim then reads
+#: "undeclared", which is how `phenomena_dispositions_are_reachable` decayed off
+#: two channels that are declared at 0x1711 and 0x1715 and were reporting live.
+_A_DECLARED_CHANNEL = "empathy.autonomy"
+
 
 def _load_the_declarations() -> None:
     """Ask every channel group to declare itself. Idempotent and import-only.
@@ -142,15 +150,27 @@ def _load_the_declarations() -> None:
     """
 
     global _DECLARATIONS_LOADED
-    if _DECLARATIONS_LOADED:
+    if _DECLARATIONS_LOADED and _the_declarations_are_still_there():
         return
-    _DECLARATIONS_LOADED = True
     try:
         from core.fsw import phenomena_channels
 
         phenomena_channels.declare()
+        _DECLARATIONS_LOADED = True
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        # Not marked loaded: an attempt that failed has declared nothing, and
+        # recording it as done makes the next caller skip the retry.
         logger.debug("channel declarations unavailable: %s", exc)
+
+
+def _the_declarations_are_still_there() -> bool:
+    """Whether the dictionary still holds what was declared into it."""
+    try:
+        from core.fsw.telemetry_dictionary import get_telemetry
+
+        return get_telemetry().spec(_A_DECLARED_CHANNEL) is not None
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
 
 
 def _a_publisher_ran_for(channel: str) -> bool:
