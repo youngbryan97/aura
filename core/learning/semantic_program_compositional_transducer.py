@@ -1263,6 +1263,79 @@ def fit_compositional_semantic_program_transducer(
     )
 
 
+def refit_compositional_argument_proposals(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Refit proposal scoring on source splits, preserving the rest of the tissue."""
+
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("argument proposal refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("argument proposal refit neural basis differs from its parent")
+    train_ids = {item.ir.source_text_sha256 for item in training}
+    validation_ids = {item.ir.source_text_sha256 for item in validation}
+    if train_ids & validation_ids:
+        raise ValueError("argument proposal refit train and validation overlap")
+    heads, fit = _fit_argument_proposal_heads(
+        training,
+        argument_pointer=model.argument_pointer,
+        max_arity=len(model.argument_role_heads),
+        max_span_tokens=model.max_span_tokens,
+        max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    scale, calibration = _select_argument_proposal_scale(
+        validation,
+        argument_pointer=model.argument_pointer,
+        semantic_heads=model.argument_role_heads,
+        proposal_heads=heads,
+        max_span_tokens=model.max_span_tokens,
+        max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    coefficient = model._coefficient_body()
+    coefficient["argument_proposal_heads"] = [head.to_dict() for head in heads]
+    coefficient["argument_proposal_scale"] = scale
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["argument_proposal_fit"] = {
+        **dict(model.training_receipt["argument_proposal_fit"]),
+        **fit,
+        "scale_selection": calibration,
+    }
+    body["argument_proposal_refit"] = {
+        "schema": "aura.semantic_program_argument_proposal_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "candidate_source": "runtime_per_operation_clause_proposals_v1",
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "test_examples_used": 0,
+        "fit": fit,
+        "calibration": calibration,
+        "serving_authority": False,
+    }
+    return replace(
+        model,
+        argument_proposal_heads=heads,
+        argument_proposal_scale=scale,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
 def refit_compositional_register_identity(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
@@ -1529,5 +1602,6 @@ __all__ = [
     "RegisterUseContract",
     "compositional_semantic_program_transducer_from_dict",
     "fit_compositional_semantic_program_transducer",
+    "refit_compositional_argument_proposals",
     "refit_compositional_register_identity",
 ]

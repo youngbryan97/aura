@@ -862,25 +862,18 @@ def _argument_proposal_rows(
     negative_rows = 0
     for item in examples:
         pointer_scores = argument_pointer.score_sequence(item.hidden_states)
-        proposed = list(
-            pointer_scores.decode_candidates(
-                limit=_ARGUMENT_CANDIDATES,
-                max_span_tokens=max_span_tokens,
-            )
+        nodes = tuple(
+            _OperationNode(instruction.operation_span, instruction.op, 0.0, 0.0, 1.0)
+            for instruction in item.ir.instructions
         )
-        observed = {span for span, _score in proposed}
-        proposed.extend(
-            (span, pointer_scores.score_span(span))
-            for span in item.ir.input_spans
-            if span not in observed
+        proposals = _argument_proposals_by_operation(
+            pointer_scores,
+            input_spans=item.ir.input_spans,
+            operation_nodes=nodes,
+            max_span_tokens=max_span_tokens,
+            clause_local=True,
         )
-        operation_spans = tuple(instruction.operation_span for instruction in item.ir.instructions)
-        candidate_spans = tuple(
-            span
-            for span, _score in proposed
-            if not any(_overlap(span, operation_span) for operation_span in operation_spans)
-        )
-        for instruction in item.ir.instructions:
+        for instruction, candidates in zip(item.ir.instructions, proposals, strict=True):
             if position >= len(instruction.argument_spans):
                 continue
             signature = semantic_primitive_type_signature(instruction.op)
@@ -891,7 +884,7 @@ def _argument_proposal_rows(
             positive = instruction.argument_spans[position]
             negatives = tuple(
                 span
-                for span in candidate_spans
+                for span, _score in candidates
                 if span != positive
                 and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
             )[:_POINTER_HARD_NEGATIVES]
