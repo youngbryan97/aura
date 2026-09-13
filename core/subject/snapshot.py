@@ -902,11 +902,19 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                 except OSError:
                     continue
                 _STORE_CACHE.pop(name, None)
-        for place_name, directory, existed in saved["places"]:
-            if directory and existed:
-                gateway.ensure_directory(Path(place_name), source="subject_core.fork")
-        for name in saved["directories"]:
-            gateway.ensure_directory(Path(name), source="subject_core.fork")
+        # Every directory the restore needs, made once. The parents were being
+        # ensured again inside the write loop, once per entry, and all but the
+        # ones under a file-shaped place were already made by the two loops
+        # above it.
+        wanted = {Path(name) for name in saved["directories"]}
+        wanted.update(
+            Path(place_name)
+            for place_name, directory, existed in saved["places"]
+            if directory and existed
+        )
+        wanted.update(Path(name).parent for name in entries)
+        for directory_path in sorted(wanted, key=lambda path: len(str(path))):
+            gateway.ensure_directory(directory_path, source="subject_core.fork")
         failures: list[str] = []
         for name, (kind, stamp, payload) in entries.items():
             target = Path(name)
@@ -920,7 +928,6 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                     continue
                 if _stamp(target) == stamp:
                     continue
-                gateway.ensure_directory(target.parent, source="subject_core.fork")
                 gateway.write_bytes(target, payload, source="subject_core.fork")
                 # Its old modification time back, so a service caching on the
                 # stamp reloads the restored bytes, and the next snapshot finds
