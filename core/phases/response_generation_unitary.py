@@ -7149,7 +7149,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
             # [ACTION GROUNDING] Parse markers and dispatch real execution before committing
             try:
                 from core.container import ServiceContainer
-                from core.phases.action_grounding import ground_response
+                from core.phases.action_grounding import ground_response, perceive_failed_actions
 
                 cap_engine = ServiceContainer.get("capability_engine", default=None)
                 if cap_engine:
@@ -7171,6 +7171,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     response_text = grounding_res.grounded_text
                     if grounding_res.marker_hits:
                         new_state.response_modifiers["grounded_actions"] = grounding_res.as_dict()
+                        perceive_failed_actions(new_state.world, grounding_res)
                         for hit in grounding_res.marker_hits:
                             new_state.response_modifiers["last_skill_run"] = hit.get("skill")
                             new_state.response_modifiers["last_skill_ok"] = hit.get("ok", False)
