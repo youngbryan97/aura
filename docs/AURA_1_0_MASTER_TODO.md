@@ -720,6 +720,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   substrates and executable paths to cross-backend composition, knowledge and
   planning feedback, and broad runtime evaluation. These work packages need
   not wait for perfect arithmetic development scores. Design is not closure.
+  2026-09-13: [shared procedure execution](evidence/G09_SHARED_PROCEDURE_EXECUTION_2026-09-13.md)
+  runs common-currency compositions through the existing tool-plan executor.
+  Tool results feed real floor programs; the registered semantic runtime uses
+  this same dispatch. Task-grounded selection, broad measurements and live
+  qualification remain separate obligations; G09 is not closed.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

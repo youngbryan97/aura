@@ -18,7 +18,9 @@ from core.learning.semantic_procedure_currency import (
     SemanticProcedureProgram,
     execute_semantic_procedure,
     from_semantic_program,
+    semantic_procedure_backend,
 )
+from core.cognition.procedure_execution import BackendResult, execute_procedure
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -186,3 +188,48 @@ def test_execution_refuses_a_state_that_does_not_match_the_typed_signature() -> 
             procedure,
             {"semantic:argument:0": 2, "semantic:argument:1": (3,)},
         )
+
+
+def test_source_independent_floor_is_executable_inside_a_cross_backend_plan() -> None:
+    registry = reset_procedure_registry_for_test()
+    acquire = registry.register(
+        "acquire numbers", Backend.TOOL,
+        Signature(effects=(Effect("numbers", "integer_sequence"),)),
+    )
+    select = from_semantic_program(
+        _ir(2, (("at", (0, 1)),)), input_keys=("numbers", "position"),
+        output_key="selected", registry=registry,
+    )
+    multiply = from_semantic_program(
+        _ir(2, (("mul", (0, 1)),)), input_keys=("selected", "factor"),
+        output_key="answer", registry=registry,
+    )
+    chain = compose(registry, (acquire, compose(registry, (select, multiply))))
+    result = execute_procedure(
+        registry, chain.procedure_id, {"position": -1, "factor": 3},
+        backends={
+            Backend.TOOL: lambda p, s, c: BackendResult({"numbers": (2, 5, 11)}),
+            Backend.RLC: semantic_procedure_backend,
+        },
+    )
+    assert result.completed
+    assert result.resulting_state["answer"] == 33
+    assert result.execution.tool_calls == 3
+    assert all(
+        step.evidence.floor_execution.receipt["execution_engine"] == "universal_metered_floor"
+        for step in result.steps[1:]
+    )
+    assert all(step.evidence.receipt["expected_answer_available"] is False for step in result.steps[1:])
+
+
+def test_shared_execution_keeps_floor_resource_limits() -> None:
+    registry = reset_procedure_registry_for_test()
+    procedure = from_semantic_program(
+        _ir(2, (("mul", (0, 1)),)), input_keys=("left", "right"), registry=registry,
+    )
+    result = execute_procedure(
+        registry, procedure.procedure_id, {"left": 5, "right": 7},
+        backends={Backend.RLC: semantic_procedure_backend}, context={"semantic_floor_fuel": 1},
+    )
+    assert not result.completed
+    assert "semantic:result" not in result.resulting_state

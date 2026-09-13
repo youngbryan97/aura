@@ -33,6 +33,7 @@ unseen request correctly, or that the algebra covers every reasoning task.
 | Recognition | Predicted operation spans are calibrated in source order, independently of execution order | `tests/test_semantic_operation_chart_calibration.py`, `tests/test_semantic_operation_view_refit.py` |
 | Definition ownership | The semantic graph carries learned attachment evidence, not only a local-window ownership assumption | `tests/test_semantic_definition_attachment.py` |
 | Graph construction | Typed, consistent, connected acyclic bindings; each definition's evidence counted once; optimizer checked against enumeration | `tests/test_semantic_argument_optimization.py` |
+| Procedure execution | Actual typed outputs cross backend boundaries; failed steps retain prior effects without claiming rollback or task correctness | `tests/test_procedure_execution.py`, `tests/test_semantic_procedure_currency.py`, `tests/test_semantic_program_runtime.py` |
 | Selection | Full development rows, paired regressions, and coefficient/hidden controls retained | `tests/test_semantic_program_validation_selection.py`, `tests/test_semantic_program_compositional_verification.py` |
 | Public answers | The decoded answer is independently graded; private reasoning is not a substitute | `tests/test_semantic_neural_composition_decode.py`, `tests/test_semantic_neural_composition_decode_canary.py` |
 | Transfer | Frozen candidate, fresh construction/vocabulary/depth/family cases and independent adjudication | `tests/test_semantic_program_natural_transfer.py`, `tests/test_semantic_program_replication_verification.py` |
@@ -132,6 +133,13 @@ shorter description or more expressive grammar alone does not demonstrate it.
 
 Packages two through four have work that does not depend on G03 closure. They
 must not promote an unqualified compiler while developing those connections.
+
+The first execution connection in package two now uses
+`core/cognition/procedure_execution.py` to lower registered compositions into
+the existing tool-plan executor. Caller-supplied backends produce explicit
+typed values. The semantic runtime uses that path when given the shared
+registry, and the RLC adapter executes the existing universal floor. This
+does not yet supply task-grounded cross-backend selection or broad live proof.
 
 ### Measurement reuse and exclusions
 

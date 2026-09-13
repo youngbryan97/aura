@@ -165,7 +165,7 @@ class Precondition:
         if self.key not in state:
             return False  # never observed is never a match
         value = state[self.key]
-        present = value is not None and value is not False
+        present = value is not None and (value is not False or self.kind == "boolean")
         if self.negated:
             return not present
         if not present:
