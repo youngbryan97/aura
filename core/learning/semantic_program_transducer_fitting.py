@@ -143,6 +143,8 @@ def _argument_semantic_evidence(
 def _mention_invariant_relation_evidence(
     base_logits: Sequence[float],
     combined_logits: Sequence[float],
+    *,
+    strategy: str = "positive_label_margin_v1",
 ) -> tuple[float, ...]:
     """Let tissue choose a register without changing mention evidence."""
 
@@ -153,7 +155,13 @@ def _mention_invariant_relation_evidence(
     ):
         raise ValueError("compositional relation logits are invalid")
     base_evidence = tuple(_log_sigmoid(value) for value in base_logits)
-    combined_evidence = tuple(_log_sigmoid(value) for value in combined_logits)
+    if strategy == "categorical_log_margin_v1":
+        # A shared log-softmax normalizer cancels in register score differences.
+        combined_evidence = tuple(combined_logits)
+    elif strategy == "positive_label_margin_v1":
+        combined_evidence = tuple(_log_sigmoid(value) for value in combined_logits)
+    else:
+        raise ValueError("unknown semantic relation scoring objective")
     mention_evidence = max(base_evidence)
     combined_peak = max(combined_evidence)
     return tuple(mention_evidence + value - combined_peak for value in combined_evidence)
@@ -326,6 +334,7 @@ def _shared_pointer_training_indices(
     positive_span: TokenSpan,
     *,
     end: bool,
+    positive_indices: frozenset[int] = frozenset(),
 ) -> tuple[int, ...]:
     positive = positive_span.end - 1 if end else positive_span.start
     candidates = [(span.end - 1 if end else span.start) for span in _all_semantic_spans(item)]
@@ -342,7 +351,9 @@ def _shared_pointer_training_indices(
     negatives = tuple(
         index
         for index in dict.fromkeys(candidates)
-        if 0 <= index < item.hidden_states.shape[0] and index != positive
+        if 0 <= index < item.hidden_states.shape[0]
+        and index != positive
+        and index not in positive_indices
     )[:_POINTER_HARD_NEGATIVES]
     return (positive, *negatives)
 
@@ -362,12 +373,17 @@ def _fit_shared_pointer(
             positives = tuple(spans(item))
             if not positives:
                 continue
+            # This head detects every span of its role, not one exclusive slot.
+            positive_indices = frozenset(
+                span.end - 1 if end else span.start for span in positives
+            )
             item_weight = 1.0 / geometry_counts[_geometry(item)]
             for positive in positives:
                 indices = _shared_pointer_training_indices(
                     item,
                     positive,
                     end=end,
+                    positive_indices=positive_indices,
                 )
                 features.extend(item.hidden_states[index] for index in indices)
                 labels.extend((1, *(0 for _ in indices[1:])))
@@ -1722,6 +1738,9 @@ def _assign_typed_arguments(
                 relation_evidence = _mention_invariant_relation_evidence(
                     base_raw_relation_scores,
                     raw_relation_scores,
+                    strategy=model.training_receipt.get(
+                        "relation_score_strategy", "positive_label_margin_v1"
+                    ),
                 )
                 for (
                     register,

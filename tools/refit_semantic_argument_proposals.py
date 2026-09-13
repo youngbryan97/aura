@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refit argument evidence from the exact source cohort of a frozen parent."""
+"""Refit semantic evidence from the exact source cohort of a frozen parent."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def main() -> int:
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
     from core.learning.semantic_program_basis import (
@@ -50,6 +50,7 @@ def main() -> int:
         compositional_semantic_program_transducer_from_dict,
         refit_compositional_argument_proposals,
         refit_compositional_argument_rankings,
+        refit_compositional_operation_pointer,
     )
     from core.learning.semantic_program_feature_materialization import (
         load_standard_semantic_feature_bundle,
@@ -82,11 +83,12 @@ def main() -> int:
         examples, compatibility=compatibility
     )
     verify_source_splits(bound, model.training_receipt)
-    candidate = (
-        refit_compositional_argument_rankings(model, bound)
-        if args.objective == "pairwise_arguments"
-        else refit_compositional_argument_proposals(model, bound)
-    )
+    refit = {
+        "binary_proposals": refit_compositional_argument_proposals,
+        "pairwise_arguments": refit_compositional_argument_rankings,
+        "operation_pointer": refit_compositional_operation_pointer,
+    }[args.objective]
+    candidate = refit(model, bound)
     payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
     if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
         raise FileExistsError(args.output)
