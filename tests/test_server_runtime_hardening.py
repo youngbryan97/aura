@@ -5130,8 +5130,16 @@ async def test_backup_manager_defers_maintenance_jobs_until_after_boot(monkeypat
 
     assert len(registered) == 2
     assert {spec.name for spec in registered} == {"periodic_db_vacuum", "periodic_state_backup"}
-    assert all(spec.last_run >= before for spec in registered)
     assert all(spec.tick_interval for spec in registered)
+    # Nothing may fire inside the boot grace. The backup's clock is measured
+    # from the newest archive on disk rather than from this boot — registered
+    # from boot, the first backup was a day away and the desktop restarted
+    # before that every time — so it is "due after the grace", not "due in a day".
+    grace_s = 15 * 60.0
+    for spec in registered:
+        assert spec.last_run + spec.tick_interval >= before + grace_s - 1.0, spec.name
+    vacuum = next(spec for spec in registered if spec.name == "periodic_db_vacuum")
+    assert vacuum.last_run >= before
 
 
 @pytest.mark.asyncio
@@ -5163,7 +5171,7 @@ async def test_backup_manager_get_health_offloads_backup_listing(monkeypatch, tm
     )
 
     manager = BackupManager()
-    backup_path = manager.backup_dir / "aura_backup_20260426_000000.zip"
+    backup_path = manager.backup_dir / "aura_state_20260426_000000-1.tar.gz"
     backup_path.write_text("ok", encoding="utf-8")
 
     calls = []

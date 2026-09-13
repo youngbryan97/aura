@@ -15185,6 +15185,14 @@
       "scope": "<module>.CommandRoleSignerBroker._execute"
     },
     {
+      "callee": "<subprocess_gateway>.run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 2,
+      "path": "core/ops/backup.py",
+      "scope": "<module>.BackupManager._run_verified_backup"
+    },
+    {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -15197,7 +15205,7 @@
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
-      "path": "core/organism/model_validation.py",
+      "path": "core/organism/closeout_canaries.py",
       "scope": "<module>._historical_semantic_sources_hold_at_binding"
     },
     {
@@ -16466,6 +16474,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "0a0e4dd1646ca05527edf10cca0e67785037508b9d1f4139ae42964e4a68df1a",
+  "inventory_sha256": "74670d7a11f0a354ea466efc0fbe666baa5d97418ab7d200ea3bc0f5bd6a60a2",
   "schema_version": 1
 }
