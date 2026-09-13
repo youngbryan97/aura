@@ -462,6 +462,11 @@ class GlobalWorkspace:
         self._tick: int = 0
         self.attention_schema: Any = attention_schema
         self.last_winner: CognitiveCandidate | None = None
+        #: The priority the last winner won with, at the competition's own
+        #: instant. Reported instead of the winner's priority now: a bid ages,
+        #: so re-scoring the same winner against a later clock moved
+        #: `G.winner_priority` by 0.267 while the workspace was held still.
+        self.last_winner_priority: float = 0.0
         #: How often each source has bid and how often it has won, for the life
         #: of this workspace. A bid type that never wins is a channel into
         #: attention that cannot fire, and the winner alone cannot show it:
@@ -1296,6 +1301,7 @@ class GlobalWorkspace:
             self._history.append(record)
 
             self.last_winner = winner
+            self.last_winner_priority = winner.priority_at(decided_at)
             if winner is not None:
                 name = str(getattr(winner, "source", "") or "")
                 self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
@@ -1473,7 +1479,7 @@ class GlobalWorkspace:
             "tick": self._tick,
             "last_winner": last.source if last else None,
             "last_content": last.content[:80] if last else None,
-            "last_priority": round(last.effective_priority, 3) if last else 0.0,
+            "last_priority": round(self.last_winner_priority, 3) if last else 0.0,
             "pending_candidates": len(self._candidates),
             "inhibited_sources": list(self._inhibited.keys()),
             # Decisions that were settled by list order rather than by any

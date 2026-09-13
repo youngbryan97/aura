@@ -748,6 +748,17 @@ async def _lesion(
     # so the count comes down rather than the rounds going to one.
     rounds = max(2, args.lesion_rounds // cycles)
     cycles = max(1, min(cycles, max(1, args.lesion_rounds // 2)))
+    # And long enough to score. Five rounds of eight conditions is forty turns
+    # and thirty-nine transitions, one short of what irreducibility and synergy
+    # are scored on, so both read 0.0 in every arm of runs 025, 026 and 027 and
+    # the lesion was judged on spread alone without saying so.
+    from core.subject.irreducibility import MIN_TRANSITIONS
+
+    rounds = max(rounds, -(-(MIN_TRANSITIONS + 1) // max(1, len(conditions))))
+    #: Arms each measure could not be scored in. A zero from an estimator that
+    #: had too few rows is not a reading, and judging a lesion on it is judging
+    #: nothing.
+    unmeasured: dict[str, int] = {}
 
     async def _live(workload: Sequence[Any], seed: int) -> tuple[list[Any], Any]:
         """One arm's life, and the interventions run inside whatever holds it."""
@@ -768,7 +779,13 @@ async def _lesion(
 
     def _read(label: str, frames: list[Any], spread: float) -> dict[str, float]:
         recording = build_recording(frames, notes={"arm": label}).by_turn()
-        synergies = [item.normalised for item in synergy_suite(recording, seed=args.seed)]
+        suite = synergy_suite(recording, seed=args.seed)
+        synergies = [item.normalised for item in suite]
+        report = phi_do(recording, at=(tuple(smaller), tuple(larger)))
+        if getattr(report, "degenerate", False):
+            unmeasured["phi_do"] = unmeasured.get("phi_do", 0) + 1
+        if not suite or any(getattr(item, "rows", MIN_TRANSITIONS) < MIN_TRANSITIONS for item in suite):
+            unmeasured["synergy"] = unmeasured.get("synergy", 0) + 1
         # Scored at the partition the lesion cuts, in every arm.
         #
         # Each arm searched for its own cheapest cut, so the intact score and
@@ -780,7 +797,7 @@ async def _lesion(
         # hundred and eleven noisy estimates will do. Severing a partition is
         # evaluated at that partition.
         return {
-            "phi_do": phi_do(recording, at=(tuple(smaller), tuple(larger))).phi,
+            "phi_do": report.phi,
             "spread": spread,
             "synergy": float(np.mean(synergies)) if synergies else 0.0,
         }
@@ -910,7 +927,7 @@ async def _lesion(
     # And a trivial improvement is not a rescue. Half the deficit has to come
     # back, which is a tolerance set before the experiment and not "rescued is
     # larger than cut", a comparison two noisy readings pass half the time.
-    judged = [key for key in measures if real[key] and over_drift[key]]
+    judged = [key for key in measures if real[key] and over_drift[key] and not unmeasured.get(key)]
     # A deficit measured while the held side still moved is not the deficit of
     # this lesion, because information was still crossing the cut.
     severed_moved: dict[str, float] = {}
@@ -969,6 +986,7 @@ async def _lesion(
         "deficit_worth_rescuing": real,
         "deficit_over_drift": over_drift,
         "judged_on": judged,
+        "unmeasured": {key: unmeasured.get(key, 0) for key in measures},
         "recovery_tolerance": RECOVERY_TOLERANCE,
         "deficit_share": DEFICIT_SHARE,
         "severed_inactive": severed_inactive,

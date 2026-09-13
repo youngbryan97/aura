@@ -46,6 +46,7 @@ from scipy.special import ndtri, psi
 from scipy.stats import rankdata
 
 from core.subject.estimate import fit_predict, split_rows
+from core.subject.irreducibility import MIN_TRANSITIONS
 from core.subject.recording import Recording
 
 __all__ = ["SynergyReport", "synergy", "synergy_suite"]
@@ -270,7 +271,9 @@ def synergy(
     raw_b = _components(recording.domain(source_b)[:-1])
     raw_y = _components(recording.domain(target)[1:])
     rows = raw_a.shape[0]
-    if rows < 40 or min(raw_a.shape[1], raw_b.shape[1], raw_y.shape[1]) < 1:
+    # The floor a partition is scored on, so an arm too short for one measure
+    # is too short for both.
+    if rows < MIN_TRANSITIONS or min(raw_a.shape[1], raw_b.shape[1], raw_y.shape[1]) < 1:
         return SynergyReport((source_a, source_b), target, 0, 0, 0, 0, 0, 0, 1, 0, rows)
     # Ranks once, before the null. A circular shift keeps every marginal, so a
     # slid copy of these is already the copula of the slid series.
