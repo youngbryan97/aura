@@ -610,6 +610,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   four and regresses one on 28 exposed cases; no promotion. Existing relation
   diagnostic resolves 450/480 gold references with runtime definitions.
   Reference proposals and graph ranking still require development work.
+  Exact-source proposal refit is a [measured null](evidence/G03_FULL_SOURCE_NULL_2026-09-12.md):
+  unchanged coefficients, 21/48 answers and 19/48 programs. All 480 gold
+  argument spans are present given gold operations. Calibration/runtime
+  scoring mismatch and constrained graph selection remain under investigation.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
