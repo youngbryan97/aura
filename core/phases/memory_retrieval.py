@@ -179,9 +179,6 @@ class MemoryRetrievalPhase(BasePhase):
         if len(query) < 5:
             return state
 
-        if query == getattr(state.cognition, "last_retrieval_query", None):
-            return state
-
         try:
             from core.runtime.proof_policy import is_strict_proof_answer_prompt
 
@@ -320,6 +317,16 @@ class MemoryRetrievalPhase(BasePhase):
                 action="searched without entity-memory retrieval cues",
                 stage="entity_cue_targeting",
             )
+
+        # The question and the depth it is asked at. The same words asked with a
+        # different limit are a different recall: affect's memory salience, the
+        # imagination and bicameral pressures, flow, surprise and vitality all
+        # set the limit, and with the skip keyed on the words alone none of them
+        # could change what came back for as long as the objective stayed the
+        # same. The cost the skip saves is still saved for a repeated question.
+        recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
+        if recall_key == getattr(state.cognition, "last_retrieval_query", None):
+            return state
 
         logger.info("🧠 MemoryRetrieval: Searching for context: %s...", query[:50])
 
@@ -636,7 +643,7 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
-        new_state.cognition.last_retrieval_query = query
+        new_state.cognition.last_retrieval_query = recall_key
         # And say that something came back to her.
         #
         # The affect phase has carried a mapping from `memory_replay` to
