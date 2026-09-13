@@ -45,8 +45,9 @@ class EmbodiedTraceLogger:
         if mirror_existing_trace:
             try:
                 from core.brain.trace_logger import TraceLogger
+                from core.runtime.state_ownership import state_root
 
-                self._existing_trace = TraceLogger("~/.aura/traces/embodied_cognition.jsonl")
+                self._existing_trace = TraceLogger(state_root() / "traces" / "embodied_cognition.jsonl")
             except (ImportError, AttributeError, RuntimeError):
                 self._existing_trace = None
         if self.path:

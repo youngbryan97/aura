@@ -49,11 +49,21 @@ from core.runtime.errors import record_degradation
 from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.skill_contract import ActionExpectation
+from core.runtime.state_ownership import state_root
 from core.self_modification.mutation_constitution import admit_mutation
 
 logger = logging.getLogger("Aura.SelfCodeImprover")
 
-_ENACTMENT_LEDGER_DIR = Path("~/.aura/data/self_improvement/enactments").expanduser()
+#: Where enactment records go when something has named a directory. Left None,
+#: the ledger resolves under the state root each time it is used; taken at
+#: import, it sat under the home directory whatever root the run had.
+_ENACTMENT_LEDGER_DIR: Path | None = None
+
+
+def _enactment_ledger_dir() -> Path:
+    if _ENACTMENT_LEDGER_DIR is not None:
+        return _ENACTMENT_LEDGER_DIR
+    return state_root() / "data" / "self_improvement" / "enactments"
 
 # Self-improvement may only rewrite Aura's OWN source, confined to a root
 # (AURA_SELF_CODE_ROOT, default the repository root) — never an arbitrary
@@ -148,7 +158,7 @@ def _sha(text: str) -> str:
 
 
 def _enactment_key_path() -> Path:
-    return _ENACTMENT_LEDGER_DIR.parent / ".self_code_enactment_hmac.key"
+    return _enactment_ledger_dir().parent / ".self_code_enactment_hmac.key"
 
 
 def _read_enactment_key() -> bytes:
@@ -349,7 +359,7 @@ async def _record_enactment(
     signing_key = await _load_or_create_enactment_key()
     record = _signed_record(record, signing_key)
     action = await _execute_self_code_write(
-        path=_ENACTMENT_LEDGER_DIR / f"{record_id}.json",
+        path=_enactment_ledger_dir() / f"{record_id}.json",
         text=json.dumps(record, indent=1),
         action_name="record_self_code_enactment",
         action_id=f"self-code-ledger:{record_id}",
@@ -366,7 +376,7 @@ async def _record_enactment(
 def _load_enactment(record_id: str) -> dict[str, Any] | None:
     if not isinstance(record_id, str) or not _RECORD_ID_RE.fullmatch(record_id):
         raise EnactmentRecordError("enactment record id is invalid")
-    record_path = _ENACTMENT_LEDGER_DIR / f"{record_id}.json"
+    record_path = _enactment_ledger_dir() / f"{record_id}.json"
     try:
         payload = json.loads(
             read_stable_bytes(
@@ -391,7 +401,7 @@ def latest_enactment_for(target_file: str) -> dict[str, Any] | None:
     except ValueError:
         return None
     try:
-        records = sorted(_ENACTMENT_LEDGER_DIR.glob("*.json"), reverse=True)
+        records = sorted(_enactment_ledger_dir().glob("*.json"), reverse=True)
     except OSError:
         return None
     for record_path in records:

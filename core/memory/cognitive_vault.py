@@ -19,6 +19,7 @@ from typing import Any
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.sqlite_support import connecting
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.CognitiveVault")
 
@@ -74,8 +75,8 @@ class VaultTransaction:
 class CognitiveVault:
     """Unified memory persistence layer with a dedicated async write queue."""
 
-    def __init__(self, db_path: str = "~/.aura/vault.db"):
-        self.db_path = os.path.expanduser(db_path)
+    def __init__(self, db_path: str | None = None):
+        self.db_path = os.path.expanduser(db_path) if db_path is not None else str(state_root() / "vault.db")
         self._queue: asyncio.Queue[VaultTransaction] = asyncio.Queue(maxsize=1024)
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
