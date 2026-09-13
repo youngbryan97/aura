@@ -3138,9 +3138,14 @@
         "kind": "grep",
         "path": "core/subject/driver.py",
         "pattern": "self\\.clock\\.advance\\(\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_timestamp_reads_the_clock_when_it_is_taken.py",
+        "pattern": "def test_no_record_is_stamped_with_the_clock_that_existed_at_import"
       }
     ],
-    "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+    "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms; and no record or default in core, interface, llm or skills binds the clock function at import, so a stamp taken in an arm is on the experiment's clock too",
     "status": "done"
   },
   "P22.3": {
