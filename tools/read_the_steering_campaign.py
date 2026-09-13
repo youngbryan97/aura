@@ -68,6 +68,11 @@ def read(result: dict) -> dict:
         # deliberately not part of the pass predicate. Read off the scored
         # behaviour: the combined condition against the rich prompt alone.
         "adds_to_text": analysis.get("adds_to_text"),
+        # What a pass does NOT cover. Deranging the vectors among the layers
+        # they were derived at leaves this share of the effect standing, and a
+        # verdict that did not say so would be read as claiming more than the
+        # campaign shows.
+        "layer_assignment_specificity": analysis.get("layer_assignment_specificity"),
         "combined_direction": analysis.get("combined_direction"),
         "task_target_deltas": replay["task_target_deltas"],
     }

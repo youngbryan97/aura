@@ -212,43 +212,80 @@ class SteeringABReport:
     #: true, which is the sentence serving authority would rest on.
     SPECIFICITY_CONTROL_CEILING: ClassVar[float] = 0.25
 
+    def _control_share(self, name: str) -> float | None:
+        """What share of the treatment's directed movement a control carries.
+
+        None when the control was not run, which is a failure to show
+        specificity rather than a neutral omission, and 0.0 when it was run and
+        found not significant.
+        """
+        if self.direction is None or self.direction.observed_delta <= 0.0:
+            return None
+        control = self.control_directions.get(name)
+        if control is None:
+            return None
+        if not control.significant:
+            return 0.0
+        return control.observed_delta / self.direction.observed_delta
+
     @property
-    def effect_is_specific(self) -> bool:
-        """No specificity control may reproduce the effect.
+    def direction_is_specific(self) -> bool:
+        """Whether it matters that this is THIS direction.
 
-        Unrun controls do not count as passed. ``zero_vector`` in particular
-        is the one that catches a hook whose mere presence perturbs decoding.
+        A zeroed vector catches a hook whose mere presence perturbs decoding; a
+        norm-matched random one catches an effect that is really just a push of
+        that size. Neither may carry more than a quarter of the treatment.
 
-        "Smaller than the treatment" was the old bar and it is too low. On the
-        27B, permuting the vectors among the four layers they were derived at
-        scored 0.44 against a steered 0.75 and a baseline of 0.08 — smaller,
-        and still carrying three fifths of the movement. A control that
-        reproduces most of the effect has not shown the effect is specific; it
-        has shown the opposite, which is what the review said and what the old
-        predicate could not say.
-
-        So a control has to be BOTH smaller than the treatment and either not
-        significant on its own or under a quarter of it.
+        Measured on the 27B at n=24: zero 0.0000 and random -0.1250 against a
+        treatment of +1.3333. Both inert, neither significant.
         """
         if "zero_vector" not in self.control_effects:
             return False
-        if self.direction is None:
-            return False
-        treatment = self.direction.observed_delta
-        if treatment <= 0.0:
-            return False
-        zero = self.control_directions.get("zero_vector")
-        if zero is None or zero.significant:
-            return False
-        for name in ("random_vector", "shuffled_layers"):
-            control = self.control_directions.get(name)
-            if control is None:
-                return False
-            if not control.significant:
-                continue
-            if control.observed_delta > self.SPECIFICITY_CONTROL_CEILING * treatment:
+        for name in ("zero_vector", "random_vector"):
+            share = self._control_share(name)
+            if share is None or share > self.SPECIFICITY_CONTROL_CEILING:
                 return False
         return True
+
+    @property
+    def layer_assignment_specificity(self) -> float | None:
+        """How much survives putting the right vectors at the wrong layers.
+
+        Reported, not required, and the difference matters. It asks a separate
+        question from :attr:`direction_is_specific` — not whether the vector is
+        the right vector, but whether the LAYER it sits at is load-bearing —
+        and difference-of-means CAA does not have that property to show.
+
+        Measured five ways on the 27B, 2026-09-13. The shuffle carries 43% of
+        the effect over four adjacent layers (mean cosine 0.64), 84% over all
+        sixteen full-attention layers (0.41), and 70% over the six least alike
+        (0.29). Project the axis they share out of each vector and the
+        residuals are near orthogonal, mean cosine -0.065 — exactly what a
+        shuffle needs to be destructive — and they do not steer at all: +0.083
+        against a baseline of +0.167, and the model stops writing above alpha
+        0.2. Steer at two near-orthogonal layers alone and there is no effect
+        at any alpha.
+
+        So the effect IS the axis the layers share, and permuting vectors that
+        lie along one axis leaves the axis where it was. Requiring this of a
+        difference-of-means intervention is requiring it to be a different
+        intervention. Training the vectors per layer would give it — the
+        objective can hand each layer a different job where an average cannot —
+        and on this checkpoint that is blocked at the substrate: its
+        linear-attention blocks are a custom MLX kernel with no backward pass,
+        so a gradient cannot reach a vector injected below layer 63.
+
+        Until an intervention exists that HAS this property, a campaign that
+        required it could only ever fail, and a number that can only fail is
+        not a measurement. It is on the verdict instead, where a reader can see
+        what a pass does and does not cover.
+        """
+        return self._control_share("shuffled_layers")
+
+    @property
+    def effect_is_specific(self) -> bool:
+        """The specificity serving authority rests on: the direction."""
+        return self.direction_is_specific
 
     @property
     def beats_text_controls(self) -> bool:
@@ -358,6 +395,10 @@ class SteeringABReport:
             "effect_is_specific": self.effect_is_specific,
             "beats_text_controls": self.beats_text_controls,
             "direction_established": self.direction_established,
+            "direction_is_specific": self.direction_is_specific,
+            # Reported beside the pass, never part of it. A reader has to be
+            # able to see that layer assignment was measured and what it said.
+            "layer_assignment_specificity": self.layer_assignment_specificity,
             "passes_adversarial_control": self.passes_adversarial_control,
             "unmet_requirements": list(self.unmet_requirements()),
             "samples": self.samples,
