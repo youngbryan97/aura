@@ -519,6 +519,8 @@ class CompositionalSemanticProgramTransducer:
             not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
             or receipt.get("argument_score_strategy", "independent_positive_v1")
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
+            or receipt.get("argument_proposal_retention", "ranked_v1")
+            not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
@@ -877,6 +879,14 @@ class CompositionalSemanticProgramTransducer:
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
         body["argument_score_strategy"] = "conditional_log_odds_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_literal_anchor_retention(self) -> CompositionalSemanticProgramTransducer:
+        """Keep exact input identities available after learned mention pruning."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:

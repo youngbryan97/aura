@@ -707,6 +707,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   attachment once per used definition, and conditional ownership avoids
   treating every alternate name as a negative. Transfer regressions remain;
   no candidate is promoted and G03 remains open.
+  [Literal retention and failure attribution](evidence/G03_LITERAL_RETENTION_2026-09-13.md)
+  preserve exact input spans after local mention pruning. Source answers rise
+  from 454/500 to 456/500 without new regressions; exposed weave remains 47/48.
+  Scored-chart diagnostics separate operation search, argument ranking and
+  candidate-overlap failures. Five frozen-parent regressions still prevent
+  closure; no runtime promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

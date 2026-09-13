@@ -30,6 +30,7 @@ from core.learning.semantic_definition_candidates import (
 )
 
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
+from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_program_ir import (
     SemanticValue,
     TokenSpan,
@@ -1104,6 +1105,15 @@ def _definition_relation_score_banks(
     return combined, base
 
 
+def _retained_argument_mentions(candidates, *, literal_anchor=None):
+    """Preserve exact public identity alongside the learned mention shortlist."""
+    ranked = sorted(candidates, key=lambda item: (-item[0], item[1].start, item[1].end))
+    selected = ranked[:_ARGUMENT_MENTIONS_PER_DEFINITION]
+    if literal_anchor is not None and all(span != literal_anchor for _score, span in selected):
+        selected.extend(item for item in ranked if item[1] == literal_anchor)
+    return selected
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1112,6 +1122,7 @@ def _assign_typed_arguments(
     input_spans: Sequence[TokenSpan],
     operation_nodes: Sequence[_OperationNode],
     argument_pointer_scores: LinearPointerSequenceScores,
+    chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
 ) -> _TypedArgumentAssignment | None:
     if (
         len(operation_nodes) > 1
@@ -1316,10 +1327,16 @@ def _assign_typed_arguments(
                 (
                     (score, definition_registers[candidate_index], span, candidate_index)
                     for candidate_index, candidates in by_register.items()
-                    for score, span in sorted(
+                    for score, span in _retained_argument_mentions(
                         candidates,
-                        key=lambda item: (-item[0], item[1].start, item[1].end),
-                    )[:_ARGUMENT_MENTIONS_PER_DEFINITION]
+                        literal_anchor=(
+                            input_spans[definition_registers[candidate_index]]
+                            if model.training_receipt.get("argument_proposal_retention")
+                            == "ranked_with_literal_anchors_v2"
+                            and definition_registers[candidate_index] < len(inputs)
+                            else None
+                        ),
+                    )
                 ),
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
             )
@@ -1425,13 +1442,14 @@ def _assign_typed_arguments(
         if not states:
             return None
     if global_constraint:
-        from core.learning.semantic_argument_optimization import optimize_argument_chart
-
-        optimized = optimize_argument_chart(
+        chart = ScoredArgumentChart(
             chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
             definition_options=chart_definition_options if joint_definitions else None,
             definition_scores=attachment_scores,
         )
+        if chart_observer is not None:
+            chart_observer(chart)
+        optimized = chart.solve()
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:
