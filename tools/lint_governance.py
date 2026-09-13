@@ -21,7 +21,6 @@ act and must not be used to normalize unexplained growth.
 from __future__ import annotations
 
 import ast
-import os
 import sys
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor

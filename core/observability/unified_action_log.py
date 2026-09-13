@@ -151,7 +151,7 @@ class UnifiedActionLog:
         # governance context from this call.
         if self._persist_path:
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
             except RuntimeError:
                 try:
                     from core.governance_context import local_internal_governed_scope

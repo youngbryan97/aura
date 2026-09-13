@@ -13,12 +13,11 @@ after signing fails instead of taking effect).
 """
 from __future__ import annotations
 
-from mlx_source import client_source, worker_source
-
 import ast
 import inspect
 
 import pytest
+from mlx_source import client_source, worker_source
 
 from core.brain.llm.contract_authority import (
     AUTH_FIELD,
@@ -204,7 +203,6 @@ class TestWiring:
         assert sig.parameters["contract_key"].default is None
 
     def test_the_worker_verifies_before_generating(self):
-        from core.brain.llm import mlx_worker
 
         source = worker_source()
         assert "_verify_contract_authority(job, contract_key)" in source

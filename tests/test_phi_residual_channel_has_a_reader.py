@@ -17,14 +17,13 @@ These tests hold both ends.
 """
 from __future__ import annotations
 
-from mlx_source import client_source, worker_source
-
 import ast
 import inspect
 import multiprocessing as mp
 from pathlib import Path
 
 import pytest
+from mlx_source import client_source, worker_source
 
 from core.consciousness.phi_core import PhiCore
 from core.consciousness.phi_residual_channel import (

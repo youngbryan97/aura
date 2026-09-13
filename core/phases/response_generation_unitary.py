@@ -69,6 +69,8 @@ from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.prompt_compression import compress_system_prompt
 from core.utils.task_tracker import get_task_tracker
 
+from .unitary_memory_recall import _AnswersFromWhatSheRemembers
+
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
 # default keeps read semantics byte-identical to os.environ.get.
@@ -678,7 +680,6 @@ def _timeout_for_request(
     return max(allowance, resident_generation_seconds(messages, decode_max_tokens))
 
 
-from .unitary_memory_recall import _AnswersFromWhatSheRemembers
 
 
 class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):

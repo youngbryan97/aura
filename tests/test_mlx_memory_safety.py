@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from mlx_source import worker_source
-
 import json
 import time
 from types import SimpleNamespace
+
+from mlx_source import worker_source
 
 
 def test_throughput_sample_prefers_worker_measured_generation_clocks(monkeypatch):
@@ -1665,7 +1665,6 @@ def test_live_surface_quality_retry_preserves_valid_prefill_cache():
     sitting right there.
     """
     import ast
-    from pathlib import Path
 
     source = worker_source()
     tree = ast.parse(source)

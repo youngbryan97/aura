@@ -31,6 +31,7 @@ import logging
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -48,47 +49,27 @@ from core.cognition.what_she_has_set_in_motion import WhatIsComing
 from core.cognition.what_works_against_what import WhatBeatsWhat
 from core.cognition.which_way_to_win import which_way_to_win
 from core.runtime.errors import record_degradation
+from core.runtime.task_ownership import create_owned_asyncio_task
 from core.runtime.watched_goal import PURSUIT_SECONDS, a_cycle_took
 from core.runtime.what_she_learned import TRUST_CARRIED_OVER, named, recall, remember
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
-from core.runtime.task_ownership import create_owned_asyncio_task
-from .screen_pursuit_surface import (
-    DECLINES_AND_NOTHING_ELSE,  # noqa: F401
-    _looks_like,  # noqa: F401
-    LABEL_REACH,  # noqa: F401
-    PRESSABLE_KEYS,
-    _a_pass_in_moves,  # noqa: F401
-    _bound_to_a_window,  # noqa: F401
-    _matches,  # noqa: F401
-    _screen_size,  # noqa: F401
-    _the_part_of,
-    _value_is_on_screen,  # noqa: F401
-    _who_the_screen_belongs_to,
-    click_normalized,
-    goal_reached,
-    labelled_by,  # noqa: F401
-    press,
-    window_bounds,
-)
+
 from .screen_pursuit_bearings import (
-    RESTART_LABELS,  # noqa: F401
-    _is_a_thing_laid_out,  # noqa: F401
-    a_way_back_that_was_not_there,  # noqa: F401
-    restart_controls,  # noqa: F401
+    _AS_IT_USUALLY_IS,  # noqa: F401
     A_SCREENFUL_AT_LEAST,  # noqa: F401
     DEFAULT_MOVES,
     ENOUGH_TO_BE_A_THING,  # noqa: F401
     LANGUAGE_EVERY,
     MOST_OF_A_SCREEN,  # noqa: F401
     PRESS_ON,  # noqa: F401
+    RESTART_LABELS,  # noqa: F401
     SAY_LESS,  # noqa: F401
     SCREENFULS_TO_LOOK,  # noqa: F401
     SEE_IT_THROUGH,  # noqa: F401
     SETTLE_AFTER_SCROLL_S,  # noqa: F401
     SLOW_DOWN,  # noqa: F401
     START_OVER,
-    _AS_IT_USUALLY_IS,  # noqa: F401
     _a_screenful,  # noqa: F401
     _a_step_back,  # noqa: F401
     _ask_again_after,  # noqa: F401
@@ -97,6 +78,7 @@ from .screen_pursuit_bearings import (
     _by_how_much_room,  # noqa: F401
     _how_much_the_tally_moved,  # noqa: F401
     _in_the_same_grid,  # noqa: F401
+    _is_a_thing_laid_out,  # noqa: F401
     _moves_she_will_not_make,  # noqa: F401
     _moves_that_leave_her_nothing,  # noqa: F401
     _she_got_further,  # noqa: F401
@@ -110,35 +92,39 @@ from .screen_pursuit_bearings import (
     _within_the_run,
     _worth_holding,  # noqa: F401
     a_run_she_can_carry,  # noqa: F401
+    a_way_back_that_was_not_there,  # noqa: F401
     am_i_there,  # noqa: F401
     pacing_options,  # noqa: F401
     restart_control,
+    restart_controls,  # noqa: F401
     screen_options,  # noqa: F401
     ways_out,
 )
+from .screen_pursuit_blockers import clear_what_blocks_the_run
+from .screen_pursuit_decision import decide_the_next_move
 from .screen_pursuit_looking import (
-    _how_long_a_look_takes,  # noqa: F401
-    _no_more_than_a_fresh_one_is_worth,  # noqa: F401
-    _the_kind_of_world_this_is,  # noqa: F401
+    _ANSWERING_TOOK,  # noqa: F401
+    _WHY_SHE_CANNOT_LOOK,
     ASKING_TO_CONFIRM,  # noqa: F401
     LONGER_THAN_USUAL,  # noqa: F401
     OBSERVE_TIMEOUT_S,  # noqa: F401
     PASSES_ON_ITS_OWN,
-    _ANSWERING_TOOK,  # noqa: F401
-    _WHY_SHE_CANNOT_LOOK,
     _answer_own_confirmation,
     _bring_the_thing_back_to_the_front,
     _covers,
     _expected_of,  # noqa: F401
     _her_reasoning,
     _how_full,  # noqa: F401
+    _how_long_a_look_takes,  # noqa: F401
     _how_long_to_wait,  # noqa: F401
     _move_her_own_surface_aside,  # noqa: F401
     _narrate,  # noqa: F401
+    _no_more_than_a_fresh_one_is_worth,  # noqa: F401
     _say_intent,  # noqa: F401
     _say_line,
     _settled_after,  # noqa: F401
     _the_best_reading_available,  # noqa: F401
+    _the_kind_of_world_this_is,  # noqa: F401
     _the_thing_she_is_acting_in,  # noqa: F401
     _what_being_refused_a_look_means,
     _what_she_could_not_learn_from,  # noqa: F401
@@ -149,10 +135,25 @@ from .screen_pursuit_looking import (
     clear_what_is_in_front,  # noqa: F401
     wait_for_a_screen_to_look_at,
 )
-from types import SimpleNamespace
-from .screen_pursuit_blockers import clear_what_blocks_the_run
-from .screen_pursuit_decision import decide_the_next_move
 from .screen_pursuit_observing import observe_the_screen
+from .screen_pursuit_surface import (
+    DECLINES_AND_NOTHING_ELSE,  # noqa: F401
+    LABEL_REACH,  # noqa: F401
+    PRESSABLE_KEYS,
+    _a_pass_in_moves,  # noqa: F401
+    _bound_to_a_window,  # noqa: F401
+    _looks_like,  # noqa: F401
+    _matches,  # noqa: F401
+    _screen_size,  # noqa: F401
+    _the_part_of,
+    _value_is_on_screen,  # noqa: F401
+    _who_the_screen_belongs_to,
+    click_normalized,
+    goal_reached,
+    labelled_by,  # noqa: F401
+    press,
+    window_bounds,
+)
 
 logger = logging.getLogger("Aura.ScreenPursuit")
 
@@ -1757,7 +1758,7 @@ def _publish_decision(said: str, because: str, expected: str, chosen: Any) -> No
             content_type=ContentType.SOMATIC,
         )
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             # not a failure: nothing to publish to when there is no loop
             # running, and closing the coroutine is the tidy way to say so.

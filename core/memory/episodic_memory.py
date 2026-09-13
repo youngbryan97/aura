@@ -35,6 +35,8 @@ from core.resilience.state_manager import _SafeEncoder
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 
+from .episodic_ranking import _RanksWhatToRecall
+
 logger = logging.getLogger("Memory.Episodic")
 
 # ---------------------------------------------------------------------------
@@ -181,7 +183,6 @@ class Episode(BaseModel):
 # Storage
 # ---------------------------------------------------------------------------
 
-from .episodic_ranking import _RanksWhatToRecall
 
 
 class EpisodicMemory(_RanksWhatToRecall):

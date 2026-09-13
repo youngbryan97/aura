@@ -33,6 +33,7 @@ from core.runtime.pipeline_blueprint import (
 )
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.structured_input import answer_surface_token_floor
+from core.runtime.task_ownership import create_owned_asyncio_task
 from core.runtime.turn_outcome import (
     TurnOutcome,
     UserVisibleState,
@@ -59,6 +60,7 @@ from core.verify.turn_receipt import (
 )
 
 from .autopoiesis import AutopoieticGraph
+from .cognitive_augmentors import _RunsItsAugmentors
 from .live_mind_contract import (
     REQUIRED_LIVE_MIND_GENERATION_CONTROL_KEYS,
     normalize_live_mind_surface_control_receipt,
@@ -67,7 +69,6 @@ from .llm.context_assembler import ContextAssembler
 from .reasoning_strategies import ReasoningStrategies, StrategyType
 from .request_contract import project_user_surface_resume_capability
 from .types import ThinkingMode, Thought
-from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 
@@ -1650,7 +1651,6 @@ def _note_the_quick_reply_contract(
 _DESKTOP_AUTHORITY_HEAD = "You are Aura speaking through the live desktop CognitiveEngine."
 
 
-from .cognitive_augmentors import _RunsItsAugmentors
 
 
 class CognitiveEngine(_RunsItsAugmentors):

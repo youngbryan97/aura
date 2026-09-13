@@ -77,6 +77,11 @@ from core.runtime.foreground_guard import foreground_activity_reason
 from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.sqlite_support import connecting
 
+from .service_heads import (
+    _BUCKET_MEMORY,
+    _KeepsItsHeadsOnDisk,
+)
+
 logger = logging.getLogger("Aura.Ontogeny")
 
 #: How often the organ refits, when there is new evidence to refit on.
@@ -220,10 +225,6 @@ class Verdict:
         }
 
 
-from .service_heads import (
-    _BUCKET_MEMORY,
-    _KeepsItsHeadsOnDisk,
-)
 
 
 class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):

@@ -63,6 +63,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from .unified_field_prediction import _PredictsTheNextField
+
 try:  # scipy is an acceleration path here; dense numpy remains correct.
     from scipy import sparse as sp
 except ImportError:  # pragma: no cover - exercised on lean CI/runtime images
@@ -180,7 +182,6 @@ class FieldConfig:
     back_pressure_gain: float = 0.1    # how much field state modulates inputs
 
 
-from .unified_field_prediction import _PredictsTheNextField
 
 
 class UnifiedField(_PredictsTheNextField):

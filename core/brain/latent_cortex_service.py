@@ -33,6 +33,9 @@ from typing import Any
 from core.brain.llm.latent_cortex.output_quality import evaluate_latent_output
 from core.runtime.errors import record_degradation
 
+from .latent_receipt_contract import _ChecksTheReceiptContract
+from .latent_receipt_evidence import _ChecksTheReceiptEvidence
+
 logger = logging.getLogger("Aura.LatentCortexService")
 
 #: What the worker writes only once it has actually selected actions.
@@ -616,10 +619,8 @@ def _recurrence_halt_reason(receipt: Mapping[str, Any]) -> str:
 
 
 
-from .latent_receipt_contract import _ChecksTheReceiptContract
 
 
-from .latent_receipt_evidence import _ChecksTheReceiptEvidence
 
 
 class LatentCortexService(_ChecksTheReceiptEvidence, _ChecksTheReceiptContract):

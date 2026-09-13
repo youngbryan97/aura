@@ -10,11 +10,10 @@ get a near-off alpha, while normal conversational turns keep full steering.
 """
 from __future__ import annotations
 
-from mlx_source import client_source, worker_source
-
 from pathlib import Path
 
 import pytest
+from mlx_source import client_source, worker_source
 
 from core.brain.llm.mlx_worker import (
     _apply_surface_generation_controls,

@@ -9,8 +9,8 @@ import re
 import time
 from typing import Any
 
-from core.conversation.word_markers import names_any
 from core.brain.types import ThinkingMode
+from core.conversation.word_markers import names_any
 from core.phases.dialogue_policy import validate_dialogue_response
 from core.phases.response_contract import build_response_contract
 from core.runtime.errors import record_degradation

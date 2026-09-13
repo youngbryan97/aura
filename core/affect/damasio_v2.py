@@ -21,6 +21,8 @@ from core.runtime.errors import record_degradation
 from core.utils.concurrency import RobustLock
 from core.utils.task_tracker import get_task_tracker
 
+from .damasio_appraisal import _AppraisesWhatHappened
+
 logger = logging.getLogger(__name__)
 
 _PRIMARY_EMOTIONS = frozenset(
@@ -510,7 +512,6 @@ class DamasioMarkers:
         }
 
 
-from .damasio_appraisal import _AppraisesWhatHappened
 
 
 class AffectEngineV2(_AppraisesWhatHappened):

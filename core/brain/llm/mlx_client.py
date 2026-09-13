@@ -73,6 +73,10 @@ from core.utils.memory_monitor import get_memory_pressure_snapshot
 from core.utils.task_tracker import get_task_tracker
 
 from .chat_format import format_chatml_messages, format_chatml_prompt
+from .mlx_client_worker_identity import _KnowsWhichWorkerItIsTalkingTo
+from .mlx_latent_reasoning import _ReasonsInLatentSpace
+from .mlx_unified_recurrent import _RunsTheUnifiedRecurrentLane
+from .mlx_warmup_and_adapters import _WarmsUpAndSwapsAdapters
 from .mlx_worker import (
     _mlx_worker_loop,
 )
@@ -4920,16 +4924,12 @@ def _is_internal_inference(cognitive_context: Any) -> bool:
     return False
 
 
-from .mlx_unified_recurrent import _RunsTheUnifiedRecurrentLane
 
 
-from .mlx_latent_reasoning import _ReasonsInLatentSpace
 
 
-from .mlx_warmup_and_adapters import _WarmsUpAndSwapsAdapters
 
 
-from .mlx_client_worker_identity import _KnowsWhichWorkerItIsTalkingTo
 
 
 class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane):

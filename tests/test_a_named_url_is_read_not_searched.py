@@ -92,7 +92,6 @@ def test_injected_evidence_cannot_become_a_user_named_address() -> None:
 
 
 def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:
-    from pathlib import Path
 
     # The required-search half of the phase moved to its own module when
     # ResponseGenerationPhase went back under the method ceiling. The reader

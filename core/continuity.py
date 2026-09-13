@@ -22,12 +22,12 @@ from core.goals.objective_lifecycle import is_ephemeral_conversation_turn
 from core.governance_context import governed_scope_sync, local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.task_ownership import create_owned_asyncio_task
 from core.state.aura_state import (
     _is_background_processing_placeholder,
     _is_speculative_autonomy_label,
     _normalize_goal_text,
 )
-from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 _CONTINUITY_PATH: Path | None = None

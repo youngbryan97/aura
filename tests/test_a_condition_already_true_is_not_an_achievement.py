@@ -17,9 +17,8 @@ Two things were wrong, and both are general:
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.skills import screen_pursuit as sp
 from core.skills.screen_pursuit import goal_reached

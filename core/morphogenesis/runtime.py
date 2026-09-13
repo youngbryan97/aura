@@ -26,9 +26,9 @@ from .metabolism import MetabolismManager
 from .motifs import MotifLibrary
 from .organs import OrganStabilizer
 from .registry import MorphogenesisRegistry
+from .runtime_immunity import _BridgesSignalsToImmunity
 from .substrate import LocalRuntimeSubstrate
 from .types import MorphogenesisConfig, MorphogenSignal, SignalKind, stable_digest
-from .runtime_immunity import _BridgesSignalsToImmunity
 
 logger = logging.getLogger("Aura.Morphogenesis.Runtime")
 

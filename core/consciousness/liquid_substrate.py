@@ -24,6 +24,8 @@ from core.soma.effort import note_effort
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
+from .liquid_state_io import _KeepsItsStateOnDisk
+
 DEVICE = torch.device("cpu")
 
 
@@ -103,7 +105,6 @@ class SubstrateConfig:
     state_file: Path | None = None
 
 
-from .liquid_state_io import _KeepsItsStateOnDisk
 
 
 class LiquidSubstrate(_KeepsItsStateOnDisk):

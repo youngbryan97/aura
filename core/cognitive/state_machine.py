@@ -12,6 +12,7 @@ from typing import Any
 
 from core.brain.llm.runtime_wiring import is_user_facing_origin, prepare_runtime_payload
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
 from core.phases.response_contract import ResponseContract, build_response_contract
 from core.runtime.errors import record_degradation
@@ -32,7 +33,6 @@ from core.utils.prompt_compression import compress_history_block, compress_syste
 from core.utils.task_tracker import get_task_tracker
 
 from .router import Intent
-from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.StateMachine")
 

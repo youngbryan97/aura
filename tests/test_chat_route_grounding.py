@@ -1,11 +1,12 @@
 import pytest
 
 import interface.routes.chat as chat_mod
+import interface.routes.chat_conversation_repair as _chat_conversation_repair
+
 # The resolver moved to chat_turn_recall in the chat-lane split and reads
 # these names from its own namespace, so a patch on chat.py bound nothing
 # and the resolver went on calling the real loader.
 import interface.routes.chat_turn_recall as chat_turn_recall
-import interface.routes.chat_conversation_repair as _chat_conversation_repair
 
 
 def test_grounded_introspection_classifier_ignores_hypothetical_free_energy_prompt():
