@@ -630,6 +630,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   exposed weave programs and answers; both controls score 0/48 programs.
   Full-source answers improve from 346/500 to 377/500 with 55 gains and 24
   regressions. The candidate is not admitted; G03 remains open.
+  [Argument pointer development](evidence/G03_ARGUMENT_POINTER_DEVELOPMENT_2026-09-12.md)
+  retains the shared quality-calibrator rejection and adds source-only argument
+  pointer plus dependent proposal refitting. Source-test examples used for
+  calibration are explicitly consumed, not fresh replication. Full refit
+  evaluation remains pending; no promotion or G03 closure.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

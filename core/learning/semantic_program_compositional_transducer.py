@@ -1385,8 +1385,10 @@ def refit_compositional_operation_pointer(
 def refit_compositional_argument_proposals(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    refit_pointer: bool = False,
 ) -> CompositionalSemanticProgramTransducer:
-    """Refit proposal scoring on source splits, preserving the rest of the tissue."""
+    """Refit proposal scoring, optionally rebuilding its source-trained pointer."""
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -1405,9 +1407,18 @@ def refit_compositional_argument_proposals(
     validation_ids = {item.ir.source_text_sha256 for item in validation}
     if train_ids & validation_ids:
         raise ValueError("argument proposal refit train and validation overlap")
+    pointer = model.argument_pointer
+    if refit_pointer:
+        pointer = _fit_shared_pointer(
+            training,
+            spans=lambda item: tuple(
+                span for instruction in item.ir.instructions
+                for span in instruction.argument_spans
+            ),
+        )
     heads, fit = _fit_argument_proposal_heads(
         training,
-        argument_pointer=model.argument_pointer,
+        argument_pointer=pointer,
         max_arity=len(model.argument_role_heads),
         max_span_tokens=model.max_span_tokens,
         max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
@@ -1416,7 +1427,7 @@ def refit_compositional_argument_proposals(
     )
     scale, calibration = _select_argument_proposal_scale(
         validation,
-        argument_pointer=model.argument_pointer,
+        argument_pointer=pointer,
         semantic_heads=model.argument_role_heads,
         proposal_heads=heads,
         max_span_tokens=model.max_span_tokens,
@@ -1425,6 +1436,7 @@ def refit_compositional_argument_proposals(
         hidden_channel_widths=model.hidden_channel_widths,
     )
     coefficient = model._coefficient_body()
+    coefficient["argument_pointer"] = pointer.to_dict()
     coefficient["argument_proposal_heads"] = [head.to_dict() for head in heads]
     coefficient["argument_proposal_scale"] = scale
     body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
@@ -1447,8 +1459,22 @@ def refit_compositional_argument_proposals(
         "calibration": calibration,
         "serving_authority": False,
     }
+    if refit_pointer:
+        body["argument_pointer_refit"] = {
+            "schema": "aura.semantic_program_argument_pointer_refit.v1",
+            "parent_transducer_receipt_sha256": model.receipt_sha256,
+            "negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
+            "training_example_ids_sha256": _sha(sorted(train_ids)),
+            "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+            "training_examples": len(training),
+            "validation_examples": len(validation),
+            "test_examples_used": 0,
+            "dependent_proposal_heads_refitted": True,
+            "serving_authority": False,
+        }
     return replace(
         model,
+        argument_pointer=pointer,
         argument_proposal_heads=heads,
         argument_proposal_scale=scale,
         training_receipt={**body, "receipt_sha256": _sha(body)},
