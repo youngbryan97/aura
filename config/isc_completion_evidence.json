@@ -6344,15 +6344,25 @@
       {
         "kind": "grep",
         "path": "core/subject/nulls.py",
-        "pattern": "effect_min: float = 0\\.3"
+        "pattern": "edges, _ = build_edges\\(results, seed=seed\\)"
       },
       {
         "kind": "grep",
         "path": "core/subject/causal.py",
-        "pattern": "EDGE_EFFECT: float = 0\\.3"
+        "pattern": "^EDGE_EFFECT: float = 0\\.3"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "effect_min: float = EDGE_EFFECT"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
       }
     ],
-    "note": "the same effect threshold on the nulls as on the real system",
+    "note": "the same effect threshold on the nulls as on the real system: a null's edges come out of build_edges, whose effect bar is EDGE_EFFECT",
     "status": "done"
   },
   "P42.3": {
@@ -11394,6 +11404,37 @@
       }
     ],
     "note": "null edges go through build_edges, so they carry the same sign-flip test, the same Benjamini-Hochberg correction across the ninety pairs, the same effect bar and the same replication count as the organism's",
+    "status": "done"
+  },
+  "P18.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "def test_an_arm_reads_the_same_after_a_different_arm_as_after_itself"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "after_memory = await arm\\(\"conversation\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "memory_after_tool_use = await arm\\(\"memory\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/snapshot.py",
+        "pattern": "^def _store_places"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_store_moved_out_of_the_root_is_still_forked.py",
+        "pattern": "def test_every_path_variable_the_tree_reads_is_followed_or_says_why_not"
+      }
+    ],
+    "note": "both orders of a pair are run from one snapshot: a conversation arm after a memory arm and a memory arm after a conversation arm, each against the same arm run first, and a memory arm after a tool-use arm against one after a conversation arm; order may add nothing above the floor two identical arms give (1e-6). It first failed at 0.133: stores the test suite moves beside the state root, the memory store among them, were outside the fork, which now follows every store variable and the configured home",
     "status": "done"
   }
 }

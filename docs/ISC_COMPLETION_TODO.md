@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**734 done, 0 blocked, 0 not applicable, 169 open, of 903.**
+**738 done, 0 blocked, 0 not applicable, 165 open, of 903.**
 
 Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 
@@ -306,7 +306,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P10.8` Remove invalid or truly redundant measurement columns only when scientifically justified. — columns are removed for failing the schema's own rule — nothing reads them, or they are another domain's column under this one's name — and the reason is written beside each removal
 - [ ] `P10.9` Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
-- [ ] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
+- [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
 - [ ] `P10.12` Preregister ISC-v2.
 - [ ] `P10.13` Use a better differentiation measure.
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
@@ -443,7 +443,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P18.5` Prevent efficacy history from leaking. — the intention database is rolled back to the snapshot's rows per arm
 - [x] `P18.6` Prevent action receipts from leaking. — the intention database is rolled back to the snapshot's rows per arm
 - [x] `P18.7` Prevent comparator/efference records from leaking. — the comparator and the self-prediction organ are forked by name
-- [ ] `P18.8` Test intervention-arm order reversal.
+- [x] `P18.8` Test intervention-arm order reversal. — both orders of a pair are run from one snapshot: a conversation arm after a memory arm and a memory arm after a conversation arm, each against the same arm run first, and a memory arm after a tool-use arm against one after a conversation arm; order may add nothing above the floor two identical arms give (1e-6). It first failed at 0.133: stores the test suite moves beside the state root, the memory store among them, were outside the fork, which now follows every store variable and the configured home
 
 ## Phase 19 — Snapshot the external scratch world
 
@@ -802,7 +802,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 ## Phase 42 — Make real and null graph tests symmetric
 
 - [x] `P42.1` Feed synthetic nulls through an observational/intervention pipeline as similar as practical to Aura’s. — a null's trials are made the way the real run makes them: per start regime, a cycled injection point, a displaced arm against two shams from one state and one noise stream, effect and floor read off one column by the same _paired_divergence; the doses are matched with that same divergence. The one remaining difference is the dose rule: the v1 battery's frozen flat delta against the nulls' matched doses
-- [ ] `P42.2` Same effect threshold. — the same effect threshold on the nulls as on the real system
+- [x] `P42.2` Same effect threshold. — the same effect threshold on the nulls as on the real system: a null's edges come out of build_edges, whose effect bar is EDGE_EFFECT
 - [x] `P42.3` Same lag horizon. — and the same number of frames to reach it
 - [x] `P42.4` Comparable noise. — comparable noise, declared with the architecture
 - [x] `P42.5` Comparable trial count. — and a matched dose, so what differs is what escapes rather than how hard each was hit
@@ -911,7 +911,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
 - [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
-- [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
+- [x] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
 
 ## Phase 48 — Protect the evaluation commit
 
