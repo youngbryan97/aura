@@ -36,7 +36,7 @@ def main() -> int:
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
     from core.learning.semantic_program_basis import (
@@ -50,6 +50,7 @@ def main() -> int:
         compositional_semantic_program_transducer_from_dict,
         refit_compositional_argument_proposals,
         refit_compositional_argument_rankings,
+        refit_compositional_definition_pointer,
         refit_compositional_operation_pointer,
     )
     from core.learning.semantic_program_feature_materialization import (
@@ -88,6 +89,7 @@ def main() -> int:
         "pairwise_arguments": refit_compositional_argument_rankings,
         "operation_pointer": refit_compositional_operation_pointer,
         "argument_pointer": refit_compositional_argument_proposals,
+        "definition_pointer": refit_compositional_definition_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     candidate = refit(model, bound, **options)

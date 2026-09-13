@@ -105,3 +105,26 @@ Gold-definition errors remain, so localization cannot explain all failures.
 The report is `remaining-source-relation-diagnostic.json` in the same artifact
 directory, SHA-256
 `d286a1240ccc2c8bbdcf9c49f3dbad226d053efcf917d0f717b07f7fd0ea6629`.
+
+## Definition Supervision Coverage
+
+The follow-up coverage diagnostic found every arithmetic, cataphoric,
+fork/join, and reserved-alias gold definition among the preselection candidates.
+Their targets are anchor-based, and all those examples are excluded by the
+symbolic-only definition-training filter. Exact boundary selection was 144/640,
+48/240, 0/1,344, and 20/240 respectively. These boundary counts do not imply
+equivalent answer failure rates. Role binding had 192/240 gold definitions
+present and 27/240 selected. Its examples also fail the all-registers-symbolic
+filter, despite containing a mixture of anchor and separate-name targets.
+
+The opt-in definition-pointer refit now uses every source training example,
+without retraining the relation coefficients or changing their scale. Its
+receipt separates training from validation contract checking; no validation or
+test rows enter pointer optimization. Full-data candidate measurement remains
+pending. The executable unit checks include mixed anchor/name supervision.
+
+Fresh fitting also exposed a module-extraction regression: the relation-tissue
+module lacked its register-definition helper, training constants, and `math`.
+These dependencies are restored through the existing deferred-import pattern.
+The real small-data fit now passes alongside the new pointer tests: 21 focused
+checks passed. Smoke passed 164 with one skip. No G03 closure is claimed.

@@ -1382,6 +1382,53 @@ def refit_compositional_operation_pointer(
     )
 
 
+def refit_compositional_definition_pointer(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Fit definition boundaries across both anchor and symbolic supervision."""
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("definition pointer refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("definition pointer refit neural basis differs from its parent")
+    train_ids = {item.ir.source_text_sha256 for item in training}
+    validation_ids = {item.ir.source_text_sha256 for item in validation}
+    if train_ids & validation_ids:
+        raise ValueError("definition pointer refit train and validation overlap")
+    pointer = _fit_shared_pointer(training, spans=_register_definition_spans)
+    coefficient = model._coefficient_body()
+    coefficient["definition_pointer"] = pointer.to_dict()
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["definition_pointer_refit"] = {
+        "schema": "aura.semantic_program_definition_pointer_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
+        "supervision_selection": "all_source_register_definitions_v1",
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "test_examples_used": 0,
+        "validation_examples_used_for_fitting": 0,
+        "relation_coefficients_and_scale_preserved": True,
+        "serving_authority": False,
+    }
+    return replace(
+        model, definition_pointer=pointer,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
 def refit_compositional_argument_proposals(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
