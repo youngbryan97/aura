@@ -62,8 +62,14 @@ async def test_learnable_assertiveness():
 @pytest.mark.asyncio
 async def test_dream_fragments(tmp_path):
     from core.config import Paths
+    from core.runtime.state_ownership import state_root
+
     orig_cache = Paths._runtime_home_cache
-    Paths._runtime_home_cache = tmp_path
+    # (state root, home), not a bare home. The cache became a pair when a
+    # process that asked where home was before giving itself a root kept the
+    # first answer; a bare Path here raised TypeError inside the write, which
+    # the recorder swallows, so the test saw only a file that was not there.
+    Paths._runtime_home_cache = (state_root(), tmp_path)
     try:
         from core.container import ServiceContainer
         # Resolve dependencies through deterministic in-memory fixtures.
