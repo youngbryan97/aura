@@ -314,6 +314,36 @@ from core.subject.snapshot import (  # noqa: E402
     _world_state,
 )
 
+#: Every way a turn of this driver reaches into the organism outside the phases
+#: it runs, with what the running organism does in its place. The desktop
+#: runtime runs the heartbeat, the substrate, the layers and the training lane
+#: on timers; this driver runs them on its own count so both arms of a trial
+#: run the same computation. A route with no counterpart in the live runtime
+#: would be a mechanism the battery built for itself, so each names one, or says
+#: that it is the instrument. A test fails when the turn reaches a route that is
+#: not listed, and when a listed counterpart does not exist.
+HARNESS_ROUTES: dict[str, str] = {
+    "_consciousness_tick": "core/consciousness/heartbeat.py:_tick, the heartbeat's own beat, and the substrate's update, which the runtime runs on their intervals",
+    "_integrate_substrate": "core/consciousness/liquid_substrate.py:LiquidSubstrate, the substrate's own iterations at its own step size",
+    "_train_world_model": "core/world_model/learned_world_model.py:start_training, the gradient steps the training lane takes on its timer",
+    "_step_ontogeny": "core/ontogeny/lifetime.py:advance, whose reading from the affect phase is copied onto the object N is read from",
+    "_refresh_health": "core/state/aura_state.py:_refresh_cognitive_health, the projection the kernel makes at the end of every tick",
+    "_publish_state": "core/state/state_repository.py:StateRepository, where the runtime reads the current state from",
+    "_republish_body": "core/senses/soma.py, the proprioceptive report the resilience engine reads, held at the frozen host",
+    "_retrieve": "core/memory/intentional_retrieval.py:IntentionalRetriever, the real retriever, run in the memory condition",
+    "_intends_to_act": "core/governance/will.py, whose threshold defers an initiative below three tenths",
+    "_act": "core/phases/action_grounding.py:ground_response, a skill she dispatches; a scratch world stands in for the environment",
+    "step_once": "core/subject/steppable.py:step_once, the free-running layers the runtime runs on timers, advanced by count",
+    "note_effort": "core/soma/effort.py:note_effort, the cost the production phase seam reports",
+    "_condition_index": "instrument: labels which condition a frame came from",
+    "after_phase": "instrument: the lesion's clamp, empty outside a lesion",
+    "perturb": "instrument: the displacement an intervention makes",
+    "sustain": "instrument: holds a displacement where it was put",
+    "on_frame": "instrument: reads a frame and writes nothing",
+    "read": "instrument: reads the ten domains and writes nothing",
+    "capture": "instrument: advances the clock and the layers, then reads a frame",
+}
+
 
 @dataclass
 class SubjectRuntime:
