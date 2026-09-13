@@ -421,6 +421,9 @@ class _AnnotatedText:
     def span(self, label: str) -> CharacterSpan:
         return self._spans[label]
 
+    def definition_span(self, label: str) -> CharacterSpan:
+        return self._spans.get(f"definition_{label}", self.span(label))
+
     @property
     def text(self) -> str:
         return "".join(self._parts)
@@ -654,7 +657,9 @@ def _fronted_operand(
         str(values[topology.remaining_input]),
         label=f"in{topology.remaining_input}",
     )
-    builder.append(" as the reserved operand, first ")
+    builder.append(" as the ")
+    builder.append("reserved operand", label=f"definition_in{topology.remaining_input}")
+    builder.append(", first ")
     first_left, first_right = _first_arguments(values, topology)
     first_args = _append_binary_verb(
         builder,
@@ -1035,6 +1040,7 @@ def build_semantic_program_corpus(
     *,
     seed: int = 271828,
     examples_per_operation_pair: int = 2,
+    annotate_register_definitions: bool = False,
 ) -> tuple[SemanticProgramExample, ...]:
     """Return deterministic examples with construction-disjoint splits."""
 
@@ -1083,6 +1089,11 @@ def build_semantic_program_corpus(
                                 instructions=annotations,
                                 report_value=4,
                                 contrast_id=contrast_id,
+                                register_definition_spans=(
+                                    tuple(builder.definition_span(label) for label in input_labels)
+                                    + tuple(annotation.operation_span for annotation in annotations)
+                                    if annotate_register_definitions else ()
+                                ),
                             )
                         )
     return tuple(examples)

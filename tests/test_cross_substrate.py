@@ -196,6 +196,45 @@ def test_a_conversion_that_agrees_installs():
     assert result.installed and result.equivalence.agreement == 1.0
 
 
+def test_two_matching_failures_cannot_qualify_a_conversion():
+    def broken(_value):
+        raise ValueError("no result")
+    registry = reset_knowledge_registry_for_test()
+    registry.hold("broken", Form.IMPLICIT, broken)
+    result = registry.convert(
+        "broken", source=Form.IMPLICIT, target=Form.NEURAL,
+        build=lambda _source: broken, cases=[1, 2],
+    )
+    assert not result.installed
+    assert result.equivalence.agreements == 0
+    assert len(result.equivalence.disagreements) == 2
+    assert Form.NEURAL not in registry.get("broken").forms
+
+
+@pytest.mark.parametrize("source_raises", [True, False])
+def test_exception_diagnostic_is_not_confused_with_a_returned_string(source_raises):
+    def broken(_value):
+        raise ValueError("no result")
+    def diagnostic(_value):
+        return "<raised ValueError>"
+    pair = (broken, diagnostic) if source_raises else (diagnostic, broken)
+    def compare(_left, _right):
+        raise AssertionError("failed execution must not reach the result comparator")
+    result = measure_equivalence(*pair, [1], compare=compare)
+    assert result.agreements == 0
+    assert len(result.disagreements) == 1
+
+
+def test_partial_execution_counts_only_successful_agreement():
+    def partial(value):
+        if value == 0:
+            raise RuntimeError("missing")
+        return value * 2
+    result = measure_equivalence(partial, partial, [0, 1, 2, 3], tolerance=1.)
+    assert result.agreement == .75
+    assert not result.passes
+
+
 def test_a_conversion_that_disagrees_does_not_install_and_keeps_the_cases():
     registry = reset_knowledge_registry_for_test()
     registry.hold("halving", Form.IMPLICIT, _policy)

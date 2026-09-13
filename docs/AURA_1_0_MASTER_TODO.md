@@ -701,6 +701,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   retain 47/48 exposed weave answers and lose the gain under both controls.
   Arithmetic diagnostics locate the remaining reversals in register linking,
   despite correctly selected argument phrases and slots. No promotion.
+  [Definition ownership development](evidence/G03_DEFINITION_ATTACHMENT_2026-09-13.md)
+  preserves three rejected candidates: source answers 456, 465 and 459 out of
+  500, with weave answers 28, 12 and 42 out of 48. The optimizer counts learned
+  attachment once per used definition, and conditional ownership avoids
+  treating every alternate name as a negative. Transfer regressions remain;
+  no candidate is promoted and G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -710,8 +716,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [End-to-end design](G03_SEMANTIC_CORRECTNESS_CONTRACT.md) maps existing
+  substrates and executable paths to cross-backend composition, knowledge and
+  planning feedback, and broad runtime evaluation. These work packages need
+  not wait for perfect arithmetic development scores. Design is not closure.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  2026-09-13: the shared conversion comparison no longer counts matching
+  exceptions as successful agreement; 36 cross-substrate tests passed.
+  This repairs a qualification primitive, not a completed fusion.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify

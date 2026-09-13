@@ -31,6 +31,7 @@ from typing import Any, Final
 
 import numpy as np
 
+from core.learning.semantic_definition_attachment import valid_attachment_contract
 from core.learning.semantic_input_grounding import (
     SemanticInputGroundingContract,
     semantic_input_grounding_contract_from_dict,
@@ -403,6 +404,7 @@ class CompositionalSemanticProgramTransducer:
     allow_computed_dependencies: bool
     training_receipt: dict[str, Any]
     schema: str = COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+    definition_attachment_head: LinearArgumentRoleHead | None = None
 
     def __post_init__(self) -> None:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
@@ -462,6 +464,13 @@ class CompositionalSemanticProgramTransducer:
                 for head in (*self.argument_role_heads, *self.argument_proposal_heads)
             )
             or self.definition_relation_head.channel_width != relation_end - relation_start
+            or ((self.definition_attachment_head is None) != (receipt.get("definition_attachment_fit") is None))
+            or (self.definition_attachment_head is not None and (
+                self.definition_attachment_head.channel_width != relation_end - relation_start
+                or receipt.get("definition_selection_policy") != "joint_graph_v1"
+                or receipt.get("argument_search_strategy") != "global_constraint_v1"
+                or not valid_attachment_contract(receipt)
+            ))
             or type(self.max_steps) is not int
             or not 1 <= self.max_steps <= _MAX_STEPS
             or type(self.max_inputs) is not int
@@ -515,7 +524,7 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("forward_reference_policy", "positive_relation_v1")
             not in {"positive_relation_v1", "joint_graph_v1"}
             or receipt.get("definition_boundary_policy", "register_neighbors_v1")
-            not in {"register_neighbors_v1", "source_neighbors_v1"}
+            not in {"register_neighbors_v1", "source_neighbors_v1", "source_neighborhood_v2"}
             or receipt.get("definition_selection_policy", "pointer_first_v1")
             not in {"pointer_first_v1", "joint_graph_v1"}
             or (
@@ -619,6 +628,8 @@ class CompositionalSemanticProgramTransducer:
 
     def _coefficient_body(self) -> dict[str, Any]:
         return {
+            **({"definition_attachment_head": self.definition_attachment_head.to_dict()}
+               if self.definition_attachment_head is not None else {}),
             "operation_pointer": self.operation_pointer.to_dict(),
             "argument_pointer": self.argument_pointer.to_dict(),
             "definition_pointer": self.definition_pointer.to_dict(),
@@ -662,6 +673,7 @@ class CompositionalSemanticProgramTransducer:
 
     def _with_coefficients(self, **changes: Any) -> CompositionalSemanticProgramTransducer:
         values = {
+            "definition_attachment_head": changes.get("definition_attachment_head", self.definition_attachment_head),
             "operation_pointer": changes.get("operation_pointer", self.operation_pointer),
             "argument_pointer": changes.get("argument_pointer", self.argument_pointer),
             "definition_pointer": changes.get("definition_pointer", self.definition_pointer),
@@ -694,6 +706,8 @@ class CompositionalSemanticProgramTransducer:
             ),
         }
         coefficient = {
+            **({"definition_attachment_head": values["definition_attachment_head"].to_dict()}
+               if values["definition_attachment_head"] is not None else {}),
             "operation_pointer": values["operation_pointer"].to_dict(),
             "argument_pointer": values["argument_pointer"].to_dict(),
             "definition_pointer": values["definition_pointer"].to_dict(),
@@ -731,6 +745,10 @@ class CompositionalSemanticProgramTransducer:
             np.zeros_like(head.pair_weight) if head.pair_weight is not None else None,
         )
         return self._with_coefficients(
+            definition_attachment_head=(
+                LinearArgumentRoleHead(np.zeros_like(self.definition_attachment_head.weight), self.definition_attachment_head.bias)
+                if self.definition_attachment_head is not None else None
+            ),
             operation_pointer=zero_pointer(self.operation_pointer),
             argument_pointer=zero_pointer(self.argument_pointer),
             definition_pointer=zero_pointer(self.definition_pointer),
@@ -891,6 +909,16 @@ class CompositionalSemanticProgramTransducer:
         body = {
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["definition_selection_policy"] = "joint_graph_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_bidirectional_input_definitions(self) -> CompositionalSemanticProgramTransducer:
+        """Admit input names on either side within source-neighbor boundaries."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["definition_boundary_policy"] = "source_neighborhood_v2"
         body["argument_search_strategy"] = "global_constraint_v1"
         body["definition_selection_policy"] = "joint_graph_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
@@ -1888,6 +1916,10 @@ def compositional_semantic_program_transducer_from_dict(
         allow_computed_dependencies=bool(payload["allow_computed_dependencies"]),
         training_receipt=dict(payload["training_receipt"]),
         schema=schema,
+        definition_attachment_head=(
+            LinearArgumentRoleHead(np.asarray(payload["definition_attachment_head"]["weight"], dtype=np.float32), float(payload["definition_attachment_head"]["bias"]))
+            if payload.get("definition_attachment_head") is not None else None
+        ),
     )
 
 

@@ -15,9 +15,19 @@ import math
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
+
+from core.learning.semantic_definition_candidates import (
+    _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+    _LOCAL_DEFINITION_CANDIDATE_STRATEGY as _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    _STABLE_REGISTER_TABLE_STRATEGY as _STABLE_REGISTER_TABLE_STRATEGY,
+    _LOCAL_DEFINITION_CANDIDATES as _LOCAL_DEFINITION_CANDIDATES,
+    _definition_span_candidates as _definition_span_candidates,
+    _register_definition_candidates as _register_definition_candidates,
+    _register_definition_spans as _register_definition_spans,
+)
 
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_ir import (
@@ -70,13 +80,10 @@ if TYPE_CHECKING:  # the model this module fits imports this module, so the
 COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v16"
 
 
-_LEGACY_DEFINITION_CANDIDATE_STRATEGY: Final = "anchored_envelope_v1"
 
 
-_LOCAL_DEFINITION_CANDIDATE_STRATEGY: Final = "bounded_local_alias_v1"
 
 
-_STABLE_REGISTER_TABLE_STRATEGY: Final = "stable_register_table_v1"
 
 
 _OPERATION_MODE: Final = "contextual_mean"
@@ -97,7 +104,6 @@ _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
 
 
-_LOCAL_DEFINITION_CANDIDATES: Final = 16
 
 
 _POINTER_HARD_NEGATIVES: Final = 16
@@ -203,135 +209,6 @@ def _all_semantic_spans(
     )
 
 
-def _register_definition_spans(
-    item: SemanticTransducerTrainingExample,
-) -> tuple[TokenSpan, ...]:
-    definitions = item.register_definition_spans or (
-        *item.ir.input_spans,
-        *(instruction.operation_span for instruction in item.ir.instructions),
-    )
-    if len(definitions) != item.ir.n_inputs + len(item.ir.instructions):
-        raise ValueError("compositional register-definition geometry differs")
-    return definitions
-
-
-def _definition_span_candidates(
-    anchor: TokenSpan,
-    *,
-    token_count: int,
-    max_span_tokens: int,
-    direction: Literal["left", "right"] = "right",
-) -> tuple[TokenSpan, ...]:
-    """Enumerate register envelopes toward where its name can be introduced.
-
-    Public literals conventionally follow their names (``reserve 7``), while a
-    computed value's name follows the operation that defines it.  Keeping the
-    direction explicit makes runtime capable of representing the same spans
-    used by relation training without opening a quadratic all-span search.
-    """
-
-    if direction == "left":
-        start = min(anchor.start, max(0, anchor.end - max_span_tokens))
-        return tuple(TokenSpan(index, anchor.end) for index in range(start, anchor.start + 1))
-    if direction == "right":
-        stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
-        return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
-    raise ValueError("definition span direction is invalid")
-
-
-def _register_definition_candidates(
-    anchors: Sequence[TokenSpan],
-    *,
-    input_count: int,
-    token_count: int,
-    max_span_tokens: int,
-    pointer_scores: LinearPointerSequenceScores,
-    strategy: str,
-    source_ordered_boundaries: bool = False,
-) -> tuple[tuple[TokenSpan, ...], ...]:
-    """Localize each register inside its bounded defining clause.
-
-    The legacy decoder represented a computed value only with envelopes that
-    began at its operation verb. Natural language often names that value at
-    the other end of the clause, and a long literal can place an input's name
-    outside any value-ending envelope. Local strategies add learned subspans
-    inside the defining clause. The stable-table strategy resolves exactly one
-    identity span per register before any argument mention is scored, so later
-    uses cannot select contradictory definitions for the same register.
-    """
-
-    if not 0 <= input_count <= len(anchors):
-        raise ValueError("definition candidate input count is invalid")
-    if strategy not in {
-        _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
-        _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
-        _STABLE_REGISTER_TABLE_STRATEGY,
-    }:
-        raise ValueError("definition candidate strategy is invalid")
-    result: list[tuple[TokenSpan, ...]] = []
-    for index, anchor in enumerate(anchors):
-        direction: Literal["left", "right"] = "left" if index < input_count else "right"
-        envelopes = _definition_span_candidates(
-            anchor,
-            token_count=token_count,
-            max_span_tokens=max_span_tokens,
-            direction=direction,
-        )
-        if strategy == _LEGACY_DEFINITION_CANDIDATE_STRATEGY:
-            result.append(envelopes)
-            continue
-
-        if direction == "left":
-            clause_start = (
-                max((other.end for other in anchors if other.end <= anchor.start), default=0)
-                if source_ordered_boundaries
-                else anchors[index - 1].end if index else 0
-            )
-            boundary_start = max(clause_start, anchor.start - max_span_tokens)
-            local_bounds = (boundary_start, anchor.start)
-            bounded_envelopes = (
-                tuple(span for span in envelopes if span.start >= clause_start)
-                if source_ordered_boundaries else envelopes
-            )
-        else:
-            next_operation = (
-                min((other.start for other in anchors[input_count:]
-                     if other.start >= anchor.end), default=token_count)
-                if source_ordered_boundaries
-                else anchors[index + 1].start if index + 1 < len(anchors) else token_count
-            )
-            boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
-            local_bounds = (anchor.end, boundary)
-            bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
-        local: list[tuple[TokenSpan, float]] = []
-        for start in range(*local_bounds):
-            stop = min(local_bounds[1], start + max_span_tokens)
-            for end in range(start + 1, stop + 1):
-                span = TokenSpan(start, end)
-                local.append((span, pointer_scores.score_span(span)))
-        local.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
-        candidates = tuple(
-            dict.fromkeys(
-                (
-                    *(bounded_envelopes or (anchor,)),
-                    *(span for span, _score in local[:_LOCAL_DEFINITION_CANDIDATES]),
-                )
-            )
-        )
-        if strategy == _STABLE_REGISTER_TABLE_STRATEGY:
-            candidates = (
-                max(
-                    candidates,
-                    key=lambda span: (
-                        pointer_scores.score_span(span),
-                        -(span.end - span.start),
-                        -span.start,
-                        -span.end,
-                    ),
-                ),
-            )
-        result.append(candidates)
-    return tuple(result)
 
 
 def _best_penalized_operation_chart(
@@ -1273,11 +1150,16 @@ def _assign_typed_arguments(
             else model.definition_candidate_strategy
         ),
         source_ordered_boundaries=(
-            model.training_receipt.get("definition_boundary_policy") == "source_neighbors_v1"
+            model.training_receipt.get("definition_boundary_policy")
+            in {"source_neighbors_v1", "source_neighborhood_v2"}
+        ),
+        bidirectional_inputs=(
+            model.training_receipt.get("definition_boundary_policy") == "source_neighborhood_v2"
         ),
     )
     definition_registers = tuple(range(len(definitions)))
     definition_labels = ()
+    attachment_scores = None
     if joint_definitions:
         # The original anchor remains a hypothesis alongside the best learned
         # local spans. The graph chooses a shared identity across all uses.
@@ -1291,6 +1173,12 @@ def _assign_typed_arguments(
                 ))[:4],
             ))
         )
+        if model.definition_attachment_head is not None:
+            from core.learning.semantic_definition_attachment import attachment_hypotheses
+
+            hypotheses, attachment_scores = attachment_hypotheses(
+                model, hidden, definitions, definition_candidates,
+            )
         definition_registers = tuple(register for register, _span in hypotheses)
         definition_labels = tuple(span for _register, span in hypotheses)
         definition_candidates = tuple((span,) for span in definition_labels)
@@ -1542,6 +1430,7 @@ def _assign_typed_arguments(
         optimized = optimize_argument_chart(
             chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
             definition_options=chart_definition_options if joint_definitions else None,
+            definition_scores=attachment_scores,
         )
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []

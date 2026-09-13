@@ -16,7 +16,7 @@ from core.learning.semantic_program_transducer_fitting import (
 )
 
 
-def brute(options, contract, n_inputs=3, definition_options=None):
+def brute(options, contract, n_inputs=3, definition_options=None, definition_scores=None):
     nodes = tuple(
         _OperationNode(TokenSpan(20 + 2 * i, 21 + 2 * i), "add", 0, 0, 1)
         for i in range(len(options))
@@ -53,8 +53,30 @@ def brute(options, contract, n_inputs=3, definition_options=None):
                                          n_inputs=n_inputs, operation_count=len(options), sink=sink):
             continue
         score = sum(x[0] for x in choices)
+        if definition_scores is not None:
+            score += sum(definition_scores[register, next(iter(spans))]
+                         for register, spans in definitions.items())
         best = score if best is None else max(best, score)
     return best
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_definition_attachment_objective_matches_exhaustive_graph_search(seed):
+    rng = np.random.default_rng(seed)
+    names = (TokenSpan(10, 11), TokenSpan(12, 13))
+    options = tuple(tuple(tuple(
+        (float(rng.normal()), register, TokenSpan(2 * node + slot, 2 * node + slot + 1))
+        for register in range(5) if register != 3 + node for _name in names
+    ) for slot in range(2)) for node in range(2))
+    labels = tuple(tuple(tuple(name for register in range(5) if register != 3 + node
+                                for name in names) for _slot in range(2)) for node in range(2))
+    scores = {(register, name): float(rng.normal()) for register in range(5) for name in names}
+    contract = RegisterUseContract(1, 1, 1, 1, True)
+    expected = brute(options, contract, definition_options=labels, definition_scores=scores)
+    observed = optimize_argument_chart(options, n_inputs=3, contract=contract,
+                                       definition_options=labels, definition_scores=scores)
+    assert observed is not None
+    assert observed[0] == pytest.approx(expected, abs=1e-8)
 
 
 @pytest.mark.parametrize("seed", range(6))

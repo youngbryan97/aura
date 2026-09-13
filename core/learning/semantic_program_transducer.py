@@ -1294,27 +1294,36 @@ def _fit_binary_head(
     sample_weight: np.ndarray | None = None,
     max_iter: int = 1000,
     tolerance: float = 1e-4,
+    solver: str = "liblinear",
 ) -> tuple[np.ndarray, float]:
     from sklearn.linear_model import LogisticRegression
 
     if set(np.unique(labels).tolist()) != {0, 1}:
         raise ValueError("semantic pointer supervision lacks a positive or negative class")
+    if solver not in {"liblinear", "lbfgs"}:
+        raise ValueError("unsupported semantic binary solver")
+    if solver == "lbfgs":
+        # liblinear regularizes its synthetic bias feature. Keep that objective
+        # when using dense BLAS instead of liblinear's sparse row traversal.
+        features = np.column_stack((features, np.ones(len(features), dtype=features.dtype)))
     classifier = LogisticRegression(
         C=10.0,
         class_weight="balanced",
         max_iter=max_iter,
         random_state=0,
-        solver="liblinear",
+        solver=solver,
+        fit_intercept=solver == "liblinear",
         tol=tolerance,
     )
     if sample_weight is None:
         classifier.fit(features, labels)
     else:
         classifier.fit(features, labels, sample_weight=sample_weight)
-    return (
-        np.asarray(classifier.coef_[0], dtype=np.float32),
-        float(classifier.intercept_[0]),
-    )
+    if solver == "lbfgs":
+        if int(classifier.n_iter_[0]) >= max_iter:
+            raise ValueError("semantic dense binary fit did not converge")
+        return np.asarray(classifier.coef_[0, :-1], dtype=np.float32), float(classifier.coef_[0, -1])
+    return np.asarray(classifier.coef_[0], dtype=np.float32), float(classifier.intercept_[0])
 
 
 def _fit_classifier(
