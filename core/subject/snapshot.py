@@ -17,11 +17,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import enum
 import importlib
 import inspect
 import logging
 import os
 import sqlite3
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -227,28 +229,103 @@ def _guards_its_own_writes(organ: Any) -> bool:
     return type(organ).__setattr__ is not object.__setattr__
 
 
+#: A field an object does not have, as distinct from one that holds None.
+_ABSENT = object()
+
+
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
     if organ is None or _guards_its_own_writes(organ):
         return
+    seen: set[int] = set()
     for name, value in saved.items():
         if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
-        try:
-            setattr(organ, name, _place(value))
-        except (
-            ArithmeticError,
-            AttributeError,
-            ImportError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ):
-            # A field that will not be written stays as it was. The kinds are
-            # named so an interrupt still stops the restore.
-            continue
+        _put_back(organ, name, value, seen)
+
+
+def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
+    """Write one saved field back, into the object already there if it can be.
+
+    Writing a copy over the field is right for a number and wrong for an object
+    something else also holds. `ConversationalDynamicsPhase` keeps the engine
+    that `get_dynamics_engine()` hands every other caller, and the first restore
+    gave the phase a copy of its own. From then on the phase rewound every arm
+    and the shared engine, which the response phase updates, never did: across
+    four arms from one snapshot its message count read 18, 19, 20 and 21. So an
+    object of the same type is restored field by field and keeps its identity,
+    and so are the dicts, lists, deques and arrays it holds.
+    """
+    if _restore_into(getattr(owner, name, _ABSENT), saved, seen):
+        return
+    try:
+        setattr(owner, name, _place(saved))
+    except (
+        ArithmeticError,
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ):
+        # A field that will not be written stays as it was. The kinds are
+        # named so an interrupt still stops the restore.
+        return
+
+
+def _restore_into(current: Any, saved: Any, seen: set[int]) -> bool:
+    """Make `current` hold what `saved` holds without replacing it.
+
+    False when that cannot be done in place, and the caller writes a copy over
+    the field instead. Fields an arm added to an object are left alone: a copy
+    made through `__getstate__` can leave out a lock the live object needs, and
+    deleting whatever the copy lacks would delete the lock.
+    """
+    if current is _ABSENT or current is saved or type(current) is not type(saved):
+        return False
+    if isinstance(saved, _ATOMIC) or isinstance(current, enum.Enum):
+        return False
+    if isinstance(current, np.ndarray):
+        if current.shape != saved.shape or current.dtype != saved.dtype or not current.flags.writeable:
+            return False
+        np.copyto(current, saved)
+        return True
+    if isinstance(current, dict):
+        # Key by key, so an object filed under a key keeps its identity too.
+        rebuilt = {}
+        for key, value in saved.items():
+            held = current.get(key, _ABSENT)
+            rebuilt[key] = held if _restore_into(held, value, seen) else _place(value)
+        current.clear()
+        current.update(rebuilt)
+        return True
+    if isinstance(current, list):
+        current[:] = _place(saved)
+        return True
+    if isinstance(current, deque):
+        if current.maxlen != saved.maxlen:
+            return False
+        current.clear()
+        current.extend(_place(saved))
+        return True
+    if (
+        not hasattr(current, "__dict__")
+        or isinstance(current, type)
+        or inspect.ismodule(current)
+        or callable(current)
+        or _is_process_furniture(current)
+        or _guards_its_own_writes(current)
+    ):
+        return False
+    if id(saved) in seen:
+        # A cycle: this object is already being restored further up.
+        return True
+    seen.add(id(saved))
+    for key, value in vars(saved).items():
+        _put_back(current, key, value, seen)
+    return True
 
 
 #: The reservoir attributes that make up an ontogenetic state's whole memory.
