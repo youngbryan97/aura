@@ -314,70 +314,71 @@ Working list. Deleted when every line is done and green.
       untouched because it drives inner.layers itself and never enters the
       patched forward.
 
-- [ ] steering serving authority — refused by arithmetic, not by judgement.
-      Worth writing down exactly where, because "turn it on" has no honest
-      path until a campaign passes.
+- [ ] steering serving authority — the bar was not too high, the capture was
+      in the wrong place. Every requirement the signed authority reads has now
+      moved; two are still open and both are the same fact.
 
-      Three gates, from the live worker log: the checkpoint's signed component
-      authority says `steering_generation_deferred`, so no hooks attach; the
-      surface clamp forces alpha to 0.0 on user-visible decodes; and no fusion
-      certificate exists. Neutral attachment — hooks installed at alpha 0, the
-      state that would let the live instance MEASURE — is not a way round it
-      either: a deferred authority returns before any hook is built.
-
-      Publishing a qualified generation is what opens all three, and
+      Three gates stand between the vectors and a served turn, from the live
+      worker log: the checkpoint's signed component authority says
+      `steering_generation_deferred`, so no hooks attach; the surface clamp
+      forces alpha to 0.0 on user-visible decodes until a fusion certificate
+      exists; and no certificate can exist while there are no hooks to measure.
+      Publishing a qualified generation opens all three, and
       `_validate_steering` in `core/learning/cortex_migration_authority.py`
-      requires a causal evaluation carrying `verdict == "PASS"`,
-      `qualified is True`, at least 24 samples, treatment strictly greater
-      than the matched no-op, every lesion strictly under treatment,
-      `no_regression is True` and `causal_effect_positive is True`.
+      requires `verdict == "PASS"`, `qualified is True`, at least 24 samples,
+      treatment strictly above the matched no-op, every lesion strictly under
+      treatment, `no_regression` and `causal_effect_positive`.
 
-      Neither campaign clears it. The original vectors at alpha 0.2 pass the
-      win counts (20 against 7, lesions 4/15/4) and fail
-      `causal_effect_positive`, because a shuffled-layer control reproduces
-      0.44 of a 0.75 effect and a plain text instruction beats it 1.36 to
-      0.75. The layer-specific set fails four ways: treatment 7 against a
-      no-op 7 is not strictly greater, `shuffled_layers` wins 8 which is more
-      than treatment, one task regresses, and the effect is inside sampling
-      noise.
+      **What was actually wrong.** `SteeringVectorLibrary._derive_caa` runs
+      each contrast statement through `tokenizer.encode` on its own. For "I
+      feel genuinely good about this." the state it captures is the model at a
+      full stop, at the end of a bare sentence, with no chat turn around it.
+      That direction is the difference between READING two statements, and
+      every campaign since has asked it to change WRITING.
 
-      The migration authority key is present and usable — an earlier note
-      here said otherwise, which was a scratch state root hiding it. That
-      changes nothing: an authority signed over an evaluation that fails
-      `_validate_steering` is rejected at attach. The gate is checking the
-      thing the measurements say is false, which is the gate working.
+      Five injection geometries were measured before that was found — translate,
+      rotate, clip, project, lift, over four layers and sixteen, alpha 0.02 to
+      1.6 — and the affect score stopped at +0.83 under all of them. A ceiling
+      that does not move when the geometry changes is not a ceiling in the
+      geometry. `core/consciousness/residual_injection_geometry.py` carries
+      what that work found: translation lengthens the stream at every layer it
+      touches, rotation scales the content away instead, and projection SETS
+      the component along the vector rather than adding to it, so sixteen
+      layers arrive where one does and nothing compounds.
 
-      Three attempts to MEET the two requirements rather than report them,
-      all measured on the resident 27B:
+      **Captured at the generation position instead** — the served chat
+      template, the generation prompt appended, the same statement standing as
+      the assistant's own opening words — the same five dimensions move the
+      scored behaviour much further. Held-out tasks, twelve samples a cell,
+      the text control at +1.583:
 
-      * **Alpha.** The sweep peaks at 0.83 at alpha 0.2 and falls away: 0.67
-        at 0.3, 0.00 at 0.4, and ten characters of output at 0.6. Coherence
-        breaks well before the score reaches the prompt's.
-      * **Layer-specific vectors.** Strip the shared axis, keep the residual,
-        rescale to the original norm: the effect vanishes entirely, 0.0833
-        against a baseline of 0.0833. So the effect IS the shared axis, which
-        is also why permuting layers preserves it — the specificity control is
-        right and cannot be tuned away.
-      * **Every attention layer.** Sixteen sites from layer 3 to 63 rather
-        than four adjacent ones. The vectors there are far less alike — mean
-        cosine 0.50 against 0.79, and 0.07 between the ends — so a permutation
-        has further to move. It does raise the effect: 1.33 at alpha 0.05
-        against the narrow set's 0.83. It still loses to the prompt's 2.00,
-        and it costs coherence on the way — replies drop from 1,070
-        characters to 619, and sixteen layers at alpha 0.2 produce eight
-        characters. `artifacts/migration/27b/recovery/wide_layer_probe.txt`.
+          alpha   old vectors   generation-position, 4 adjacent layers
+          0.05         --                 +0.333
+          0.10         --                 +1.167
+          0.15         --                 +0.833
+          0.20       +0.833               +0.333
 
-      So `text_prompt_moves_output_at_least_as_far` is not reachable for this
-      intervention on this checkpoint: every route to a bigger effect breaks
-      the model before it reaches what a sentence does for free. That is a
-      finding about CAA on a residual stream, not a bar set too high.
+      At n=24 with the full control set, on those four layers at alpha 0.1:
+      treatment 13 against a matched no-op 6, lesions 2/6/8, no regression, and
+      `adds_to_text` true — the vectors on top of the prompt score 3.0000
+      against the prompt's 1.4167. The campaign before this one had treatment 7
+      against a no-op 7 with a shuffled-layer control winning more than the
+      treatment, so both of those requirements are now met.
 
-      What IS reachable, and measured: steering compounds with the prompt.
-      `steered_plus_text_rich` scores 3.6111 against the prompt's 1.3611 — a
-      paired shift of +2.25, p=0.0002, CI [1.44, 3.00]. The vectors carry
-      something the words do not, while losing to them alone. Whether serving
-      authority should rest on beating text or on adding to it is a decision
-      about the bar, and it is Bryan's; the number is now attached to it.
+      **What is left is one fact with two faces.** `shuffled_layers` scores
+      0.3750 against a treatment of 0.8750 — 43% of it, where a control may
+      carry a quarter — and the treatment does not move the output as far as
+      the rich prompt. Four ADJACENT attention layers hold vectors 0.79 alike,
+      so permuting them barely moves the injection, and four sites is not much
+      room at an alpha the model survives.
+
+      Every full_attention layer in the checkpoint is the answer to both: 3 to
+      63, sixteen sites, mean cosine between layers 0.376 with the ends near
+      orthogonal. Projection there reaches +1.417 at alpha 0.2 with replies at
+      888 characters against a baseline 954, and falls off a cliff at 0.3.
+      `artifacts/migration/27b/recovery/steering_plan_wide.json` names the
+      layers; the n=24 campaign on them is what decides this item.
+
 
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
