@@ -1125,16 +1125,12 @@ def answer_is_derived_for_generation(
     """
 
     try:
-        from core.brain.llm.thinking_reserve import (
-            proved_insufficient,
-            seconds_to_decode,
-        )
+        from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         floor = int(completion_floor or 0)
         budget = int(budget_tokens or 0)
         remaining = float(seconds_remaining or 0.0)
-        proved = int(proved_insufficient(str(model_name or "")))
     except (ImportError, TypeError, ValueError):
         return False
     # Whether the answer is worked out here is a property of the REQUEST. A
@@ -1142,19 +1138,33 @@ def answer_is_derived_for_generation(
     # is work the request named and nothing upstream has done.
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    # Three vetoes over that, and no more. Sizing the channel is a different
-    # question with a different owner (``the_channel_budget_for``), and asking
-    # it here was a deadlock: the channel is reserved out of the same budget
-    # the answer is written from, and the answer clock only adds that reserve
-    # once this has already said yes. A budget equal to its own floor then
-    # left nothing over, so the channel could never open on any turn.
-    if 0 < budget <= proved:
-        return False
-    if remaining > 0.0 and budget > 0:
-        needed = float(seconds_to_decode(budget, str(model_name or "")))
-        if 0.0 < remaining < needed:
-            return False
-    return True
+    # Affordability has one owner, and it is asked only when it is answerable.
+    #
+    # These two decisions have to agree or the worst case happens: thinking
+    # switched on and no budget to bound it with. What the channel may take is
+    # the tokens the clock can decode in the time this turn has, less the room
+    # the answer needs — and zero is a real answer, meaning this turn cannot
+    # afford to think privately and nothing should open the channel.
+    #
+    # With no clock there is no affordability question to ask. The one caller
+    # that arrives here without one is `_time_the_answer_needs`, which is
+    # computing the deadline and so cannot be handed it; answering False there
+    # drops the reserve out of its own estimate and under-prices exactly the
+    # turns that will think. It gets the role question, which is all this can
+    # honestly answer without a clock, and it cannot open a channel with the
+    # answer — only the worker does that, and the worker sizes through the
+    # owner below.
+    if remaining <= 0.0:
+        return True
+    return (
+        the_channel_budget_for(
+            max_tokens=budget,
+            seconds_left=remaining,
+            answer_floor=floor,
+            model=str(model_name or ""),
+        )
+        > 0
+    )
 
 
 class NativeThinkingChannels(NamedTuple):

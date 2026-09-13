@@ -31,7 +31,7 @@ class PostmortemReport:
     recommended_regressions: list[str] = field(default_factory=list)
     total_steps: int = 0
     duration_s: float = 0.0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 class PostmortemGenerator:

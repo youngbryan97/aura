@@ -197,13 +197,13 @@ class _TextReadCursor:
     offset: int
     mtime_ns: int
     remainder: bytes = b""
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
 class AmbientDeveloperFrame:
     frame_id: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     repo_root: str = ""
     git_dirty_count: int = 0
     git_status: tuple[str, ...] = ()

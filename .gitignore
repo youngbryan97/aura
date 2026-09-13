@@ -213,3 +213,4 @@ artifacts/subject_core/**/core_state.npz
 artifacts/subject_core/**/runtime/
 artifacts/subject_core/**/logs/
 artifacts/subject_core/logs/
+artifacts/subject_core/**/state/

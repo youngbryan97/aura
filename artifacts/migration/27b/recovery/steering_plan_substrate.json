@@ -1,0 +1,22 @@
+{
+  "model_path": "/Users/bryan/.aura/live-source/models/Qwen2.5-1.5B-Instruct-4bit",
+  "hidden_size": 1536,
+  "target_layers": [
+    {
+      "index": 6,
+      "kind": "full_attention"
+    },
+    {
+      "index": 12,
+      "kind": "full_attention"
+    },
+    {
+      "index": 18,
+      "kind": "full_attention"
+    },
+    {
+      "index": 24,
+      "kind": "full_attention"
+    }
+  ]
+}

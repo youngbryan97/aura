@@ -83,7 +83,7 @@ class ValueEvidence:
     confidence: float      # 0.0 to 1.0
     source: str            # What subsystem generated this
     context: str           # Brief description
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def weighted_signal(self) -> float:
         """Signal weighted by confidence."""
@@ -108,8 +108,8 @@ class ValueNode:
     weight: float                            # Current weight (0.0 to 1.0)
     status: ValueNodeStatus = ValueNodeStatus.ADOPTED
     origin_weight: float = 0.5               # Weight at creation
-    created_at: float = field(default_factory=time.time)
-    last_updated: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_updated: float = field(default_factory=lambda: time.time())
     evidence_buffer: List[ValueEvidence] = field(default_factory=list)
     adoption_timestamp: float = 0.0          # When it was adopted
     rollback_deadline: float = 0.0           # Grace period for rollback
@@ -238,7 +238,7 @@ class ValueMutation:
     evidence_count: int
     confidence: float
     reason: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

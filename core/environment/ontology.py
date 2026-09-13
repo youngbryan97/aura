@@ -167,7 +167,7 @@ class SemanticEvent:
     context_id: str
     evidence_ref: str
     confidence: float = 1.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     properties: dict[str, Any] = field(default_factory=dict)
     related_ids: list[str] = field(default_factory=list)
     last_seen_seq: int = 0

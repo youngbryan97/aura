@@ -234,16 +234,27 @@ async def test_the_probe_lesion_never_leaks_into_a_concurrent_turn():
 
 
 def _decorative_channels_now() -> set[str]:
-    """Collect the integrity block OFF the event loop.
+    """Collect the integrity block OFF the event loop, and from today.
 
     ``integrity_block_snapshot()`` deliberately serves a cached snapshot when
     called from the loop — "never at the cost of the event loop" — and only
     requests a background refresh. An async test therefore reads whatever was
-    collected before it ran, which is stale by design and not a defect. Real
-    off-loop callers get a fresh collection, and so does this.
-    """
-    from core.runtime.health_contract import _collect_integrity_snapshot
+    collected before it ran, which is stale by design and not a defect.
 
+    Off the loop the collection is real, and it is still cached: fifteen
+    seconds by default, which is longer than a test file takes. So a test that
+    read the block for one channel handed the next test the same block, and a
+    channel registered and measured in between was not in it — this file's own
+    decorative test failed after its text-mediated one for exactly that, and
+    passed alone. Drop the cache first; these tests are about what is true
+    now, not about what the last caller was served.
+    """
+    from core.runtime.health_contract import (
+        _collect_integrity_snapshot,
+        reset_integrity_snapshot_for_test,
+    )
+
+    reset_integrity_snapshot_for_test()
     block = _collect_integrity_snapshot() or {}
     return {row["channel"] for row in (block.get("decorative_direct_channels") or [])}
 

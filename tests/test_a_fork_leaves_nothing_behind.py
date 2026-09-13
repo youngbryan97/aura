@@ -127,7 +127,18 @@ def test_an_arm_that_ran_leaves_the_organism_where_it_found_it() -> None:
             )
             return before, after, before_periphery, after_periphery
 
-    before, after, before_periphery, after_periphery = asyncio.run(run())
+    from core.subject.clock import installed_clock
+
+    try:
+        before, after, before_periphery, after_periphery = asyncio.run(run())
+    finally:
+        # `calibrate_clock` installs the run's clock over `time.time` and nothing
+        # in a run takes it down, because a run ends with its process. A test
+        # does not, and the next clock installed over this one deadlocked the
+        # suite.
+        clock = installed_clock()
+        if clock is not None:
+            clock.uninstall()
 
     drifted: list[str] = []
     for name, vector in before.items():
@@ -158,30 +169,112 @@ def test_every_live_cognitive_loop_can_be_advanced_by_a_count() -> None:
     from core.subject.organism import bring_up, quiesce
     from core.subject.steppable import missing_entry_points, step_once
 
-    async def run() -> tuple[dict[str, str], dict[str, int], dict[str, str]]:
+    from core.subject.steppable import LAYERS, layers_of
+
+    #: Long enough for every layer down to one step every two and a half
+    #: seconds to take one. A generation of substrate evolution is five
+    #: minutes apart and is not expected inside it.
+    seconds = 0.05
+    frames = int(round(3.0 / seconds))
+
+    async def run() -> tuple[dict[str, str], dict[str, int], dict[str, str], set[str]]:
         organism = await bring_up(quiet=False)
         await quiesce()
         missing = missing_entry_points(organism)
         steps = None
-        for frame in range(4):
-            steps = await step_once(organism, frame, steps)
-        return missing, dict(steps.counts), dict(steps.failures)
+        for frame in range(frames):
+            steps = await step_once(organism, frame, steps, seconds=seconds)
+        return missing, dict(steps.counts), dict(steps.failures), set(layers_of(organism))
 
-    missing, counts, failures = asyncio.run(run())
+    missing, counts, failures, present = asyncio.run(run())
     assert not missing, f"a live layer has no entry point: {missing}"
     assert not failures, f"a layer raised while being stepped: {failures}"
-    assert len(counts) >= 8, f"only {len(counts)} layers were advanced: {sorted(counts)}"
+
+    # Every layer fast enough to come round inside the window did, and the ones
+    # that did not are exactly the ones whose own period is longer than it.
+    window = frames * seconds
+    due = {layer.name for layer in LAYERS if layer.name in present and 1.0 / layer.hz <= window}
+    assert due <= set(counts), f"a layer that was due did not advance: {sorted(due - set(counts))}"
+    assert set(counts) <= present, f"a layer advanced that is not here: {sorted(set(counts) - present)}"
+
+    # And each one took about the number of iterations its own rate calls for.
+    for layer in LAYERS:
+        if layer.name not in counts:
+            continue
+        expected = layer.hz * window
+        assert abs(counts[layer.name] - expected) <= 1.0, (
+            f"{layer.name} took {counts[layer.name]} iterations where its "
+            f"{layer.hz} Hz calls for about {expected:.1f}"
+        )
 
 
 def test_two_arms_step_the_same_layers_the_same_number_of_times() -> None:
-    """Which layer steps on a frame is a function of the frame count, and the
-    frame count is carried in the snapshot — so a restore puts both arms at the
-    same place in the schedule rather than sixty-six frames apart."""
-    from core.subject.steppable import LAYERS
+    """Which layer steps on a frame, and how often, is a function of the frame
+    count — and the frame count is carried in the snapshot, so a restore puts
+    both arms at the same place in the schedule rather than sixty-six frames
+    apart."""
+    from core.subject.steppable import LAYERS, iterations_at
 
-    schedule = lambda start, length: [  # noqa: E731 - a table, not a policy
-        sorted(layer.name for layer in LAYERS if (start + step) % layer.every == 0)
-        for step in range(length)
-    ]
-    assert schedule(0, 12) == schedule(0, 12)
-    assert schedule(0, 12) != schedule(1, 12), "the schedule does not depend on the count"
+    seconds = 0.03
+
+    def schedule(start: int, length: int) -> list[list[tuple[str, int]]]:
+        return [
+            [
+                (layer.name, iterations_at(layer, start + step, seconds)[1])
+                for layer in LAYERS
+            ]
+            for step in range(length)
+        ]
+
+    assert schedule(0, 40) == schedule(0, 40)
+    assert schedule(0, 40) != schedule(7, 40), "the schedule does not depend on the count"
+
+
+def test_the_fork_carries_the_module_singletons_nothing_holds() -> None:
+    """State at module scope that no container and no phase can reach.
+
+    A service is carried under its name; a phase's own attributes go with the
+    phase. What is left is an accessor that returns the one object and nobody
+    keeping a reference — and the interiority layer publishes every faculty
+    through a synaptic cleft got exactly that way. It holds a readiness per
+    channel and its receptor bank adapts, so an arm that felt something left the
+    medium more excitable for the arm after it, under every domain it touches.
+    """
+    from core.interiority.cleft import get_cleft
+    from core.subject.driver import _restore_singletons, _singleton_state
+
+    before = _singleton_state()
+    assert before, "the fork carries no module singletons at all"
+    for _ in range(24):
+        get_cleft().release("a_fork_probe", 0.7, dt=0.05)
+    assert _singleton_state() != before, "the probe moved nothing the fork is watching"
+    _restore_singletons(before)
+    assert _singleton_state() == before, "a restored singleton is not the one saved"
+
+
+def test_the_synaptic_medium_rewinds_with_the_process_generator() -> None:
+    """Release is probabilistic, so the draw has to be one the fork can rewind.
+
+    The cleft held a `random.Random()` of its own. `random.seed()` did not
+    reach it and a snapshot could not put it back, so two arms of a paired
+    trial started from one state and drew different quanta — unseeded
+    randomness inside the cognitive path, under every number measured through
+    the interiority layer.
+    """
+    import random as _random
+
+    from core.interiority.cleft import SynapticCleft
+    from core.interiority.receptors import ReceptorBank
+
+    def run() -> list[float]:
+        cleft = SynapticCleft(bank=ReceptorBank())
+        return [
+            round(cleft.release("rewind_probe", 0.6, dt=0.1).postsynaptic, 9)
+            for _ in range(10)
+        ]
+
+    saved = _random.getstate()
+    first = run()
+    _random.setstate(saved)
+    assert run() == first, "the medium does not rewind with the process generator"
+    assert run() != first, "the medium draws nothing, so nothing was being measured"

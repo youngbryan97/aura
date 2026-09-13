@@ -149,7 +149,10 @@ class Organs:
                 from core.container import ServiceContainer
 
                 return ServiceContainer.get(name, default=None)
-            except Exception:  # noqa: BLE001 - an absent container is an absent organ
+            except (ImportError, AttributeError, RuntimeError):
+                # An absent container is an absent organ. Anything else is a
+                # defect in the reader, and returning None for it would report
+                # the organ missing when it is there.
                 return None
 
         def runtime(name: str) -> Any:
@@ -157,7 +160,7 @@ class Organs:
                 from core.runtime.service_registry import get_runtime_service
 
                 return get_runtime_service(name, default=None)
-            except Exception:  # noqa: BLE001
+            except (ImportError, AttributeError, RuntimeError):
                 return None
 
         agency = None
@@ -186,7 +189,8 @@ def _agency_comparator() -> Any:
         from core.consciousness.agency_comparator import get_agency_comparator
 
         return get_agency_comparator()
-    except Exception:  # noqa: BLE001 - an absent comparator is an absent organ
+    except (ImportError, AttributeError, RuntimeError):
+        # An absent comparator is an absent organ; a broken one is not.
         return None
 
 
@@ -331,6 +335,20 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"objective_profile_{i}", "cognition.current_objective")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # What the senses actually said, as a coordinate. Every other
+            # column here is metadata about the stream — how many, how strong,
+            # what type, how much is unfelt — and none of them carry what came
+            # back. The return route the specification asks for runs
+            # deliberation -> action -> filesystem -> percept, and the only
+            # thing that differs between an arm that made a room and an arm
+            # that wrote a note is the sentence the world handed back. With no
+            # column reading it, that whole loop was invisible: perception had
+            # five retained outgoing edges and not one coming in, and it was
+            # the one domain outside the strongly connected component.
+            *[
+                (f"percept_profile_{i}", "world.recent_percepts[*].content")
+                for i in range(CONTENT_BUCKETS)
+            ],
         ),
     ),
     "I": _sch(
@@ -371,6 +389,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("action_urgency", "organ:free_energy.get_action_urgency"),
             ("surprise_trend", "organ:free_energy.get_trend"),
             ("surprise_trend_known", "organ:free_energy.get_trend"),
+            # What she has come to expect of each feeling, which is what an
+            # arriving one is priced against. The workspace bids a feeling on
+            # `intensity - baseline`, so the same intensity claims more or less
+            # of her attention depending on this — a persistent variable
+            # deciding what wins the competition, and no column read it.
+            ("mood_baseline", "affect.mood_baselines"),
+            ("mood_baseline_spread", "affect.mood_baselines"),
         ),
     ),
     "G": _sch(
@@ -387,7 +412,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("conversation_energy", "cognition.conversation_energy"),
             ("discourse_depth", "cognition.discourse_depth"),
             ("branch_load", "cognition.discourse_branches"),
-            ("phi", "phi"),
+            # `phi` is not here. Executive closure assigns `state.phi` and
+            # `state.phi_estimate` the same number in the same statement, and
+            # the second of them is recurrent cognition's column — so the two
+            # domains were reading one variable and any displacement of either
+            # arrived in both with nothing in between. Integrated information
+            # is a property of the recurrent system, not of what has attention,
+            # so it stays with C and leaves here.
             ("selfhood_readings", "cognition.selfhood_reading"),
             ("ignition", "organ:workspace.ignition_level"),
             ("ignited", "organ:workspace.ignited"),
@@ -420,16 +451,24 @@ _SCHEMAS: dict[str, Schema] = {
             *((f"mode_{name}", "cognition.current_mode") for name in _MODES),
             ("loop_cycle", "loop_cycle"),
             ("phi_estimate", "phi_estimate"),
-            ("phenomenal_valence", "cognition.phenomenal_state.valence"),
-            ("phenomenal_arousal", "cognition.phenomenal_state.arousal"),
-            ("phenomenal_coherence", "cognition.phenomenal_state.coherence"),
-            ("phenomenal_energy", "cognition.phenomenal_state.energy"),
-            # `cognition.phenomenal_state.latent_snapshot` is deliberately not
-            # here. It is 128 numbers built by hashing the phenomenal claim, so
-            # two nearby states produce unrelated vectors and the distance
-            # between them means nothing; and grepping the runtime finds it
-            # written once and read by nowhere, which fails the test at the top
-            # of this file — a number nothing computes from is not state. In
+            # The phenomenal field's four numbers are deliberately not here,
+            # and neither is its latent snapshot.
+            #
+            # `make_phenomenal_field` builds valence and arousal from
+            # `affect.*`, energy from the energy budget and coherence from
+            # `cognition.coherence_score`. They are copies, made once a turn,
+            # of three other domains' state, and grepping the runtime finds
+            # nothing that reads any of them — only the claim, and whether a
+            # field is there at all. So they failed the test at the top of this
+            # file twice over: a number nothing computes from is not state, and
+            # a verbatim copy of another domain's column is that domain being
+            # read through this one. Four of recurrent cognition's nineteen
+            # features were affect, deliberation and attention wearing its
+            # name, and every edge into C was partly that copy arriving.
+            #
+            # The snapshot went for the first of those reasons alone: 128
+            # numbers built by hashing the claim, so two nearby states produce
+            # unrelated vectors and the distance between them means nothing. In
             # the schema it contributed a third of a standard deviation to the
             # floor between two untouched runs and no signal at all.
             ("substrate_valence", "organ:substrate.valence"),
@@ -508,7 +547,7 @@ _SCHEMAS: dict[str, Schema] = {
         "M",
         (
             ("working_load", "cognition.working_memory"),
-            ("working_recency", "cognition.working_memory[-1]"),
+            ("working_newest_is_user", "cognition.working_memory[-1].role"),
             ("retrieved_load", "cognition.long_term_memory"),
             # What is in mind, not how much of it. The retrieved set is bounded
             # and fills within a few turns, so its length is constant from then
@@ -587,6 +626,16 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"action_source_{i}", "cognition.last_action_source")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # The five motivational budgets, deliberation's own resources.
+            #
+            # Energy and integrity were the two the specification leaves open,
+            # and they are here for the same reason as the other three: what
+            # they change is which need is most depleted, and which need is most
+            # depleted is what the intention generator dispatches on. They are
+            # not felt states — the body's own load is I and how it feels is A —
+            # and they are not periphery, because the closure test has to be
+            # able to find a variable the core's future depends on, and these
+            # decide what she does next.
             *((f"drive_{name}", f"motivation.budgets.{name}") for name in _DRIVES),
         ),
     ),
@@ -637,18 +686,41 @@ def _f(value: Any, default: float = 0.0) -> float:
     return out
 
 
+#: Fields that are `None` when there is nothing, rather than when nothing could
+#: be read. An optional field holding None is a reading — "there is no thread
+#: open", "she can see nothing" — and recording it as a failed read makes every
+#: run look like a run whose readers were broken. The columns that read these
+#: are presence flags, so None is the answer they are asking for.
+_ABSENT_IS_AN_ANSWER: frozenset[str] = frozenset(
+    {
+        "cognition.active_thread_id",
+        "world.spatial_context",
+        "cognition.phenomenal_state",
+        "cognition.current_objective",
+    }
+)
+
+
 def _dig(root: Any, path: str, default: Any = None) -> Any:
     node = root
+    walked = root
     for part in path.split("."):
         if node is None:
-            _miss(path, "path absent")
+            # A path that ran out before the end is a path that is not there.
+            # A path that reached its end and found None is a field that is
+            # empty, which is different and is often the whole point of the
+            # column reading it.
+            if walked is not None and path not in _ABSENT_IS_AN_ANSWER:
+                _miss(path, "path absent")
             return default
+        walked = node
         if isinstance(node, Mapping):
             node = node.get(part, None)
         else:
             node = getattr(node, part, None)
     if node is None:
-        _miss(path, "value absent")
+        if path not in _ABSENT_IS_AN_ANSWER:
+            _miss(path, "value absent")
         return default
     return node
 
@@ -887,6 +959,10 @@ def _read_P(state: Any, now: float) -> np.ndarray:
             1.0 if _dig(state, "world.spatial_context") else 0.0,
             _sat(str(objective), 64.0),
             *_content_buckets(objective),
+            # The stream's own words, over the window a percept lives in. The
+            # newest four rather than all sixteen: what the world just said is
+            # perception, and an average over the whole window is a history.
+            *_content_buckets(" ".join(item.content for item in tail[-4:])),
         ],
         dtype=np.float64,
     )
@@ -934,6 +1010,13 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
             *_ladder(_call(organs.free_energy, "get_trend", "", source="organ:free_energy.get_trend"), _FREE_ENERGY_TREND_LADDER),
         ]
     )
+    # What she has come to expect of each feeling. The workspace prices an
+    # arriving feeling at `intensity - baseline`, so this decides what wins
+    # attention, and it was persistent state no column read.
+    baselines = _dig(state, "affect.mood_baselines", {}) or {}
+    values = [_f(v) for v in baselines.values()] if isinstance(baselines, dict) else []
+    head.append(float(np.mean(values)) if values else 0.0)
+    head.append(float(np.std(values)) if len(values) > 1 else 0.0)
     return np.array(head, dtype=np.float64)
 
 
@@ -951,7 +1034,6 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(_dig(state, "cognition.conversation_energy"), 0.5),
             _sat(_f(_dig(state, "cognition.discourse_depth")), 8.0),
             _sat(_dig(state, "cognition.discourse_branches", []) or [], 4.0),
-            math.tanh(_f(_dig(state, "phi"))),
             _sat(_dig(state, "cognition.selfhood_reading", {}) or {}, 4.0),
             _f(workspace.get("ignition_level")),
             1.0 if workspace.get("ignited") else 0.0,
@@ -995,14 +1077,22 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
         [
             _sat(_f(_dig(state, "loop_cycle")), 100.0),
             math.tanh(_f(_dig(state, "phi_estimate"))),
-            _f(_dig(state, "cognition.phenomenal_state.valence")),
-            _f(_dig(state, "cognition.phenomenal_state.arousal")),
-            _f(_dig(state, "cognition.phenomenal_state.coherence"), 1.0),
-            _f(_dig(state, "cognition.phenomenal_state.energy")),
         ]
     )
     affect = _call(organs.substrate, "get_substrate_affect", {}, source="organ:substrate.get_substrate_affect") or {}
     status = _call(organs.substrate, "get_status", {}, source="organ:substrate.get_status") or {}
+    # A reading from a snapshot older than the substrate's own freshness bound
+    # is not a reading of now. The substrate publishes how old its snapshot is
+    # and returns its safe defaults when it cannot answer — plausible numbers
+    # that are indistinguishable from a settled state, so nine of recurrent
+    # cognition's columns would read as a calm organism whenever the dynamics
+    # had stopped. Recorded as a miss, which is what the battery invalidates a
+    # criterion on.
+    if float(affect.get("snapshot_stale", 0.0) or 0.0) >= 1.0:
+        _miss(
+            "organ:substrate.get_substrate_affect",
+            f"snapshot {float(affect.get('snapshot_age_s', 0.0)):.3g}s old",
+        )
     head.extend(
         [
             _f(affect.get("valence")),
@@ -1080,33 +1170,6 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
-def _recency(entry: Any, scale: float = 2.0) -> float:
-    """How recently this was written, in [0, 1). One is now, zero is long ago.
-
-    The column was the hash of the entry's whole repr, which includes the wall
-    clock it was written at — so two arms of one trial, appending the same
-    sentence a second apart, differed by the full width of the hash. A hash
-    carries no magnitude at the best of times; over a clock it is noise with a
-    name, and it was the largest single term in the floor every edge into
-    active memory had to clear.
-
-    The scale is two seconds because that is the order of one turn. At sixty
-    the whole of a run's spread fell inside three percent of the column, and a
-    column that barely moves turns every wobble into several standard
-    deviations of nothing.
-    """
-    if not isinstance(entry, Mapping):
-        return 0.0
-    stamp = entry.get("timestamp") or entry.get("at") or entry.get("time")
-    try:
-        age = time.time() - float(stamp)
-    except (TypeError, ValueError):
-        return 0.0
-    if age < 0.0:
-        age = 0.0
-    return scale / (scale + age)
-
-
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
     retrieved = _dig(state, "cognition.long_term_memory", []) or []
@@ -1114,7 +1177,11 @@ def _read_M(state: Any) -> np.ndarray:
     return np.array(
         [
             _sat(working, 24.0),
-            _recency(last),
+            # Whether the newest thing in working memory is the user's. This was
+            # the newest item's age on the clock, so a memory held still by a
+            # lesion aged a frame at a time and moved by 0.47 inside its own
+            # clamp. A clock is not state; whose word came last is.
+            1.0 if isinstance(last, Mapping) and str(last.get("role", "")).lower() == "user" else 0.0,
             _sat(retrieved, 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
@@ -1460,19 +1527,18 @@ def _perturb_G(state: Any, delta: float, ontogeny: Any) -> bool:
 
 
 def _perturb_C(state: Any, delta: float, ontogeny: Any) -> bool:
+    """The recurrent estimate, and nothing else in the state.
+
+    This also rewrote `cognition.phenomenal_state`'s valence, arousal and
+    latent snapshot. That field is rebuilt once a turn from `affect.*`, the
+    energy budget and the coherence score, and nothing in the runtime reads any
+    of its numbers — so those writes were erased before anything could have
+    used them and would have reached nobody if they had survived. Recurrent
+    cognition's own state is the liquid substrate and the closed loop, and
+    `perturb_organs` is where it is displaced.
+    """
     del ontogeny
-    hit = _bump(state, "phi_estimate", delta, -10.0, 10.0)
-    node = _dig(state, "cognition.phenomenal_state", None)
-    if node is not None and hasattr(node, "valence"):
-        node.valence = min(1.0, max(-1.0, _f(node.valence) + delta))
-        node.arousal = min(1.0, max(0.0, _f(node.arousal) + delta))
-        snapshot = list(getattr(node, "latent_snapshot", []) or [])
-        if snapshot:
-            node.latent_snapshot = [
-                min(1.0, max(-1.0, _f(v) + delta)) for v in snapshot
-            ]
-        hit = True
-    return hit
+    return _bump(state, "phi_estimate", delta, -10.0, 10.0)
 
 
 def _perturb_S(state: Any, delta: float, ontogeny: Any) -> bool:
@@ -1649,10 +1715,34 @@ async def perturb_organs(
     hit = False
     if domain == "C" and organs.substrate is not None:
         try:
-            # Displace the dimensions anything downstream reads. Frustration
-            # and curiosity alone moved indices that the homeostatic blend does
-            # not look at, so the perturbation was real, gated, applied — and
-            # invisible to every consumer of the substrate.
+            # The recurrent state first, then the readouts on top of it.
+            #
+            # The five named psychological dimensions are five of five hundred
+            # and twelve, and they are readouts: `get_substrate_affect` takes
+            # x[0], x[1], x[2] and two means over the whole vector. Writing
+            # only those moved recurrent cognition's own reading by ten
+            # standard deviations — the clipping ceiling — and moved the state
+            # the dynamics carry by almost nothing, which is why C could be
+            # displaced hardest of all ten domains and reach a tenth of a
+            # standard deviation anywhere else. An intervention on the readout
+            # of a recurrent system is not an intervention on the system.
+            #
+            # `inject_stimulus` is the organ's own gated path into the state
+            # vector, and it applies a tenth of what it is given, so the vector
+            # carries ten times the displacement to land on `delta`. The
+            # authority may constrain the weight, which makes the intervention
+            # smaller and is a refusal the measurement has to live with.
+            await organs.substrate.inject_stimulus(
+                np.full(
+                    int(getattr(getattr(organs.substrate, "config", None), "neuron_count", 512)),
+                    delta * 10.0,
+                    dtype=np.float64,
+                ),
+                weight=1.0,
+            )
+            # And the dimensions the named consumers read, which the state
+            # injection moves too but which the blend and the modifiers take
+            # from the readout rather than from x.
             reading = organs.substrate.get_substrate_affect() or {}
             await organs.substrate.update(
                 delta_frustration=delta,
@@ -1676,15 +1766,49 @@ async def perturb_organs(
         try:
             from core.consciousness.global_workspace import CognitiveCandidate, ContentType
 
-            await workspace.submit(
-                CognitiveCandidate(
-                    content=f"subject core probe {delta:+.4f}",
-                    source="subject_core_probe",
-                    priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
-                    content_type=ContentType.META,
-                    affect_weight=abs(delta),
+            # The runner-up, raised until it wins. A displacement of attention
+            # is a change in what wins the competition among what is actually
+            # competing — and the first version submitted a candidate of its
+            # own under a probe's name, which nothing downstream can interpret:
+            # the action she takes is chosen by the source of what she is
+            # attending to, and a source no action table knows falls through to
+            # the same action the sham took. So displacing the workspace could
+            # not change what she did, and the whole route from attention
+            # through action to the world and back to perception was closed to
+            # the one domain that should open it.
+            # Read off what has already been submitted rather than rebuilding
+            # the bids: building them reports the work of building them, and a
+            # displacement that costs the body something the sham did not pay
+            # would manufacture the very edge it is measuring.
+            runner_up = None
+            lead = 0.0
+            pending = list(getattr(workspace, "_candidates", ()) or ())
+            if len(pending) >= 2:
+                ranked = sorted(
+                    pending, key=lambda bid: bid.effective_priority, reverse=True
                 )
-            )
+                runner_up = ranked[1]
+                lead = ranked[0].effective_priority
+            if runner_up is not None:
+                await workspace.submit(
+                    CognitiveCandidate(
+                        content=runner_up.content,
+                        source=runner_up.source,
+                        priority=min(1.0, max(0.0, lead + abs(delta))),
+                        content_type=runner_up.content_type,
+                        affect_weight=runner_up.affect_weight,
+                    )
+                )
+            else:
+                await workspace.submit(
+                    CognitiveCandidate(
+                        content=f"subject core probe {delta:+.4f}",
+                        source="subject_core_probe",
+                        priority=min(1.0, max(0.0, 0.5 + delta * 3.0)),
+                        content_type=ContentType.META,
+                        affect_weight=abs(delta),
+                    )
+                )
             hit = True
         except Exception:  # noqa: BLE001
             hit = False
@@ -1695,6 +1819,32 @@ async def perturb_organs(
             )
             hit = True
         except Exception:  # noqa: BLE001
+            hit = False
+    elif domain == "I":
+        # The effort ledger, which is where her own exertion is kept.
+        #
+        # `_perturb_I` writes `soma.exertion`, and the proprioceptive loop
+        # derives that from the ledger at the top of every turn — so the write
+        # lasted until the next turn began. Worse, the one consumer that prices
+        # anything on how hard she has been working reads the ledger rather
+        # than the readout, so the displacement reached it never. The host is
+        # held still for the duration of a trial, which leaves this as the only
+        # channel the body has, and it was going nowhere.
+        #
+        # A share of what she has already spent, not a number: being a fifth
+        # more tired than you are is a displacement, and being a fifth of some
+        # absolute quantity more tired is a fact about the units.
+        try:
+            from core.soma.effort import get_effort_ledger
+
+            ledger = get_effort_ledger()
+            spent = dict(ledger.peek())
+            for kind, amount in spent.items():
+                step = float(amount) * delta
+                if abs(step) > 1e-9:
+                    ledger.note(kind, step)
+                    hit = True
+        except Exception:  # noqa: BLE001 - an absent ledger is an absent ledger
             hit = False
     elif domain == "N":
         # The reservoir the cognitive cycle steps, when that is not the one the

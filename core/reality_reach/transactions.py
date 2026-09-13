@@ -11,7 +11,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from core.config import DATA_DIR
+from core.config import config
 from core.governance.will import ActionDomain
 from core.reality_reach.actuation import (
     ActuationCommand,
@@ -86,7 +86,7 @@ class RealityActuationCoordinator:
     ) -> None:
         self._service = service
         self._store = RealityActuationTransactionStore(
-            root or (Path(DATA_DIR) / "reality_reach" / "transactions"),
+            root or (config.paths.data_dir / "reality_reach" / "transactions"),
             wall_clock_ns=wall_clock_ns,
         )
         # Compatibility aliases for diagnostics and older internal callers.

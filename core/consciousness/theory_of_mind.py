@@ -115,7 +115,7 @@ class AgentModel:
     trust_level: float = 0.5
     rapport: float = 0.5
     attachment_state: dict[str, Any] = field(default_factory=dict)
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     observations: int = 0
     social_confidence: float = 0.0
     belief_evidence: dict[str, dict[str, Any]] = field(default_factory=dict)

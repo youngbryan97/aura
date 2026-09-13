@@ -180,9 +180,32 @@ def test_prose_with_numbers_in_it_is_not_read_as_examples(prose):
     assert read_sequence_question(prose) is None
 
 
-def test_the_answering_path_grows_two_levels_when_the_family_needs_them():
-    """End to end: unsayable, grown, answered, and said out loud."""
+def test_the_answering_path_grows_two_levels_when_the_family_needs_them(
+    tmp_path, monkeypatch
+):
+    """End to end: unsayable, grown, answered, and said out loud.
+
+    Both stores are this test's own. The record and the language are
+    process-wide and survive a restart by design, so reading whatever the
+    suite's shared state root happened to hold made this test's subject the
+    order of the run: a record warm enough and she recalls instead of growing,
+    a language that already learned it and there is nothing to grow.
+
+    Asking more than once is the claim, not a retry. The developmental policy
+    refuses an unpriced change while finding out costs more than the family's
+    ceiling, and the ceiling rises with the occasions that family has had —
+    so the first askings are refused on budget and she reaches it afterwards.
+    A single ask tests whichever of those two the shared state left behind.
+    """
+    from core.cognition import sequence_induction
+    from core.cognition import the_record_of_her_own_work as record
     from core.cognition.sequence_induction import answer_sequence_question
+
+    monkeypatch.setattr(record, "_KEPT_AT", tmp_path / "the_record.json")
+    monkeypatch.setattr(
+        sequence_induction, "_language_path", lambda: tmp_path / "relation_language.json"
+    )
+    record.forget_the_record()
 
     def rule(state):
         size = len(state)
@@ -198,7 +221,12 @@ def test_the_answering_path_grows_two_levels_when_the_family_needs_them():
     )
     text += f" What does {' '.join(map(str, asked))} become?"
 
-    said = answer_sequence_question(text)
+    said = ""
+    for _ in range(8):
+        said = answer_sequence_question(text)
+        if said:
+            break
+    assert said, "eight occasions of one family and she never found it affordable"
     assert str(list(rule(asked))) in said
     # She grew the language to get there, and says so. Which mechanism reached
     # it is not the claim — a better one landing first is an improvement, and

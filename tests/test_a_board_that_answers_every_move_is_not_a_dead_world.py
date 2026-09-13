@@ -13,6 +13,8 @@ seen to do that is answering her.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.perception.where_it_responds import Responsive, noticed
 
 
@@ -148,6 +150,6 @@ def test_the_pursuit_says_which_act_it_was():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("worked=attempt.verdict.observed_change,")
     assert "acting=previous.chosen.name" in source[at : at + 400]

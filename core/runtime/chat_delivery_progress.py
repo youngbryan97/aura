@@ -38,6 +38,19 @@ _CURRENT_BINDING: ContextVar[ChatDeliveryProgressBinding | None] = ContextVar(
 )
 
 
+def current_chat_delivery_identity() -> dict[str, str | int] | None:
+    """Identify public events without exposing principal or owner credentials."""
+    binding = _CURRENT_BINDING.get()
+    if binding is None:
+        return None
+    record = binding.admission.record
+    return {
+        "idempotency_key": record.identity.idempotency_key,
+        "turn_id": record.turn_id,
+        "generation": record.generation,
+    }
+
+
 def capture_generation_progress() -> Callable[..., None] | None:
     """Capture delivery ownership before worker callbacks leave the turn context."""
     binding = _CURRENT_BINDING.get()

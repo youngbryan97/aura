@@ -149,6 +149,8 @@ class Narrator:
             task.cancel()
             try:
                 await task
+            # Not a failure: the line above cancelled it. RuntimeError is
+            # the same arrival where the loop has already closed under it.
             except (asyncio.CancelledError, RuntimeError):
                 pass
 

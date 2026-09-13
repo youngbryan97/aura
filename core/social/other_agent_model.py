@@ -87,7 +87,7 @@ class Signal:
     confidence: float
     baseline: float
     half_life_s: float
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def decayed(self, now: float) -> tuple[float, float]:
         timestamp = _bounded_timestamp(now)

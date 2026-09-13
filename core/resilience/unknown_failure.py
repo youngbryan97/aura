@@ -98,7 +98,7 @@ class Signature:
     broken_invariants: tuple[str, ...] = ()
     #: Numeric observations at the time, by channel.
     observations: Mapping[str, float] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def vector(self, keys: Sequence[str]) -> tuple[float, ...]:
         return tuple(float(self.observations.get(key, 0.0)) for key in keys)

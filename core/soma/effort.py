@@ -22,6 +22,7 @@ here decides anything; it is a ledger.
 from __future__ import annotations
 
 import threading
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["EffortLedger", "get_effort_ledger", "note_effort", "reset_effort_for_test"]
 
@@ -49,7 +50,7 @@ class EffortLedger:
     """Exertion reported since the last time the body looked."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.soma.effort.ledger")
         self._pending: dict[str, float] = {}
         self._lifetime: dict[str, float] = {}
 
@@ -81,12 +82,25 @@ class EffortLedger:
 
     @staticmethod
     def exertion(spent: dict[str, float]) -> float:
-        """One number for how hard the last cycle was, bounded at one.
+        """One number for how hard the last cycle was. Half is unremarkable.
 
         A sum of ratios rather than of raw counts: a hundred characters and a
         hundred integration steps are not the same amount of work, and adding
         them would make the total a fact about which subsystem happens to count
         in smaller units.
+
+        The mean of those ratios was clipped at one, which contradicted the
+        calibration above it. Each unit cost IS what an unremarkable turn
+        produces, so an unremarkable turn makes every ratio one, the mean one,
+        and the reading its ceiling — measured across four rounds of the eight
+        ordinary conditions, the median came back at exactly 1.000 and the
+        minimum at 0.848. Her sense of her own exertion was a constant pinned
+        at the top, and it was the term that won the workspace competition on
+        nineteen turns in twenty-four.
+
+        `m / (m + 1)` keeps the bound and puts the unremarkable turn in the
+        middle, where the reading can move in both directions. The same device
+        the world model's surprise uses, for the same reason.
         """
         total = 0.0
         for kind, amount in spent.items():
@@ -94,11 +108,14 @@ class EffortLedger:
             if not unit:
                 continue
             total += max(0.0, float(amount)) / unit
-        return max(0.0, min(1.0, total / max(1, len(UNIT_COST))))
+        mean = total / max(1, len(UNIT_COST))
+        if mean <= 0.0:
+            return 0.0
+        return max(0.0, min(1.0, mean / (mean + 1.0)))
 
 
 _ledger: EffortLedger | None = None
-_ledger_lock = threading.Lock()
+_ledger_lock = checked_lock("core.soma.effort._ledger_lock")
 
 
 def get_effort_ledger() -> EffortLedger:

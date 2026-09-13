@@ -117,7 +117,7 @@ class Projection:
     method: BindingMethod = BindingMethod.LABEL
     confidence: float = 0.0
     evidence: EvidencePacket | None = None
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: Whatever the substrate needs to find it again — a store name, a slot
     #: index, a model version. Never identity.
     detail: dict[str, Any] = field(default_factory=dict)
@@ -148,7 +148,7 @@ class ConceptHandle:
     #: Handles this one was split from or merged with, so a rename does not
     #: orphan the history.
     lineage: tuple[str, ...] = ()
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def projection(self, substrate: Substrate) -> Projection | None:
         best = [p for p in self.projections if p.substrate is substrate]

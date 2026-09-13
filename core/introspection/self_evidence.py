@@ -589,7 +589,7 @@ class Reading:
     unit: str = ""
     provenance: str = ""
     detail: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def present(self) -> bool:

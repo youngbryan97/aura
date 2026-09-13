@@ -114,7 +114,7 @@ class ReplayTrace:
     objective: str
     steps: List[str]  # key decision points
     outcome_quality: float  # -1 bad, 0 neutral, +1 good
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ReplayPreplayEngine:

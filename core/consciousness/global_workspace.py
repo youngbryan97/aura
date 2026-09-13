@@ -20,6 +20,7 @@ from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import Severity, record_degradation
 from core.runtime.flags import FlagKind, declare
 from core.runtime.receipts import WorkspaceGateReceipt, get_receipt_store
+from core.runtime.the_laboratory import seeded
 from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
@@ -176,7 +177,7 @@ class CognitiveCandidate:
     content_type: ContentType = ContentType.UNKNOWN
     affect_weight: float = 0.0        # Emotional urgency boost (from AffectEngine)
     focus_bias: float = 0.0           # Priority boost for focused attention (from AttentionSchema)
-    submitted_at: float = field(default_factory=time.time)
+    submitted_at: float = field(default_factory=lambda: time.time())
     gate_instance_id: str = field(default="", repr=False)
     gate_checked_at: float = field(default=0.0, repr=False)
     metadata: dict[str, Any] = field(default_factory=dict, compare=False)
@@ -287,14 +288,14 @@ class BroadcastEvent:
     Compatible with PhenomenologicalExperiencer.
     """
     winners: list[CognitiveCandidate]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
 class BroadcastRecord:
     winner: CognitiveCandidate
     losers: list[str]          # source names of losers
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -331,7 +332,7 @@ class SomaticNoiseInjector:
         max_priority: float | None = None,
         min_ticks_between: int | None = None,
     ) -> None:
-        self.rng = rng or random.Random()
+        self.rng = rng or seeded("global_workspace")
         self.rate = self._bounded_float(
             os.environ.get("AURA_SOMATIC_NOISE_RATE"),
             0.035 if rate is None else rate,
@@ -461,6 +462,12 @@ class GlobalWorkspace:
         self._tick: int = 0
         self.attention_schema: Any = attention_schema
         self.last_winner: CognitiveCandidate | None = None
+        #: How often each source has bid and how often it has won, for the life
+        #: of this workspace. A bid type that never wins is a channel into
+        #: attention that cannot fire, and the winner alone cannot show it:
+        #: every source that lost looks the same as a source that never spoke.
+        self._bids_by_source: dict[str, int] = {}
+        self._wins_by_source: dict[str, int] = {}
         
         # [UNITY] Global Inhibition Link
         self._global_inhibition: InhibitionManager | None = None
@@ -894,6 +901,12 @@ class GlobalWorkspace:
             self._lock = asyncio.Lock()
             
         async with self._lock:
+            # Counted before any gate, because a source refused every time is
+            # as dead a channel as one that never wins, and the two are told
+            # apart by whether it ever got in.
+            offered = str(getattr(candidate, "source", "") or "")
+            self._bids_by_source[offered] = self._bids_by_source.get(offered, 0) + 1
+
             # Check internal inhibition
             if candidate.source in self._inhibited and self._inhibited[candidate.source] > 0:
                 logger.debug("GW: %s is internal-inhibited (%d ticks)", candidate.source, self._inhibited[candidate.source])
@@ -1283,6 +1296,9 @@ class GlobalWorkspace:
             self._history.append(record)
 
             self.last_winner = winner
+            if winner is not None:
+                name = str(getattr(winner, "source", "") or "")
+                self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
 
         # --- Peripheral Awareness (Attention/Consciousness Dissociation) ---
         # Feed losers into the peripheral field so content that didn't win
@@ -1468,6 +1484,11 @@ class GlobalWorkspace:
             "last_tie": list(self._last_tie),
             "fatigue_recovery_rate": round(self._fatigue_recovery(), 5),
             "broadcast_history_len": len(self._history),
+            "bids_by_source": dict(sorted(self._bids_by_source.items())),
+            "wins_by_source": dict(sorted(self._wins_by_source.items())),
+            "sources_that_never_won": sorted(
+                name for name in self._bids_by_source if name not in self._wins_by_source
+            ),
             "ignition_level": round(self.ignition_level, 3),
             "ignited": self.ignited,
             "ignition_count": self._ignition_count,

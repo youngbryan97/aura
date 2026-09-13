@@ -306,7 +306,14 @@ def test_screenshot_retention_declares_its_own_scope() -> None:
 
     from core.capabilities import host_automation
 
-    source = inspect.getsource(host_automation.HostAutomationProvider)
+    # The METHOD, not the class. Screen reading moved to a base class when
+    # host_automation was split for size, and `getsource` on the subclass
+    # returns only the subclass body — so this read a file that no longer
+    # holds the scope and reported that the scope is not declared. Asking for
+    # the method resolves through the MRO to wherever it lives.
+    source = inspect.getsource(
+        host_automation.HostAutomationProvider._enforce_screenshot_retention
+    )
     marker = "host_automation.screenshot_retention_delete"
     assert marker in source
     prefix = source.split(marker)[0]

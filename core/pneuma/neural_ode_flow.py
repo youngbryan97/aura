@@ -81,7 +81,7 @@ class BeliefFlowNetwork:
 @dataclass
 class BeliefState:
     vector: np.ndarray
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     confidence: float = 0.5
     source: str = "unknown"
 

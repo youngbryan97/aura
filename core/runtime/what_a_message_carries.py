@@ -76,7 +76,7 @@ class AMessage:
     recipient: str = ""
     #: The message this answers. Empty unless `how` is RESPONSE.
     answers: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: The caller's own deadline and stop signal, carried rather than looked
     #: up. A handler that reads an ambient token gets a different token
     #: depending on which task happened to call it.

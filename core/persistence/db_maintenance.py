@@ -106,7 +106,7 @@ DEFAULT_RETENTION_POLICIES = [
 @dataclass
 class MaintenanceResult:
     """Result of a single maintenance pass."""
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: float = 0.0
     wal_checkpointed: bool = False
     wal_pages_moved: int = 0

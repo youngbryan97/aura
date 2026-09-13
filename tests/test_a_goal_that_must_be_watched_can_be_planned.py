@@ -14,6 +14,8 @@ finished, and the run ends on what actually happened rather than on ok.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import json
 
 import pytest
@@ -68,7 +70,7 @@ async def test_a_pursuit_with_no_finishing_condition_runs_to_its_bounds(monkeypa
         asked.update(kwargs)
         return {"completed": False, "outcome": "out_of_cycles", "moves": []}
 
-    monkeypatch.setattr(sp, "pursue_on_screen", ran)
+    patch_pursuit(monkeypatch, "pursue_on_screen", ran)
     skill = ComputerUseSkill()
     result = await skill._pursue_on_screen(json.dumps({"goal": "play the game"}))
     assert asked, "the run was refused before it started"
@@ -98,7 +100,7 @@ async def test_a_pursuit_runs_the_loop_with_what_the_plan_asked_for(monkeypatch)
 
     import core.skills.screen_pursuit as sp
 
-    monkeypatch.setattr(sp, "pursue_on_screen", fake_pursue)
+    patch_pursuit(monkeypatch, "pursue_on_screen", fake_pursue)
     skill = ComputerUseSkill()
     result = await skill._pursue_on_screen(
         json.dumps(
@@ -130,7 +132,7 @@ async def test_a_pursuit_that_ended_blocked_says_what_blocked_it(monkeypatch):
     async def blocked(**_kw):
         return {"completed": False, "outcome": "blocked_by_overlay", "blocked_by": "a cookie wall", "moves": []}
 
-    monkeypatch.setattr(sp, "pursue_on_screen", blocked)
+    patch_pursuit(monkeypatch, "pursue_on_screen", blocked)
     result = await ComputerUseSkill()._pursue_on_screen(
         json.dumps({"goal": "play", "success_when": "128"})
     )
@@ -151,7 +153,7 @@ async def test_a_pursuit_that_could_not_decide_says_so(monkeypatch):
             "moves": [{"key": "up"}],
         }
 
-    monkeypatch.setattr(sp, "pursue_on_screen", undecided)
+    patch_pursuit(monkeypatch, "pursue_on_screen", undecided)
     result = await ComputerUseSkill()._pursue_on_screen(
         json.dumps({"goal": "play", "success_when": "128"})
     )
@@ -168,7 +170,7 @@ async def test_running_out_of_moves_is_named_in_words_not_as_a_status_code(monke
     async def spent(**_kw):
         return {"completed": False, "outcome": "out_of_cycles", "moves": [{"key": "up"}] * 40}
 
-    monkeypatch.setattr(sp, "pursue_on_screen", spent)
+    patch_pursuit(monkeypatch, "pursue_on_screen", spent)
     result = await ComputerUseSkill()._pursue_on_screen(
         json.dumps({"goal": "play", "success_when": "128"})
     )
@@ -284,7 +286,7 @@ async def test_a_pursuit_reports_what_it_did_in_words(monkeypatch):
             "pacing": {"chose": "slow down"},
         }
 
-    monkeypatch.setattr(sp, "pursue_on_screen", finished)
+    patch_pursuit(monkeypatch, "pursue_on_screen", finished)
     result = await ComputerUseSkill()._pursue_on_screen(
         json.dumps({"goal": "play until 128", "success_when": "128"})
     )
@@ -308,7 +310,7 @@ async def test_an_unfinished_pursuit_says_how_far_it_got(monkeypatch):
             "attempts": [{"held": True}] * 30,
         }
 
-    monkeypatch.setattr(sp, "pursue_on_screen", gave_up)
+    patch_pursuit(monkeypatch, "pursue_on_screen", gave_up)
     result = await ComputerUseSkill()._pursue_on_screen(
         json.dumps({"goal": "play until 128", "success_when": "128"})
     )

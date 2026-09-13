@@ -9,6 +9,10 @@ into a terminal with the game open one window back.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
+from screen_pursuit_support import pursuit_function_source, pursuit_source
+
 import asyncio
 from pathlib import Path
 
@@ -17,8 +21,9 @@ import pytest
 from core.skills import screen_pursuit
 from core.skills.screen_pursuit import _take_the_run_its_bearings
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
-BODY = SOURCE[SOURCE.index("async def observe") :]
+SOURCE = pursuit_source()
+# `observe` is its own function now; the guard it holds is read from it.
+BODY = pursuit_function_source("observe_the_screen")
 
 
 def test_the_bearings_are_taken_before_the_window_is_needed():
@@ -38,7 +43,7 @@ async def test_a_run_about_a_page_belongs_to_the_application_holding_it(monkeypa
     async def page():
         return {"url": "https://play2048.co/", "title": "2048", "app": "Google Chrome"}
 
-    monkeypatch.setattr(screen_pursuit, "current_page_identity", page)
+    patch_pursuit(monkeypatch, "current_page_identity", page)
     anchor = {"page": "", "app": ""}
     await _take_the_run_its_bearings(anchor, open_page="2048")
     assert anchor["app"] == "Google Chrome"
@@ -53,8 +58,8 @@ async def test_a_run_about_something_else_belongs_to_what_is_in_front(monkeypatc
     async def front():
         return "Notes"
 
-    monkeypatch.setattr(screen_pursuit, "current_page_identity", nothing)
-    monkeypatch.setattr(screen_pursuit, "_frontmost", front)
+    patch_pursuit(monkeypatch, "current_page_identity", nothing)
+    patch_pursuit(monkeypatch, "_frontmost", front)
     anchor = {"page": "", "app": ""}
     await _take_the_run_its_bearings(anchor)
     assert anchor["app"] == "Notes"
@@ -65,7 +70,7 @@ async def test_a_caller_that_named_them_keeps_what_it_named(monkeypatch):
     async def page():
         return {"url": "https://elsewhere.example", "title": "x", "app": "Safari"}
 
-    monkeypatch.setattr(screen_pursuit, "current_page_identity", page)
+    patch_pursuit(monkeypatch, "current_page_identity", page)
     anchor = {"page": "docs.example", "app": "Numbers"}
     await _take_the_run_its_bearings(anchor, expect_page="docs.example")
     assert anchor == {"page": "docs.example", "app": "Numbers"}

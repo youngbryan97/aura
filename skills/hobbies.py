@@ -270,7 +270,7 @@ class JoySignal:
     intensity: float  # [0–1]
     valence: str  # "delight" | "wonder" | "satisfaction" | "amusement" | "peace"
     trigger: str  # human-readable cause
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_somatic_update(self) -> Dict[str, Any]:
         return {
@@ -290,7 +290,7 @@ class EntertainmentItem:
     summary: str
     interest_score: float  # [0–1]
     consumed: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 @dataclass
 class HobbySession:

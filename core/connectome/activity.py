@@ -42,6 +42,7 @@ from pathlib import Path
 from typing import Any
 
 from .types import stable_id
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Connectome.Activity")
 
@@ -236,7 +237,7 @@ class ActivityRecorder:
     def __init__(self, repo: Path | None = None, config: RecorderConfig | None = None) -> None:
         self.repo = Path(repo) if repo else Path(__file__).resolve().parents[2]
         self.config = config or RecorderConfig()
-        self._lock = threading.RLock()
+        self._lock = checked_lock("core.connectome.activity.recorder", reentrant=True)
         self._recording = False
         self._owns_monitoring_slot = False
         self._condition = ""
@@ -524,7 +525,7 @@ class ActivityRecorder:
 
 
 _RECORDER: ActivityRecorder | None = None
-_RECORDER_LOCK = threading.Lock()
+_RECORDER_LOCK = checked_lock("core.connectome.activity._RECORDER_LOCK")
 
 
 def get_activity_recorder() -> ActivityRecorder:

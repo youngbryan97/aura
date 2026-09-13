@@ -57,7 +57,7 @@ class TimelineEvent:
 @dataclass
 class Timeline:
     turn_id: str
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     events: list[TimelineEvent] = field(default_factory=list)
     closed: bool = False
 

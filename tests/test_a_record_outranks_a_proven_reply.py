@@ -17,6 +17,7 @@ import json
 
 import pytest
 
+from chat_lane_support import patch_chat_lane
 from interface.routes import chat
 from interface.routes.chat import (
     _apply_recorded_answer,
@@ -33,10 +34,14 @@ async def test_terminal_rewrite_cannot_inherit_the_original_byte_proof(monkeypat
     async def correction(_message, reply):
         return (replacement, True) if recorded else (reply, False)
 
-    monkeypatch.setattr(chat, "_recorded_answer_corrections", correction)
-    monkeypatch.setattr(chat, "_append_past_action_record", lambda _message, text: text)
-    monkeypatch.setattr(chat, "_correct_unsourced_self_metrics", lambda text: text)
-    monkeypatch.setattr(chat, "_correct_false_capability_denials", lambda text: text)
+    # Across every lane module that holds the name. The chain moved to
+    # `chat_recorded_answers` when the route was split, and each module that
+    # imports a helper makes its own binding — so patching `chat` alone left
+    # the real corrections running and the test read the untouched reply.
+    patch_chat_lane(monkeypatch, "_recorded_answer_corrections", correction)
+    patch_chat_lane(monkeypatch, "_append_past_action_record", lambda _message, text: text)
+    patch_chat_lane(monkeypatch, "_correct_unsourced_self_metrics", lambda text: text)
+    patch_chat_lane(monkeypatch, "_correct_false_capability_denials", lambda text: text)
     payload = _payload(original, proven=recorded)
     payload["live_turn_contract"]["authored_answer_completion_proven"] = True
     data = _served(await _apply_recorded_answer("Explain the result", _Response(payload)))

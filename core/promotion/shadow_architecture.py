@@ -86,7 +86,7 @@ class Trial:
     agreed: bool
     live_score: float
     shadow_score: float
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def regression(self) -> bool:

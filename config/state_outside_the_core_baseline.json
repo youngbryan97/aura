@@ -1,0 +1,14 @@
+{
+  "allowed": [
+    "affect.markers",
+    "affect.resonance",
+    "cognition.discourse_topic",
+    "cognition.pending_intents",
+    "identity.concept_graph",
+    "motivation.latent_interests",
+    "response_modifiers",
+    "soma.motors",
+    "soma.qpos",
+    "soma.qvel"
+  ]
+}

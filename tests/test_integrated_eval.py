@@ -139,3 +139,25 @@ def test_paired_eval_runs_and_receipts_ingress(monkeypatch, tmp_path):
     # A random tiny model cannot know the codes: leakage must not fire.
     assert receipt["leakage_suspected"] is False
     assert receipt["valid"] is True
+
+
+def test_the_budget_is_spent_by_the_run_and_not_by_the_import():
+    """`--max-seconds` measures the run, from the moment the run starts.
+
+    It used to be measured from a module-level `_START` set at import. Run as
+    a script those are the same instant. Imported into a process that goes on
+    doing other things — a test chunk that loaded this module a quarter of an
+    hour before it called it — the budget was already spent before the first
+    task, and a 29-second eval raised TimeoutError.
+    """
+    import inspect
+
+    source = inspect.getsource(integrated.run_eval)
+    assert "started = time.time()" in source, (
+        "run_eval has to take its own timestamp; a module-level one is spent "
+        "by whatever the process did between import and call"
+    )
+    assert "time.time() - started" in source
+    assert not hasattr(integrated, "_START"), (
+        "a module-scope start time is the defect this replaced"
+    )

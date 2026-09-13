@@ -31,7 +31,7 @@ class GanglionAction:
     payload: Dict[str, Any]     # Action-specific data
     priority: float = 0.5       # 0.0-1.0
     is_critical: bool = False   # Critical actions bypass executive inhibition
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class GanglionNode:

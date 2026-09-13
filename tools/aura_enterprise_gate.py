@@ -21,6 +21,7 @@ import sys
 import tempfile
 import time
 import tokenize
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 try:
@@ -415,6 +416,20 @@ def scan_file(path: Path, root: Path, report: GateReport) -> None:
     AstGate(rel, report, source_lines=source.splitlines()).visit(tree)
 
 
+try:
+    from tools.cpu_budget import cores_available
+except ModuleNotFoundError:  # run as `tools/<name>.py`; only tools/ is on the path
+    from cpu_budget import cores_available
+
+
+def _scan_one(job: tuple[str, str]) -> tuple[int, list[Finding]]:
+    """Scan one file into a report of its own, for a worker to hand back."""
+    path_str, root_str = job
+    one = GateReport(root=root_str, generated_at_unix=0.0)
+    scan_file(Path(path_str), Path(root_str), one)
+    return one.python_files, one.findings
+
+
 def run_gate(
     root: Path,
     *,
@@ -428,8 +443,21 @@ def run_gate(
     if include_compile:
         compile_gate(root, report, compile_timeout)
 
-    for path in iter_py(root):
-        scan_file(path, root, report)
+    # One core read the whole tree and the gate took 70s against a 60s
+    # timeout — so under any other load on the host it failed on the clock
+    # rather than on a finding. Every file is scanned independently and
+    # `iter_py` is ordered, so mapping them over a pool and merging in input
+    # order gives the same report from the same tree.
+    jobs = [(str(path), str(root)) for path in iter_py(root)]
+    workers = cores_available()
+    if workers > 1 and len(jobs) > 64:
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            scanned = list(pool.map(_scan_one, jobs, chunksize=32))
+    else:
+        scanned = [_scan_one(job) for job in jobs]
+    for counted, findings in scanned:
+        report.python_files += counted
+        report.findings.extend(findings)
 
     if include_pytest_collect:
         pytest_collect_gate(root, report, pytest_timeout)

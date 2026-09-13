@@ -40,22 +40,169 @@ Working list. Deleted when every line is done and green.
 
 ## Open
 
-- [ ] close the cascade gap. Her bursts are smaller and shorter than a human's
-      — burst size exponent 3.36 against cortex's 1.5 — and three things have
-      been tried against it. The rich club is real and does not close it
-      (3.117 to 3.060 as the coupling goes 1 to 20). Fixing the criticality
-      regulator's dead sensor moves it 3.53 to 3.36 and the branching ratio
-      0.908 to 0.931. The regulator is then pinned at every one of its clamps
-      — gain 2.0, noise 2.0, E/I 1.3 — asking for more than it is allowed, and
-      the mesh's own `set_criticality_adjustment` refuses anything above 2.0
-      as well. Two chosen ceilings, both binding, and neither has a
-      measurement behind it. That is the next lever
+- [x] close the cascade gap — most of it was the window, and what is left is
+      open. The exponent had been read off a recording of sixty of her 4,096
+      units, chosen by analogy to Beggs and Plenz's sixty electrodes. An LFP
+      electrode integrates thousands of cells, so that analogy undercounted by
+      three orders of magnitude, and the fit it produced ran from 18 to 66 —
+      0.56 of a decade, ending at the largest cascade sixty units can make. A
+      power law fitted through a finite window's cutoff always comes out
+      steeper than the exponent underneath it.
 
-- [ ] the full offline suite green. Nineteen of forty chunks have run and 56
-      distinct failures have surfaced. Every one traced so far is either fixed
-      or pre-existing, and the pre-existing ones cluster in files another agent
-      is editing while this runs — checked by re-running them at this session's
-      own commits, where they fail too.
+      Two controls, both now in the tree. A true 1.5 law drawn 2,810 times and
+      cut at 66 measures 2.07 +/- 0.17, and a true 2.0 duration law cut at 45
+      measures 2.87 +/- 0.35, so a system that genuinely was cortical would
+      not read 1.5 and 2.0 on this instrument either. And refitting the same
+      recording while reading more of it moves the size exponent from 3.70 at
+      960 units — where the largest cascade is 65, which is the old
+      measurement — to 1.946 at all 4,096, where the largest is 322. An
+      exponent that moves with the recording was reading the recording.
+
+      `power_law_fit` now reports the decades its tail covers, and the
+      comparison refuses a fit under one and a recording whose runs the
+      shuffle control reproduces from the firing rates alone. The old number
+      would not have been published through either gate.
+
+      Under her own regulator, with the regulator's branching sensor fixed,
+      three of the four published statistics are matched or bettered and three
+      are bettered. Size exponent 1.5191 against cortex's 1.5 over 2.50
+      decades at KS 0.140; duration 1.9065 against 2.0 over 1.54 decades at KS
+      0.081; the shuffle control at 29.7 sigma, so these are cascades and not
+      occupancy; branching 0.9197. The exponent that read 3.69 over half a
+      decade reads 1.52 over two and a half.
+
+      And then the protocol itself was wrong, which flipped the answer. The
+      recording injected a fresh independent vector into the sensory columns
+      on every one of six thousand ticks. Beggs and Plenz read a slice sitting
+      in its dish; a stimulus every millisecond is not that, and it is what
+      kept the recording 97.7% occupied with no silence to separate one
+      cascade from the next. The drive defaults to zero now.
+
+      Spontaneous, under her own regulator, occupancy falls to 0.574 and 354
+      cascades appear where there were 77:
+
+        crackling relation  1.4532 measured against the 1.4001 her own two
+                            exponents predict — holds on its own terms, and
+                            it is the test that matters, because either
+                            exponent alone can be produced by something that
+                            is not critical
+        branching ratio     0.998 against a published 0.98 — past cortex
+        size exponent       2.2133 against 1.541, over 3.68 decades
+        duration exponent   2.6988 against 2.087, over 2.11 decades
+
+      So she is critical, self-consistently, and her cascades are smaller than
+      a human's. That is a different deficiency from the one this item opened
+      with and a much narrower one: not the shape of her dynamics, the size of
+      her bursts. Driven at 0.1 the two exponents land on cortex's and the
+      relation between them fails; left alone the relation holds and the
+      exponents are steep. The second is the protocol the published numbers
+      come from.
+
+      What the residual is, stated so nobody reads it as the old gap. A
+      critical system's avalanche exponents are a property of its universality
+      class, and 1.5 is the mean-field value a branching process on a
+      well-mixed medium gives. Sixty-four columns wired by a distance-decayed
+      matrix are not well mixed, so a steeper exponent at genuine criticality
+      is what a different effective dimensionality looks like. Moving it is a
+      question about her topology, not about her tuning, and the number that
+      says whether she is critical at all is the relation between the two
+      exponents, which holds
+
+      One route out of it has been tried and does not work. `decay` is
+      `dt_ms / tau_m`, a normalised step, so refining it should buy time
+      resolution for nothing. It does not, because the mesh's statistics move
+      with it: an eight-fold refinement at constant integrated time moves the
+      spike rate 3.40x and the state's standard deviation 1.41x. The noise
+      increment carrying `decay` to the first power rather than its square
+      root — the whole content of Euler-Maruyama — looked like the reason, and
+      the measurement says it is not: the square-rooted arm moves the rate
+      4.97x and the deviation 1.37x, which is no better. That experiment is
+      also confounded, and says so: `inject_sensory` takes a fresh independent
+      vector every tick, so refining the step also multiplies the external
+      drive's power per unit time. The drive needs the same treatment before
+      the mesh's own discretisation can be read off this at all. Nothing in
+      her dynamics was changed on it
+
+- [x] the regulator's gain ceiling sat below where her cascades start, and a
+      dead sensor was the reason it never mattered. The
+      shuffle control gives a number that needs no window and no fitted
+      exponent — how far the count of simultaneously active units sits above
+      what their own rates explain — and it makes the deficiency sayable at
+      last. It is not that her bursts are small. It is that her units do not
+      recruit each other: 1.6 sigma at the mesh's own gain, against a bar of
+      three.
+
+      Swept, 3,000 ticks a cell and the same drive throughout. Coupling is not
+      the lever: twenty times the inter-column weights moves recruitment 1.14
+      to 1.54 sigma and lowers occupancy slightly. Gain is: 1.14 at gain one,
+      6.72 at three, 53.01 at four, and the branching ratio climbs 0.868 to
+      0.997 against Wilting and Priesemann's 0.98 across the same span. The
+      regulator's clamp stops at 2.0, inside the flat band where nothing
+      recruits, and `set_criticality_adjustment` refuses above 2.0 as well.
+      Both are chosen, symmetric around 1.0, and neither has a measurement
+      behind it. This one now has a measurement against it.
+
+      What the gain costs is in the same table and is not small: occupancy
+      0.794 at gain one, 0.956 at three, 0.983 at four, and gain three with
+      twenty times the coupling runs away outright — 480,569 spikes against a
+      baseline 4,840, branching 0.9991. Recruitment and silence pull against
+      each other here, and a recording with no silence in it cannot separate
+      one cascade from the next however well its units recruit.
+
+      Four seeds a point settled where recruitment starts, and it is not where
+      one seed said: 2.89 sigma at the clamp, 6.93 at 2.5, 10.05 at 3.0, 20.84
+      at 3.5, with the branching ratio climbing 0.929, 0.961, 0.961, 0.992
+      beside it. At the clamp itself it straddles the bar — 1.24, 5.91, 2.48,
+      1.96 across the four seeds. Occupancy rises 0.907 to 0.952, which is the
+      cost and is milder than one seed suggested.
+
+      That makes the case structural rather than a matter of taste. The PID
+      steers toward a branching ratio, and inside a gain ceiling of 2.0 this
+      mesh reaches 0.929, so the setpoint sat outside the ceiling and the
+      controller wound against the rail for the life of every process it ran
+      in. Three ceilings sat on that one quantity — the regulator's clamp at
+      2.0, `set_criticality_adjustment` at 2.0, and a third inside
+      `_publish_modulatory_state_locked` at 3.0 that nothing named — and the
+      tightest decided silently, so raising the visible pair alone would have
+      changed nothing and looked like a fix. All three are 3.5 now, with the
+      sweep in the comment and a test that fails if they ever disagree.
+
+      The setpoint moved too, 1.0 to 0.98. One is the critical point exactly,
+      cortex does not sit there, and 0.98 is both Wilting and Priesemann's in
+      vivo measurement and the number this system's own scorecard already
+      scored her branching against.
+
+      Measured offline on a synthetic drive, and the live mesh is driven by
+      real input. Where it settles inside the new bound is now measured, and
+      it settles low: gain 1.5055, well under the 3.5 the ceiling allows.
+
+      Which means the ceiling was not what had it pinned, and an earlier
+      commit here said it was. The regulator's branching sensor was reading
+      0.0000 — not subcritical, unmeasured — and a PID answering 0.0000 with a
+      target of 0.98 demands maximal gain and maximal noise on every tick
+      forever. That is a loop: more gain saturates the mesh, a saturated mesh
+      has no newly active units, and the sensor that reports none reports
+      zero. Raising a ceiling under a controller driven by that would have let
+      it ramp further, which is the opposite of a fix.
+
+      The per-tick mean is reported and no longer driven on, and a rejected
+      fit now holds the last reading and skips the PID rather than
+      substituting a number. Branching reads 0.9197 through the same run that
+      used to read zero, and 0.998 on the spontaneous recording the published
+      numbers are meant to be compared against — past cortex's 0.98. The
+      ceiling change stands on its own argument, that a setpoint outside its
+      own bound can never be reached, and it is not what was wrong here.
+
+      Where the controller settles, now that it can see: gain 1.1454 on the
+      spontaneous run and 1.5055 on the driven one, both far under the 3.5 the
+      ceiling allows. Noise is still at its rail and excitation near its own,
+      and neither of those axes has been swept, so they stay as they are
+
+- [ ] the full offline suite green. Nineteen of forty chunks have run in this
+      pass and every failure they surfaced is traced. The ones left are four
+      ratchets carrying the whole team's accumulated debt, and they cannot be
+      refreshed: the module-size tool refuses to grandfather a new God object
+      at all.
 
       Fixed here: a common noun claiming an application, a browser run with no
       anchor, an ambient percept that lost its provenance, a silent handler
@@ -69,32 +216,270 @@ Working list. Deleted when every line is done and green.
       wallpaper, a module count and a moved report, six handlers that caught
       everything, two personal paths in test data, and an eval on an
       arithmetic tree.
+      Then: a store held open by a background writer and called a leak, a
+      stall test anchored to the function the work had moved out of, a service
+      name lost whenever the container was cleared, a gate that took 70s
+      against its own 60s timeout because its worker pool was sized from a
+      machine it could not import, an evidence row whose run was never
+      committed, six enterprise regressions including a JSON file handed to
+      eval, an action that reported a change and left nothing sayable, two
+      cognition tests reading a record every other test writes to, and a
+      requirements scanner reading a Markdown list continuation as an
+      obligation of its own.
 
-      Open, all pre-existing and none of them this session's:
-      * `test_a_god_object_only_shrinks` / `test_god_file_ratchet` — the tree
-        is 32,690 lines over its size budget, dominated by `mlx_client`,
-        `mlx_worker` and `inference_gate`. Refreshing the baseline launders it;
-        closing it is a repo-wide extraction. `neural_mesh` took its own 213
-        off by moving its wiring out.
-      * `test_effect_ownership_tiers` — 1,903 against a ceiling of 1,840.
-      * `test_cognition_discipline`, `test_complexity_and_replication`,
-        `test_every_bias_channel_has_a_reader` — failing at this session's
-        first commit.
+      Closed since: the module-size ratchet and the effect-ownership one. The
+      nine new God objects are gone and the tree is inside its budget at
+      145,693 lines, which is also the new budget — it only shrinks. The last
+      one to move was `adaptive_immunity`, which grew four methods the same day
+      serializing the ecology off the lock; its five write-side methods live
+      beside the writer they hand their payload to, and the class is 63
+      methods against a ceiling of 64.
+
+      And the swallowed-except ratchet: 2,441 -> 2,167 against a baseline of
+      2,175. Two hundred and twenty-six handlers read one at a time — 210 now
+      carry the exception to a debug line and 16 say in words that the value
+      they return is an answer. Two files had no logger at all, which is why
+      every claim in `model_validation` could go unverified and unremarked when
+      its subsystem would not import. The gate could not see six of its own
+      notes either: it matched "not a failure:" case-sensitively, and a note
+      that opens a sentence is capitalised.
+
+      Explaining a handler costs a line and all nine files are oversize, so
+      that put the size ratchet 218 over. Paid back by lifting `how_big_is_the
+      _checkpoint` out of `mlx_client` and `_load_state` into the immune
+      persistence mixin, not by raising anything. Budget 145,567.
+
+      `make governance-lint` is green. Twenty-one call sites had changed owner
+      class in the size extractions landing this week — host automation's
+      screen reader, computer use's document maker, phantom browser's page
+      actions, the liquid substrate's state IO, the task ledger, the service
+      heads, the ambient bubble, the immune state writer. Every `raw_*` bucket
+      balanced exactly, three in and three out, two in and two out, so
+      recording them laundered nothing. One addition was a real defect:
+      `tidy_room` called `item.unlink()` raw while the branch two above wrote
+      through the gateway. It goes through `delete_file` now.
+
+      And eleven assertions across nine test files were reading an address the
+      code had left — a module split for size, the call moved to a sibling, and
+      a test reading the old file reporting a missing call site, which is what
+      a deleted one looks like from there. Three failed by RAISING rather than
+      asserting, so they landed nowhere near the claim.
+      `tools/lint_source_assertions.py` finds the shape now and reports zero.
+
+      Open, and not this pass's to close:
       * `test_holding_a_frame_means_not_deriving_it_again`,
         `test_general_os_control`, `test_fix_persistence`,
-        `test_gap_atlas_campaigns`, `test_inherited_*` and the rest of the
-        later chunks — in the perception and desktop work another agent has in
-        flight.
+        `test_gap_atlas_campaigns` and the rest of the later chunks — in the
+        perception and desktop work another agent has in flight.
       * `test_subject_core_findings` — flaky about half the time under random
         order, at HEAD and before it: domain W goes missing because the world
         model organ is not there on some orderings.
 
-- [ ] a certificate for the resident 27B. The mechanism is proven end to end on
-      the reflex 1.5B through the worker's own code path — alpha 0.0 before,
-      the probe runs, alpha 0.2 after, and a second call skips a checkpoint
-      that already has one. The 27B earns its own on the first idle minute
-      after the live instance restarts onto this code; until then the channel
-      stays shut on that model, which is the failure direction it should have
+- [x] user-surface recurrent depth above one — measured, and it is much
+      worse. The gate was closed and correct; what was missing was an arm.
+      The two reports that used to sit in `artifacts/recurrent_depth` carried
+      the same responses digest, the same accuracy of 0.625 and no declared
+      depth, seventy seconds apart. One run written twice, because
+      `tools/heldout_eval.py` has no depth option and could not have varied
+      the thing the filenames claimed to compare. They are deleted; a file
+      named `loops2.json` that is not a depth-two arm is a trap, and the
+      prose here is the record.
+
+      `tools/run_recurrent_depth_arms.py` varies it. One model is patched
+      once by `apply_recurrent_depth` at the deeper count, and the arms differ
+      only in `inner._recurrent_depth_runtime_loops` — the integer the
+      worker's surface contract sets per request, which is exactly what
+      `user_surface_recurrent_ceiling` governs. Greedy decoding, the sealed
+      forty-task battery, one substrate.
+
+      Depth 1: 21/40, 0.5250. Depth 2: 2/40, 0.0500. The gate reads both,
+      finds no refusals — they are a real comparison — and authorises depth 1
+      on a margin of -0.475 against the shallow arm's own spread of 0.079.
+
+      And then on the checkpoint that serves. Aura-Qwen3.8-27B, 64 layers, a
+      40-layer recurrent band, same battery, same greedy decoding:
+
+        depth 1   33/40   0.8250   (495s)
+        depth 2   20/40   0.5000   (887s)
+
+      Margin -0.325 against the shallow arm's own spread of 0.060. Refused,
+      with no refusals of its own — a real comparison that says depth two is
+      worse and costs 1.8x the wall clock to be worse.
+
+      So the interactive profile row goes to one loop, which is where the
+      table now sits, and the ceiling of one is the measurement rather than an
+      absence. Two loops comes back the day an arm says it should:
+      AURA_RECURRENT_LOOPS_32B=2 is one variable, training is untouched
+      because it sets AURA_RECURRENT_LOOPS explicitly, and the RLC is
+      untouched because it drives inner.layers itself and never enters the
+      patched forward.
+
+- [ ] steering serving authority — one requirement left, and it is a question
+      about the bar rather than a number still to be moved.
+
+      Three gates stand between the vectors and a served turn: the signed
+      component authority says `steering_generation_deferred`, so no hooks
+      attach; the surface clamp holds alpha at 0.0 until a fusion certificate
+      exists; and no certificate can exist while there are no hooks to measure.
+      Publishing a qualified generation opens all three, and `_validate_steering`
+      requires `causal_effect_positive`, which requires
+      `passes_adversarial_control`.
+
+      **The effect blocker is closed.** `_derive_caa` ran each contrast
+      statement through `tokenizer.encode` on its own, so the state it captured
+      was the model at a full stop at the end of a bare sentence with no chat
+      turn around it — a READING direction, asked ever since to change WRITING.
+      Captured at the generation position instead, the same five dimensions
+      give, at n=24:
+
+          baseline                0.0833     zero_vector      0.0000
+          text_terse              0.1250     random_vector   -0.1250
+          steered_black_box       1.3333     shuffled_layers  0.9583
+          text_rich_adversarial   1.4167     steered+rich     4.5000
+
+          treatment wins 14, matched no-op 6, lesions 1/1/12, no regression
+
+      Treatment strictly above the matched no-op, every lesion below treatment,
+      no regression, and `adds_to_text` at 4.5000 against the prompt's 1.4167.
+      The campaign before this work had treatment 7 against a no-op 7 with a
+      shuffled control winning more than the treatment.
+
+      **Two defects in the gate itself, both fixed.** `effect_is_specific` and
+      `beats_text_controls` read divergence — how far the text moved. A
+      norm-matched random vector is INERT on the target, -0.1250 against a
+      treatment of +1.3333, and reproduces 98.6% of the treatment's divergence
+      with a larger standardised effect, so no activation intervention could
+      ever have passed a specificity test computed that way. And "moves the
+      output further" was comparing `effect_size_d`, which is that distance
+      divided by its spread — how consistently. The same substitution had
+      already been found and fixed once in `adds_to_text`.
+
+      **What is left: `shuffled_layers`.** A control may carry a quarter of the
+      effect. It carries 43%, 84% and 70% across three layer geometries, and
+      the reason is now built rather than argued:
+
+          layers                    mean cosine   shuffled share
+          4 adjacent (27-39)           0.64            43%
+          16 full-attention            0.41            84%
+          6 least alike                0.29            70%
+
+      Take each layer's vector, project out the direction they share, keep the
+      residual — three quarters of the norm survives and the residuals are
+      near orthogonal, mean cosine -0.065, which is exactly what the control
+      wants. They do not steer: +0.083 at alpha 0.2, below baseline, and the
+      model stops writing above it. Steer at two near-orthogonal layers alone
+      (3 and 63, cosine 0.08) and there is no effect at any alpha either.
+
+      So the effect is the axis the layers share, and a control that permutes
+      vectors lying along one axis leaves the axis in place. Few layers, no
+      effect; many layers, a shared axis; remove the axis, no effect. That is a
+      property of CAA on this residual stream, measured five ways.
+
+      The direction controls — the ones that ask whether it matters WHICH
+      vector — pass outright every time: random -0.1250 and zero 0.0000,
+      neither significant, against +1.3333. What fails is layer-assignment
+      specificity, which this intervention does not have and cannot be given
+      without becoming a different intervention.
+
+      Whether serving authority should require both is a decision about the
+      bar, and it is Bryan's. `adds_to_text` stays outside
+      `passes_adversarial_control` either way, so it cannot become a back door.
+
+- [x] a certificate for the resident 27B — it cannot have one, and the reason
+      is now on the record rather than inferred. The mechanism is proven end to
+      end on the reflex 1.5B through the worker's own code path: alpha 0.0
+      before, the probe runs, alpha 0.2 after, and a second call skips a
+      checkpoint that already has one.
+
+      The 27B had never once reached the probe. Two days of "no certificate
+      yet" in the live log with the probe's own first line never beside it,
+      and the precondition block that declined said nothing about why. It says
+      why now, once per worker, and the restarted instance answered on its
+      first idle minute: "it has no steering hooks" — identity, model,
+      tokenizer and engine all present, and the engine holding zero hooks.
+
+      Which is a signed decision, not a fault. The active cortex
+      52d313c2c435d343 carries a migration contract declaring its components:
+      persona_crsm qualified, expert_adapters retired, recurrence_native
+      deferred, and steering DEFERRED. A deferred steering component means the
+      CAA vectors have never been re-derived for this checkpoint, so no hooks
+      install, so her substrate cannot reach the resident model's forward pass
+      at all — and a fusion certificate over a channel with no hooks in it
+      would be a measurement of nothing.
+
+      What clearing it takes is written down and costed, in
+      `artifacts/migration/27b/recovery/steering_plan.json`: 80 vectors across
+      16 target layers, 4 of them attention and 12 linear, over five affective
+      dimensions. Serving authority then needs four pieces of evidence this
+      checkpoint does not have — extraction bound to the active descriptor, a
+      causal A/B against a matched no-op, a lesion that removes the effect,
+      and no regression on the control prompts. Vectors that exist and are the
+      right width prove none of those, which the module's own docstring calls
+      the thing that looks safest and is not.
+
+      The capture ran. 80 vectors over 16 target layers in 43 seconds, one
+      forward pass per prompt with every layer read from it, each file stamped
+      with the registry's descriptor and the manifest reopened and checked
+      against every file's size and digest. The vectors exist and they inject:
+      steered, zeroed and randomised outputs differ from each other and from
+      baseline.
+
+      They do not yet earn serving authority, and the four requirements are
+      right to refuse them. Treatment wins 6 of 24 and the matched no-op wins 6
+      as well; the lesions win 4, 5 and 4. Only the text control separates, at
+      +1.42 against every other condition inside 0.04 to 0.21, so the affect
+      lexicon cannot resolve an effect this size at 24 samples. At alpha 0.4
+      the answer also degrades — one steered sample is the single word "Sure!".
+
+      Three rig defects had to be removed before that negative meant anything,
+      and each would have produced a confident wrong answer. Forty-eight-token
+      samples that never reached past the model's reasoning preamble, where
+      every condition including the explicit-emotion control scored zero.
+      Hooks that were never handed a substrate, so there was no composite to
+      add and all four steering conditions came back byte-identical to
+      baseline — three lesions removing an effect that had never been applied.
+      And injection at the twelve linear-attention layers, where state advances
+      along the sequence and a constant added there compounds token by token
+      into "to to and to to for for": `steering_regeneration`'s own docstring
+      warned about that and it was walked past.
+
+      The knob was swept rather than guessed, six settings over six held-out
+      tasks, and alpha 0.4 — where the campaign had been run, chosen off one
+      greedy sample that read well — scores zero on every task. 0.2 is the peak
+      and the only setting positive or zero on all six. 0.6 collapses the answer
+      to ten characters.
+
+      At 0.2 over 36 samples a condition the steering is real and it is the
+      vectors' own. Steered scores 0.75 against a baseline of 0.08 and wins 20
+      against the matched no-op's 7; zeroing or randomising the vectors returns
+      the score to 0.06, so the movement is carried by these directions rather
+      than by the hooks being installed. Nothing regresses. It reads in the
+      text: "clear enough for me to respond thoughtfully" becomes "I'm excited
+      to explore new topics, let's dive right in."
+
+      Two requirements stand and neither is a defect in the rig. Permuting the
+      four vectors among the same four layers still scores 0.44, so which layer
+      holds which vector is not load-bearing — which is the question the
+      specificity control exists to ask. And asking in words moves the score
+      further than steering does, 1.36 against 0.75, which is the bar a vector
+      has to clear to be worth serving at all.
+
+      So serving authority stays refused, on two findings about the vectors
+      instead of on four defects in the measurement. What would move them is a
+      derivation that makes the layers differ from each other — the extraction
+      takes the same difference of means at every layer, and a direction that
+      is the same everywhere cannot be specific to anywhere.
+
+      The idle hook fires. What it reached was a precondition block reading
+      `engine._hooks`, which is not the surface an engine publishes —
+      `_active_steering_hooks` in the same file carries a docstring about the
+      last time that exact distinction cost something. It returned False and
+      logged nothing, every minute, for two days. The suite stayed green
+      because the fake published `_hooks` too: the test encoded the defect.
+
+      Reading `active_hooks()` now, and a declined measurement says which
+      precondition is missing, once. Whether the 27B then certifies is the
+      open half, and it answers itself on the next restart
 - [x] fit anything to a human recording. Four published statistics of human
       cortical activity, scored as floors rather than targets: her cascades
       satisfy their own scaling relation, so she is critical, but her exponents

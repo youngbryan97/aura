@@ -625,6 +625,31 @@ def _wait_for_receipt(run_dir: Path, timeout_s: float = 10.0) -> dict:
     raise AssertionError(f"timed out waiting for {receipt_path}")
 
 
+def _wait_until_terminal(run_dir: Path, timeout_s: float = 20.0) -> dict:
+    """Wait for what the reader is about to require, not just for the receipt.
+
+    `_authoritative_detached_evidence` demands a terminal journal, a dead
+    child AND a supervisor that has exited. The receipt lands before the
+    supervisor finishes exiting, so a fixture that waits only for the receipt
+    hands the reader a run that is still winding down — which it refuses, as
+    `detached_training_journal_not_terminal`. Passes alone on an idle machine
+    and fails inside a loaded chunk, which is what that race looks like from
+    outside.
+    """
+    deadline = time.time() + timeout_s
+    status: dict = {}
+    while time.time() < deadline:
+        status = promotion.detached._status(run_dir)
+        if (
+            status.get("terminal") is True
+            and status.get("supervisor_alive") is False
+            and status.get("child_state") == "dead"
+        ):
+            return status
+        time.sleep(0.05)
+    raise AssertionError(f"detached run never went terminal: {status}")
+
+
 def _launch_detached_fixture(run_dir: Path) -> None:
     subprocess.run(
         [
@@ -653,6 +678,7 @@ def _launch_detached_fixture(run_dir: Path) -> None:
     )
     receipt = _wait_for_receipt(run_dir)
     assert receipt["passed"] is True
+    _wait_until_terminal(run_dir)
 
 
 def test_terminal_training_promotion_binds_complete_execution(tmp_path: Path) -> None:

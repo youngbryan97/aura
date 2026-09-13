@@ -194,7 +194,7 @@ class ConativeState:
     sting: float = 0.0
     sting_evidence: str = ""
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def liking_known(self) -> bool:
@@ -314,7 +314,7 @@ class OutcomeReport:
     predicted_liking: float | None
     predicted_wanting: float
     realised_pull: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def epsilon_liking(self) -> float | None:

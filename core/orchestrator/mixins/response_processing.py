@@ -9,6 +9,7 @@ import re
 import time
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.brain.types import ThinkingMode
 from core.phases.dialogue_policy import validate_dialogue_response
 from core.phases.response_contract import build_response_contract
@@ -976,6 +977,6 @@ class ResponseProcessingMixin:
                 "fix",
                 "patch",
             ]
-            if not any(cmd in msg_lower for cmd in commands):
+            if not names_any(msg_lower, commands):
                 return True
         return False

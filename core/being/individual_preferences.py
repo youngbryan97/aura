@@ -79,8 +79,8 @@ class Preference:
     contrary_encounters: int = 0
     formed: bool = False
     suggested_by_other: bool = False
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
     note: str = ""
     revisions: list[Revision] = field(default_factory=list)
 

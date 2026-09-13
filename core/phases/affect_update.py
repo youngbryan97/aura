@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.task_ownership import create_tracked_task
 from core.state.aura_state import AffectVector, AuraState
 from core.state.percepts import drop_consumed, fresh_for, mark_consumed
 
@@ -58,6 +57,14 @@ _POSITIVE_AFFECT_WEIGHTS = {
     "admiration": 0.45,
 }
 
+#: What `affect.curiosity` is derived from. Both channels at the weights they
+#: already carry in the positive vocabulary, so the readout is a reading of
+#: them rather than of whichever happens to be larger.
+_CURIOSITY_WEIGHTS = {
+    "curiosity": 0.55,
+    "anticipation": 0.35,
+}
+
 _NEGATIVE_AFFECT_WEIGHTS = {
     "fear": 1.0,
     "sadness": 0.85,
@@ -80,6 +87,15 @@ _NEGATIVE_AFFECT_WEIGHTS = {
     "frustration": 0.75,
     "vulnerability": 0.45,
 }
+
+
+def _weighted_mean(reading, weights: dict[str, float]) -> float:
+    """The weighted average of one side of the affect vocabulary, in [0, 1]."""
+    total = sum(weights.values())
+    if total <= 0.0:
+        return 0.0
+    return sum(reading(name) * weight for name, weight in weights.items()) / total
+
 
 _REASSURANCE_PERCEPTS = {
     "positive_interaction",
@@ -295,7 +311,7 @@ class AffectUpdatePhase(Phase):
             "conscious_substrate", default=None
         )
         if ls:
-            self._schedule_substrate_update(ls, affect, state)
+            await self._push_to_substrate(ls, affect, state)
             # And read it back. `HomeostaticCoupling` says the continuous
             # substrate is the ground truth for felt state and blends it at
             # thirty percent — into a local dictionary used to pick cognitive
@@ -372,11 +388,33 @@ class AffectUpdatePhase(Phase):
             reading = advance(features)
             if reading is None:
                 return
-            weight = max(0.0, min(1.0, float(reading.displacement)))
-            affect.curiosity = max(
+            # Against how much this reservoir usually moves, not the raw norm.
+            # The norm is a distance in a sixty-four unit space with a leak, so
+            # it sits at a few hundredths whatever happens — the developmental
+            # state got five percent of a say on its loudest step, and the one
+            # channel it writes into was the only route it had out.
+            weight = max(0.0, min(1.0, float(
+                getattr(reading, "relative_displacement", reading.displacement)
+            )))
+            blended = max(
                 0.0,
                 min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
             )
+            affect.curiosity = blended
+            # And into the channel curiosity is kept in, not only the readout.
+            #
+            # `_derive_metrics` recomputes `affect.curiosity` from the emotion
+            # dictionary at the top of every turn, so a value written here was
+            # thrown away before the next one — the developmental state could
+            # colour one turn and never two, whatever it sensed. The emotions
+            # are where affect carries; everything else in this phase writes
+            # there and lets the readout follow.
+            if isinstance(getattr(affect, "emotions", None), dict):
+                held = float(affect.emotions.get("curiosity", blended) or 0.0)
+                affect.emotions["curiosity"] = max(
+                    0.0,
+                    min(1.0, (1.0 - weight) * held + weight * float(reading.novelty)),
+                )
             state.response_modifiers["ontogenetic_novelty"] = round(float(reading.novelty), 4)
             state.response_modifiers["ontogenetic_displacement"] = round(weight, 4)
             self._ground_affect(state, affect, novelty=float(reading.novelty))
@@ -516,14 +554,16 @@ class AffectUpdatePhase(Phase):
                 )
                 return
             keep = 1.0 - SUBSTRATE_SHARE
+            substrate_valence = float(reading.get("valence", 0.0))
             affect.valence = max(
                 -1.0,
-                min(1.0, affect.valence * keep + float(reading.get("valence", 0.0)) * SUBSTRATE_SHARE),
+                min(1.0, affect.valence * keep + substrate_valence * SUBSTRATE_SHARE),
             )
             affect.arousal = max(
                 0.0,
                 min(1.0, affect.arousal * keep + float(reading.get("arousal", 0.0)) * SUBSTRATE_SHARE),
             )
+            self._fold_substrate_into_emotions(affect, substrate_valence, SUBSTRATE_SHARE)
             state.response_modifiers["substrate_share_of_affect"] = SUBSTRATE_SHARE
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
@@ -534,15 +574,90 @@ class AffectUpdatePhase(Phase):
                 severity="warning",
             )
 
-    def _schedule_substrate_update(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
+    @staticmethod
+    def _fold_substrate_into_emotions(
+        affect: AffectVector, valence: float, share_of_affect: float
+    ) -> None:
+        """Put the substrate's valence where valence is kept.
+
+        `_derive_metrics` recomputes `affect.valence` from the emotion
+        dictionary at the top of every turn, so the blend above lived until the
+        next turn began and was then gone. The continuous substrate is, in the
+        homeostatic coupling's own words, the ground truth for her felt state —
+        and it could colour one turn and never two, which is most of why
+        recurrent cognition can be moved nine standard deviations and reach a
+        tenth of one anywhere else.
+
+        The direction and the proportions are the readout's own, inverted: the
+        channels valence is derived from, each moved by its own weight in that
+        derivation. Nothing new is decided here about what counts as feeling
+        good.
+        """
+        emotions = getattr(affect, "emotions", None)
+        if not isinstance(emotions, dict):
+            return
+        # The share is passed in rather than imported here: the import lives
+        # inside the caller, so naming it at this scope raised NameError on
+        # every turn of a run — the affect phase died four hundred and
+        # ninety-one times before the authority gate refused the report.
+        share = float(share_of_affect) * max(-1.0, min(1.0, float(valence)))
+        if abs(share) < 1e-9:
+            return
+        heaviest = max(
+            max(_POSITIVE_AFFECT_WEIGHTS.values(), default=1.0),
+            max(_NEGATIVE_AFFECT_WEIGHTS.values(), default=1.0),
+        ) or 1.0
+        for weights, sign in ((_POSITIVE_AFFECT_WEIGHTS, 1.0), (_NEGATIVE_AFFECT_WEIGHTS, -1.0)):
+            for name, weight in weights.items():
+                if name not in emotions:
+                    continue
+                step = sign * share * (weight / heaviest)
+                emotions[name] = max(0.0, min(1.0, float(emotions[name] or 0.0) + step))
+
+    async def _push_to_substrate(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
+        """Push felt state into the continuous substrate, and wait for it.
+
+        This scheduled the write as a task nobody waited for. The very next
+        statement in the phase reads the substrate back to blend it into
+        affect, so the read raced the write; and the frame after it takes the
+        reading the whole C domain is measured from, so whether the push had
+        landed was decided by the event loop. Two arms of a paired trial
+        differing only in that gave the substrate's frustration channel a floor
+        of nineteen hundredths of a standard deviation — the largest in the
+        organism, on the one domain that has no outgoing edge.
+
+        The write is a lock and a handful of array elements. There is nothing
+        to schedule around.
+        """
         try:
             update = getattr(substrate, "update", None)
             if not callable(update):
                 return
-            result = update(valence=affect.valence, arousal=affect.arousal)
-            if not inspect.isawaitable(result):
-                return
-            create_tracked_task(result, name="affect_update.liquid_substrate")
+            # Curiosity travels with them. Valence and arousal are pushed down
+            # on every cycle and curiosity is not, so the one affective channel
+            # the developmental state writes into — `_advance_lifetime` blends
+            # affect's curiosity toward how unprecedented the moment is, and
+            # nothing else in the runtime reads novelty at all — stopped at
+            # `AuraState.affect` and never reached the continuous substrate.
+            # The lifetime state could move a number and nothing downstream of
+            # the substrate could feel it.
+            #
+            # As a delta, because that is what the gate takes: the distance
+            # from where the substrate's curiosity already is to where affect
+            # says it should be.
+            step = 0.0
+            try:
+                reading = substrate.get_substrate_affect() or {}
+                step = float(affect.curiosity) - float(reading.get("curiosity", 0.0) or 0.0)
+            except _AFFECT_UPDATE_ERRORS:
+                step = 0.0
+            result = update(
+                valence=affect.valence,
+                arousal=affect.arousal,
+                delta_curiosity=max(-1.0, min(1.0, step)),
+            )
+            if inspect.isawaitable(result):
+                await result
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(
                 state,
@@ -715,8 +830,20 @@ class AffectUpdatePhase(Phase):
         def activation(emotion: str) -> float:
             return max(0.0, float(e.get(emotion, 0.0) or 0.0) - float(baselines.get(emotion, 0.0) or 0.0))
 
-        pos = sum(activation(emotion) * weight for emotion, weight in _POSITIVE_AFFECT_WEIGHTS.items())
-        neg = sum(activation(emotion) * weight for emotion, weight in _NEGATIVE_AFFECT_WEIGHTS.items())
+        # Weighted means, not weighted sums. A sum over twenty-two positive
+        # channels scales with how many emotion names the dictionary happens to
+        # contain rather than with how she feels — adding one more shifts every
+        # valence she will ever have — and it put the input to `tanh` past the
+        # point where the function has a slope. Measured over a life of
+        # forty-eight turns across all eight conditions, valence stayed inside
+        # 0.902 to 0.913 while the emotions underneath it ranged from a tenth
+        # to four fifths: happiness rising by a tenth moved valence by one
+        # hundred-thousandth. Every consumer of valence was reading a constant.
+        #
+        # As a mean each side is in [0, 1], the difference is in [-1, 1], and
+        # the squash is used where it bends.
+        pos = _weighted_mean(activation, _POSITIVE_AFFECT_WEIGHTS)
+        neg = _weighted_mean(activation, _NEGATIVE_AFFECT_WEIGHTS)
 
         affect.valence = float(max(-1.0, min(1.0, math.tanh((pos - neg) * 1.6))))
         raw_peak = max((float(value or 0.0) for value in e.values()), default=0.5)
@@ -727,7 +854,22 @@ class AffectUpdatePhase(Phase):
             affect.dominant_emotion = "neutral"
         else:
             affect.dominant_emotion = dominant_by_activation
-        affect.curiosity = max(e.get("curiosity", 0.0), e.get("anticipation", 0.5))
+        # Curiosity from the channels curiosity is made of, at the weights
+        # this file already declares for them.
+        #
+        # It was `max(curiosity, anticipation or 0.5)`. A max is not a
+        # derivation: whichever channel is higher owns the readout outright and
+        # the other one is invisible, and anticipation sits near a half — so
+        # the curiosity channel had to beat it before anything written there
+        # could be read at all. The developmental state's only route out of
+        # itself writes exactly that channel, and it was being swallowed.
+        #
+        # The same shape as valence and arousal above: a weighted mean of
+        # activations, so both channels contribute in the proportions they
+        # already carry and neither can hide the other.
+        affect.curiosity = float(
+            max(0.0, min(1.0, _weighted_mean(activation, _CURIOSITY_WEIGHTS)))
+        )
 
     def _apply_conversation_feedback(self, affect: AffectVector, state: AuraState):
         """
@@ -768,13 +910,18 @@ class AffectUpdatePhase(Phase):
             affect.social_hunger = min(1.0, affect.social_hunger + 0.06)
 
         # ── Discourse depth → curiosity satisfaction ──────────────────────
+        #
+        # Into the channel, not the readout. `_derive_metrics` recomputes
+        # `affect.curiosity` from the emotions later in the same turn, so every
+        # discourse pressure on curiosity here lasted until that line and no
+        # further — three nudges that could not be felt.
         depth = getattr(cognition, "discourse_depth", 0)
         if depth > 4:
             # Deep in a topic → curiosity is being exercised and partially satisfied
-            affect.curiosity = max(0.2, affect.curiosity - 0.03)
+            self._bump_emotion(affect, "curiosity", -0.03)
         elif depth == 0 and energy is not None and energy < 0.2:
             # Idle with no conversation → curiosity builds
-            affect.curiosity = min(1.0, affect.curiosity + 0.02)
+            self._bump_emotion(affect, "curiosity", 0.02)
 
         # ── Dialogue quality → social reward or friction ─────────────────
         contract = dict(getattr(state, "response_modifiers", {}) or {}).get("response_contract", {}) or {}
@@ -792,7 +939,7 @@ class AffectUpdatePhase(Phase):
                 if "missing_first_person_stance" in violations:
                     self._bump_emotion(affect, "anger", 0.03)
                 if "failed_to_offer_own_question" in violations:
-                    affect.curiosity = min(1.0, affect.curiosity + 0.04)
+                    self._bump_emotion(affect, "curiosity", 0.04)
 
     def _apply_system_pressures(self, affect: AffectVector, state: AuraState):
         """Whole-system degradation and re-entry burden should change the lived affective field."""
@@ -819,7 +966,11 @@ class AffectUpdatePhase(Phase):
             self._bump_emotion(affect, "anticipation", (0.04 * continuity_pressure))
             self._bump_emotion(affect, "sadness", (0.04 * continuity_pressure))
             self._bump_emotion(affect, "fear", (0.05 * continuity_pressure))
-            affect.curiosity = min(1.0, affect.curiosity + (0.03 * continuity_pressure))
+            # Into the channel, like every other line here. Writing the readout
+            # put it where `_derive_metrics` recomputes it from the emotions
+            # three steps later, so the one pressure in this method that
+            # reached curiosity reached it until the next statement.
+            self._bump_emotion(affect, "curiosity", (0.03 * continuity_pressure))
             if reentry_required:
                 affect.social_hunger = min(1.0, affect.social_hunger + (0.02 * continuity_pressure))
 

@@ -52,7 +52,7 @@ class ThreatAssessment:
     categories: list[str] = field(default_factory=list)
     indicators: list[str] = field(default_factory=list)
     advice: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ThreatWatch:

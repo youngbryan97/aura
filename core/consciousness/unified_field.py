@@ -35,8 +35,12 @@ Architecture:
 Key properties:
   1. Non-decomposable: removing any input stream changes the field's
      eigenstructure, not just the missing component
-  2. Self-sustaining: the field has its own recurrent dynamics (it doesn't
-     go silent when inputs stop — it has its own intrinsic activity)
+  2. Self-sustaining, in the sense a loop gain just under one gives: the
+     field's own recurrence carries its state past the end of its input
+     rather than replacing it. Measured, the response outlasts the drive by
+     about the leak's own time constant and then fades — it does not hold a
+     pattern forever, which would be a loop gain above one and a field that
+     runs away from whatever it was told.
   3. Phase-locked: the field's oscillation phase is coupled to the
      OscillatoryBinding gamma rhythm, providing temporal unity
   4. History-sensitive: recurrent connections + plasticity mean the field
@@ -138,11 +142,29 @@ class FieldConfig:
     substrate_input_dim: int = 64      # from LiquidSubstrate
 
     # Dynamics
-    dt: float = 0.05                   # integration timestep
-    decay: float = 0.02                # field leak rate
+    dt: float = 0.05                   # integration timestep, 20 Hz
+    #: How many of its own steps the field keeps, and judges itself over.
+    history_ticks: int = 200           # 10s at 20Hz
+    #: Leak rate, 1/s. The field's memory is `1 / decay` seconds, and it is
+    #: set to the window the field keeps of itself: a leak slower than that
+    #: window means every measure it takes of its own coherence is taken over
+    #: a stretch inside which nothing it did could have decayed. It was 0.02,
+    #: a fifty-second memory on a field that keeps ten seconds and calls
+    #: itself phase-locked to gamma.
+    decay: float = 1.0 / (history_ticks * dt)
     noise_sigma: float = 0.005         # intrinsic noise
     activation_gain: float = 1.2       # tanh gain
     recurrent_sparsity: float = 0.15   # fraction of non-zero recurrent weights
+    #: Loop gain of the recurrent field, `activation_gain` included. Just
+    #: under one is the edge of stability: below it the field decays to
+    #: silence whenever its inputs stop, above it the field runs away. The
+    #: ontogenetic reservoir is drawn by the same rule and the same number.
+    #:
+    #: The weights were scaled by a flat 0.05, which gave a loop gain of 0.40 —
+    #: a field that cannot sustain its own activity, against a docstring that
+    #: claims it does not go silent when inputs stop. It looked self-sustaining
+    #: because it was pinned to the rails.
+    spectral_radius: float = 0.95
 
     # Plasticity
     hebbian_rate: float = 0.0002       # slow field plasticity
@@ -158,7 +180,10 @@ class FieldConfig:
     back_pressure_gain: float = 0.1    # how much field state modulates inputs
 
 
-class UnifiedField:
+from .unified_field_prediction import _PredictsTheNextField
+
+
+class UnifiedField(_PredictsTheNextField):
     """The integrated experiential field.
 
     Lifecycle:
@@ -202,8 +227,11 @@ class UnifiedField:
         # Recurrent connectivity (sparse — use scipy.sparse.csr_matrix for
         # 15% density, which is ~6x faster than dense matmul at this size)
         mask = self._rng.random((self.cfg.dim, self.cfg.dim)) < self.cfg.recurrent_sparsity
-        field_weights = (self._rng.standard_normal((self.cfg.dim, self.cfg.dim)).astype(np.float32) * 0.05) * mask
+        field_weights = self._rng.standard_normal(
+            (self.cfg.dim, self.cfg.dim)
+        ).astype(np.float32) * mask
         np.fill_diagonal(field_weights, 0.0)
+        field_weights = self._scaled_to_loop_gain(field_weights)
         self.W_field = field_weights  # keep dense for plasticity updates
         self._W_field_sparse = self._to_sparse(field_weights)  # sparse for tick matmul
 
@@ -247,7 +275,7 @@ class UnifiedField:
         self._substrate_input: np.ndarray | None = None
 
         # History for PCA mode extraction
-        self._history: deque[np.ndarray] = deque(maxlen=200)
+        self._history: deque[np.ndarray] = deque(maxlen=int(self.cfg.history_ticks))
 
         # Coherence tracking
         self._coherence: float = 0.5
@@ -337,6 +365,26 @@ class UnifiedField:
             value, valid = _finite_float(raw, lower)
             if not valid or value < lower or value > upper:
                 raise ValueError(f"UnifiedField {name} must be finite in [{lower}, {upper}]")
+
+    def _scaled_to_loop_gain(self, weights: np.ndarray) -> np.ndarray:
+        """Scale the recurrent weights so the loop gain is the declared one.
+
+        The loop gain is the spectral radius of the weights times the tanh
+        gain they are fed through, because that product is what decides
+        whether a disturbance grows or dies. Scaling the weights alone and
+        leaving the tanh out of the arithmetic is how a field written to sit
+        at the edge of stability ends up at four tenths of it.
+        """
+        try:
+            radius = float(np.max(np.abs(np.linalg.eigvals(weights))))
+        except np.linalg.LinAlgError:
+            return weights
+        gain = float(self.cfg.activation_gain) or 1.0
+        if radius <= 1e-9:
+            return weights
+        return (weights * (float(self.cfg.spectral_radius) / (radius * gain))).astype(
+            np.float32
+        )
 
     def _to_sparse(self, weights: np.ndarray) -> object:
         if sp is None:
@@ -578,7 +626,29 @@ class UnifiedField:
         # next = clip(F + (-decay*F + activity + noise)*dt, -1, 1). The NumPy
         # fallback is byte-identical to the prior inline expression.
         self._prev_F = self.F.copy()
-        next_field = _field_integrate(self.F, activity, noise, cfg.decay, dt)
+        # The leak and the drive in the same units.
+        #
+        # The integrator is `F + (-decay*F + drive)*dt`, so the field settles
+        # where `decay*F = drive` — at `drive / decay`. With a leak of a
+        # fiftieth and a drive that is a tanh, that equilibrium was fifty times
+        # outside the range the field is clipped to, so the field sat on the
+        # rails from the first seconds of every run: mean |F| of 0.906, sixty-
+        # nine percent of its dimensions pinned, and an anti-degeneracy rescue
+        # firing a thousand times a run into a field the dynamics re-saturate
+        # on the next tick. Its own degradation record says so — "the rescue is
+        # not restoring the field and its state carries little information".
+        #
+        # Scaling the drive by the same rate makes it `decay*(drive - F)*dt`:
+        # a leaky integrator that relaxes toward what drives it, on the
+        # timescale `decay` declares, inside the range it is clipped to.
+        leak = float(cfg.decay)
+        next_field = _field_integrate(
+            self.F,
+            (activity * leak).astype(np.float32),
+            (noise * leak).astype(np.float32),
+            leak,
+            dt,
+        )
 
         # Non-finite guard
         if not np.all(np.isfinite(next_field)):
@@ -1285,130 +1355,8 @@ class UnifiedField:
     # summary, but the generative source that shapes interpretation.
     # ------------------------------------------------------------------
 
-    def _project_prediction(self, name: str, weights: np.ndarray, expected_dim: int) -> np.ndarray:
-        try:
-            field = self.get_field_state()
-            weights = self._normalize_matrix(
-                weights,
-                shape=(self.cfg.dim, expected_dim),
-                name=f"W_{name}_projection",
-                scale=0.1,
-            )
-            weight_attrs = {
-                "mesh": "W_mesh",
-                "neurochemical": "W_chem",
-                "binding": "W_bind",
-                "interoception": "W_intero",
-                "substrate": "W_substrate",
-            }
-            if name in weight_attrs:
-                setattr(self, weight_attrs[name], weights)
-                self._sync_input_weight_matrix()
-            prediction = np.tanh((weights.T @ field)[:expected_dim]).astype(np.float32)
-            return self._safe_reshape(
-                prediction,
-                expected_dim,
-                source=f"{name}_prediction",
-                record=True,
-                clip_abs=1.0,
-            )
-        except _RECOVERABLE_FIELD_ERRORS as exc:
-            _record_unified_field_degradation(
-                exc,
-                action=f"returned neutral UnifiedField {name} world-model prediction",
-            )
-            logger.debug("UnifiedField %s world-model projection failed: %s", name, exc)
-            return np.zeros(expected_dim, dtype=np.float32)
 
-    def get_world_model_predictions(self) -> dict[str, np.ndarray]:
-        """Generate predictions for what each input subsystem should produce.
 
-        These predictions are the field's world model: its best guess about
-        the next state of each input stream. Downstream systems can compare
-        their actual output against these predictions to compute local
-        prediction errors — making the field the upstream prior for the
-        entire cognitive stack.
-
-        Returns a dict mapping input names to predicted state vectors.
-        """
-        with self._lock:
-            # The field's current state, projected back through each input
-            # weight matrix (transposed), gives the predicted input.
-            # This is the generative model: F → predicted sensory, predicted
-            # chemical, predicted binding, etc.
-            return {
-                "mesh": self._project_prediction("mesh", self.W_mesh, self.cfg.mesh_input_dim),
-                "neurochemical": self._project_prediction(
-                    "neurochemical",
-                    self.W_chem,
-                    self.cfg.chem_input_dim,
-                ),
-                "binding": self._project_prediction(
-                    "binding",
-                    self.W_bind,
-                    self.cfg.binding_input_dim,
-                ),
-                "interoception": self._project_prediction(
-                    "interoception",
-                    self.W_intero,
-                    self.cfg.intero_input_dim,
-                ),
-                "substrate": self._project_prediction(
-                    "substrate",
-                    self.W_substrate,
-                    self.cfg.substrate_input_dim,
-                ),
-            }
-
-    def compute_world_model_surprise(self) -> float:
-        """Compute how surprised the field is by its current inputs.
-
-        This is the IWMT-style global surprise: the mismatch between
-        what the field predicted and what it actually received. High
-        surprise = the world isn't matching the model = act or update.
-        """
-        predictions = self.get_world_model_predictions()
-        total_error = 0.0
-        n_active = 0
-        actual_attrs = {
-            "mesh": ("_mesh_input", self.cfg.mesh_input_dim),
-            "neurochemical": ("_chem_input", self.cfg.chem_input_dim),
-            "binding": ("_bind_input", self.cfg.binding_input_dim),
-            "interoception": ("_intero_input", self.cfg.intero_input_dim),
-            "substrate": ("_substrate_input", self.cfg.substrate_input_dim),
-        }
-
-        for name, pred in predictions.items():
-            actual_attr, expected_dim = actual_attrs[name]
-            actual = getattr(self, actual_attr, None)
-            if actual is not None:
-                actual_vec = self._safe_reshape(
-                    actual,
-                    expected_dim,
-                    source=f"{name}_actual_for_surprise",
-                    record=True,
-                    clip_abs=1.0,
-                )
-                pred_vec = self._safe_reshape(
-                    pred,
-                    expected_dim,
-                    source=f"{name}_prediction_for_surprise",
-                    record=True,
-                    clip_abs=1.0,
-                )
-                error = float(np.linalg.norm(pred_vec - actual_vec))
-                if not np.isfinite(error):
-                    _record_unified_field_degradation(
-                        FloatingPointError(f"non-finite surprise for {name}"),
-                        action="ignored malformed UnifiedField local surprise term",
-                        severity="warning",
-                    )
-                    continue
-                total_error += error
-                n_active += 1
-
-        surprise = total_error / max(1, n_active)
-        return max(0.0, min(10.0, surprise))
 
     def get_status(self) -> dict:
         quality = self.get_experiential_quality()

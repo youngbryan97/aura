@@ -110,7 +110,7 @@ class SelfStateSnapshot:
     prediction_error: float              # how surprised was the model?
     dominant_dim: str                    # which dimension is most active
     continuity_score: float              # 0=ruptured, 1=smooth continuity
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_context_block(self) -> str:
         active = self.dominant_dim

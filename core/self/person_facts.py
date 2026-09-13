@@ -82,7 +82,7 @@ def needed_person_fact(prompt: Any) -> str:
 
 
 def _known_about_person() -> list[str]:
-    """Everything the runtime holds about the person, as plain lines."""
+    """A bounded belief-store sample, not an exhaustive knowledge inventory."""
     lines: list[str] = []
     try:
         from core.container import ServiceContainer
@@ -99,7 +99,7 @@ def _known_about_person() -> list[str]:
 
 
 def person_fact_block(prompt: Any) -> str:
-    """Whether the fact this question needs is one she holds."""
+    """Offer matching belief evidence; abstain when this partial reader misses."""
     needed = needed_person_fact(prompt)
     if not needed:
         return ""
@@ -119,8 +119,6 @@ def person_fact_block(prompt: Any) -> str:
         return "\n".join(
             [f"You do hold something about {needed}:", *(f"- {line}" for line in matching[:6])]
         )
-    return (
-        f"You do NOT know {needed}. Nothing in what you hold about them says it. "
-        f"Say that plainly — one sentence, and offer to use it if they tell you. "
-        f"Do not supply a plausible one, and do not refuse the whole turn over it."
-    )
+    # Transcript and episodic evidence are outside this reader's coverage.
+    # Absence in a bounded sample cannot establish absence across those sources.
+    return ""

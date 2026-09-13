@@ -129,7 +129,7 @@ class GraphSnapshot:
     version: int
     nodes: tuple[str, ...]
     edges: tuple[MorphEdge, ...]
-    taken_at: float = field(default_factory=time.time)
+    taken_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -134,6 +134,120 @@ def pytest_collection_modifyitems(config, items):
         items[:] = selected
 
 
+#: Every module that changed a runtime switch while it was imported.
+#: Read by tests/test_no_module_changes_a_switch_on_import.py, where the run
+#: goes red; collection itself only records and heals, so one careless module
+#: cannot decide policy for the other fifty thousand tests.
+_IMPORT_TIME_ENV_LEAKS: list[str] = []
+
+#: The AURA_* environment this process started with, captured before the first
+#: test module is imported. ``None`` until collection begins.
+_ENV_AT_START: dict[str, str] | None = None
+
+#: Names a production module stamps into the process the moment it is imported
+#: — a security profile from core/config.py, a runtime id from core/reaper.py,
+#: a live state root from core/runtime/state_ownership.py, boot provenance. A
+#: test inherits the stamp by importing the module, so charging the test would
+#: be charging the wrong thing; whether the runtime should stamp at import at
+#: all is a question about the runtime. Recorded in
+#: docs/ORDER_DEPENDENCE_REGISTER.md. This list only shrinks.
+_IMPORT_TIME_ENV_STAMPED_BY_RUNTIME = frozenset(
+    {
+        "AURA_ALLOW_NETWORK_ACCESS",
+        "AURA_DEFERRED_CORTEX_PREWARM",
+        "AURA_EAGER_CORTEX_WARMUP",
+        "AURA_INTERNAL_ONLY",
+        "AURA_LIVE_STATE_ROOT",
+        "AURA_REAPER_MANIFEST",
+        "AURA_RUNTIME_ID",
+        "AURA_RUNTIME_SOURCE_BRANCH",
+        "AURA_RUNTIME_SOURCE_COMMIT",
+        "AURA_RUNTIME_SOURCE_ROOT",
+        "AURA_RUNTIME_SOURCE_SHELL_SHA256",
+        "AURA_RUNTIME_SOURCE_WORKSPACE_SHA256",
+        "AURA_SAFE_BOOT_DESKTOP",
+        "AURA_SECURITY_PROFILE",
+    }
+)
+
+
+def _aura_env_snapshot() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if key.startswith("AURA_")}
+
+
+def _restore_aura_env(baseline: dict[str, str], names: tuple[str, ...]) -> None:
+    for name in names:
+        if name in baseline:
+            os.environ[name] = baseline[name]
+        else:
+            os.environ.pop(name, None)
+
+
+def _changed_aura_env(baseline: dict[str, str]) -> tuple[str, ...]:
+    current = _aura_env_snapshot()
+    return tuple(
+        sorted(
+            name
+            for name in set(current) | set(baseline)
+            if current.get(name) != baseline.get(name)
+            and name not in _IMPORT_TIME_ENV_STAMPED_BY_RUNTIME
+        )
+    )
+
+
+def _capture_env_baseline() -> None:
+    global _ENV_AT_START
+
+    if _ENV_AT_START is None:
+        _ENV_AT_START = _aura_env_snapshot()
+
+
+def import_time_env_leaks() -> tuple[str, ...]:
+    """Modules that changed a runtime switch for the whole process on import.
+
+    ``_global_state_contamination_guard`` restores every AURA_* variable between
+    tests, so a variable set inside a test body is already covered. A variable
+    set at module scope is not: that runs while the module is imported, which is
+    collection, before the first test and after the last point anything had to
+    undo it.
+
+    Two modules did it. ``proof_run_active()`` is true for any of AURA_PROOF_RUN,
+    AURA_AGI_MAX_TASKS or AURA_TESTING, and dozens of subsystems defer, refuse or
+    take a cheap branch under it; one test module set AURA_TESTING, and six tests
+    across four unrelated selections failed on the deferred branch while
+    asserting the live one. Green alone, red in company, and every error
+    surfaced in a file that had nothing to do with the cause.
+    """
+
+    return tuple(_IMPORT_TIME_ENV_LEAKS)
+
+
+def pytest_sessionstart(session):
+    """Record what the run started with, before any test module is imported."""
+    _capture_env_baseline()
+
+
+def pytest_collectstart(collector):
+    """Second entry point for the same baseline.
+
+    A run whose arguments do not name tests/ loads this conftest after session
+    start, so the snapshot is taken at whichever of the two comes first. Both
+    are still ahead of the first test module import, which is what matters.
+    """
+    _capture_env_baseline()
+
+
+def pytest_collectreport(report):
+    """Undo a runtime switch a module changed while it was imported."""
+    if _ENV_AT_START is None:
+        return
+    changed = _changed_aura_env(_ENV_AT_START)
+    if not changed:
+        return
+    _IMPORT_TIME_ENV_LEAKS.append(f"{report.nodeid or '<session>'} set {', '.join(changed)}")
+    _restore_aura_env(_ENV_AT_START, changed)
+
+
 #: Handles a TEST cannot leak, because no test opens or owns them.
 #:
 #: MLX opens its Metal library and the on-disk shader cache once per process,
@@ -243,6 +357,40 @@ def _sqlite_paths_from(leaked_files: set[str]) -> set[str]:
         else:
             bases.add(os.path.realpath(name))
     return bases
+
+
+def wait_out_declared_background_writers(timeout: float = 5.0) -> list[str]:
+    """Let a process-global writer finish before its handle is called a leak.
+
+    Ontogeny's experience flusher is a daemon thread on a two-second timer.
+    Nothing in a test starts it and nothing stops it, so the store it has open
+    for the length of one write belongs to whichever test is in teardown at
+    that moment. The handle is in use; the settle loop below cannot tell the
+    difference and neither can the sweeper, because sqlite objects are
+    thread-affine and a query from this thread raises rather than answers.
+
+    So ask the writer instead. Only modules a test already imported are
+    consulted, and only once a leak has been seen, so an untouched subsystem
+    is neither started nor waited on. Returns what was waited out.
+    """
+    waited: list[str] = []
+    for module_name, has_writes, wait in (
+        (
+            "core.ontogeny.experience",
+            "a_background_write_is_in_flight",
+            "wait_for_background_writes",
+        ),
+    ):
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        in_flight = getattr(module, has_writes, None)
+        quiesce = getattr(module, wait, None)
+        if in_flight is None or quiesce is None or not in_flight():
+            continue
+        quiesce(timeout)
+        waited.append(module_name)
+    return waited
 
 
 def close_leaked_sqlite_connections(leaked_files: set[str]) -> list[str]:
@@ -496,6 +644,14 @@ class HermeticResourceSandbox:
                 with contextlib.suppress(OSError):
                     os.close(int(fd))
 
+        # Before blaming anyone, let a declared background writer finish.
+        # Its handle is open because it is writing, which is not the thing
+        # this fixture exists to catch, and no fixed settle deadline can
+        # separate a two-second timer from a leak.
+        if leaks.get("open_files") and wait_out_declared_background_writers():
+            gc.collect()
+            leaks = self.leaks()
+
         # Backstop for the dominant leak class. Five unrelated modules —
         # AuditLog, ReceiptStore, the goal lifecycle store, the cognitive
         # ledger, the code graph — each open ONE sqlite connection in their
@@ -521,6 +677,15 @@ class HermeticResourceSandbox:
         # broke, so the collect has to come after the sweep, not only before
         # it. Cheap: this runs only when something already looks wrong.
         if leaks.get("open_files"):
+            gc.collect()
+            leaks = self.leaks()
+
+        # One more look, because the writer runs on a timer nobody here sets.
+        # Waiting it out above settles the write that was in flight then; the
+        # flusher's next tick is two seconds away and the steps between take
+        # milliseconds, so a teardown can still land on the following one.
+        # Cheap: only reached when something already looks like a leak.
+        if leaks.get("open_files") and wait_out_declared_background_writers():
             gc.collect()
             leaks = self.leaks()
 
@@ -933,7 +1098,11 @@ def _snapshot_process_globals() -> dict[str, object]:
     name — each one silently reconfigures every later test, and the guard can
     only name the polluter after the damage. All three can be put back exactly,
     so put them back.
+
+    And `time.time`, which the Subject Core replaces with an experiment clock.
     """
+    import time
+
     return {
         "aura_env": {
             key: value
@@ -941,6 +1110,7 @@ def _snapshot_process_globals() -> dict[str, object]:
             if key.startswith("AURA_")
         },
         "cwd": os.getcwd(),
+        "wall_clock": time.time,
         "mocked_modules": {
             name: module
             for name, module in list(sys.modules.items())
@@ -981,6 +1151,23 @@ def _restore_process_globals(snapshot: dict[str, object]) -> None:
             # A stand-in the test installed. Dropping it lets the next importer
             # get the real module back; leaving it rewires every later import.
             sys.modules.pop(name, None)
+
+    import time
+
+    saved_clock = snapshot.get("wall_clock")
+    if saved_clock is not None and time.time is not saved_clock:
+        # An experiment clock a test installed and never took down. Every later
+        # test reads a stopped clock for the time, and the next clock installed
+        # over it deadlocked the whole process on Sep 12. Taken down through the
+        # clock itself first, so the module's record of what is installed goes
+        # with it.
+        clock_module = sys.modules.get("core.subject.clock")
+        installed = getattr(clock_module, "installed_clock", None)
+        current = installed() if callable(installed) else None
+        if current is not None:
+            current.uninstall()
+        if time.time is not saved_clock:
+            time.time = saved_clock  # type: ignore[assignment]
 
 
 def _reset_test_scoped_runtime_services() -> None:
@@ -1983,8 +2170,11 @@ _STATE_GUARD_LEDGER: list[str] = []
 # be asking for another allowlist entry.
 _STATE_GUARD_CONTAINED_LEDGER: list[str] = []
 _CONTAINED_STATE_KEYS = frozenset(
-    {"service_container", "aura_env", "cwd", "mocked_core_modules"}
+    {"service_container", "aura_env", "cwd", "mocked_core_modules", "wall_clock"}
 )
+
+#: The machine's `time.time`, taken before any test can replace it.
+_REAL_WALL_CLOCK = __import__("time").time
 
 
 def _global_state_fingerprint() -> dict[str, object]:
@@ -2012,6 +2202,11 @@ def _global_state_fingerprint() -> dict[str, object]:
         )
     except OSError:
         pass
+    import time
+
+    # Whether `time.time` is still the machine's. A test that installs an
+    # experiment clock and leaves it up hands every later test a stopped clock.
+    fingerprint["wall_clock"] = "real" if time.time is _REAL_WALL_CLOCK else "replaced"
     try:
         # Installed resolvers and sinks are process-global by design: they are
         # how the runtime is wired once at boot. A test that installs one and
@@ -2189,6 +2384,21 @@ def not_a_proof_run(monkeypatch):
 
     for name in proof_active_env_names():
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture
+def allows_a_lesion(monkeypatch):
+    """Say in the test that this process may cut a live module attribute.
+
+    ``core.connectome.intervene`` refuses a lesion unless AURA_TESTING is 1 or
+    the caller sets AURA_ALLOW_LESION, because patching a module attribute in
+    the live runtime is how one experiment becomes every later one. AURA_TESTING
+    comes from whatever ran pytest, so the lesion tests passed under `make test`
+    and refused when the file was run on its own — the test did not say what it
+    needed and inherited it.
+    """
+
+    monkeypatch.setenv("AURA_ALLOW_LESION", "1")
 
 
 @pytest.fixture

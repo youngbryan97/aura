@@ -9,6 +9,8 @@ was by then reading perfectly.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from core.perception.how_it_moves import HowItMoves
 from core.perception.what_is_there import Arrangement, Cell
 
@@ -80,8 +82,7 @@ def test_the_pursuit_drops_it_in_both_places_it_has_to() -> None:
     """
     from core.skills import screen_pursuit
 
-    with open(screen_pursuit.__file__, encoding="utf-8") as handle:
-        text = handle.read()
+    text = pursuit_source()
     at = [
         where
         for where in range(len(text))

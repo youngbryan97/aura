@@ -32,10 +32,10 @@
       "reason": "package __init__ \u2014 importing the package requires it"
     },
     "core.circuit_breaker": {
-      "classified": "SERVICE",
-      "disposition": "WIRE_PENDING",
+      "classified": "SCAFFOLDING",
+      "disposition": "RETIRE",
       "lines": 21,
-      "reason": "exposes ['get_circuit']"
+      "reason": "A legacy shim for core.resilience.circuit_breaker, and its own docstring says so. Nothing in the tree imports it and nothing names CircuitManager; the canonical module is the one every caller uses. It exposes get_circuit, which is why the triage default read it as a service surface, but a surface nobody reaches on a module that exists to forward to another is not pending wiring."
     },
     "core.communication": {
       "classified": "PACKAGE",
@@ -384,6 +384,12 @@
       "disposition": "WIRE_PENDING",
       "lines": 67,
       "reason": "exposes ['get_metal_scheduler', 'get_stats']"
+    },
+    "core.runtime.what_runs_before_what": {
+      "classified": "SERVICE",
+      "disposition": "WIRE_PENDING",
+      "lines": 221,
+      "reason": "A declared-ordering compiler: parts state requires/before/after, it topologically sorts them and refuses a cycle where it is declared rather than at the deadlock. Complete and exercised by nothing \u2014 no caller and no test. Wiring it means moving the phase list and the background jobs onto declared edges, which is a behavioural change its author should make, not a reachability fix."
     },
     "core.safety": {
       "classified": "PACKAGE",

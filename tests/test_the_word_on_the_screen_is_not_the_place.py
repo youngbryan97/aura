@@ -9,13 +9,15 @@ game — which was open, one window back, and never brought forward.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from pathlib import Path
 
 import pytest
 
 from core.skills.screen_pursuit import am_i_there
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 
 
 # ── identity beats what happens to be visible ────────────────────────────

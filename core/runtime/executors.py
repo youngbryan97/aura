@@ -233,7 +233,7 @@ async def run_blocking_io[T](
 async def run_durable_receipt_io[T](
     fn: Callable[..., T],
     *args: Any,
-    timeout_s: float = 10.0,
+    timeout_s: float | None = 10.0,
     label: str = "",
     **kwargs: Any,
 ) -> T:
@@ -242,7 +242,8 @@ async def run_durable_receipt_io[T](
     A completed answer must not wait behind model probes, filesystem scans, or
     other default-executor work before its audit receipt becomes durable. One
     worker preserves receipt ordering; ReceiptStore still owns the database,
-    process lock, audit-chain append, and durability policy.
+    process lock, audit-chain append, and durability policy. A shared read
+    owner may pass None and bound its waiters without abandoning the result.
     """
 
     pool = _live_pool("durable_receipt")
@@ -259,6 +260,8 @@ async def run_durable_receipt_io[T](
             timeout=timeout_s,
         )
     except TimeoutError:
+        if timeout_s is None:
+            raise
         logger.warning(
             "Durable receipt IO '%s' timed out after %.1f ms (budget %.0f ms)",
             tag,

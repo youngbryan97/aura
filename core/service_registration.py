@@ -88,6 +88,13 @@ def install_immune_enforcement(immune: Any) -> Any:
     return immune
 
 
+#: A service the body below registers unconditionally, used to ask the
+#: container whether a completed registration is still true. `event_bus` is
+#: the first thing registered and is required, so its absence means the
+#: registry was emptied.
+_REGISTRATION_WITNESS = "event_bus"
+
+
 def register_all_services(is_proxy: bool = False):
     """Register all services via modular providers.
     
@@ -99,10 +106,30 @@ def register_all_services(is_proxy: bool = False):
     # Serialize concurrent boot callers so two cannot both pass the
     # already-registered check and interleave registration.
     with _REGISTRATION_LOCK:
-        # Check if we've already done a full registration
+        # The flag is a cached fact about the container, and the container is
+        # mutable. `ServiceContainer.clear()` resets it, but nothing else that
+        # removes a service does — so a flag left standing over an emptied
+        # registry made this return a container with nothing in it, forever.
+        #
+        # The symptom was domain W vanishing from the subject battery about
+        # half the time under random ordering: `unified_world_model` was never
+        # re-registered, the organ read nothing, and the domain reported no
+        # live values. A flake that depends on which file ran first is a fact
+        # about this early return, not about the battery.
+        #
+        # So the claim is checked rather than trusted, against a service that
+        # is registered unconditionally in the body below.
         if getattr(register_all_services, "_full_run", False):
-            logger.debug("Modular services already fully registered.")
-            return container
+            if container.has(_REGISTRATION_WITNESS):
+                logger.debug("Modular services already fully registered.")
+                return container
+            logger.info(
+                "Modular services were marked registered and %s is gone: "
+                "the registry was emptied without clearing the flag. Registering "
+                "again.",
+                _REGISTRATION_WITNESS,
+            )
+            register_all_services._full_run = False
 
         logger.info("Initializing Modular Service Providers (is_proxy=%s)...", is_proxy)
         _register_all_services_body(container, is_proxy)
@@ -506,6 +533,17 @@ def _register_all_services_body(container, is_proxy: bool):
     container.register(
         'world_ingestion',
         lambda: __import__('core.world_model.world_ingestion', fromlist=['get_world_ingestion_engine']).get_world_ingestion_engine(),
+        lifetime=ServiceLifetime.SINGLETON,
+        required=False,
+    )
+    # Discourse threading — the only writer of conversation energy, discourse
+    # depth and the user's emotional trend. It was constructed inside the
+    # presence integration, which is optional and does not run in every
+    # runtime, so in most of them the service did not exist and all three
+    # fields were constants for the life of the state.
+    container.register(
+        'discourse_tracker',
+        lambda: __import__('core.brain.discourse_tracker', fromlist=['DiscourseTracker']).DiscourseTracker(),
         lifetime=ServiceLifetime.SINGLETON,
         required=False,
     )

@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.what_stops_it import AnExecutionContext, Stopped, current
+from core.runtime.lockdep import checked_async_lock
 
 logger = logging.getLogger("Aura.WhoGetsItNext")
 
@@ -145,7 +146,7 @@ def _books() -> asyncio.Lock:
     loop = asyncio.get_running_loop()
     found = _LOCKS.get(loop)
     if found is None:
-        found = asyncio.Lock()
+        found = checked_async_lock("core.runtime.who_gets_it_next.found")
         _LOCKS[loop] = found
     return found
 

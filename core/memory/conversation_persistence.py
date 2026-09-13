@@ -151,7 +151,7 @@ def _session_id_from_path(path: Path) -> str:
 class ConversationMessage:
     role: str
     content: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     session_id: str = ""
     origin: str = "chat"
 

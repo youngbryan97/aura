@@ -23,7 +23,7 @@ class PlasticityState:
     score: float # 0.0 to 1.0
     mode: PlasticityMode
     last_belief_count: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class PlasticityController:
     """Governing Aura's learning vs consolidation rhythms."""

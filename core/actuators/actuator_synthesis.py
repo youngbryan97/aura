@@ -79,7 +79,7 @@ class SynthesisRequest:
     sensor_context: dict[str, Any] = field(default_factory=dict)
     world_model_snapshot: dict[str, Any] = field(default_factory=dict)
     urgency: float = 0.5
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ActuatorSynthesizer:

@@ -11,13 +11,15 @@ in the space it came from.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import inspect
 
 from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY, INVENTED, forget, promote
 from core.agency.inventing_a_measure import Measure, every_measure, measure_named
 from core.skills import screen_pursuit
 
-SOURCE = inspect.getsource(screen_pursuit.pursue_on_screen)
+SOURCE = pursuit_loop_source()
 
 
 def test_a_measure_can_be_found_again_by_its_name():

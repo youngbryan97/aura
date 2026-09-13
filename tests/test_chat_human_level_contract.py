@@ -897,7 +897,7 @@ async def test_final_quality_gate_repairs_instruction_shape_without_llm(monkeypa
         stabilizer_calls.append((_args, _kwargs))
         return "unexpected stabilizer path"
 
-    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _should_not_call_stabilizer)
+    patch_chat_lane(monkeypatch, "_stabilize_user_facing_reply", _should_not_call_stabilizer)
 
     repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
         user,
@@ -934,7 +934,7 @@ async def test_final_quality_gate_repairs_repeated_degraded_reply(monkeypatch):
             "notice when my answer thins out, and respond from the living thread instead of replaying a template."
         )
 
-    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _fake_stabilize)
+    patch_chat_lane(monkeypatch, "_stabilize_user_facing_reply", _fake_stabilize)
 
     repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
         user,
@@ -964,7 +964,7 @@ async def test_final_quality_gate_repairs_high_confidence_semantic_glitch(monkey
     async def _fake_stabilize(_user, _reply):
         return glitched
 
-    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _fake_stabilize)
+    patch_chat_lane(monkeypatch, "_stabilize_user_facing_reply", _fake_stabilize)
 
     repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
         user,
@@ -1009,9 +1009,9 @@ async def test_final_quality_gate_keeps_topical_reply_when_only_same_shape_flag_
     async def _fake_stabilize(_user, _reply):
         return reply
 
-    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _fake_stabilize)
-    monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
+    patch_chat_lane(monkeypatch, "_stabilize_user_facing_reply", _fake_stabilize)
+    patch_chat_lane(monkeypatch, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: True)
+    patch_chat_lane(monkeypatch, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
 
     repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
         user,

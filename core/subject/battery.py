@@ -20,9 +20,28 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["THRESHOLDS", "Criterion", "Verdict", "assemble"]
+__all__ = [
+    "DEFICIT_SHARE",
+    "RECOVERY_TOLERANCE",
+    "THRESHOLDS",
+    "Criterion",
+    "Verdict",
+    "assemble",
+]
 
 #: Preregistered. Sources: the specification's section numbers.
+#: How much of the deficit a rescue has to bring back, and how large a deficit
+#: has to be before it is one. Both fixed before the experiment: "rescued is
+#: larger than cut" is a comparison two noisy readings pass half the time, and
+#: a measure the lesion barely touched has nothing to rescue.
+RECOVERY_TOLERANCE: float = 0.5
+DEFICIT_SHARE: float = 0.10
+
+#: How many sources a lesion arm displaces to read spread, taken alternately
+#: from the two sides of the cut. Three, because every cycle runs five arms and
+#: each arm pays for its own intervention sweep.
+LESION_SOURCES: int = 3
+
 THRESHOLDS: dict[str, float] = {
     "phi_do": 0.05,
     "d_eff_normalised": 0.40,
@@ -246,12 +265,21 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         graph.get("shortest_reentry", {}),
         f"cycle length >= {int(THRESHOLDS['reentry_domains'])}",
     ))
+    # The bound, not the point. run_019 scored 0.0622 against a bar of 0.05
+    # with a standard error of 0.0595 and per-fold readings running from
+    # -0.118 to +0.249 — an interval containing zero, and a fresh estimate on
+    # the same saved recording gave 0.0026 and picked a different cut. The
+    # criterion was passing on noise. Finite measurement can establish a lower
+    # bound above the instrument floor and cannot establish more than that, so
+    # what has to clear the bar is the bound.
+    _phi_bound = float(phi.get("lower_bound", float("-inf")))
     add(_c(
         "partition_irreducibility", "11",
-        "the cheapest bipartition still costs held-out prediction",
-        float(phi.get("phi_do", -1.0)) > THRESHOLDS["phi_do"],
+        "the cheapest bipartition still costs held-out prediction, "
+        "by a margin the estimator's own spread cannot account for",
+        _phi_bound > THRESHOLDS["phi_do"],
         round(float(phi.get("phi_do", 0.0)), 4),
-        f"> {THRESHOLDS['phi_do']}",
+        f"lower bound > {THRESHOLDS['phi_do']}",
         cheapest_cut=phi.get("best_cut"),
         dearest_cuts=phi.get("dearest_cuts"),
         surrogate_floor=nulls.get("surrogate_floor"),

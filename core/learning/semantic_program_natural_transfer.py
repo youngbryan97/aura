@@ -11,7 +11,11 @@ from core.learning.semantic_program_corpus import (
     SemanticProgramExample,
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
+)
+from core.learning.semantic_program_corpus_natural import (
     build_semantic_program_natural_source_corpus,
+)
+from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_cataphoric_corpus,
     build_semantic_program_sequence_reserved_alias_corpus,
     build_semantic_program_sequence_role_binding_corpus,

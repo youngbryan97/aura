@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.phases.response_generation import _first_named_url
+from core.phases.response_required_search import _first_named_url
 
 
 @pytest.mark.parametrize(
@@ -39,11 +39,30 @@ def test_sentence_punctuation_is_not_part_of_the_address() -> None:
         assert _first_named_url(f"go to https://a.test/b{suffix}") == "https://a.test/b"
 
 
+
+def _required_search_source() -> str:
+    """The module holding the required-search step, whichever one that is.
+
+    These read `core/phases/response_generation.py` by name. The step moved to
+    its own module when ResponseGenerationPhase went back under the gate's
+    method ceiling, and three assertions about evidence ordering then failed
+    with ValueError on a file that no longer holds the method.
+    """
+    import importlib
+    import inspect
+
+    from core.phases.response_generation import ResponseGenerationPhase
+
+    return inspect.getsource(
+        importlib.import_module(
+            ResponseGenerationPhase._execute_required_search_evidence.__module__
+        )
+    )
+
+
 def test_the_evidence_step_tries_the_document_before_the_search() -> None:
     """Order matters: a search that has already run has already leaked."""
-    from pathlib import Path
-
-    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    source = _required_search_source()
     body = source[source.index("named_url = _first_named_url(visible_objective)") :]
     assert body.index("_fetch_named_url_evidence") < body.index('skill_name = "web_search"')
 
@@ -55,9 +74,7 @@ def test_reading_a_named_document_does_not_wait_for_a_search_turn() -> None:
     search turn, correctly. This method returned at the same flag, so nothing
     was fetched at all and she told the person the fetch had failed.
     """
-    from pathlib import Path
-
-    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    source = _required_search_source()
     method = source[source.index("async def _execute_required_search_evidence") :]
     method = method[: method.index("\n    async def ", 10)]
     assert method.index("_fetch_named_url_evidence") < method.index(
@@ -67,9 +84,7 @@ def test_reading_a_named_document_does_not_wait_for_a_search_turn() -> None:
 
 def test_injected_evidence_cannot_become_a_user_named_address() -> None:
     """The assembled objective may contain source URLs the user never typed."""
-    from pathlib import Path
-
-    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    source = _required_search_source()
     method = source[source.index("async def _execute_required_search_evidence") :]
     method = method[: method.index("\n    async def ", 10)]
     assert "named_url = _first_named_url(visible_objective)" in method
@@ -79,7 +94,19 @@ def test_injected_evidence_cannot_become_a_user_named_address() -> None:
 def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:
     from pathlib import Path
 
-    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    # The required-search half of the phase moved to its own module when
+    # ResponseGenerationPhase went back under the method ceiling. The reader
+    # follows the code rather than the filename it was written against.
+    import importlib
+    import inspect
+
+    from core.phases.response_generation import ResponseGenerationPhase
+
+    source = inspect.getsource(
+        importlib.import_module(
+            ResponseGenerationPhase._fetch_named_url_evidence.__module__
+        )
+    )
     body = source[source.index("async def _fetch_named_url_evidence") :]
     body = body[: body.index("\n    @staticmethod")]
     assert "return False" in body
@@ -101,6 +128,6 @@ def test_the_desktop_lane_does_not_search_for_an_address() -> None:
 def test_the_reader_is_shared_by_both_lanes() -> None:
     """One binding: the chat lane and the evidence phase read the same one."""
     from core.intent.opaque_spans import first_named_url
-    from core.phases.response_generation import _first_named_url
+    from core.phases.response_required_search import _first_named_url
 
     assert first_named_url is _first_named_url

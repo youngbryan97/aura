@@ -855,7 +855,7 @@ class AgencyState(BaseModel):
     last_observation_comment: float = 0.0
     last_skill_use: float = 0.0
     last_agency_action_time: float = 0.0  # Cooldown tracker
-    boot_time: float = Field(default_factory=time.time)
+    boot_time: float = Field(default_factory=lambda: time.time())
     safemode: bool = False
 
     # Social
@@ -2289,8 +2289,9 @@ class AgencyCore:
             return None
         try:
             decided = what_is_worth_doing_now()
-        except Exception:  # noqa: BLE001 - a reading that fails proposes nothing
-            logger.debug("the developmental reading gave nothing", exc_info=True)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            # A reading that fails proposes nothing, and says why.
+            _record_agency_degradation(exc, action="the developmental reading proposed nothing")
             return None
         if decided.action is None:
             return None

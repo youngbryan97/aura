@@ -61,6 +61,70 @@ def private_exchange_slots(
     return slots[:MAX_EXCHANGE_SOURCE_SLOTS]
 
 
+def eligible_exchange_steps(
+    *,
+    n_branches: int,
+    max_steps: int,
+    isolation_steps: int,
+    exchange_interval: int,
+) -> tuple[int, ...]:
+    """Which recurrent steps of an episode can carry an interval exchange.
+
+    Read off the ensemble's own three guards rather than off the spec.
+    ``exchange`` returns without reading anything below two live branches. It
+    returns again while isolation is unsealed, and isolation seals only once
+    every branch has taken ``isolation_steps``. The interval trigger then fires
+    on a step divisible by ``exchange_interval``.
+
+    ``max_steps`` is a ceiling: convergence can halt an episode earlier, so a
+    step named here is a step an exchange CAN reach, and an empty answer means
+    no exchange is reachable even at full depth.
+    """
+
+    if any(
+        type(value) is not int
+        for value in (n_branches, max_steps, isolation_steps, exchange_interval)
+    ):
+        raise ValueError("exchange schedule arguments must be integers")
+    if n_branches < 2 or exchange_interval < 1 or max_steps < 1 or isolation_steps < 1:
+        return ()
+    return tuple(
+        step
+        for step in range(1, max_steps + 1)
+        if step % exchange_interval == 0 and step >= isolation_steps
+    )
+
+
+def exchange_steps_a_return_can_travel(
+    *,
+    n_branches: int,
+    max_steps: int,
+    isolation_steps: int,
+    exchange_interval: int,
+) -> tuple[int, ...]:
+    """Eligible steps with at least one recurrent step left after them.
+
+    The consensus is written into the communication slot, which sits ahead of
+    the immutable context prefix and every private slot, so it is the one place
+    in the workspace where influence moves backwards through position. An
+    exchange on the FINAL step still reaches the answer -- the mailbox persists
+    into the K/V the decode attends to -- and reaches no further thinking,
+    because no window pass remains to carry it forward. A schedule that only
+    ever lands there buys a second trajectory and integrates it nowhere.
+    """
+
+    return tuple(
+        step
+        for step in eligible_exchange_steps(
+            n_branches=n_branches,
+            max_steps=max_steps,
+            isolation_steps=isolation_steps,
+            exchange_interval=exchange_interval,
+        )
+        if step < max_steps
+    )
+
+
 def candidate_set_sha256(branch_isolation: Any) -> str:
     """Commit to the exact sealed candidates that existed before exposure."""
 

@@ -21,24 +21,24 @@
       "canonical_owner": true,
       "category": "action_executor",
       "count": 1,
-      "path": "core/capabilities/host_automation.py",
-      "scope": "<module>.HostAutomationProvider._enforce_screenshot_retention"
+      "path": "core/capabilities/host_automation_screen.py",
+      "scope": "<module>._ReadsTheScreen._enforce_screenshot_retention"
     },
     {
       "callee": "core.runtime.action_executor.ActionExecutor.execute",
       "canonical_owner": true,
       "category": "action_executor",
       "count": 1,
-      "path": "core/capabilities/host_automation.py",
-      "scope": "<module>.HostAutomationProvider.get_screen_text"
+      "path": "core/capabilities/host_automation_screen.py",
+      "scope": "<module>._ReadsTheScreen.get_screen_text"
     },
     {
       "callee": "core.runtime.action_executor.ActionExecutor.execute",
       "canonical_owner": true,
       "category": "action_executor",
       "count": 1,
-      "path": "core/capabilities/host_automation.py",
-      "scope": "<module>.HostAutomationProvider.take_screenshot"
+      "path": "core/capabilities/host_automation_screen.py",
+      "scope": "<module>._ReadsTheScreen.take_screenshot"
     },
     {
       "callee": "core.runtime.action_executor.ActionExecutor.execute",
@@ -2809,20 +2809,20 @@
       "scope": "<module>.AutonomousSelfModificationEngine.trigger_synthetic_test"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_bytes",
-      "canonical_owner": false,
-      "category": "direct_atomic_file_write",
-      "count": 1,
-      "path": "core/skills/computer_use.py",
-      "scope": "<module>.ComputerUseSkill._fetch_topic_image"
-    },
-    {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
       "path": "core/skills/computer_use.py",
       "scope": "<module>.ComputerUseSkill._write_text_file"
+    },
+    {
+      "callee": "core.runtime.atomic_writer.atomic_write_bytes",
+      "canonical_owner": false,
+      "category": "direct_atomic_file_write",
+      "count": 1,
+      "path": "core/skills/computer_use_documents.py",
+      "scope": "<module>._MakesFilesToShow._fetch_topic_image"
     },
     {
       "callee": "core.runtime.atomic_writer.atomic_write_text",
@@ -3017,14 +3017,6 @@
       "scope": "<module>.ProcessSupervisorActuator._write_receipt"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/adaptation/adaptive_immunity.py",
-      "scope": "<module>.AdaptiveImmuneSystem._save_state"
-    },
-    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -3087,6 +3079,14 @@
       "count": 1,
       "path": "core/adaptation/heuristic_synthesizer.py",
       "scope": "<module>.HeuristicSynthesizer._save"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/adaptation/immune_state_writer.py",
+      "scope": "<module>.ImmuneStatePersistence._write_state_payload"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
@@ -3373,8 +3373,8 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/agency/task_commitment_verifier.py",
-      "scope": "<module>.TaskCommitmentVerifier._commit_task_snapshot"
+      "path": "core/agency/task_commitment_store.py",
+      "scope": "<module>._KeepsTheTaskLedger._commit_task_snapshot"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -5138,19 +5138,19 @@
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
-      "canonical_owner": true,
+      "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/ontogeny/service.py",
-      "scope": "<module>.OntogenyCore._save_head"
+      "path": "core/ontogeny/service_heads.py",
+      "scope": "<module>._KeepsItsHeadsOnDisk._save_head"
     },
     {
       "callee": "<file_write_gateway>.write_text",
-      "canonical_owner": true,
+      "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/ontogeny/service.py",
-      "scope": "<module>.OntogenyCore._save_head"
+      "path": "core/ontogeny/service_heads.py",
+      "scope": "<module>._KeepsItsHeadsOnDisk._save_head"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -5189,16 +5189,16 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/perception/ambient_presence.py",
-      "scope": "<module>.AmbientPresence.persist_bubble_position"
+      "path": "core/perception/ambient_bubble.py",
+      "scope": "<module>._CarriesTheBubble.persist_bubble_position"
     },
     {
       "callee": "<file_write_gateway>.write_json_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/perception/ambient_presence.py",
-      "scope": "<module>.AmbientPresence.persist_bubble_position"
+      "path": "core/perception/ambient_bubble.py",
+      "scope": "<module>._CarriesTheBubble.persist_bubble_position"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
@@ -6801,6 +6801,14 @@
       "scope": "<module>.write_text"
     },
     {
+      "callee": "<file_write_gateway>.delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._act"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6812,9 +6820,17 @@
       "callee": "<file_write_gateway>.write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
-      "count": 2,
+      "count": 4,
       "path": "core/subject/driver.py",
       "scope": "<module>.SubjectRuntime._act"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/driver.py",
+      "scope": "<module>.SubjectRuntime._roll_the_log_if_long"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -6823,6 +6839,14 @@
       "count": 2,
       "path": "core/subject/driver.py",
       "scope": "<module>.build_runtime"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/isolation.py",
+      "scope": "<module>.isolate_state"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -6847,6 +6871,38 @@
       "count": 1,
       "path": "core/subject/recording.py",
       "scope": "<module>.Recording.save"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_stores"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_stores"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_world"
+    },
+    {
+      "callee": "<file_write_gateway>.write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/subject/snapshot.py",
+      "scope": "<module>._restore_world"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -7325,8 +7381,8 @@
       "canonical_owner": false,
       "category": "network_gateway",
       "count": 1,
-      "path": "core/skills/computer_use.py",
-      "scope": "<module>.ComputerUseSkill._fetch_topic_image"
+      "path": "core/skills/computer_use_documents.py",
+      "scope": "<module>._MakesFilesToShow._fetch_topic_image"
     },
     {
       "callee": "core.runtime.network_gateway.get_network_gateway().request",
@@ -7441,14 +7497,6 @@
       "scope": "<module>.PhantomBrowser.browse"
     },
     {
-      "callee": "element.click",
-      "canonical_owner": false,
-      "category": "raw_browser",
-      "count": 1,
-      "path": "core/capabilities/phantom_browser.py",
-      "scope": "<module>.PhantomBrowser.click"
-    },
-    {
       "callee": "self.page.evaluate",
       "canonical_owner": false,
       "category": "raw_browser",
@@ -7473,12 +7521,20 @@
       "scope": "<module>.PhantomBrowser.read_content"
     },
     {
+      "callee": "element.click",
+      "canonical_owner": false,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/capabilities/phantom_browser_interaction.py",
+      "scope": "<module>._ActsOnThePage.click"
+    },
+    {
       "callee": "self.page.keyboard.type",
       "canonical_owner": false,
       "category": "raw_browser",
       "count": 1,
-      "path": "core/capabilities/phantom_browser.py",
-      "scope": "<module>.PhantomBrowser.type"
+      "path": "core/capabilities/phantom_browser_interaction.py",
+      "scope": "<module>._ActsOnThePage.type"
     },
     {
       "callee": "webbrowser.open",
@@ -9601,28 +9657,28 @@
       "scope": "<module>.ExperienceConsolidator.__init__"
     },
     {
-      "callee": "self.state_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/consciousness/liquid_substrate.py",
-      "scope": "<module>.LiquidSubstrate.__init__"
-    },
-    {
       "callee": "os.remove",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/consciousness/liquid_substrate.py",
-      "scope": "<module>.LiquidSubstrate._save_state"
+      "path": "core/consciousness/liquid_state_io.py",
+      "scope": "<module>._KeepsItsStateOnDisk._save_state"
     },
     {
       "callee": "os.replace",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
+      "path": "core/consciousness/liquid_state_io.py",
+      "scope": "<module>._KeepsItsStateOnDisk._save_state"
+    },
+    {
+      "callee": "self.state_path.parent.mkdir",
+      "canonical_owner": false,
+      "category": "raw_file_mutation",
+      "count": 1,
       "path": "core/consciousness/liquid_substrate.py",
-      "scope": "<module>.LiquidSubstrate._save_state"
+      "scope": "<module>.LiquidSubstrate.__init__"
     },
     {
       "callee": "_DATA_PATH.parent.mkdir",
@@ -13789,8 +13845,8 @@
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/skills/computer_use.py",
-      "scope": "<module>.ComputerUseSkill._render_text_pdf"
+      "path": "core/skills/computer_use_documents.py",
+      "scope": "<module>._MakesFilesToShow._render_text_pdf"
     },
     {
       "callee": "os.remove",
@@ -14345,60 +14401,20 @@
       "scope": "<module>._fill_disk._restore"
     },
     {
-      "callee": "path.open",
+      "callee": "pathlib.Path().open",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>._append_resource_row"
-    },
-    {
-      "callee": "path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>._append_text"
-    },
-    {
-      "callee": "run_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_gauntlet.py",
-      "scope": "<module>.main"
+      "path": "tools/longevity/soak_output.py",
+      "scope": "<module>.open_receipts"
     },
     {
       "callee": "out_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "tools/longevity/run_live_autonomy_soak.py",
-      "scope": "<module>._resolve_output_dir"
-    },
-    {
-      "callee": "receipts_path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_live_autonomy_soak.py",
-      "scope": "<module>.async_main"
-    },
-    {
-      "callee": "out_dir.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_longevity_soak.py",
-      "scope": "<module>._resolve_output_dir"
-    },
-    {
-      "callee": "receipts_path.open",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "tools/longevity/run_longevity_soak.py",
-      "scope": "<module>.async_main"
+      "path": "tools/longevity/soak_output.py",
+      "scope": "<module>.resolve_output_dir"
     },
     {
       "callee": "socket.create_connection",
@@ -14860,17 +14876,17 @@
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
-      "count": 1,
+      "count": 3,
       "path": "core/capabilities/host_automation.py",
-      "scope": "<module>.HostAutomationProvider.take_screenshot"
+      "scope": "<module>.HostAutomationProvider.type_text"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
       "canonical_owner": false,
       "category": "subprocess_gateway",
-      "count": 3,
-      "path": "core/capabilities/host_automation.py",
-      "scope": "<module>.HostAutomationProvider.type_text"
+      "count": 1,
+      "path": "core/capabilities/host_automation_screen.py",
+      "scope": "<module>._ReadsTheScreen.take_screenshot"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_async",
@@ -15191,6 +15207,14 @@
       "count": 1,
       "path": "core/perception/ambient_developer_stream.py",
       "scope": "<module>.AmbientDeveloperStream._collect_git_status"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
+      "path": "core/perception/app_dictionary.py",
+      "scope": "<module>._read_an_old_plist"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
@@ -16038,7 +16062,7 @@
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/subject/provenance.py",
-      "scope": "<module>._git"
+      "scope": "<module>._run_git"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
@@ -16442,6 +16466,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "1191fad05eefc0db43e139ae128376275b8a392648baf3d7c8dd4b30db9a8fc8",
+  "inventory_sha256": "0a0e4dd1646ca05527edf10cca0e67785037508b9d1f4139ae42964e4a68df1a",
   "schema_version": 1
 }

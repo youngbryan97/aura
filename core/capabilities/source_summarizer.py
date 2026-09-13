@@ -35,7 +35,7 @@ class SummarizationResult:
     summary: str
     sources: List[Dict[str, str]]
     word_count: int = 0
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
     model_used: str = ""
 
 

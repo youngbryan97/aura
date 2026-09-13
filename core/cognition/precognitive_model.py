@@ -72,7 +72,7 @@ class PrecognitivePrediction:
     pre_fetch_suggestions: List[str]     # Things to look up proactively
     confidence: float                    # Overall confidence in this prediction
     reasoning: str                       # Why we predicted this
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -91,7 +91,7 @@ class TopicTransition:
     from_topic: str
     to_topic: str
     count: int = 1
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -101,7 +101,7 @@ class TimePattern:
     topic: str
     count: int = 1
     avg_urgency: float = 0.5
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

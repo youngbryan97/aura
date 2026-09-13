@@ -19,6 +19,8 @@ to be behind everything, and reasoned about it for 176 seconds.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import ast
 from pathlib import Path
 
@@ -66,7 +68,7 @@ def test_a_bare_name_still_prefers_what_is_installed() -> None:
 def test_an_application_is_reached_before_anything_looks_at_it() -> None:
     """The arrival `reach` gives a page, given to an application too."""
 
-    source = Path("core/skills/screen_pursuit.py").read_text(encoding="utf-8")
+    source = pursuit_source()
     tree = ast.parse(source)
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
@@ -85,5 +87,5 @@ def test_an_application_is_reached_before_anything_looks_at_it() -> None:
 def test_failing_to_arrive_is_reported_rather_than_pursued_anyway() -> None:
     """Zero moves against the wrong window is worse than saying it could not."""
 
-    source = Path("core/skills/screen_pursuit.py").read_text(encoding="utf-8")
+    source = pursuit_source()
     assert source.count('"outcome": "could_not_get_there"') >= 2

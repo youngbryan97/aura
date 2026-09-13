@@ -81,6 +81,8 @@ class MotivationUpdatePhase(Phase):
 
             # Decay: level = current - (decay * dt)
             new_level = max(0.0, min(capacity, level - (effective_decay * dt)))
+            if name == "energy":
+                new_level = self._spend_energy(level, capacity, dt)
             budget["level"] = float(new_level)
 
         # A drive that won the workspace was attended to, and attention
@@ -109,9 +111,34 @@ class MotivationUpdatePhase(Phase):
             mot.budgets["integrity"]["level"] = min(100.0, mot.budgets["integrity"]["level"] + recovery)
             logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
         
+        # 1b. Which urge acts now, integrated over time rather than sampled.
+        #
+        # `core/consciousness/drive_integration.py` is a leaky integrator per
+        # drive with mutual inhibition and a Schmitt trigger, written because
+        # the thing before it fired the instant a point crossed a line — "a
+        # transient spike acts the same as a sustained pull". It was registered
+        # as a service and asked for by nothing in the tree, so a competition of
+        # accumulating urges ran nowhere and the assessment below has picked the
+        # single most depleted budget on every turn since.
+        #
+        # It is grounded here on what the moment actually is: how she feels, how
+        # settled the substrate is, how unprecedented the moment is, and what
+        # hurts. That is the route by which affect, recurrent cognition, the
+        # body and the developmental state reach deliberation at all.
+        next_state = await self._integrate_drives(next_state)
+
         # 2. Intention Assessment (The "Will")
-        # Only assess if we are not already in its own autonomous thought or deliberate mode
-        if next_state.cognition.current_mode.value != "deliberate":
+        #
+        # Skipped while one of her own motivational intentions is already open
+        # and unaddressed, which is what "already in its own autonomous
+        # thought" means. It used to be skipped whenever the cognitive mode was
+        # DELIBERATE — and DELIBERATE is the careful governed route for an
+        # ordinary user-facing turn, four turns in five. So the route from a
+        # depleted need, and from what she had just recalled, into an intention
+        # was closed on almost every turn she was thinking carefully: the guard
+        # tested a mode that means she is concentrating and read it as meaning
+        # she is already busy with herself.
+        if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
                 logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
@@ -159,6 +186,27 @@ class MotivationUpdatePhase(Phase):
         return next_state
 
     @staticmethod
+    def _own_intention_is_open(state: AuraState) -> bool:
+        """Whether one of her own motivational intentions is still waiting.
+
+        Read from the intentions themselves rather than from the cognitive
+        mode. A second intention about the same need, while the first is
+        unaddressed, is a louder version of what she has already decided —
+        which is the thing the guard was for.
+        """
+        cognition = getattr(state, "cognition", None)
+        pending = list(getattr(cognition, "pending_initiatives", []) or []) if cognition else []
+        for item in pending:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("source", "")) != "motivation_update":
+                continue
+            if str(item.get("status", "pending")).lower() in {"done", "complete", "completed", "cancelled"}:
+                continue
+            return True
+        return False
+
+    @staticmethod
     def _credit_attended_drive(mot: Any, dt: float) -> None:
         """Replenish whichever drive last won the broadcast. Never raises."""
         try:
@@ -185,9 +233,10 @@ class MotivationUpdatePhase(Phase):
         being told to hurry by an absence.
         """
         try:
-            from core.container import ServiceContainer
-
-            engine = ServiceContainer.get("free_energy_engine", default=None)
+            # Through the registry: this is an observer reading a rate, and
+            # `peek` is exactly right for it — a reading must not boot the
+            # engine it is reading.
+            engine = get_runtime_service("free_energy_engine", default=None)
             if engine is None:
                 return 0.0
             return max(0.0, min(1.0, float(engine.get_action_urgency())))
@@ -316,6 +365,116 @@ class MotivationUpdatePhase(Phase):
 
         return None
 
+
+
+    #: What a day of unremitting full-tilt work costs the energy budget. Time
+    #: does not deplete energy — the constants table states its decay as zero,
+    #: correctly — and work does, so the rate here is a statement about work
+    #: rather than about the clock: at full exertion a day empties the budget,
+    #: at the unremarkable half it holds level, and below that it recovers.
+    _ENERGY_PER_DAY_AT_FULL_EXERTION: float = 100.0
+
+    @staticmethod
+    def _spend_energy(level: float, capacity: float, dt: float) -> float:
+        """Energy follows what the work cost, because nothing else moved it.
+
+        Every other drive decays with time. Energy's stated decay is zero, and
+        in a runtime where the will engine is absent — which is every runtime
+        but the full desktop one — that left it pinned at capacity for the life
+        of the state. So the branch of the intention assessment that fires on a
+        depleted energy could never fire, the column that carries it was a
+        constant in every recording, and whatever reads how much she has left
+        to spend was reading a hundred.
+
+        Exertion is the reading: what the last cycle took out of her, with a
+        half meaning an unremarkable turn. Above that she spends, below it she
+        recovers, and the pivot is the same half rather than a threshold chosen
+        here.
+        """
+        exertion = 0.0
+        try:
+            # An observer again: reading exertion must not instantiate the
+            # repository that holds it.
+            repo = get_runtime_service("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            exertion = float(getattr(getattr(current, "soma", None), "exertion", 0.0) or 0.0)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            exertion = 0.0
+        rate = MotivationUpdatePhase._ENERGY_PER_DAY_AT_FULL_EXERTION / 86400.0
+        moved = level - (exertion - 0.5) * 2.0 * rate * capacity * dt / 100.0
+        return max(0.0, min(capacity, moved))
+
+    async def _integrate_drives(self, state: AuraState) -> AuraState:
+        """Step the drive competition and let its winner ask for attention.
+
+        Returns the state, changed only if a drive actually won: an urge that
+        has not accumulated past its own threshold has not decided anything,
+        and saying so is the difference between a decision and a sample.
+        """
+        try:
+            # Through the container, not `get_runtime_service`. That seam reads
+            # with `peek`, which deliberately never invokes a factory — it is
+            # for diagnostics and error sinks, which must not boot an organ
+            # while they are looking at one. This is a lifecycle caller, and
+            # the drive engine is registered lazily, so asking through the
+            # read-only seam returns None for ever.
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("drive_integration", default=None)
+            if engine is None:
+                return state
+            affect = getattr(state, "affect", None)
+            signals = engine.gather_signals(
+                {
+                    "valence": float(getattr(affect, "valence", 0.0) or 0.0),
+                    "arousal": float(getattr(affect, "arousal", 0.0) or 0.0),
+                    "dominance": self._substrate_dominance(),
+                    "novelty": float(
+                        state.response_modifiers.get("ontogenetic_novelty", 0.0) or 0.0
+                    ),
+                }
+            )
+            decision = engine.step(signals)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "motivation_update",
+                exc,
+                severity="debug",
+                action="kept the drive budgets without the integrated competition",
+            )
+            return state
+        if decision is None or not getattr(decision, "action", None):
+            return state
+        state.response_modifiers["drive_competition"] = decision.to_dict()
+        next_state, _ = await propose_governed_initiative_to_state(
+            state,
+            f"Acting on {decision.drive}: {decision.action}",
+            orchestrator=None,
+            source="motivation_update",
+            kind="integrated_drive",
+            # What it asks for is how far it accumulated, which is the whole
+            # point of integrating: a sustained moderate pull asks more loudly
+            # than a spike that has already decayed.
+            urgency=max(0.0, min(1.0, float(decision.activation))),
+            triggered_by=str(decision.drive or "drive_integration"),
+            metadata={"drive": decision.drive, "phase": "motivation_update"},
+        )
+        return next_state
+
+    @staticmethod
+    def _substrate_dominance() -> float:
+        """How settled the continuous substrate is, or zero when it cannot say."""
+        try:
+            from core.runtime.service_registry import get_runtime_service
+
+            substrate = get_runtime_service("conscious_substrate", default=None)
+            reading = substrate.get_substrate_affect() if substrate is not None else None
+            if not isinstance(reading, dict):
+                return 0.0
+            return max(-1.0, min(1.0, float(reading.get("dominance", 0.0) or 0.0)))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return 0.0
+
     @staticmethod
     def _footing(state: AuraState) -> dict[str, float]:
         """How solid each part of the moment is. Larger means worse.
@@ -390,9 +549,9 @@ class MotivationUpdatePhase(Phase):
     def _world_surprise() -> float:
         """How far the world just departed from the model of it. 0.0 if unknown."""
         try:
-            from core.container import ServiceContainer
-
-            model = ServiceContainer.get("unified_world_model", default=None)
+            # An observer: reading how far the world departed from the model
+            # must not be what instantiates the model.
+            model = get_runtime_service("unified_world_model", default=None)
             value = model.surprise() if model is not None else None
             return 0.0 if value is None else max(0.0, min(1.0, float(value)))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):

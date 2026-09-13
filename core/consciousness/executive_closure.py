@@ -24,6 +24,32 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ExecutiveClosure")
 
+
+def _stated_urgency(goal: Any) -> float:
+    """What a goal says it is asking to be thought about now.
+
+    The same rule the workspace prices a deliberation bid by, so the goals
+    kept here are the goals that would have competed. A goal that states
+    nothing has made no claim and sits at neutral.
+    """
+    if not isinstance(goal, dict):
+        return 0.5
+    stated = goal.get("urgency")
+    if stated is None:
+        return 0.5
+    if isinstance(stated, str):
+        named = {"critical": 1.0, "high": 0.8, "medium": 0.5, "normal": 0.5, "low": 0.25}
+        return named.get(stated.strip().lower(), 0.5)
+    try:
+        return max(0.0, min(1.0, float(stated)))
+    except (TypeError, ValueError):
+        return 0.5
+
+
+def _by_pressure(goals: list[Any]) -> list[Any]:
+    """Hardest-pressing first, ties in the order they were written."""
+    return sorted(goals, key=_stated_urgency, reverse=True)
+
 _EXECUTIVE_CLOSURE_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -246,6 +272,7 @@ class ExecutiveClosureEngine:
             state,
             selected_objective,
             persist_selected=not foreground_chat_active,
+            pressure=need_pressure,
         )
 
         if is_actionable_goal_text(selected_objective) and not getattr(state.cognition, "current_objective", None):
@@ -318,9 +345,17 @@ class ExecutiveClosureEngine:
             state.phi_estimate = phi_estimate
             state.phi = phi_estimate
         else:
-            if not state.phi_estimate and state.phi:
+            if state.phi:
                 # The estimate has no other writer at all, so carry the
                 # measurement into it rather than leaving a field nothing fills.
+                #
+                # Every turn, not only the first. The guard here was
+                # `not state.phi_estimate`, which filled the field once and
+                # latched it: with the closed loop silent there is no earlier
+                # reading to protect, so all the guard did was keep the first
+                # value for the life of the state while `phi` moved underneath
+                # it. Recurrent cognition's own headline number was a constant
+                # in every recording the battery has made.
                 state.phi_estimate = float(state.phi)
             # And bind the local from what the state now holds. The first
             # version bound it only on the branch where the closed loop
@@ -673,7 +708,9 @@ class ExecutiveClosureEngine:
         selected_objective: str,
         *,
         persist_selected: bool = True,
+        pressure: float = 0.0,
     ) -> int:
+        head: list[Any] = []
         active = [
             goal
             for goal in list(getattr(state.cognition, "active_goals", []) or [])
@@ -691,12 +728,30 @@ class ExecutiveClosureEngine:
             record = {
                 "description": selected_objective,
                 "priority": 1.0,
+                # And what it is asking to be thought about now, which is not
+                # the same thing and which this record did not state. The very
+                # next statement proposes the same objective as an initiative
+                # carrying the need pressure that selected it; the goal record
+                # of the same decision carried a flat priority and no urgency
+                # at all. The workspace prices deliberation's bid on urgency,
+                # so the thing she had just chosen to work on entered attention
+                # at the neutral default every turn, and two records of one
+                # decision disagreed about how much it mattered.
+                "urgency": round(max(0.0, min(1.0, float(pressure))), 4),
                 "source": "executive_closure",
                 "timestamp": time.time(),
             }
             if not any(goal.get("description") == selected_objective for goal in active if isinstance(goal, dict)):
-                active.insert(0, record)
-        state.cognition.active_goals = active[:5]
+                head = [record]
+        # Five goals, and the five that are pressing hardest. This was
+        # `active[:5]` over a list in the order things had been written to it,
+        # so an intention formed this turn because a need had just become
+        # urgent was dropped in favour of five older ones that were not. What
+        # is kept is what each one states it is asking for; the objective
+        # executive closure has just chosen keeps its place at the head,
+        # because dropping the decision this method exists to record would be
+        # a different defect.
+        state.cognition.active_goals = (head + _by_pressure(active))[:5]
         return len(getattr(state.cognition, "active_goals", []) or [])
 
     async def _get_homeostasis_status(self, *, warmup: bool = False) -> dict[str, float]:

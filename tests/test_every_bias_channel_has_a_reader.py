@@ -25,9 +25,18 @@ from core.brain.inference_gate import _SAMPLING_BIAS_KEYS
 from core.brain.request_contract import REQUEST_FIELDS
 
 _ENGINE = Path("core/brain/cognitive_engine.py")
-_PUBLISHES = re.compile(
-    r'response_modifiers\[\s*"([a-z_]*sampling_bias)"\s*\]\s*=', re.IGNORECASE
-)
+
+#: The key as it is written into the request the gate receives, whatever the
+#: value expression beside it happens to be.
+#:
+#: This matched `response_modifiers["..._sampling_bias"] =` until the engine
+#: stopped assigning into that mapping and started building the request as a
+#: dict literal with `apply_channel(...)` on the right. All four channels kept
+#: their readers and the regex found none of them, so the check that exists to
+#: catch a writer with no reader became a check with no writers -- the same
+#: shape of failure, wearing the name of the thing that prevents it. Matching
+#: the key and not the assignment survives the next rewrite of the value.
+_PUBLISHES = re.compile(r'"([a-z_]*sampling_bias)"\s*:', re.IGNORECASE)
 
 
 def _published_channels() -> set[str]:
@@ -40,6 +49,18 @@ def test_the_engine_publishes_the_channels_we_think_it_does() -> None:
     published = _published_channels()
     assert len(published) >= 4, published
     assert "cognitive_situation_sampling_bias" in published
+
+
+def test_the_reader_side_is_not_empty_either() -> None:
+    """A blind writer scan and a blind reader scan look identical from here.
+
+    The failure this file just had was a scan that found nothing and reported
+    it as a set, so a second empty set could hide the same way.
+    """
+    assert len(_SAMPLING_BIAS_KEYS) >= 4, _SAMPLING_BIAS_KEYS
+    assert set(_SAMPLING_BIAS_KEYS) <= set(REQUEST_FIELDS), sorted(
+        set(_SAMPLING_BIAS_KEYS) - set(REQUEST_FIELDS)
+    )
 
 
 @pytest.mark.parametrize("channel", sorted(_published_channels()))

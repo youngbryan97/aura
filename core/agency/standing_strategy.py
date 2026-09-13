@@ -59,7 +59,7 @@ class Strategy:
     #: What she would do instead, named now rather than in the moment the
     #: condition fires.
     otherwise: tuple[str, ...] = ()
-    adopted_at: float = field(default_factory=time.time)
+    adopted_at: float = field(default_factory=lambda: time.time())
     adopted_on_move: int = 0
 
     def as_evidence(self) -> list[str]:

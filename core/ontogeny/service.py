@@ -39,7 +39,6 @@ import time
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -51,7 +50,6 @@ from core.ontogeny.calibration import (
     CANDIDATE_VALIDATION,
     OPERATIONAL_SHADOW,
     CalibrationMonitor,
-    CalibrationObservation,
     TrackRecord,
     TrackRecordIndex,
 )
@@ -97,10 +95,6 @@ TRAIN_COOPERATIVE_YIELD_S = 0.0001
 #: hour of it to a crash would be a needless amputation.
 CHECKPOINT_INTERVAL_S = 300.0
 
-#: Episodes whose bucket is remembered so a later resolution can find its
-#: tally. Bounded: an outcome that lands after this many decisions have gone
-#: by is folded in by the next rehydration instead.
-_BUCKET_MEMORY = 20_000
 
 
 @dataclass(frozen=True)
@@ -226,7 +220,13 @@ class Verdict:
         }
 
 
-class OntogenyCore(AuthorityObservationMixin):
+from .service_heads import (
+    _BUCKET_MEMORY,
+    _KeepsItsHeadsOnDisk,
+)
+
+
+class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
     """The whole organ. One instance per process, alive for the life of the runtime."""
 
     def __init__(
@@ -661,77 +661,7 @@ class OntogenyCore(AuthorityObservationMixin):
             while len(self._episode_buckets) > _BUCKET_MEMORY:
                 self._episode_buckets.popitem(last=False)
 
-    def rehydrate_track_records(self, limit: int = 6000) -> dict[str, int]:
-        """Rebuild the tallies from the corpus. Slow, so it runs on maintenance."""
-        rebuilt: dict[str, int] = {}
-        with self._lock:
-            names = list(self._control_points)
-        for name in names:
-            try:
-                episodes = self._spine.episodes(name, limit=limit)
-            except (RuntimeError, OSError, ValueError) as exc:
-                record_degradation("ontogeny", exc, severity="debug",
-                                   action=f"track-record rehydration skipped for {name}")
-                continue
-            rebuilt[name] = self._track.hydrate(name, episodes)
-        return rebuilt
 
-    def rehydrate_operational_calibration(self, limit: int = _BUCKET_MEMORY) -> dict[str, int]:
-        """Rebuild operational cohorts from immutable decision-time shadows.
-
-        The episode reader intentionally exposes a narrow projection and older
-        versions omitted ``context_json`` from that projection. Read only that
-        provenance column here so restart recovery remains source-bound without
-        rewriting or deleting historical incidents.
-        """
-        rebuilt: dict[str, int] = {}
-        with self._lock:
-            control_points = list(self._control_points.values())
-        for cp in control_points:
-            try:
-                episodes = self._spine.episodes(cp.name, evidence_only=True, limit=limit)
-                contexts = self._episode_contexts([episode.episode_id for episode in episodes])
-            except (RuntimeError, OSError, ValueError, sqlite3.Error) as exc:
-                record_degradation(
-                    "ontogeny", exc, severity="debug",
-                    action=f"operational calibration rehydration skipped for {cp.name}",
-                )
-                continue
-            observations: list[CalibrationObservation] = []
-            for episode in episodes:
-                if episode.outcome is None or not episode.outcome.kind.is_evidence:
-                    continue
-                probability = (episode.shadow or {}).get(episode.decision)
-                if probability is None or episode.shadow_version is None:
-                    continue
-                probability = min(1.0, max(0.0, float(probability)))
-                context = contexts.get(episode.episode_id, episode.context or {})
-                revision = str(context.get("runtime_revision") or "legacy-unbound")
-                predicted_success = probability >= 0.5
-                observations.append(CalibrationObservation(
-                    episode_id=episode.episode_id,
-                    control_point=episode.control_point,
-                    confidence=max(probability, 1.0 - probability),
-                    correct=predicted_success == (episode.outcome.kind is OutcomeKind.SUCCESS),
-                    decided_at=episode.decided_at,
-                    observed_at=episode.outcome.resolved_at,
-                    runtime_revision=revision,
-                    head_version=int(episode.shadow_version),
-                    action=episode.decision,
-                    provenance=OPERATIONAL_SHADOW,
-                ))
-            rebuilt[cp.name] = self._operational_calibration.replace_observations(
-                cp.name,
-                observations,
-                provenance=OPERATIONAL_SHADOW,
-            )
-            self._operational_calibration.activate(
-                cp.name,
-                runtime_revision=self._revision_for(cp.name),
-                head_version=self._head_version(cp),
-                provenance=OPERATIONAL_SHADOW,
-            )
-        return rebuilt
 
     def _episode_contexts(self, episode_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
         """Read persisted provenance for restart rehydration, in bounded chunks."""
@@ -889,99 +819,49 @@ class OntogenyCore(AuthorityObservationMixin):
                 )
 
     def stop(self) -> None:
+        """Bring this organ down without bringing the spine down with it.
+
+        The spine is a process-wide singleton this organ did not build. Closing
+        it stopped the flusher for every other holder, so after any reset every
+        episode recorded in the process sat in a queue nothing would write —
+        a developmental shutdown with no error in it. What is owed a store you
+        borrow is a flush.
+        """
         self._stopped.set()
         if self._sweeper is not None:
             self._sweeper.stop()
         if self._state is not None:
             self._state.save()
-        self._spine.close()
+        self._spine.off_resolve(self._note_resolution)
+        self._spine.flush()
+
+    def dispose(self) -> None:
+        """Undo what building this one did, for a core that never started.
+
+        The loser of a construction race has already reached two shared
+        singletons on its way past: it subscribed to the spine's resolutions,
+        and it handed the authority ledger its own calibration monitor. Neither
+        undoes itself, and the second one is why a ledger can end up judging a
+        head from a monitor nothing feeds.
+        """
+        self._stopped.set()
+        self._spine.off_resolve(self._note_resolution)
+
+    def recommission(self) -> None:
+        """Re-assert this core's claim on the singletons it shares.
+
+        Idempotent on both: subscribing twice subscribes once, and attaching a
+        calibration monitor replaces whatever was there with the one whose
+        measurements the trainer is actually recording.
+        """
+        self._authority.attach_calibration(self._candidate_calibration)
+        self._spine.on_resolve(self._note_resolution)
 
     # ── head persistence ─────────────────────────────────────────────────
 
-    def _heads_dir(self) -> Path:
-        """Head checkpoints live beside the corpus that produced them.
 
-        Deriving this from the spine rather than from config is the whole
-        point. The provenance gate keeps test episodes out of the live corpus,
-        but a head is *derived* from a corpus, and a head fitted on simulated
-        episodes and written to the live directory is the same contamination
-        one level up — it would be loaded by the real instance at next boot and
-        would start scoring real decisions from things that never happened.
-        Tying every artefact to the store's own root makes a sandbox total
-        instead of partial.
-        """
-        return self._spine.db_path.parent / "heads"
 
-    def _save_head(self, cp: ControlPoint) -> None:
-        if not cp.heads:
-            return
-        try:
-            from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
 
-            payload: dict[str, Any] = {
-                "schema_id": cp.schema.schema_id,
-                "actions": list(cp.actions),
-                "moments": cp.moments.state_dict() if cp.moments else {},
-                "heads": {action: head.state_dict() for action, head in cp.heads.items()},
-            }
-            gateway = get_file_write_gateway()
-            target = self._heads_dir() / f"{cp.name.replace('.', '_')}.json"
-            with local_internal_governed_scope(
-                "ontogeny_head", domain="state_mutation", receipt_prefix="ontogeny-head"
-            ):
-                gateway.ensure_directory(target.parent, source="ontogeny_head")
-                gateway.write_text(
-                    target, json.dumps(payload, ensure_ascii=False), source="ontogeny_head"
-                )
-        except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
-            record_degradation(
-                "ontogeny", exc, severity="warning",
-                action=f"head checkpoint for {cp.name} not written",
-            )
-
-    def _load_heads(self) -> None:
-        directory = self._heads_dir()
-        if not directory.exists():
-            return
-        with self._lock:
-            control_points = list(self._control_points.values())
-        for cp in control_points:
-            target = directory / f"{cp.name.replace('.', '_')}.json"
-            if not target.exists():
-                continue
-            try:
-                payload = json.loads(target.read_text(encoding="utf-8"))
-            except (OSError, ValueError) as exc:
-                record_degradation("ontogeny", exc, severity="warning",
-                                   action=f"head checkpoint for {cp.name} unreadable")
-                continue
-            if payload.get("schema_id") != cp.schema.schema_id:
-                logger.info(
-                    "ontogeny: heads for %s were fitted on schema %s, now %s — discarding them",
-                    cp.name, payload.get("schema_id"), cp.schema.schema_id,
-                )
-                continue
-            heads = cp.ensure_heads(self._units)
-            restored = 0
-            for action, state in (payload.get("heads") or {}).items():
-                head = heads.get(action)
-                if head is not None and head.load_state(state):
-                    restored += 1
-            if restored and cp.moments is not None:
-                cp.moments.load_state(payload.get("moments", {}))
-            logger.info("ontogeny: restored %d/%d heads for %s", restored, len(heads), cp.name)
-
-    def _activate_operational_cohorts(self) -> None:
-        with self._lock:
-            control_points = list(self._control_points.values())
-        for cp in control_points:
-            self._operational_calibration.activate(
-                cp.name,
-                runtime_revision=self._revision_for(cp.name),
-                head_version=self._head_version(cp),
-                provenance=OPERATIONAL_SHADOW,
-            )
 
     # ── reporting ────────────────────────────────────────────────────────
 
@@ -1136,12 +1016,22 @@ def get_ontogeny() -> OntogenyCore:
     #
     # A race builds two and keeps one. That costs an extra open and a close;
     # holding a lock across an fsync costs the loop.
-    built: OntogenyCore | None = OntogenyCore()
+    # And built without starting. A candidate that loses the race had already
+    # started a sweeper thread and a maintenance loop before anyone looked, and
+    # stopping them afterwards is a race of its own: the winner publishes, the
+    # loser's maintenance loop wakes on the shared spine, and the organ that
+    # nothing holds a reference to is still writing checkpoints.
+    built: OntogenyCore | None = OntogenyCore(autostart=False)
     with _core_lock:
         if _core is None:
             _core, built = built, None
     if built is not None:
-        built.stop()
+        built.dispose()
+        # The loser reached the spine and the authority ledger on its way past.
+        # Disposing takes its subscription off; this puts the ledger back on
+        # the monitor the winner is feeding.
+        _core.recommission()
+    _core.start()
     return _core
 
 

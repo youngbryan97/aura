@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 16 outbound edges when this was generated.
+# 18 outbound edges when this was generated.
 
 description = "core.capabilities: may import only what it already imports; every new edge is an edit here."
 
@@ -17,8 +17,10 @@ include_rules = [
     "+core.adapters",
     "+core.agency",
     "+core.brain",
+    "+core.capability_engine",
     "+core.container",
     "+core.conversation",
+    "+core.executive",
     "+core.governance",
     "+core.governance_context",
     "+core.knowledge",

@@ -100,7 +100,7 @@ class ServiceCondition:
     #: The object generation this claim was made about. A condition behind the
     #: current generation describes configuration that no longer exists.
     observed_generation: int = 0
-    last_transition_at: float = field(default_factory=time.time)
+    last_transition_at: float = field(default_factory=lambda: time.time())
 
     def is_stale(self, current_generation: int) -> bool:
         return self.observed_generation < current_generation

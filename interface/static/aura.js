@@ -1297,9 +1297,10 @@ function messageBadgeHtml(metadata = {}) {
     return replyConfidenceBadgeHtml(metadata.responseConfidence);
 }
 
+const VISIBLE_CHAT_EXCHANGES = 100;
+
 function pruneVisibleMessages(messages) {
-    const MAX_VISIBLE_MESSAGES = 40;
-    while (messages && messages.children.length > MAX_VISIBLE_MESSAGES) {
+    while (messages && messages.children.length > VISIBLE_CHAT_EXCHANGES * 2) {
         messages.removeChild(messages.firstChild);
     }
     // Every append into the transcript funnels through here, so this is the
@@ -1531,13 +1532,29 @@ function updateLanePlaceholder() {
 function hydrateRecentConversation(entries) {
     const messages = DOM.messages || $('messages');
     if (!messages || !Array.isArray(entries) || !entries.length) return;
-    const restored = conversationEntriesToMessages(entries.slice(-12));
+    const restored = conversationEntriesToMessages(entries.slice(-VISIBLE_CHAT_EXCHANGES));
     if (!restored.length) return;
 
     if (!transcriptIsEmpty(messages)) {
-        // An active delivery owns its bubbles. Passive windows reconcile only
-        // known durable exchanges, without replacing or replaying the pane.
+        // An active delivery owns its bubbles. A late history read may add
+        // older exchanges before the first known turn without replaying it.
         if (state.isSubmitting || state.activeChatRequest || state.chatSendQueue.length) return;
+        const first = messages.children[0];
+        const anchor = first && first.dataset.historyTurnId;
+        const anchorAt = anchor ? restored.findIndex(item =>
+            item.metadata.historyTurnId === anchor) : -1;
+        if (anchorAt > 0) {
+            const knownIds = new Set(Array.from(messages.children)
+                .map(node => node.dataset.historyTurnId).filter(Boolean));
+            const capacity = Math.max(0, VISIBLE_CHAT_EXCHANGES * 2 - messages.children.length);
+            const older = restored.slice(0, anchorAt).filter(item =>
+                item.metadata.historyTurnId && !knownIds.has(item.metadata.historyTurnId));
+            const prefix = capacity ? older.slice(-capacity) : [];
+            if (prefix[0] && prefix[0].role === 'aura') prefix.shift();
+            for (const item of prefix) {
+                appendMsg(item.role, item.text, false, item.metadata, first);
+            }
+        }
         for (const item of restored) {
             const id = item.metadata.historyTurnId;
             if (item.role !== 'aura' || !id) continue;
@@ -1550,10 +1567,21 @@ function hydrateRecentConversation(entries) {
             const successor = children[at + 1] || null;
             // An unbound live bubble belongs to another delivery path. Do not
             // duplicate it while its identity has not reached this snapshot.
-            if (successor && !successor.dataset.historyTurnId) continue;
-            appendMsg(item.role, item.text, false, item.metadata);
-            const added = messages.children[messages.children.length - 1];
-            messages.insertBefore(added, successor);
+            if (successor && !successor.dataset.historyTurnId
+                && successor.dataset.transcriptEvent !== 'true') continue;
+            appendMsg(item.role, item.text, false, item.metadata, successor);
+        }
+        // A passive pane can lag behind a turn opened by another window.
+        // Extend only from an exact shared exchange, never from matching text.
+        const children = Array.from(messages.children)
+            .filter(node => node.dataset.transcriptEvent !== 'true');
+        const lastId = children.at(-1)?.dataset.historyTurnId;
+        const tailAt = lastId && children.every(node => node.dataset.historyTurnId)
+            ? restored.findLastIndex(item => item.metadata.historyTurnId === lastId) : -1;
+        if (tailAt >= 0) {
+            for (const item of restored.slice(tailAt + 1)) {
+                appendMsg(item.role, item.text, false, item.metadata);
+            }
         }
         updateLanePlaceholder();
         return;
@@ -2170,15 +2198,22 @@ async function hydrateBootstrap({ hydrateConversationHistory = true, quiet = tru
 }
 
 function scheduleBootstrapPoll(delayMs = null) {
-    if (state.bootstrapTimer) clearTimeout(state.bootstrapTimer);
     const delay = delayMs == null
         ? optionalSurfacePollDelay(BOOTSTRAP_POLL_MS, {
             foregroundFactor: 3,
             hiddenFactor: 6,
         })
         : Math.max(0, Number(delayMs) || 0);
+    const dueAt = performance.now() + delay;
+    // Workload changes may bring reconciliation forward, never postpone an
+    // already scheduled refresh. Repeated short generations otherwise starve
+    // passive windows even while every individual request completes.
+    if (state.bootstrapTimer && state.bootstrapPollDueAt <= dueAt) return;
+    if (state.bootstrapTimer) clearTimeout(state.bootstrapTimer);
+    state.bootstrapPollDueAt = dueAt;
     state.bootstrapTimer = setTimeout(async () => {
         state.bootstrapTimer = null;
+        state.bootstrapPollDueAt = null;
         if (!document.hidden) await hydrateBootstrap({ quiet: true });
         scheduleBootstrapPoll();
     }, delay);
@@ -2837,8 +2872,41 @@ function setChatPanelState(panelState) {
     }
 }
 
+function ownsChatStreamEvent(data) {
+    const active = state.activeChatRequest;
+    return Boolean(active && data.idempotency_key
+        && data.idempotency_key === active.idempotencyKey);
+}
+
+function discardChatDraft(item) {
+    if (!item.streamDiv) return;
+    if (activeStreamDiv === item.streamDiv) {
+        activeStreamDiv = null;
+        activeStreamContentRaw = '';
+    }
+    item.streamDiv.remove();
+    item.streamDiv = null;
+}
+
+function renderChatDeliveryAnswer(item, data) {
+    discardChatDraft(item);
+    const messages = DOM.messages || $('messages');
+    const identity = String(data.turn_id || item.turnId || item.idempotencyKey);
+    const existing = Array.from(messages.children).find(node =>
+        node.dataset.deliveryTurnId === identity);
+    if (existing) {
+        markReplyConfidence(existing, data.response_confidence);
+        return;
+    }
+    const metadata = { deliveryTurnId: identity };
+    if (data.thought) metadata.thought = data.thought;
+    if (data.response_confidence) metadata.responseConfidence = data.response_confidence;
+    appendMsg('aura', data.response, false, metadata);
+}
+
 function handleWsEvent(data) {
     const type = data.kind || data.type;
+    if (String(type || '').startsWith('chat_stream_') && !ownsChatStreamEvent(data)) return;
     if (!['chat_stream_chunk', 'heartbeat', 'ping', 'pong'].includes(type)) {
         if (rememberEventId(data.event_id || data.id)) return;
     }
@@ -2939,7 +3007,9 @@ function handleWsEvent(data) {
             }
 
             const role = meta && meta.system ? 'system' : 'aura';
-            appendMsg(role, msg, false, meta);
+            appendMsg(role, msg, false, {
+                ...meta, transcriptEvent: type === 'aura_message',
+            });
             $('typing-ind').classList.remove('show');
             setChatPanelState('idle');
             if (role === 'aura') triggerVoiceOrb('speaking');
@@ -5994,30 +6064,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
 
         // If it's just a dispatch confirmation, don't clutter the chat
         if (data.response && data.response !== "Message dispatched to cognitive core.") {
-            // Deduplicate: check both stream content AND the global fingerprint set
-            // to catch responses that arrived via WebSocket before the HTTP response.
-            const httpFp = data.response.trim().substring(0, 200);
-            const alreadyDelivered = state.processedMessageFingerprints.has(httpFp);
-            const alreadyStreamed = (typeof activeStreamContentRaw !== 'undefined' && activeStreamContentRaw.trim() === data.response.trim());
-            if (!alreadyDelivered && !alreadyStreamed) {
-                rememberMessageFingerprint(httpFp);
-                const chatMeta = {};
-                if (data.thought) chatMeta.thought = data.thought;
-                // Carried through so the person sees how far she is standing
-                // behind this one. The route has always sent it.
-                if (data.response_confidence) chatMeta.responseConfidence = data.response_confidence;
-                appendMsg('aura', data.response, false, chatMeta);
-            } else if (data.response_confidence) {
-                // The text already reached the transcript over the socket, so
-                // there is nothing to render — but the confidence arrives HERE,
-                // on the HTTP response, and dropping it silently is how a
-                // streamed reply came back unmarked. Mark the message that is
-                // already on screen instead of re-adding it.
-                markReplyConfidence(
-                    (DOM.messages || $('messages'))?.lastElementChild,
-                    data.response_confidence,
-                );
-            }
+            renderChatDeliveryAnswer(item, data);
         }
     } catch (err) {
         console.error('[CHAT] Delivery state machine failed:', err);
@@ -6041,6 +6088,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
         }
         persistChatHandoff({ force: true });
     } finally {
+        if (deliverySettled) discardChatDraft(item);
         state.isSubmitting = false;
         updateChatStopControl();
         publishSurfaceWorkload('chat_settled');
@@ -6109,10 +6157,12 @@ $('chat-form').onsubmit = async e => {
     if (requestPromise) await requestPromise;
 };
 
-async function appendMsg(role, text, isHtml = false, metadata = {}) {
+async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode = null) {
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
+    if (metadata.transcriptEvent === true) div.dataset.transcriptEvent = 'true';
+    if (metadata.deliveryTurnId) div.dataset.deliveryTurnId = String(metadata.deliveryTurnId);
     if (metadata.historyTurnId) {
         div.dataset.historyTurnId = String(metadata.historyTurnId);
         div.dataset.historyRole = role;
@@ -6120,7 +6170,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
     const isAura = role === 'aura';
     const badgeHtml = isAura ? messageBadgeHtml(metadata) : '';
 
-    messages.appendChild(div);
+    messages.insertBefore(div, beforeNode);
     pruneVisibleMessages(messages);
 
     const render = (t) => {
@@ -6171,10 +6221,11 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
 
         // Ordered lists (1. item)
         h = h.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+            const start = Number(block.match(/^\d+/)[0]);
             const items = block.trim().split('\n').map(line =>
                 `<li>${line.replace(/^\d+\. /, '')}</li>`
             ).join('');
-            return `<ol>${items}</ol>`;
+            return `<ol start="${start}">${items}</ol>`;
         });
 
         // Inline formatting (bold, italic, code, links)
@@ -6223,6 +6274,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}) {
         isAura
         && text.length > 5
         && !isHtml
+        && !metadata.historyTurnId
         && !prefersReducedMotion
         && words.length <= 180
         // requestAnimationFrame does not run while the document is hidden, so a
@@ -6292,7 +6344,9 @@ let activeStreamContentRaw = '';
 
 function startStreamMsg(role) {
     const messages = DOM.messages || $('messages');
+    if (state.activeChatRequest) discardChatDraft(state.activeChatRequest);
     activeStreamDiv = document.createElement('div');
+    if (state.activeChatRequest) state.activeChatRequest.streamDiv = activeStreamDiv;
     activeStreamDiv.className = `msg ${role}`;
     if (role === 'aura') {
         activeStreamDiv.innerHTML = `<div class="aura-avatar"></div>`;

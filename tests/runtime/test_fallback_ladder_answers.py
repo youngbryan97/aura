@@ -11,6 +11,14 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
+from core.conversation.turn_evidence_custody import (
+    bind_turn_evidence_custody,
+    record_turn_transcript,
+    turn_transcript,
+)
+from core.utils.injected_blocks import stamp_runtime_payload
 from interface.routes import chat as chat_module
 
 
@@ -29,6 +37,85 @@ class _Router:
         if self.raises:
             raise self.raises
         return self.answer
+
+
+@pytest.mark.parametrize("pairs", [0, 1, 40])
+def test_fallback_keeps_the_admitted_transcript_without_reading_it_again(monkeypatch, pairs):
+    router = _Router(answer="The earlier recommendation was a novel.")
+    exchanges = [
+        stamp_runtime_payload({"user": f"question {i}", "aura": f"reply {i}"})
+        for i in range(pairs)
+    ]
+
+    async def no_readings(_text):
+        return []
+
+    async def must_not_reread(**_kwargs):
+        pytest.fail("handoff must reuse the admitted snapshot")
+
+    monkeypatch.setattr(chat_module, "_readings_for", no_readings)
+    monkeypatch.setattr(chat_module._chat_memory_state, "_recent_completed_conversation_exchanges", must_not_reread)
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        record_turn_transcript(exchanges)
+        expected = list(turn_transcript())
+        _run(chat_module._answer_from_fallback_ladder("What did we settle on?", reason="main_failed"))
+    messages = router.calls[0][3]["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1:-1] == expected
+    assert messages[-1] == {"role": "user", "content": "What did we settle on?"}
+    assert len(messages) == 2 * pairs + 2
+
+
+def test_cold_start_fallback_uses_the_scoped_history_reader_once(monkeypatch):
+    read_calls = []
+
+    async def no_readings(_text):
+        return []
+
+    async def read(**kwargs):
+        read_calls.append(kwargs)
+        return [
+            {"user": "unattested", "aura": "untrusted"},
+            stamp_runtime_payload({"user": "I asked for a novel.", "aura": "Gone Girl."}),
+        ]
+
+    class Router(_Router):
+        async def think(self, text, **kwargs):
+            await super().think(text, **kwargs)
+            # A client may normalize its input in place. It must not change
+            # the next endpoint's evidence, or the parent turn's snapshot.
+            if len(self.calls) == 1:
+                kwargs["messages"][1]["content"] = "changed by first client"
+                return ""
+            return "You asked for a novel."
+
+    router = Router()
+    monkeypatch.setattr(chat_module, "_readings_for", no_readings)
+    monkeypatch.setattr(chat_module._chat_memory_state, "_recent_completed_conversation_exchanges", read)
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+    with bind_turn_evidence_custody(session_id="owned-session", turn_id="t"):
+        _run(chat_module._answer_from_fallback_ladder("What did I ask for?", reason="cold_start"))
+        assert turn_transcript()[0]["content"] == "I asked for a novel."
+    assert read_calls == [{
+        "current_user_message": "What did I ask for?",
+        "session_id": "owned-session",
+        "limit": 40,
+        "allow_cross_session": True,
+    }]
+    assert len(router.calls) == 2
+    assert router.calls[1][3]["messages"][1:-1] == [
+        {"role": "user", "content": "I asked for a novel."},
+        {"role": "assistant", "content": "Gone Girl."},
+    ]
+
+
+def test_unscoped_fallback_does_not_read_somebody_elses_history(monkeypatch):
+    async def must_not_read(**_kwargs):
+        pytest.fail("a sessionless call cannot select a person's transcript")
+
+    monkeypatch.setattr(chat_module._chat_memory_state, "_recent_completed_conversation_exchanges", must_not_read)
+    assert _run(chat_module._fallback_conversation_messages("hello")) == []
 
 
 def test_finished_code_uses_the_callers_generation_receipt(monkeypatch):

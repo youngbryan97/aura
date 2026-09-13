@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from mlx_source import worker_source
+
 import json
 import time
 from types import SimpleNamespace
@@ -1097,7 +1099,7 @@ def test_optional_deep_solver_handler_ignores_an_unrelated_failure_that_quotes_i
 
 
 def test_mlx_worker_accepts_zeroed_shared_substrate_for_affective_sync():
-    source = open("core/brain/llm/mlx_worker.py", encoding="utf-8").read()
+    source = worker_source()
 
     assert "if substrate_mem is not None:" in source
     assert "engine.start_substrate_sync(shared_state=substrate_mem)" in source
@@ -1479,8 +1481,8 @@ def test_the_sanitizer_does_not_annihilate_replies_over_ordinary_english():
 
 
 def test_live_sanitizer_routes_intact_draft_to_typed_authored_repair():
-    from core.brain.llm.mlx_worker import (
-        _route_telemetry_sanitizer_draft,
+    from core.brain.llm.mlx_worker import _route_telemetry_sanitizer_draft
+    from core.brain.llm.mlx_worker_surface_quality import (
         _surface_quality_failure_reasons,
         _telemetry_sanitization_failure_reasons,
     )
@@ -1665,7 +1667,7 @@ def test_live_surface_quality_retry_preserves_valid_prefill_cache():
     import ast
     from pathlib import Path
 
-    source = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+    source = worker_source()
     tree = ast.parse(source)
 
     wanted = {"internal_attempt", "max_internal_retries", "surface_wall_exceeded"}

@@ -170,7 +170,7 @@ class BrowserPageSnapshot:
     active_element: str = ""
     editable_count: int = 0
     generating: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def text_hash(self) -> str:
@@ -243,7 +243,7 @@ class WebInterlocutorResult:
     status: str = "ok"
     error: str = ""
     diagnostics: dict[str, Any] = field(default_factory=dict)
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: float = 0.0
     # Causal memory: adjudicated revisions the conversation forced, and the
     # ablation proof that a later decision changed only because of them.

@@ -1,0 +1,33 @@
+{
+  "cut": [
+    "C",
+    "W"
+  ],
+  "intact": {
+    "phi_do": 0.00222,
+    "spread": 0.51852,
+    "synergy": 0.16199
+  },
+  "lesioned": {
+    "phi_do": 0.03496,
+    "spread": 0.51852,
+    "synergy": 0.19671
+  },
+  "rescued": {
+    "phi_do": -0.06461,
+    "spread": 0.48148,
+    "synergy": 0.15205
+  },
+  "deltas": {
+    "phi_do": -0.03274,
+    "spread": 0.0,
+    "synergy": -0.03472
+  },
+  "rescue": {
+    "phi_do": -0.09957,
+    "spread": -0.03704,
+    "synergy": -0.04466
+  },
+  "deficit": false,
+  "rescued_ok": false
+}

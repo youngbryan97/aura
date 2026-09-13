@@ -145,7 +145,7 @@ class FusionCertificate:
     quality_scale: str
     prompts: int
     steps: int = 0
-    measured_at: float = field(default_factory=time.time)
+    measured_at: float = field(default_factory=lambda: time.time())
     runner: str = ""
     note: str = ""
 

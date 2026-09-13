@@ -107,7 +107,7 @@ class CapabilityReport:
     # field name -> why its probe failed, for the health surface.
     probe_failures: dict[str, str] = field(default_factory=dict)
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def mark(self, *fields_: str, state: str = PROBED, detail: str = "") -> None:
         """Record how these fields were established."""

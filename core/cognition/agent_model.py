@@ -65,7 +65,7 @@ class Belief:
     #: a name is Aura's model of their model of that person.
     about: str = ""
     depth: int = 1
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def revise(self, *, supports: bool, evidence: str) -> None:
         if supports:

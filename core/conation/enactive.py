@@ -173,7 +173,7 @@ class PersonModelAccuracy:
     person: str
     predictions: int = 0
     hits: int = 0
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     #: Predictions needed before accuracy means anything. Below this the model
     #: reports the stranger's value rather than a flattering small-sample one.

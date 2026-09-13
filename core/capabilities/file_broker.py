@@ -47,7 +47,7 @@ class FileOperation:
     source: str
     destination: str = ""
     backup_path: str = ""  # for rollback
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class SandboxedFileBroker:

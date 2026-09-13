@@ -38,6 +38,16 @@ _INFLUENCE_PROBE_PROMPT = (
 _INFLUENCE_PROBE_TIMEOUT_S = 90.0
 _INFLUENCE_CAMPAIGN_DEADLINE_S = 600.0
 
+
+class InfluenceArmRefusedError(RuntimeError):
+    """One arm of a causal trial did not generate, and why.
+
+    Carried as an exception rather than an empty string because the probe has
+    to drop the trial. A refusal that arrives as "" is recorded as a
+    divergence of zero, which is the number a perfectly stable channel would
+    produce — the measurement then reports itself as complete.
+    """
+
 _AUTONOMY_RECOVERABLE_ERRORS = (
     ImportError,
     AttributeError,
@@ -619,17 +629,52 @@ class AutonomyConductor:
             note_a_consideration("deferred", because=refusal)
             return {"status": "deferred", "reason": refusal}
 
-        gate = ServiceContainer.get("inference_gate", default=None)
-        if gate is None or not hasattr(gate, "generate"):
+        # Asked for by name, not imported. The turn runs through the cognitive
+        # engine, so it belongs to core/brain, and this module is core/runtime
+        # — foundation, which must come up with no brain present and whose
+        # DEPS says so. A container that has no brain in it returns nothing
+        # here, and nothing is the honest answer.
+        run_probe_turn = ServiceContainer.get("influence_probe_turn", default=None)
+        if not callable(run_probe_turn):
             note_a_consideration(
-                "unavailable", because="inference_gate_not_registered"
+                "unavailable", because="influence_probe_turn_not_registered"
             )
-            return {"status": "unavailable", "reason": "inference_gate_not_registered"}
+            return {
+                "status": "unavailable",
+                "reason": "influence_probe_turn_not_registered",
+            }
 
         channels = list(get_lesion_registry().channels())
         if not channels:
             note_a_consideration("idle", because="no_registered_lesions")
             return {"status": "idle", "reason": "no_registered_lesions"}
+
+        # Only what this job's own turn can move. It runs down the desktop
+        # quick-reply lane with a foreground origin, which opens both guards
+        # the old background call was shut out by — so every registered
+        # channel is on its path today. The check stays because the next
+        # channel somebody registers may not be: a rotation that spends three
+        # generations on a lesion which cannot reach the line it lesions
+        # produces an INERT that measured the guard, which is worse than no
+        # verdict at all.
+        from core.verify.which_lesions_a_direct_call_can_bite import (
+            what_the_probe_turn_can_bite,
+        )
+
+        reachable = set(what_the_probe_turn_can_bite())
+        unreachable = sorted(name for name in channels if name not in reachable)
+        channels = [name for name in channels if name in reachable]
+        if not channels:
+            note_a_consideration(
+                "unreachable",
+                because="no channel this job can lesion is on its own generation path",
+            )
+            return {
+                "status": "unreachable",
+                "reason": "no channel this job can lesion is on its own generation path",
+                "registered": len(unreachable),
+                "unreachable": unreachable,
+            }
 
         # Rotate by least-evidence-first: the channel with the fewest null
         # samples is the one whose verdict is furthest away, so it is the one
@@ -641,16 +686,19 @@ class AutonomyConductor:
         )
 
         async def generate() -> str:
-            result = await gate.generate(
+            # One turn down the desktop quick-reply lane, which is where the
+            # channels are applied. The old generator asked the gate for a
+            # BACKGROUND generation, and every apply_channel site sits behind
+            # a guard a background call does not pass — so it could not have
+            # moved one of the nine channels it was rotating through, however
+            # well its generations had gone. They did not go at all: the gate
+            # refused every arm and the caller turned the refusal into an
+            # empty string, which scores zero against another empty string in
+            # both the treatment arm and the null.
+            return await run_probe_turn(
                 _INFLUENCE_PROBE_PROMPT,
-                {
-                    "origin": "influence_probe",
-                    "max_tokens": 96,
-                    "messages": [{"role": "user", "content": _INFLUENCE_PROBE_PROMPT}],
-                },
-                timeout=_INFLUENCE_PROBE_TIMEOUT_S,
+                timeout_s=_INFLUENCE_PROBE_TIMEOUT_S,
             )
-            return str(getattr(result, "text", result) or "")
 
         report = await run_influence_campaign(
             generate=generate,
@@ -663,14 +711,22 @@ class AutonomyConductor:
         # A run that reached a verdict is a different event from a run that
         # added another sample, and only the first is what the apparatus was
         # built for.
+        # "Attempted" is not "measured". A campaign whose every arm was
+        # refused used to land here as a run, because the report carried a
+        # trial object per channel whether or not the trial produced anything.
+        went = "ran" if report.ran else ("produced_nothing" if report.trials else "deferred")
         note_a_consideration(
-            "ran" if report.ran else "deferred",
-            because="" if report.ran else "the campaign refused after admission",
+            went,
+            because=(
+                ""
+                if report.ran
+                else (report.why_nothing_landed or report.refused or "the campaign refused after admission")
+            ),
             channel=channel,
             reached_a_verdict=str(verdict.verdict) not in ("UNMEASURED", "Verdict.UNMEASURED"),
         )
         return {
-            "status": "ran" if report.ran else "deferred",
+            "status": went,
             "channel": channel,
             "verdict": str(verdict.verdict),
             "n_treatment": verdict.n_treatment,

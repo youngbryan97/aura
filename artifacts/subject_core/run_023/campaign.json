@@ -1,0 +1,181 @@
+{
+  "frozen": {
+    "thresholds": {
+      "component_share": 0.5,
+      "cycles_per_node": 2.0,
+      "d_eff_floor": 3.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2,
+      "sustained": [
+        "C"
+      ]
+    },
+    "seconds_per_turn": 1.0,
+    "layer_rates": {
+      "NeuralMesh": 10.0,
+      "Neurochemical": 2.0,
+      "EmbodiedInteroception": 1.0,
+      "OscillatoryBinding": 100.0,
+      "UnifiedField": 20.0,
+      "SubstrateEvolution": 0.0033333333333333335,
+      "ConsciousnessBridge": 10.0,
+      "ClosedCausalLoop": 0.4,
+      "StreamOfBeing": 0.4
+    },
+    "layer_body": {
+      "NeuralMesh": [
+        "_tick"
+      ],
+      "Neurochemical": [
+        "_metabolic_tick",
+        "_push_modulation"
+      ],
+      "EmbodiedInteroception": [
+        "_sample_hardware",
+        "_push_to_mesh",
+        "_trigger_neurochemical_events"
+      ],
+      "OscillatoryBinding": [
+        "_oscillator_step",
+        "_compute_synchronization/10",
+        "_emit_binding_moment/10"
+      ],
+      "UnifiedField": [
+        "_tick"
+      ],
+      "SubstrateEvolution": [
+        "_run_generation"
+      ],
+      "ConsciousnessBridge": [
+        "_integration_tick"
+      ],
+      "ClosedCausalLoop": [
+        "step"
+      ],
+      "StreamOfBeing": [
+        "step"
+      ]
+    },
+    "substrate_body": [
+      "_step_torch_math",
+      "_stabilize_psych_state",
+      "_recurrent_self_model/5",
+      "_apply_plasticity/100"
+    ],
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "lesion": {
+      "rounds": 16,
+      "recovery_tolerance": 0.5,
+      "deficit_share": 0.1
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "hidden_broker",
+        "independent",
+        "one_way",
+        "prompt_only",
+        "frozen_slow",
+        "ring",
+        "common_driver",
+        "all_to_all",
+        "memory_only",
+        "fake_self",
+        "agency_without_ownership",
+        "ownership_label_without_action_causation",
+        "fast_only",
+        "slow_only",
+        "low_rank",
+        "high_dimensional_independent"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 210,
+      "hash": "5823017389fd6666aff8ba050967f257"
+    },
+    "seed": 7
+  },
+  "fingerprint": "c6898f472c7472e9b9619180a86ebb1a",
+  "run_fingerprint": "d633aa640c5a95c1d6a8cf2d45090160",
+  "commit": "9d65c5d631c4544bc69884f88900f39769adca76",
+  "commit_subject": "fix(clamp): twenty fields kept moving inside their own lesion",
+  "tree_hash": "f3db85b8e52c088a069f902654ff12ca",
+  "dirty": false,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1789197995.281331,
+  "authoritative": true,
+  "authority_blockers": []
+}

@@ -258,3 +258,250 @@ def test_a_real_effect_is_still_detected():
     assert result.effect_size_d > 1.0
     # And it reports the null it subtracted, so a reader can check the framing.
     assert 0.0 < result.null_reference_mean < result.treatment_mean
+
+
+def _effect(d: float, *, significant: bool) -> "ABComparison":
+    """An effect of a given size, significant or not, and nothing else stated."""
+    from core.evaluation.statistics import ABComparison
+
+    if significant:
+        return ABComparison(
+            observed_delta=d, p_value=0.001, ci_low=d / 2, ci_high=d * 1.5, effect_size_d=d
+        )
+    return ABComparison(
+        observed_delta=d, p_value=0.4, ci_low=-abs(d), ci_high=abs(d) * 2, effect_size_d=d
+    )
+
+
+def _report_with(control_d: float, *, control_significant: bool):
+    """A report where everything passes except, possibly, the shuffle control."""
+    from core.evaluation.steering_ab import SteeringABReport
+
+    return SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.80, significant=True),
+        terse_effect=_effect(0.10, significant=False),
+        rich_effect=_effect(0.20, significant=True),
+        control_effects={
+            "zero_vector": _effect(0.02, significant=False),
+            "random_vector": _effect(0.03, significant=False),
+            "shuffled_layers": _effect(control_d, significant=control_significant),
+        },
+        direction=_effect(0.6, significant=True),
+    )
+
+
+def test_a_control_carrying_most_of_the_effect_is_not_a_passed_specificity_check():
+    """Smaller than the treatment was the old bar, and it is too low.
+
+    On the 27B the shuffled-layer control scored 0.44 against a steered 0.75
+    and a baseline of 0.08 — smaller, and carrying three fifths of the
+    movement. Reading that as specificity established is the thing the review
+    said was still alive.
+    """
+    three_fifths = _report_with(0.48, control_significant=True)
+    assert three_fifths.control_effects["shuffled_layers"].effect_size_d < (
+        three_fifths.steered_effect.effect_size_d
+    ), "the old bar is cleared, which is the point"
+    assert three_fifths.effect_is_specific is False
+    assert (
+        "specificity_controls_absent_or_reproduce_the_effect"
+        in three_fifths.unmet_requirements()
+    )
+
+
+def test_a_control_that_barely_moves_still_passes():
+    """The bar is "most of this is the vector at this layer", not "nothing else
+    ever moves". A control under a quarter of the treatment leaves that true."""
+    slight = _report_with(0.15, control_significant=True)
+    assert slight.effect_is_specific is True
+
+    quiet = _report_with(0.48, control_significant=False)
+    assert quiet.effect_is_specific is True, (
+        "a control that is not significant against its own null has not "
+        "reproduced anything, whatever its point estimate reads"
+    )
+
+
+def test_steering_that_adds_to_words_is_a_different_question_from_beating_them():
+    """On the 27B the words win: 1.36 against 0.75.
+
+    That settles "is steering better than asking" and settles nothing about
+    "is steering worth running beside asking", which is the question a served
+    surface actually faces. The report had no way to say either.
+    """
+    from core.evaluation.steering_ab import SteeringABReport
+
+    weaker_alone = SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.40, significant=True),
+        terse_effect=_effect(0.05, significant=False),
+        rich_effect=_effect(0.70, significant=True),
+        control_effects={
+            "zero_vector": _effect(0.01, significant=False),
+            "random_vector": _effect(0.02, significant=False),
+            "shuffled_layers": _effect(0.03, significant=False),
+        },
+        combined_effect=_effect(0.95, significant=True),
+        # The DIRECTION comparison is what adds_to_text reads: the combined
+        # condition's scored behaviour against the rich prompt's. Divergence
+        # said the opposite of the target on the first real run that had both.
+        combined_direction=_effect(0.95, significant=True),
+        direction=_effect(0.5, significant=True),
+    )
+    assert weaker_alone.beats_text_controls is False, "the words still win alone"
+    assert weaker_alone.adds_to_text is True, "and the vectors still carry something"
+    assert weaker_alone.passes_adversarial_control is False, (
+        "adding to words must not be a back door to serving authority"
+    )
+
+
+def test_an_unrun_combined_condition_is_unmeasured_rather_than_a_no():
+    from core.evaluation.steering_ab import SteeringABReport
+
+    never_run = SteeringABReport(
+        n_trials=36,
+        steered_effect=_effect(0.40, significant=True),
+        terse_effect=_effect(0.05, significant=False),
+        rich_effect=_effect(0.70, significant=True),
+    )
+    assert never_run.adds_to_text is None
+
+
+def test_the_combined_condition_survives_the_replay():
+    """A question the campaign paid for and the replay threw away.
+
+    ``_condition_outputs`` kept only the required set, so a campaign that had
+    just spent thirty-six generations on ``steered_plus_text_rich`` had
+    ``adds_to_text`` come back None — unmeasured — every time. A mechanism
+    that cannot fire.
+    """
+    from core.evaluation.caa_causal_evaluation import _condition_outputs
+    from core.evaluation.steering_ab import (
+        COMBINED_CONDITION,
+        REQUIRED_CONDITIONS,
+        SPECIFICITY_CONTROLS,
+    )
+
+    names = [*REQUIRED_CONDITIONS, *SPECIFICITY_CONTROLS, COMBINED_CONDITION]
+    outputs = {
+        name: [f"{name} sample {index} with enough words to be a reply" for index in range(24)]
+        for name in names
+    }
+    kept = _condition_outputs({"condition_outputs": outputs})
+    assert COMBINED_CONDITION in kept
+    assert len(kept[COMBINED_CONDITION]) == 24
+
+
+def test_a_result_without_the_combined_condition_still_replays():
+    """Older campaigns predate it, and unmeasured must stay unmeasured."""
+    from core.evaluation.caa_causal_evaluation import _condition_outputs
+    from core.evaluation.steering_ab import (
+        COMBINED_CONDITION,
+        REQUIRED_CONDITIONS,
+        SPECIFICITY_CONTROLS,
+    )
+
+    names = [*REQUIRED_CONDITIONS, *SPECIFICITY_CONTROLS]
+    outputs = {
+        name: [f"{name} sample {index} with enough words to be a reply" for index in range(24)]
+        for name in names
+    }
+    kept = _condition_outputs({"condition_outputs": outputs})
+    assert COMBINED_CONDITION not in kept
+
+
+def test_adds_to_text_reads_the_target_and_not_the_divergence():
+    """The two measures parted company on the first run that had both.
+
+    On the 27B the combined condition moved the output FURTHER from baseline
+    than the rich prompt did (delta 0.1389 against 0.1235) and less
+    consistently, so its divergence effect size was SMALLER — 3.35 against
+    3.57. The first version of `adds_to_text` compared those and reported
+    False while the affect score went 1.36 -> 3.61.
+
+    Divergence answers "did the text change". This property claims to answer
+    "did it change toward the thing steering is for", which is the scored
+    behaviour.
+    """
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    # The combined condition carries the prompt's movement and more.
+    scores[COMBINED_CONDITION] = [3.0] * trials
+    scores["steered_black_box"] = [0.5] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.combined_direction is not None
+    assert report.combined_direction.observed_delta == pytest.approx(2.0)
+    assert report.adds_to_text is True
+
+
+def test_a_combined_condition_that_adds_nothing_reads_false():
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    scores[COMBINED_CONDITION] = [1.0] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.adds_to_text is False
+
+
+def test_adding_to_text_still_cannot_pass_the_gate():
+    """It answers a different question and must never be a back door."""
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    scores[COMBINED_CONDITION] = [9.0] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.adds_to_text is True
+    assert report.passes_adversarial_control is False

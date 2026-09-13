@@ -59,7 +59,7 @@ class PermissionDecision:
     #: below counts only actions nobody asked for.
     asked_for: bool = False
     receipt_id: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self):
         if not self.receipt_id:

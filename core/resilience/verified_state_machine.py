@@ -82,7 +82,7 @@ class TransitionRecord:
     """Record of a state transition."""
     from_state: str
     to_state: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     guard_passed: bool = True
     action_executed: bool = False
 

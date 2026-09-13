@@ -141,7 +141,7 @@ class CueRecord:
     dissociations: int = 0
 
     last_wanting: float = 0.0
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
     #: Which origins have ever supplied this cue's value, and how often. A
     #: cached value is learned pull whose source is historical, and without

@@ -59,7 +59,7 @@ class WeightEvidence:
     source: str
     errors: deque[float] = field(default_factory=lambda: deque(maxlen=256))
     choices: int = 0
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     #: Outcomes needed before the mean error means anything. Ten is the
     #: smallest window over which a hedonic average stops tracking single

@@ -73,6 +73,17 @@ def _tally(outcomes: list[str]) -> dict[str, Any]:
 
 
 def run_eval(args: argparse.Namespace) -> dict[str, Any]:
+    # The clock starts here, not at import.
+    #
+    # `--max-seconds` used to be measured from a module-level `_START`, which
+    # is set when the module is first imported. Run as a script that is the
+    # same instant and the bound means what it says. Imported into a process
+    # that goes on doing other things — a test chunk that loaded this module
+    # fifteen minutes before it called it — the budget was already spent
+    # before the first task, and the run raised TimeoutError having taken 29
+    # seconds.
+    started = time.time()
+
     from mlx_lm import load
 
     from core.brain.llm.latent_cortex.types import ComputeBudget
@@ -128,7 +139,7 @@ def run_eval(args: argparse.Namespace) -> dict[str, Any]:
                         "seeded_sources": seeded_sources,
                     }
                 )
-            if args.max_seconds and index >= 0 and time.time() - _START > args.max_seconds:
+            if args.max_seconds and index >= 0 and time.time() - started > args.max_seconds:
                 raise TimeoutError(
                     f"integrated eval exceeded --max-seconds {args.max_seconds}"
                 )
@@ -158,8 +169,6 @@ def run_eval(args: argparse.Namespace) -> dict[str, Any]:
         "finished_at": time.time(),
     }
 
-
-_START = time.time()
 
 
 def main() -> int:

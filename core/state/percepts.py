@@ -31,6 +31,7 @@ __all__ = [
     "emit_percept",
     "fresh_for",
     "mark_consumed",
+    "reweight_stream",
     "read_percept",
 ]
 
@@ -154,6 +155,94 @@ def drop_consumed(world: Any, by: str) -> int:
     return dropped
 
 
+
+def _attend(record: dict[str, Any]) -> None:
+    """Raise the salience of an arriving percept that matches what won attention.
+
+    Biased competition, and the one coupling global workspace theory is most
+    explicit about: what is globally available biases the perceptual systems.
+    The broadcast reached recurrent cognition, the self model, affect and
+    deliberation, and perception was not among its consumers — so nothing she
+    was attending to could change what she noticed next, and the only route
+    into perception at all was the readback of a file she had just written.
+
+    The gain carries no constant of its own. Attention can at most close the
+    gap to full salience, in proportion to how much of the percept the
+    broadcast shares and how strongly the broadcast won: a percept with nothing
+    in common with what is attended is left exactly as it arrived.
+    """
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        workspace = get_runtime_service("global_workspace", default=None)
+        attention = getattr(workspace, "last_broadcast_attention", None)
+        if not isinstance(attention, Mapping):
+            return
+        priority = max(0.0, min(1.0, float(attention.get("priority", 0.0) or 0.0)))
+        if priority <= 0.0:
+            return
+        overlap = _overlap(str(record.get("content", "")), str(attention.get("content", "")))
+        if overlap <= 0.0:
+            return
+        salience = max(0.0, min(1.0, float(record.get("salience", 0.0) or 0.0)))
+        gained = salience + (1.0 - salience) * overlap * priority
+        record["salience"] = max(0.0, min(1.0, gained))
+        record["attended"] = round(gained - salience, 4)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        # A percept that cannot be biased is still a percept.
+        return
+
+
+def _overlap(text: str, attended: str) -> float:
+    """The share of this percept's words that the broadcast also carries."""
+    words = {word for word in text.lower().split() if len(word) > 2}
+    if not words:
+        return 0.0
+    theirs = {word for word in attended.lower().split() if len(word) > 2}
+    if not theirs:
+        return 0.0
+    return len(words & theirs) / len(words)
+
+
+def reweight_stream(world: Any, attention: Any) -> int:
+    """Re-weight the live stream against what is being attended to now.
+
+    `_attend` raises the salience of a percept as it arrives, which covers
+    onset and nothing after it. Attention is not an onset effect: what wins the
+    competition keeps biasing the perceptual systems for as long as it holds,
+    and a percept already in the stream when attention shifts should feel the
+    shift too. Without this, the only way the workspace could reach perception
+    was by a percept happening to arrive in the same tick as the broadcast,
+    which made the whole channel fire on a coincidence — measured at an effect
+    of 0.17 against a bar of 0.30, replicating in three conditions of eight.
+
+    The gain carries no constant of its own, and it only ever closes the gap
+    towards full salience in proportion to the overlap and the broadcast's
+    strength. A percept with nothing in common with what is attended comes back
+    exactly as it was. Returns how many percepts moved.
+    """
+    percepts = getattr(world, "recent_percepts", None)
+    if not isinstance(percepts, list) or not isinstance(attention, Mapping):
+        return 0
+    priority = max(0.0, min(1.0, float(attention.get("priority", 0.0) or 0.0)))
+    if priority <= 0.0:
+        return 0
+    content = str(attention.get("content", ""))
+    moved = 0
+    for item in percepts:
+        if not isinstance(item, MutableMapping):
+            continue
+        overlap = _overlap(str(item.get("content", "")), content)
+        if overlap <= 0.0:
+            continue
+        salience = max(0.0, min(1.0, float(item.get("salience", 0.0) or 0.0)))
+        gained = salience + (1.0 - salience) * overlap * priority
+        if abs(gained - salience) > 1e-9:
+            item["salience"] = max(0.0, min(1.0, gained))
+            moved += 1
+    return moved
+
+
 def emit_percept(
     world: Any,
     kind: str,
@@ -175,6 +264,7 @@ def emit_percept(
         "timestamp": time.time(),
     }
     record.update(extra)
+    _attend(record)
     percepts.append(record)
     trim = getattr(world, "trim_percepts", None)
     if callable(trim):

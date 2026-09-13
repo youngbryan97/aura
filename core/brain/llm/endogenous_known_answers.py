@@ -161,6 +161,12 @@ def declare_validation_tests(ValidationTest, Observation, boolean_score) -> list
                 subject="endogenous readout verdict",
             ),
             owner="core/brain/llm/endogenous_readout_training.py",
+            # Trains a readout over the known-answer corpora and scores it,
+            # which is 6.5 seconds of arriving at a result rather than reading
+            # one a previous run arrived at. A boot checks instruments; this is
+            # an experiment, owned by
+            # tests/test_the_experiments_the_boot_posture_declines.py.
+            expensive=True,
         ),
         ValidationTest(
             name="endogenous_bias_cannot_promote_a_ruled_out_token",

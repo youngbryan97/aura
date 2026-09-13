@@ -40,7 +40,7 @@ class CuriosityTopic:
     topic: str
     reason: str
     priority: float  # 0.0 to 1.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     explored: bool = False
 
 @dataclass
@@ -48,7 +48,7 @@ class LearningItem:
     content: str
     source: str
     confidence: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     tags: List[str] = field(default_factory=list)
 
 #: Markers a fetched page could use to impersonate an instruction once its

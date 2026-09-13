@@ -62,7 +62,7 @@ class TrainingExample:
     aura_response: str
     quality_score: float          # 0.0–1.0 — only examples above threshold get trained on
     source: str                   # "user_positive", "self_play", "dream_insight", "correction"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     emotional_context: dict[str, float] = field(default_factory=dict)
 
     def to_mlx_format(self) -> dict[str, str]:

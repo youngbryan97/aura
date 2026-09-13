@@ -44,13 +44,16 @@ from .topology import power_law_fit
 logger = logging.getLogger("Aura.Connectome.Criticality")
 
 __all__ = [
-    "BranchingEstimate",
-    "branching_ratio_mr",
-    "naive_branching_ratio",
     "Avalanches",
-    "extract_avalanches",
+    "BranchingEstimate",
     "CriticalityReport",
+    "MINIMUM_DECADES",
     "assess",
+    "branching_ratio_mr",
+    "cascades_beyond_rate",
+    "exponent_against_recording_width",
+    "extract_avalanches",
+    "naive_branching_ratio",
 ]
 
 
@@ -363,6 +366,170 @@ class CriticalityReport:
         }
 
 
+def cascades_beyond_rate(
+    spikes: Any,
+    *,
+    shuffles: int = 8,
+    seed: int = 11,
+    percentile: float = 0.0,
+) -> dict[str, Any]:
+    """Are these cascades, or is this the firing rate arriving in bins?
+
+    Shift each unit's own spike train by its own random amount. Every firing
+    rate survives untouched and every coincidence between units is destroyed,
+    so what separates the real recording from the shifted one is exactly the
+    coincidence. Beggs and Plenz ran this control against their own arrays.
+
+    What gets compared is how much the number of units active in a bin varies.
+    Independent units make that variance the sum of their own, which is what
+    the shuffled ensemble measures, and units that recruit each other push it
+    above that. Comparing the avalanche exponent instead does not work and was
+    tried first: at high occupancy the avalanches are separated by whichever
+    bins happen to be silent, so rolling the units moves the largest cascade
+    around for reasons that have nothing to do with recruitment, and the test
+    called independent Poisson structured and real recruitment flat.
+    """
+    import numpy as np
+
+    values = np.asarray(spikes, dtype=np.float64)
+    if values.ndim != 2 or values.size == 0:
+        return {"verdict": "no recording"}
+    magnitude = np.abs(values)
+    thresholds = np.percentile(magnitude, percentile, axis=0)
+    active = (magnitude > thresholds[None, :]).astype(np.float64)
+    real_counts = active.sum(axis=1)
+    real_spread = float(real_counts.var())
+
+    rng = np.random.default_rng(seed)
+    ticks = active.shape[0]
+    spreads: list[float] = []
+    for _ in range(max(2, shuffles)):
+        rolled = np.empty_like(active)
+        for unit in range(active.shape[1]):
+            rolled[:, unit] = np.roll(active[:, unit], int(rng.integers(0, ticks)))
+        spreads.append(float(rolled.sum(axis=1).var()))
+    null_mean = sum(spreads) / len(spreads)
+    null_sd = (sum((value - null_mean) ** 2 for value in spreads) / len(spreads)) ** 0.5
+    # Three sigma, the same threshold this module already uses to call an
+    # excursion a spike.
+    excess = (real_spread - null_mean) / null_sd if null_sd > 0 else 0.0
+    coincident = excess >= 3.0
+
+    cascades = extract_avalanches_per_unit(values, percentile=percentile)
+    fit = power_law_fit(cascades.sizes)
+    return {
+        "active_fraction": round(cascades.active_fraction, 4),
+        "exponent": round(float(fit.get("alpha", 0.0)), 4),
+        "population_variance": round(real_spread, 4),
+        "shuffled_variance": round(null_mean, 4),
+        "shuffled_spread": round(null_sd, 6),
+        "sigmas_above_independence": round(float(excess), 3),
+        "shuffles": max(2, shuffles),
+        "verdict": (
+            f"units fire together {excess:.1f} sigma more than their own rates "
+            "explain, so these runs are cascades"
+            if coincident
+            else (
+                "shifting every unit against every other one leaves the same "
+                f"spread ({excess:.1f} sigma), so this is the firing rate "
+                "arriving in bins and not a cascade measurement"
+            )
+        ),
+    }
+
+
+def exponent_against_recording_width(
+    spikes: Any,
+    *,
+    widths: Sequence[int] = (30, 60, 120, 240, 480, 960, 1920, 0),
+    seed: int = 1000,
+) -> dict[str, Any]:
+    """Refit the avalanche exponents while reading more and more of the system.
+
+    An exponent is a claim about scaling and does not care how much of a system
+    a recording reads. The slope of a finite window's cutoff does, and it gets
+    steeper as the window narrows, so a curve that moves is the answer to
+    whether a number was ever a measurement.
+
+    Each width takes its own subsample, sets the analysis bin to that
+    subsample's mean inter-event interval the way Beggs and Plenz set theirs,
+    and refits. A width of 0 means every unit.
+    """
+    import numpy as np
+
+    values = np.asarray(spikes, dtype=np.float64)
+    if values.ndim != 2 or values.size == 0:
+        return {"rows": [], "verdict": "no recording"}
+    ticks, units = values.shape
+    rows: list[dict[str, Any]] = []
+    for width in widths:
+        keep = units if width <= 0 else min(int(width), units)
+        chosen = np.sort(
+            np.random.default_rng(seed + keep).choice(units, size=keep, replace=False)
+        )
+        sub = values[:, chosen]
+        events = int((sub.sum(axis=1) > 0).sum())
+        bin_ticks = max(1, round(ticks / max(1, events)))
+        usable = (ticks // bin_ticks) * bin_ticks
+        folded = (
+            sub[:usable].reshape(usable // bin_ticks, bin_ticks, keep).sum(axis=1)
+            if bin_ticks > 1 and usable
+            else sub
+        )
+        # A unit is active in a wide bin if it fired at all in it. Summing
+        # leaves a count, and the extractor's per-unit threshold is that
+        # unit's own minimum, so a unit that fired in every wide bin would
+        # have its quietest bins counted as silence -- which at these bin
+        # widths is most of them.
+        cascades = extract_avalanches_per_unit(
+            (folded > 0).astype(float) if bin_ticks > 1 else folded, percentile=0.0
+        )
+        fit = power_law_fit(cascades.sizes)
+        duration = power_law_fit(cascades.durations)
+        rows.append(
+            {
+                "units_recorded": keep,
+                "bin_ticks": bin_ticks,
+                "avalanches": len(cascades.sizes),
+                "active_fraction": round(cascades.active_fraction, 4),
+                "largest": max(cascades.sizes) if cascades.sizes else 0,
+                "size_exponent": round(float(fit.get("alpha", 0.0)), 4),
+                "size_decades": round(float(fit.get("decades", 0.0)), 4),
+                "size_ks": round(float(fit.get("ks", 1.0)), 4),
+                "duration_exponent": round(float(duration.get("alpha", 0.0)), 4),
+                "duration_decades": round(float(duration.get("decades", 0.0)), 4),
+            }
+        )
+    fitted = [row for row in rows if row["size_exponent"] > 0.0]
+    moved = (
+        max(row["size_exponent"] for row in fitted) - min(row["size_exponent"] for row in fitted)
+        if fitted
+        else 0.0
+    )
+    return {
+        "rows": rows,
+        "units": units,
+        "exponent_range": round(moved, 4),
+        "verdict": (
+            f"the size exponent moves {moved:.3f} across recording widths, so it is "
+            "reading the window and not only the dynamics"
+            if moved > 0.5
+            else f"the size exponent holds within {moved:.3f} across recording widths"
+        ),
+    }
+
+
+#: How far a fitted tail has to run before an exponent means anything.
+#:
+#: Clauset, Shalizi and Newman put the floor above a decade: under that a power
+#: law is not separable from a lognormal, an exponential, or the shoulder of a
+#: finite system's cutoff, whatever the KS distance says. Beggs and Plenz fitted
+#: theirs over nearly two decades of avalanche size. Fitting through a cutoff
+#: returns an exponent STEEPER than the real one, so a system measured over half
+#: a decade will look like its cascades are smaller than they are.
+MINIMUM_DECADES: float = 1.0
+
+
 def assess(
     activity: Sequence[float],
     *,
@@ -413,9 +580,17 @@ def assess(
         size_fit.get("ks", 1.0) < 0.2
         and duration_fit.get("ks", 1.0) < 0.2
         and size_fit.get("tail_n", 0) >= 32
+        and size_fit.get("decades", 0.0) >= MINIMUM_DECADES
+        and duration_fit.get("decades", 0.0) >= MINIMUM_DECADES
     )
     if not fits_are_usable:
-        verdict = "avalanche exponents are not reliable enough to test criticality"
+        verdict = (
+            "avalanche exponents are not reliable enough to test criticality: "
+            f"{size_fit.get('decades', 0.0):.2f} decades of size and "
+            f"{duration_fit.get('decades', 0.0):.2f} of duration, "
+            f"KS {size_fit.get('ks', 1.0):.3f} and {duration_fit.get('ks', 1.0):.3f}, "
+            f"{int(size_fit.get('tail_n', 0))} in the fitted tail"
+        )
     elif error < 0.2:
         verdict = f"consistent with criticality: exponents satisfy the scaling relation, m={branching.m:.3f}"
     else:

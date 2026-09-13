@@ -14,6 +14,8 @@ bar to be trusted, so nothing ever looked ahead, all game.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit, pursuit_loop_source
+
 import asyncio
 
 import core.skills.screen_pursuit as sp
@@ -43,7 +45,7 @@ def test_it_waits_for_a_slide_that_changes_no_words(monkeypatch):
     async def read(app_name="", over=None):
         return frames.pop(0) if len(frames) > 1 else frames[0]
 
-    monkeypatch.setattr(sp, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     seen, moved = asyncio.run(sp._settled_after(MOVING, "Thing", patience=5.0))
     assert moved is True
     assert seen is DONE, "it settled on the frame where nothing was travelling"
@@ -53,7 +55,7 @@ def test_a_surface_that_never_moves_says_so(monkeypatch):
     async def read(app_name="", over=None):
         return MOVING
 
-    monkeypatch.setattr(sp, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     _seen, moved = asyncio.run(sp._settled_after(MOVING, "Thing", patience=1.0))
     assert moved is False
 
@@ -77,7 +79,7 @@ def test_the_arrival_of_what_she_foretold_ends_the_wait(monkeypatch):
         reads["n"] += 1
         return SLID
 
-    monkeypatch.setattr(sp, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     seen, moved = asyncio.run(
         sp._settled_after(MOVING, "Thing", patience=5.0, arrived=lambda now: now is SLID)
     )
@@ -92,7 +94,7 @@ def test_a_test_that_says_no_still_waits_for_stillness(monkeypatch):
     async def read(app_name="", over=None):
         return frames.pop(0) if len(frames) > 1 else frames[0]
 
-    monkeypatch.setattr(sp, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     seen, moved = asyncio.run(
         sp._settled_after(MOVING, "Thing", patience=5.0, arrived=lambda now: False)
     )
@@ -108,7 +110,7 @@ def test_she_foretold_nothing_when_she_holds_no_grid():
 def test_the_pursuit_hands_the_wait_what_it_foretold():
     import inspect
 
-    source = inspect.getsource(sp.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("came_to_rest, _ = await _settled_after(")
     assert "arrived=_looks_like(" in source[at : at + 400]
     assert 'expected["after"]' in source[at : at + 400]

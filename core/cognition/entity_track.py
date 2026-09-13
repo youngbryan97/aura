@@ -120,8 +120,8 @@ class EntityTrack:
     state: TrackState = TrackState.VISIBLE
     support: int = 0
     misses: int = 0
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
     last_observation: Observation | None = None
     #: What this might be, weighted. Never collapsed into an identity.
     hypotheses: dict[str, float] = field(default_factory=dict)

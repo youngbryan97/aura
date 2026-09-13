@@ -30,7 +30,7 @@ class PersistenceDiagram:
     """A persistence diagram: list of (birth, death) pairs per dimension."""
     dim0: List[Tuple[float, float]] = field(default_factory=list)   # H0: connected components
     dim1: List[Tuple[float, float]] = field(default_factory=list)   # H1: loops
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def total_persistence(self) -> float:
         """Sum of lifetimes across all features."""

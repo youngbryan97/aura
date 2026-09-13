@@ -155,7 +155,9 @@ class Execution:
 def _size(value: Any) -> int:
     try:
         return len(repr(value))
-    except Exception:  # noqa: BLE001
+    except (RecursionError, TypeError, ValueError, AttributeError):
+        # A repr that refuses has no size. Narrow: anything else here is a
+        # defect in this function, and reporting it as size zero hides it.
         return 0
 
 

@@ -125,7 +125,7 @@ class SelfhoodState:
     dominant_deficit: str
     transition_count: int               # # of times mode changed
     n_updates: int
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 # ── Core module ────────────────────────────────────────────────────────────────

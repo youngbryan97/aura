@@ -16,7 +16,7 @@ class ResourceBudget:
     capacity: float
     level: float
     regen_rate_per_sec: float
-    last_tick: float = field(default_factory=time.time)
+    last_tick: float = field(default_factory=lambda: time.time())
 
     def tick(self):
         now = time.time()

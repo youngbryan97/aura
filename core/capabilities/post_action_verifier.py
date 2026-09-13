@@ -42,7 +42,7 @@ class VerificationResult:
     expected: str = ""              # what was expected
     screenshot_path: str = ""       # optional verification screenshot
     duration_ms: float = 0.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

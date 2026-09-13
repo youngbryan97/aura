@@ -10,6 +10,8 @@ until it is doing better than the first.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.perception.what_is_there import Arrangement, Cell
 from core.skills.screen_pursuit import _she_got_further, _the_biggest_thing_on_it
 
@@ -62,7 +64,7 @@ def test_the_pursuit_says_it_and_keeps_it():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "_she_got_further(made, beaten)" in source
     assert 'furthest["here"] = max(furthest["here"], made)' in source
     assert '"furthest": (' in source
@@ -78,7 +80,7 @@ def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("_she_got_further(made, beaten)")
     assert 'if responds["lattice"].held' in source[at - 2200 : at]
 
@@ -95,7 +97,7 @@ def test_nothing_is_claimed_from_a_reading_of_an_ending():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("made = (")
     assert 'not responds["state"].nothing_answers()' in source[at : at + 900]
 
@@ -115,7 +117,7 @@ def test_a_carried_record_has_to_turn_up_again_before_it_counts():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index('furthest["again"] = max(')
     nearby = source[at : at + 500]
     assert 'furthest["again"] >= furthest["here"]' in nearby
@@ -127,7 +129,7 @@ def test_what_is_kept_is_the_record_this_sitting_could_stand_behind():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index('"furthest": (')
     nearby = source[at : at + 300]
     assert 'furthest["again"] >= furthest["here"]' in nearby

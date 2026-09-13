@@ -43,7 +43,7 @@ class MHAFNode:
     name: str
     activation: float = 0.5        # current activation level [0, 1]
     hrr_vector: np.ndarray | None = None  # HRR encoding
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict:
         return {
@@ -60,7 +60,7 @@ class MHAFEdge:
     weight: float = 0.5            # edge strength [0, 1]
     phi: float = 0.0               # local Φ estimate for this edge's node activations
     free_energy: float = 1.0       # current free energy (lower = better)
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict:
         return {

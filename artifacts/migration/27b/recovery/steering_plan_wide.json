@@ -1,0 +1,133 @@
+{
+  "attention_targets": [
+    27,
+    31,
+    35,
+    39
+  ],
+  "authority_errors_before_capture": [
+    "missing_evidence:extraction_bound_to_active_descriptor",
+    "missing_evidence:causal_ab_vs_matched_noop",
+    "missing_evidence:lesion_removes_the_effect",
+    "missing_evidence:no_regression_on_the_control_prompts"
+  ],
+  "descriptor_fingerprint": "05346acd618d1c925f1619b30d6bdec50794095e967dea1b3f16ac471dbe9bf4",
+  "dimensions": [
+    "valence_positive",
+    "arousal",
+    "curiosity",
+    "frustration",
+    "energy"
+  ],
+  "expected_vector_count": 80,
+  "hidden_size": 5120,
+  "linear_targets": [
+    25,
+    26,
+    28,
+    29,
+    30,
+    32,
+    33,
+    34,
+    36,
+    37,
+    38,
+    40
+  ],
+  "model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "num_hidden_layers": 64,
+  "required_evidence": [
+    "extraction_bound_to_active_descriptor",
+    "causal_ab_vs_matched_noop",
+    "lesion_removes_the_effect",
+    "no_regression_on_the_control_prompts"
+  ],
+  "reuses_previous_vectors": false,
+  "schema": "aura.caa.steering_regeneration_plan.v1",
+  "serving_authority": false,
+  "superseded_bundle": {
+    "disposition": "retained as 32B history; unusable here even though the widths match, because the residual basis is a different model's",
+    "model": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+    "path": "training/vectors/caa_steering_meta.json",
+    "target_layers": [
+      25,
+      27,
+      29,
+      31,
+      33,
+      35,
+      37,
+      39,
+      41
+    ],
+    "total_vectors": 45
+  },
+  "target_layers": [
+    {
+      "index": 3,
+      "kind": "full_attention"
+    },
+    {
+      "index": 7,
+      "kind": "full_attention"
+    },
+    {
+      "index": 11,
+      "kind": "full_attention"
+    },
+    {
+      "index": 15,
+      "kind": "full_attention"
+    },
+    {
+      "index": 19,
+      "kind": "full_attention"
+    },
+    {
+      "index": 23,
+      "kind": "full_attention"
+    },
+    {
+      "index": 27,
+      "kind": "full_attention"
+    },
+    {
+      "index": 31,
+      "kind": "full_attention"
+    },
+    {
+      "index": 35,
+      "kind": "full_attention"
+    },
+    {
+      "index": 39,
+      "kind": "full_attention"
+    },
+    {
+      "index": 43,
+      "kind": "full_attention"
+    },
+    {
+      "index": 47,
+      "kind": "full_attention"
+    },
+    {
+      "index": 51,
+      "kind": "full_attention"
+    },
+    {
+      "index": 55,
+      "kind": "full_attention"
+    },
+    {
+      "index": 59,
+      "kind": "full_attention"
+    },
+    {
+      "index": 63,
+      "kind": "full_attention"
+    }
+  ],
+  "target_layer_selection": "every full_attention layer in the checkpoint. The narrow band gave four adjacent ones whose vectors are 0.79 alike, and permuting four alike vectors keeps the effect -- which is the specificity control the last campaign failed, at 0.375 against a treatment of 0.875."
+}

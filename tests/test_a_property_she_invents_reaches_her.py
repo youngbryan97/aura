@@ -14,6 +14,8 @@ actually go better with it.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import pytest
 
 from core.agency.how_good_is_this import (
@@ -105,7 +107,7 @@ def test_the_pursuit_gathers_what_it_cannot_explain():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert "cannot_explain.been_here(" in source
 
 
@@ -114,7 +116,7 @@ def test_and_proposes_something_when_the_run_ends():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert "cannot_explain.worth_trying(" in source
     assert "on_trial(measure" in source
 
@@ -124,7 +126,7 @@ def test_and_grades_the_trial_as_it_goes():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert "_how_the_trial_is_going(trying[" in source
 
 
@@ -158,7 +160,7 @@ def test_the_pursuit_picks_up_a_trial_it_did_not_start():
 
     doing = [
         line
-        for line in inspect.getsource(screen_pursuit).splitlines()
+        for line in pursuit_source().splitlines()
         if not line.strip().startswith("#")
     ]
     assert any('"name": _a_trial_is_running()' in line for line in doing), (
@@ -201,6 +203,6 @@ def test_the_pursuit_reports_what_the_run_came_to_as_a_rate():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit)
+    source = pursuit_source()
     assert 'began_at["seen"]' in source
     assert "finished_on - float(began_at" in source

@@ -24,12 +24,13 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
+from core.runtime.lockdep import checked_lock
 
 #: Below this a run of one answer is ordinary. Ten decisions all going the same
 #: way is a Tuesday; a hundred is a mechanism.
 ENOUGH_TO_BE_A_PATTERN = 40
 
-_lock = threading.Lock()
+_lock = checked_lock("core.verify.one_way_decisions.lock")
 _admitted: dict[str, int] = {}
 _refused: dict[str, int] = {}
 _reasons: dict[str, str] = {}

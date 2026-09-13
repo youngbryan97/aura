@@ -100,9 +100,21 @@ def test_the_concept_recovers_the_case_that_motivated_it(failures) -> None:
     # that it can see them at all: every one of the six is found somewhere,
     # and the ones still taken from a bare token are still grouped.
     reviewed = {"copy", "move", "open", "read", "file", "screen"}
-    assert reviewed <= set(tokens), (
-        "the mechanism no longer finds these at all, which means it stopped "
-        f"looking rather than that they were fixed: {sorted(reviewed - set(tokens))}"
+    # "Stopped looking" is a property of the mechanism, not of any one word, so
+    # it is checked as one: a walk that has gone blind finds almost nothing.
+    assert len(tokens) >= 20, (
+        f"the mechanism found {len(tokens)} tokens in the whole record, which "
+        "is a walk that has stopped looking rather than a tree that got better"
+    )
+    # "open" left the record on 2026-09-13. Its last bare-token site was
+    # core/orchestrator/mixins/response_processing.py, deciding a command list
+    # by containment, and it went to `names_any` in the pass that took the
+    # substring-marker ratchet from 480 to 443. A word repaired to zero sites
+    # is a repair, and this number moves only with that evidence beside it --
+    # the same rule the paragraph above already applies to `repeated`.
+    assert len(reviewed & set(tokens)) >= 5, (
+        "more of the reviewed words have gone than the record accounts for: "
+        f"{sorted(reviewed - set(tokens))}"
     )
     assert len(reviewed & repeated) >= 4, (
         "too few of the reviewed words are still decided from a bare token for "

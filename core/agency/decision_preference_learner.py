@@ -75,7 +75,7 @@ class PendingChoice:
     goal: str
     weights_used: dict[str, float]
     receipt_id: str | None = None
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 class DecisionPreferenceLearner:

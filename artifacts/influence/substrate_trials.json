@@ -1,0 +1,157 @@
+{
+  "base_token_budget": 256,
+  "elapsed_s": 990.0,
+  "findings": {
+    "affect.circumplex_sampling": {
+      "generation_failures": 0,
+      "intact_sampling": {
+        "max_tokens": 154,
+        "temperature": 0.4906
+      },
+      "lesioned_sampling": {
+        "max_tokens": 154,
+        "temperature": 0.3096
+      },
+      "trials_completed": 40,
+      "verdict": {
+        "channel": "affect.circumplex_sampling",
+        "ci_high": 0.038818,
+        "ci_low": -0.072445,
+        "cliffs_delta": 0.001875,
+        "effect": -0.017108,
+        "mean_null": 0.822113,
+        "mean_treatment": 0.805006,
+        "n_null": 40,
+        "n_treatment": 40,
+        "noise_floor": 0.109354,
+        "reason": "lesioning the channel changed nothing detectable: the whole interval [-0.0724, 0.0388] sits below the 0.1094 noise floor",
+        "verdict": "inert"
+      },
+      "what_moved": [
+        "temperature"
+      ]
+    },
+    "bicameral.sampling_bias": {
+      "generation_failures": 0,
+      "intact_sampling": {
+        "max_tokens": 154,
+        "temperature": 0.4906
+      },
+      "lesioned_sampling": {
+        "max_tokens": 167,
+        "temperature": 0.5206
+      },
+      "trials_completed": 40,
+      "verdict": {
+        "channel": "bicameral.sampling_bias",
+        "ci_high": 0.075167,
+        "ci_low": -0.026572,
+        "cliffs_delta": 0.21125,
+        "effect": 0.024873,
+        "mean_null": 0.816915,
+        "mean_treatment": 0.841788,
+        "n_null": 40,
+        "n_treatment": 40,
+        "noise_floor": 0.116336,
+        "reason": "lesioning the channel changed nothing detectable: the whole interval [-0.0266, 0.0752] sits below the 0.1163 noise floor",
+        "verdict": "inert"
+      },
+      "what_moved": [
+        "temperature",
+        "max_tokens"
+      ]
+    },
+    "imagination.sampling_bias": {
+      "generation_failures": 0,
+      "intact_sampling": {
+        "max_tokens": 154,
+        "temperature": 0.4906
+      },
+      "lesioned_sampling": {
+        "max_tokens": 146,
+        "temperature": 0.457
+      },
+      "trials_completed": 40,
+      "verdict": {
+        "channel": "imagination.sampling_bias",
+        "ci_high": 0.015854,
+        "ci_low": -0.087061,
+        "cliffs_delta": -0.258125,
+        "effect": -0.03722,
+        "mean_null": 0.845148,
+        "mean_treatment": 0.807928,
+        "n_null": 40,
+        "n_treatment": 40,
+        "noise_floor": 0.12008,
+        "reason": "lesioning the channel changed nothing detectable: the whole interval [-0.0871, 0.0159] sits below the 0.1201 noise floor",
+        "verdict": "inert"
+      },
+      "what_moved": [
+        "temperature",
+        "max_tokens"
+      ]
+    },
+    "spiking.sampling_bias": {
+      "generation_failures": 0,
+      "intact_sampling": {
+        "max_tokens": 154,
+        "temperature": 0.4906
+      },
+      "lesioned_sampling": {
+        "max_tokens": 248,
+        "temperature": 0.6846
+      },
+      "trials_completed": 40,
+      "verdict": {
+        "channel": "spiking.sampling_bias",
+        "ci_high": 0.081309,
+        "ci_low": -0.010329,
+        "cliffs_delta": 0.17125,
+        "effect": 0.033569,
+        "mean_null": 0.800545,
+        "mean_treatment": 0.834114,
+        "n_null": 40,
+        "n_treatment": 40,
+        "noise_floor": 0.112907,
+        "reason": "lesioning the channel changed nothing detectable: the whole interval [-0.0103, 0.0813] sits below the 0.1129 noise floor",
+        "verdict": "inert"
+      },
+      "what_moved": [
+        "temperature",
+        "max_tokens"
+      ]
+    }
+  },
+  "measured_here": [
+    "affect.circumplex_sampling",
+    "spiking.sampling_bias",
+    "imagination.sampling_bias",
+    "bicameral.sampling_bias"
+  ],
+  "neutral_temperature": 0.5,
+  "not_measurable_by_a_direct_call": [
+    "affect.generation_controls",
+    "live_mind.context_block",
+    "live_mind.generation_controls",
+    "live_mind.recurrent_loops",
+    "live_mind.steering_alpha",
+    "qualia.richness"
+  ],
+  "registered_channels": [
+    "affect.circumplex_sampling",
+    "affect.generation_controls",
+    "bicameral.sampling_bias",
+    "imagination.sampling_bias",
+    "live_mind.context_block",
+    "live_mind.generation_controls",
+    "live_mind.recurrent_loops",
+    "live_mind.steering_alpha",
+    "qualia.richness",
+    "spiking.sampling_bias"
+  ],
+  "schema": "aura.influence.substrate_trials.v1",
+  "stimulus": "Describe, in a few sentences, how you are approaching this moment.",
+  "substrate": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "trials_per_channel": 40,
+  "what_this_is_not": "a verdict at the 27B. The substrate is a 1.5B and the result is a result at that substrate. Read `what_moved` per channel before reading its verdict: a channel whose budget half did not move was measured on its temperature alone."
+}

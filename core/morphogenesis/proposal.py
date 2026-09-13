@@ -247,7 +247,7 @@ class MorphProposal:
     estimated_cost: float = 0.0
     subsystem: str = "generic"
     rationale: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     proposal_id: str = ""
 
     def __post_init__(self) -> None:
@@ -384,7 +384,7 @@ class MorphTransaction:
     receipt_id: str = ""
     duration_ms: float = 0.0
     substrate_events: tuple[dict[str, Any], ...] = ()
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def committed(self) -> bool:

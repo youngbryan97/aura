@@ -720,3 +720,132 @@ async def test_a_restored_arm_starts_where_the_snapshot_was(tmp_path):
     finally:
         if runtime.clock is not None:
             runtime.clock.uninstall()
+
+
+async def test_every_name_for_the_substrate_reaches_one_substrate(tmp_path):
+    """Three of them existed, and only one was ever stepped.
+
+    The consciousness system built one and published it as
+    `conscious_substrate` and `liquid_state`; the orchestrator's boot mixin
+    built another and published that as `liquid_substrate` and
+    `conscious_substrate`, clobbering the first under the shared name; the
+    organism then republished the consciousness system's under
+    `liquid_substrate`. So `conscious_substrate` resolved to one object and
+    `liquid_substrate` to another, and which one a subsystem got was decided by
+    which name it happened to use.
+
+    The one nothing steps reports an infinitely old snapshot, zero volatility
+    and zero phi for the life of the process.
+    """
+    from core.container import ServiceContainer
+    from core.subject.driver import build_runtime, start_organism
+
+    runtime = build_runtime(tmp_path / "runtime", seed=13)
+    await start_organism(runtime, quiet=True)
+    names = (
+        "conscious_substrate",
+        "liquid_substrate",
+        "liquid_state",
+        "liquid_neural_network",
+    )
+    resolved = {name: ServiceContainer.get(name, default=None) for name in names}
+    present = {name: value for name, value in resolved.items() if value is not None}
+    assert present, "no substrate is registered at all"
+    identities = {id(value) for value in present.values()}
+    assert len(identities) == 1, {
+        name: id(value) for name, value in present.items()
+    }
+    if runtime.organs.substrate is not None:
+        assert id(runtime.organs.substrate) in identities
+
+
+def test_the_effect_and_the_floor_are_read_off_the_same_column():
+    """Two independent maxima are not a comparison.
+
+    The effect was the largest standardized displacement anywhere in the
+    target domain and the floor was the largest sham wobble anywhere in it,
+    taken separately. When the two land on different columns the subtraction
+    the edge rule makes is biased in one direction: a real effect on one
+    column has to beat noise on a column it never touched.
+
+    Here the second column carries the signal and the first carries the noise.
+    Read independently the domain reports an effect of 1.0 against a floor of
+    1.0 and the edge dies; read off one column it reports the truth.
+    """
+    import numpy as np
+
+    from core.subject.causal import _paired_divergence
+
+    class _Row:
+        def __init__(self, values):
+            self._values = np.asarray(values, dtype=float)
+
+        def domain(self, _name):
+            return self._values
+
+    unit = {"A": np.array([1.0, 1.0])}
+    # column 0: the shams disagree by one and the displacement does nothing.
+    # column 1: the shams agree and the displacement moves it by two.
+    pert = [_Row([0.0, 2.0])]
+    sham_a = [_Row([0.0, 0.0])]
+    sham_b = [_Row([1.0, 0.0])]
+
+    effect, floor, trace, floor_trace = _paired_divergence(pert, sham_a, sham_b, unit)
+    assert effect["A"] == pytest.approx(2.0)
+    assert floor["A"] == pytest.approx(0.0)
+    assert trace["A"] == [pytest.approx(2.0)]
+    assert floor_trace["A"] == [pytest.approx(0.0)]
+
+
+def test_a_domain_whose_only_movement_is_noise_reports_no_margin():
+    """The rule must not manufacture a margin where there is none."""
+    import numpy as np
+
+    from core.subject.causal import _paired_divergence
+
+    class _Row:
+        def __init__(self, values):
+            self._values = np.asarray(values, dtype=float)
+
+        def domain(self, _name):
+            return self._values
+
+    unit = {"A": np.array([1.0, 1.0])}
+    pert = [_Row([0.0, 0.0])]
+    sham_a = [_Row([0.0, 0.0])]
+    sham_b = [_Row([1.0, 1.0])]
+    effect, floor, _, _ = _paired_divergence(pert, sham_a, sham_b, unit)
+    assert effect["A"] <= floor["A"]
+
+
+def test_a_named_partition_is_the_one_scored():
+    """A lesion of a partition has to be read at that partition.
+
+    Each arm of the lesion searched for its own cheapest cut, so the intact
+    score and the cut score were two minima taken over different partitions and
+    their difference was not a comparison of anything. Measured that way,
+    spread and synergy both fell when the system was cut and both returned when
+    it was restored, while irreducibility moved the wrong way twice — which is
+    what two independent minima over five hundred and eleven noisy estimates
+    will do.
+    """
+    from core.subject.irreducibility import phi_do
+    from core.subject.nulls import architecture, toy_recording
+
+    recording = toy_recording(architecture("recurrent", seed=3), steps=1500, seed=3)
+    named = ("P", "I", "A")
+    scored = phi_do(recording, at=(named, tuple(k for k in DOMAINS if k not in named)))
+    assert scored.best_cut[0] == named
+    # And the search still finds something no worse, which is what makes the
+    # searched score the minimum it claims to be.
+    assert phi_do(recording).phi <= scored.phi + 1e-9
+
+
+def test_an_unknown_partition_falls_back_to_the_search():
+    """A cut naming domains that are not live must not silently score nothing."""
+    from core.subject.irreducibility import phi_do
+    from core.subject.nulls import architecture, toy_recording
+
+    recording = toy_recording(architecture("recurrent", seed=3), steps=1200, seed=3)
+    empty = phi_do(recording, at=((), tuple(DOMAINS)))
+    assert empty.best_cut[0], "an empty side left the report with no cut at all"

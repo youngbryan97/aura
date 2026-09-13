@@ -39,7 +39,7 @@ class Claim:
     sources: List[str] = field(default_factory=list)
     status: ClaimStatus = ClaimStatus.GENERATED
     confidence: float = 0.5
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     freshness_window_hours: float = 24.0
     contradiction_links: List[str] = field(default_factory=list)
     supporting_claims: List[str] = field(default_factory=list)

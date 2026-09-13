@@ -46,7 +46,7 @@ class EvictionTier(enum.Enum):
 @dataclass
 class ResourceSnapshot:
     """Point-in-time resource state."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     memory_percent: float = 0.0
     memory_rss_mb: float = 0.0
     cpu_percent: float = 0.0

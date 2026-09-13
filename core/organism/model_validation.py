@@ -43,7 +43,6 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
-import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -99,7 +98,7 @@ class Observation:
     name: str
     value: Any
     source: str
-    recorded_at: float = field(default_factory=time.time)
+    recorded_at: float = field(default_factory=lambda: time.time())
     units: str = ""
     tolerance: float = 0.0
     note: str = ""
@@ -345,7 +344,7 @@ class TestResult:
     score: Score
     prediction: Any = None
     duration_s: float = 0.0
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def passed(self) -> bool:
@@ -553,7 +552,10 @@ class Claim:
         }
 
 
-class ValidationSuite:
+from .unsupported_claims import _SaysWhichClaimsHaveNoTest
+
+
+class ValidationSuite(_SaysWhichClaimsHaveNoTest):
     def __init__(self) -> None:
         self._lock = checked_lock("core.organism.model_validation._lock", reentrant=True)
         self._tests: dict[str, ValidationTest] = {}
@@ -654,108 +656,8 @@ class ValidationSuite:
     #: clean the number looked.
     _UNSUPPORTING = (Outcome.FAIL, Outcome.ERROR, Outcome.NOT_MEASURED)
 
-    @staticmethod
-    def _unmeasured_only_here(channels: tuple[str, ...]) -> bool:
-        try:
-            from core.organism.claim_liveness import unmeasured_only_here
 
-            return unmeasured_only_here(channels)
-        except (ImportError, AttributeError, TypeError, ValueError):
-            return False
 
-    def unsupported_claims(self) -> list[dict[str, Any]]:
-        """Claims whose test last failed, could not run, or measured nothing.
-
-        This is the machine-checked version of CLAIMS_NOT_SUPPORTED.md.
-        """
-        out: list[dict[str, Any]] = []
-        with self._lock:
-            claims = list(self._claims.values())
-            last = dict(self._last)
-        for claim in claims:
-            # A claim can lose its footing two ways: its test stops passing,
-            # or the live measurement behind it stops arriving. The second
-            # was invisible until claims could bind to telemetry, and it is
-            # the one that produced "a claim that outlived the code".
-            resolved, liveness_note = claim.effective_evidence()
-            if liveness_note and resolved is not claim.evidence:
-                out.append(
-                    {
-                        **claim.to_dict(),
-                        "reason": liveness_note,
-                        # A claim whose channels are silent because THIS
-                        # process runs no publisher for them has no evidence
-                        # here; it has not decayed. The distinction is the
-                        # difference between a live organ that stopped
-                        # reporting and a test process that never asked.
-                        "outcome": (
-                            str(Outcome.NOT_MEASURED)
-                            if self._unmeasured_only_here(claim.live_channels)
-                            else "evidence_decayed"
-                        ),
-                    }
-                )
-                continue
-            relevant = [r for (test, _model), r in last.items() if test == claim.test]
-            if not relevant:
-                # A suite that has not run cannot have run THIS test, and every
-                # claim in it reads "never run" at once. The desktop defers the
-                # empirical run on purpose — several tests monopolize the
-                # interpreter for tens of seconds and belong to an explicit
-                # validation process — and reporting the consequence of that
-                # decision as a hundred structural errors raised an emergency
-                # incident on every verifier pass, tainted the runtime, and
-                # drove the resilience layer to full depletion. LIVE,
-                # 2026-09-10: "100 invariants: 105 error(s)", 35 times.
-                #
-                # Unrun is unevidenced. A test the suite DID run and that
-                # produced nothing for this claim is a different fact and
-                # keeps its error.
-                out.append(
-                    {
-                        **claim.to_dict(),
-                        "reason": (
-                            "the validation suite has not run in this process"
-                            if self.runs == 0
-                            else "never run"
-                        ),
-                        **(
-                            {"outcome": str(Outcome.NOT_MEASURED)}
-                            if self.runs == 0
-                            else {}
-                        ),
-                    }
-                )
-                continue
-            if any(r.score.outcome in self._UNSUPPORTING for r in relevant):
-                worst = next(
-                    r for r in relevant if r.score.outcome in self._UNSUPPORTING
-                )
-                out.append(
-                    {
-                        **claim.to_dict(),
-                        "reason": worst.score.interpretation,
-                        "outcome": str(worst.score.outcome),
-                    }
-                )
-        return out
-
-    def report(self) -> dict[str, Any]:
-        with self._lock:
-            tests = [t.to_dict() for t in self._tests.values()]
-            claims = [c.to_dict() for c in self._claims.values()]
-            last = {f"{t}/{m}": r.to_dict() for (t, m), r in self._last.items()}
-        return {
-            "tests": tests,
-            "claims": claims,
-            "models": sorted(self._models),
-            "runs": self.runs,
-            "last_results": last,
-            "unsupported_claims": self.unsupported_claims(),
-            "tests_without_claims": sorted(
-                {t["name"] for t in tests} - {c["test"] for c in claims}
-            ),
-        }
 
     def reset_for_test(self) -> None:
         with self._lock:
@@ -1491,6 +1393,10 @@ def install_runtime_validation() -> dict[str, Any]:
                 subject="frozen resident semantic transfer on a fresh cohort",
             ),
             owner="tools/verify_semantic_program_replication.py",
+            # Seeds a fresh cohort and runs the frozen transducer against it,
+            # which is an experiment and 1.6 seconds of one. Owned by
+            # tests/test_the_experiments_the_boot_posture_declines.py.
+            expensive=True,
         )
     )
     suite.add_test(
@@ -3111,6 +3017,7 @@ def _universality_certificates_that_fail() -> int:
         run(the_least_where(build(L("k", N(1)))), fuel=20_000)
         failed += 1
     except OutOfFuel:
+        # Not a failure: a certificate that runs out of fuel is one that did not close inside the bound, which is what this counts.
         pass
     failed += 0 if what_the_arithmetic_rests_on()["all_agree"] else 1
     return failed
@@ -3390,6 +3297,26 @@ _AN_EXPERIMENT_NOT_AN_INSTRUMENT = frozenset({
     # 2.2 seconds, invisible for as long as the test that measures it could
     # not reach its own assertion.
     "test_a_way_of_computing_she_wrote_is_kept_and_still_runs",
+    # Named by the budget again, and the same reading applies to all three.
+    # `endogenous_verdict_is_earned_on_known_corpora` trains a readout over
+    # known corpora and scores it, 6.5 seconds;
+    # `test_both_her_algebras_compile_to_one_semantics` compiles every
+    # positional term and every value expression in both languages and
+    # compares them term by term, 1.7; and
+    # `frozen_semantic_programs_transfer_to_fresh_cohort` seeds a fresh cohort
+    # and runs the transducer against it, 1.6. Each arrives at a result rather
+    # than reading one a previous run arrived at, which is what separates an
+    # experiment from an instrument here.
+    "endogenous_verdict_is_earned_on_known_corpora",
+    "test_both_her_algebras_compile_to_one_semantics",
+    "frozen_semantic_programs_transfer_to_fresh_cohort",
+    # And the one those three were hiding. Declaring an experiment surfaces the
+    # next slowest, which is how every entry above this one was found:
+    # `test_branching_is_not_something_those_three_could_have_produced` searches
+    # for a way of building words that composition, inversion and iteration
+    # could not produce between them, 1.8 seconds, and it is owned by
+    # tests/test_no_authored_ceiling_at_any_level.py.
+    "test_branching_is_not_something_those_three_could_have_produced",
 })
 
 
@@ -4646,7 +4573,8 @@ def _phenomena_reachable() -> int:
             except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 continue
         return found
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Phenomena services unreachable, reporting none wired: %s", exc)
         return 0
 
 
@@ -4680,7 +4608,8 @@ def _care_floor_survives_an_overwhelming_need() -> bool:
             <= 7.0 + 1e-9
             for need in (1e3, 1e6, 1e12)
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Care allocation unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4693,7 +4622,8 @@ def _pooling_signal_yields_no_type() -> bool:
         free = SignalChannel(benefit=2.0, cost_slope=0.0)
         reading = free.receive(free.send("anyone", 5.0))
         return reading.implied_type is None and not reading.informative
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Costly signalling unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4709,7 +4639,8 @@ def _arbitration_abstains_without_evidence() -> bool:
             and result.probability is None
             and result.weight_affective == result.weight_deliberate
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Dual-process arbiter unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4893,7 +4824,8 @@ def _honesty_coverage_is_closed() -> bool:
         from core.epistemics.effect_registry import coverage_gaps, observable_actions
 
         return not coverage_gaps() and len(observable_actions()) >= 23
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Effect registry unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4935,7 +4867,8 @@ def _zero_receipt_completion_is_caught() -> bool:
             action_requested=True,
         )
         return caught and quiet and evidenced
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Unevidenced-action correction unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -4984,7 +4917,8 @@ def _functional_i_policy_reaches_generation() -> bool:
         # Tighten-only, checked at the seam rather than asserted about it.
         raised, _p, _l = _apply_functional_i_constraint(0.58, 0.88, 1)
         return raised <= 0.58
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Policy coupler unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5006,7 +4940,8 @@ def _identity_is_key_anchored() -> bool:
             and identity.verify_link(link)
             and not identity.verify_link(type(link)(**{**link.to_dict(), "signature": "00" * 64}))
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Identity anchoring unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5063,7 +4998,8 @@ def _cognitive_contracts_detect_undeclared_writes() -> bool:
             transformation.complete(state, publish_violation=False)
         receipt = graph.receipts[-1]
         return receipt.undeclared_writes == ("affect.arousal",)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Cognitive contracts unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5087,7 +5023,8 @@ def _standing_prohibitions_are_deny_only() -> bool:
             and callable(getattr(standing_directives, name, None))
         ]
         return not grants and "There is no allow/grant field" in source
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Standing prohibitions unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5139,7 +5076,8 @@ def _held_facts_survive_the_reply_path() -> bool:
                 stated + " It took 42s.",
                 emit_log=False,
             ) == ()
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Held-fact custody unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5180,7 +5118,8 @@ def _why_is_answered_from_provenance() -> bool:
             and "ordinary_decay" in answer
             and "affect.curiosity" in answer
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Provenance answering unavailable, claim unverified: %s", exc)
         return False
 
 
@@ -5347,7 +5286,8 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     try:
         journal_path = artifact_root / "result.json.journal.jsonl"
         journal_sha = hashlib.sha256(journal_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Semantic composition certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5470,7 +5410,8 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     try:
         manifest_path = pathlib.Path(result["resident_manifest_identity"]["path"])
         manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Induced procedure certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_exact = {
@@ -5542,7 +5483,8 @@ def _semantic_program_27b_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B semantic program certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5600,7 +5542,8 @@ def _semantic_program_27b_replication_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B replication certificate unreadable, claim unverified: %s", exc)
         return False
 
     compatibility = certificate.get("representation_compatibility")
@@ -5647,7 +5590,8 @@ def _semantic_program_27b_shared_variable_geometry_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B shared-variable geometry certificate unreadable, claim unverified: %s", exc)
         return False
 
     expected_boundary = (
@@ -5719,7 +5663,8 @@ def _semantic_program_27b_floor_certificate_holds() -> bool:
     certificate, expected_verification_sha256, certificate_path, root = loaded
     try:
         source_sha256s = certificate["source_sha256s"]
-    except (KeyError, TypeError):
+    except (KeyError, TypeError) as exc:
+        logger.debug("27B floor certificate unreadable, claim unverified: %s", exc)
         return False
     expected_boundary = (
         "the frozen shared semantic transducer's accepted test programs have "
@@ -5815,7 +5760,8 @@ def _canary_artifact_bundle(
         verifier_sha = hashlib.sha256(
             (root / verifier_relative).read_bytes()
         ).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Canary artifact bundle unreadable: %s", exc)
         return None
 
     # A certificate pins the source it was measured over. When that source
@@ -5866,7 +5812,8 @@ def _sealed_certificate(relative_path: str) -> tuple[dict, str, pathlib.Path, pa
             ensure_ascii=True,
             allow_nan=False,
         ).encode("ascii")
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Sealed certificate unreadable: %s", exc)
         return None
     return certificate, hashlib.sha256(canonical).hexdigest(), certificate_path, root
 
@@ -5934,7 +5881,8 @@ def _historical_semantic_sources_hold_at_binding(
             ).stdout
             if hashlib.sha256(payload).hexdigest() != expected:
                 return False
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError, subprocess.SubprocessError) as exc:
+        logger.debug("Historical semantic sources unreadable at binding: %s", exc)
         return False
     return True
 
@@ -6101,7 +6049,8 @@ def _recurrent_memory_decode_certificate_holds_at(
         ).hexdigest()
         verifier_path = root / "tools/verify_mathematics_memory_decode_canary.py"
         verifier_sha = hashlib.sha256(verifier_path.read_bytes()).hexdigest()
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        logger.debug("Recurrent memory decode certificate unreadable, claim unverified: %s", exc)
         return False
     controls = certificate.get("causal_control_exacts")
     base_contract_holds = bool(
@@ -6806,7 +6755,8 @@ def _recorded_verdict() -> dict[str, Any] | None:
     path = pathlib.Path(__file__).resolve().parents[2] / "artifacts" / "validation" / "last_run.json"
     try:
         verdict = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("Recorded verdict unreadable: %s", exc)
         return None
     return verdict if isinstance(verdict, dict) else None
 

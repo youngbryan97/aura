@@ -25,9 +25,9 @@ class SkillGapRecord:
     """A record of a capability that was needed but unavailable."""
     skill_name: str
     context: str
-    detected_at: float = field(default_factory=time.time)
+    detected_at: float = field(default_factory=lambda: time.time())
     occurrences: int = 1
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
     resolved: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -46,7 +46,7 @@ class OverflowEvent:
     """Record of an initiative being dropped due to queue overflow."""
     initiative_goal: str
     source: str
-    dropped_at: float = field(default_factory=time.time)
+    dropped_at: float = field(default_factory=lambda: time.time())
     queue_depth_at_drop: int = 0
     reason: str = "queue_full"
 

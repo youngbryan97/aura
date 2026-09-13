@@ -210,8 +210,8 @@ class ItemPreference:
     reason: str = ""
     aliases: tuple[str, ...] = ()
     times_chosen: int = 0
-    created_at: float = field(default_factory=time.time)
-    last_chosen_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_chosen_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -255,7 +255,7 @@ class SubjectiveChoiceReceipt:
     preference_scores: dict[str, float]
     final_scores: dict[str, float]
     option_features: dict[str, dict[str, float]]
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     outcome: str = ""
     satisfaction: float | None = None
     happy_with_outcome: bool | None = None

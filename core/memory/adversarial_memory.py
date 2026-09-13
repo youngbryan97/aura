@@ -12,7 +12,7 @@ class MemoryProvenance:
     source: str
     trust_score: float
     signature: str
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @classmethod
     def sign(cls, *, source: str, content: str, trust_score: float = 0.5) -> "MemoryProvenance":

@@ -44,6 +44,11 @@ async def main() -> int:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--conditions", default="", help="comma-separated subset")
     parser.add_argument("--columns", type=int, default=6, help="columns to name per target")
+    parser.add_argument(
+        "--at",
+        default="0,8,16",
+        help="frames to inject at, cycled across trials the way the battery does",
+    )
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument(
         "--fork-check",
@@ -65,6 +70,10 @@ async def main() -> int:
     out = args.out or (REPO / "artifacts" / "subject_core" / "probe")
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(out / "logs"))
+    # Its own state root, before the organism is built; see core.subject.isolation.
+    from core.subject.isolation import isolate_state, state_leaks
+
+    isolate_state(out)
 
     from core.subject.causal import DEFAULT_DELTA, _arm
     from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, start_organism
@@ -80,6 +89,10 @@ async def main() -> int:
 
     _log(f"building the offline organism in {out}")
     runtime = build_runtime(out / "runtime", seed=args.seed)
+    if state_leaks():
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
+        )
     organism = await start_organism(runtime, quiet=True)
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
 
@@ -100,6 +113,12 @@ async def main() -> int:
     if args.census:
         return await _census(runtime, conditions, scale, names, args)
 
+    # Cycled, the way `run_interventions` does. A phase that recomputes a
+    # domain from its own sources erases a displacement that arrived before it,
+    # and injecting only at the top of the turn measures that erasure and
+    # reports it as an absent edge.
+    injection_points = [int(v) for v in str(args.at).split(",") if v.strip().isdigit()] or [0]
+
     gathered: dict[str, list[dict[str, np.ndarray]]] = {s: [] for s in sources}
     for index in range(args.trials):
         for condition in conditions:
@@ -114,7 +133,12 @@ async def main() -> int:
                     ("sham_b", None),
                 ):
                     arms[name] = await _arm(
-                        runtime, snapshot, condition, turns=args.turns, displace=displace, at=0
+                        runtime,
+                        snapshot,
+                        condition,
+                        turns=args.turns,
+                        displace=displace,
+                        at=injection_points[index % len(injection_points)],
                     )
                 if not arms["pert"]:
                     continue

@@ -31,7 +31,7 @@ class SettingChange:
     previous_value: str
     new_value: str
     success: bool
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class OSSettingsAdapter:

@@ -161,7 +161,7 @@ class Grant:
 
     control_point: str
     stage: AuthorityStage = AuthorityStage.OBSERVE
-    since: float = field(default_factory=time.time)
+    since: float = field(default_factory=lambda: time.time())
     reason: str = "initial"
     evidence: Mapping[str, Any] = field(default_factory=dict)
     #: Bumped every time the stage is lowered. A head that has been revoked

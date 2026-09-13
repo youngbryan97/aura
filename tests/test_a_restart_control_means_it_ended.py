@@ -12,6 +12,8 @@ all put one up.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import pytest
 
 from core.skills.screen_pursuit import (
@@ -87,7 +89,7 @@ def test_the_pursuit_asks_whether_it_appeared_rather_than_whether_it_is_there():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index('ended = responds["state"].nothing_answers()')
     nearby = source[at : at + 1800]
     assert "a_way_back_that_was_not_there(" in nearby
@@ -99,5 +101,5 @@ def test_it_is_said_once_rather_than_every_cycle():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert 'offered_a_restart["said"]' in source

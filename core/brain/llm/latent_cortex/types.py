@@ -1397,7 +1397,7 @@ class EpisodeReceipt:
 
     episode_id: str = ""
     domain: str = "general"
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     # Invariant proofs (governance.CheckpointInvariant fills these).
     checkpoint_fingerprint: str = ""
     checkpoint_fingerprint_method: str = ""

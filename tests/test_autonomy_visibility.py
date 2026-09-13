@@ -241,10 +241,21 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
 
     memory = SimpleNamespace(store=AsyncCallRecorder())
     cap = CapabilityEngine()
-    monkeypatch.setattr(
-        "core.autonomy.autonomous_initiative_loop.optional_service",
-        lambda name, default=None: cap if name == "capability_engine" else memory if name == "memory_manager" else default,
+    _services = (
+        lambda name, default=None: cap
+        if name == "capability_engine"
+        else memory
+        if name == "memory_manager"
+        else default
     )
+    monkeypatch.setattr(
+        "core.autonomy.autonomous_initiative_loop.optional_service", _services
+    )
+    # The email and reddit initiatives moved to social_initiative, which
+    # imported `optional_service` into its own namespace. Patching the module
+    # that used to hold them bound nothing, so the loop went on asking the real
+    # container for a capability engine and got none.
+    monkeypatch.setattr("core.autonomy.social_initiative.optional_service", _services)
 
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     emitted: list[tuple[str, str, str]] = []
@@ -294,10 +305,17 @@ async def test_reddit_initiative_checks_inbox_browses_reads_and_remembers(monkey
     memory = SimpleNamespace(store=AsyncCallRecorder())
     cap = CapabilityEngine()
     monkeypatch.setattr("random.choice", lambda _items: "technology")
-    monkeypatch.setattr(
-        "core.autonomy.autonomous_initiative_loop.optional_service",
-        lambda name, default=None: cap if name == "capability_engine" else memory if name == "memory_manager" else default,
+    _services = (
+        lambda name, default=None: cap
+        if name == "capability_engine"
+        else memory
+        if name == "memory_manager"
+        else default
     )
+    monkeypatch.setattr(
+        "core.autonomy.autonomous_initiative_loop.optional_service", _services
+    )
+    monkeypatch.setattr("core.autonomy.social_initiative.optional_service", _services)
 
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     emitted: list[tuple[str, str, str]] = []

@@ -47,7 +47,7 @@ class TensionObservation:
     kind: str
     magnitude: float
     evidence: str
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         return {

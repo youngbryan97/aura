@@ -36,12 +36,20 @@ from typing import Any
 
 import numpy as np
 
+from core.adaptation.immune_state_writer import (
+    ImmuneStatePersistence,
+    SingleSlotStateWriter,
+)
 from core.adaptation.spatial_receptor_code import annotate_antigen_like
 from core.cognitive.anomaly_detector import FeatureExtractor
 from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.AdaptiveImmunity")
+
+#: Budget for draining the state writer at shutdown. The container gives a
+#: sync teardown hook five seconds; this stays inside it.
+STATE_SHUTDOWN_TIMEOUT_S = 3.0
 
 __all__ = [
     "AdaptiveImmuneSystem",
@@ -280,6 +288,7 @@ def _on_event_loop() -> bool:
         asyncio.get_running_loop()
         return True
     except RuntimeError:
+        # Not a failure: no running loop in this thread is the case this function exists to distinguish.
         return False
 
 
@@ -295,6 +304,7 @@ def _optional_unit(value: Any) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError):
+        # Not a failure: a value that is not a number is not a unit reading, which is what the caller is asking about.
         return None
     if not math.isfinite(number):
         return None
@@ -356,7 +366,7 @@ class Antigen:
     source: str = "unknown"
     error_signature: str = ""
     stack_trace: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     context: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -498,7 +508,7 @@ class ImmuneCell:
     regulatory_strength: float = 1.0
     best_effector: EffectorKind | None = None
     last_antigen_id: str = ""
-    born_at: float = field(default_factory=time.time)
+    born_at: float = field(default_factory=lambda: time.time())
     behavioral_rule: dict[str, Any] | None = None
 
     def resize_receptor(self, new_dim: int, rng: np.random.Generator | None = None) -> None:
@@ -886,7 +896,8 @@ def _system_pressure(model: Any) -> float | None:
     """
     try:
         entities = list(getattr(model, "entities", {}).values())
-    except (AttributeError, TypeError):
+    except (AttributeError, TypeError) as exc:
+        logger.debug("World model entities unreadable, reporting no system pressure: %s", exc)
         return None
     if not entities:
         return None
@@ -905,6 +916,7 @@ def _unit_free_float(value: Any) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError):
+        # Not a failure: a value that is not a number contributes nothing, which is what zero says here.
         return 0.0
     return number if math.isfinite(number) else 0.0
 
@@ -1026,7 +1038,8 @@ def _mutate_behavioral_rule(
             from core.actuators.actuator_registry import get_actuator_registry
 
             registry = get_actuator_registry()
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Actuator registry unavailable, mutating the rule without it: %s", exc)
             registry = None
         for action in actions:
             name = str(action.get("actuator") or "")
@@ -1340,7 +1353,7 @@ class OfflineCoevolutionLab:
         return population[:4]
 
 
-class AdaptiveImmuneSystem:
+class AdaptiveImmuneSystem(ImmuneStatePersistence):
     """Adaptive immune ecology for Aura."""
 
     _PROTECTED_SUBSYSTEM_HINTS = (
@@ -1450,6 +1463,13 @@ class AdaptiveImmuneSystem:
         self._state_dir = self._resolve_state_dir(state_dir)
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._state_path = self._state_dir / "adaptive_immune_state.json"
+        # The snapshot is built under _lock and written off it. See
+        # core/adaptation/immune_state_writer.py for why.
+        self._state_writer = SingleSlotStateWriter(
+            "adaptive_immunity.state",
+            self._write_state_payload,
+            on_error=self._record_state_write_failure,
+        )
         self._migrated_behavioral_rules = 0
         self._lab = OfflineCoevolutionLab(rng=self._rng)
 
@@ -1942,14 +1962,19 @@ class AdaptiveImmuneSystem:
 
             self._save_state(force=True)
             self._last_dream_at = self._observation_count
-            return {
+            summary = {
                 "promotions": promotions,
                 "removed": removed,
                 "population": len(self._cells),
                 "species_count": self._species_count,
             }
+        # Consolidation is a durable point, and the disk wait belongs
+        # out here where nothing else is waiting on the ecology lock.
+        self.flush_state()
+        return summary
 
     def get_status(self) -> dict[str, Any]:
+        writer_stats = self._state_writer.stats()
         with self._lock:
             by_kind = Counter(cell.kind.value for cell in self._cells)
             hot_tissue = self._tissue.snapshot()
@@ -1982,6 +2007,7 @@ class AdaptiveImmuneSystem:
                 ],
                 "tissue": hot_tissue,
                 "recent_responses": list(self._recent_responses)[-6:],
+                "state_writer": writer_stats,
             }
 
     @staticmethod
@@ -3097,6 +3123,7 @@ class AdaptiveImmuneSystem:
             # costs one snapshot instead of three (CP126 df9f2a05)
             # without giving up recurrence memory across a reload.
             self._save_state(force=True)
+        self.flush_state()
 
     def _component_monitor_matches(self, subsystem: str) -> list[str]:
         """Match a subsystem to registered health monitors — exact-first.
@@ -3310,6 +3337,7 @@ class AdaptiveImmuneSystem:
         try:
             return float(value)
         except (RuntimeError, AttributeError, TypeError, ValueError):
+            # Not a failure: a value that will not convert is not an optional float, which is the question.
             return None
 
     @staticmethod
@@ -3392,8 +3420,8 @@ class AdaptiveImmuneSystem:
                 if hasattr(homeostasis, "compute_vitality"):
                     vitality = float(homeostasis.compute_vitality())
                 metabolism = float(getattr(homeostasis, "metabolism", metabolism))
-            except (RuntimeError, AttributeError, TypeError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError) as exc:
+                logger.debug("Homeostasis vitality unreadable, leaving the metabolic context as it was: %s", exc)
 
         alife_dynamics = self._get_service("alife_dynamics")
         if alife_dynamics is not None:
@@ -3406,7 +3434,8 @@ class AdaptiveImmuneSystem:
                     or status.get("pressure")
                     or status.get("entropy", 0.0) / max(status.get("max_entropy", 100.0), 1.0)
                 )
-            except (OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError) as exc:
+                logger.debug("ALife status unreachable, reporting no entropy pressure: %s", exc)
                 entropy_pressure = 0.0
 
         scale = max(
@@ -3418,245 +3447,6 @@ class AdaptiveImmuneSystem:
             ),
         )
         return float(scale), float(max(0.0, min(1.0, entropy_pressure)))
-
-    def _save_state(self, *, force: bool = False) -> None:
-        """Persist the immune ecology, coalescing bursts.
-
-        CP126 df9f2a05: core observation writes state, reinforcement can write
-        again, and the response summary writes again — so ONE event
-        serialized the whole ecology several times. During a failure storm,
-        which is exactly when many events arrive at once, that multiplied I/O
-        and lock time in the subsystem meant to be responding to the storm.
-
-        Writes inside the coalescing interval are deferred, not dropped: the
-        dirty flag survives and the next call past the interval writes the
-        latest state. The honest cost is that a crash can lose up to
-        ``_save_min_interval_s`` of fitness updates — which is a far better
-        trade than amplifying the storm that causes the crash, and callers
-        that need a durable point (boot seeding, consolidation) pass
-        force=True.
-        """
-        now = time.time()
-        self._state_dirty = True
-        if not force and (now - self._last_save_at) < self._save_min_interval_s:
-            self._deferred_saves += 1
-            return
-        self._last_save_at = now
-        self._state_dirty = False
-        payload = {
-            "cells": [cell.to_dict() for cell in self._cells],
-            "tissue": self._tissue.to_dict(),
-            "lineage_stats": {
-                lineage_id: {
-                    "successes": int(stats["successes"]),
-                    "failures": int(stats["failures"]),
-                    "best_effector": (
-                        stats["best_effector"].value
-                        if isinstance(stats["best_effector"], EffectorKind)
-                        else None
-                    ),
-                    "best_fitness": float(stats["best_fitness"]),
-                }
-                for lineage_id, stats in self._lineage_stats.items()
-            },
-            "observation_count": self._observation_count,
-            "last_dream_at": self._last_dream_at,
-            "recent_antigens": [antigen.to_dict() for antigen in list(self._recent_antigens)[-24:]],
-            "recent_responses": list(self._recent_responses)[-24:],
-            "recurrence_tracker": {
-                key: {
-                    "occurrences": int(stats.get("occurrences", 0)),
-                    "last_seen": float(stats.get("last_seen", 0.0)),
-                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
-                    "last_interval": (
-                        float(stats["last_interval"])
-                        if stats.get("last_interval") is not None
-                        else None
-                    ),
-                    "streak": int(stats.get("streak", 0)),
-                    "peak_streak": int(stats.get("peak_streak", 0)),
-                    "verified_repairs": int(stats.get("verified_repairs", 0)),
-                    "failed_repairs": int(stats.get("failed_repairs", 0)),
-                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
-                }
-                for key, stats in self._recurrence_tracker.items()
-            },
-            "expansion_engine": self.expansion_engine.to_dict(),
-        }
-        payload["schema_version"] = IMMUNE_STATE_SCHEMA_VERSION
-        # An unkeyed digest over the body: it detects CORRUPTION and truncation,
-        # not tampering by anyone who can write the file. Labelled as what it
-        # is rather than as a trust root — a signed state file needs a key this
-        # subsystem does not hold (CP126 5c214831).
-        payload["integrity"] = {
-            "algorithm": "sha256-unkeyed",
-            "digest": _immune_state_digest(payload),
-        }
-        try:
-            # Route through the governed file-write gateway: a repair-capable,
-            # behavior-evolving state file is a consequential write and must
-            # be authorized and receipt-bound like every other one.
-            from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
-
-            with local_internal_governed_scope(
-                "adaptation.adaptive_immunity.state",
-                domain="file_write",
-                receipt_prefix="adaptive-immunity-state",
-            ):
-                get_file_write_gateway().write_text(
-                    self._state_path,
-                    json.dumps(payload, indent=2),
-                    source="adaptation.adaptive_immunity.state",
-                )
-        except (ImportError, OSError, RuntimeError, json.JSONDecodeError, TypeError, ValueError) as exc:
-            _record_adaptive_immunity_degradation(
-                exc,
-                action="Skipped adaptive immune persistence write and kept in-memory immune state active",
-                extra={"state_path": str(self._state_path), "cells": len(self._cells)},
-            )
-            logger.debug("Adaptive immune state save skipped: %s", exc)
-
-    def _load_state(self) -> bool:
-        if not self._state_path.exists():
-            return False
-        try:
-            size = self._state_path.stat().st_size
-            if size > MAX_IMMUNE_STATE_BYTES:
-                raise ValueError(
-                    f"immune state file is {size} bytes, over the "
-                    f"{MAX_IMMUNE_STATE_BYTES} bound"
-                )
-            payload = json.loads(self._state_path.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                raise ValueError("immune state must be a JSON object")
-            # A file written by a different layout is quarantined to a reseed
-            # rather than parsed field-by-field into a live repair-capable
-            # population (CP126 5c214831).
-            found_version = int(payload.get("schema_version", 0) or 0)
-            if found_version != IMMUNE_STATE_SCHEMA_VERSION:
-                raise ValueError(
-                    f"immune state schema {found_version} != "
-                    f"{IMMUNE_STATE_SCHEMA_VERSION}"
-                )
-            integrity = payload.get("integrity")
-            if isinstance(integrity, dict) and integrity.get("digest"):
-                if _immune_state_digest(payload) != str(integrity["digest"]):
-                    raise ValueError("immune state digest does not match its contents")
-            if "expansion_engine" in payload:
-                from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
-
-                self.expansion_engine = DimensionalExpansionEngine.from_dict(
-                    payload["expansion_engine"]
-                )
-
-            self._cells = [ImmuneCell.from_dict(item) for item in payload.get("cells", [])]
-            vocabulary = _live_rule_vocabulary()
-            migrated_rules = 0
-            for cell in self._cells:
-                if cell.kind not in {CellKind.B, CellKind.MEMORY}:
-                    if cell.behavioral_rule is not None:
-                        cell.behavioral_rule = None
-                        migrated_rules += 1
-                    continue
-                normalized, migrated = _normalize_behavioral_rule(
-                    cell.behavioral_rule,
-                    self._rng,
-                    vocabulary=vocabulary,
-                )
-                cell.behavioral_rule = normalized
-                migrated_rules += int(migrated)
-            self._migrated_behavioral_rules = migrated_rules
-            if migrated_rules:
-                logger.info(
-                    "Migrated %d persisted immune behavioral rule(s) to the bounded grammar",
-                    migrated_rules,
-                )
-
-            # Reconcile receptor vectors of loaded cells with system current_dim
-            target_dim = self.expansion_engine.current_dim
-            for cell in self._cells:
-                cell.resize_receptor(target_dim, self._rng)
-
-            self._tissue = TissueField.from_dict(
-                payload.get("tissue", {}),
-                diffusion=self.cfg.tissue_diffusion,
-                decay=self.cfg.tissue_decay,
-            )
-            self._lineage_stats = defaultdict(
-                lambda: {
-                    "successes": 0,
-                    "failures": 0,
-                    "best_effector": None,
-                    "best_fitness": 0.0,
-                }
-            )
-            for lineage_id, stats in payload.get("lineage_stats", {}).items():
-                self._lineage_stats[lineage_id] = {
-                    "successes": int(stats.get("successes", 0)),
-                    "failures": int(stats.get("failures", 0)),
-                    "best_effector": (
-                        EffectorKind(stats["best_effector"]) if stats.get("best_effector") else None
-                    ),
-                    "best_fitness": float(stats.get("best_fitness", 0.0)),
-                }
-            self._observation_count = int(payload.get("observation_count", 0))
-            self._last_dream_at = int(payload.get("last_dream_at", 0))
-            self._recent_antigens = deque(
-                [Antigen.from_dict(item) for item in payload.get("recent_antigens", [])],
-                maxlen=self.cfg.replay_buffer_size,
-            )
-            self._recent_responses = deque(
-                [dict(item) for item in payload.get("recent_responses", [])],
-                maxlen=self.cfg.recent_response_buffer,
-            )
-            self._recurrence_tracker = defaultdict(
-                lambda: {
-                    "occurrences": 0,
-                    "last_seen": 0.0,
-                    "interval_ewma": 0.0,
-                    "last_interval": None,
-                    "streak": 0,
-                    "peak_streak": 0,
-                    "verified_repairs": 0,
-                    "failed_repairs": 0,
-                    "last_verified_at": 0.0,
-                }
-            )
-            for key, stats in payload.get("recurrence_tracker", {}).items():
-                self._recurrence_tracker[str(key)] = {
-                    "occurrences": int(stats.get("occurrences", 0)),
-                    "last_seen": float(stats.get("last_seen", 0.0)),
-                    "interval_ewma": float(stats.get("interval_ewma", 0.0)),
-                    "last_interval": self._coerce_optional_float(stats.get("last_interval")),
-                    "streak": int(stats.get("streak", 0)),
-                    "peak_streak": int(stats.get("peak_streak", 0)),
-                    "verified_repairs": int(stats.get("verified_repairs", 0)),
-                    "failed_repairs": int(stats.get("failed_repairs", 0)),
-                    "last_verified_at": float(stats.get("last_verified_at", 0.0)),
-                }
-            self._assign_species()
-            return bool(self._cells)
-        except (
-            OSError,
-            ConnectionError,
-            TimeoutError,
-            # Corrupt or hostile persisted state must quarantine to a reseed,
-            # never abort immune construction: JSON, schema, enum, and
-            # numeric failures were previously uncaught here.
-            json.JSONDecodeError,
-            KeyError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            _record_adaptive_immunity_degradation(
-                exc,
-                action="Rejected persisted adaptive immune state and reseeded immune population",
-                severity="degraded",
-                extra={"state_path": str(self._state_path)},
-            )
-            logger.warning("Adaptive immune state load failed; reseeding: %s", exc)
-            return False
 
     # ------------------------------------------------------------------
     # Utilities
@@ -3773,7 +3563,8 @@ class AdaptiveImmuneSystem:
         preferred = top.get("preferred_cell_kinds") or []
         try:
             confidence = float(top.get("probability", 0.0))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("Receptor probability is not a number, reporting no confidence: %s", exc)
             confidence = 0.0
         if cell.kind.value in set(map(str, preferred)):
             return 1.0 + min(0.18, max(0.0, confidence) * 0.18)
@@ -3792,8 +3583,8 @@ class AdaptiveImmuneSystem:
                 health = float(autopoiesis.get_component_health(subsystem))
                 if health > 0.0:
                     return float(max(0.0, min(1.0, 1.0 - health)))
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug("Component health unreadable, reporting no health pressure: %s", exc)
         return 0.0
 
     def _ensure_graph_links(self, subsystem: str) -> None:

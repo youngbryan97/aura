@@ -112,8 +112,8 @@ class SolvedEntry:
     # later request naming evidence absent from this list is asking a
     # different question and must not be served from here (CP126 236526e0).
     required_evidence: list[str] = field(default_factory=list)
-    stored_at: float = field(default_factory=time.time)
-    last_hit_at: float = field(default_factory=time.time)
+    stored_at: float = field(default_factory=lambda: time.time())
+    last_hit_at: float = field(default_factory=lambda: time.time())
     hits: int = 0
 
     def to_dict(self) -> dict[str, Any]:

@@ -12,6 +12,8 @@ the two together, and only one of them was ever played.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.cognition.the_ones_she_reaches_for import TheOnesSheReachesFor
 
 ACTS = ["down", "left", "right", "up"]
@@ -48,7 +50,7 @@ def test_the_pursuit_narrows_to_the_set_and_lets_the_model_choose():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "reaches.the_ones_to_consider(foreseeable)" in source
     at = source.index("reaches.the_ones_to_consider(foreseeable)")
     assert "one.name in wants" in source[at : at + 1400]
@@ -60,7 +62,7 @@ def test_a_habit_that_covers_everything_narrows_nothing():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("reaches.the_ones_to_consider(foreseeable)")
     assert "len(wants) < len(foreseeable)" in source[at : at + 900]
 
@@ -77,7 +79,7 @@ def test_a_leaning_of_one_act_is_not_applied_as_a_filter():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index("reaches.the_ones_to_consider(foreseeable)")
     nearby = source[at : at + 900]
     assert "if len(wants) < 2:" in nearby

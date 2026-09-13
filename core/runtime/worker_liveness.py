@@ -154,7 +154,7 @@ class WorkerEvidence:
     last_progress_age_s: float | None = None
     #: Free-form provenance for the receipt.
     source: str = ""
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

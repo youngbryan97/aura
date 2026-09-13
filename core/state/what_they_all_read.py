@@ -31,6 +31,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatTheyAllRead")
 
@@ -129,7 +130,7 @@ def _same(a: Any, b: Any) -> bool:
     """Equality that survives values which refuse to compare."""
     try:
         return bool(a == b)
-    except Exception:  # noqa: BLE001 — identity is the answer when equality refuses
+    except Exception:  # noqa: BLE001 — foreign code: identity is the answer when equality refuses
         # Not a loss and not a guess. A value whose __eq__ raises (a numpy
         # array, a lazily-loading proxy, a half-built object) has no equality
         # to report, and "the same object" is true of exactly the cases where
@@ -138,7 +139,7 @@ def _same(a: Any, b: Any) -> bool:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_HISTORY_LOCK = threading.Lock()
+_HISTORY_LOCK = checked_lock("core.state.what_they_all_read.HISTORY_LOCK")
 _KEEP = 200
 
 

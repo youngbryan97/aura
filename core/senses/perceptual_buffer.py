@@ -16,7 +16,7 @@ logger = logging.getLogger("Aura.Senses.PerceptualBuffer")
 class SensoryMoment:
     source: str
     content: Any
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     metadata: dict[str, Any] = field(default_factory=dict)
 
 class PerceptualBuffer:

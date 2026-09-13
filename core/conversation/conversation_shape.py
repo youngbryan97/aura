@@ -78,13 +78,31 @@ def asks_about_conversation_shape(prompt: str) -> bool:
     return bool(_ASKS_SHAPE_RE.search(text))
 
 
-def _entries() -> list:
+def _entries() -> list[Any] | None:
     try:
         from core.conversation.unified_transcript import UnifiedTranscript
 
-        return list(UnifiedTranscript.get_instance().entries_for_conversation() or [])
+        return list(UnifiedTranscript.get_instance().entries_for_conversation())
     except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
-        return []
+        return None
+
+
+def _shared_entries() -> list[Any] | None:
+    try:
+        from core.conversation.turn_evidence_custody import (
+            current_turn_evidence_custody,
+            turn_transcript,
+        )
+
+        # The foreground owner already restored and scoped durable dialogue.
+        # Do not replace an admitted empty history with another conversation,
+        # or mistake a post-restart RAM suffix for the complete record.
+        if current_turn_evidence_custody() is not None:
+            history = turn_transcript()
+            return list(history) if history is not None else None
+        return _entries()
+    except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        return None
 
 
 def _spoken(seconds: float) -> str:
@@ -155,17 +173,86 @@ def asks_about_shared_history(prompt: Any) -> bool:
 
 
 def _topic_words(prompt: str) -> list[str]:
+    from core.language.word_forms import word_form
+
     common = {
         "what", "did", "we", "agree", "agreed", "on", "about", "the", "our",
         "decide", "decided", "last", "week", "yesterday", "earlier", "remember",
         "when", "was", "were", "that", "this", "to", "for", "of", "and", "a",
         "an", "in", "it", "you", "i", "me", "my", "your",
+        "which", "settle", "settled", "conclude", "concluded", "say", "said",
+        "discuss", "discussed", "cover", "covered", "talk", "talked",
+        "agreement", "decision", "conclusion", "plan",
     }
     return [
-        word
+        word_form(word)
         for word in re.findall(r"[a-z][a-z'-]{2,}", str(prompt or "").lower())
         if word not in common
     ]
+
+
+_SHARED_HISTORY_MAX_EXCHANGES = 6
+_SHARED_HISTORY_MAX_ENTRY_CHARS = 480
+
+
+def _history_exchanges(entries: list[Any], prompt: str) -> list[list[tuple[str, str]]]:
+    dialogue: list[tuple[str, str]] = []
+    for entry in entries:
+        read = entry.get if isinstance(entry, dict) else lambda key, default, item=entry: getattr(item, key, default)
+        role = str(read("role", ""))
+        if role not in {"user", "aura", "assistant"}:
+            continue
+        if read("channel", "") in {"system", "internal"}:
+            continue
+        content = " ".join(str(read("content", "") or "").split())
+        if content:
+            dialogue.append((role, content))
+    # The pending question is often already stored. Its premise is not evidence.
+    if dialogue and dialogue[-1] == ("user", " ".join(prompt.split())):
+        dialogue.pop()
+
+    exchanges: list[list[tuple[str, str]]] = []
+    for role, content in dialogue:
+        if role == "user" or not exchanges:
+            exchanges.append([])
+        exchanges[-1].append((role, content))
+    return exchanges
+
+
+def _history_excerpt(exchanges: list[list[tuple[str, str]]], matches: list[int]) -> list[str]:
+    # Retain recent exchanges, then topic anchors with their neighbours. A
+    # replacement or confirmation often names only "that one", not the topic.
+    selected = set(range(max(0, len(exchanges) - 2), len(exchanges)))
+    for index in reversed(matches):
+        for neighbour in (index, index + 1, index - 1):
+            if len(selected) < _SHARED_HISTORY_MAX_EXCHANGES and 0 <= neighbour < len(exchanges):
+                selected.add(neighbour)
+    for index in reversed(range(len(exchanges))):
+        if len(selected) >= _SHARED_HISTORY_MAX_EXCHANGES:
+            break
+        selected.add(index)
+
+    lines: list[str] = []
+    previous = -1
+    for index in sorted(selected):
+        if index > previous + 1:
+            lines.append(f"[{index - previous - 1} exchange(s) omitted]")
+        lines.append(f"Exchange {index + 1}:")
+        exchange = exchanges[index]
+        # Bound unusual exchanges with many consecutive assistant entries too.
+        shown = range(len(exchange)) if len(exchange) <= 3 else (0, len(exchange) - 2, len(exchange) - 1)
+        for position in shown:
+            if position == len(exchange) - 2 and len(exchange) > 3:
+                lines.append(f"[{len(exchange) - 3} dialogue entries omitted]")
+            role, content = exchange[position]
+            if len(content) > _SHARED_HISTORY_MAX_ENTRY_CHARS:
+                marker = " [... middle omitted ...] "
+                keep = (_SHARED_HISTORY_MAX_ENTRY_CHARS - len(marker)) // 2
+                content = content[:keep] + marker + content[-keep:]
+            label = "them" if role == "user" else "you"
+            lines.append(f"- {label}: {content}")
+        previous = index
+    return lines
 
 
 def shared_history_block(prompt: Any) -> str:
@@ -177,45 +264,37 @@ def shared_history_block(prompt: Any) -> str:
     fabricated shared history did not fire, and there was nothing else to
     check the presupposition against.
 
-    Saying "we never settled that" is a complete answer. Inventing an
-    agreement puts a commitment in someone's mouth.
+    Topic words locate exchanges; they cannot establish an agreement or its
+    absence. Keep replies and corrections even when they name no topic.
     """
     if not asks_about_shared_history(prompt):
         return ""
-    entries = _entries()
-    if not entries:
+    entries = _shared_entries()
+    if entries is None:
         return (
-            "No transcript is available, so you cannot see whether this was "
-            "ever agreed. Say that rather than describing an agreement."
+            "No transcript is available to this reader. Whether this was agreed "
+            "is unknown; this reading establishes neither an agreement nor its absence."
         )
-    topics = _topic_words(prompt)
-    lines: list[str] = []
-    for entry in entries:
-        content = " ".join(str(getattr(entry, "content", "") or "").split())
-        if not content:
-            continue
-        # Compare on the stem: the question says "semiconductors" and the
-        # transcript says "semiconductor", and a plural must not read as a
-        # different subject.
-        lowered = content.lower()
-        if not topics or any(
-            word in lowered or word.rstrip("s") in lowered for word in topics
-        ):
-            role = "them" if str(getattr(entry, "role", "")) == "user" else "you"
-            lines.append(f"- {role}: {content[:200]}")
-    if not lines:
+    exchanges = _history_exchanges(entries, str(prompt or ""))
+    if not exchanges:
         return (
-            "Nothing in this conversation matches what the question assumes was "
-            "settled. Say that plainly — that you have no record of agreeing it "
-            "— and do not describe an agreement you cannot see."
+            "No prior dialogue is present in the available transcript. This "
+            "snapshot supplies no agreement; history outside it is unknown."
         )
-    heading = (
-        "What the record actually holds on this:"
-        if topics
-        else (
-            "The question names no particular subject, so this is the whole "
-            "record. If no agreement appears in it, say there is none rather "
-            "than describing one:"
+    topics = set(_topic_words(str(prompt or "")))
+    matches = [
+        index for index, exchange in enumerate(exchanges)
+        if any(topics.intersection(_topic_words(content)) for _role, content in exchange)
+    ]
+    lines = [
+        "Dialogue from the available transcript, earliest first. This reader "
+        "sees a bounded snapshot, not every possible history source. Topic overlap "
+        "does not itself establish agreement; missing or omitted evidence leaves "
+        "the outcome unknown."
+    ]
+    if topics and not matches:
+        lines.append(
+            "No topic-word overlap was found in this snapshot. That does not "
+            "establish whether an agreement exists; recent exchanges follow."
         )
-    )
-    return "\n".join([heading, *lines[:8]])
+    return "\n".join([*lines, *_history_excerpt(exchanges, matches)])

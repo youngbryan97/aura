@@ -10,6 +10,8 @@ discovered when it fails.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 import asyncio
 import logging
 
@@ -335,7 +337,7 @@ def test_the_loop_hands_her_approach_to_every_decision():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert 'approach=plan["held"].approach if plan["held"] is not None else ""' in source
 
 
@@ -403,7 +405,7 @@ def test_a_move_into_something_finished_is_not_offered_as_a_choice():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     where = source.index("if ended and out:")
     assert "available = out" in source[where : where + 600]
 

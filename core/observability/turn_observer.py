@@ -58,7 +58,7 @@ class TurnSummary:
     """One turn's cost and whether it repeated itself."""
 
     label: str = ""
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     passes: int = 0
     skipped: int = 0
     errors: int = 0

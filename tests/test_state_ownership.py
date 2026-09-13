@@ -379,3 +379,35 @@ def test_the_live_instance_state_is_still_refused_from_every_checkout():
     live = live_state_root()
     for tail in ("data/memory.db", "run/aura.pid", "logs/desktop-launch.log"):
         assert is_live_state_path(live / tail), tail
+
+
+def test_the_home_directory_every_subsystem_reads_follows_the_profile():
+    """`data_dir` and `log_dir` did; the field beneath them did not.
+
+    Thirty-seven call sites read `config.paths.home_dir` directly — the engram
+    store, the episodic database, the key directory, the tool-learning file —
+    and it defaulted to the real `~/.aura` whatever profile the process was
+    running under. The write gateway refuses those writes, which is the guard
+    working, and the subsystem is then degraded for the whole run rather than
+    redirected: the engram store was blocked on every turn of every battery run
+    for exactly this reason, and a blocked subsystem is not a working one.
+    """
+    from core.config import Paths
+
+    if runtime_profile().may_touch_live_state:
+        pytest.skip("a LIVE runtime's home is the live root, which is the point")
+    # A fresh one, because the module-level `config.paths` is monkeypatched by
+    # other tests in this file and the question here is about the class.
+    paths = Paths()
+    home = Path(paths.home_dir).resolve()
+    assert not is_live_state_path(home), home
+    assert Path(paths.data_dir).resolve().is_relative_to(home)
+    assert Path(paths.log_dir).resolve().is_relative_to(home)
+
+
+def test_an_explicit_home_still_wins():
+    """The default resolves; a caller that states one is not overridden."""
+    from core.config import Paths
+
+    stated = Path("/tmp/a-stated-home")
+    assert Path(Paths(home_dir=stated).home_dir) == stated

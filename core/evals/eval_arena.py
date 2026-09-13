@@ -92,7 +92,7 @@ class EvalResult:
     duration_s: float
     detail: str = ""
     evidence: dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # --------------------------------------------------------------------------

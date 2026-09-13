@@ -103,7 +103,7 @@ class MorphMotif:
     preferred_bindings: tuple[tuple[str, str], ...] = ()
     stop_when_cells: int = 12
     origin_scenario: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     trials: list[MotifTrial] = field(default_factory=list)
     applications: int = 0
 

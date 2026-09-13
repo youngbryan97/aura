@@ -67,8 +67,8 @@ class Mission:
     graph: TaskGraph | None = None
     source: str = ""                    # "voice", "text", "initiative"
     priority: float = 0.5              # 0-1
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     completed_at: float = 0.0
     error_summary: str = ""
     narration_log: list[str] = field(default_factory=list)

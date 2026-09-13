@@ -50,6 +50,9 @@ from interface.routes.chat_common import (
     logger,
 )
 from core.runtime.lockdep import checked_async_lock
+from core.runtime.shared_read import SharedRead
+
+_durable_history_reads = SharedRead(capacity=16, retention_s=30.0)
 
 
 def _get_convo_lock():
@@ -60,7 +63,6 @@ _session_memory_pins: list[dict] = []
 
 _DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S = 1.5
 
-_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT = 3
 
 _RECENT_CONVERSATION_USER_CHARS = 800
 
@@ -1722,6 +1724,7 @@ def _load_durable_conversation_exchanges_sync(
     persistence = ServiceContainer.get("persistence", default=None)
     get_recent_sessions = getattr(persistence, "get_recent_sessions", None)
     get_session_history = getattr(persistence, "get_session_history", None)
+    get_recent_history = getattr(persistence, "get_recent_history", None)
     if not callable(get_session_history):
         return []
 
@@ -1738,7 +1741,11 @@ def _load_durable_conversation_exchanges_sync(
     )
 
     current_rows: list[dict[str, Any]] = []
-    if safe_session_id:
+    chronological_rows: list[dict[str, Any]] | None = None
+    if allow_cross_session and callable(get_recent_history):
+        history = get_recent_history(limit=fetch_limit, **scope_kwargs)
+        chronological_rows = [item for item in list(history or []) if isinstance(item, dict)]
+    elif safe_session_id:
         history = get_session_history(
             safe_session_id,
             limit=fetch_limit,
@@ -1764,6 +1771,7 @@ def _load_durable_conversation_exchanges_sync(
     rows: list[dict[str, Any]] = []
     if (
         allow_cross_session
+        and chronological_rows is None
         and exchanges_here < max(1, int(limit))
         and callable(get_recent_sessions)
     ):
@@ -1773,7 +1781,7 @@ def _load_durable_conversation_exchanges_sync(
         try:
             sessions = list(
                 get_recent_sessions(
-                    limit=_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT,
+                    limit=fetch_limit,
                     with_turns_only=True,
                     **scope_kwargs,
                 )
@@ -1787,7 +1795,7 @@ def _load_durable_conversation_exchanges_sync(
                 session
                 for session in (
                     get_recent_sessions(
-                        limit=_DURABLE_CONVERSATION_SESSION_SCAN_LIMIT,
+                        limit=fetch_limit,
                         **scope_kwargs,
                     )
                     or []
@@ -1810,6 +1818,8 @@ def _load_durable_conversation_exchanges_sync(
             rows.extend(item for item in list(history or []) if isinstance(item, dict))
 
     rows.extend(current_rows)
+    if chronological_rows is not None:
+        rows = chronological_rows
     if not rows:
         return []
 
@@ -1932,17 +1942,35 @@ async def _load_durable_conversation_exchanges(
     # occupy the default executor; the caller's principal must cross the
     # reserved executor boundary just as it does with asyncio.to_thread.
     context = copy_context()
-    try:
+    persistence = ServiceContainer.get("persistence", default=None)
+    principal, surface = _chat_memory_identity()
+    safe_limit = max(1, int(limit))
+    safe_session = str(session_id or "")[:64]
+    read_key = (
+        id(persistence), getattr(persistence, "_db", ""),
+        principal, surface, safe_session, bool(allow_cross_session), safe_limit,
+    )
+
+    async def read_history():
         return await run_durable_receipt_io(
             context.run,
             _load_durable_conversation_exchanges_sync,
-            limit=max(1, int(limit)),
-            session_id=str(session_id or "")[:64],
+            limit=safe_limit,
+            session_id=safe_session,
             allow_cross_session=allow_cross_session,
-            timeout_s=_DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S,
+            timeout_s=None,
             label="conversation_history_read",
         )
-    except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
+
+    try:
+        rows = await _durable_history_reads.read(
+            read_key, read_history, wait_s=_DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S,
+        )
+        return [dict(row) for row in rows]
+    except TimeoutError:
+        logger.info("Conversation history read remains owned; the next poll can receive it.")
+        return []
+    except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.conversation_persistence", exc)
         logger.debug("Durable conversation context load skipped: %s", exc)
         return []

@@ -26,7 +26,7 @@ class DomainReliability:
     domain: str
     correct_count: int = 0
     challenged_count: int = 0
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     @property
     def reliability(self) -> float:
@@ -39,9 +39,9 @@ class DomainReliability:
 @dataclass
 class UserPattern:
     description: str
-    first_observed: float = field(default_factory=time.time)
+    first_observed: float = field(default_factory=lambda: time.time())
     observation_count: int = 1
-    last_observed: float = field(default_factory=time.time)
+    last_observed: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -51,7 +51,7 @@ class UserModel:
     stated_values: list[str] = field(default_factory=list)
     conversation_count: int = 0
     total_messages: int = 0
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
 
 class BryanModelEngine:

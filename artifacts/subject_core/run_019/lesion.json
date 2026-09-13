@@ -1,0 +1,54 @@
+{
+  "cut": [
+    "G",
+    "S"
+  ],
+  "severed": {
+    "left": [
+      "G",
+      "S"
+    ],
+    "right": [
+      "P",
+      "I",
+      "A",
+      "C",
+      "M",
+      "W",
+      "D",
+      "N"
+    ]
+  },
+  "node_clamp": {
+    "phi_do": 0.00614,
+    "spread": 0.33333,
+    "synergy": 0.27978
+  },
+  "intact": {
+    "phi_do": 0.07578,
+    "spread": 0.40741,
+    "synergy": 0.24508
+  },
+  "lesioned": {
+    "phi_do": -0.05027,
+    "spread": 0.33333,
+    "synergy": 0.22851
+  },
+  "rescued": {
+    "phi_do": 0.04982,
+    "spread": 0.44444,
+    "synergy": 0.22393
+  },
+  "deltas": {
+    "phi_do": 0.12605,
+    "spread": 0.07407,
+    "synergy": 0.01657
+  },
+  "rescue": {
+    "phi_do": 0.10009,
+    "spread": 0.11111,
+    "synergy": -0.00458
+  },
+  "deficit": true,
+  "rescued_ok": false
+}

@@ -8,9 +8,11 @@ a single key for the rest of the run.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from pathlib import Path
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 BODY = SOURCE[SOURCE.index("async def pursue_on_screen") :]
 
 

@@ -297,7 +297,7 @@ def explains(
         seen = True
         try:
             produced = tuple(operator(tuple(transition.before)))
-        except Exception:  # noqa: BLE001 - an operator that throws does not explain
+        except Exception:  # noqa: BLE001 - foreign code: an operator that throws does not explain
             return False
         if produced != tuple(transition.after):
             return False

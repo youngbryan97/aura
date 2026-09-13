@@ -51,7 +51,7 @@ class Scenario:
     success_criteria: list[str]
     addresses_real_need: bool = True
     caveat: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ScenarioForge:

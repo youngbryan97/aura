@@ -49,7 +49,7 @@ class ReasoningReflection:
     lesson: str
     failure_mode: str = ""
     verifier_issues: list[str] = field(default_factory=list)
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

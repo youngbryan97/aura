@@ -108,7 +108,7 @@ def test_absence_is_not_a_verdict():
 
 def test_the_route_actually_carries_the_field_to_the_client():
     source = AURA_JS.read_text(encoding="utf-8")
-    assert "chatMeta.responseConfidence = data.response_confidence" in source
+    assert "metadata.responseConfidence = data.response_confidence" in source
     assert "replyConfidenceBadgeHtml(metadata.responseConfidence)" in source
 
 
@@ -124,7 +124,7 @@ def test_every_delivery_path_can_carry_the_mark():
     source = AURA_JS.read_text(encoding="utf-8")
 
     # 1. Non-streamed HTTP response.
-    assert "chatMeta.responseConfidence = data.response_confidence" in source
+    assert "metadata.responseConfidence = data.response_confidence" in source
 
     # 2. Socket stream that ends with the confidence attached.
     assert "finishStreamMsg(data.response_confidence)" in source
@@ -136,10 +136,10 @@ def test_every_delivery_path_can_carry_the_mark():
     ), "finishStreamMsg does not apply the mark"
 
     # 3. Text already streamed, confidence arriving late on the HTTP response.
-    already = source.split("const alreadyStreamed", 1)[1][:1600]
-    assert "markReplyConfidence(" in already, (
-        "a streamed reply drops its confidence when the HTTP response lands"
-    )
+    delivery = source.split("function renderChatDeliveryAnswer", 1)[1].split("\nfunction handleWsEvent", 1)[0]
+    assert "discardChatDraft(item)" in delivery
+    assert "markReplyConfidence(existing, data.response_confidence)" in delivery
+    assert "metadata.responseConfidence = data.response_confidence" in delivery
 
 
 def test_the_mark_is_applied_once():

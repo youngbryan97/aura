@@ -9,12 +9,14 @@ the specific thing she predicted counted as a move that did nothing.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 from pathlib import Path
 
 from core.agency.deliberate_action import Expectation
 from core.perception.what_is_there import arranged
 
-SOURCE = Path("core/skills/screen_pursuit.py").read_text()
+SOURCE = pursuit_source()
 
 BEFORE = arranged([(0.3, 0.2, "4"), (0.3, 0.35, "4"), (0.45, 0.2, "8"), (0.45, 0.35, "2")])
 AFTER = arranged([(0.3, 0.2, "8"), (0.3, 0.35, "2"), (0.45, 0.2, "8"), (0.45, 0.35, "2")])

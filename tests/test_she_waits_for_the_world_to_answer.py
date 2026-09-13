@@ -12,6 +12,8 @@ she ever confirmed was "this does not move", ninety-eight times.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit, pursuit_function_source
+
 import asyncio
 
 import pytest
@@ -41,7 +43,7 @@ async def test_it_waits_for_the_change_and_then_for_the_stillness(monkeypatch) -
     async def read(app, over=None):
         return next(frames, _reading("after"))
 
-    monkeypatch.setattr(screen_pursuit, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     screen_pursuit._ANSWERING_TOOK["longest"] = 0.0
     seen, moved = await screen_pursuit._settled_after(_reading("before"), "a thing")
     assert moved
@@ -53,7 +55,7 @@ async def test_a_move_that_really_changes_nothing_says_so(monkeypatch) -> None:
     async def read(app, over=None):
         return _reading("before")
 
-    monkeypatch.setattr(screen_pursuit, "read_screen", read)
+    patch_pursuit(monkeypatch, "read_screen", read)
     screen_pursuit._ANSWERING_TOOK["longest"] = 0.4
     seen, moved = await screen_pursuit._settled_after(_reading("before"), "a thing")
     assert not moved
@@ -74,9 +76,7 @@ def test_how_long_to_wait_comes_from_how_long_it_has_taken() -> None:
 
 def test_the_move_path_waits_at_all() -> None:
     """The mechanism existed and was wired only to the restart path."""
-    source = screen_pursuit.__file__
-    with open(source, encoding="utf-8") as handle:
-        text = handle.read()
-    act = text[text.index("        async def act() -> bool:") :]
-    act = act[: act.index("        return Step(")]
+    # The act was a closure inside the decision until the module went back
+    # under the size gate's ceiling. Asked for by name rather than sliced.
+    act = pursuit_function_source("carry_out_the_move")
     assert "_settled_after(" in act, "a keystroke must be given time to land"

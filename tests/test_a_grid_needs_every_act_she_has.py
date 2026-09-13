@@ -13,6 +13,8 @@ ahead, and she pressed the same key three hundred times.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.perception.the_lattice_she_holds import TheLatticeSheHolds
 
 #: Four rows and four columns of a board, in hundredths of the window.
@@ -65,7 +67,7 @@ def test_the_pursuit_names_the_acts_it_has_taken():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     at = source.index('responds["lattice"].built_from(')
     nearby = source[at : at + 500]
     assert 'tried=responds["state"].tried' in nearby

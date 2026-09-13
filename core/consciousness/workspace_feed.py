@@ -23,7 +23,6 @@ rather than a round-robin over ten fixed sources.
 from __future__ import annotations
 
 import logging
-import math
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -160,16 +159,25 @@ def build_candidates(state: Any) -> list[Any]:
             name = max(emotions, key=lambda key: _clamp(emotions[key]))
             intensity = _clamp(emotions[name])
             if intensity > FLOOR:
+                # How far this feeling is above where it usually sits, which is
+                # a property of the bid. It was the moment's global arousal —
+                # and `priority_at` adds three tenths of the affect weight to
+                # every candidate's claim, so a quantity belonging to the whole
+                # moment became one competitor's private advantage. Nothing
+                # else in the tree sets the field, so affect carried a bonus no
+                # other domain could earn and won the competition on ninety-six
+                # turns in a hundred: attention was `affect_*` whatever else
+                # was happening, and the action chosen by what she was
+                # attending to was the same action every turn.
+                baselines = getattr(affect, "mood_baselines", {}) or {}
+                charge = _clamp(intensity - _clamp(baselines.get(name, 0.0)))
                 bids.append(
                     CognitiveCandidate(
                         content=f"feeling {name}",
                         source=f"affect_{name}",
                         priority=intensity,
                         content_type=ContentType.AFFECTIVE,
-                        # The affect weight the competition was designed around
-                        # and almost never received: arousal is how urgent a
-                        # feeling is, which is exactly what this field is for.
-                        affect_weight=_clamp(getattr(affect, "arousal", 0.0)),
+                        affect_weight=charge,
                     )
                 )
 
@@ -241,7 +249,13 @@ def build_candidates(state: Any) -> list[Any]:
     # intention is projected into both `active_goals` and
     # `pending_initiatives`, and bid twice it competes with itself.
     spoken: set[str] = set()
-    for goal in goals[-2:]:
+    # The two that are asking hardest, not the two that happen to be last in
+    # the list. Position in `active_goals` is the order things were written,
+    # and a goal appended this turn because a need just became pressing sat at
+    # the end behind five older ones — so the slice read whichever two the
+    # bookkeeping had left there. An intention's claim on attention is what it
+    # states, and that is what decides which two get to make it.
+    for goal in sorted(goals, key=_goal_priority, reverse=True)[:2]:
         # `priority` is what the goal engine writes; `urgency` is what this bid
         # read, and no producer in the tree has ever written it. So every real
         # goal bid zero and deliberation never once reached the workspace. A
@@ -319,6 +333,44 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
+    # And a surprise about herself, which is the other half of the bid above
+    # it. A surprise about the world enters this competition; a surprise about
+    # her own next feeling, drive or focus did not, though the self model
+    # computes one every tick and names the channel it missed on. So the only
+    # thing the self-state could say here was how stable identity is — a number
+    # that barely moves — and everything self-state contributes to what wins
+    # attention came through affect, which is the same thing affect was already
+    # saying.
+    #
+    # Priced against its own running level, like the world model's: what
+    # matters is whether she is harder to predict now than she usually is.
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        predictor = get_runtime_service("self_prediction", default=None)
+        snapshot = predictor.get_snapshot() if predictor is not None else None
+        if isinstance(snapshot, dict):
+            error = max(0.0, float(snapshot.get("smoothed_error", 0.0) or 0.0))
+            channels = [
+                max(0.0, float(snapshot.get(name, 0.0) or 0.0))
+                for name in ("valence_error_ema", "drive_error_ema", "focus_error_ema")
+            ]
+            usual = sum(channels) / len(channels) if channels else 0.0
+            total = error + usual
+            level = 0.0 if total <= 1e-9 else error / total
+            if level > FLOOR:
+                missed = str(snapshot.get("most_unpredictable") or "herself")
+                bids.append(
+                    CognitiveCandidate(
+                        content=f"she did not do what she predicted ({missed}, {level:.2f})",
+                        source="self",
+                        priority=_clamp(level),
+                        content_type=ContentType.META,
+                    )
+                )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the self model had nothing to offer the workspace: %s", exc)
+
     # An unprecedented moment deserves attention. The lifetime state computes
     # exactly that number every cycle and nothing competed on it, so a life
     # that had never seen anything like this bid the same as one on a familiar
@@ -388,7 +440,21 @@ def build_candidates(state: Any) -> list[Any]:
         substrate = get_runtime_service("conscious_substrate", default=None)
         reading = substrate.get_state_summary_nowait() if substrate is not None else None
         if isinstance(reading, dict) and not reading.get("snapshot_stale"):
-            level = _clamp(float(reading.get("volatility", 0.0)) / 100.0)
+            # How fast the substrate is moving against how far it is from rest,
+            # which is a reading of the same kind as the world model's surprise
+            # beside it: scale-free, and sensitive wherever this substrate's
+            # own amplitude happens to sit.
+            #
+            # It was the summary's `volatility` divided by a hundred — and the
+            # summary multiplies the mean velocity by a hundred to make it
+            # readable, so the two cancelled and the bid was the raw mean
+            # velocity, about two thousandths. The floor every bid has to clear
+            # is five hundredths. Recurrent cognition could not reach attention
+            # by any route, on any turn, at any speed.
+            speed = max(0.0, float(reading.get("volatility", 0.0)) / 100.0)
+            amplitude = max(0.0, float(reading.get("global_energy", 0.0)))
+            total = speed + amplitude
+            level = _clamp(0.0 if total <= 1e-9 else speed / total)
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(
@@ -455,6 +521,19 @@ def _remember_broadcast(state: Any, winner: Any, ignited: bool) -> None:
     # both of them saw None for the life of the process while the attention
     # schema beside them held the answer.
     cognition.attention_focus = f"{winner.source}: {str(winner.content)[:120]}"
+    # And the perceptual systems, which is the other half of biased competition.
+    # `_attend` biases a percept as it arrives; this biases the ones already in
+    # the stream, so a shift of attention reaches what she is already looking
+    # at rather than only what happens to arrive next.
+    try:
+        from core.state.percepts import reweight_stream
+
+        reweight_stream(
+            getattr(state, "world", None),
+            {"content": str(winner.content), "priority": float(getattr(winner, "priority", 0.0) or 0.0)},
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.debug("attention could not reach the percept stream: %s", exc)
     if not ignited:
         return
     line = f"{_BROADCAST_MARK}{winner.source}] {str(winner.content)[:180]}"

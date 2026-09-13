@@ -127,7 +127,7 @@ class InterventionReceipt:
     #: Who ran it and in what environment — so replication can be checked.
     performed_by: str = ""
     environment: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def effect(self) -> float:
@@ -163,7 +163,7 @@ class CausalEdge:
     #: Distinct reporters seen, so N duplicate calls are not N confirmations.
     sources_seen: List[str] = field(default_factory=list)
     interventions: List[Dict[str, Any]] = field(default_factory=list)
-    last_confirmed: float = field(default_factory=time.time)
+    last_confirmed: float = field(default_factory=lambda: time.time())
     last_disconfirmed: Optional[float] = None
 
     @property

@@ -100,7 +100,7 @@ class ConversationalDynamicsState:
     escalation_invited: bool = False     # Did the last message invite comedic escalation?
 
     # Timestamp
-    computed_at: float = field(default_factory=time.time)
+    computed_at: float = field(default_factory=lambda: time.time())
 
 
 # ── Speech Act Classifiers ─────────────────────────────────────────────────────

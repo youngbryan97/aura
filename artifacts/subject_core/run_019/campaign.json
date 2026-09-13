@@ -1,0 +1,168 @@
+{
+  "frozen": {
+    "thresholds": {
+      "component_share": 0.5,
+      "cycles_per_node": 2.0,
+      "d_eff_floor": 3.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2,
+      "sustained": [
+        "C"
+      ]
+    },
+    "seconds_per_turn": 1.0,
+    "layer_rates": {
+      "NeuralMesh": 10.0,
+      "Neurochemical": 2.0,
+      "EmbodiedInteroception": 1.0,
+      "OscillatoryBinding": 100.0,
+      "UnifiedField": 20.0,
+      "SubstrateEvolution": 0.0033333333333333335,
+      "ConsciousnessBridge": 10.0,
+      "ClosedCausalLoop": 0.4,
+      "StreamOfBeing": 0.4
+    },
+    "layer_body": {
+      "NeuralMesh": [
+        "_tick"
+      ],
+      "Neurochemical": [
+        "_metabolic_tick",
+        "_push_modulation"
+      ],
+      "EmbodiedInteroception": [
+        "_sample_hardware",
+        "_push_to_mesh",
+        "_trigger_neurochemical_events"
+      ],
+      "OscillatoryBinding": [
+        "_oscillator_step",
+        "_compute_synchronization/10",
+        "_emit_binding_moment/10"
+      ],
+      "UnifiedField": [
+        "_tick"
+      ],
+      "SubstrateEvolution": [
+        "_run_generation"
+      ],
+      "ConsciousnessBridge": [
+        "_integration_tick"
+      ],
+      "ClosedCausalLoop": [
+        "step"
+      ],
+      "StreamOfBeing": [
+        "step"
+      ]
+    },
+    "substrate_body": [
+      "_step_torch_math",
+      "_stabilize_psych_state",
+      "_recurrent_self_model/5",
+      "_apply_plasticity/100"
+    ],
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "lesion": {
+      "rounds": 16
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "hidden_broker",
+        "independent",
+        "one_way",
+        "prompt_only",
+        "frozen_slow"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 204,
+      "hash": "a32a207421f370f7dd1b649e9b7265c7"
+    },
+    "seed": 7
+  },
+  "fingerprint": "f896791be8617ff87f9696c6c3687555",
+  "run_fingerprint": "d6964fb44b44d4f7f07d309be2a11f97",
+  "commit": "cc4e5f1a60c6187e5ddfeacd37cc7cec019929e2",
+  "commit_subject": "fix(affect): the substrate fold raised on every turn, and the gate caught it",
+  "tree_hash": "d107d2550f3666a7a9bd2e0f75cab792",
+  "dirty": false,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1789133783.360799,
+  "authoritative": true,
+  "authority_blockers": []
+}

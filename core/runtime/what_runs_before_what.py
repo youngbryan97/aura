@@ -27,6 +27,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatRunsBeforeWhat")
 
@@ -198,7 +199,7 @@ class TheOrder:
 
 
 _ORDERS: dict[str, TheOrder] = {}
-_ORDERS_LOCK = threading.Lock()
+_ORDERS_LOCK = checked_lock("core.runtime.what_runs_before_what.ORDERS_LOCK")
 
 
 def an_order_named(name: str) -> TheOrder:

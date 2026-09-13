@@ -39,7 +39,7 @@ class RecentWrite:
     text_hash: str
     trigrams: frozenset
     normalized_text: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     tags: tuple = ()
 
 

@@ -85,7 +85,7 @@ class Prediction:
     version: int
     ready: bool
     attribution: Attribution | None = None
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         return {

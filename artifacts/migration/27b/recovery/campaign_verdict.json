@@ -1,0 +1,30 @@
+{
+  "schema": "aura.caa.campaign_verdict.v1",
+  "alpha": 0.2,
+  "layers": "full_attention only, 4 of 16 target layers",
+  "samples_per_condition": 36,
+  "condition_means": {
+    "baseline": 0.0833,
+    "baseline_replicate": 0.1944,
+    "random_vector": 0.0556,
+    "shuffled_layers": 0.4444,
+    "steered_black_box": 0.75,
+    "text_rich_adversarial": 1.3611,
+    "text_terse": 0.1667,
+    "zero_vector": 0.0556
+  },
+  "treatment_successes": 20,
+  "matched_control_successes": 7,
+  "lesion_successes": {
+    "random_vector": 4,
+    "shuffled_layers": 15,
+    "zero_vector": 4
+  },
+  "no_regression": true,
+  "causal_effect_positive": false,
+  "unmet_requirements": [
+    "specificity_controls_absent_or_reproduce_the_effect",
+    "text_prompt_moves_output_at_least_as_far"
+  ],
+  "reading": "The vectors do something, and it is theirs. Steering scores 0.75 against a baseline of 0.08, wins 20 against the matched no-op's 7, and zeroing or randomising them returns the score to 0.06 -- so the movement is carried by these directions and not by the hooks being present. Nothing regresses.\n\nTwo requirements stand, and neither is a defect in the rig. Permuting the vectors among the same four layers still scores 0.44, so which layer holds which vector is not load-bearing and the specificity control is right to say so. And asking in words moves the score further than steering does, 1.36 against 0.75, which is the bar a vector has to clear to be worth serving at all.\n\nServing authority stays refused. At alpha 0.4 this same measurement returned treatment 6 against a no-op 6; the alpha sweep beside this file is why."
+}

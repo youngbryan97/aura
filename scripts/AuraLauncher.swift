@@ -991,6 +991,14 @@ private struct BootSnapshot {
         (checks["running"] as? Bool) ?? true
     }
 
+    var startupInProgress: Bool {
+        // `running` is the orchestrator's post-initialization state, not the
+        // liveness of the process serving this health response.
+        (checks["orchestrator_present"] as? Bool) == true
+            && (checks["startup_latched"] as? Bool) == false
+            && !runtimeLoopRunning
+    }
+
     var runtimeContractHealthy: Bool {
         (checks["runtime_contract_healthy"] as? Bool) ?? true
     }
@@ -1069,6 +1077,9 @@ private struct BootSnapshot {
     }
 
     var staleRuntimeFailureReason: String? {
+        if startupInProgress || runtimeHasUserVisibleHandoff {
+            return nil
+        }
         let normalized = bootPhase.lowercased()
         if runtimeAge >= 45.0 && !runtimeLoopRunning {
             return "Existing runtime lock points at a process whose boot loop is no longer running."
@@ -1114,6 +1125,12 @@ private struct BootSnapshot {
 
         if let staleReason = staleRuntimeFailureReason {
             return staleReason
+        }
+
+        // Initialization can publish unavailable probes while it materializes
+        // their owners. Elapsed time cannot turn those into a dead runtime.
+        if startupInProgress {
+            return nil
         }
 
         // Once the kernel has completed handoff, the launcher is an observer.

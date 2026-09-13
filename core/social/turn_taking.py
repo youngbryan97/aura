@@ -40,7 +40,7 @@ class TurnTakingEngine:
         focus_min_silence_s: float = 60.0,
         collaborative_min_silence_s: float = 0.5,
         backchannel_cooldown_s: float = 6.0,
-        clock=time.time,
+        clock=lambda: time.time(),
     ):
         self.state = TurnTakingState()
         self._cooldown_table = {

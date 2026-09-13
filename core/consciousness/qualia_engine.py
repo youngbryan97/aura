@@ -170,7 +170,7 @@ class QualiaDescriptor:
     #: Per-axis evidence: whether valence/arousal/dominance earned their names.
     axis_fits: Dict[str, Any] = field(default_factory=dict)
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict:
         return {

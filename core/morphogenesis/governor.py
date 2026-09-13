@@ -192,7 +192,7 @@ class MorphGovernor:
         bounds: MorphBounds | None = None,
         lineage: Lineage | None = None,
         shadow_evaluator: ShadowEvaluator | None = None,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
         require_governance: bool = True,
         emit_receipts: bool = True,
         receipt_sink: Callable[[Any], None] | None = None,

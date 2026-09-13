@@ -14,6 +14,7 @@ dependencies = [
     "mlx-lm==0.31.3",                    # Resident 32B runtime contract
     "mlx-lm-lora==2.1.0",                # DPO/ORPO/GRPO trainer bridge for verifier rewards
     "structlog>=25.1.0",
+    "snowballstemmer==3.0.1",
     "pybreaker>=1.1.0",
     "faiss-cpu>=1.10.0",                 # unified memory friendly
     "httpx>=0.28.0",

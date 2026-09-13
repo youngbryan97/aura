@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.runtime.errors import record_degradation
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 __all__ = [
     "CRITICAL_FOREGROUND_HEADERS",
@@ -482,7 +483,7 @@ def _written_down() -> None:
     except RuntimeError:
         save_volatility()
         return
-    loop.create_task(save_volatility_async())
+    create_owned_asyncio_task(save_volatility_async())
 
 
 def _volatility_payload() -> tuple[Path, str] | None:

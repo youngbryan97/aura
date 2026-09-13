@@ -27,14 +27,17 @@ import json
 import platform
 import subprocess
 import sys
-import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from core.subject.clock import real_time
 
 __all__ = [
+    "TREE_PATHS",
     "campaign",
+    "campaign_v25",
+    "tree_hash_at",
     "environment",
     "fingerprint",
     "run_fingerprint",
@@ -46,7 +49,15 @@ __all__ = [
 REPO = Path(__file__).resolve().parents[2]
 
 
-def _git(*args: str) -> str:
+def _run_git(*args: str, text: bool = True, timeout: float = 30.0) -> Any | None:
+    """Run git through its gateway. None when git could not answer.
+
+    One call site, two shapes. A listing wants the text stripped; a blob about
+    to be hashed wants the bytes exactly as git holds them, because a digest
+    over a round-trip through str is a digest of something else. Splitting
+    them into two gateway calls was two buckets of effect-ownership debt for
+    one spawn, and the same receipt either way.
+    """
     from core.runtime.subprocess_gateway import get_subprocess_gateway
 
     try:
@@ -54,36 +65,46 @@ def _git(*args: str) -> str:
             ["git", *args],
             cwd=REPO,
             capture_output=True,
-            text=True,
-            timeout=30,
+            text=text,
+            timeout=timeout,
             check=False,
             read_only=True,
             source="subject_core.provenance.git",
             accelerator_capability="none",
         )
     except (OSError, subprocess.SubprocessError):
-        return ""
-    if out.returncode != 0:
-        return ""
-    return str(out.stdout or "").strip()
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def _git(*args: str) -> str:
+    """What git printed, stripped. Empty when it could not answer."""
+    printed = _run_git(*args)
+    return "" if printed is None else str(printed or "").strip()
+
+
+def _git_bytes(*args: str) -> bytes | None:
+    """A blob exactly as git holds it, or None if git could not produce it."""
+    raw = _run_git(*args, text=False, timeout=60.0)
+    return None if raw is None else bytes(raw or b"")
+
+
+#: What "the same code" means for a campaign. The whole tree would change with
+#: every artifact written, so this is the measurement code and the organism it
+#: measures — what a second run would have to match to be the same campaign.
+TREE_PATHS: tuple[str, ...] = (
+    "core/subject",
+    "core/consciousness",
+    "core/phases",
+    "core/agency",
+    "core/ontogeny",
+    "tools/run_subject_core.py",
+)
 
 
 def _tree_hash() -> str:
-    """A hash over the tracked files that decide the answer.
-
-    The whole tree would change with every artifact written, so this covers the
-    measurement code and the organism it measures, which is what a second run
-    would have to match to be the same campaign.
-    """
-    paths = _git(
-        "ls-files",
-        "core/subject",
-        "core/consciousness",
-        "core/phases",
-        "core/agency",
-        "core/ontogeny",
-        "tools/run_subject_core.py",
-    ).splitlines()
+    """A hash over the tracked files that decide the answer, as they are now."""
+    paths = _git("ls-files", *TREE_PATHS).splitlines()
     digest = hashlib.blake2b(digest_size=16)
     for name in sorted(paths):
         target = REPO / name
@@ -92,6 +113,28 @@ def _tree_hash() -> str:
             digest.update(target.read_bytes())
         except OSError:
             continue
+    return digest.hexdigest()
+
+
+def tree_hash_at(commit: str) -> str:
+    """The same hash, over the files as they were at one commit.
+
+    A run records the working-tree digest. Checking later that a result still
+    describes its commit means recomputing the digest from that commit's blobs,
+    not from whatever the tree holds now — those differ as soon as anyone
+    commits anything, which is not the same fact as a rewritten history.
+    """
+    listing = _git("ls-tree", "-r", "--name-only", commit, "--", *TREE_PATHS)
+    names = [line for line in listing.splitlines() if line]
+    if not names:
+        return ""
+    digest = hashlib.blake2b(digest_size=16)
+    for name in sorted(names):
+        blob = _git_bytes("-C", str(REPO), "show", f"{commit}:{name}")
+        if blob is None:
+            continue
+        digest.update(name.encode())
+        digest.update(blob)
     return digest.hexdigest()
 
 
@@ -119,10 +162,21 @@ def run_fingerprint(frozen: dict[str, Any]) -> str:
 
 
 def campaign(
-    *, seed: int, rounds: int, trials: int, turns: int, lesion_rounds: int = 0
+    *,
+    seed: int,
+    rounds: int,
+    trials: int,
+    turns: int,
+    lesion_rounds: int = 0,
+    lesion_cycles: int = 1,
 ) -> dict[str, Any]:
     """Everything a second run would have to match to be the same measurement."""
-    from core.subject.battery import THRESHOLDS
+    from core.subject.battery import (
+        DEFICIT_SHARE,
+        LESION_SOURCES,
+        RECOVERY_TOLERANCE,
+        THRESHOLDS,
+    )
     from core.subject.causal import (
         DEFAULT_DELTA,
         DIVERGENCE_CEILING,
@@ -130,12 +184,15 @@ def campaign(
         EDGE_QVALUE,
         EDGE_REPLICATION,
         SIGN_FLIP_DRAWS,
+        SUSTAINED,
     )
-    from core.subject.driver import CONDITIONS, SUBSTRATE_STEP_SECONDS
+    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN, SUBSTRATE_BODY
     from core.subject.irreducibility import COMPONENTS, FOLDS
     from core.subject.nulls import ARCHITECTURES
     from core.subject.state import DOMAINS, feature_names
-    from core.subject.synergy import TRIPLES
+    from core.subject.steppable import LAYERS
+    from core.subject.synergy import COMPONENTS as SYNERGY_COMPONENTS
+    from core.subject.synergy import ESTIMATOR, NULL_DRAWS, TRIPLES
 
     schema = feature_names()
     frozen: dict[str, Any] = {
@@ -151,21 +208,75 @@ def campaign(
             "divergence_ceiling": DIVERGENCE_CEILING,
             "trials": trials,
             "turns_per_arm": turns,
-            "substrate_step_seconds": SUBSTRATE_STEP_SECONDS,
+            # Which domains are held at the displacement rather than pushed
+            # once. `do(X)` holds X, and a pulse is a different intervention.
+            "sustained": sorted(SUSTAINED),
         },
+        # What the free-running layers run at, which is what makes a counted
+        # schedule the same organism as a timed one. The rates are each
+        # layer's own configuration, and the frame they are counted against
+        # follows from one turn being worth one second and from how many
+        # readings a turn takes — a property of the phase list, not of the
+        # machine, so two machines give the organism the same life.
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "layer_rates": {layer.name: layer.hz for layer in LAYERS},
+        "layer_body": {
+            layer.name: [
+                call.method if call.every == 1 else f"{call.method}/{call.every}"
+                for call in layer.body
+            ]
+            for layer in LAYERS
+        },
+        # The substrate is scheduled by the driver rather than through LAYERS,
+        # and its body decides what organism the run measured just as much.
+        "substrate_body": [
+            name if every == 1 else f"{name}/{every}"
+            for name, every, _ in SUBSTRATE_BODY
+        ],
         "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
         # How long the lesion and rescue arms live. It changes what those two
         # criteria are measured on, so it belongs in the fingerprint with
         # everything else that does.
-        "lesion": {"rounds": lesion_rounds},
+        "lesion": {
+            "rounds": lesion_rounds,
+            # How many times the cut is made and released. One cycle gives one
+            # reading of each arm and no way to tell a deficit from the noise
+            # around it; the count is frozen here because spending the same
+            # budget as three cycles instead of one changes what the lesion
+            # and rescue criteria are measured on.
+            "cycles": lesion_cycles,
+            # How much of the deficit a rescue has to bring back, and how large
+            # a deficit has to be before there is one to bring back. Fixed here
+            # so a tolerance cannot be chosen after seeing which measure
+            # recovered.
+            "recovery_tolerance": RECOVERY_TOLERANCE,
+            "deficit_share": DEFICIT_SHARE,
+            # Which sources the lesion's spread is read from. A fixed set all on
+            # one side of the cut cannot lose reach when the other side is
+            # removed, so the rule is part of what the criterion measures.
+            "sources_per_arm": LESION_SOURCES,
+            "source_rule": "alternating across the cut, smaller side first, domain order within a side",
+        },
         "estimator": {"components_per_domain": COMPONENTS, "folds": FOLDS},
         "nulls": {"architectures": list(ARCHITECTURES)},
         "synergy_triples": [list(t) for t in TRIPLES],
-        "domains": list(DOMAINS),
+        # How the information in those triples is estimated. The estimator is
+            # part of the measurement, and changing it after seeing a result starts
+            # a new campaign like any threshold would.
+            "synergy_estimator": {
+                "name": ESTIMATOR,
+                "components": SYNERGY_COMPONENTS,
+                "null_draws": NULL_DRAWS,
+            },
+            "domains": list(DOMAINS),
         "schema": {"width": len(schema), "hash": hashlib.blake2b(
             "|".join(schema).encode(), digest_size=16
         ).hexdigest()},
         "seed": seed,
+        # Every run in its own state root, empty when it starts. A run that
+        # inherits another run's world model, self model and ledgers is not
+        # the experiment its thresholds describe.
+        "state_root": "per_run",
     }
     return {
         "frozen": frozen,
@@ -179,6 +290,109 @@ def campaign(
         "platform": platform.platform(),
         # The machine's clock, not the experiment's: how long a run took is a
         # question about the host, and the experiment's clock is stopped.
+        "started_at": real_time(),
+    }
+
+
+def campaign_v25(
+    *,
+    seed: int,
+    rounds: int,
+    anchors: int,
+    history_turns: int,
+    turns: int,
+    cut_rounds: int,
+    support: Sequence[str],
+) -> dict[str, Any]:
+    """The v25 fingerprint, which is a different campaign from the battery's.
+
+    A methodological change after seeing a result has to start a new campaign
+    or the scorecard is reading across two experiments. That rule applies to
+    v25 on its own terms: what it freezes is the action basis, the frequency
+    bank the signatures are read through, the horizon ladder and the rule for
+    extending it, the estimator, the sequential stopping rule and the
+    tolerances. Move any of them and the hash moves with it.
+    """
+    from core.subject.causal import SUSTAINED
+    from core.subject.driver import CONDITIONS, SECONDS_PER_TURN
+    from core.subject.state import DOMAINS, feature_names
+    from core.subject.steppable import LAYERS
+    from core.subject.v25_cut import ANCHOR_STEP, OPENING_ANCHORS
+
+    # Imported from the runner so the frozen values are the ones in force
+    # rather than a second copy that can drift away from them.
+    from tools.run_subject_core_v25 import (  # noqa: PLC0415
+        FREQUENCIES,
+        FREQUENCY_SEED,
+        INVARIANCE_TOLERANCE,
+        LAG_CEILING,
+        LAGS,
+        SUFFICIENCY_TOLERANCE,
+    )
+
+    schema = feature_names()
+    frozen: dict[str, Any] = {
+        "generation": "v25",
+        "target": "F_intrinsic = Phi_FR / tau, gated on closure and recurrence",
+        "grain": {
+            "signature": "characteristic function at preregistered frequencies",
+            "frequencies_per_test": FREQUENCIES,
+            "frequency_seed": FREQUENCY_SEED,
+            "rank_rule": "parallel analysis against column-shuffled signatures",
+            "sufficiency_tolerance": SUFFICIENCY_TOLERANCE,
+            "history_turns": history_turns,
+        },
+        "metric": {
+            "name": "Fisher-Rao",
+            "estimator": "cross-fitted k-NN posterior -> Bhattacharyya -> 2 arccos",
+            "floor": "sham against sham, same estimator",
+            "lower_bound": "paired bootstrap, alpha 0.05",
+            "p_value": "paired randomization over common forks",
+        },
+        "horizons": {
+            "lags_frames": list(LAGS),
+            "ceiling_frames": LAG_CEILING,
+            "extension_rule": "double while the maximum sits in the last two bins",
+            "reported": "the whole spectrum; tau-star is a summary, not a law",
+        },
+        "cuts": {
+            "enumeration": "every bipartition, first domain fixed left",
+            "opening_anchors": OPENING_ANCHORS,
+            "anchor_step": ANCHOR_STEP,
+            "rounds": cut_rounds,
+            "stopping_rule": "a cut stops drawing once its lower bound clears zero",
+            "score": "the weakest cut, as an intersection-union over all of them",
+            "cut_construction": "clamp both sides in turn, compose the free halves",
+        },
+        "invariance_tolerance": INVARIANCE_TOLERANCE,
+        "nulls": ["playback", "duplicate_coordinates", "invertible_recoding"],
+        "intervention": {"sustained": sorted(SUSTAINED), "turns_per_arm": turns},
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "layer_rates": {layer.name: layer.hz for layer in LAYERS},
+        "recording": {"rounds": rounds, "conditions": [c.name for c in CONDITIONS]},
+        "anchors": anchors,
+        "support": list(support),
+        "domains": list(DOMAINS),
+        "schema": {
+            "width": len(schema),
+            "hash": hashlib.blake2b("|".join(schema).encode(), digest_size=16).hexdigest(),
+        },
+        "seed": seed,
+        # Every run in its own state root, empty when it starts. A run that
+        # inherits another run's world model, self model and ledgers is not
+        # the experiment its thresholds describe.
+        "state_root": "per_run",
+    }
+    return {
+        "frozen": frozen,
+        "fingerprint": fingerprint(frozen),
+        "run_fingerprint": run_fingerprint(frozen),
+        "commit": _git("rev-parse", "HEAD"),
+        "commit_subject": _git("log", "-1", "--format=%s"),
+        "tree_hash": _tree_hash(),
+        "dirty": bool(_git("status", "--porcelain", "core", "tools")),
+        "python": sys.version.split()[0],
+        "platform": platform.platform(),
         "started_at": real_time(),
     }
 
@@ -200,15 +414,19 @@ def environment() -> dict[str, Any]:
             locks.append(f"{name}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}")
     hardware: dict[str, Any] = {}
     try:
-        import psutil
+        # Through the observer, not through psutil. A run recorded under a
+        # simulated observer has to say the machine the run believed it was
+        # on, and reading the host directly here would write the real one
+        # into the provenance of a run that never saw it.
+        from core.runtime import resource_psutil
 
         hardware = {
-            "cpus": psutil.cpu_count(logical=True),
-            "physical_cpus": psutil.cpu_count(logical=False),
-            "memory_gb": round(psutil.virtual_memory().total / 1e9, 1),
+            "cpus": resource_psutil.cpu_count(logical=True),
+            "physical_cpus": resource_psutil.cpu_count(logical=False),
+            "memory_gb": round(resource_psutil.virtual_memory().total / 1e9, 1),
         }
     except Exception:  # noqa: BLE001 - a machine that will not describe itself says so
-        hardware = {"note": "psutil unavailable"}
+        hardware = {"note": "the machine did not describe itself"}
     packages: dict[str, str] = {}
     for name in ("numpy", "scipy", "torch", "scikit-learn"):
         try:

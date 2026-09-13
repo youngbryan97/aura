@@ -198,6 +198,24 @@ _FOLLOWUP_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: A clause that asks her to SAY something, to the person asking.
+#:
+#: "Don't open ChatGPT, just tell me about it." Both halves parse correctly —
+#: the first refuses the action, the second is an imperative — and the turn
+#: came out DIRECTIVE because any actionable clause won. Routing then had a
+#: directive naming ChatGPT, which is the one reading the person ruled out.
+#:
+#: This module's own definition says a MENTION includes "an explicit refusal to
+#: act on it". A refusal paired with a request for words is still that: she is
+#: asked to speak, not to reach the named thing. Narrow on purpose — the verb
+#: heads the clause and the asker is its object, so "tell ChatGPT about it"
+#: and "open Claude instead" both stay directives, which they are.
+_ASKS_ONLY_FOR_WORDS_RE = re.compile(
+    r"^(?:just|please|simply|only|now|then|so|and|but|ok(?:ay)?|well|instead)?"
+    r"[\s,]*(?:tell|explain|describe|say)\s+(?:me|us)\b",
+    re.I,
+)
+
 _CLAUSE_BOUNDARY_RE = re.compile(r"\s*;\s*|(?<=[.!?])\s+|\n+")
 #: English lists instructions with commas as readily as with "and". Splitting
 #: only on the conjunction left "Open Notes, click into a new note, type hello,
@@ -468,6 +486,18 @@ def assess_request_mood(
     if actionable:
         if non_action or ambiguous:
             reasons = tuple(dict.fromkeys((*reasons, "mixed_clause_intent")))
+        # A refusal to act, and the rest of the turn asking only for words.
+        if "refusal_to_act" in reasons and all(
+            _ASKS_ONLY_FOR_WORDS_RE.match(clause.strip()) for clause in actionable
+        ):
+            return MoodVerdict(
+                RequestMood.MENTION,
+                reasons,
+                "present",
+                actionable,
+                non_action,
+                ambiguous,
+            )
         directive_scopes = [
             verdict.temporal_scope
             for _, verdict in assessed

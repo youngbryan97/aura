@@ -54,7 +54,7 @@ class FeatureAxis:
     origin: str  # human-readable description of what triggered discovery
     projection_vector: np.ndarray  # direction in raw telemetry space
     weight: float = 0.5
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     usage_count: int = 0
     contribution_score: float = 0.5  # rolling EMA of explained variance
     total_observations: int = 0  # observations since this axis was born
@@ -95,7 +95,7 @@ class ExpansionEvent:
     eigenvalue: float
     explained_variance_ratio: float
     residual_buffer_size: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -117,7 +117,7 @@ class ContractionEvent:
     axis_id: str
     final_contribution_score: float
     total_observations: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

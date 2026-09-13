@@ -36,7 +36,7 @@ class GatheredSource:
 @dataclass(slots=True)
 class _Gathered:
     query: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     sources: tuple[GatheredSource, ...] = ()
 
 

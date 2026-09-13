@@ -89,7 +89,7 @@ class ActionTransitionReceipt:
     #: Whether the after-state was read more than once and agreed with itself.
     #: A single read of a settling interface is a guess about the future.
     stable: bool = False
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     note: str = ""
 
     @property

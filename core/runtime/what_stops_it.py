@@ -36,6 +36,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.WhatStopsIt")
 
@@ -76,7 +77,7 @@ class Stopping:
         self._at = 0.0
         self._children: list[Stopping] = []
         self._when_stopped: list[Callable[[str], None]] = []
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.runtime.what_stops_it.self._lock")
 
     def stop(self, why: str = "") -> bool:
         """Ask for a stop. Returns False when one was already asked for.

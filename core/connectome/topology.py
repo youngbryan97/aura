@@ -405,12 +405,33 @@ def power_law_fit(values: Sequence[int], *, xmin_candidates: int = 24) -> dict[s
     heavy tailed far more often than one is fitted, so ``ks`` and ``tail_n``
     are returned beside the exponent and a fit over a handful of points in the
     tail should be disbelieved however pretty the exponent looks.
+
+    ``decades`` is how far the fitted tail runs, log10 of the largest value
+    over ``xmin``. It is the measurement that says whether an exponent means
+    anything: under a decade a power law is not separable from a lognormal, an
+    exponential, or the shoulder of a finite system's cutoff, and fitting
+    through a cutoff always returns an exponent steeper than the one underneath
+    it.
     """
     data = sorted(v for v in values if v > 0)
     if len(data) < 16:
-        return {"alpha": 0.0, "xmin": 0.0, "n": float(len(data)), "tail_n": 0.0, "ks": 1.0}
+        return {
+            "alpha": 0.0,
+            "xmin": 0.0,
+            "n": float(len(data)),
+            "tail_n": 0.0,
+            "ks": 1.0,
+            "decades": 0.0,
+        }
     cuts = sorted({v for v in data})[:xmin_candidates]
-    best = {"alpha": 0.0, "xmin": 0.0, "n": float(len(data)), "tail_n": 0.0, "ks": 1.0}
+    best = {
+        "alpha": 0.0,
+        "xmin": 0.0,
+        "n": float(len(data)),
+        "tail_n": 0.0,
+        "ks": 1.0,
+        "decades": 0.0,
+    }
     for xmin in cuts:
         tail = [v for v in data if v >= xmin]
         if len(tail) < 16:
@@ -439,6 +460,7 @@ def power_law_fit(values: Sequence[int], *, xmin_candidates: int = 24) -> dict[s
                 "n": float(len(data)),
                 "tail_n": float(n_tail),
                 "ks": ks,
+                "decades": round(math.log10(top / xmin), 4) if top >= xmin > 0 else 0.0,
             }
     return best
 

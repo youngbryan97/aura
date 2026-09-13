@@ -29,6 +29,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CancellingTheCall")
 
@@ -97,7 +98,7 @@ class ACall:
 
 
 _HISTORY: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.cancelling_the_call_and_not_just_the_wait.LOCK")
 _KEEP = 200
 
 
@@ -118,6 +119,8 @@ async def call(
     on its own timeout — and whatever ``work`` raised where the work failed.
     """
     one = ACall(what=str(what), by=str(by))
+    # Raw task, deliberately: this is the cancellation primitive. Creating it through the tracker
+    # would put the tracker inside the mechanism that cancels.
     running = asyncio.ensure_future(work(one))
     one.task = running
     try:

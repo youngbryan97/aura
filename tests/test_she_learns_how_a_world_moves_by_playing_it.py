@@ -39,6 +39,8 @@ harness.
 
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import asyncio
 import itertools
 import random
@@ -153,9 +155,9 @@ def world(monkeypatch):
     async def identity():
         return {"url": "", "title": "", "error": ""}
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "press_many", press_many)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "press_many", press_many)
     async def to_the_front(_app=""):
         return True
 
@@ -169,9 +171,9 @@ def world(monkeypatch):
 
         return _Allowed()
 
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
-    monkeypatch.setattr(sp, "_bring_the_thing_back_to_the_front", to_the_front)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "_bring_the_thing_back_to_the_front", to_the_front)
     monkeypatch.setattr(
         "core.security.screen_capture_policy.evaluate_screen_capture_admission_async",
         may_look,

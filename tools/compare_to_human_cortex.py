@@ -35,8 +35,14 @@ def main() -> int:
     parser.add_argument(
         "--units",
         type=int,
-        default=60,
-        help="how many units the recording reads, as an electrode array reads a slice",
+        default=0,
+        help=(
+            "how many units the recording reads; 0 reads all of them. Sixty was "
+            "the default, by analogy to Beggs and Plenz's sixty electrodes, and "
+            "an LFP electrode integrates thousands of cells rather than one. "
+            "Sixty of her 4,096 gives 38 cascades over 6,000 ticks, which "
+            "measures nothing"
+        ),
     )
     parser.add_argument(
         "--unit-percentile",
@@ -45,11 +51,32 @@ def main() -> int:
         help="threshold on the raster; 0 counts any spike, which is the raster's own definition",
     )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--drive", type=float, default=0.1)
+    parser.add_argument(
+        "--drive",
+        type=float,
+        default=0.0,
+        help=(
+            "sensory injection per tick. Zero by default because the numbers "
+            "this is compared against are recordings of SPONTANEOUS activity: "
+            "Beggs and Plenz read a slice sitting in its dish. Driving her with "
+            "a fresh independent vector every tick is not that protocol, and it "
+            "changes the answer -- at 0.1 the two exponents land on cortex's and "
+            "the scaling relation between them fails, at 0.0 the relation holds "
+            "and the exponents are too steep"
+        ),
+    )
     parser.add_argument(
         "--regulate",
         action="store_true",
         help="run the criticality regulator alongside, as the live mesh does",
+    )
+    parser.add_argument(
+        "--widths",
+        action="store_true",
+        help=(
+            "refit the exponents while reading more and more of the mesh; the "
+            "curve says whether the number was reading the window"
+        ),
     )
     parser.add_argument("--json", default="")
     arguments = parser.parse_args()
@@ -149,6 +176,36 @@ def main() -> int:
         per_unit=spikes,
         per_unit_percentile=arguments.unit_percentile,
     )
+    if arguments.widths:
+        from core.connectome.criticality import exponent_against_recording_width
+
+        # The full raster, not the subsample the comparison above reads. The
+        # point of the sweep is what happens as the window widens.
+        sweep = exponent_against_recording_width(np.vstack(raster), seed=arguments.seed)
+        report["recording_width"] = sweep
+        print(
+            f"\n{'units':>6} {'dT':>3} {'aval':>6} {'active':>7} {'largest':>8} "
+            f"{'decades':>8} {'size':>7} {'duration':>9}"
+        )
+        for row in sweep["rows"]:
+            print(
+                f"{row['units_recorded']:>6} {row['bin_ticks']:>3} {row['avalanches']:>6} "
+                f"{row['active_fraction']:>7.3f} {row['largest']:>8} "
+                f"{row['size_decades']:>8.3f} {row['size_exponent']:>7.3f} "
+                f"{row['duration_exponent']:>9.3f}"
+            )
+        print(f"{sweep['verdict']}")
+
+    rate_control = report["beyond_rate"]
+    print(
+        f"\nshuffle control: population variance "
+        f"{rate_control['population_variance']} against "
+        f"{rate_control['shuffled_variance']} shuffled, "
+        f"{rate_control['sigmas_above_independence']} sigma, "
+        f"{rate_control['active_fraction']:.1%} of bins active"
+    )
+    print(f"  {rate_control['verdict']}")
+
     print(f"\n{report['verdict']}")
     print(f"cascades: {report['avalanches']}")
     print(f"size fit: {report['size_fit']}")

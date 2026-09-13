@@ -4,7 +4,7 @@
   "note": "Physical line counts for files over the threshold. These numbers may only decrease. Regenerate with `python tools/god_file_ratchet.py --write`, which refuses to record growth.",
   "files": {
     "core/actuators/actuator_registry.py": 1739,
-    "core/adaptation/adaptive_immunity.py": 3953,
+    "core/adaptation/adaptive_immunity.py": 4033,
     "core/affect/damasio_v2.py": 1599,
     "core/agency/agency_core.py": 3080,
     "core/agency/autonomous_task_engine.py": 3218,

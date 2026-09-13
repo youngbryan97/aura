@@ -135,7 +135,7 @@ def test_routine_maintenance_never_promotes_itself_to_full_vacuum(tmp_path):
     from core.persistence.db_maintenance import DatabaseMaintenance
 
     db_path = tmp_path / "aura_state.db"
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         conn.execute("CREATE TABLE payload(value TEXT)")
 
     maint = DatabaseMaintenance(db_path=str(db_path), vacuum_interval_hours=0)
@@ -143,7 +143,7 @@ def test_routine_maintenance_never_promotes_itself_to_full_vacuum(tmp_path):
 
     assert result.vacuum_run is False
     assert "full_vacuum_requires_explicit_maintenance" in result.deferred_phases
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         assert conn.execute("PRAGMA auto_vacuum").fetchone()[0] == 0
 
 
@@ -151,14 +151,14 @@ def test_explicit_maintenance_may_install_incremental_vacuum(tmp_path):
     from core.persistence.db_maintenance import DatabaseMaintenance
 
     db_path = tmp_path / "aura_state.db"
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         conn.execute("CREATE TABLE payload(value TEXT)")
 
     maint = DatabaseMaintenance(db_path=str(db_path), vacuum_interval_hours=0)
     result = maint.run_maintenance(force=True)
 
     assert result.vacuum_run is True
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         assert conn.execute("PRAGMA auto_vacuum").fetchone()[0] == 2
 
 
@@ -167,7 +167,7 @@ def test_async_routine_maintenance_defers_while_a_person_is_waiting(tmp_path):
     from core.runtime.foreground_guard import _reset_for_tests, begin_foreground_turn
 
     db_path = tmp_path / "aura_state.db"
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         conn.execute("CREATE TABLE payload(value TEXT)")
     maint = DatabaseMaintenance(db_path=str(db_path))
 
@@ -190,7 +190,7 @@ def test_async_routine_maintenance_leaves_event_loop_responsive(monkeypatch, tmp
     from core.runtime.foreground_guard import _reset_for_tests
 
     db_path = tmp_path / "aura_state.db"
-    with sqlite3.connect(db_path) as conn:
+    with connecting(sqlite3.connect(db_path)) as conn:
         conn.execute("CREATE TABLE payload(value TEXT)")
     maint = DatabaseMaintenance(db_path=str(db_path))
     entered = threading.Event()

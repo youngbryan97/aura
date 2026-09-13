@@ -49,8 +49,12 @@ def test_snapshot_fails_loud_on_unsupported_cache():
 
 def test_lane_defaults_cover_real_model_sizes():
     """Qwen2.5-32B has 64 layers; Qwen2.5-72B has 80. Both must land in
-    the intended runtime envelopes for interactive use."""
-    assert _get_lane_defaults(64)[0] >= 2, "32B (64 layers) must map to a looped lane"
+    the intended runtime envelopes for interactive use.
+
+    Every lane is the identity depth since 2026-09-12. Nothing ever measured
+    that looping helped, and the one measurement that exists is against it.
+    """
+    assert _get_lane_defaults(64)[0] == 1, "64 layers runs at the identity depth"
     assert _get_lane_defaults(80)[0] == 1, "72B (80 layers) should default to a single pass for live solver turns"
     # And the small-model lanes must be standard-pass (no unnecessary cost).
     assert _get_lane_defaults(28)[0] == 1, "14B (28-40 layers) should be standard"

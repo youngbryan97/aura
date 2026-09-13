@@ -37,20 +37,21 @@ import os
 import random
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field, fields as dataclass_fields, replace
+from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, ClassVar
 
 import numpy as np
 
-from core.subject.clock import real_time
-from core.subject.steppable import Steps, missing_entry_points, step_once
+from core.soma.effort import note_effort
 from core.subject.state import (
     FAST_DOMAINS,
     CoreState,
     Organs,
     read_core_state,
 )
+from core.subject.steppable import Steps, step_once
 
 __all__ = [
     "CONDITIONS",
@@ -75,7 +76,6 @@ PHASE_TIMEOUT: float = 12.0
 #: and a turn takes about half a second, so ten steps' worth is the honest
 #: equivalent — taken as one step of that length rather than ten of a twentieth,
 #: because two arms must see the same integration and not the same wall clock.
-SUBSTRATE_STEP_SECONDS: float = 0.5
 
 #: The priority below which the will defers an initiative
 #: (`core/governance/will.py`). Read here rather than chosen, because "urgent
@@ -279,805 +279,70 @@ CONDITIONS: tuple[Condition, ...] = (
 )
 
 
-#: Attribute names never carried across a fork. Locks, events, tasks and
-#: sockets are process furniture; copying one is at best useless and at worst a
-#: deadlock, and none of them is state in the sense this battery measures.
-#: Locks, events, tasks and sockets are process furniture; copying one is at
-#: best useless and at worst a deadlock, and none of them is state in the sense
-#: this battery measures.
-#:
-#: Decided by the type, never by the name. The first version matched substrings
-#: of the attribute name, which excluded `_cached_connectivity_norm` because it
-#: contains `_conn`, `total_collapse_events` because it contains `_event`, and
-#: `_loop_failure_streak` because it contains `_loop` — three pieces of real
-#: substrate state, dropped from every fork, and therefore three contributions
-#: to a floor that no experiment could get below. A name is not a type.
-#: How deep the furniture scan looks inside an object before giving up and
-#: treating it as safe. Deep enough to find a lock a service keeps behind one
-#: helper, shallow enough that the scan is bounded.
-_FURNITURE_DEPTH: int = 3
-
-
-def _furniture_types() -> tuple[type, ...]:
-    import io
-    import multiprocessing
-    import socket as _socket_module
-    import sqlite3
-    import threading as _threading
-    from concurrent.futures import Executor, Future
-
-    return (
-        _threading.Event,
-        _threading.Barrier,
-        _threading.Semaphore,
-        _threading.Thread,
-        type(_threading.Lock()),
-        type(_threading.RLock()),
-        _socket_module.socket,
-        sqlite3.Connection,
-        sqlite3.Cursor,
-        io.IOBase,
-        multiprocessing.process.BaseProcess,
-        asyncio.Task,
-        asyncio.Future,
-        asyncio.Event,
-        asyncio.Lock,
-        asyncio.Condition,
-        asyncio.Queue,
-        asyncio.AbstractEventLoop,
-        Executor,
-        Future,
-    )
-
-
-_FURNITURE: tuple[type, ...] = ()
-
-
-def _is_process_furniture(value: Any) -> bool:
-    """Whether this value *is* a handle. Not whether it contains one."""
-    global _FURNITURE
-    if not _FURNITURE:
-        _FURNITURE = _furniture_types()
-    if isinstance(value, _FURNITURE):
-        return True
-    if isinstance(value, (list, tuple, set, frozenset)) and len(value) <= 64:
-        return any(_is_process_furniture(item) for item in value)
-    if isinstance(value, dict) and len(value) <= 64:
-        return any(_is_process_furniture(item) for item in value.values())
-    return False
-
-
-def _holds_furniture(value: Any, depth: int = 0) -> bool:
-    """Whether copying this would duplicate a handle somewhere inside it.
-
-    Different question from the one above, and the two must not be confused. A
-    value that *is* a lock has nothing to carry and is skipped. A value that
-    *holds* one — the world model's forward network keeps a stop event, the
-    self model keeps a lock beside its beliefs — has plenty to carry and must
-    be taken apart rather than skipped, which is how the network came to be
-    absent from every fork.
-
-    The scan matters because a deep copy of an open file duplicates the
-    descriptor, and collecting the copy closes the original underneath the
-    process still using it. That is not a floor in a measurement, it is a
-    broken runtime.
-    """
-    if _is_process_furniture(value):
-        return True
-    if isinstance(value, (str, bytes, int, float, bool, type(None), np.ndarray)):
-        return False
-    if depth >= _FURNITURE_DEPTH:
-        return False
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return any(_holds_furniture(item, depth + 1) for item in list(value)[:64])
-    if isinstance(value, dict):
-        return any(_holds_furniture(item, depth + 1) for item in list(value.values())[:64])
-    fields = getattr(value, "__dict__", None)
-    if isinstance(fields, dict):
-        return any(_holds_furniture(item, depth + 1) for item in list(fields.values())[:64])
-    return False
-
-
-#: How the capture marks a field it had to take apart rather than copy whole.
-_NESTED = "__nested__"
-
-#: How deep the capture goes into an organ's own objects. Two is enough to
-#: reach the world model's forward network through its wrapper, and shallow
-#: enough that a graph of references cannot turn a snapshot into a traversal.
-_ORGAN_DEPTH: int = 2
-
-
-def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset()) -> dict[str, Any]:
-    """A deep copy of the numbers an organ is carrying, and nothing else.
-
-    Copied by value so that restoring one arm cannot hand the next arm a live
-    reference it then mutates.
-
-    A field that will not copy is taken apart instead of dropped. The world
-    model's wrapper holds the forward network, the network holds a stop event
-    and a trainer handle, and a lock cannot be deep-copied — so the whole
-    network was silently skipped and its weights and hidden state drifted
-    across every fork. Dropping a field that will not copy is how a shared
-    variable becomes a floor that no experiment can get below.
-    """
-    if organ is None or not hasattr(organ, "__dict__"):
-        return {}
-    out: dict[str, Any] = {}
-    for name, value in list(vars(organ).items()):
-        if callable(value) or inspect.ismodule(value) or _is_process_furniture(value):
-            continue
-        # Already carried under its own name. A phase holds references to
-        # services, and capturing them twice doubles the cost of every fork
-        # and writes the same values through two paths.
-        if id(value) in skip:
-            continue
-        if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH and _holds_furniture(value):
-            out[name] = (_NESTED, _organ_state(value, depth + 1, skip))
-            continue
-        try:
-            out[name] = copy.deepcopy(value)
-        except Exception:  # noqa: BLE001 - every way a copy fails has one answer
-            # Take it apart instead. A multiprocessing queue raises RuntimeError
-            # rather than TypeError, an executor raises something else again,
-            # and enumerating the ways a copy can fail is how the world model
-            # came to be dropped from every fork.
-            if hasattr(value, "__dict__") and depth < _ORGAN_DEPTH:
-                out[name] = (_NESTED, _organ_state(value, depth + 1))
-    return out
-
-
-#: Values no arm can mutate, so a restore can hand the same object to all three
-#: without copying it. Most of what an organ carries is one of these, and
-#: copying them was most of what a restore cost.
-_ATOMIC: tuple[type, ...] = (str, bytes, int, float, bool, type(None))
-
-
-def _place(value: Any) -> Any:
-    """A value safe to hand to an arm that may mutate it.
-
-    A tuple is only as immutable as what is inside it — a tuple of lists is
-    shared state wearing an immutable type — so the check goes one level in
-    rather than trusting the container.
-    """
-    if isinstance(value, _ATOMIC):
-        return value
-    if isinstance(value, np.ndarray):
-        return np.array(value, copy=True)
-    if isinstance(value, (tuple, frozenset)) and all(
-        isinstance(item, _ATOMIC) for item in value
-    ):
-        return value
-    return copy.deepcopy(value)
-
-
-def _guards_its_own_writes(organ: Any) -> bool:
-    """Whether this object polices what may be written to it.
-
-    A class that defines `__setattr__` has an opinion about its own mutation,
-    and a fork rewinding state is not the caller that opinion was written for.
-    The mycelial topology refuses the write and logs a critical before it does,
-    which is the guard working — so the fork stops asking.
-    """
-    return type(organ).__setattr__ is not object.__setattr__
-
-
-def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
-    if organ is None or _guards_its_own_writes(organ):
-        return
-    for name, value in saved.items():
-        if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
-            _restore_organ(getattr(organ, name, None), value[1])
-            continue
-        try:
-            setattr(organ, name, _place(value))
-        except (
-            ArithmeticError,
-            AttributeError,
-            ImportError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ):
-            # A field that will not be written stays as it was. The kinds are
-            # named so an interrupt still stops the restore.
-            continue
-
-
-#: The reservoir attributes that make up an ontogenetic state's whole memory.
-_RESERVOIR_FIELDS: tuple[str, ...] = (
-    "h",
-    "steps",
-    "era",
-    "_centre",
-    "_scatter",
-    "_centre_n",
+# The fork’s state machinery lives in core/subject/snapshot.py. It is
+# imported rather than reachable only through it, because 29 call sites
+# already ask the driver for these names.
+from core.subject.snapshot import (  # noqa: E402
+    _UNFORKED_SERVICES,
+    SUBSTRATE_BODY,
+    Snapshot,
+    _built_services,
+    _differs,
+    _effort_state,
+    _HeldObserver,
+    _intentions_state,
+    _lifetime_last,
+    _module_state,
+    _moments_of,
+    _organ_state,
+    _reanchor,
+    _restore_effort,
+    _restore_intentions,
+    _restore_lifetime_last,
+    _restore_module_state,
+    _restore_moments,
+    _restore_organ,
+    _restore_services,
+    _restore_singletons,
+    _restore_stores,
+    _restore_torch_random,
+    _restore_world,
+    _service_state,
+    _singleton_state,
+    _store_state,
+    _torch_random_state,
+    _world_state,
 )
 
-
-#: Attributes holding a wall-clock instant that a later reader turns into an
-#: elapsed time. Restoring a snapshot rewinds these along with everything else,
-#: so the arm that runs second sees a longer interval than the arm that ran
-#: first — which is the machine's own speed entering the measurement.
-_CLOCK_ANCHORS: tuple[str, ...] = (
-    "last_tick",
-    "last_update",
-    "_last_update",
-    "last_thought_at",
-    "_last_pulse_t",
-    "_last_state_mutation_at",
-    "start_time",
-    "_last_disk_time",
-    "_last_thought_time",
-    "submitted_at",
-)
-
-#: Anything smaller than this is not a wall-clock instant. Epoch seconds passed
-#: a billion in 2001; a duration, a count or a rate never reaches it. The
-#: ceiling is the year 2100, above which a large number is something else.
-_EPOCH_FLOOR: float = 1e9
-_EPOCH_CEILING: float = 4.1e9
-
-#: What a field holding an instant is called. The named list above is the set
-#: the shallow pass knew about; a fork has to find the ones nobody listed,
-#: because the one that mattered most — when a workspace bid was submitted —
-#: is two objects deep inside the organ and was named none of them.
-_INSTANT_WORDS: tuple[str, ...] = ("time", "_at", "stamp", "clock", "since", "when")
-
-#: How far into an organ the rewind looks. The bid that decides a competition
-#: sits at depth two: workspace -> last_winner -> submitted_at.
-_ANCHOR_DEPTH: int = 3
-
-#: How many entries of a container the rewind reads. A history buffer can hold
-#: thousands and only the recent ones carry an instant anything still reads.
-_ANCHOR_FANOUT: int = 64
-
-#: How far into the object graph the search for wall-clock instants goes. The
-#: workspace holds its last winner, the winner holds the instant it was
-#: submitted, and the priority every consumer reads is that instant against the
-#: clock — three hops from the organ.
-_ANCHOR_DEPTH: int = 4
-
-def _looks_like_an_instant(name: str, value: Any) -> bool:
-    """Whether this field holds a wall-clock instant rather than a number.
-
-    A field called `submitted_at` holding 0.3 is a duration, so the value has to
-    land in the epoch window either way. Past that, a float there is taken as an
-    instant whatever it is called, and an int only when the name says so.
-
-    The two errors are not symmetric. Missing a stamp puts the machine's speed
-    into the floor of whatever domain reads it, silently, and that is how
-    `submitted_at` cost a session; shifting something that was not a stamp
-    moves it by seconds in seventeen hundred million, which only a reader
-    taking a difference could see, and a reader taking a difference is one this
-    is for. So a float in the window is enough, and the words are what admits
-    a count.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    if not (_EPOCH_FLOOR < float(value) < _EPOCH_CEILING):
-        return False
-    if isinstance(value, float):
-        return True
-    lowered = str(name).lower()
-    return any(word in lowered for word in _INSTANT_WORDS)
-
-
-def _shift_anchors(obj: Any, shift: float, depth: int = 0, seen: set[int] | None = None) -> None:
-    """Move every wall-clock instant inside this object forward by `shift`.
-
-    A restore rewinds the state but not the clock, so the arm that runs second
-    always sees more elapsed time than the arm that ran first. The named
-    anchors below are shifted at the top level; everything else is found by
-    walking the object, because the instant that decided the largest remaining
-    floor term was `submitted_at` on the workspace's last winner, and a bid's
-    priority is read as of now — so two arms reading the same winner a second
-    apart priced it differently and the workspace domain moved before either
-    had been displaced.
-    """
-    if obj is None or depth > _ANCHOR_DEPTH:
-        return
-    if seen is None:
-        seen = set()
-    if id(obj) in seen:
-        return
-    seen.add(id(obj))
-    for name in _CLOCK_ANCHORS:
-        value = getattr(obj, name, None)
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > _EPOCH_FLOOR:
-            try:
-                setattr(obj, name, float(value) + shift)
-            except (AttributeError, TypeError, ValueError):
-                continue
-    fields = getattr(obj, "__dict__", None)
-    if isinstance(fields, dict):
-        for name, value in list(fields.items())[: _ANCHOR_FANOUT * 4]:
-            if _looks_like_an_instant(name, value):
-                try:
-                    setattr(obj, name, float(value) + shift)
-                except (AttributeError, TypeError, ValueError):
-                    continue
-                continue
-            _shift_inside(value, shift, depth + 1, seen)
-    elif isinstance(obj, (dict, list, tuple)):
-        _shift_inside(obj, shift, depth, seen)
-
-
-def _shift_inside(value: Any, shift: float, depth: int, seen: set[int]) -> None:
-    """Follow a container or an ordinary object, and stop at anything else."""
-    if depth > _ANCHOR_DEPTH:
-        return
-    if isinstance(value, (str, bytes, bytearray, np.ndarray, int, float, bool, type(None))):
-        return
-    if isinstance(value, dict):
-        for key, item in list(value.items())[:_ANCHOR_FANOUT]:
-            if _looks_like_an_instant(str(key), item):
-                try:
-                    value[key] = float(item) + shift
-                except (TypeError, ValueError):
-                    continue
-                continue
-            _shift_inside(item, shift, depth + 1, seen)
-        return
-    if isinstance(value, (list, tuple, set, frozenset)):
-        for item in list(value)[-_ANCHOR_FANOUT:]:
-            _shift_inside(item, shift, depth + 1, seen)
-        return
-    if hasattr(value, "__dict__") and not _is_process_furniture(value):
-        _shift_anchors(value, shift, depth, seen)
-
-
-#: The environment an arm acts in. The strongest form of the experiment forks
-#: (K, E) rather than K alone: she writes a file, reads it back, and what she
-#: reads is the evidence her self-model learns efficacy from. Without this the
-#: sham arm inherited whatever the displaced arm had just written — the log it
-#: appended to, the room it made — and the one action that can fail, reading
-#: back a room made on the previous turn, succeeded or failed according to what
-#: another arm had done.
-
-
-def _world_state(root: Path | None) -> dict[str, Any] | None:
-    """Every byte under the scratch root, and where the directories are."""
-    if root is None or not Path(root).exists():
-        return None
-    root = Path(root)
-    files: dict[str, bytes] = {}
-    directories: list[str] = []
-    for item in sorted(root.rglob("*")):
-        name = str(item.relative_to(root))
-        if item.is_dir():
-            directories.append(name)
-        elif item.is_file():
-            try:
-                files[name] = item.read_bytes()
-            except OSError:
-                continue
-    return {"files": files, "directories": directories}
-
-
-def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
-    """Put the scratch root back to the bytes it held, and nothing else."""
-    if root is None or saved is None:
-        return
-    import shutil
-
-    root = Path(root)
-    keep = set(saved["files"]) | set(saved["directories"])
-    for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
-        name = str(item.relative_to(root))
-        if name in keep:
-            continue
-        try:
-            if item.is_dir():
-                shutil.rmtree(item, ignore_errors=True)
-            else:
-                item.unlink()
-        except OSError:
-            continue
-    for name in saved["directories"]:
-        (root / name).mkdir(parents=True, exist_ok=True)
-    for name, payload in saved["files"].items():
-        target = root / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            if not target.exists() or target.read_bytes() != payload:
-                target.write_bytes(payload)
-            # An arm reading a modification time would be reading which arm it
-            # is. Nothing in the probe does today; putting the stamp back costs
-            # nothing and stops that from becoming true by accident.
-            os.utime(target, (0, 0))
-        except OSError:
-            continue
-
-
-def _intentions_state(loop: Any) -> list[tuple] | None:
-    """Every row the intention database holds.
-
-    The loop keeps its open intentions in memory and its record of what came of
-    them on disk, and the fork carried only the first. Efficacy, the capability
-    beliefs the self model reads and the comparator's attributions are all
-    computed from what is on disk, so an arm that acted taught the next arm
-    what it had learned.
-    """
-    connection = getattr(loop, "_conn", None)
-    if connection is None:
-        return None
-    try:
-        return list(connection.execute("SELECT * FROM intentions"))
-    except Exception:  # noqa: BLE001 - a database that will not read is not carried
-        return None
-
-
-def _restore_intentions(loop: Any, rows: list[tuple] | None) -> None:
-    """Roll the intention database back to the rows the snapshot holds."""
-    connection = getattr(loop, "_conn", None)
-    if connection is None or rows is None:
-        return
-    try:
-        with connection:
-            connection.execute("DELETE FROM intentions")
-            if rows:
-                marks = ",".join("?" for _ in rows[0])
-                connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
-    except Exception:  # noqa: BLE001
-        return
-
-
-def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
-    """Move every wall-clock instant forward by the time the restore skipped.
-
-    One shared record of what has been visited, because the state, the organs
-    and the services reach many of the same objects and shifting one of them
-    twice puts the skipped interval into the reading rather than taking it out.
-    """
-    if shift <= 0.0:
-        return
-    state = runtime.state
-    for holder in (
-        state,
-        getattr(state, "motivation", None),
-        getattr(state, "cognition", None),
-        getattr(state, "soma", None),
-    ):
-        _shift_anchors(holder, shift)
-    seen: set[int] = set()
-    for name in runtime.ORGAN_FIELDS:
-        _shift_anchors(getattr(runtime.organs, name, None), shift, seen=seen)
-    # And the services, which the fork restores and never rewound. The unity
-    # layer binds a mind-moment over a four-second window with a 1.2-second
-    # half-life, both measured against the wall clock, so two arms binding the
-    # same events at different instants scored the binding differently and
-    # coherence and fragmentation were the largest floor terms left in the
-    # workspace domain. A phase that reads elapsed time has to be handed the
-    # same elapsed time in both arms.
-    for name, instance in _built_services().items():
-        if name in _UNFORKED_SERVICES:
-            continue
-        _shift_anchors(instance, shift, seen=seen)
-    world = getattr(state, "world", None)
-    percepts = getattr(world, "recent_percepts", None)
-    if isinstance(percepts, list):
-        for item in percepts:
-            if isinstance(item, dict):
-                stamp = item.get("timestamp")
-                if isinstance(stamp, (int, float)) and stamp > _EPOCH_FLOOR:
-                    item["timestamp"] = float(stamp) + shift
-
-
-#: Services left alone by the fork. The vault owns the run's database and the
-#: container owns the services themselves; rewinding either would break the
-#: machinery the measurement runs on rather than the state it measures.
-#:
-#: There is no allowlist of what the fork considers. There was one — sixteen
-#: names, chosen by which services somebody thought a domain read — and the
-#: unity layer was not among them, so its four-second binding window and its
-#: last mind-moment survived from one arm into the next and coherence and
-#: fragmentation stayed the two largest terms in the floor after everything
-#: else had been found. A hand-maintained list of what to carry falls behind
-#: the tree by construction, and the calibration exists precisely so the
-#: question does not have to be answered by hand: take a reading, live a turn
-#: in each condition, take another, carry whatever moved.
-
-_UNFORKED_SERVICES: frozenset[str] = frozenset(
-    {
-        "state_repository",
-        "vault",
-        "service_container",
-        "file_write_gateway",
-        # The mycelial topology is guarded against rebinding on purpose and is
-        # not per-arm state: it is the wiring the arms both run on. Writing to
-        # it raises, and the guard logs a critical before it does.
-        "mycelium",
-        "mycelial_network",
-    }
-)
-
-
-def _built_services() -> dict[str, Any]:
-    try:
-        from core.container import ServiceContainer
-
-        built = getattr(ServiceContainer, "_services", {}) or {}
-    except (AttributeError, ImportError):
-        return {}
-    out: dict[str, Any] = {}
-    for name in list(built):
-        try:
-            instance = built.get(name)
-        except (KeyError, RuntimeError, TypeError):
-            continue
-        instance = getattr(instance, "instance", instance)
-        if instance is not None and hasattr(instance, "__dict__"):
-            out[name] = instance
-    return out
-
-
-def _differs(left: Any, right: Any) -> bool:
-    """Whether two captures hold different numbers. Any doubt counts as yes."""
-    if left is None or right is None:
-        return left is not right
-    try:
-        return repr(left) != repr(right)
-    except Exception:  # noqa: BLE001 - unreadable is different
-        return True
-
-
-def _service_state(only: set[str] | None = None) -> dict[str, dict[str, Any]]:
-    """The mutable state of everything the container has already built."""
-    out: dict[str, dict[str, Any]] = {}
-    for name, instance in _built_services().items():
-        if name in _UNFORKED_SERVICES:
-            continue
-        if only is not None and name not in only:
-            continue
-        try:
-            captured = _organ_state(instance)
-        except (
-            ArithmeticError,
-            AttributeError,
-            ImportError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ):
-            # A service that cannot be read is skipped, by kind rather than by
-            # catching everything.
-            continue
-        if captured:
-            out[name] = captured
-    return out
-
-
-def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
-    if not saved:
-        return
-    built = _built_services()
-    for name, fields in saved.items():
-        instance = built.get(name)
-        if instance is not None:
-            _restore_organ(instance, fields)
-
-
-def _effort_state() -> dict[str, float] | None:
-    try:
-        from core.soma.effort import get_effort_ledger
-
-        return dict(get_effort_ledger().peek())
-    except (ImportError, RuntimeError):
-        return None
-
-
-def _restore_effort(saved: dict[str, float] | None) -> None:
-    if saved is None:
-        return
-    try:
-        from core.soma.effort import get_effort_ledger
-
-        ledger = get_effort_ledger()
-        ledger.drain()
-        for kind, amount in saved.items():
-            ledger.note(kind, amount)
-    except (ImportError, RuntimeError):
-        return
-
-
-def _torch_random_state() -> Any:
-    try:
-        import torch
-    except ImportError:
-        return None
-    try:
-        return torch.get_rng_state().clone()
-    except (AttributeError, RuntimeError):
-        return None
-
-
-def _restore_torch_random(saved: Any) -> None:
-    if saved is None:
-        return
-    try:
-        import torch
-
-        torch.set_rng_state(saved)
-    except (ImportError, AttributeError, RuntimeError, TypeError):
-        return
-
-
-
-def _lifetime_last() -> Any:
-    """The lifetime module's own copy of the last step.
-
-    `core.ontogeny.lifetime` publishes what the reservoir sensed through a
-    module-level global rather than through the service, so nothing that forks
-    a run could carry it by carrying the service. The driver reads it once per
-    turn to fill N's novelty and displacement columns.
-    """
-    try:
-        from core.ontogeny import lifetime
-
-        with lifetime._lock:
-            return lifetime._last
-    except (ImportError, AttributeError):
-        return None
-
-
-def _restore_lifetime_last(saved: Any) -> None:
-    try:
-        from core.ontogeny import lifetime
-
-        with lifetime._lock:
-            lifetime._last = saved
-    except (ImportError, AttributeError):
-        return
-
-
-def _moments_of(service: Any) -> dict[str, Any] | None:
-    """Everything the ontogeny service mutates that is not in a snapshot yet.
-
-    The running moments normalise the design row, so an arm that displaced a
-    domain shifted the mean that the next arm was measured against. The last
-    reading is what `novelty` reports. And the service's reservoir is a
-    different object from the one the N domain reads — the affect phase steps
-    that one every turn — so it drifts across the fork unless it is carried.
-    """
-    if service is None:
-        return None
-    saved: dict[str, Any] = {}
-    moments = getattr(service, "_advance_moments", None)
-    if moments is not None:
-        saved["moments"] = (
-            np.array(moments.count, copy=True),
-            np.array(moments.mean, copy=True),
-            np.array(moments.m2, copy=True),
-        )
-    reservoir = getattr(service, "_state", None)
-    if reservoir is not None:
-        saved["reservoir"] = {
-            name: (
-                np.array(value, copy=True)
-                if isinstance(value := getattr(reservoir, name, None), np.ndarray)
-                else value
-            )
-            for name in _RESERVOIR_FIELDS
-        }
-    return saved or None
-
-
-def _restore_moments(service: Any, saved: dict[str, Any] | None) -> None:
-    if service is None or not saved:
-        return
-    moments = getattr(service, "_advance_moments", None)
-    columns = saved.get("moments")
-    if moments is not None and columns is not None:
-        moments.count = np.array(columns[0], copy=True)
-        moments.mean = np.array(columns[1], copy=True)
-        moments.m2 = np.array(columns[2], copy=True)
-    reservoir = getattr(service, "_state", None)
-    fields = saved.get("reservoir")
-    if reservoir is not None and fields:
-        for name, value in fields.items():
-            setattr(
-                reservoir, name, np.array(value, copy=True) if isinstance(value, np.ndarray) else value
-            )
-
-
-@dataclass
-class Snapshot:
-    """Everything a fork has to carry for two arms to start from one place."""
-
-    state: Any
-    hidden: np.ndarray
-    steps: int
-    era: int
-    centre: np.ndarray
-    scatter: np.ndarray
-    centre_n: float
-    turn: int
-    rng_state: tuple
-    #: The ontogeny service's own accumulators, which are not in the reservoir
-    #: and are mutated by every step. The running moments normalise the design
-    #: row, so an arm that displaced a domain shifted the mean the next arm was
-    #: measured against; and the last reading is what `novelty` reports. Both
-    #: are process-wide, so without carrying them the sham arm started from a
-    #: state the displaced arm had already moved — a floor on N of nearly two
-    #: standard deviations before a single phase had run.
-    #: The scratch world, byte for byte, and the intention database's rows. The
-    #: experiment forks (K, E): what she wrote in one arm is not there for the
-    #: next, and what she learned from writing it is not either.
-    world: dict[str, Any] | None = None
-    intentions: list[tuple] | None = None
-    #: The harness's frame count. Which free-running layers step on a given
-    #: frame is a function of this number, so two arms that do not start from
-    #: the same one are not running the same organism.
-    frame_index: int = 0
-    moments: dict[str, Any] | None = None
-    last_reading: Any = None
-    #: What the last step sensed, which is what the N domain reports as novelty
-    #: and displacement. `_step_ontogeny` copies it onto the reservoir object
-    #: and `core.ontogeny.lifetime` keeps its own copy behind a module-level
-    #: global that no container holds, so neither travelled with the fork: two
-    #: sham arms restored from one snapshot read different novelty on their
-    #: opening frame, before a phase had run. Nine tenths of a standard
-    #: deviation of the largest floor term in the battery.
-    last_novelty: float = 0.5
-    last_displacement: float = 0.0
-    lifetime_last: Any = None
-    #: The process-wide generators. Phases draw from `random` and `numpy.random`
-    #: directly — the affect decay adds a Gaussian drift on every turn, and for
-    #: an emotion that never otherwise moves that drift is the whole of the
-    #: column's recorded spread. Two arms drawing different numbers from it
-    #: differ by more than a standard deviation before anything has happened.
-    #: Two arms have to see the same computation, and a generator the phases
-    #: draw from is part of the computation.
-    global_random: Any = None
-    numpy_random: Any = None
-    #: Every service the container has already built, captured the same way
-    #: the organs are. The list of organs was a list of the ones already
-    #: thought of: conversation dynamics accumulates topic anchors, the self
-    #: model accumulates beliefs, and each of those left half a standard
-    #: deviation in the floor of a domain that reads it. What the fork has to
-    #: carry is everything that persists, not everything that was remembered.
-    services: dict[str, dict[str, Any]] = field(default_factory=dict)
-
-    #: The phases' own accumulators. A phase is not stateless: it caches the
-    #: engine it talks to, and those engines are module-level singletons that
-    #: no container holds — conversation dynamics accumulates topic anchors
-    #: behind one, and that left half a standard deviation in the workspace
-    #: domain's floor with nothing in the container to carry.
-    phases: dict[str, dict[str, Any]] = field(default_factory=dict)
-
-    #: The effort ledger's pending total. It is a process-wide singleton, and
-    #: an arm that thought harder left its exertion on the counter for the next
-    #: arm to drain — six tenths of a standard deviation of the body's newest
-    #: channel, before either arm had been displaced.
-    effort: dict[str, float] | None = None
-
-    #: Where the experiment clock stood. Restoring rewinds the state, and the
-    #: clock the phases read is part of the state as far as they are concerned:
-    #: a drive decays by `decay * dt` and a mind-moment binds over a window,
-    #: both against `time.time`.
-    clock_at: float | None = None
-    #: Wall clock when the snapshot was taken. Restoring rewinds the state but
-    #: not the clock, so the second arm of a trial always sees more elapsed
-    #: time than the first — the motivation phase decays every drive by
-    #: `now - last_tick`, so the arms differ by however long the first one took
-    #: before either has been displaced.
-    taken_at: float = 0.0
-    #: Torch's global generator. The substrate draws its integration noise from
-    #: `torch.randn` on every step, so two arms integrating the same state
-    #: diverged by more than a standard deviation of the substrate's own
-    #: spread — the largest single term left in the floor once the organs
-    #: themselves were carried.
-    torch_random: Any = None
-    #: The organs are process-wide singletons. Without carrying them across the
-    #: fork, whatever the displaced arm did to the workspace, the self model,
-    #: the world model or the agency ledger was still there when the sham arm
-    #: ran, and the comparison was between an untouched organism and one that
-    #: had already been touched.
-    organs: dict[str, dict[str, Any]] = field(default_factory=dict)
+#: Every way a turn of this driver reaches into the organism outside the phases
+#: it runs, with what the running organism does in its place. The desktop
+#: runtime runs the heartbeat, the substrate, the layers and the training lane
+#: on timers; this driver runs them on its own count so both arms of a trial
+#: run the same computation. A route with no counterpart in the live runtime
+#: would be a mechanism the battery built for itself, so each names one, or says
+#: that it is the instrument. A test fails when the turn reaches a route that is
+#: not listed, and when a listed counterpart does not exist.
+HARNESS_ROUTES: dict[str, str] = {
+    "_consciousness_tick": "core/consciousness/heartbeat.py:_tick, the heartbeat's own beat, and the substrate's update, which the runtime runs on their intervals",
+    "_integrate_substrate": "core/consciousness/liquid_substrate.py:LiquidSubstrate, the substrate's own iterations at its own step size",
+    "_train_world_model": "core/world_model/learned_world_model.py:start_training, the gradient steps the training lane takes on its timer",
+    "_step_ontogeny": "core/ontogeny/lifetime.py:advance, whose reading from the affect phase is copied onto the object N is read from",
+    "_refresh_health": "core/state/aura_state.py:_refresh_cognitive_health, the projection the kernel makes at the end of every tick",
+    "_publish_state": "core/state/state_repository.py:StateRepository, where the runtime reads the current state from",
+    "_republish_body": "core/senses/soma.py, the proprioceptive report the resilience engine reads, held at the frozen host",
+    "_retrieve": "core/memory/intentional_retrieval.py:IntentionalRetriever, the real retriever, run in the memory condition",
+    "_intends_to_act": "core/governance/will.py, whose threshold defers an initiative below three tenths",
+    "_act": "core/phases/action_grounding.py:ground_response, a skill she dispatches; a scratch world stands in for the environment",
+    "step_once": "core/subject/steppable.py:step_once, the free-running layers the runtime runs on timers, advanced by count",
+    "note_effort": "core/soma/effort.py:note_effort, the cost the production phase seam reports",
+    "_condition_index": "instrument: labels which condition a frame came from",
+    "after_phase": "instrument: the lesion's clamp, empty outside a lesion",
+    "perturb": "instrument: the displacement an intervention makes",
+    "sustain": "instrument: holds a displacement where it was put",
+    "on_frame": "instrument: reads a frame and writes nothing",
+    "read": "instrument: reads the ten domains and writes nothing",
+    "capture": "instrument: advances the clock and the layers, then reads a frame",
+}
 
 
 @dataclass
@@ -1101,6 +366,7 @@ class SubjectRuntime:
     #: is what calibration itself runs under.
     forked_services: set[str] | None = None
     forked_phases: set[str] | None = None
+    forked_modules: set[str] | None = None
     #: Called after every phase when a lesion is in force. See core.subject.clamp.
     after_phase: Any = None
     #: Host readings held constant for the duration of a paired trial. The body
@@ -1110,6 +376,10 @@ class SubjectRuntime:
     #: matched-environment control every arm of a comparison needs.
     frozen_host: dict[str, float] | None = None
     frozen_latency: dict[str, float] | None = None
+    #: The host observer held still for a trial, and whatever was installed
+    #: before it.
+    _held_observer: Any = None
+    _previous_observer: Any = None
     #: The clock every arm shares, or None to run on the machine's. See
     #: `core.subject.clock`: the phases that read elapsed time have to be
     #: handed the same interval in both arms or the machine's own speed is in
@@ -1140,6 +410,12 @@ class SubjectRuntime:
     #: The live intention loop, so the probe's action takes the path a real one
     #: takes rather than writing the outcome straight into the state.
     _intentions: Any = None
+    #: A recorded sensory stream, or None for the scripted percepts the
+    #: conditions write. Played at the turn index rather than at a wall clock,
+    #: so both arms of a paired trial see the same frame of the same world and
+    #: the difference between them stays the intervention. See
+    #: `core.subject.perception_replay`.
+    tape: Any = None
 
     # ── forking ──────────────────────────────────────────────────────────
 
@@ -1172,6 +448,7 @@ class SubjectRuntime:
             key: float(latency.get(key, 0.0) or 0.0)
             for key in ("last_thought_ms", "perception_lag_ms", "token_velocity")
         }
+        self._hold_observer()
         return self.frozen_host
 
     async def calibrate_fork(self, conditions: Sequence[Condition]) -> dict[str, Any]:
@@ -1186,10 +463,12 @@ class SubjectRuntime:
         """
         before_services = _service_state(None)
         before_phases = self._phase_state()
+        before_modules = {key: kept for key, (_, kept) in _module_state(None, self._fork_skip()).items()}
         for condition in conditions:
             await self.turn_once(condition)
         after_services = _service_state(None)
         after_phases = self._phase_state()
+        after_modules = {key: kept for key, (_, kept) in _module_state(None, self._fork_skip()).items()}
 
         def moved(before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]) -> set[str]:
             names = set(before) | set(after)
@@ -1197,40 +476,20 @@ class SubjectRuntime:
 
         self.forked_services = moved(before_services, after_services)
         self.forked_phases = moved(before_phases, after_phases)
+        self.forked_modules = moved(before_modules, after_modules)
         return {
             "services_carried": sorted(self.forked_services),
             "services_seen": len(before_services | after_services.keys()),
             "phases_carried": sorted(self.forked_phases),
+            "modules_carried": sorted(self.forked_modules),
+            "modules_seen": len(before_modules | after_modules.keys()),
         }
 
     def _phase_state(self, only: set[str] | None = None) -> dict[str, dict[str, Any]]:
         # Everything the container already holds is carried under its own name,
         # and the kernel is the machinery rather than the state. What is left
-        # is what a phase kept for itself — including the module-level
-        # singletons it caches, which no container knows about.
-        skip = frozenset(
-            {
-                id(self.kernel),
-                id(self),
-                *(id(obj) for obj in _built_services().values()),
-                # The organs are carried by name and are the largest objects in
-                # the process: the substrate alone holds a half-million weights,
-                # and copying it twice per fork is most of what a fork costs.
-                *(
-                    id(getattr(self.organs, field_name, None))
-                    for field_name in self.ORGAN_FIELDS
-                ),
-                # And the services the fork deliberately leaves alone. Reaching
-                # one of them through a phase is the same write the exclusion
-                # was written to prevent, and the mycelial topology logs a
-                # critical every time the guard refuses it.
-                *(
-                    id(obj)
-                    for name, obj in _built_services().items()
-                    if name in _UNFORKED_SERVICES
-                ),
-            }
-        )
+        # is what a phase kept for itself.
+        skip = self._fork_skip()
         out: dict[str, dict[str, Any]] = {}
         for phase in getattr(self.kernel, "_phases", []) or []:
             name = phase.__class__.__name__
@@ -1254,6 +513,33 @@ class SubjectRuntime:
                 out[name] = captured
         return out
 
+    def _fork_skip(self) -> frozenset[int]:
+        """Objects carried under a name of their own, which a phase or a module
+        global reaching them must not carry a second time."""
+        return frozenset(
+            {
+                id(self.kernel),
+                id(self),
+                *(id(obj) for obj in _built_services().values()),
+                # The organs are carried by name and are the largest objects in
+                # the process: the substrate alone holds a half-million weights,
+                # and copying it twice per fork is most of what a fork costs.
+                *(
+                    id(getattr(self.organs, field_name, None))
+                    for field_name in self.ORGAN_FIELDS
+                ),
+                # And the services the fork deliberately leaves alone. Reaching
+                # one of them through a phase is the same write the exclusion
+                # was written to prevent, and the mycelial topology logs a
+                # critical every time the guard refuses it.
+                *(
+                    id(obj)
+                    for name, obj in _built_services().items()
+                    if name in _UNFORKED_SERVICES
+                ),
+            }
+        )
+
     def _restore_phases(self, saved: Mapping[str, dict[str, Any]]) -> None:
         if not saved:
             return
@@ -1261,6 +547,22 @@ class SubjectRuntime:
             fields = saved.get(phase.__class__.__name__)
             if fields:
                 _restore_organ(phase, fields)
+
+
+    def _publish_state(self) -> None:
+        """Point the repository at the state this driver is carrying.
+
+        Runtime paths that ask the container for the current state read it off
+        the repository, and this driver keeps its state in an attribute. Without
+        this they read None: present, registered, and never exercised.
+        """
+        vault = getattr(self.kernel, "vault", None)
+        if vault is None:
+            return
+        try:
+            vault._current = self.state
+        except (AttributeError, TypeError):
+            return
 
     def _refresh_health(self) -> None:
         """Run the kernel's own end-of-tick projection over the finished state."""
@@ -1300,9 +602,47 @@ class SubjectRuntime:
     def thaw_host(self) -> None:
         self.frozen_host = None
         self.frozen_latency = None
+        self._release_observer()
+
+    def _hold_observer(self) -> None:
+        """Hold the shared host observer still for the arms that follow.
+
+        The state's body readings are held by `freeze_host`, and every layer
+        that reads the machine through the shared observer went round that hold
+        — embodied interoception samples it once a second of the organism's
+        life, so two arms seconds apart read a different machine and the
+        difference was in the floor of every edge into the body. This is the
+        same act at the observer's own seam: the first reading of each kind
+        stands for all three arms.
+        """
+        try:
+            from core.runtime.resource_observation import (
+                get_resource_observer,
+                set_resource_observer_for_test,
+            )
+        except (ImportError, AttributeError):
+            return
+        if self._held_observer is not None:
+            return
+        held = _HeldObserver(get_resource_observer())
+        self._previous_observer = set_resource_observer_for_test(held)
+        self._held_observer = held
+
+    def _release_observer(self) -> None:
+        if self._held_observer is None:
+            return
+        try:
+            from core.runtime.resource_observation import set_resource_observer_for_test
+
+            set_resource_observer_for_test(self._previous_observer)
+        except (ImportError, AttributeError):
+            pass
+        self._held_observer = None
+        self._previous_observer = None
 
     def snapshot(self) -> Snapshot:
         return Snapshot(
+            outcomes_by_kind=dict(getattr(self, "_outcomes_by_kind", {}) or {}),
             organs={
                 name: _organ_state(getattr(self.organs, name, None))
                 for name in self.ORGAN_FIELDS
@@ -1322,6 +662,8 @@ class SubjectRuntime:
             last_displacement=float(getattr(self.ontogeny, "last_displacement", 0.0)),
             lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
+            singletons=_singleton_state(),
+            module_state=_module_state(self.forked_modules, self._fork_skip()),
             services=_service_state(self.forked_services),
             effort=_effort_state(),
             taken_at=time.time(),
@@ -1331,13 +673,16 @@ class SubjectRuntime:
             numpy_random=np.random.get_state(),
             torch_random=_torch_random_state(),
             world=_world_state(getattr(self, "_scratch", None)),
+            stores=_store_state(),
             intentions=_intentions_state(self._intentions),
         )
 
     def restore(self, snapshot: Snapshot) -> None:
+        self._outcomes_by_kind = dict(snapshot.outcomes_by_kind)
         for name, saved in snapshot.organs.items():
             _restore_organ(getattr(self.organs, name, None), saved)
         self.state = copy.deepcopy(snapshot.state)
+        self._publish_state()
         self.ontogeny.h = np.array(snapshot.hidden, copy=True)
         self.ontogeny.steps = snapshot.steps
         self.ontogeny.era = snapshot.era
@@ -1359,10 +704,13 @@ class SubjectRuntime:
             np.random.set_state(snapshot.numpy_random)
         _restore_torch_random(snapshot.torch_random)
         self._restore_phases(snapshot.phases)
+        _restore_singletons(snapshot.singletons)
+        _restore_module_state(snapshot.module_state)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
         _restore_world(getattr(self, "_scratch", None), snapshot.world)
+        _restore_stores(snapshot.stores)
         _restore_intentions(self._intentions, snapshot.intentions)
         if self.clock is not None and snapshot.clock_at is not None:
             # The clock is the state as far as a phase reading elapsed time is
@@ -1395,12 +743,18 @@ class SubjectRuntime:
         on_frame: Callable[[CoreState], None] | None = None,
         perturb_at: int | None = None,
         perturb: Callable[[SubjectRuntime], None] | None = None,
+        sustain: Callable[[SubjectRuntime], None] | None = None,
     ) -> list[CoreState]:
         """Run every phase once over the carried state, reading K after each.
 
         ``perturb_at`` is a frame index; the displacement is applied after that
         frame is read, so the arms share every reading before it and differ
         only from the next one on.
+
+        ``sustain`` is applied after every frame from then on. `do(X)` holds X
+        where it was put, and a domain whose own dynamics pull it back faster
+        than its consumers sample it cannot be measured any other way: see
+        `core.subject.causal.SUSTAINED`.
         """
         engine = self.kernel.organs.get("llm") if hasattr(self.kernel, "organs") else None
         mind = getattr(engine, "instance", None) if engine is not None else None
@@ -1409,6 +763,15 @@ class SubjectRuntime:
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
+        if self.tape is not None:
+            # Perception as it actually arrived, at this turn's frame. The
+            # timestamp is the experiment's, not the tape's: an instant from
+            # the day the tape was cut puts every consumer that reasons about
+            # recency into a different decade from the run.
+            now = self.clock.now() if self.clock is not None else None
+            env["percepts_replayed"] = float(
+                self.tape.play(self.state.world, self.turn, now=now)
+            )
         self.state.cognition.current_objective = condition.objective or None
         self.state.cognition.current_origin = condition.origin
         env["objective_len"] = float(len(condition.objective))
@@ -1427,19 +790,37 @@ class SubjectRuntime:
             self.layer_steps = await step_once(
                 self.organism, self.frame_index, self.layer_steps
             )
+            await self._integrate_substrate(self.frame_index)
             self.frame_index += 1
+            # A held domain is written back here as well as after each phase.
+            # The layers and the substrate step inside this capture, after the
+            # last phase's write-back, and the turn's objective and origin are
+            # set before the first phase runs; without this each of them moved
+            # the held side before it was read.
+            if self.after_phase is not None:
+                self.after_phase()
             reading = self.read(condition.name, tag, env)
             frames.append(reading)
             if on_frame is not None:
                 on_frame(reading)
-            if perturb_at is not None and perturb is not None and len(frames) - 1 == perturb_at:
+            landed = perturb_at is not None and len(frames) - 1 == perturb_at
+            if landed and perturb is not None:
                 outcome = perturb(self)
+                if inspect.isawaitable(outcome):
+                    await outcome
+            elif sustain is not None and perturb_at is not None and len(frames) - 1 > perturb_at:
+                outcome = sustain(self)
                 if inspect.isawaitable(outcome):
                     await outcome
 
         await capture("open")
         for phase in self.kernel._phases:
             name = phase.__class__.__name__
+            # The same cost the production seam reports. This driver runs the
+            # phases directly rather than through `wrap_phase`, so without this
+            # a turn here cost her nothing where a turn in the runtime costs
+            # her thirty phases of work.
+            note_effort("phases", 1.0)
             try:
                 result = await asyncio.wait_for(
                     phase.execute(self.state, objective=condition.objective),
@@ -1447,6 +828,7 @@ class SubjectRuntime:
                 )
                 if result is not None:
                     self.state = result
+                    self._publish_state()
             except BaseException as exc:  # noqa: BLE001 - a phase that dies is a reading
                 self.failures[name] = self.failures.get(name, 0) + 1
                 self.failure_notes[name] = f"{type(exc).__name__}: {exc}"[:200]
@@ -1512,17 +894,6 @@ class SubjectRuntime:
                 await asyncio.wait_for(
                     substrate.update(source="subject_core_turn"), timeout=PHASE_TIMEOUT
                 )
-                # And integrate it. The dynamics step is what the free-running
-                # loop does twenty times a second, and it is the only thing
-                # that marks the state snapshot fresh — with the loop stopped,
-                # every consumer that checks staleness sees an infinitely old
-                # substrate and skips it, so the substrate would be present,
-                # perturbable, and invisible to everything downstream. One step
-                # per turn at a fixed interval keeps the computation and drops
-                # the jitter.
-                await asyncio.wait_for(
-                    substrate._step_dynamics(SUBSTRATE_STEP_SECONDS), timeout=PHASE_TIMEOUT
-                )
             except BaseException as exc:  # noqa: BLE001
                 self.failures["substrate"] = self.failures.get("substrate", 0) + 1
                 self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
@@ -1533,6 +904,76 @@ class SubjectRuntime:
                 self.failures["heartbeat"] = self.failures.get("heartbeat", 0) + 1
                 self.failure_notes["heartbeat"] = f"{type(exc).__name__}: {exc}"[:200]
         self._train_world_model()
+
+
+    async def _integrate_substrate(self, frame: int) -> None:
+        """The substrate's own iterations for this frame, at its own step size.
+
+        One Euler step of half a second is not thirteen of a tenth. The
+        substrate is a nonlinear stochastic recurrent system: the tanh is
+        evaluated at different intermediate states, the noise draws are
+        independent, and the clip can bite in the middle — so a single large
+        step is a different trajectory rather than a coarse version of the same
+        one. Here it takes the iterations its own configured rate calls for in
+        one frame, each at its own configured integration constant, which is
+        what its loop does.
+
+        Scheduled off the frame index like every other layer, so nothing is
+        carried across the fork and two arms integrate identically.
+
+        And the whole loop body, not one line of it. This called
+        `_step_dynamics`, which is one Euler step and is marked deprecated in
+        the substrate itself; the loop it stands in for also settles the psych
+        state every iteration, computes the recurrent self-model every fifth
+        and applies Hebbian plasticity every hundredth. So the substrate's
+        energy regenerated in no run — a standard deviation of seven
+        ten-thousandths across a whole recording, which is a dead channel — its
+        integrated-information estimate never advanced, and its connectivity
+        never learned. A counted schedule that runs a fraction of a layer's
+        body measures a different organism from the one that lives here.
+
+        Persistence is left out on purpose. Writing the state to disk is not
+        cognition, and a save that lands in one arm and not the other is a
+        difference between the arms that nothing thought.
+        """
+        substrate = self.organs.substrate
+        if substrate is None:
+            return
+        config = getattr(substrate, "config", None)
+        rate = float(getattr(config, "update_rate", 20.0) or 20.0)
+        dt = float(getattr(config, "time_constant", 0.1) or 0.1)
+        if not callable(getattr(substrate, "_step_torch_math", None)):
+            return
+        from core.subject.steppable import Layer, frame_seconds, iterations_at
+
+        _, count = iterations_at(
+            Layer("substrate", "", "", rate, ()), frame, frame_seconds()
+        )
+        for _ in range(count):
+            tick = int(getattr(substrate, "tick_count", 0) or 0)
+            body = [
+                (name, dt if takes_dt else None)
+                for name, every, takes_dt in SUBSTRATE_BODY
+                if tick % every == 0
+            ]
+            for name, argument in body:
+                # The `_sync` twin where the substrate has one. Each of these
+                # is awaited anyway, so the thread hop buys nothing and its
+                # scheduling is one more thing that can differ between arms.
+                call = getattr(substrate, f"{name}_sync", None)
+                if not callable(call):
+                    call = getattr(substrate, name, None)
+                if not callable(call):
+                    continue
+                try:
+                    outcome = call() if argument is None else call(argument)
+                    if inspect.isawaitable(outcome):
+                        await asyncio.wait_for(outcome, timeout=PHASE_TIMEOUT)
+                except BaseException as exc:  # noqa: BLE001
+                    self.failures["substrate"] = self.failures.get("substrate", 0) + 1
+                    self.failure_notes["substrate"] = f"{type(exc).__name__}: {exc}"[:200]
+                    return
+            substrate.tick_count = tick + 1
 
     def _train_world_model(self) -> None:
         """The gradient steps the training lane would have taken, on this clock.
@@ -1600,6 +1041,9 @@ class SubjectRuntime:
             return
         self.ontogeny.last_novelty = float(step.novelty)
         self.ontogeny.last_displacement = float(step.displacement)
+        self.ontogeny.last_relative_displacement = float(
+            getattr(step, "relative_displacement", step.displacement)
+        )
 
     def _retrieve(self, query: str) -> None:
         """Run the real retriever over her own memory, ontogeny included.
@@ -1634,6 +1078,13 @@ class SubjectRuntime:
         "append_log": "the line is on the end of the log",
         "make_room": "the room is there",
         "read_room": "the room from last turn is there to look in",
+        # The four added so ownership is asked of more than one shape of acting.
+        # Each says what its own check in `_act` verifies, so the ledger learns
+        # four capabilities rather than one called "the action lands".
+        "paint_panel": "the panel reads back as she drew it",
+        "visit_room": "she is standing in the next room",
+        "finish_task": "the task has all three of its steps",
+        "tidy_room": "the room has nothing left in it",
     }
 
     def _through_the_intention_loop(
@@ -1674,7 +1125,22 @@ class SubjectRuntime:
         "append_log",
         "make_room",
         "read_room",
+        # Four more, because the first four were all the same shape: change a
+        # file, read it back, succeed. Ownership measured only on that shape is
+        # ownership of writing to disk. These add the shapes the completion
+        # specification asks for — a surface rather than a record, going
+        # somewhere rather than changing it, finishing a thing that takes more
+        # than one step, and an action that half works.
+        "paint_panel",
+        "visit_room",
+        "finish_task",
+        "tidy_room",
     )
+
+    #: What each action can come back as. An action repertoire where everything
+    #: succeeds cannot distinguish "I did this" from "this worked" — both read
+    #: as one constant — and one where nothing fails teaches no efficacy at all.
+    OUTCOMES: ClassVar[tuple[str, ...]] = ("succeeded", "partial", "failed")
 
     #: Which action each drive reaches for. Written out rather than hashed:
     #: `hash()` on a string is salted per process, so the drive that picked
@@ -1731,6 +1197,13 @@ class SubjectRuntime:
                     return True
         return False
 
+    #: An action kind the agency experiment is holding her to for this arm, or
+    #: None for the ordinary case where what she does follows from what she is
+    #: attending to. The ownership experiment needs the same action in both
+    #: arms with only the author differing, and it needs more than one kind
+    #: across its trials.
+    forced_action: str | None = None
+
     def _chosen_action(self) -> str:
         """What she does, decided by what she is attending to.
 
@@ -1739,6 +1212,9 @@ class SubjectRuntime:
         which changes what the filesystem holds, which changes what her senses
         report back. That is the whole of the return route through the world.
         """
+        forced = getattr(self, "forced_action", None)
+        if forced in self.ACTIONS:
+            return str(forced)
         attending = str(getattr(self.state.cognition, "attention_focus", "") or "")
         source = attending.split(":", 1)[0].strip()
         if source.startswith("affect_"):
@@ -1761,6 +1237,61 @@ class SubjectRuntime:
             return self.ACTIONS[0]
         levels.sort()
         return self.DRIVE_ACTIONS.get(levels[0][1], self.ACTIONS[0])
+
+    #: How many lines the action log keeps. Past this an append rolls it,
+    #: which removes lines the append never asked to remove — an outcome she
+    #: caused and did not intend. A repertoire with no accidents cannot tell a
+    #: deliberate effect from any other kind.
+    LOG_LINES: ClassVar[int] = 24
+
+    def _expects_to_succeed(self, kind: str) -> bool:
+        """Whether she expects this to work, from what it did last time.
+
+        The first attempt at anything is optimistic, which is a real prior
+        rather than a placeholder: nothing has taught her otherwise yet.
+        """
+        seen = getattr(self, "_outcomes_by_kind", None)
+        if not seen:
+            return True
+        return bool(seen.get(kind, True))
+
+    def _remember_outcome(self, kind: str, ok: bool) -> None:
+        if not hasattr(self, "_outcomes_by_kind"):
+            self._outcomes_by_kind = {}
+        self._outcomes_by_kind[str(kind)] = bool(ok)
+
+    def _roll_the_log_if_long(self, kind: str) -> bool:
+        """Trim the log when an append made it too long. Returns whether it bit.
+
+        The trim is a consequence of her own append and of nothing else, and
+        she never asked for it. That is what an accidental self-caused outcome
+        is, and the repertoire had none.
+        """
+        if kind != "append_log":
+            return False
+        target = getattr(self, "_scratch", None)
+        if target is None:
+            return False
+        path = Path(target) / "actions.log"
+        try:
+            if not path.exists():
+                return False
+            lines = path.read_text().splitlines()
+            if len(lines) <= self.LOG_LINES:
+                return False
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            with local_internal_governed_scope("subject_core.action_probe"):
+                get_file_write_gateway().write_text(
+                    path,
+                    "\n".join(lines[-self.LOG_LINES:]) + "\n",
+                    source="subject_core.action_probe",
+                )
+            return True
+        except OSError as exc:
+            logger.debug("could not roll the action log: %s", exc)
+            return False
 
     def _act(self, objective: str, *, actor: str = "self") -> None:
         """The action arm of the self/world loop, and its consequence.
@@ -1789,7 +1320,14 @@ class SubjectRuntime:
         kind = self._chosen_action()
         intended = f"{kind} for turn {self.turn}: {objective[:80]}"
         ok = False
+        partial = False
         observed = ""
+        # What she expects, before she finds out. Read from what this kind of
+        # action did for her last time rather than assumed: a prediction that is
+        # always "it will work" is not a prediction, and the difference between
+        # being right and being wrong about her own effect is one of the things
+        # the ownership experiment has to span.
+        predicted = self._expects_to_succeed(kind)
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -1827,6 +1365,72 @@ class SubjectRuntime:
                         if ok
                         else f"there is no room {path.name}"
                     )
+                elif kind == "paint_panel":
+                    # A surface rather than a record: what it leaves behind is
+                    # rendered for looking at, and it is correct only if what
+                    # came back can be read as the panel she drew.
+                    path = room / "panel.txt"
+                    body = f"| {intended[:40]:<40} |"
+                    rule = "+" + "-" * 42 + "+"
+                    gateway.write_text(
+                        path, f"{rule}\n{body}\n{rule}\n", source="subject_core.action_probe"
+                    )
+                    drawn = path.read_text().splitlines()
+                    ok = len(drawn) == 3 and drawn[1] == body
+                    observed = f"the panel is {len(drawn)} lines wide {len(rule)}"
+                elif kind == "visit_room":
+                    # Going somewhere rather than changing something. Nothing
+                    # in the world is different afterwards, which is the point:
+                    # an action whose whole effect is on where she is.
+                    rooms = sorted(p.name for p in room.glob("room_*") if p.is_dir())
+                    here = str(self.state.world.facts.get("location", "") or "")
+                    ahead = [name for name in rooms if name > here] or rooms
+                    if ahead:
+                        self.state.world.facts["location"] = ahead[0]
+                        ok = True
+                        observed = f"standing in {ahead[0]} of {len(rooms)}"
+                    else:
+                        observed = "there is nowhere to go"
+                elif kind == "finish_task":
+                    # A thing that takes more than one step, so completion is
+                    # a different outcome from progress. Two steps in is a
+                    # partial success, and a repertoire with no partial success
+                    # has nothing between done and failed.
+                    path = room / "task.txt"
+                    prior = path.read_text().splitlines() if path.exists() else []
+                    steps = prior + [f"step {len(prior) + 1}: {intended[:60]}"]
+                    gateway.write_text(
+                        path, "\n".join(steps) + "\n", source="subject_core.action_probe"
+                    )
+                    done = len(steps) % 3 == 0
+                    ok = done
+                    partial = not done
+                    observed = f"{len(steps)} steps, {'finished' if done else 'still going'}"
+                elif kind == "tidy_room":
+                    # Half works by design. It clears what it can reach and
+                    # leaves the directories, so a room with anything in it
+                    # comes back partly tidy — and the ledger sees an attempt
+                    # that neither succeeded nor failed.
+                    rooms = sorted(
+                        (p for p in room.glob("room_*") if p.is_dir()), reverse=True
+                    )
+                    if not rooms:
+                        observed = "there is nothing to tidy"
+                    else:
+                        target_room = rooms[0]
+                        inside = sorted(target_room.iterdir())
+                        removed = 0
+                        for item in inside:
+                            # Deleted through the gateway, like the write two
+                            # branches up: a raw unlink was the one call here
+                            # the governance lint could not account for.
+                            if item.is_file():
+                                gateway.delete_file(item, source="subject_core.action_probe")
+                                removed += 1
+                        left = len(list(target_room.iterdir()))
+                        ok = removed > 0 and left == 0
+                        partial = removed > 0 and left > 0
+                        observed = f"{target_room.name}: cleared {removed}, {left} left"
                 else:
                     path = room / "notes.txt"
                     gateway.write_text(
@@ -1843,12 +1447,29 @@ class SubjectRuntime:
         # four readings were constant for want of a caller, not for want of
         # anything to say.
         self._through_the_intention_loop(intended, ok, actor, kind)
+        outcome = "succeeded" if ok else ("partial" if partial else "failed")
+        # An outcome she caused and did not mean to. The log rolls itself when
+        # it gets long, so an append can remove lines nobody asked to remove —
+        # her hand, her consequence, and no intention of it anywhere.
+        accidental = self._roll_the_log_if_long(kind)
         record = {
             "intended": intended,
             "verified": ok,
             "at": time.time(),
             "actor": actor,
+            # Which of the things she can do this was, so an experiment over
+            # action kinds can say which one it measured.
+            "kind": kind,
+            # And what shape it came back as. "Failed" and "half done" are
+            # different things to have done, and a self-model that tells them
+            # apart is doing something a boolean cannot show.
+            "outcome": outcome,
+            "predicted": predicted,
+            "prediction_correct": bool(predicted) == bool(ok),
+            "accidental": accidental,
+            "deliberate": bool(actor == "self" and not accidental),
         }
+        self._remember_outcome(kind, ok)
         self.state.world.facts["last_action"] = record
         self.last_action = dict(record)
         # The same world state, attributed. This is the one call that separates
@@ -2009,55 +1630,78 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
     return runtime
 
 
-#: How finely the measured frame step is recorded. Rounded so that two runs on
-#: the same machine share a timeline exactly rather than differing in the
-#: fourth decimal, and so the number in the report is one a reader can compare.
-_CLOCK_GRAIN: float = 0.005
-
-
-#: How many turns the clock calibration times, and how many it throws away
-#: first. The first turns of a life are the cheapest — nothing has accumulated
-#: and no action has been taken — so timing them alone put the step at a third
-#: of what an ordinary frame costs.
-_CLOCK_WARMUP_TURNS: int = 2
+#: What one turn of the organism is worth, in seconds of its own life.
+#:
+#: The free-running layers declare their rates in hertz — the mesh at ten, the
+#: field at twenty, the oscillators at a hundred — so a counted schedule needs
+#: to know how much life a frame is worth before it can run them at those
+#: rates. The first version measured it: it timed the machine's frames and made
+#: the experiment's second as long as the host happened to take. That puts the
+#: host back into the timeline it was installed to remove, and it means two
+#: machines running the same commit give the organism different amounts of life
+#: per turn — which is exactly the comparison a second-machine replication is
+#: for.
+#:
+#: So it is fixed, and it is the simplest statement that can be made: a turn is
+#: one second. A turn is the organism's unit of experience, the layer rates are
+#: per second, and at one second a turn the bridge integrates ten times per
+#: turn, which is its own declared cadence. The frame follows from it and from
+#: how many readings a turn takes, which is a property of the phase list rather
+#: than of the machine.
+SECONDS_PER_TURN: float = 1.0
 
 
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
-    """Time this machine's frames, then put the run on a clock of its own.
+    """Count this organism's frames per turn, then put the run on its own clock.
 
-    The step is measured rather than chosen: whatever a frame costs here is
-    what the experiment's clock advances by, so every threshold inside the
-    organism sees a timeline of about the right shape while both arms of every
-    intervention see exactly the same one.
-
-    Timed on `time.monotonic`, which this never replaces.
+    The count is a property of the phase list. The machine's real pace is timed
+    beside it, on `time.monotonic` — which this never replaces, so asyncio's
+    timeouts still fire — and reported rather than used, because how fast the
+    host runs is not how much life a turn is worth.
     """
     from core.subject.clock import ExperimentClock
 
-    for index in range(_CLOCK_WARMUP_TURNS):
-        await runtime.turn_once(conditions[index % len(conditions)])
     frames = 0
     started = time.monotonic()
     for index in range(max(1, turns)):
         condition = conditions[index % len(conditions)]
         frames += len(await runtime.turn_once(condition))
     elapsed = max(1e-6, time.monotonic() - started)
-    measured = elapsed / max(1, frames)
-    step = max(_CLOCK_GRAIN, round(measured / _CLOCK_GRAIN) * _CLOCK_GRAIN)
+    per_turn = max(1, round(frames / max(1, turns)))
+    step = SECONDS_PER_TURN / per_turn
     clock = ExperimentClock(step)
     clock.install()
     runtime.clock = clock
+    reading = {
+        "seconds_per_turn": SECONDS_PER_TURN,
+        "frames_per_turn": per_turn,
+        "step": round(step, 6),
+        "real_seconds_per_frame": round(elapsed / max(1, frames), 5),
+    }
     logger.info(
-        "subject-core: experiment clock installed at %.3fs a frame "
-        "(measured %.4f over %d frames)",
+        "subject-core: experiment clock at %.4fs a frame, %d frames a turn "
+        "(the machine took %.4fs a frame)",
         step,
-        measured,
-        frames,
+        per_turn,
+        reading["real_seconds_per_frame"],
     )
-    return {"step": step, "measured": round(measured, 5), "frames": frames}
+    return reading
 
+
+
+def _publish_repository(runtime: SubjectRuntime) -> None:
+    """Register this run's vault under the name the tree reads it by."""
+    vault = getattr(runtime.kernel, "vault", None)
+    if vault is None:
+        return
+    try:
+        from core.container import ServiceContainer
+
+        ServiceContainer.register_instance("state_repository", vault, required=False)
+    except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
+        logger.warning("could not register the run's state repository: %s", exc)
 
 async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
     """Stop the free-running loops before the paired arms begin."""
@@ -2084,6 +1728,12 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
     from core.subject.organism import bring_up
 
     organism = await bring_up(quiet=quiet)
+    # After the bring-up, because it registers the services again and its own
+    # registration replaces the one `build_runtime` made. The name has to point
+    # at the vault this run is actually carrying its state in, or every runtime
+    # path that reads the current state off the container reads someone else's
+    # empty one.
+    _publish_repository(runtime)
     runtime.heartbeat = organism.heartbeat
     # N reads the organ's shared lifetime reservoir, not a private one. A
     # private reservoir would be a second life running beside the real one and

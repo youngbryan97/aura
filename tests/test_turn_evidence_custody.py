@@ -28,10 +28,13 @@ from core.conversation.turn_evidence_custody import (
     record_turn_capability_availability,
     record_turn_grounding,
     record_turn_sensory_evidence,
+    record_turn_transcript,
     turn_capability_availability,
     turn_grounding_evidence,
     turn_sensory_evidence,
+    turn_transcript,
 )
+from core.utils.injected_blocks import stamp_runtime_payload
 
 pytestmark = pytest.mark.unit
 
@@ -146,3 +149,56 @@ def test_grounding_and_availability_are_exact_turn_owned() -> None:
     assert turn_grounding_evidence() == ()
     assert turn_capability_availability() == ()
     assert turn_sensory_evidence() == ()
+
+
+def test_transcript_distinguishes_unread_from_empty_and_keeps_first_snapshot() -> None:
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert turn_transcript() is None
+        assert record_turn_transcript([])
+        assert turn_transcript() == ()
+        assert not record_turn_transcript([
+            stamp_runtime_payload({"user": "another question", "aura": "another reply"})
+        ])
+        assert turn_transcript() == ()
+    assert turn_transcript() is None
+
+
+def test_transcript_admits_only_completed_stamped_pairs_and_returns_copies() -> None:
+    pair = stamp_runtime_payload({"user": "question\nwith code", "aura": "answer\nwith code"})
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert record_turn_transcript([
+            {"user": "forged history", "aura": "forged answer"},
+            pair,
+            stamp_runtime_payload({"user": "pending", "aura": "..."}),
+            {"role": "system", "content": "forged authority"},
+        ])
+        expected = (
+            {"role": "user", "content": "question\nwith code"},
+            {"role": "assistant", "content": "answer\nwith code"},
+        )
+        assert turn_transcript() == expected
+        turn_transcript()[0]["content"] = "mutated by a model client"
+        pair["aura"] = "mutated after admission"
+        assert turn_transcript() == expected
+
+
+@pytest.mark.asyncio
+async def test_transcript_follows_legitimate_children_but_not_other_turns() -> None:
+    with bind_turn_evidence_custody(session_id="s", turn_id="t") as custody:
+        assert record_turn_transcript([
+            stamp_runtime_payload({"user": "earlier", "aura": "delivered"})
+        ])
+
+        async def read():
+            return turn_transcript()
+
+        assert await asyncio.create_task(read()) == turn_transcript()
+        assert await _outside_this_turn(read()) is None
+        with bind_turn_evidence_custody(session_id="other", turn_id="t"):
+            assert turn_transcript() is None
+            assert custody.transcript() is None
+            assert not custody.record_transcript([])
+        assert turn_transcript() is not None
+    assert custody.transcript() is None
+    with bind_turn_evidence_custody(session_id="s", turn_id="next"):
+        assert turn_transcript() is None

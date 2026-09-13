@@ -312,7 +312,7 @@ def _patterns_in(module: Path) -> list[tuple[str, re.Pattern[str]]]:
     parts = module.with_suffix("").parts
     try:
         loaded = importlib.import_module(".".join(parts))
-    except Exception:  # noqa: BLE001 - a module that will not import has no patterns
+    except Exception:  # noqa: BLE001 - foreign code: a module that will not import has no patterns
         return []
     found: list[tuple[str, re.Pattern[str]]] = []
     for name in dir(loaded):

@@ -10,6 +10,8 @@ looks like.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_source
+
 import pytest
 
 from core.agency.what_i_can_do_here import (
@@ -107,6 +109,6 @@ def test_a_memory_of_the_wrong_shape_is_not_trusted():
 def test_the_pursuit_offers_what_works_rather_than_what_it_was_told():
     from pathlib import Path
 
-    source = Path("core/skills/screen_pursuit.py").read_text()
+    source = pursuit_source()
     assert "screen_options(can_do.available() or move_keys)" in source
     assert "can_do.tried(previous.chosen.name, attempt.verdict.observed_change)" in source

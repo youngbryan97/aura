@@ -51,13 +51,47 @@ def test_a_faint_percept_does_not_bid_at_all():
     assert not any(bid.source == "perception" for bid in build_candidates(state))
 
 
-def test_the_feeling_carries_arousal_as_its_affect_weight():
+def test_the_feeling_carries_its_own_charge_not_the_moment_s_arousal():
+    """`priority_at` adds three tenths of the affect weight to a bid's claim.
+
+    The weight used to be the moment's global arousal — a quantity belonging to
+    the whole moment, handed to one competitor as a private advantage that no
+    other domain could earn. Affect won ninety-six competitions in a hundred
+    because of it, so attention was `affect_*` whatever else was happening and
+    the action chosen by what she was attending to was the same every turn.
+
+    A bid's affect weight is a property of that bid: how far this feeling is
+    above where it usually sits.
+    """
     state = AuraState.default()
     state.affect.arousal = 0.9
     state.affect.emotions["fear"] = 0.8
+    state.affect.mood_baselines["fear"] = 0.3
     feeling = next(bid for bid in build_candidates(state) if bid.source.startswith("affect_"))
     assert feeling.source == "affect_fear"
-    assert feeling.affect_weight == pytest.approx(0.9)
+    assert feeling.priority == pytest.approx(0.8)
+    assert feeling.affect_weight == pytest.approx(0.5)
+
+
+def test_a_feeling_at_its_own_baseline_carries_no_charge():
+    state = AuraState.default()
+    state.affect.arousal = 0.9
+    state.affect.emotions["fear"] = 0.4
+    state.affect.mood_baselines["fear"] = 0.4
+    feeling = next(bid for bid in build_candidates(state) if bid.source.startswith("affect_"))
+    assert feeling.affect_weight == pytest.approx(0.0)
+
+
+def test_no_other_bid_claims_an_affect_weight():
+    """The bonus must be earned by the content, not by being the affect bid."""
+    state = AuraState.default()
+    state.affect.emotions["fear"] = 0.8
+    state.world.recent_percepts.append(
+        {"source": "chat", "content": "someone spoke", "salience": 0.62, "timestamp": time.time()}
+    )
+    for bid in build_candidates(state):
+        if not bid.source.startswith("affect_"):
+            assert bid.affect_weight == pytest.approx(0.0), bid.source
 
 
 def test_the_memory_bid_is_a_recollection_not_the_turn_just_finished():
@@ -454,3 +488,97 @@ def test_what_just_won_does_not_bid_itself_back():
     assert not any(b.source == "memory" for b in build_candidates(state))
     # It is still in mind for the reply.
     assert any("a window moved" in str(line) for line in state.cognition.long_term_memory)
+
+
+def test_the_selected_objective_states_what_it_is_asking_for():
+    """Two records of one decision disagreed about how much it mattered.
+
+    `ExecutiveClosure` writes the objective it has selected twice: as an
+    initiative carrying the need pressure that selected it, and as a goal
+    record two lines above carrying a flat priority of one and no urgency at
+    all. The workspace prices deliberation's bid on urgency, so the thing she
+    had just chosen to work on entered attention at the neutral default on
+    every turn, and nothing about what she was trying to do could change what
+    she attended to.
+    """
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [
+        {"description": "finish the migration", "priority": 1.0, "urgency": 0.82},
+        {"description": "tidy the notes", "priority": 1.0, "urgency": 0.21},
+    ]
+    bids = {
+        bid.content: bid.priority
+        for bid in build_candidates(state)
+        if bid.source == "deliberation"
+    }
+    assert bids["finish the migration"] == pytest.approx(0.82)
+    assert bids["tidy the notes"] == pytest.approx(0.21)
+
+
+def test_a_goal_that_states_no_urgency_still_enters_at_neutral():
+    """Silence is not a claim, and it is not a refusal either."""
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.active_goals = [{"description": "something unpriced", "priority": 1.0}]
+    bid = next(b for b in build_candidates(state) if b.source == "deliberation")
+    assert bid.priority == pytest.approx(0.5)
+
+
+def test_a_surprise_about_herself_competes_the_way_one_about_the_world_does(monkeypatch):
+    """The two halves of the same bid.
+
+    The world model's prediction error enters the competition. The self
+    model's did not, though it computes one every tick and names the channel
+    it missed on — so the only thing self-state could say to attention was how
+    stable identity is, a number that barely moves. Everything else self-state
+    contributed to what wins attention arrived through affect, which is what
+    affect was already saying.
+
+    That is measurable as redundancy: the preregistered synergy triple asks
+    whether affect and self-state carry something about attention that neither
+    carries alone, and two sources saying the same thing carry nothing jointly.
+    """
+    from types import SimpleNamespace
+
+    import core.consciousness.workspace_feed as feed
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+
+    def at(error: float) -> float:
+        snapshot = {
+            "smoothed_error": error,
+            "valence_error_ema": 0.2,
+            "drive_error_ema": 0.2,
+            "focus_error_ema": 0.2,
+            "most_unpredictable": "focus",
+        }
+        predictor = SimpleNamespace(get_snapshot=lambda: snapshot)
+        monkeypatch.setattr(
+            feed,
+            "build_candidates",
+            feed.build_candidates,
+        )
+        import core.runtime.service_registry as registry
+
+        monkeypatch.setattr(
+            registry,
+            "get_runtime_service",
+            lambda name, default=None: predictor if name == "self_prediction" else default,
+        )
+        bids = [
+            bid
+            for bid in feed.build_candidates(state)
+            if getattr(bid, "source", "") == "self"
+            and "predicted" in str(getattr(bid, "content", ""))
+        ]
+        return max((float(bid.priority) for bid in bids), default=0.0)
+
+    predictable, surprising = at(0.05), at(0.9)
+    assert surprising > predictable, (
+        "a moment she failed to predict about herself bids no higher than one she did"
+    )
+    assert predictable >= 0.0

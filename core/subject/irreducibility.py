@@ -194,6 +194,12 @@ class PartitionReport:
     #: cannot say whether it has established a sign.
     held_out: tuple[float, ...] = ()
     standard_error: float = 0.0
+    #: The cheapest cut, one side at a time. `gain` is what that side's own
+    #: model loses by not seeing the other side; a side near zero predicts
+    #: itself too independently, and it is the side to strengthen. Without
+    #: this, a weak cut named two blocks and said nothing about which of them
+    #: was the one holding the score down.
+    sides: dict[str, dict[str, float]] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         ranked = sorted(self.scores.items(), key=lambda kv: kv[1])
@@ -210,6 +216,10 @@ class PartitionReport:
             "held_out": list(self.held_out),
             "standard_error": round(self.standard_error, 6),
             "lower_bound": round(self.phi - 1.96 * self.standard_error, 6),
+            "sides": {
+                name: {k: round(v, 6) for k, v in row.items()}
+                for name, row in self.sides.items()
+            },
             "note": self.note,
         }
 
@@ -247,8 +257,16 @@ def phi_do(
     *,
     condition: str | None = None,
     domains: tuple[str, ...] | None = None,
+    at: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
 ) -> PartitionReport:
-    """The minimum over bipartitions of the loss the cut costs."""
+    """The minimum over bipartitions of the loss the cut costs.
+
+    ``at`` scores one named bipartition instead of searching for the weakest.
+    A lesion needs that: the intact arm and the cut arm each searched for their
+    own cheapest cut, so the difference between their scores was the difference
+    between two minima taken over different partitions, which is not a
+    comparison. Severing a partition is evaluated at that partition.
+    """
     # Every declared domain, not only the ones that moved. A domain that never
     # moves is a domain the system can be cut away from for free, and that is a
     # fact about the system rather than a nuisance in the recording: the
@@ -349,14 +367,20 @@ def phi_do(
         return (loss_cut - loss_full) / loss_cut
 
     cuts: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
-    index = list(range(len(live)))
-    for size in range(1, len(live) // 2 + 1):
-        for chosen in itertools.combinations(index, size):
-            side_a = tuple(live[i] for i in chosen)
-            side_b = tuple(live[i] for i in index if i not in set(chosen))
-            if size == len(live) - size and side_a > side_b:
-                continue  # each cut once, not twice with the halves swapped
-            cuts.append((side_a, side_b))
+    if at is not None:
+        left = tuple(key for key in live if key in set(at[0]))
+        right = tuple(key for key in live if key not in set(at[0]))
+        if left and right:
+            cuts.append((left, right))
+    if not cuts:
+        index = list(range(len(live)))
+        for size in range(1, len(live) // 2 + 1):
+            for chosen in itertools.combinations(index, size):
+                side_a = tuple(live[i] for i in chosen)
+                side_b = tuple(live[i] for i in index if i not in set(chosen))
+                if size == len(live) - size and side_a > side_b:
+                    continue  # each cut once, not twice with the halves swapped
+                cuts.append((side_a, side_b))
 
     everything = np.ones(len(folds), dtype=bool)
     scores: dict[str, float] = {}
@@ -374,6 +398,21 @@ def phi_do(
         loss_full = float((full_fit[side_a] + full_fit[side_b]).sum()) / base
         if best is None or value < best[0]:
             best = (value, (side_a, side_b), loss_full, loss_cut)
+
+    def side_detail(block: tuple[str, ...]) -> dict[str, float]:
+        """What this side alone loses by not seeing the other one."""
+        sse, base = measure(block)
+        total = float(base.sum())
+        if total <= 0.0:
+            return {"own_loss": 0.0, "intact_loss": 0.0, "gain": 0.0, "width": float(len(block))}
+        own = float(sse.sum()) / total
+        intact = float(full_fit[block].sum()) / total
+        return {
+            "own_loss": own,
+            "intact_loss": intact,
+            "gain": 0.0 if own <= 0.0 else (own - intact) / own,
+            "width": float(len(block)),
+        }
 
     # The reported score, chosen on folds the score is not read from. For each
     # fold in turn the weakest cut is found using the others and then scored on
@@ -427,6 +466,10 @@ def phi_do(
         pairs=int(now.shape[0]),
         held_out=tuple(round(value, 6) for value in held_out),
         standard_error=error,
+        sides={
+            "".join(best[1][0]): side_detail(best[1][0]),
+            "".join(best[1][1]): side_detail(best[1][1]),
+        },
         note=(
             f"cross-fitted over {len(held_out)} folds; the in-sample minimum over "
             f"{len(cuts)} cuts is {unselected:.4f}"

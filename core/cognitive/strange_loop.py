@@ -179,7 +179,7 @@ class LoopState:
     corrective_signals: Dict[str, float] = field(default_factory=dict)
 
     # Timestamp of this tick.
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

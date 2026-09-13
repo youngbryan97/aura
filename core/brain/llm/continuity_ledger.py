@@ -116,7 +116,7 @@ class LedgerEntry:
     last_turn: int
     mentions: int = 1
     pinned: bool = False
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def key(self) -> str:
         return _normalise(self.text)

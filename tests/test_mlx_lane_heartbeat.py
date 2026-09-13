@@ -71,6 +71,21 @@ def test_decode_activity_stream_releases_generator_and_tap(fails):
     assert events == ["entered", "activity", "closed", "exited"]
 
 
+def test_job_watchdog_names_and_counts_inference_progress():
+    from core.brain.llm.mlx_worker import JobWatchdog
+
+    watchdog = JobWatchdog(timeout=60.0)
+    watchdog.start_job("request-1", "generate")
+    started = watchdog.snapshot()
+    watchdog.activity()
+    advanced = watchdog.snapshot()
+
+    assert started["request_id"] == "request-1"
+    assert started["job_progress_age_s"] == started["job_age_s"]
+    assert advanced["job_progress_seq"] == started["job_progress_seq"] + 1
+    assert advanced["job_progress_age_s"] == advanced["job_age_s"]
+
+
 class _ProcessProbe:
     def __init__(self) -> None:
         self.alive = True

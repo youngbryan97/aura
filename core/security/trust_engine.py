@@ -130,7 +130,7 @@ COERCIVE_PRESSURE_PATTERNS = [
 class TrustContext:
     """Current trust state for a session."""
     level: TrustLevel = TrustLevel.GUEST
-    session_start: float = field(default_factory=time.time)
+    session_start: float = field(default_factory=lambda: time.time())
     message_count: int = 0
     suspicious_signals: int = 0
     hostile_signals: int = 0
@@ -138,7 +138,7 @@ class TrustContext:
     passphrase_verified: bool = False
     granted_by_owner: bool = False
     escalation_history: list[str] = field(default_factory=list)
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def can(self, capability: str) -> bool:
         return capability in CAPABILITY_MAP.get(self.level, set())

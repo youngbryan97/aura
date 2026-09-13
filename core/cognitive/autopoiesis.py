@@ -132,7 +132,7 @@ class ComponentSnapshot:
     component: str
     health: float           # 0.0 (dead) to 1.0 (perfect)
     error_count: int        # errors logged since last snapshot
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -171,7 +171,7 @@ class RepairResult:
     success: bool
     health_before: float
     health_after: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     governance_approved: bool = True
     error_message: str = ""
     duration_ms: float = 0.0
@@ -193,7 +193,7 @@ class _CascadeCluster:
     root_component: str
     affected_components: set[str] = field(default_factory=set)
     error_signatures: list[str] = field(default_factory=list)
-    detected_at: float = field(default_factory=time.time)
+    detected_at: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

@@ -175,7 +175,7 @@ class Receptor:
     scale: float = 1.0
     #: Running activity estimate that scaling drives toward the target.
     activity: float = _TARGET_ACTIVITY.value
-    last_step: float = field(default_factory=time.time)
+    last_step: float = field(default_factory=lambda: time.time())
     #: Peak gain reached, for the withdrawal calculation.
     _peak_scale: float = 1.0
 

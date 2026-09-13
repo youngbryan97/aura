@@ -85,7 +85,7 @@ class ReasoningTask:
     priority: int
     coro_fn: Any = field(compare=False)
     task_id: str = field(compare=False, default_factory=lambda: str(uuid.uuid4())[:8])
-    created_at: float = field(default_factory=time.time, compare=False)
+    created_at: float = field(default_factory=lambda: time.time(), compare=False)
     callback: Any = field(compare=False, default=None)
     description: str = field(compare=False, default="")
     #: Execution budget and queue time-to-live (CP126 b3925b0c).

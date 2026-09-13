@@ -137,7 +137,7 @@ class _Parameter:
     value: Any
     default: Any
     descriptor: ParameterDescriptor
-    declared_at: float = field(default_factory=time.time)
+    declared_at: float = field(default_factory=lambda: time.time())
     changes: int = 0
 
 

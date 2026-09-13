@@ -247,7 +247,7 @@ class SemanticFact:
     confidence: float
     domain: str = "general"     # "science", "personal", "preference", etc.
     source_episode_ids: list[str] = field(default_factory=list)
-    last_validated: float = field(default_factory=time.time)
+    last_validated: float = field(default_factory=lambda: time.time())
     validation_count: int = 1
 
     @property

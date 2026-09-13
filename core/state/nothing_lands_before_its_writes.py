@@ -31,6 +31,7 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.NothingLandsBeforeItsWrites")
 
@@ -80,7 +81,7 @@ class AWriteInFlight:
 
 _IN_FLIGHT: dict[int, AWriteInFlight] = {}
 _HISTORY: list[dict[str, Any]] = []
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.state.nothing_lands_before_its_writes.LOCK")
 _KEEP = 200
 
 

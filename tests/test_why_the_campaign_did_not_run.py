@@ -94,8 +94,27 @@ def test_the_conductor_records_through_this() -> None:
     # Every way out of the job, not only the one that ran. A job that records
     # its runs and not its deferrals answers the wrong question: the reason it
     # produced nothing is in the deferrals.
-    flat = " ".join(source.split())
-    for ending in ("deferred", "unavailable", "idle", "ran"):
-        assert f'note_a_consideration( "{ending}"' in flat or (
-            f'note_a_consideration("{ending}"' in flat
-        ), ending
+    #
+    # Read as strings in the function rather than as the exact call text. The
+    # first version matched `note_a_consideration("ran"` literally, so hoisting
+    # the word into a variable — which is what adding a fifth ending required —
+    # failed a test whose subject had improved.
+    import ast
+    import textwrap
+
+    endings = {
+        node.value
+        for node in ast.walk(ast.parse(textwrap.dedent(source)))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    for ending in (
+        "deferred",
+        "unavailable",
+        "idle",
+        "ran",
+        # A rotation with no channel on its own generation path, and a
+        # campaign admitted that completed no trial. Both used to be "ran".
+        "unreachable",
+        "produced_nothing",
+    ):
+        assert ending in endings, ending

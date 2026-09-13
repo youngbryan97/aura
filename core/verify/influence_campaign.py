@@ -106,12 +106,50 @@ class CampaignReport:
             "channels_skipped": dict(self.channels_skipped),
             "trials": [t.as_dict() for t in self.trials],
             "refused": self.refused,
+            "trials_completed": self.trials_completed,
+            "why_nothing_landed": self.why_nothing_landed,
             "persisted_to": self.persisted_to,
         }
 
     @property
+    def trials_completed(self) -> int:
+        """Paired trials that actually produced both arms."""
+
+        return sum(t.trials_completed for t in self.trials)
+
+    @property
     def ran(self) -> bool:
-        return not self.refused and bool(self.trials)
+        """Whether this campaign put any evidence in the ledger.
+
+        A channel that was attempted is not a channel that was measured. The
+        live campaign attempted one channel an hour for three weeks and every
+        arm of every trial was refused by the inference gate; ``bool(trials)``
+        was True each time, so the conductor recorded a run, the log said "1
+        channel(s) measured", and the ledger filled with zeros. A campaign
+        that completed no trial ran nothing.
+        """
+
+        return not self.refused and self.trials_completed > 0
+
+    @property
+    def why_nothing_landed(self) -> str:
+        """Why an attempted campaign produced no samples, in the arms' words.
+
+        Empty when the campaign completed trials or never attempted any. The
+        probe already records the reason each arm failed; this is the part a
+        caller needs to put in front of somebody.
+        """
+
+        if self.refused or not self.trials or self.trials_completed:
+            return ""
+        for trial in self.trials:
+            for note in trial.notes:
+                _, _, reason = note.partition("(")
+                if reason:
+                    return reason.rstrip(")").strip()
+            if trial.stopped_early:
+                return trial.stopped_early
+        return "every arm failed and none said why"
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +378,7 @@ async def run_influence_campaign(
             )
             report.channels_skipped[name] = f"{type(exc).__name__}"
 
-    if persist and report.trials:
+    if persist and report.trials_completed:
         try:
             report.persisted_to = await persist_ledger()
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -352,9 +390,12 @@ async def run_influence_campaign(
 
     report.elapsed_s = time.time() - started
     logger.info(
-        "[INFLUENCE] campaign finished: %d channel(s) measured, %d skipped, %.1fs",
+        "[INFLUENCE] campaign finished: %d channel(s) attempted, %d trial(s) completed, "
+        "%d skipped, %.1fs%s",
         len(report.trials),
+        report.trials_completed,
         len(report.channels_skipped),
         report.elapsed_s,
+        f" — nothing landed: {report.why_nothing_landed}" if report.why_nothing_landed else "",
     )
     return report

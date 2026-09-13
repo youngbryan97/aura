@@ -1340,6 +1340,9 @@ class ActuatorRegistry:
                 extra={"actuator": name, "elapsed_s": round(elapsed, 4)},
                 enforce_failure_policy=False,
             )
+        # Not a failure: this is the report ABOUT a slow actuator. The
+        # actuator has already been demoted; a degradation sink that
+        # cannot be reached must not also take down the demotion.
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
             pass
 

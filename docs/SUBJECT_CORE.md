@@ -143,6 +143,31 @@ The life is short. A few hundred turns is not an ontogeny.
 
 ## What the numbers say so far
 
+Every run that carries a report, read off the artifacts rather than retyped.
+`tools/subject_core_evidence_doc.py --check` fails when this table and the
+reports disagree, so the numbers in the prose below cannot outlive the run they
+came from.
+
+<!-- generated: subject-core evidence -->
+
+| run | commit | campaign | criteria | phi | edges | component | vertex | spread |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| run_000 | `` | `` | 12/24 | -0.0938 | 9 | 3/10 | 0 | 0.100 |
+| run_001 | `0fb6fdd1cda0` | `cd87b540` | 11/24 | -0.0071 | 18 | 4/10 | 0 | 0.100 |
+| run_002 | `4bfa7fbbd3ed` | `58e895f1` | 12/24 | +0.0156 | 19 | 5/10 | 0 | 0.130 |
+| run_006 | `728161952e25` | `8ab7d7e5` | 10/24 | +0.0116 | 13 | 1/10 | 0 | 0.156 |
+| run_009 | `e9a44796010b` | `ed8c83f9` | 11/24 | +0.0326 | 20 | 4/10 | 0 | 0.211 |
+| run_014 | `36174cd12c1e` | `ebee263d` | 11/24 | -0.0470 | 18 | 4/10 | 0 | 0.233 |
+| run_015 | `d3d77f9fd4dc` | `ebee263d` | 11/24 | -0.0066 | 24 | 7/10 | 0 | 0.378 |
+| run_016 | `66b500117d01` | `d50b4b69` | 11/24 | -0.0202 | 30 | 6/10 | 0 | 0.411 |
+| run_017 | `da4f931353c9` | `d50b4b69` | 12/24 | +0.0221 | 36 | 7/10 | 0 | 0.400 |
+| run_019 | `cc4e5f1a60c6` | `f896791b` | 14/24 | +0.0622 | 44 | 9/10 | 0 | 0.522 |
+| run_020 | `5bcb0c40665b` | `120aa3f7` | 15/24 | +0.0345 | 46 | 10/10 | 1 | 0.511 |
+| run_023 | `9d65c5d631c4` | `c6898f47` | 17/24 | +0.0172 | 44 | 10/10 | 1 | 0.578 |
+| run_025 | `c4d52c2a0d19` | `64f758aa` | 19/24 | +0.0183 | 39 | 10/10 | 1 | 0.556 |
+
+<!-- end generated -->
+
 The partition score across the session, on the same organism, as each
 methodological defect was removed and each channel repaired:
 
@@ -156,7 +181,11 @@ methodological defect was removed and each channel repaired:
 | | **-0.0777** | the same code, run again |
 | | **-0.0010** | the self-prediction loop attached, memory read by content |
 | | **-0.0071** | 480 turns, the max-based edge statistic, six trials |
-| latest | **-0.0007** | the weakest cut chosen on folds the score is not read from |
+| | **-0.0007** | the weakest cut chosen on folds the score is not read from |
+| | **-0.047** | the same instrument, months of organism repair later |
+| | **-0.0066** | the sham floor taken from 2.0 standard deviations to 0.06 |
+| | **-0.020** | the counted schedule running each layer's whole loop body at its own rate |
+| latest | **+0.0221** | attention biasing perception, the drive competition, a bid's own charge |
 
 Three of those rows are the same instrument on the same organism, and they are
 the honest measure of how much of this is noise: the score moves by 0.08
@@ -164,6 +193,19 @@ between runs, against a preregistered bar of 0.05 and a matched surrogate floor
 of -0.011. What can be said is that the score is no longer reliably negative
 and is nowhere near the bar. What cannot be said, at 960 turns, is which side
 of zero it sits on.
+
+The last row is the first positive score the instrument has produced, and it is
+not yet a result. Read across the two runs that share its fingerprint, phi moves
+between -0.020 and +0.022 with a median of 0.001 — a spread of 0.042 against a
+bar of 0.05. The matched surrogate floor is what changed most: it was 0.12 when
+the sham floor was two standard deviations wide and is 0.003 to 0.015 now, so a
+margin over the floor is finally a number that can be read at all.
+
+The edge graph over the same runs: 18 kept, then 30 once the counted schedule
+ran the whole of each loop body, then 36, then 40. Perception and the body
+entered the strongly connected component for the first time in the program at
+36, and the component reached seven of ten domains. Recurrent cognition,
+deliberation and the developmental state remain outside it.
 
 The last row is not a repair to the organism. A minimum over five hundred and
 eleven noisy estimates sits about three standard errors below the truth however
@@ -249,7 +291,7 @@ the draw.
 - [x] **ownership** (§34) — the same world state updates the self differently when she caused it
 - [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
 - [x] **slow_to_fast** (§38) — the developmental state changes later cognition
-- [ ] **natural_runtime_replication** (§44) — holds across ordinary conditions
+- [ ] **natural_runtime_replication** (§44) — strongly connected in at least three of the eight ordinary conditions, each condition's graph built from its own trials; v25 does not change this bar
 - [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
 - [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does
@@ -539,6 +581,133 @@ she can do was her confidence about all of them at once.
 appended a bounded trace of each winner to an attribute on the workspace, and
 nothing anywhere read it — a writer with no reader, inside the file written to
 remove writers with no readers.
+
+**The counted schedule ran the first line of each loop, not the loop.** The
+free-running layers cannot be left running for a paired intervention, so the
+battery advances them by a count. A layer declares, in order, the methods one
+iteration of its loop calls; the harness asked for a single entry point and took
+the first name that resolved. A counted neurochemical iteration ran
+`_metabolic_tick` and never `_push_modulation`; interoception sampled the
+hardware and never pushed it to the mesh or triggered a neurochemical event;
+oscillatory binding stepped its oscillators and never emitted a binding moment.
+Every method that was dropped is the one that leaves the layer. The harness
+stopped executing the coupling and the battery reported the coupling as weak.
+
+The rate was wrong in both directions at once. A frame was worth a declared half
+second while the experiment clock advanced by whatever calibration measured, so
+two timelines ran side by side; and the frames-between-steps count was clamped at
+one, capping every layer at two hertz against a mesh at ten, a field at twenty
+and oscillators at a hundred. A layer's iterations in a frame now come from its
+own declared rate and the frame's own duration, and a sub-schedule — the
+oscillators emit on every tenth internal tick — runs at its own ratio.
+
+**One turn is one second, and the machine does not decide that.** Calibration
+measured how fast this host ran a frame and made the experiment's second that
+long, which puts the host back into the timeline the clock was installed to
+remove and gives two machines different amounts of life per turn. A turn is the
+organism's unit of experience and the layer rates are per second, so a turn is
+worth one second and the frame follows from how many readings a turn takes —
+a property of the phase list. The machine's real pace is still timed and
+reported beside the result.
+
+**One Euler step of half a second is not thirteen of a tenth.** The substrate is
+a nonlinear stochastic recurrent system: the tanh is evaluated at different
+intermediate states, the noise draws are independent, and the clip can bite in
+the middle. It now takes the iterations its own configured rate calls for, each
+at its own configured constant.
+
+**There were three substrates.** The consciousness system built one and
+published it as `conscious_substrate` and `liquid_state`; the orchestrator's
+boot mixin built another unconditionally and published that as
+`liquid_substrate` and `conscious_substrate`, clobbering the first under the
+shared name; the organism then republished the consciousness system's under
+`liquid_substrate`. Only one of them is ever stepped, and the losing name is the
+one the attention gate, somatic qualia, temporal continuity, the predictive
+hierarchy, the aesthetic engine and the workspace's own bid for recurrent
+cognition all use.
+
+**A read-only seam answered None for every service built on demand.**
+`get_runtime_service` resolves with `peek`, which never invokes a factory —
+right for a diagnostic, wrong for a caller that wants the thing. A service
+registered lazily therefore answers None for the life of the process, silently,
+while being present and complete. `tools/audit_read_only_service_asks.py` finds
+eighteen of them across twenty-four call sites.
+
+**A competition of accumulating urges that ran nowhere.**
+`core/consciousness/drive_integration.py` is a leaky integrator per drive with
+mutual inhibition and a Schmitt trigger, written against the critique that a
+drive fired the instant a point crossed a line. Registered as a service, asked
+for by nothing. The assessment beside it picked the single most depleted budget
+on every turn of every life.
+
+**Thinking longer was never a decision.** `core/cognition/value_of_computation.py`
+answers whether another round is worth what it costs, and says in its own first
+paragraph that this is what makes a spend decision rather than a spend habit.
+Its only caller was reached from nothing but its own tests, while the draft
+competition reported in a log line that its winner led by less than the spread
+among the drafts that lost and took the first of the tie anyway.
+
+**Nothing spent her energy.** Every other drive decays with the clock; energy's
+stated decay is zero, correctly, because what depletes energy is work. The will
+engine owns that budget when present, and it is present in the full desktop
+runtime and nowhere else. So the branch of the intention assessment that fires
+on a depleted energy could never fire, and whatever asked how much she had left
+to spend read a hundred.
+
+**The self-model predicted a constant and graded itself against one.** Its
+valence error and its drive error were both exactly zero for the life of every
+process. The heartbeat read affect from the engine that feeds
+`AffectUpdatePhase` rather than from `AuraState.affect`, which the phase settles
+and every other consumer reads — measured over six turns, the engine reported
+valence 0.0 every time while the state's moved between 0.17 and 0.29.
+
+**Her valence was a constant at four decimal places.** It is `tanh` of a
+weighted *sum* over twenty-two positive emotion channels against twenty
+negative, so its input scales with how many names the dictionary contains rather
+than with how she feels, and it sat past the point where the function has a
+slope. Over forty-eight turns across all eight conditions it stayed inside 0.902
+to 0.913 while the emotions underneath ranged from a tenth to four fifths:
+happiness rising by a tenth moved valence by one hundred-thousandth.
+
+**Her sense of her own exertion was pinned at its ceiling.** Each unit cost is
+defined as what an unremarkable turn produces, and the aggregate took the mean
+of those ratios and clipped it at one — so an unremarkable turn read as maximum
+exertion by construction. Median 1.000 over four rounds of the eight conditions.
+The workspace prices the body's bid on the largest of load, thermals and
+exertion, so that pinned reading won the competition on nineteen turns in
+twenty-four.
+
+**A bonus one competitor could not lose.** `priority_at` adds three tenths of a
+candidate's affect weight to its claim, and the field means the affective charge
+of that content. Only the affect bid ever set it, and it set it to the moment's
+global arousal — a quantity belonging to the whole moment handed to one
+competitor. Affect won ninety-six competitions in a hundred, so attention was
+`affect_*` whatever else was happening and the action chosen by what she was
+attending to was the same action every turn.
+
+**The objective she had just chosen made no claim on attention.**
+`ExecutiveClosureEngine` writes it twice, two lines apart: as an initiative carrying
+the need pressure that selected it, and as a goal record carrying a flat
+priority and no urgency. The workspace prices deliberation on urgency.
+
+**"Call this after each incoming user message", and nothing did.**
+`DiscourseTracker` is the only writer of conversation energy, discourse depth
+and the user's emotional trend, and its `update` was called by nothing; the
+tracker itself was constructed inside an optional integration, so in most
+runtimes the service did not exist to call.
+
+**How hard she may think was computed and kept out of the state.**
+`HomeostaticCoupling` derives creativity, focus, urgency and vitality from the
+substrate; three of the four reached `cognition.modifiers` as constants.
+
+**The phi estimate was filled once and latched.** Recurrent cognition's own
+headline number was a constant in every recording, because the guard that filled
+it required it to be empty.
+
+**The harness never published its state where the tree reads it.** A dozen
+runtime paths take the current state off `state_repository._current`. The
+offline organism never registered the vault it carries its state in under that
+name, so all of them read None while the phases mutated a state.
 
 ## Findings from building the instrument
 

@@ -11,7 +11,7 @@ class Commitment:
     id: str
     description: str
     target_person: str
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     fulfilled: bool = False
     fulfilled_at: float = 0.0
 

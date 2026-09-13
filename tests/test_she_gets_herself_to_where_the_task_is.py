@@ -10,6 +10,8 @@ the page back rather than assumed from the click.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import pytest
 
 from core.agency.reach_place import host_of, named_url, reach
@@ -159,8 +161,8 @@ async def test_a_pursuit_that_cannot_get_there_does_not_start_playing(monkeypatc
 
         return Reached(wanted=wanted, arrived=False, reason="the search returned nothing")
 
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "read_screen", read)
     import core.agency.reach_place as rp
 
     monkeypatch.setattr(rp, "reach", nowhere)
@@ -391,10 +393,10 @@ async def test_the_page_she_opened_is_the_window_she_acts_on(monkeypatch):
             wanted=wanted, url="https://play2048.co/", title="2048", arrived=True, app="Google Chrome"
         )
 
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
     import core.agency.reach_place as rp
 
     monkeypatch.setattr(rp, "reach", arrived)

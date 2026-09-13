@@ -27,6 +27,7 @@ from typing import Any
 
 from core.ontogeny.features import FeatureSchema
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["LIFETIME", "LIFETIME_SCHEMA", "advance", "last_reading", "reset_for_test", "state"]
 
@@ -67,7 +68,7 @@ LIFETIME_SCHEMA = FeatureSchema(
     },
 )
 
-_lock = threading.Lock()
+_lock = checked_lock("core.ontogeny.lifetime._lock")
 _last: Any = None
 
 

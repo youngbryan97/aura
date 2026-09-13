@@ -89,7 +89,7 @@ class Preregistration:
     """A frozen set of predictions and the digest that pins them."""
 
     predictions: tuple[Prediction, ...]
-    registered_at: float = field(default_factory=time.time)
+    registered_at: float = field(default_factory=lambda: time.time())
     #: What the run is against, so a result cannot be carried over to a
     #: different model, a different commit, or a different body.
     model_digest: str = ""

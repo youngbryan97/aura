@@ -115,6 +115,12 @@ class ConsciousnessSystem:
         register_runtime_service("self_prediction", self.self_prediction)
         register_runtime_service("conscious_substrate", self.liquid_substrate)
         register_runtime_service("liquid_state", self.liquid_substrate)
+        # And under the name the rest of the tree uses, so the two cannot be
+        # different objects. They were: whichever subsystem published last won
+        # its own name, and a consumer got a stepped substrate or a dead one
+        # according to which name it happened to ask for.
+        register_runtime_service("liquid_substrate", self.liquid_substrate)
+        register_runtime_service("liquid_neural_network", self.liquid_substrate)
         register_runtime_service("qualia_synthesizer", self.qualia)
 
         # Wire the winner to the domains it is supposed to become available to.

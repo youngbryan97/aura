@@ -15,6 +15,8 @@ the telemetry-sanitizer path. So the diagnosis added to end
 
 from __future__ import annotations
 
+from mlx_source import worker_source
+
 from pathlib import Path
 
 _GATE = Path("core/brain/inference_gate.py")
@@ -36,7 +38,7 @@ def test_the_refusal_reads_every_key_a_reason_is_kept_under() -> None:
 def test_the_worker_really_writes_the_key_the_gate_now_reads() -> None:
     """A reader with no writer is how this got here in the first place."""
 
-    worker = Path("core/brain/llm/mlx_worker.py").read_text()
+    worker = worker_source()
     assert '"semantic_completion_quality_reasons": quality_reasons' in worker
     assert 'surface_control_state["surface_quality_gate_reasons"]' in worker
 
@@ -69,6 +71,6 @@ def test_when_there_is_no_reason_it_shows_the_draft() -> None:
 
 
 def test_the_worker_keeps_the_draft_the_gate_now_reads() -> None:
-    worker = Path("core/brain/llm/mlx_worker.py").read_text()
+    worker = worker_source()
     assert 'state["surface_quality_rejected_text"] = body' in worker
     assert 'state["surface_quality_rejected_reasons"] = list(reasons)[:8]' in worker

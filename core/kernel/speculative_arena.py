@@ -20,7 +20,7 @@ class SpeculativeBranch:
     state: AuraState | None = None
     score: float = 0.0
     info: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 class SpeculativeArena:
     """

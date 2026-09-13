@@ -46,15 +46,41 @@ class FeatureToggles(BaseModel):
     autonomous_impulses: bool = True
 
 
+
 class Paths(BaseModel):
     """
     Centralized path configuration with platform-aware resolution.
     ISSUE #78: Note that @property fields are intentionally excluded from Pydantic serialization.
     """
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    _runtime_home_cache: ClassVar[Path | None] = None
+    _runtime_home_cache: ClassVar[tuple[Path, Path] | None] = None
 
-    home_dir: Path = Field(default_factory=lambda: Path.home().expanduser().resolve() / ".aura")
+    #: Set explicitly by a caller that wants a particular world. Left unset,
+    #: `home_dir` below resolves the same way `data_dir` and `log_dir` do.
+    home_dir_override: Path | None = Field(default=None, alias="home_dir")
+
+    @property
+    def home_dir(self) -> Path:
+        """Where this runtime keeps its state.
+
+        `data_dir` and `log_dir` have always resolved through
+        `_effective_home_dir()`, so they land in the right world for a test or
+        bench run. This was the raw field beneath them, fixed at construction
+        and defaulting to the real `~/.aura` — and thirty-seven call sites read
+        it directly: the engram store, the episodic database, the key
+        directory, the tool-learning file. Each of those wrote at the live root
+        whatever profile the process was running under. The write gateway
+        refuses them, which is the guard working, and the subsystem is then
+        degraded for the whole run rather than redirected — the engram store
+        was blocked on every turn of every battery run for exactly that reason.
+
+        Resolved at access rather than at import, because a run that chooses
+        its own root does so after this module is imported, and a home fixed at
+        import disagrees with the `data_dir` beneath it.
+        """
+        if self.home_dir_override is not None:
+            return Path(self.home_dir_override)
+        return self._effective_home_dir()
 
     def _effective_home_dir(self) -> Path:
         """Where THIS runtime keeps its state.
@@ -71,11 +97,14 @@ class Paths(BaseModel):
         than redirected, and a blocked test is not a working one. Here it
         gets its own world instead.
         """
-        cached = self.__class__._runtime_home_cache
-        if cached is not None:
-            return cached
-
         candidate = state_root()
+        # Kept per state root, not once. A process that asked where home was
+        # and then gave itself a root kept the first answer: after
+        # `isolate_state`, `data_dir` was still the live `~/.aura/data`.
+        cached = self.__class__._runtime_home_cache
+        if cached is not None and cached[0] == candidate:
+            return cached[1]
+
         try:
             candidate.mkdir(parents=True, exist_ok=True)
             from core.runtime.atomic_writer import atomic_write_text
@@ -91,13 +120,13 @@ class Paths(BaseModel):
             # the intention database.
             atomic_write_text(probe, "ok", encoding="utf-8", durable=False)
             probe.unlink(missing_ok=True)
-            self.__class__._runtime_home_cache = candidate
+            self.__class__._runtime_home_cache = (candidate, candidate)
             return candidate
         except (ImportError, AttributeError, RuntimeError, OSError) as exc:
             record_degradation('config', exc)
             fallback = self.project_root / ".aura_runtime"
             fallback.mkdir(parents=True, exist_ok=True)
-            self.__class__._runtime_home_cache = fallback
+            self.__class__._runtime_home_cache = (candidate, fallback)
             logger.warning(
                 "Paths.home_dir unavailable (%s). Falling back to %s",
                 exc,
@@ -634,5 +663,17 @@ config = get_config()
 
 # Legacy compatibility exports for older boot paths.
 PROJECT_ROOT = config.paths.project_root
-DATA_DIR = config.paths.data_dir
-LOG_DIR = config.paths.log_dir
+
+
+def __getattr__(name: str) -> Path:
+    """`DATA_DIR` and `LOG_DIR`, resolved when they are read.
+
+    They were constants taken at import. A run that gave itself a state root
+    afterwards kept reading the first root through every module that imported
+    them, and `state_leaks` reported both after `isolate_state`.
+    """
+    if name == "DATA_DIR":
+        return config.paths.data_dir
+    if name == "LOG_DIR":
+        return config.paths.log_dir
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

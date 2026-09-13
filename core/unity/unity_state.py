@@ -18,7 +18,7 @@ def _new_id(prefix: str) -> str:
 class TemporalWindow:
     now_id: str = field(default_factory=lambda: _new_id("now"))
     tick_id: str | None = None
-    opened_at: float = field(default_factory=time.time)
+    opened_at: float = field(default_factory=lambda: time.time())
     closed_at: float | None = None
     subjective_center_t: float = 0.0
     duration_s: float = 0.0
@@ -246,7 +246,7 @@ class MindMoment:
     """One inspectable active-present frame for the whole cognitive loop."""
 
     moment_id: str = field(default_factory=lambda: _new_id("mind"))
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     tick_id: str | None = None
     state_version: int | None = None
     unity_id: str = ""
@@ -358,7 +358,7 @@ class MindMoment:
 @dataclass(frozen=True)
 class UnityState:
     unity_id: str = field(default_factory=lambda: _new_id("unity"))
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     temporal: TemporalWindow = field(default_factory=TemporalWindow)
     contents: list[BoundContent] = field(default_factory=list)
     draft_bindings: list[DraftBinding] = field(default_factory=list)

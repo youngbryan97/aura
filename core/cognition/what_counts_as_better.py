@@ -130,7 +130,7 @@ def how_bad_that_is(*, sat: int, of: int, symbols: int) -> float:
                 return float(of)
             made = run(made.body, (one, *made.env), fuel=_A_JUDGEMENT_MAY_SPEND)
         return float(made)
-    except Exception:  # noqa: BLE001 - a refusal is the worst score there is
+    except Exception:  # noqa: BLE001 - foreign code: a refusal is the worst score there is
         return float(of)
 
 

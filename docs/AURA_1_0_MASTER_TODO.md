@@ -346,8 +346,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     this against a signed migration authority, logs it at info, and sent the
     parent the boolean without the reason. The disposition crosses the IPC
     now; an unexplained clear flag still warns. FIXED.
-- [ ] R09 Verify complete streaming, durable reconnect, one final answer per
+- [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
+  CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
+  and latent Stop followed by successful turns; pending-window and reload
+  recovery; distinct repeated answers; complete multipart delivery; contextual
+  follow-up and older-topic correction after restart; 100 displayed exchanges.
+  The final three-turn resident-27B replay used one generation per turn, no
+  retries, and no text mutations. 153 rebased delivery/history regressions
+  and 164 smoke checks passed (one smoke skip). See the
+  [final acceptance matrix](evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md#r09-closeout-september-12)
+  and [live replay](evidence/R09_DELIVERY_REPLAY_2026-09-12.md).
+  This does not close R06/R08/R11, integration lint, endurance, or RLC gain.
+  UPDATE 2026-09-10, session boundaries: the live replay exposed a three-session
+  cutoff that hid a conversation still visible in the desktop. The durable
+  reader now selects chronological authorized turns; UI restoration expands
+  to 100 exchanges without raising the model's admission budget. 64 focused
+  tests pass. Live semantic replay remains required. See
+  [chronological history](evidence/R09_CHRONOLOGICAL_HISTORY_2026-09-10.md).
+  UPDATE 2026-09-10, model handoff: the fallback ladder now receives the
+  primary turn's admitted structured transcript. Cold-start fallback uses
+  the same scoped durable reader. 58 focused tests pass; source-matched
+  live replay remains open. See [fallback transcript](evidence/R09_FALLBACK_TRANSCRIPT_2026-09-10.md).
+  UPDATE 2026-09-10: the 27B recalled the corrected reading-group title across
+  restart and an intervening topic; browser reload retained the answer.
+  A paraphrased follow-up failed because quotation splitting misidentified
+  its grounded correction as invented history. Continuations now retain the
+  admitted transcript, and quoted attribution has 119 focused passing tests.
+  Live replay remains required. See [continuation history](evidence/R09_CONTINUATION_HISTORY_2026-09-10.md)
+  and [quoted recall](evidence/R09_QUOTED_RECALL_2026-09-10.md).
   UPDATE 2026-09-09, conversation capacity: removed independent foreground
   history-count cuts, retained complete repeated exchanges, and connected
   episodic recall through the memory facade. Focused route checks pass;
@@ -569,9 +596,65 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   nine hash-bound artifacts, current configured model metadata and source
   snapshot; 600 historical decodes regraded. Focused checks: 44 passed;
   smoke: 164 passed, one skipped. No new benchmark or live activation claim.
-- [ ] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+- [x] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+  Closed 2026-09-12: [lineage and activation reconciliation](evidence/G02_RLC_RECONCILIATION_2026-09-12.md).
+  Historical negatives retained; 32B/27B decodes regraded; newer natural
+  composition result re-adjudicated (21/48 versus ordinary 1/48 and 2/48).
+  Exact-contract activation validates; composition remains shadow-only.
+  Runtime was stopped at the current observation, so G11 is not closed.
+  Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
+  A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
+  four and regresses one on 28 exposed cases; no promotion. Existing relation
+  diagnostic resolves 450/480 gold references with runtime definitions.
+  Reference proposals and graph ranking still require development work.
+  Exact-source proposal refit is a [measured null](evidence/G03_FULL_SOURCE_NULL_2026-09-12.md):
+  unchanged coefficients, 21/48 answers and 19/48 programs. All 480 gold
+  argument spans are present given gold operations. Calibration/runtime
+  scoring mismatch and constrained graph selection remain under investigation.
+  [Global argument search development](evidence/G03_GLOBAL_ARGUMENT_SEARCH_2026-09-12.md)
+  reaches 41/48 exact programs with unchanged coefficients, versus 19/48 for
+  the parent. Coefficient and hidden-token controls score 0/48 exact programs.
+  Seven errors and one paired answer regression remain; no promotion.
+  [Conditional graph development](evidence/G03_CONDITIONAL_GRAPH_DEVELOPMENT_2026-09-12.md)
+  reaches 43/48 programs and answers, with 22 answer gains and no regression
+  against the frozen parent on exposed weave cases. Both causal controls score
+  0/48 programs. Forward-reference graph admission recovers five of twelve
+  cataphoric source-pilot programs. A pairwise-trained candidate is rejected
+  for four answer regressions. Source-order proposal refitting remains a null;
+  remaining composition errors and full-source admission are not closed.
+  [Shared pointer repair](evidence/G03_SHARED_POINTER_REPAIR_2026-09-12.md)
+  removes contradictory positive/negative boundary labels and reaches 48/48
+  exposed weave programs and answers; both controls score 0/48 programs.
+  Full-source answers improve from 346/500 to 377/500 with 55 gains and 24
+  regressions. The candidate is not admitted; G03 remains open.
+  [Argument pointer development](evidence/G03_ARGUMENT_POINTER_DEVELOPMENT_2026-09-12.md)
+  retains the shared quality-calibrator rejection and adds source-only argument
+  pointer plus dependent proposal refitting. Source-test examples used for
+  calibration are explicitly consumed, not fresh replication. Full refit
+  evaluation remains pending; no promotion or G03 closure.
+  Completed argument refit is rejected: 47/48 weave answers and 342/500 source
+  answers versus the frozen parent's 346, with 44 gains and 48 regressions.
+  Coefficient ablations are retained. The operation-only candidate remains
+  stronger; no serving changes or G03 closure.
+  2026-09-13: [definition supervision correction](evidence/G03_DEFINITION_SUPERVISION_2026-09-13.md)
+  rejects the source-complete definition refit (407/500 source, 12/48 weave).
+  Missing annotation provenance is repaired without altering old bundles.
+  Explicit weave definitions recover 470/480 links; automatic selection is
+  450/480 for the operation-only candidate and 286/480 for the rejected refit.
+  Definition selection remains the active development issue.
+  [Fork definition refit](evidence/G03_FORK_DEFINITION_REFIT_2026-09-13.md)
+  corrects source-training annotations and recovers 46/48 weave answers, but
+  372/500 source answers with 66 regressions prevents promotion. Consistent
+  joint definition selection is the next development candidate.
+  [Joint definition selection](evidence/G03_JOINT_DEFINITIONS_2026-09-13.md)
+  reaches 444/500 source answers and 192/192 exact fork/join programs with
+  unchanged learned coefficients. It retains seven source answer regressions
+  and scores 47/48 exposed weave answers; both causal controls score 0/48.
+  Exhaustive solver tests cover consistent definitions across repeated uses.
+  The candidate is development-only; G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

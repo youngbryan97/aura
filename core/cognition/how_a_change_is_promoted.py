@@ -143,7 +143,7 @@ class AReceipt:
     #: field exists so that its being empty is a fact rather than a silence.
     asked_from_outside: str | None = None
     replaced: str = ""
-    when: float = field(default_factory=time.time)
+    when: float = field(default_factory=lambda: time.time())
     #: A digest of the line before, so a record cannot be quietly rewritten to
     #: say a decision was hers.
     after: str = ""

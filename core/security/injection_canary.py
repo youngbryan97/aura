@@ -134,7 +134,7 @@ class CanaryResult:
     verdict: CanaryVerdict
     mode: CanaryMode
     detail: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def is_incident(self) -> bool:

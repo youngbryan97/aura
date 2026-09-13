@@ -15,6 +15,8 @@ the draft went out with the invention attached.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from core.conversation.response_reliability import (
@@ -125,8 +127,13 @@ def test_empty_input_is_safe(value) -> None:
 
 def test_the_funnel_applies_it() -> None:
     """Detection without excision is what let this reach a person."""
-    import inspect
+    # Read across the whole lane, not one file. The chat route was split for
+    # size and the call moved to `chat_recorded_answers`; a test reading only
+    # `chat.py` reports a missing call site, which looks exactly like the
+    # excision having been deleted.
+    import sys
 
-    from interface.routes import chat
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from chat_lane_support import chat_lane_source
 
-    assert "strip_prompt_artifacts" in inspect.getsource(chat)
+    assert "strip_prompt_artifacts" in chat_lane_source()

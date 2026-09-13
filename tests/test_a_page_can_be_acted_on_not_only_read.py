@@ -73,7 +73,14 @@ def test_the_plan_opens_the_page_in_pursue_mode():
     """
     import inspect
 
-    source = inspect.getsource(AutonomousTaskEngine)
+    # The fallback plan builders moved to a mixin when the engine went back
+    # under the size gate's method ceiling, so the class is its own source
+    # plus everything it inherits.
+    source = "".join(
+        inspect.getsource(base)
+        for base in AutonomousTaskEngine.__mro__
+        if base is not object
+    )
     interaction = source.index("_page_interaction_target(goal)")
     search_branch = source.index("# 4. Web Search / Search Web")
     assert interaction < search_branch, "acting on a page must be considered before searching"

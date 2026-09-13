@@ -177,6 +177,38 @@ class TestGroundedRecallSurvives:
     def test_an_empty_reply_is_not_a_fabrication(self):
         assert not has_fabricated_shared_history("", "hello", RECENT)
 
+    @pytest.mark.parametrize("opening,closing", [('"', '"'), ("'", "'"), ("\u201c", "\u201d"), ("\u2018", "\u2019")])
+    @pytest.mark.parametrize("frame", ["", "it right there in that message — ", "this in your earlier reply: "])
+    def test_direct_speech_checks_the_complete_quotation(self, opening, closing, frame):
+        correction = "That is a short story. I asked for a novel."
+        reply = f"Your reason for correcting me: you said {frame}{opening}{correction}{closing}"
+        assert not has_fabricated_shared_history(
+            reply, "What did you get wrong, and why did I correct you?", [correction]
+        )
+
+    @pytest.mark.parametrize("invented", [
+        "I escaped from a secret prison.",
+        "That is a short story. I escaped from a secret prison during a hurricane.",
+    ])
+    def test_a_reporting_frame_does_not_license_an_invented_quote(self, invented):
+        assert has_fabricated_shared_history(
+            f'You said it right there in that message — "{invented}"',
+            "What did I tell you?", ["That is a short story. I asked for a novel."],
+        )
+
+    def test_a_grounded_quote_does_not_license_another_claim(self):
+        assert has_fabricated_shared_history(
+            'You said "That is a short story. I asked for a novel." '
+            'You had escaped from a secret prison.',
+            "What did I tell you?", ["That is a short story. I asked for a novel."],
+        )
+
+    def test_a_quote_does_not_replace_a_substantive_complement(self):
+        assert has_fabricated_shared_history(
+            'You said you escaped from a secret prison: "That is a short story."',
+            "What did I tell you?", ["That is a short story. I asked for a novel."],
+        )
+
 
 class TestTheShapeOfTheCheck:
     def test_it_needs_a_relational_past_claim(self):

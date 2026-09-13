@@ -103,7 +103,7 @@ def jaccard(a: set[str] | Sequence[str], b: set[str] | Sequence[str]) -> float:
 class Observation:
     domain: str
     state: dict[str, Any]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     confidence: float = 0.7
     source: str = "unknown"
     observation_id: str = ""
@@ -298,7 +298,7 @@ class Episode:
     predicted: dict[str, Any]
     outcome: Outcome
     episode_id: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         # `predicted` participates in the identity: the episode IS the

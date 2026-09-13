@@ -361,7 +361,7 @@ class VisualSpeechEngine:
         extractor: VisualSpeechExtractor,
         backend: VisualSpeechBackend,
         policy: VisualSpeechPolicy | None = None,
-        wall_clock: Callable[[], float] = time.time,
+        wall_clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         self.extractor = extractor
         self.backend = backend

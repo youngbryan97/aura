@@ -134,7 +134,7 @@ class WorldviewSnapshot:
     This is NOT raw memories — it's synthesized understanding.
     """
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     # Domain → synthesized belief/stance string
     domains: dict[str, str] = field(default_factory=dict)
     # Topic → what Aura thinks about it specifically

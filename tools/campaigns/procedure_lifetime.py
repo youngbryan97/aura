@@ -67,6 +67,21 @@ def _resident_bytes() -> int:
         return 0
 
 
+#: Each task reads three keys that matter and two that only happen to be
+#: there. A compiler that keeps all five has learned the room, not the task.
+REAL_KEYS = ("goal", "board", "hand")
+INCIDENTAL_KEYS = ("clock", "battery")
+
+#: How many deliberation steps one episode takes before the chunk exists. The
+#: cards say "previously hundreds-step episode", and three steps would make
+#: the compression claim about nothing.
+#:
+#: These three declarations were deleted along with the comment block above an
+#: RSS helper that was being replaced. The module then raised NameError on its
+#: own default argument, and two campaign tests have been red since.
+EPISODE_STEPS = 240
+
+
 def _episode(
     graph: EventGraph,
     task: str,

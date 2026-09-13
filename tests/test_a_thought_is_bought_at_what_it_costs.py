@@ -15,6 +15,8 @@ disagrees with what she can see now, or when enough rides on it.
 
 from __future__ import annotations
 
+from screen_pursuit_support import pursuit_loop_source
+
 from core.agency.worth_thinking_about import TOO_CLOSE_TO_CALL, worth_a_pass
 from core.skills.screen_pursuit import _a_pass_in_moves
 
@@ -75,7 +77,7 @@ def test_the_pursuit_weighs_the_price_it_measured():
 
     from core.skills import screen_pursuit
 
-    source = inspect.getsource(screen_pursuit.pursue_on_screen)
+    source = pursuit_loop_source()
     assert "costs_moves=_a_pass_in_moves(costs)" in source
     assert 'costs["quiet_s"] +=' in source
     assert 'costs["pass_s"] +=' in source

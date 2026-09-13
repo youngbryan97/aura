@@ -152,7 +152,7 @@ class ModuleSpec:
     test_cases: List[TestCase] = field(default_factory=list)
     trace_examples: List[TraceExample] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)
-    extracted_at: float = field(default_factory=time.time)
+    extracted_at: float = field(default_factory=lambda: time.time())
 
     def summary(self) -> str:
         """Human-readable summary of the spec."""
@@ -209,7 +209,7 @@ class ComparisonReport:
     imports_valid: bool = True
     public_surface_preserved: bool = True
     metrics: Dict[str, float] = field(default_factory=dict)
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     @property
     def all_passed(self) -> bool:
@@ -232,7 +232,7 @@ class DiscrepancyReport:
 
     items: List[DiscrepancyItem] = field(default_factory=list)
     summary: Dict[str, int] = field(default_factory=dict)
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     @property
     def has_agent_errors(self) -> bool:
@@ -260,7 +260,7 @@ class AuditResult:
     passed: bool
     violations: List[str] = field(default_factory=list)
     audit_type: str = ""
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -278,7 +278,7 @@ class LabResult:
     attempts: int = 0
     total_time_s: float = 0.0
     receipt_id: Optional[str] = None
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

@@ -50,6 +50,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -102,6 +103,22 @@ def paired_stats(a: list[float], b: list[float]) -> dict[str, object]:
         out["t"] = None
         out["p_value"] = None
     return out
+
+
+
+#: A campaign result is evidence, and every consequential write in this tree
+#: goes through the gateway — which is what records it and what the durable
+#: write audit counts. Four writes here are the four ways this run can end:
+#: three void verdicts and the result itself.
+def _write_result(out_path: Path, payload: dict) -> None:
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    source = "research.consciousness.selfreport_steering_ab"
+    with local_internal_governed_scope(source):
+        get_file_write_gateway().write_text(
+            out_path, json.dumps(payload, indent=2), source=source
+        )
 
 
 def run(
@@ -205,7 +222,7 @@ def run(
     log(f"injections fired: {fired}")
     if fired["pos"] <= 0 or fired["neg"] <= 0:
         log("VOID: a steered arm never injected. This is not a null result.")
-        out_path.write_text(json.dumps({"void": "no_injection", "fired": fired}, indent=2))
+        _write_result(out_path, {"void": "no_injection", "fired": fired})
         lease.release()
         return 3
 
@@ -215,7 +232,7 @@ def run(
     )
     if identical == len(results["steered_pos"]):
         log("VOID: the steered arms produced identical text.")
-        out_path.write_text(json.dumps({"void": "identical_text"}, indent=2))
+        _write_result(out_path, {"void": "identical_text"})
         lease.release()
         return 3
 
@@ -232,8 +249,7 @@ def run(
     control = paired_stats(scores("prompt_pos"), scores("prompt_neg"))
     if control["mean_delta"] <= 0:
         log("VOID: the scorer did not separate the prompt conditions.")
-        out_path.write_text(json.dumps({"void": "scorer_control_failed",
-                                        "control": control}, indent=2))
+        _write_result(out_path, {"void": "scorer_control_failed", "control": control})
         lease.release()
         return 3
 
@@ -263,7 +279,7 @@ def run(
         },
         "results": results,
     }
-    out_path.write_text(json.dumps(payload, indent=2))
+    _write_result(out_path, payload)
     log(f"wrote {out_path}")
     for name, stats_ in payload["contrasts"].items():
         log(f"  {name:38} delta={stats_['mean_delta']:+.4f} "
@@ -282,7 +298,9 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=90)
     parser.add_argument("--alpha", type=float, default=8.0)
     args = parser.parse_args()
-    os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_selfreport_ab")
+    os.environ.setdefault(
+        "AURA_LOG_DIR", str(Path(tempfile.gettempdir()) / "aura_selfreport_ab")
+    )
     return run(
         model_path=Path(args.model_path).expanduser().resolve(strict=True),
         descriptor_path=Path(args.model_descriptor).expanduser().resolve(strict=True),

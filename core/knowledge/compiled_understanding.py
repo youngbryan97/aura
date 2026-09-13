@@ -153,7 +153,7 @@ class ConceptDigest:
     grounding: float = 0.0
     verified: bool = False
     bridges: list[str] = field(default_factory=list)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     hits: int = 0
     last_used_at: float = 0.0
 

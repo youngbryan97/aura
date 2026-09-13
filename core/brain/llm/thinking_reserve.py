@@ -24,12 +24,18 @@ the runtime generates often enough that the window fills within minutes.
 from __future__ import annotations
 
 import json
+import logging
 import math
 from collections import deque
 from pathlib import Path
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
+
+#: Debug only. Every measurement here is dropped rather than recorded when its
+#: input will not convert, and a reserve that quietly learns from fewer samples
+#: than it was given is a reserve nobody can audit.
+logger = logging.getLogger("LLM.ThinkingReserve")
 
 #: The smallest window in which a 90th percentile is a real observation rather
 #: than a restatement of the largest sample.
@@ -126,7 +132,8 @@ def record_reasoning_cost(
         reasoning = max(0, int(reasoning_chars))
         surface = max(0, int(surface_chars))
         tokens = max(0, int(generated_tokens))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Reasoning cost inputs are not numbers, recording no sample: %s", exc)
         return
     total_chars = reasoning + surface
     if total_chars <= 0 or tokens <= 0:
@@ -157,7 +164,8 @@ def record_budget_that_ran_out_thinking(
 
     try:
         spent = max(0, int(budget_tokens))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Spent budget is not a number, recording no sample: %s", exc)
         return
     with _lock:
         name = _model_key(model)
@@ -199,7 +207,8 @@ def record_budget_that_finished_thinking(
 
     try:
         spent = max(0, int(budget_tokens))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Spent budget is not a number, recording no sample: %s", exc)
         return
     if spent <= 0:
         return
@@ -271,7 +280,8 @@ def _take_back_any_newer_proof() -> None:
         return
     try:
         stamp = target.stat().st_mtime_ns
-    except OSError:
+    except OSError as exc:
+        logger.debug("Proof file unreadable, taking nothing back: %s", exc)
         return
     with _lock:
         if stamp == _last_seen_store_mtime:
@@ -279,7 +289,8 @@ def _take_back_any_newer_proof() -> None:
         _last_seen_store_mtime = stamp
     try:
         stored = json.loads(target.read_text())
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as exc:
+        logger.debug("Stored proof will not parse, taking nothing back: %s", exc)
         return
     with _lock:
         _merge_reasoning_measurements(stored)
@@ -334,7 +345,8 @@ def record_decode_rate(
     try:
         tokens = int(generated_tokens)
         seconds = float(elapsed_s)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Decode rate inputs are not numbers, recording no sample: %s", exc)
         return
     if tokens <= 0 or not (seconds > 0.0) or seconds != seconds:
         return
@@ -362,7 +374,8 @@ def seconds_to_decode(tokens: int, model: str = "") -> float:
 
     try:
         wanted = int(tokens)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Token count is not a number, reporting no seconds: %s", exc)
         return 0.0
     if wanted <= 0:
         return 0.0
@@ -444,7 +457,8 @@ def record_read_rate(*, prompt_chars: int, elapsed_s: float) -> None:
     try:
         chars = int(prompt_chars)
         seconds = float(elapsed_s)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Read rate inputs are not numbers, recording no sample: %s", exc)
         return
     if chars <= 0 or not (seconds > 0.0) or not math.isfinite(seconds):
         return
@@ -475,7 +489,8 @@ def seconds_to_read(prompt_chars: int) -> float:
 
     try:
         wanted = int(prompt_chars)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Prompt length is not a number, reporting no seconds: %s", exc)
         return 0.0
     if wanted <= 0:
         return 0.0
@@ -570,7 +585,8 @@ def forget() -> None:
             get_file_write_gateway().delete_file(
                 target, source="brain.thinking_reserve"
             )
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Store not cleared: %s", exc)
         return
 
 
@@ -607,7 +623,8 @@ def _store_path() -> Path | None:
         from core.runtime.state_ownership import state_root
 
         return Path(state_root()) / _STORE
-    except (ImportError, AttributeError, OSError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("State root unavailable, the reserve has nowhere to persist: %s", exc)
         return None
 
 
@@ -617,7 +634,8 @@ def _merge_in_what_is_already_stored(target: Path) -> None:
 
     try:
         stored = json.loads(target.read_text())
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as exc:
+        logger.debug("Stored reserve will not parse, merging nothing: %s", exc)
         return
     if not isinstance(stored, dict):
         return
@@ -692,7 +710,8 @@ def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
     else:
         try:
             parsed = max(0, int(stored.get("proved_insufficient") or 0))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("Stored proved_insufficient is not an integer, reading it as none: %s", exc)
             parsed = 0
         _proved_insufficient_by_model[_ANY_MODEL] = max(
             _proved_insufficient_by_model.get(_ANY_MODEL, 0), parsed
@@ -702,7 +721,8 @@ def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
 def _one_int(item: Any) -> int | None:
     try:
         return int(item)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Stored integer will not convert: %s", exc)
         return None
 
 
@@ -710,7 +730,8 @@ def _one_pair(item: Any) -> tuple[int, float] | None:
     try:
         first, second = item
         return (int(first), float(second))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Stored pair will not convert: %s", exc)
         return None
 
 
@@ -807,7 +828,8 @@ def save() -> bool:
                 target, payload, source="llm.thinking_reserve"
             )
         return True
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Reserve not saved: %s", exc)
         return False
 
 
@@ -819,7 +841,8 @@ def load() -> int:
         return 0
     try:
         raw = json.loads(target.read_text())
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("Stored reserve unreadable, loading none: %s", exc)
         return 0
     if not isinstance(raw, dict):
         return 0
@@ -935,7 +958,8 @@ def record_delivery_cost(elapsed_s: float) -> None:
 
     try:
         seconds = float(elapsed_s)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Delivery elapsed is not a number, recording no sample: %s", exc)
         return
     if not (seconds >= 0.0) or not math.isfinite(seconds):
         return

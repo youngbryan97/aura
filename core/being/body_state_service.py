@@ -28,6 +28,7 @@ from typing import Any
 from core.being.aura_now import BodyState
 from core.runtime.consequence_bus import ConsequenceBus, ConsequenceEvent
 from core.runtime.errors import record_degradation
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.BodyStateService")
 
@@ -82,7 +83,7 @@ class BodyHealthSnapshot:
     total_pressure: float = 0.0
     operational_health: float = 1.0     # 1 = perfect, 0 = critical
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def is_strained(self) -> bool:
         return self.total_pressure > 0.6 or self.fatigue > 0.5
@@ -157,7 +158,7 @@ def _is_refusal_outcome(event: Any) -> bool:
     ).lower()
     if not text.strip():
         return False
-    return any(marker in text for marker in _REFUSAL_OUTCOME_MARKERS)
+    return names_any(text, _REFUSAL_OUTCOME_MARKERS)
 
 
 class BodyStateService:

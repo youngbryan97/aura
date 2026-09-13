@@ -179,7 +179,7 @@ class Deliberation:
     """Every option, what happened to it, and what that says about her."""
 
     verdicts: tuple[Verdict, ...]
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def chosen(self) -> Verdict | None:

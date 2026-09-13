@@ -16,6 +16,8 @@ than things that happen to her.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import pytest
 
 from core.runtime.stuck_detector import Remedy
@@ -104,11 +106,20 @@ def screen(monkeypatch):
     async def identity():
         return {"url": "https://play2048.co/", "title": "2048", "error": ""}
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "click_normalized", click)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    async def there_is_a_screen(_ends_at):
+        return True
+
+    # The fixture IS the screen, so the gate that asks whether there is one has
+    # to say yes. It consults the real capture-admission policy, which denies
+    # under test because no permission snapshot has ever been taken, and
+    # `pursue_on_screen` returns before thinking once — so `think.seen` stayed
+    # None and the assertion failed on a list that was never built.
+    patch_pursuit(monkeypatch, "wait_for_a_screen_to_look_at", there_is_a_screen)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "click_normalized", click)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
     return state
 
 
@@ -119,7 +130,10 @@ def _thinks(*replies):
         think.seen = list(evidence)
         return queue.pop(0) if queue else replies[-1]
 
-    think.seen = None
+    # Nothing seen yet, rather than None. A run that never asks has offered
+    # nothing, which is a true answer to "was a restart offered" and used to
+    # raise TypeError on the list comprehension that asked.
+    think.seen = []
     return think
 
 
@@ -141,6 +155,12 @@ async def test_an_ordinary_run_is_never_offered_a_restart(screen, monkeypatch):
         spine=_Store(),
         graph=_Store(),
     )
+    # The run has to have happened. An ordinary move is often decided without
+    # words at all -- `worth_a_pass` says a fresh board is not worth one -- so
+    # "the thinker was never offered a restart" is true of a run that pressed a
+    # key and never spoke, and false of a run that did nothing. Only the second
+    # would make this assertion empty.
+    assert screen["pressed"], "no move was made, so nothing was under test"
     offered = [line for line in think.seen if line.startswith("Available move")]
     assert not any(START_OVER in line for line in offered)
 

@@ -26,7 +26,7 @@ from typing import Any, Dict, Iterable, List, Optional
 class EvidenceViolation:
     kind: str
     detail: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, Any]:
         return {"kind": self.kind, "detail": self.detail, "timestamp": self.timestamp}

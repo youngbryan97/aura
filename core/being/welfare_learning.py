@@ -37,7 +37,7 @@ class CausalAssociation:
     direction: float                # positive = helps, negative = harms
     strength: float = 0.0           # 0-1, how strong the association is
     sample_count: int = 0
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

@@ -114,7 +114,7 @@ def _computes_a_number(body: Any, probes: Sequence[Any]) -> bool:
     run = _the_term_as_a_function(body)
     try:
         return isinstance(run(probes[0]), int)
-    except Exception:  # noqa: BLE001 - anything else is not arithmetic
+    except Exception:  # noqa: BLE001 - foreign code: anything else is not arithmetic
         return False
 
 
@@ -203,7 +203,7 @@ def offer_inventing_an_operator(
             # kernel checks compression and adversarial behaviour after this.
             try:
                 return all(run(one) is not None for one in probes)
-            except Exception:  # noqa: BLE001 - a candidate that raises has not solved
+            except Exception:  # noqa: BLE001 - foreign code: a candidate that raises has not solved
                 return False
 
         judge = solves or it_solves

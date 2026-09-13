@@ -93,7 +93,7 @@ class ValuationObservation:
     #: attending to it. Possession is a stronger value signal than attention,
     #: and it is also what makes the object unavailable.
     possesses: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -116,7 +116,7 @@ class Transfer:
     borrowed: float
     own_value: float
     alpha: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

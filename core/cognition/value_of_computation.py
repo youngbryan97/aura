@@ -133,7 +133,7 @@ class Observation:
     spend: float
     movement: float
     changed_decision: bool = False
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 class Swing:

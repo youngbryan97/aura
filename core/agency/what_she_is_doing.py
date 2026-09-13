@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger("Aura.Doing")
 
@@ -49,8 +50,8 @@ class Undertaking:
     watching_for: str = ""
     alternatives: tuple[str, ...] = ()
     where: str = ""
-    began_at: float = field(default_factory=time.time)
-    changed_at: float = field(default_factory=time.time)
+    began_at: float = field(default_factory=lambda: time.time())
+    changed_at: float = field(default_factory=lambda: time.time())
     changes: int = 0
     steps: int = 0
     #: Approaches she has already tried and left behind, in order.
@@ -248,7 +249,7 @@ def _publish(said: str, *, priority: float) -> None:
         except RuntimeError:
             coroutine.close()
             return
-        task = loop.create_task(coroutine)
+        task = create_owned_asyncio_task(coroutine)
         task.add_done_callback(lambda done: done.exception())
     except _RECOVERABLE as exc:
         record_degradation("what_she_is_doing", exc, severity="info", action="say what she is doing")

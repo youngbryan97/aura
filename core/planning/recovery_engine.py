@@ -43,7 +43,7 @@ class RecoveryAttempt:
     original_error: str
     result: str
     success: bool
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # Known error patterns → recovery strategies

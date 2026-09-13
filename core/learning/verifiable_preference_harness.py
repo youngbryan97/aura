@@ -64,7 +64,7 @@ class PreferencePair:
     chosen: str         # a verified-correct attempt
     rejected: str       # a verified-wrong attempt for the SAME prompt
     domain: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def key(self) -> str:
         return hashlib.sha256(

@@ -129,7 +129,7 @@ class ComprehensionRecord:
     shallow_read_flag: bool = False
     sources_engaged: List[str] = field(default_factory=list)
     priority_levels_engaged: List[int] = field(default_factory=list)
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: Optional[float] = None
     inference_failures: int = 0
 

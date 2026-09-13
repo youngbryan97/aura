@@ -26,7 +26,13 @@ import re
 from collections.abc import Iterable
 from functools import lru_cache
 
-__all__ = ["names_any", "names_marker", "stem_fold", "which_markers"]
+__all__ = [
+    "names_any",
+    "names_any_in_identifier",
+    "names_marker",
+    "stem_fold",
+    "which_markers",
+]
 
 
 @lru_cache(maxsize=4096)
@@ -49,6 +55,41 @@ def names_marker(text: str, marker: str) -> bool:
     if pattern is None:
         return False
     return bool(pattern.search(str(text or "").lower()))
+
+
+def names_any_in_identifier(text: str, markers: Iterable[str]) -> bool:
+    """The same question asked of a status code rather than of a sentence.
+
+    An underscore is a word character, so `\b` finds no boundary beside one and
+    `names_any("foreground_headroom_reserved", ("headroom",))` is False. Every
+    status a machine writes is built that way, and a word-boundary test reads
+    all of them as one long word.
+
+    Measured 2026-09-12: every marker in the swarm's deferral list was missed,
+    including `background_deferred:memory_pressure`, which the list's own
+    comment said "deferred" already caught. A shard that had not run reported
+    "returned empty output".
+
+    Splitting on every non-alphanumeric gives the words the identifier is made
+    of, so "headroom" matches `foreground_headroom_reserved` and does not match
+    `headroomless`, and a phrase marker still has to appear in order.
+    """
+    words = _identifier_words(text)
+    if not words:
+        return False
+    for marker in markers:
+        wanted = _identifier_words(marker)
+        span = len(wanted)
+        if span and any(
+            words[start : start + span] == wanted
+            for start in range(len(words) - span + 1)
+        ):
+            return True
+    return False
+
+
+def _identifier_words(text: str) -> list[str]:
+    return [word for word in re.split(r"[^a-z0-9]+", str(text or "").lower()) if word]
 
 
 def names_any(text: str, markers: Iterable[str]) -> bool:

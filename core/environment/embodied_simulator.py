@@ -31,7 +31,7 @@ class PhysicalEntity:
     position: np.ndarray  # 3D coordinates [x, y, z]
     velocity: np.ndarray  = field(default_factory=lambda: np.zeros(3))
     state: dict[str, float] = field(default_factory=dict) # e.g. {"temperature": 0.5, "integrity": 1.0}
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
 class SceneGraph:
     """Maintains the spatial and relational state of the immediate environment."""

@@ -382,13 +382,15 @@ def test_research_trigger_env_path_is_resolved_at_call_time(tmp_path, monkeypatc
     assert trigger_path.exists()
 
 
-def test_pending_chat_default_path_is_runtime_state() -> None:
+def test_pending_chat_default_path_is_runtime_state(monkeypatch) -> None:
     from core.conversation import chat_preflight
+    from core.runtime.state_ownership import state_root
 
-    path = chat_preflight.PENDING_QUEUE_PATH
+    monkeypatch.delenv("AURA_PENDING_CHAT_QUEUE_PATH", raising=False)
+    path = chat_preflight._resolve_pending_queue_path()
 
     assert "live-source" not in str(path)
-    assert path == Path.home() / ".aura" / "data" / "conversation" / "pending-chat-queue.jsonl"
+    assert path == state_root() / "data" / "conversation" / "pending-chat-queue.jsonl"
 
 
 def test_pending_chat_env_path_is_resolved_at_call_time(tmp_path, monkeypatch) -> None:

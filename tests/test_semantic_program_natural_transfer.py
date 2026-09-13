@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from core.learning.semantic_program_corpus import build_semantic_program_natural_request_corpus
+from core.learning.semantic_program_corpus_natural import (
+    build_semantic_program_natural_request_corpus,
+)
 from core.learning.semantic_program_natural_transfer import (
     build_natural_request_transfer_preflight,
     procedure_schema_signature,

@@ -18,7 +18,7 @@ Check kinds:
     criterion   the newest battery report passes a named criterion
     report      a Python expression over the newest report is true
     scorecard   a criterion holds on every run the scorecard read
-    command     a command exits zero
+    command     a command exits zero (`{python}` is this interpreter)
 """
 
 from __future__ import annotations
@@ -26,12 +26,20 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+# The gate runs this as `python tools/isc_completion_status.py`, which puts
+# tools/ first on the import path and the repository nowhere on it.
 REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from tools.report_expression import ExpressionRefused, evaluate_report_expression  # noqa: E402
+
 ITEMS = REPO / "config" / "isc_completion_items.json"
 EVIDENCE = REPO / "config" / "isc_completion_evidence.json"
 DOC = REPO / "docs" / "ISC_COMPLETION_TODO.md"
@@ -82,7 +90,7 @@ class Checker:
             return False, f"unknown check kind {kind!r}"
         try:
             return handler(check)
-        except Exception as exc:  # a check that explodes has not passed
+        except Exception as exc:  # noqa: BLE001 - a check that explodes has not passed
             return False, f"{kind} raised {exc!r}"
 
     def _check_path(self, check: dict[str, Any]) -> tuple[bool, str]:
@@ -113,7 +121,14 @@ class Checker:
     def _check_report(self, check: dict[str, Any]) -> tuple[bool, str]:
         if not self.report:
             return False, "no report to read"
-        value = eval(check["expr"], {"__builtins__": {}}, {"report": self.report, "len": len, "any": any, "all": all, "sum": sum, "float": float, "int": int, "str": str, "abs": abs})
+        # Read, not executed. These expressions live in a JSON file, and
+        # handing a JSON file to `eval` means anyone who can edit the evidence
+        # can run anything this tool can run. The reader below offers the
+        # grammar the 288 of them use and refuses the rest.
+        try:
+            value = evaluate_report_expression(check["expr"], self.report)
+        except ExpressionRefused as exc:
+            return False, f"{check['expr']} could not be read: {exc}"
         return bool(value), f"{check['expr']} -> {value!r}"
 
     def _check_scorecard(self, check: dict[str, Any]) -> tuple[bool, str]:
@@ -127,14 +142,60 @@ class Checker:
         return row.get("standing") == want, f"{check['criterion']} standing {row.get('standing')!r}"
 
     def _check_command(self, check: dict[str, Any]) -> tuple[bool, str]:
-        done = subprocess.run(check["command"], cwd=REPO, shell=True, capture_output=True, text=True, timeout=check.get("timeout", 600))
-        return done.returncode == 0, f"exit {done.returncode}: {check['command']}"
+        # `{python}` is whatever interpreter is running this, because a
+        # worktree has no `.venv` of its own and a hard-coded `.venv/bin/python`
+        # turns every command check into a silent failure there — which reads
+        # as an item that is not done rather than as a check that could not run.
+        command = check["command"].format(python=shlex.quote(sys.executable))
+        # Split here rather than handing the string to a shell. The commands
+        # are written with shell quoting, which is exactly what shlex reads,
+        # and every one of them is a single program with arguments — so the
+        # shell was parsing them and then adding a way to run anything else.
+        try:
+            argv = shlex.split(command)
+        except ValueError as exc:
+            return False, f"unreadable command: {exc}"
+        if not argv:
+            return False, "empty command"
+        done = subprocess.run(  # noqa: S603 - argv from the evidence file, no shell
+            argv, cwd=REPO, capture_output=True, text=True, timeout=check.get("timeout", 600)
+        )
+        return done.returncode == 0, f"exit {done.returncode}: {command}"
+
+
+#: Command checks run at once. Each one spawns an interpreter and most of them
+#: spawn pytest, so a hundred and thirty of them in a row is twenty minutes of
+#: import cost and a gate nobody runs. They are independent — no command check
+#: writes anything another one reads — so they run together, bounded because
+#: the host usually has a campaign on it.
+COMMAND_WORKERS: int = 8
+
+
+def _run_commands_first(evidence: dict[str, Any], checker: Checker) -> dict[str, tuple[bool, str]]:
+    """Every command check, at once, keyed by its command line.
+
+    Keyed by the command rather than by the item, because the same command
+    appears under several items and running it once is the same answer.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    commands: dict[str, dict[str, Any]] = {}
+    for claim in evidence.values():
+        for check in claim.get("checks", []):
+            if check.get("kind") == "command":
+                commands.setdefault(check["command"], check)
+    if not commands:
+        return {}
+    with ThreadPoolExecutor(max_workers=COMMAND_WORKERS) as pool:
+        done = list(pool.map(checker.run, commands.values()))
+    return dict(zip(commands, done, strict=True))
 
 
 def evaluate() -> tuple[list[dict[str, Any]], Checker]:
     items = json.loads(ITEMS.read_text())["items"]
     evidence = json.loads(EVIDENCE.read_text()) if EVIDENCE.is_file() else {}
     checker = Checker()
+    answered = _run_commands_first(evidence, checker)
     rows: list[dict[str, Any]] = []
     for item in items:
         claim = evidence.get(item["id"])
@@ -145,7 +206,12 @@ def evaluate() -> tuple[list[dict[str, Any]], Checker]:
         if claim:
             row["note"] = claim.get("note", "")
             checks = claim.get("checks", [])
-            results = [checker.run(check) for check in checks]
+            results = [
+                answered.get(check["command"]) or checker.run(check)
+                if check.get("kind") == "command"
+                else checker.run(check)
+                for check in checks
+            ]
             row["why"] = [message for _, message in results]
             if claim.get("status") == "not_applicable":
                 row["status"] = "n/a" if all(ok for ok, _ in results) else "open"

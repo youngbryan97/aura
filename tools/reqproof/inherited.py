@@ -75,16 +75,43 @@ def scan_source(path: str, text: str) -> dict:
         })
         start, boxes, signals = None, [], []
 
+    def a_continuation_follows(after: int) -> bool:
+        """Is the next thing a paragraph belonging to the list item above?
+
+        A Markdown list item may hold several paragraphs, separated by blank
+        lines and indented under the marker. Ending the block at the blank
+        line reads each of those paragraphs as a top-level block of its own,
+        with no checkbox to say whether it is done — so an item's own account
+        of what it measured came back as an unrouted obligation. 32 of them in
+        one document, all continuations of items already ticked.
+
+        Only indentation decides, and a new marker at any depth starts its own
+        item rather than continuing this one.
+        """
+        for ahead in lines[after + 1:]:
+            if not ahead.strip():
+                continue
+            if not ahead.startswith((" ", "\t")):
+                return False
+            return not re.match(r"^\s+(?:[-*] |\d+\. )", ahead)
+        return False
+
+    inside_a_list_item = False
     for number, line in enumerate(lines):
         stripped = line.strip()
         if not stripped and fence is None:
+            if inside_a_list_item and a_continuation_follows(number):
+                continue
             flush(number)
+            inside_a_list_item = False
             continue
         if line.startswith("#") and fence is None:
             flush(number)
+            inside_a_list_item = False
             heading = stripped
         elif fence is None and (stripped.startswith("|") or re.match(r"^(?:[-*] |\d+\. )", line)):
             flush(number)
+            inside_a_list_item = bool(re.match(r"^(?:[-*] |\d+\. )", line))
         if start is None:
             start = number
         marker = re.match(r"^\s*(`{3,}|~{3,})", line)

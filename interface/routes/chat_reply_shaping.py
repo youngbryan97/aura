@@ -38,6 +38,7 @@ from .chat_lane_bookkeeping import (
     _is_current_request_recap_request,
     _requested_visible_required_phrases,
 )
+from core.conversation.word_markers import names_any
 
 
 async def _preserve_large_user_paste(user_msg: str) -> None:
@@ -1195,10 +1196,7 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
     if telemetry_request and text.endswith("?"):
         return True, "telemetry_request_deflected"
 
-    architecture_self_assessment = any(
-        marker in user_text
-        for marker in ("architecture", "design", "runtime", "system", "codebase")
-    ) and any(
+    architecture_self_assessment = names_any(user_text, ("architecture", "design", "runtime", "system", "codebase")) and any(
         marker in user_text
         for marker in (
             "what do you think",
@@ -1222,9 +1220,7 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
             )
         ):
             return True, "generic_architecture_generalization"
-        if not any(
-            anchor in text
-            for anchor in (
+        if not names_any(text, (
                 "memory",
                 "agency",
                 "free energy",
@@ -1241,8 +1237,7 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
                 "world model",
                 "state",
                 "coherence",
-            )
-        ):
+            )):
             return True, "architecture_grounding_missing"
 
     return False, ""

@@ -200,7 +200,8 @@ def _is_python_multiprocessing_spawn_process(proc: Any) -> bool:
 def _process_pid(proc: Any) -> int:
     try:
         return int(getattr(proc, "pid", 0) or 0)
-    except _PROCESS_INTROSPECTION_ERRORS:
+    except _PROCESS_INTROSPECTION_ERRORS as exc:
+        logger.debug("Process pid unreadable, reporting none: %s", exc)
         return 0
 
 
@@ -210,12 +211,14 @@ def _process_ppid(proc: Any) -> int:
         if value:
             raw = value() if callable(value) else value
             return int(raw or 0)
-    except _PROCESS_INTROSPECTION_ERRORS:
+    except _PROCESS_INTROSPECTION_ERRORS as exc:
+        logger.debug("Process ppid unreadable, reporting none: %s", exc)
         return 0
     info = getattr(proc, "info", None) or {}
     try:
         return int(info.get("ppid") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Reported ppid is not an integer, reporting none: %s", exc)
         return 0
 
 
@@ -286,7 +289,10 @@ class ShutdownResourceRecord:
     crossed_shutdown: bool = False
 
 
-class RuntimeHygieneManager:
+from .runtime_hygiene_patches import _WatchesWhatTheRuntimeCreates
+
+
+class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):
     """Tracks tasks, threads, child processes, and memory growth across the runtime."""
 
     def __init__(self, *, observer: ResourceObserver | None = None):
@@ -373,8 +379,8 @@ class RuntimeHygieneManager:
 
             if is_shutdown_requested():
                 raise RuntimeError("runtime_shutdown")
-        except ImportError:
-            pass
+        except ImportError as exc:
+            logger.debug("Shutdown coordinator unavailable, not checking for a latched shutdown: %s", exc)
         if self._running:
             target_loop = loop
             if target_loop is not None:
@@ -426,7 +432,8 @@ class RuntimeHygieneManager:
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             shutdown_latched = is_shutdown_requested()
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, not treating it as latched: %s", exc)
             shutdown_latched = False
         if shutdown_latched:
             task_report = await self._task_tracker.shutdown(
@@ -584,7 +591,8 @@ class RuntimeHygieneManager:
         for worker in workers:
             try:
                 alive = bool(worker.is_alive())
-            except (AttributeError, RuntimeError, TypeError, ValueError):
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Executor worker liveness unreadable, reporting not alive: %s", exc)
                 alive = False
             if not alive:
                 continue
@@ -852,152 +860,10 @@ class RuntimeHygieneManager:
             "remaining_connections": residual,
         }
 
-    def _patch_asyncio_new_event_loop(self) -> None:
-        if self._original_new_event_loop is not None:
-            return
 
-        self._original_new_event_loop = asyncio.new_event_loop
-        tracker = self._task_tracker
 
-        def _patched_new_event_loop():
-            loop = self._original_new_event_loop()
-            try:
-                tracker.install_loop_hygiene(loop)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('runtime_hygiene', exc)
-                logger.debug("RuntimeHygiene: failed to install task factory on new loop: %s", exc)
-            return loop
 
-        asyncio.new_event_loop = _patched_new_event_loop
 
-    def _patch_threading(self) -> None:
-        if self._original_thread_start is not None:
-            return
-
-        self._original_thread_start = threading.Thread.start
-        manager = self
-
-        def _patched_start(thread: threading.Thread, *args, **kwargs):
-            executor_teardown = manager._is_executor_shutdown_thread(thread)
-            cleanup_critical = (
-                shutdown_resource_creation_allowed() or executor_teardown
-            )
-            if not cleanup_critical and manager._shutdown_blocks_resource_start(
-                operation=f"thread.start:{thread.name}", resource_kind="thread"
-            ):
-                manager._run_thread_suppression_cleanup(thread)
-                raise RuntimeError("runtime_shutdown")
-            if executor_teardown and manager._runtime_shutdown_latched():
-                manager._record_creation_boundary(
-                    operation=f"thread.start:{thread.name}",
-                    resource_kind="thread",
-                    outcome="allowed_teardown",
-                    detail="asyncio_default_executor_shutdown",
-                )
-            thread._aura_shutdown_critical = cleanup_critical
-            manager._register_thread(thread, source="thread.start")
-            result = manager._original_thread_start(thread, *args, **kwargs)
-            if manager._runtime_shutdown_latched() and not cleanup_critical:
-                manager._record_creation_boundary(
-                    operation=f"thread.start:{thread.name}",
-                    resource_kind="thread",
-                    outcome="crossed",
-                    detail=f"ident={thread.ident}",
-                )
-                if not thread.is_alive():
-                    manager._record_creation_boundary(
-                        operation=f"thread.start:{thread.name}",
-                        resource_kind="thread",
-                        outcome="reaped",
-                        detail="target_exited_at_shutdown_boundary",
-                    )
-            return result
-
-        threading.Thread.start = _patched_start
-
-    def _patch_subprocess(self) -> None:
-        if self._original_popen_init is not None:
-            return
-
-        self._original_popen_init = subprocess.Popen.__init__
-        manager = self
-
-        def _patched_init(proc_self, *args, **kwargs):
-            cleanup_critical = shutdown_resource_creation_allowed()
-            command = kwargs.get("args") or (args[0] if args else "unknown")
-            if manager._shutdown_blocks_resource_start(
-                operation=f"subprocess.Popen:{str(command)[:160]}",
-                resource_kind="subprocess",
-            ):
-                proc_self._child_created = False
-                raise RuntimeError("runtime_shutdown")
-            manager._original_popen_init(proc_self, *args, **kwargs)
-            manager._register_subprocess(proc_self, args=args, kwargs=kwargs)
-            if manager._runtime_shutdown_latched() and not cleanup_critical:
-                operation = f"subprocess.Popen:{str(command)[:160]}"
-                manager._record_creation_boundary(
-                    operation=operation,
-                    resource_kind="subprocess",
-                    outcome="crossed",
-                    detail=f"pid={getattr(proc_self, 'pid', None)}",
-                )
-                reaped = manager._reap_crossed_subprocess(proc_self)
-                manager._record_creation_boundary(
-                    operation=operation,
-                    resource_kind="subprocess",
-                    outcome="reaped" if reaped else "survived",
-                    detail=f"pid={getattr(proc_self, 'pid', None)}",
-                )
-                raise RuntimeError("runtime_shutdown_after_subprocess_start")
-
-        subprocess.Popen.__init__ = _patched_init
-
-    def _patch_multiprocessing(self) -> None:
-        if self._original_mp_start is not None:
-            return
-
-        self._original_mp_start = mp.process.BaseProcess.start
-        manager = self
-
-        def _patched_start(proc_self, *args, **kwargs):
-            cleanup_critical = shutdown_resource_creation_allowed()
-            if manager._shutdown_blocks_resource_start(
-                operation=f"multiprocessing.start:{getattr(proc_self, 'name', 'unknown')}",
-                resource_kind="multiprocessing",
-            ):
-                raise RuntimeError("runtime_shutdown")
-            result = manager._original_mp_start(proc_self, *args, **kwargs)
-            manager._register_multiprocessing_process(proc_self)
-            if manager._runtime_shutdown_latched() and not cleanup_critical:
-                operation = (
-                    f"multiprocessing.start:{getattr(proc_self, 'name', 'unknown')}"
-                )
-                manager._record_creation_boundary(
-                    operation=operation,
-                    resource_kind="multiprocessing",
-                    outcome="crossed",
-                    detail=f"pid={getattr(proc_self, 'pid', None)}",
-                )
-                reaped = manager._reap_crossed_multiprocessing(proc_self)
-                manager._record_creation_boundary(
-                    operation=operation,
-                    resource_kind="multiprocessing",
-                    outcome="reaped" if reaped else "survived",
-                    detail=f"pid={getattr(proc_self, 'pid', None)}",
-                )
-                raise RuntimeError("runtime_shutdown_after_multiprocessing_start")
-            return result
-
-        mp.process.BaseProcess.start = _patched_start
-
-    @staticmethod
-    def _is_executor_shutdown_thread(thread: threading.Thread) -> bool:
-        target = getattr(thread, "_target", None)
-        module = str(getattr(target, "__module__", "") or "")
-        qualname = str(getattr(target, "__qualname__", "") or "")
-        return module == "asyncio.base_events" and qualname.endswith(
-            "BaseEventLoop._do_shutdown"
-        )
 
     @staticmethod
     def _run_thread_suppression_cleanup(thread: threading.Thread) -> None:
@@ -1038,7 +904,8 @@ class RuntimeHygieneManager:
                 detail="runtime_hygiene_creation_patch",
             )
             return True
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Shutdown state unreadable, not blocking the resource start: %s", exc)
             return False
 
     @staticmethod
@@ -1047,7 +914,8 @@ class RuntimeHygieneManager:
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             return bool(is_shutdown_requested())
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, reporting it not latched: %s", exc)
             return False
 
     @staticmethod
@@ -1067,7 +935,8 @@ class RuntimeHygieneManager:
                 outcome=outcome,
                 detail=detail,
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Creation boundary not recorded to the shutdown coordinator: %s", exc)
             return
 
     @staticmethod
@@ -1080,7 +949,8 @@ class RuntimeHygieneManager:
                 proc.kill()
                 proc.wait(timeout=0.75)
             return proc.poll() is not None
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Crossed subprocess not reaped: %s", exc)
             return False
 
     @staticmethod
@@ -1093,22 +963,10 @@ class RuntimeHygieneManager:
                 proc.kill()
                 proc.join(timeout=0.75)
             return not proc.is_alive()
-        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Crossed multiprocessing child not reaped: %s", exc)
             return False
 
-    def _restore_patches(self) -> None:
-        if self._original_thread_start is not None:
-            threading.Thread.start = self._original_thread_start
-            self._original_thread_start = None
-        if self._original_popen_init is not None:
-            subprocess.Popen.__init__ = self._original_popen_init
-            self._original_popen_init = None
-        if self._original_mp_start is not None:
-            mp.process.BaseProcess.start = self._original_mp_start
-            self._original_mp_start = None
-        if self._original_new_event_loop is not None:
-            asyncio.new_event_loop = self._original_new_event_loop
-            self._original_new_event_loop = None
 
     def _start_tracemalloc(self) -> None:
         if not self.tracemalloc_enabled:
@@ -1151,7 +1009,8 @@ class RuntimeHygieneManager:
                 continue
             try:
                 pid = int(getattr(child, "pid", 0) or 0)
-            except _PROCESS_INTROSPECTION_ERRORS:
+            except _PROCESS_INTROSPECTION_ERRORS as exc:
+                logger.debug("Child pid unreadable, adopting none: %s", exc)
                 pid = 0
             if pid and pid in tracked_pids:
                 continue
@@ -1169,8 +1028,8 @@ class RuntimeHygieneManager:
             if self.resource_observer.provenance.host_observed and _HAS_PSUTIL:
                 try:
                     self._process_refs[key] = psutil.Process(pid)
-                except _PROCESS_INTROSPECTION_ERRORS:
-                    pass
+                except _PROCESS_INTROSPECTION_ERRORS as exc:
+                    logger.debug("Child process handle not adopted: %s", exc)
             if pid:
                 tracked_pids.add(pid)
 
@@ -1260,7 +1119,8 @@ class RuntimeHygieneManager:
             from core.runtime.shutdown_coordinator import is_shutdown_requested
 
             crossed_shutdown = is_shutdown_requested()
-        except (ImportError, RuntimeError, AttributeError):
+        except (ImportError, RuntimeError, AttributeError) as exc:
+            logger.debug("Shutdown state unreadable, not treating registration as crossed: %s", exc)
             crossed_shutdown = False
         crossed_shutdown = self._shutdown_started or crossed_shutdown
         with self._resource_lock:
@@ -1340,7 +1200,8 @@ class RuntimeHygieneManager:
                 outcome=outcome,
                 detail=detail,
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Resource boundary not recorded to the shutdown coordinator: %s", exc)
             return
 
     def _resource_summary(self) -> dict[str, Any]:
@@ -1504,7 +1365,8 @@ class RuntimeHygieneManager:
             try:
                 observed = getattr(proc, "exitcode", None)
                 exit_code = int(observed) if observed is not None else None
-            except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                logger.debug("Exit code unreadable, retiring the handle without one: %s", exc)
                 exit_code = None
         record.exit_code = exit_code
         record.finished_at = record.finished_at or time.monotonic()
@@ -1537,17 +1399,21 @@ class RuntimeHygieneManager:
         bounded to the most recent finished entries so a long-lived runtime
         cannot accumulate one record per subprocess it ever ran.
         """
+        # Resource owners can register or retire handles during an audit.
         finished = [
-            key for key, record in records.items()
+            (key, record, record.finished_at)
+            for key, record in list(records.items())
             if record.finished_at is not None
         ]
-        for key in finished:
-            refs.pop(key, None)
+        for key, record, _finished_at in finished:
+            if records.get(key) is record:
+                refs.pop(key, None)
         overflow = len(finished) - self._FINISHED_RECORD_RETENTION
         if overflow > 0:
-            finished.sort(key=lambda key: records[key].finished_at)
-            for key in finished[:overflow]:
-                records.pop(key, None)
+            finished.sort(key=lambda item: item[2])
+            for key, record, _finished_at in finished[:overflow]:
+                if records.get(key) is record:
+                    records.pop(key, None)
 
     def _refresh_thread_records(self) -> None:
         now = time.monotonic()
@@ -1614,7 +1480,8 @@ class RuntimeHygieneManager:
                 if return_code is not None:
                     try:
                         record.exit_code = int(return_code)
-                    except (RuntimeError, TypeError, ValueError):
+                    except (RuntimeError, TypeError, ValueError) as exc:
+                        logger.debug("Return code is not an integer, leaving the record without one: %s", exc)
                         record.exit_code = None
                     record.finished_at = record.finished_at or now
         # Release finished procs: OUR ref must not keep their pipes alive.

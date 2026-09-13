@@ -84,7 +84,7 @@ class TrainingResult:
     temperature: float = 1.0
     fit_evidence: dict[str, Any] = field(default_factory=dict)
     authority: dict[str, Any] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         return {

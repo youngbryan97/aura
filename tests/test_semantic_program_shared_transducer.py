@@ -726,6 +726,11 @@ def test_compositional_relation_diagnostic_separates_runtime_and_oracle_spans() 
     report = diagnose_compositional_definition_relations(model, examples)
 
     assert report["gold_reference_spans_available"] is True
+    assert report["gold_definition_spans_available_to_oracle_arm"] is False
+    assert report["definition_targets_available_to_oracle_arm"] is True
+    assert report["splits"]["test"]["definition_origin_examples"] == {
+        "unrecorded": sum(item.split == "test" for item in examples)
+    }
     assert report["gold_definition_spans_available_to_runtime_arm"] is False
     assert report["expected_answers_available"] is False
     assert report["serving_authority"] is False

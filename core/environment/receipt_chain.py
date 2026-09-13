@@ -24,7 +24,7 @@ class EnvironmentActionReceipt:
     outcome_assessment_id: str | None = None
     belief_hash_after: str | None = None
     status: str = "opened"
-    opened_at: float = field(default_factory=time.time)
+    opened_at: float = field(default_factory=lambda: time.time())
     closed_at: float | None = None
 
     def finalize(self, *, status: str, belief_hash_after: str | None = None, outcome_assessment_id: str | None = None) -> None:

@@ -17,9 +17,11 @@ from core.learning.semantic_program_campaign import training_examples_from_featu
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
 )
-from core.learning.semantic_program_corpus import (
-    build_semantic_program_natural_alias_source_corpus,
+from core.learning.semantic_program_corpus_replication import (
     build_semantic_program_natural_weave_replication_corpus,
+)
+from core.learning.semantic_program_corpus_natural import (
+    build_semantic_program_natural_alias_source_corpus,
 )
 from core.learning.semantic_program_evaluation import shuffle_hidden_tokens
 from core.learning.semantic_program_execution import execute_semantic_program

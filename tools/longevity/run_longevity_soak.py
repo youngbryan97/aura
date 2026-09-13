@@ -64,9 +64,9 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def _resolve_output_dir(raw_path: str) -> Path:
-    out_dir = Path(raw_path).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir
+    from tools.longevity.soak_output import resolve_output_dir
+
+    return resolve_output_dir(raw_path)
 
 
 async def _measure_lag_ms() -> float:
@@ -134,7 +134,9 @@ async def async_main(argv: list[str] | None = None) -> int:
         duration_s = max(0.0, float(args.duration_s or 0.0))
         tick_s = max(1.0, float(args.tick_s or 30.0))
         soak_started = time.monotonic()
-        with receipts_path.open("w", encoding="utf-8") as receipt_file:
+        from tools.longevity.soak_output import open_receipts
+
+        with open_receipts(receipts_path) as receipt_file:
             index = 0
             while (
                 (time.monotonic() - soak_started) < duration_s

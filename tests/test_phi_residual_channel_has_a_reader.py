@@ -17,6 +17,8 @@ These tests hold both ends.
 """
 from __future__ import annotations
 
+from mlx_source import client_source, worker_source
+
 import ast
 import inspect
 import multiprocessing as mp
@@ -111,9 +113,10 @@ def test_the_whole_path_produces_an_activation_grounded_phi(channel):
 
 class TestTheReaderIsWired:
     def test_the_client_drains_the_ring(self):
-        from core.brain.llm import mlx_client
-
-        source = inspect.getsource(mlx_client)
+        # The drain moved to the latent lane's module. Both halves still have
+        # to be in the client's source; which file holds them is not what this
+        # is about.
+        source = client_source()
         assert "def _drain_phi_residual_ring" in source
         assert "self._drain_phi_residual_ring()" in source, (
             "the drain exists but nothing calls it — which is the state this "
@@ -134,15 +137,11 @@ class TestTheReaderIsWired:
         )
         assert "publish_state(channel, state)" in steering
 
-        worker = (ROOT / "core" / "brain" / "llm" / "mlx_worker.py").read_text(
-            encoding="utf-8"
-        )
+        worker = worker_source()
         assert "_phi_residual_channel = phi_residual_mem" in worker
 
     def test_the_parent_allocates_the_ring_before_the_fork(self):
-        client = (ROOT / "core" / "brain" / "llm" / "mlx_client.py").read_text(
-            encoding="utf-8"
-        )
+        client = client_source()
         tree = ast.parse(client)
         creates = [
             node

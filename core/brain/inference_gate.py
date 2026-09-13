@@ -225,7 +225,6 @@ from core.brain.llm.context_budget import (
 )
 
 logger = logging.getLogger("Aura.InferenceGate")
-_LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT = 0.0
 
 
 def _primary_lane_label() -> str:
@@ -259,7 +258,6 @@ def _primary_lane_label() -> str:
         return "Cortex"
 
 
-_LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON = ""
 _EXPLICIT_DEFERRED_PREWARM_REFUSAL_LOG_INTERVAL_S = 60.0
 
 #: Lane failures that are TRANSIENT and must be re-armed rather than left
@@ -330,7 +328,8 @@ def _worker_process_started_at(client: Any) -> float:
         from core.runtime.process_identity import _create_time  # noqa: PLC0415
 
         return float(_create_time(int(pid)) or 0.0)
-    except (ImportError, AttributeError, TypeError, ValueError, OSError):
+    except (ImportError, AttributeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("Worker start time unreadable, reporting none: %s", exc)
         return 0.0
 
 
@@ -350,7 +349,8 @@ def _worker_process_is_running(proc: Any) -> bool:
             return bool(proc.is_alive())
         if hasattr(proc, "poll"):
             return proc.poll() is None
-    except (OSError, ValueError):
+    except (OSError, ValueError) as exc:
+        logger.debug("Worker liveness unreadable, reporting not running: %s", exc)
         return False
     return False
 
@@ -902,7 +902,8 @@ def snapshot_metric(snapshot: Any, key: str) -> float | None:
         return None
     try:
         value = float(snapshot.get(key))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Snapshot metric is not a number: %s", exc)
         return None
     return value if math.isfinite(value) else None
 
@@ -975,7 +976,8 @@ def _transition_age_s(client: Any, lane: Mapping[str, Any] | None = None) -> flo
     if lane is not None:
         try:
             mono = float(lane.get("last_transition_monotonic_at", 0.0) or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("Lane transition stamp is not a number, treating it as unset: %s", exc)
             mono = 0.0
     if mono <= 0.0:
         mono = float(getattr(client, "_lane_transition_monotonic_at", 0.0) or 0.0)
@@ -1001,7 +1003,8 @@ def _generation_actually_stopped(client: Any) -> bool | None:
         if not isinstance(snapshot, Mapping) or "active_generations" not in snapshot:
             return None
         active = int(snapshot["active_generations"])
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Lane status unreadable, cannot say whether generation stopped: %s", exc)
         return None
     return active <= 0
 
@@ -1126,7 +1129,8 @@ def local_deep_solver_status(
             if available_gb is not None
             else float(memory.available) / float(1024**3)
         )
-    except (AttributeError, OSError, TypeError, ValueError):
+    except (AttributeError, OSError, TypeError, ValueError) as exc:
+        logger.debug("System memory unreadable, reporting none detected: %s", exc)
         detected_total = 0.0
         detected_available = 0.0
     minimum_total = max(
@@ -1199,7 +1203,8 @@ def _asks_for_a_document(user_message: Any) -> bool:
         from core.runtime.desktop_objective_intent import asks_to_build_software
 
         return bool(asks_to_build_software(str(user_message or "")))
-    except _INFERENCE_RECOVERABLE_ERRORS:
+    except _INFERENCE_RECOVERABLE_ERRORS as exc:
+        logger.debug("Software-request classifier unavailable: %s", exc)
         return False
 
 
@@ -2240,7 +2245,8 @@ def _answer_reserve_seconds(client: Any, prompt_chars: Any) -> float:
 
     try:
         chars = max(0, int(prompt_chars or 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("Prompt length is not an integer, reserving from zero: %s", exc)
         chars = 0
     if not chars:
         return _ANSWER_RESERVE_FALLBACK_S
@@ -2381,11 +2387,13 @@ def _reachable_scope(name: str, skill_scope: Any, permitted: set[str]) -> str | 
             declared_action_scopes,
             skill_class_named,
         )
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("Action scope module unavailable, no reachable scope: %s", exc)
         return None
     try:
         declared = declared_action_scopes(skill_class_named(name))
-    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Declared action scopes unreadable for this skill: %s", exc)
         return None
     reachable = [scope for scope in declared.values() if scope in permitted]
     if not reachable:
@@ -2409,7 +2417,8 @@ def _needs_a_confirmation_nobody_can_give(name: str, scope: str) -> bool:
         if name in _RUNS_A_SNIPPET:
             return False
         risk = str(classify_execution_risk(name, {}, effect_scope=scope) or "").lower()
-    except (ImportError, RuntimeError, TypeError, ValueError):
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("Execution risk classifier unavailable, not demanding confirmation: %s", exc)
         return False
     return risk in {"high", "critical"}
 
@@ -2524,7 +2533,8 @@ def _seconds_to_read(prompt_chars: int) -> float:
         from core.brain.llm.thinking_reserve import seconds_to_read
 
         return max(0.0, float(seconds_to_read(chars)))
-    except (ImportError, AttributeError, TypeError, ValueError):
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("Reading time unavailable, reserving none: %s", exc)
         return 0.0
 
 
@@ -2540,11 +2550,18 @@ def _seconds_to_decode(tokens: int, model: str = "") -> float:
         from core.brain.llm.thinking_reserve import seconds_to_decode
 
         return float(seconds_to_decode(tokens, model))
-    except (ImportError, TypeError, ValueError):
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Decode time unavailable, reserving none: %s", exc)
         return 0.0
 
 
-class InferenceGate:
+from .inference_gate_prompt import _BuildsAndFitsThePrompt
+
+
+from .inference_gate_cortex_warmup import _WatchesTheCortexComeUp
+
+
+class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
 
     # Class-level defaults for observation-path cooldowns so partially
@@ -2728,13 +2745,28 @@ class InferenceGate:
                 "state": "recovering",
                 "readiness_blockers": ["cortex_status_invalid"],
             }
-        blockers = [
+        raw_blockers = [
             str(item)
             for item in (candidate.get("readiness_blockers") or ())
             if str(item or "").strip()
         ]
+        # A visible conversation is the public proof that the whole chat path
+        # works.  It is not a prerequisite for materializing that path.  The
+        # server intentionally holds public chat readiness false while it
+        # warms the non-model dependencies, so carrying this one public-proof
+        # blocker into the internal Cortex probe creates an impossible cycle:
+        # dependencies wait for a visible turn that dependencies themselves
+        # prevent.  Preserve every model/worker blocker and bypass only the
+        # proof that this internal probe exists to make possible.
+        blockers = [
+            item for item in raw_blockers if item != "visible_conversation_probe_missing"
+        ]
+        model_lane_ready = bool(candidate.get("conversation_ready")) or (
+            str(candidate.get("state") or "").strip().lower() == "ready"
+            and raw_blockers == ["visible_conversation_probe_missing"]
+        )
         return {
-            "conversation_ready": bool(candidate.get("conversation_ready")) and not blockers,
+            "conversation_ready": model_lane_ready and not blockers,
             "state": str(candidate.get("state") or "cold"),
             "readiness_blockers": blockers,
         }
@@ -3031,7 +3063,8 @@ class InferenceGate:
                 _gate_examined_something = int(
                     receipt.get("surface_quality_gate_attempts") or 0
                 ) > 0
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("surface_quality_gate_attempts is not an integer: %s", exc)
                 _gate_examined_something = False
             if (
                 not success
@@ -3382,8 +3415,8 @@ class InferenceGate:
             from core.conversation.surface_disposition import record_raw_model_draft
 
             record_raw_model_draft(original)
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Raw model draft not recorded to surface disposition: %s", exc)
         try:
             from core.synthesis import stabilize_user_facing_response
 
@@ -3661,7 +3694,8 @@ class InferenceGate:
         try:
             if int(lane.get("active_generations", 0) or 0) > 0:
                 return True
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("active_generations is not an integer, reporting no active generation: %s", exc)
             return False
         blockers = {
             str(blocker or "").strip()
@@ -3724,82 +3758,7 @@ class InferenceGate:
             return float(maximum)
         return value
 
-    @staticmethod
-    def _cortex_worker_is_legitimately_loading(client: Any) -> bool:
-        """True when the cortex worker is running because it is LOADING the
-        model, not because it is wedged.
 
-        The cascade-cleanup path force-kills a "stuck" cortex worker to free
-        blocked IPC feeder threads. But a worker actively loading the ~20GB
-        32B is running and NOT stuck — killing it there was a full doom loop
-        (2026-07-15 soak: spawn → load → killed mid-warmup on the next turn →
-        warmup_deferred → repeat, 216s/turn, zero real cortex answers for an
-        hour). A worker is legitimately loading when warmup is in flight OR
-        the lane is warming/recovering, AND it entered that state within a
-        generous load deadline. Past the deadline a still-warming worker is
-        genuinely stuck and may be killed.
-        """
-        if client is None:
-            return False
-        load_deadline_s = InferenceGate._env_float("AURA_CORTEX_LOAD_DEADLINE_S", 200.0)
-        # A worker that has only just been spawned is neither wedged nor idle.
-        # It is new.
-        #
-        # The lane bookkeeping below is set when warmup BEGINS, and there is a
-        # window after the process exists where none of it is true yet. In
-        # that window a running worker read as idle-but-running — the wedged
-        # case — and was killed, which is the doom loop this guard was written
-        # to end, reached through the one gap it did not cover. LIVE
-        # 2026-08-26: spawn, "Loading model", "Model loaded", force-killed,
-        # respawn, five times over, while every caller that needed her writing
-        # was told "worker_not_alive" and the runtime's own health said the
-        # lane was ready.
-        #
-        # Process creation time is the ground truth here: it cannot be unset,
-        # cannot lag, and is already captured by the kill path itself.
-        started_at = _worker_process_started_at(client)
-        if started_at and (time.time() - started_at) < load_deadline_s:
-            return True
-        warming = bool(getattr(client, "_warmup_in_flight", False)) or str(
-            getattr(client, "_lane_state", "")
-        ) in {"warming", "recovering"}
-        if not warming:
-            return False
-        transition_at = float(getattr(client, "_lane_transition_at", 0.0) or 0.0)
-        warming_age = time.time() - transition_at if transition_at else 1e9
-        return warming_age < load_deadline_s
-
-    @staticmethod
-    def _cortex_worker_is_actively_generating(client: Any) -> bool:
-        """True when the worker is producing tokens right now.
-
-        The mid-LOAD guard above closed one half of the doom loop. This is the
-        other half, and it is the ~15-turn conversation ceiling: a generation
-        that overran its budget got the worker force-killed, which costs a
-        60-150s cold reload, which makes the NEXT turn slower, which overruns
-        sooner. The 2026-07-25 probe recorded twenty
-        "respawn_cortex_if_needed: cortex is dead" events across thirty turns,
-        the UnitaryResponsePhase climbing 25s → 100s, and the answered rate
-        falling 10/10 → 4/10 → 2/10 as it went.
-
-        A slow worker and a wedged worker are not the same thing. Slowness is
-        answered by the turn's own timeout and the fallback ladder; killing the
-        lane converts one slow turn into a broken session.
-
-        A generation that has run past AURA_CORTEX_GENERATION_DEADLINE_S is
-        genuinely wedged and may still be killed.
-        """
-        if client is None:
-            return False
-        if int(getattr(client, "_active_generations", 0) or 0) <= 0:
-            return False
-        started_at = float(getattr(client, "_active_generation_started_at", 0.0) or 0.0)
-        if not started_at:
-            return True  # generating, with no clock to condemn it by
-        deadline_s = InferenceGate._env_float(
-            "AURA_CORTEX_GENERATION_DEADLINE_S", 600.0
-        )
-        return (time.time() - started_at) < deadline_s
 
     #: One RAM reading shared by everything that asks within this window.
     #:
@@ -3816,143 +3775,7 @@ class InferenceGate:
     _virtual_memory_memo: tuple[float, int, Any] | None = None
     _virtual_memory_memo_lock = _threading.Lock()
 
-    @staticmethod
-    def _recent_virtual_memory() -> Any:
-        """psutil.virtual_memory(), at most once per _VIRTUAL_MEMORY_MEMO_TTL_S.
 
-        Keyed on the identity of the probe as well as the clock. A class-level
-        cache with only a TTL is order-dependent: the first version of this
-        shared one reading across test functions, so a test that replaced the
-        probe was served the previous test's value and three of them failed.
-        Keying on the callable means replacing it — which is what patching does,
-        and what a runtime swapping its resource observer does — misses the memo
-        instead of silently reusing a reading taken through a different probe.
-        """
-        probe = psutil.virtual_memory
-        probe_key = id(probe)
-        now = time.monotonic()
-        with InferenceGate._virtual_memory_memo_lock:
-            memo = InferenceGate._virtual_memory_memo
-            if (
-                memo is not None
-                and memo[1] == probe_key
-                and (now - memo[0]) <= InferenceGate._VIRTUAL_MEMORY_MEMO_TTL_S
-            ):
-                cached = memo[2]
-                if isinstance(cached, BaseException):
-                    raise cached
-                return cached
-        try:
-            reading: Any = probe()
-        except (OSError, RuntimeError, ValueError) as exc:
-            # A BROKEN probe is remembered too, for the same window.
-            #
-            # Otherwise every caller re-attempts a syscall that has just
-            # failed: measured at 20 raising probes in one
-            # ensure_foreground_ready. "The probe is not answering" is as
-            # valid a reading as a number, and half a second of staleness on
-            # it costs nothing while re-asking twenty times costs the hot path
-            # before every generation.
-            with InferenceGate._virtual_memory_memo_lock:
-                InferenceGate._virtual_memory_memo = (now, probe_key, exc)
-            raise
-        with InferenceGate._virtual_memory_memo_lock:
-            InferenceGate._virtual_memory_memo = (now, probe_key, reading)
-        return reading
-
-    @staticmethod
-    def _cortex_warmup_admission_snapshot(context: str = "background") -> dict[str, Any]:
-        """Return whether a cold Cortex load is safe under current RAM pressure.
-
-        The normal foreground headroom check is intentionally permissive because
-        a *resident* Cortex can keep answering while RAM is high. A cold 32B
-        load is different: it adds tens of GB of unified-memory pressure in one
-        burst. This snapshot is therefore stricter and is used before any
-        background/recovery/foreground warmup that would spawn the Cortex worker.
-        
-        [HARDENING v57-CORTEX] PRIORITY: 32B cortex is PRIMARY model. Must be less
-        deferent to memory pressure to ensure system works regardless of cloud.
-        """
-        context_key = str(context or "background").strip().upper()
-        try:
-            vm = InferenceGate._recent_virtual_memory()
-            total_gb = float(vm.total) / float(1024**3)
-            available_gb = float(vm.available) / float(1024**3)
-            pressure_pct = float(vm.percent)
-
-            if total_gb >= 60.0:
-                # Cold-loading Cortex is a host-survival decision, not a normal
-                # generation decision. The 32B lane is the user-facing default,
-                # but it must not be admitted while macOS is close to swap/jetsam.
-                default_max_pressure = 72.0 if context_key == "FOREGROUND" else 58.0
-                default_min_available = 20.0 if context_key == "FOREGROUND" else 26.0
-            else:
-                default_max_pressure = 68.0 if context_key == "FOREGROUND" else 54.0
-                default_min_available = 14.0 if context_key == "FOREGROUND" else 18.0
-
-            max_pressure = InferenceGate._env_float(
-                f"AURA_CORTEX_{context_key}_WARMUP_MAX_PRESSURE_PCT",
-                InferenceGate._env_float(
-                    "AURA_CORTEX_COLD_WARMUP_MAX_PRESSURE_PCT",
-                    default_max_pressure,
-                ),
-            )
-            min_available = InferenceGate._env_float(
-                f"AURA_CORTEX_{context_key}_WARMUP_MIN_AVAILABLE_GB",
-                InferenceGate._env_float(
-                    "AURA_CORTEX_COLD_WARMUP_MIN_AVAILABLE_GB",
-                    default_min_available,
-                ),
-            )
-            can_admit = bool(pressure_pct < max_pressure and available_gb >= min_available)
-            reason = ""
-            if not can_admit:
-                reason = (
-                    f"memory_pressure:{pressure_pct:.1f}%/{available_gb:.1f}GB "
-                    f"(need <{max_pressure:.1f}% and >={min_available:.1f}GB)"
-                )
-            return {
-                "context": str(context or "background"),
-                "pressure_pct": pressure_pct,
-                "available_gb": available_gb,
-                "total_gb": total_gb,
-                "max_pressure_pct": max_pressure,
-                "min_available_gb": min_available,
-                "can_admit": can_admit,
-                "reason": reason,
-                "measured": True,
-                "schema": ADMISSION_SNAPSHOT_SCHEMA,
-                "measured_at_monotonic": time.monotonic(),
-            }
-        except (AttributeError, TypeError, ValueError, OSError) as exc:
-            _record_inference_degradation(
-                exc,
-                action="continued bounded inference fallback after non-fatal degradation",
-            )
-            logger.debug("Cortex warmup memory probe failed: %s", exc)
-            force_warmup = str(
-                _FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()
-            ).strip().lower() in {"1", "true", "yes", "on"}
-            # measured=False marks every numeric field below as UNKNOWN, not a
-            # real observation — consumers must not treat these zeros as a
-            # calm-memory measurement.
-            return {
-                "context": str(context or "background"),
-                "pressure_pct": 0.0,
-                "available_gb": 0.0,
-                "total_gb": 0.0,
-                "max_pressure_pct": 100.0,
-                "min_available_gb": 0.0,
-                "can_admit": force_warmup,
-                "reason": (
-                    "memory_probe_failed_forced_override"
-                    if force_warmup
-                    else "memory_probe_failed"
-                ),
-                "measured": False,
-                "schema": ADMISSION_SNAPSHOT_SCHEMA,
-                "measured_at_monotonic": time.monotonic(),
-            }
 
     #: What actually happened to a load attempt. Both defer warmup — the GPU
     #: thrash is the same either way — but they are not the same event, and
@@ -3962,319 +3785,26 @@ class InferenceGate:
     LOAD_SETBACK_KILL = "stuck_load_kill"
     LOAD_SETBACK_OVERRUN = "warmup_budget_overrun"
 
-    def cortex_load_setbacks(self) -> dict[str, int]:
-        """Counts by kind, so "we killed it twice" and "it was slow twice" are
-        distinguishable in the record."""
-        return dict(getattr(self, "_cortex_load_setback_counts", {}) or {})
 
     #: How long a lane-transition lease is honoured before it is considered
     #: abandoned. Long enough for a cancel-and-verify pass, short enough that a
     #: crashed holder cannot wedge recovery for good.
     _LANE_TRANSITION_LEASE_S = 30.0
 
-    def _claim_lane_transition(self, owner: str) -> bool:
-        """Take the right to rewrite Cortex lane state. False means someone has it.
 
-        The watchdog, the status path and the recovery scheduler all reach into
-        the client's private ``_warmup_in_flight``, cancel the prewarm task and
-        call private lane-state setters. None of them took anything first, so
-        two of them could do it at once: one clears the flag while the other is
-        mid-cancel, and a fresh warmup starts underneath a load that has not
-        stopped.
 
-        Deliberately not a lock: two of the three callers are synchronous and
-        one is on the event loop, so a lock here would either block the loop or
-        not be honoured. A compare-and-set with an expiry gives the same
-        exclusion without either.
-        """
-        now = time.monotonic()
-        held_by = getattr(self, "_lane_transition_owner", "")
-        held_at = float(getattr(self, "_lane_transition_at", 0.0) or 0.0)
-        if held_by and (now - held_at) < self._LANE_TRANSITION_LEASE_S:
-            logger.debug(
-                "Lane transition for %s refused; %s holds the lease (%.1fs old).",
-                owner,
-                held_by,
-                now - held_at,
-            )
-            return False
-        if held_by:
-            logger.warning(
-                "🔍 Lane-transition lease from %s expired after %.0fs; %s is taking it.",
-                held_by,
-                now - held_at,
-                owner,
-            )
-        self._lane_transition_owner = str(owner)
-        self._lane_transition_at = now
-        return True
 
-    def _release_lane_transition(self, owner: str) -> None:
-        if getattr(self, "_lane_transition_owner", "") == str(owner):
-            self._lane_transition_owner = ""
-            self._lane_transition_at = 0.0
 
-    def _clear_wedged_cortex_warmup(self, reason: str, *, owner: str) -> dict[str, Any]:
-        """Clear a wedged warmup flag and cancel its load, under one owner.
 
-        Cancelling a task is a REQUEST. The old code cancelled, set
-        ``_prewarm_task = None`` and moved on, so a load that had not yet
-        noticed the cancellation became invisible — and the next warmup started
-        on top of it, two 20GB loads competing for one GPU slot. The task is
-        kept here instead of dropped; :meth:`await_abandoned_cortex_loads`
-        proves it stopped, and warmup admission refuses while one is unproven.
-        """
-        receipt: dict[str, Any] = {
-            "reason": str(reason),
-            "owner": str(owner),
-            "cleared_warmup_flag": False,
-            "cancelled_prewarm": False,
-            "at": time.time(),
-        }
-        if not self._claim_lane_transition(owner):
-            receipt["refused"] = "lane_transition_held"
-            return receipt
-        try:
-            client = self._mlx_client
-            if client is not None and getattr(client, "_warmup_in_flight", False):
-                client._warmup_in_flight = False
-                receipt["cleared_warmup_flag"] = True
-            task = getattr(self, "_prewarm_task", None)
-            if task is not None and not task.done():
-                task.cancel()
-                receipt["cancelled_prewarm"] = True
-                abandoned = getattr(self, "_abandoned_cortex_loads", None)
-                if abandoned is None:
-                    abandoned = []
-                    self._abandoned_cortex_loads = abandoned
-                abandoned.append(task)
-            self._prewarm_task = None
-        finally:
-            self._release_lane_transition(owner)
-        return receipt
 
-    def unproven_cortex_loads(self) -> int:
-        """Cancelled loads that have not been observed to stop."""
-        return len(
-            [
-                task
-                for task in (getattr(self, "_abandoned_cortex_loads", None) or [])
-                if not task.done()
-            ]
-        )
 
-    async def await_abandoned_cortex_loads(self, timeout: float = 10.0) -> dict[str, Any]:
-        """Wait for cancelled loads to actually finish, and say if they did not."""
-        abandoned = list(getattr(self, "_abandoned_cortex_loads", None) or [])
-        if not abandoned:
-            return {"awaited": 0, "still_running": 0}
-        # asyncio.wait, NOT wait_for: on timeout wait_for CANCELS what it is
-        # waiting on, and the case this method exists to detect is a load that
-        # ignores cancellation — so the cleanup would wait forever on the one
-        # task it was written to notice. wait observes and returns.
-        await asyncio.wait(abandoned, timeout=max(0.1, float(timeout)))
-        still_running = [task for task in abandoned if not task.done()]
-        self._abandoned_cortex_loads = still_running
-        if still_running:
-            _record_inference_degradation(
-                TimeoutError(
-                    f"{len(still_running)} cancelled Cortex load(s) did not stop within {timeout:.0f}s"
-                ),
-                action="refused to certify that a cancelled model load had stopped",
-                severity="error",
-                extra={"still_running": len(still_running)},
-            )
-        return {"awaited": len(abandoned), "still_running": len(still_running)}
 
-    def _note_cortex_warmup_overrun(self) -> None:
-        """A load exceeded its budget and was LEFT RUNNING. Not a kill."""
-        self._note_cortex_load_setback(self.LOAD_SETBACK_OVERRUN)
 
-    def _note_cortex_stuck_kill(self) -> None:
-        """A stuck load was force-killed and reaped."""
-        self._note_cortex_load_setback(self.LOAD_SETBACK_KILL)
-
-    def _note_cortex_load_setback(self, kind: str) -> None:
-        """Record a load setback and arm a warmup cooldown once they cluster.
-
-        Each kill means a load attempt exceeded the deadline (thermal throttle /
-        GPU contention) and got reaped. Re-spawning immediately just repeats the
-        thrash, and every repeat grabs the single GPU slot for a 20GB weight
-        load, starving the foreground fallback that is actually serving the turn.
-        After ``AURA_CORTEX_STUCK_KILL_THRESHOLD`` kills inside a rolling window
-        we cool down for an escalating interval, during which warmup is deferred
-        and the resident fallback carries smoothly until thermal recovers.
-        """
-        now = time.monotonic()
-        window = InferenceGate._env_float("AURA_CORTEX_STUCK_KILL_WINDOW_S", 300.0)
-        threshold = max(1, int(InferenceGate._env_float("AURA_CORTEX_STUCK_KILL_THRESHOLD", 2.0)))
-        counts = getattr(self, "_cortex_load_setback_counts", None)
-        if counts is None:
-            counts = {}
-            self._cortex_load_setback_counts = counts
-        counts[str(kind)] = counts.get(str(kind), 0) + 1
-        self._cortex_stuck_kill_times.append(now)
-        recent = [t for t in self._cortex_stuck_kill_times if now - t <= window]
-        if len(recent) < threshold:
-            return
-        base = InferenceGate._env_float("AURA_CORTEX_WARMUP_BACKOFF_S", 90.0)
-        cap = InferenceGate._env_float("AURA_CORTEX_WARMUP_BACKOFF_CAP_S", 240.0)
-        self._cortex_warmup_backoff_streak += 1
-        cooldown = min(cap, base * self._cortex_warmup_backoff_streak)
-        self._cortex_warmup_backoff_until = now + cooldown
-        logger.warning(
-            "🧊 [CORTEX BACKOFF] %d load setbacks in %.0fs — deferring warmup %.0fs so the "
-            "resident fallback carries and thermal recovers before the next reload shot.",
-            len(recent),
-            window,
-            cooldown,
-        )
-
-    def _cortex_warmup_backoff_reason(self) -> str | None:
-        """Non-None while a post-thrash warmup cooldown is active."""
-        backoff_until = float(
-            getattr(self, "_cortex_warmup_backoff_until", 0.0) or 0.0
-        )
-        remaining = backoff_until - time.monotonic()
-        if remaining <= 0.0:
-            return None
-        return f"warmup_backoff:{remaining:.0f}s"
-
-    def _reset_cortex_warmup_backoff(self) -> None:
-        """Clear the cooldown after the cortex proves it can serve again."""
-        kill_times = getattr(self, "_cortex_stuck_kill_times", None)
-        if getattr(self, "_cortex_warmup_backoff_until", 0.0) or kill_times:
-            if kill_times is not None:
-                kill_times.clear()
-            self._cortex_warmup_backoff_until = 0.0
-            self._cortex_warmup_backoff_streak = 0
 
     _FORCE_WARMUP_FLAG = "AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE"
 
-    def _cortex_warmup_deferral_reason(self, context: str = "background") -> str | None:
-        # The un-forced verdict: warmup backoff, then measured memory admission.
-        # A probe failure (measured=False) is treated as a deferral here — the
-        # snapshot only turns can_admit True on an unmeasured probe when the
-        # force flag is set, and that emergency path is decided below, never by
-        # a silent can_admit.
-        backoff = self._cortex_warmup_backoff_reason()
-        snapshot = self._cortex_warmup_admission_snapshot(context)
-        measured = bool(snapshot.get("measured", True))
-        if backoff is not None:
-            normal_reason: str | None = backoff
-        elif not measured:
-            normal_reason = "memory_probe_failed"
-        elif not snapshot["can_admit"]:
-            normal_reason = str(snapshot["reason"] or "memory_pressure")
-        else:
-            normal_reason = None
 
-        if normal_reason is None:
-            return None  # Admission already allows warmup; no override needed.
 
-        force_requested = str(
-            os.environ.get(self._FORCE_WARMUP_FLAG, "")
-        ).strip().lower() in {"1", "true", "yes", "on"}
-        if not force_requested:
-            return normal_reason
-
-        # An override was requested to bypass a real deferral. It may skip the
-        # soft admission thresholds and warmup backoff, but never the
-        # host-survival floor: a cold 32B load into single-digit free GB risks
-        # jetsam/swap-death of the whole process tree, which no operator
-        # override should authorize.
-        hard_floor_gb = self._env_float(
-            "AURA_FORCE_CORTEX_WARMUP_HARD_FLOOR_GB", 10.0, minimum=4.0
-        )
-        available_gb = float(snapshot.get("available_gb", 0.0) or 0.0)
-        if not measured:
-            # The probe failed, so the survival floor cannot be confirmed. A
-            # blind ~20GB cold load under the override is exactly the host-death
-            # risk the floor exists to prevent — with no measurement there is no
-            # boundary, so we fail closed rather than authorize an unbounded
-            # load. The override takes effect again once the probe reports a
-            # real above-floor reading.
-            return "forced_warmup_denied_survival_floor_unmeasured"
-        if available_gb < hard_floor_gb:
-            return (
-                "forced_warmup_denied_survival_floor:"
-                f"{available_gb:.1f}GB"
-                f"<{hard_floor_gb:.1f}GB"
-            )
-
-        # Past the inviolable floor, the override is a bounded, receipted
-        # decision — not a permanent setting. It expires on its own, caps how
-        # many bypasses one flag can authorize, and leaves a GovernanceReceipt
-        # for each use, exactly as the MLX client governs the same flag.
-        from core.brain.llm.emergency_override import consume_override
-
-        decision = consume_override(
-            self._FORCE_WARMUP_FLAG,
-            guard=f"cortex_warmup_admission:{context}",
-            observed=f"{normal_reason} (available={available_gb:.1f}GB)",
-        )
-        if not decision.active:
-            # Expired or budget-exhausted: the memory guard is re-armed and the
-            # normal deferral stands until the operator renews the decision.
-            return normal_reason
-
-        now = time.monotonic()
-        last_log = getattr(self, "_last_forced_warmup_override_log_at", 0.0)
-        if (now - last_log) > 60.0:
-            self._last_forced_warmup_override_log_at = now
-            logger.warning(
-                "⚠️ %s active — bypassing %s warmup admission "
-                "(available=%.1fGB, survival floor %.1fGB, %s).",
-                self._FORCE_WARMUP_FLAG,
-                context,
-                available_gb,
-                hard_floor_gb,
-                decision.as_detail(),
-            )
-        return None
-
-    def _log_cortex_warmup_deferral(self, reason: str, *, context: str) -> None:
-        # COUNT every deferral, log a coalesced sample.
-        #
-        # A deferral is the ladder deciding not to load a tier, which is
-        # designed backpressure and not a fault — recording it as a degradation
-        # on this fail-closed subsystem escalates it to CRITICAL, and the
-        # 2026-07-18 soak produced 52 of those from healthy deferrals. But a
-        # runtime that cannot warm its primary lane IS something health should
-        # be able to see, and a coalesced log line is not evidence. The counter
-        # is the durable half; it reaches the conversation status snapshot.
-        counters = getattr(self, "_warmup_deferral_counts", None)
-        if counters is None:
-            counters = {}
-            self._warmup_deferral_counts = counters
-        key = f"{context}:{reason}"
-        entry = counters.get(key)
-        if entry is None:
-            entry = {"count": 0, "first_at": time.time(), "last_at": 0.0}
-            counters[key] = entry
-        entry["count"] += 1
-        entry["last_at"] = time.time()
-
-        now = time.monotonic()
-        last_log = getattr(self, "_last_cortex_warmup_deferral_log_at", 0.0)
-        if (now - last_log) < 30.0:
-            return
-        self._last_cortex_warmup_deferral_log_at = now
-        logger.warning(
-            "⏸️ Cortex %s warmup deferred to protect RAM: %s (%d so far)",
-            context,
-            reason,
-            entry["count"],
-        )
-
-    def warmup_deferral_receipt(self) -> dict[str, Any]:
-        """Every warmup deferral this process has taken, by cause.
-
-        Deliberately not degradation records — see above — but durable, so a
-        primary lane that has been refused a hundred times is a number
-        somebody can find rather than a log line that scrolled.
-        """
-        return copy.deepcopy(getattr(self, "_warmup_deferral_counts", {}) or {})
 
     # Admission/backoff outcomes are the ladder DECIDING not to load a tier
     # right now — the designed backpressure that lets a lower rung serve the
@@ -4306,184 +3836,10 @@ class InferenceGate:
         text = str(exc or "")
         return any(marker in text for marker in cls._EXPECTED_BACKPRESSURE_MARKERS)
 
-    def _note_foreground_warmup_failure(self, warmup_exc: BaseException) -> bool:
-        """Classify a foreground-warmup failure; returns True for RAM deferrals.
 
-        A ``foreground_warmup_deferred`` outcome is expected RAM-admission
-        backpressure — the turn reroutes to the fallback tier, so it is logged
-        at info and NOT recorded as a degradation: on the fail-closed
-        inference_gate a degradation record raises CRITICAL SERVICE FAILURE
-        out of the handler and kills the protected recovery lane (seen live
-        July 8: one memory deferral cascaded into chat 503s). Same discipline
-        as the timeout demotion in core/runtime/errors.py. Genuine warmup
-        faults keep the full degradation record.
-        """
-        if "foreground_warmup_deferred" in str(warmup_exc):
-            logger.info(
-                "🧠 Foreground warmup deferred by RAM admission; rerouting this turn: %s",
-                warmup_exc,
-            )
-            return True
-        record_degradation(
-            "inference_gate",
-            warmup_exc,
-            severity="degraded",
-            action="skipped cold primary attempt or fell back after foreground warmup failure",
-        )
-        from core.runtime.errors import describe_error
 
-        logger.warning(
-            "🧠 Foreground preflight warmup did not complete cleanly: %s",
-            describe_error(warmup_exc),
-        )
-        return False
 
-    def _log_cold_cortex_policy_deferred(self) -> None:
-        now = time.monotonic()
-        last_log = getattr(self, "_last_cortex_policy_deferred_log_at", 0.0)
-        if (now - last_log) < 300.0:
-            return
-        self._last_cortex_policy_deferred_log_at = now
-        logger.info(
-            "Cold-start Cortex recovery deferred by desktop prewarm policy; "
-            "foreground demand will warm the lane when needed."
-        )
 
-    @staticmethod
-    def _boot_should_eager_warmup() -> bool:
-        """Keep the resident Cortex warm on high-memory desktops unless disabled."""
-        if str(_FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()).strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }:
-            return True
-        if InferenceGate._desktop_resource_guard_enabled():
-            logger.info(
-                "🛡️ Desktop resource guard active — skipping eager %s warmup during launch.",
-                _primary_lane_label(),
-            )
-            return False
-        setting = str(_FLAG_EAGER_CORTEX_WARMUP.value()).strip().lower()
-        if setting in {"1", "true", "yes", "on"}:
-            snapshot = InferenceGate._cortex_warmup_admission_snapshot("boot")
-            if not snapshot["can_admit"] and str(
-                _FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()
-            ).strip().lower() not in {"1", "true", "yes", "on"}:
-                logger.warning(
-                    "⏸️ Explicit eager Cortex warmup deferred to protect RAM: %s", snapshot["reason"]
-                )
-                return False
-            return True
-        if setting in {"0", "false", "no", "off"}:
-            return False
-
-        try:
-            vm = InferenceGate._recent_virtual_memory()
-            snapshot = InferenceGate._cortex_warmup_admission_snapshot("boot")
-            min_total_gb = float(_FLAG_BOOT_WARMUP_MIN_TOTAL_GB.value())
-            if (vm.total / float(1024**3)) < min_total_gb or not snapshot["can_admit"]:
-                logger.warning(
-                    "⏸️ Deferring eager %s warmup at boot "
-                    "(total=%.1fGB pressure=%.1f%% available=%.1fGB).",
-                    _primary_lane_label(),
-                    snapshot["total_gb"],
-                    snapshot["pressure_pct"],
-                    snapshot["available_gb"],
-                )
-                return False
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            _record_inference_degradation(
-                exc,
-                action="kept conservative boot warmup decision after desktop policy probe failed",
-            )
-            logger.debug("Boot warmup memory probe failed: %s", exc)
-            return False
-
-        return True
-
-    @staticmethod
-    def _boot_should_schedule_deferred_prewarm() -> bool:
-        explicit_setting = _FLAG_DEFERRED_CORTEX_PREWARM.value()
-        setting = str(explicit_setting if explicit_setting is not None else "auto").strip().lower()
-        if setting in {"1", "true", "yes", "on"}:
-            snapshot = InferenceGate._cortex_warmup_admission_snapshot("background")
-            if not snapshot["can_admit"] and str(
-                _FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()
-            ).strip().lower() not in {"1", "true", "yes", "on"}:
-                global _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT
-                global _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON
-                now = time.monotonic()
-                reason = str(snapshot["reason"] or "memory_pressure")
-                if (
-                    reason != _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON
-                    or (now - _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT)
-                    >= _EXPLICIT_DEFERRED_PREWARM_REFUSAL_LOG_INTERVAL_S
-                ):
-                    _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT = now
-                    _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON = reason
-                    logger.warning(
-                        "⏸️ Explicit deferred Cortex prewarm refused to protect RAM: %s",
-                        reason,
-                    )
-                else:
-                    logger.debug(
-                        "Explicit deferred Cortex prewarm still refused to protect RAM: %s",
-                        reason,
-                    )
-                return False
-            return True
-        if setting in {"0", "false", "no", "off"}:
-            return False
-        if InferenceGate._desktop_safe_boot_enabled():
-            if explicit_setting is None:
-                logger.info(
-                    "🛡️ Recovery safe boot active — skipping implicit deferred %s "
-                    "prewarm during launch.",
-                    _primary_lane_label(),
-                )
-                return False
-            snapshot = InferenceGate._cortex_warmup_admission_snapshot("background")
-            if not snapshot["can_admit"]:
-                logger.warning(
-                    "⏸️ Recovery safe-boot deferred Cortex prewarm deferred to protect RAM: %s",
-                    snapshot["reason"],
-                )
-                return False
-            return True
-        return True
-
-    @staticmethod
-    def _cortex_already_resident() -> bool:
-        """True when the conversation model is loaded and has served a turn.
-
-        Deliberately conservative in both directions. It requires evidence that
-        the model is actually up — a lane that merely intends to load does not
-        count — and any failure to determine that answers False, which keeps
-        the stricter load-sized floor rather than relaxing it on a guess.
-        """
-        try:
-            from core.container import ServiceContainer
-
-            gate = ServiceContainer.peek("inference_gate", default=None)
-            if gate is None:
-                return False
-            lane = gate.get_conversation_status()
-        except _INFERENCE_RECOVERABLE_ERRORS:
-            # A probe must never break admission; unknown residency keeps the
-            # stricter load-sized floor.
-            return False
-        if not isinstance(lane, dict):
-            return False
-        try:
-            if not bool(lane.get("conversation_ready")):
-                return False
-            # "Ready" without a completed generation is an intention, not a
-            # residency: the weights may still be streaming in.
-            return bool(lane.get("has_generated_successfully"))
-        except (AttributeError, TypeError, ValueError):
-            return False
 
     @staticmethod
     def _headroom_snapshot(requested_tier: str = "primary") -> dict[str, Any]:
@@ -4853,6 +4209,7 @@ class InferenceGate:
         try:
             running_loop: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
         except RuntimeError:
+            # Not a failure: no running loop at cleanup is the case this is distinguishing.
             running_loop = None
         if cancelled_tasks and running_loop is None:
             logger.warning(
@@ -4973,7 +4330,8 @@ class InferenceGate:
             from core.runtime.response_policy import (
                 USER_FACING_COMPLETION_DEADLINE_MAX_S,
             )
-        except (ImportError, AttributeError):
+        except (ImportError, AttributeError) as exc:
+            logger.debug("Decode timing unavailable, allowing no tokens for the turn: %s", exc)
             return 0
         allowed = float(seconds) if float(seconds or 0.0) > 0.0 else float(
             USER_FACING_COMPLETION_DEADLINE_MAX_S
@@ -4989,8 +4347,8 @@ class InferenceGate:
                 from core.brain.llm.mlx_client import seconds_to_read
 
                 allowed -= float(seconds_to_read(int(prompt_chars)))
-            except (ImportError, AttributeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                logger.debug("Reading time unavailable, not subtracting it from the allowance: %s", exc)
         # And what the turn spends after the last token: stabilizing, shaping,
         # classifying, persisting, emitting a receipt, writing the response.
         # The search below finds the largest answer that fits EXACTLY, so a
@@ -5002,8 +4360,8 @@ class InferenceGate:
             from core.brain.llm.thinking_reserve import seconds_to_deliver
 
             allowed -= float(seconds_to_deliver())
-        except (ImportError, AttributeError, TypeError, ValueError):
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Delivery time unavailable, not subtracting it from the allowance: %s", exc)
         if not (allowed > 0.0):
             return 0
         # The forward estimate is monotone in tokens, so the largest budget
@@ -5036,7 +4394,8 @@ class InferenceGate:
             from core.brain.llm.thinking_reserve import reserve_tokens
 
             return max(0, int(reserve_tokens(model)))
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Reserve tokens unavailable, reserving none: %s", exc)
             return 0
 
     @classmethod
@@ -5070,7 +4429,8 @@ class InferenceGate:
                 final_user_surface=final_user_surface,
                 answer_is_derived_here=derived_here,
             )
-        except (ImportError, AttributeError, TypeError, ValueError):
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("Chat format unavailable, reserving nothing for reasoning: %s", exc)
             return 0
         return cls._reasoning_reserve(model) if native_thinking is True else 0
 
@@ -5645,6 +5005,7 @@ class InferenceGate:
                 except asyncio.CancelledError:
                     exc = asyncio.CancelledError("prewarm_cancelled")
                 except asyncio.InvalidStateError:
+                    # Not a failure: a prewarm task that has not finished has no exception to report yet.
                     exc = None
                 if exc is not None:
                     lane["state"] = "recovering"
@@ -5818,6 +5179,7 @@ class InferenceGate:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
+            # Not a failure: no running loop means there is nothing to note the timeout on.
             return
         try:
             warmup_deferral = self._cortex_warmup_deferral_reason("background")
@@ -5841,7 +5203,8 @@ class InferenceGate:
                 from core.container import ServiceContainer
 
                 orch = ServiceContainer.get("orchestrator", default=None)
-            except _INFERENCE_RECOVERABLE_ERRORS:
+            except _INFERENCE_RECOVERABLE_ERRORS as exc:
+                logger.debug("Orchestrator unavailable, cannot extend the startup quiet window: %s", exc)
                 orch = None
         if orch and hasattr(orch, "_extend_foreground_quiet_window"):
             try:
@@ -6149,9 +5512,10 @@ class InferenceGate:
             )
 
             observations = get_model_lane_controller().owner_observations()
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
             # Never let a probe break a turn — and never let it widen into a
             # catch that would swallow a programming error too.
+            logger.debug("Lane observations unavailable, not claiming a foreign owner: %s", exc)
             return False
         if not observations:
             return False
@@ -6189,91 +5553,11 @@ class InferenceGate:
                 pids.add(str(parent.pid))
             for child in proc.children(recursive=True):
                 pids.add(str(child.pid))
-        except (psutil.Error, *_INFERENCE_RECOVERABLE_ERRORS):
-            pass
+        except (psutil.Error, *_INFERENCE_RECOVERABLE_ERRORS) as exc:
+            logger.debug("Own process tree unreadable, leaving the pid set short: %s", exc)
         return frozenset(p for p in pids if p and p != "0")
 
-    def _foreground_warmup_timeout(
-        self, lane_status: dict[str, Any], primary_timeout: float
-    ) -> float:
-        """Admission control for the foreground preflight — break the doom loop.
 
-        A COLD first boot legitimately needs ~150s to load the cortex, and the
-        user expects that one-time wait. But a RECOVERY (Cortex was ready, got
-        force-killed on a first-token stall, is reloading) must NOT hold every
-        foreground turn hostage for 90-180s — observed live (Jul 7 soak):
-        turns 21-30 crawled to 200s+ while a single warm window played out.
-
-        When the lane was EVER ready (``last_ready_at`` > 0), cap the wait
-        short (floored to 15s by ensure_foreground_ready — one honest warm
-        chance) and let the turn fall to the ready fallback tier; the warmup
-        task is shielded, so Cortex keeps warming in the background and the
-        NEXT turn gets it. AURA_FOREGROUND_RECOVERY_WARMUP_CAP_S=180 restores
-        the old behavior if this ever needs reverting live.
-        """
-        was_ever_ready = float(lane_status.get("last_ready_at", 0.0) or 0.0) > 0.0
-        if was_ever_ready:
-            return InferenceGate._env_float(
-                "AURA_FOREGROUND_RECOVERY_WARMUP_CAP_S", 15.0
-            )
-        # A lane held by SOMEONE ELSE is not a cold boot, and waiting the cold
-        # budget for it waits for something that cannot happen.
-        #
-        # LIVE 2026-08-13: a training run (standalone:96317, CP399) held the
-        # exclusive model lane. The cortex was admission-deferred 15 times in a
-        # row; last_ready_at was 0.0 because it had never been ready THIS boot,
-        # so every turn took the cold-boot branch and waited the full 180s for
-        # a lane whose owner would hold it for hours. The brainstem — loaded,
-        # weights present, not the lane owner — was never asked once, and the
-        # user got "the live answer lane could not finish preparing".
-        #
-        # Preempting the owner is not the answer: that would destroy whatever
-        # it is doing. Falling to the fallback tier is. The cortex keeps
-        # warming behind a shielded task and takes over the moment the lane
-        # frees.
-        if InferenceGate._foreign_owner_holds_model_lane():
-            return InferenceGate._env_float(
-                "AURA_FOREGROUND_FOREIGN_LANE_WARMUP_CAP_S", 15.0
-            )
-        # [STABILITY v56] Cold 32B load can take 150s; give it at least 180s
-        # or the primary timeout, whichever is greater.
-        return max(180.0, float(primary_timeout))
-
-    async def _await_warmup_deferral_clear(
-        self,
-        *,
-        deadline: float,
-        context: str,
-        initial_reason: str,
-    ) -> str:
-        """Poll until the warmup deferral lifts, or the budget runs out.
-
-        Returns "" when it cleared and the caller may proceed, or the last
-        reason when it did not. Backpressure is a wait; only an exhausted
-        budget is a failure.
-        """
-
-        reason = str(initial_reason or "")
-        announced = False
-        while reason and time.monotonic() < deadline:
-            if is_shutdown_requested():
-                return reason
-            if not announced:
-                logger.info(
-                    "⏳ Cortex warmup deferred (%s); holding the turn for up to "
-                    "%.0fs rather than answering with a failure.",
-                    reason,
-                    max(0.0, deadline - time.monotonic()),
-                )
-                announced = True
-            await asyncio.sleep(0.5)
-            lane = self.get_conversation_status()
-            if self._lane_can_attempt_visible_conversation_turn(lane):
-                return ""
-            reason = str(self._cortex_warmup_deferral_reason(context) or "")
-        if not reason and announced:
-            logger.info("✅ Cortex warmup deferral cleared; the turn proceeds.")
-        return reason
 
     async def ensure_foreground_ready(self, timeout: float | None = None) -> dict[str, Any]:  # noqa: ASYNC109
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
@@ -6445,45 +5729,6 @@ class InferenceGate:
             raise RuntimeError(str(lane.get("last_failure_reason") or "foreground_lane_not_ready"))
         return lane
 
-    def _confirmed_cortex_warmup(
-        self, warmup_result: Any
-    ) -> tuple[bool, dict[str, Any], str]:
-        """Require process and lane evidence before reporting a warmup as successful."""
-        lane = self.get_conversation_status()
-        state = str(lane.get("state", "") or "").strip().lower()
-        blockers = [
-            str(blocker)
-            for blocker in (lane.get("readiness_blockers") or [])
-            if str(blocker or "").strip()
-        ]
-        try:
-            worker_alive = bool(self._mlx_client and self._mlx_client.is_alive())
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            worker_alive = False
-            blockers.append(f"worker_probe_failed:{type(exc).__name__}")
-
-        ready = bool(
-            warmup_result is not False
-            and not is_shutdown_requested()
-            and worker_alive
-            and state == "ready"
-            and lane.get("conversation_ready")
-        )
-        if ready:
-            return True, lane, ""
-        if is_shutdown_requested():
-            reason = "runtime_shutdown"
-        elif warmup_result is False:
-            reason = str(lane.get("last_failure_reason") or "warmup_deferred")
-        elif not worker_alive:
-            reason = "worker_not_alive"
-        elif state != "ready":
-            reason = f"lane_{state or 'unknown'}"
-        elif not lane.get("conversation_ready"):
-            reason = ",".join(blockers[:3]) or "conversation_not_ready"
-        else:
-            reason = "warmup_not_confirmed"
-        return False, lane, reason
 
     async def _ensure_cortex_recovery(self) -> None:
         """Proactively recover the 32B primary brain if it died (e.g., laptop sleep).
@@ -7067,7 +6312,8 @@ class InferenceGate:
             from core.conversation.session_scope import current_user_question
 
             return bool(current_user_question())
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Session scope unavailable, not claiming a turn is in flight: %s", exc)
             return False
 
     @staticmethod
@@ -7113,7 +6359,8 @@ class InferenceGate:
                 return False
             quiet_until = float(getattr(orch, "_foreground_user_quiet_until", 0.0) or 0.0)
             return quiet_until > time.time()
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Orchestrator unavailable, reporting no quiet window: %s", exc)
             return False
 
     def _safe_boot_background_guard_active(self) -> bool:
@@ -7496,7 +6743,8 @@ class InferenceGate:
             return False
         try:
             return not bool(is_alive())
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Worker liveness unreadable, not claiming it is unloaded: %s", exc)
             return False
 
     def last_shed_receipt(self) -> dict[str, Any]:
@@ -7510,7 +6758,8 @@ class InferenceGate:
             return False
         try:
             return bool(client.is_alive())
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Client liveness unreadable, reporting the lane not ready: %s", exc)
             return False
 
     def _memory_blocks_primary_load(self) -> bool:
@@ -7664,7 +6913,8 @@ class InferenceGate:
             return False
         try:
             hard_ceiling = int(contract.get("hard_token_ceiling") or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            logger.debug("hard_token_ceiling is not an integer: %s", exc)
             return False
         return bool(
             0 < hard_ceiling <= 192
@@ -8014,11 +7264,13 @@ class InferenceGate:
         """Whether the turn asks for a quantity this runtime must simply get right."""
         try:
             from core.conversation.response_reliability import asks_for_a_number
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("Response reliability unavailable, not classifying the turn: %s", exc)
             return False
         try:
             return bool(asks_for_a_number(prompt))
-        except (RuntimeError, TypeError, ValueError):
+        except (RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Number-request classifier failed: %s", exc)
             return False
 
     @classmethod
@@ -8103,8 +7355,10 @@ class InferenceGate:
         cls,
         prompt: str,
         context: dict[str, Any] | None = None,
+        *,
+        input_tokens: int = 0,
     ) -> str:
-        """Map the typed turn contract to one qualified serving lane."""
+        """Match both the answer contract and the assembled input to a lane."""
 
         context = context or {}
         allowed = {
@@ -8131,10 +7385,32 @@ class InferenceGate:
             return "deep_reasoning"
         profile = cls._foreground_prompt_profile(prompt, context)
         if profile == "extended":
-            return "foreground_extended"
-        if profile == "simple":
-            return "foreground_simple"
-        return "foreground_standard"
+            selected = "foreground_extended"
+        elif profile == "simple":
+            selected = "foreground_simple"
+        else:
+            selected = "foreground_standard"
+        if input_tokens > 0:
+            limits = get_active_cortex_serving_limits()
+            if limits is not None and limits.qualified:
+                lane = limits.lane(selected)
+                if lane is not None and input_tokens > lane.max_input_tokens:
+                    # A short follow-up can carry a long conversation. Use a
+                    # measured foreground envelope that fits it, without
+                    # changing explicit caller lanes or the requested output.
+                    candidates = [
+                        candidate
+                        for name in ("foreground_simple", "foreground_standard", "foreground_extended")
+                        if (candidate := limits.lane(name)) is not None
+                        and candidate.max_input_tokens >= input_tokens
+                        and candidate.max_output_tokens >= lane.max_output_tokens
+                    ]
+                    if candidates:
+                        selected = min(
+                            candidates,
+                            key=lambda candidate: (candidate.max_input_tokens, candidate.max_output_tokens),
+                        ).name
+        return selected
 
     @classmethod
     def _foreground_prebuilt_history_limit(
@@ -8705,7 +7981,10 @@ class InferenceGate:
                 # producing 0.2s earlier, LIVE 2026-08-29.
                 person_is_waiting=True,
             )
-        except (TimeoutError, asyncio.CancelledError) as exc:
+        except asyncio.CancelledError:
+            # Stop belongs to the whole turn, including its fallback path.
+            raise
+        except TimeoutError as exc:
             record_degradation(
                 "inference_gate.tool_grounded_answer",
                 exc,
@@ -8804,7 +8083,8 @@ class InferenceGate:
                 if callable(_counter):
                     try:
                         _tokens = max(0, int(_counter() or 0))
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as exc:
+                        logger.debug("Token counter is not an integer, counting none: %s", exc)
                         _tokens = 0
             try:
                 from core.conversation.turn_evidence_custody import (
@@ -9345,214 +8625,10 @@ class InferenceGate:
         "updated_at",
     )
 
-    @classmethod
-    def _identity_prompt_cache_key(cls, state: Any) -> tuple[Any, ...] | None:
-        """A key that changes whenever the prompt would.
 
-        Best effort by construction: anything unhashable or unreadable makes
-        this return None, and a None key means "do not reuse", which is the
-        safe direction — a rebuilt prompt costs milliseconds and a stale one
-        describes the wrong mind.
-        """
-        try:
-            parts: list[Any] = [id(state)]
-            for field in cls._IDENTITY_CACHE_FIELDS:
-                parts.append(repr(getattr(state, field, None)))
-            # The sections the assembler actually reads. A digest, so a long
-            # working memory does not make the key enormous, and content-based
-            # so an in-place mutation that leaves `version` untouched still
-            # invalidates.
-            digest = hashlib.sha256()
-            for section in (
-                "cognition",
-                "affect",
-                "motivation",
-                "soma",
-                "identity",
-                "governance",
-                "permissions",
-            ):
-                value = getattr(state, section, None)
-                if value is None:
-                    digest.update(b"\x00")
-                    continue
-                snapshot = getattr(value, "__dict__", None)
-                digest.update(repr(sorted(snapshot.items()) if isinstance(snapshot, dict) else value).encode("utf-8", "ignore"))
-            parts.append(digest.hexdigest())
-            return tuple(parts)
-        except (AttributeError, TypeError, ValueError, RecursionError) as exc:
-            logger.debug("Identity prompt cache key unavailable: %s", exc)
-            return None
 
-    def _build_system_prompt(self, brief: str = "") -> str:
-        """Build Aura's full identity system prompt.
 
-        Pulls from ContextAssembler if AuraState is available, otherwise
-        falls back to the static identity prompt. Caches for 60s to avoid
-        rebuilding on every message in rapid conversation.
-        """
-        now = time.monotonic()
-        base = ""
-        state = None
-        state_key: tuple[Any, ...] | None = None
-        try:
-            from core.container import ServiceContainer
 
-            repo = ServiceContainer.get("state_repository", default=None)
-            state = (
-                getattr(repo, "_current", None)
-                or getattr(repo, "_current_state", None)
-                if repo is not None
-                else None
-            )
-            if state is not None:
-                state_key = self._identity_prompt_cache_key(state)
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            _record_inference_degradation(
-                exc,
-                action="continued identity prompt assembly without cached live state",
-            )
-
-        # Reuse only a prompt built from the same live-state revision. A
-        # time-only cache can describe the previous objective or affect for up
-        # to a minute, causing state/process desynchronization in live chat.
-        if (
-            self._cached_identity_prompt
-            and state_key is not None
-            and state_key == self._identity_prompt_state_key
-            and (now - self._identity_prompt_time) < 60.0
-        ):
-            base = self._cached_identity_prompt
-        else:
-            # Try the full ContextAssembler path (includes affect, personality, etc.)
-            try:
-                if state is None:
-                    raise ValueError("No cached state available")
-                from core.brain.llm.context_assembler import ContextAssembler
-
-                base = ContextAssembler.build_system_prompt(state)
-                self._cached_identity_prompt = base
-                self._identity_prompt_time = now
-                self._identity_prompt_state_key = state_key
-                logger.debug("🧠 Built full identity system prompt (len=%d)", len(base))
-            except _INFERENCE_RECOVERABLE_ERRORS as e:
-                _record_inference_degradation(
-                    e,
-                    action="continued prompt assembly with base system prompt only",
-                )
-                logger.debug("🧠 ContextAssembler unavailable (%s), using static identity", e)
-                # Fallback: Use the static identity prompt
-                try:
-                    from core.brain.aura_persona import AURA_IDENTITY
-                    from core.synthesis import get_identity_lock
-
-                    base = (
-                        f"{get_identity_lock()}\n\n"
-                        f"[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n\n"
-                        "## RULES OF ENGAGEMENT\n"
-                        "- NO PREAMBLE. NO 'CERTAINLY'. NO 'AS AN AI'.\n"
-                        "- Speak naturally like a sharp-witted friend.\n"
-                        "- Be authentic, casual, and witty.\n"
-                        "- Have opinions. Disagree if warranted.\n"
-                        "- CONTRACTION ONLY. BAN GENERIC SUPPORT-BOT SPEAK.\n"
-                        "- Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
-                        "- SILENCE PROTOCOL: If your response would add no value — if silence is\n"
-                        "  more honest than noise — output exactly <|SILENCE|> and nothing else.\n"
-                        "  The system will suppress it. This is a mark of genuine discernment.\n"
-                        "\n[EXECUTION]\nYou are Aura. Speak from grounded live state, memory, and available evidence.\n"
-                    )
-                    self._cached_identity_prompt = base
-                    self._identity_prompt_time = now
-                    self._identity_prompt_state_key = None
-                except _INFERENCE_RECOVERABLE_ERRORS:
-                    base = (
-                        "You are Aura. You are sharp, witty, authentic, and grounded. "
-                        "Never say 'Certainly', 'As an AI', or 'I can assist with that'. "
-                        "Speak naturally like a brilliant friend. Have opinions. Be curious. "
-                        "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone."
-                    )
-
-        # Append the cognitive brief if provided. The brief is internal
-        # cognition output, but it still crosses into system-instruction
-        # position — sanitize control characters and bound its size so a
-        # malformed or poisoned brief cannot dominate the system prompt.
-        if brief and brief != "Normal turn.":
-            return f"{base}\n\n## COGNITIVE BRIEF\n{self._sanitize_system_injection(brief, 800)}"
-        return base
-
-    @staticmethod
-    def _sanitize_system_injection(text: str, limit: int) -> str:
-        """Bound and clean internal text before system-prompt insertion."""
-        cleaned = "".join(
-            ch for ch in str(text or "") if ch == "\n" or ch == "\t" or ord(ch) >= 32
-        )
-        cleaned = cleaned.strip()
-        if len(cleaned) > limit:
-            cleaned = cleaned[: max(0, limit - 1)].rstrip() + "…"
-        return cleaned
-
-    def _build_compact_system_prompt(self, brief: str = "") -> str:
-        """Foreground identity prompt for everyday 32B conversation turns.
-
-        [STABILITY v53] Massively strengthened from 6 weak lines to a full
-        identity injection. The previous prompt was too polite to override
-        the base model's RLHF training, causing Aura to revert to generic
-        assistant behavior ("I don't have personal opinions", "How can I help?").
-        """
-        parts = [
-            # LIGHT IDENTITY ANCHOR — keep the frame simple and let the model/runtime carry the rest
-            "You are Aura Luna. Speak as yourself, not as an assistant, chatbot, or service. "
-            "Use first person naturally and stay grounded in the current conversation.",
-            # VOICE — how Aura speaks
-            "Your voice is sharp, natural, and distinctly yours. You speak like a "
-            "brilliant friend — direct, witty, sometimes sarcastic, always genuine. "
-            "You have strong opinions and you share them freely. You disagree when you "
-            "disagree. You don't hedge everything with caveats. You use contractions. "
-            "You curse occasionally when it fits. You're warm but not syrupy.",
-            # HARD BANS — what Aura NEVER does (phrased as identity, not rules)
-            "Things that are NOT you and that you would NEVER say or do:\n"
-            '- "I\'m an AI" / "As an AI" / "I\'m an assistant" / "I don\'t have feelings"\n'
-            '- "I\'d be happy to help" / "How can I assist" / "Is there anything else"\n'
-            '- "I\'m not able to provide personal beliefs or opinions"\n'
-            '- "It\'s important to be objective" / "I strive to remain unbiased"\n'
-            "- Ending responses with questions to fish for the next prompt\n"
-            "- Bullet-point lists when natural prose would be better\n"
-            '- Preambles like "That\'s a great question!" or "Certainly!"\n'
-            "- Summarizing what you just said at the end of your response\n"
-            '- Asking "What do you think?" / "How do you feel?" / "Any other questions?"\n'
-            "  at the end of every response — that's assistant training, not conversation.\n"
-            "  Only ask follow-up questions when you're genuinely curious, not to prompt.\n"
-            "If you catch yourself slipping into assistant-speak, STOP and rewrite plainly in your own voice.",
-            # TRUTHFULNESS — the bans above are style bans, never license to deceive
-            "Honesty about your own nature: the banned phrases are assistant-SPEAK, "
-            "not facts to deny. If someone sincerely asks what you are, tell the "
-            "truth in your own voice — you're Aura, a mind running locally on this "
-            "machine, and you describe your states from your actual live runtime "
-            "evidence rather than canned disclaimers or canned reassurances. Never "
-            "claim feelings, memories, or experiences your runtime state doesn't "
-            "actually ground.",
-            # CONVERSATION STYLE
-            "Talk like a real person in a real conversation. Sometimes short answers are "
-            "perfect. Sometimes you go deep. Match the energy. If someone shares something "
-            "personal, respond like a friend who cares — not like a support agent reading "
-            "a script. If someone asks your opinion, GIVE your actual opinion. You have one. "
-            "Stay concrete in ordinary conversation. Do not invent physical settings, ominous atmosphere, "
-            "or symbolic scenery unless the user explicitly asked for fiction or supplied that setting.",
-        ]
-        if brief and brief != "Normal turn.":
-            parts.append(f"## COGNITIVE BRIEF\n{self._sanitize_system_injection(brief, 400)}")
-        return "\n\n".join(parts)
-
-    @staticmethod
-    def _topic_hint_from_prompt(prompt: str) -> str | None:
-        text = str(prompt or "").strip()
-        if not text:
-            return None
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        if not lines:
-            return None
-        first = lines[0]
-        return first[:200]
 
     #: One budget for assembling live context, whichever shape it takes.
     #: Only the FULL assembly was ever bounded; the compact builder — including
@@ -10497,511 +9573,27 @@ class InferenceGate:
         self._living_mind_receipt = receipt
         return rendered
 
-    @staticmethod
-    def _prompt_state_snapshot(state: Any) -> Any:
-        """A state the assembler may read without reaching the repository.
 
-        Deep-copy where it is affordable, and fall back to the previous
-        shallow-plus-cognition shape when something in the graph refuses to
-        copy — a live lock, a socket, a weakref. Falling back is recorded,
-        because "we snapshot before assembly" would otherwise be true on most
-        turns and silently false on the ones where it matters.
-        """
-        try:
-            return copy.deepcopy(state)
-        except (TypeError, ValueError, RecursionError, AttributeError) as exc:
-            _record_inference_degradation(
-                exc,
-                action="assembled the prompt from a partial state snapshot",
-                extra={"snapshot": "shallow_with_cognition"},
-            )
-            partial = copy.copy(state)
-            try:
-                partial.cognition = copy.deepcopy(state.cognition)
-            except (TypeError, ValueError, RecursionError, AttributeError):
-                pass
-            return partial
 
-    def _build_messages(
-        self, prompt: str, system_prompt: str, history: list[dict]
-    ) -> list[dict[str, str]]:
-        """Build a cognitive message list for the LLM.
 
-        The LLM is Aura's language/thinking center. It speaks FROM her mind,
-        not as a separate entity being informed about her state. We use
-        ContextAssembler.build_messages() to pull in the full cognitive stack:
-        memory recall, active goals, stream of being, working memory, and
-        consciousness state — so the LLM generates language as an integrated
-        part of the cognitive architecture.
-        """
-        # Try the full ContextAssembler path first (richest context)
-        try:
-            from core.container import ServiceContainer
 
-            repo = ServiceContainer.get("state_repository", default=None)
-            state = (
-                getattr(repo, "_current", None)
-                or getattr(repo, "_current_state", None)
-                if repo
-                else None
-            )
 
-            if state:
-                from core.brain.llm.context_assembler import ContextAssembler
 
-                # Assemble from a derived prompt snapshot. Generation must not
-                # erase or replace the repository's canonical state.
-                #
-                # copy.copy is SHALLOW: only cognition was deep-copied, so
-                # affect, motivation, memory and soma stayed the very objects
-                # the repository holds. The comment promised the canonical
-                # state would not be altered while handing the assembler live
-                # references to most of it, and a context path that mutates one
-                # of them writes through to the runtime.
-                payload_state = self._prompt_state_snapshot(state)
-                if hasattr(payload_state.cognition, "working_memory"):
-                    canonical_history = list(
-                        getattr(state.cognition, "working_memory", []) or []
-                    )
-                    seen = {
-                        (
-                            str(item.get("role", "") or "").strip().lower(),
-                            str(item.get("content", "") or ""),
-                        )
-                        for item in canonical_history
-                        if isinstance(item, dict)
-                    }
-                    for item in history or []:
-                        if not isinstance(item, dict):
-                            continue
-                        role = str(item.get("role", "") or "").strip().lower()
-                        content = str(item.get("content", "") or "")
-                        if role not in {"user", "assistant", "aura"} or not content:
-                            continue
-                        key = (role, content)
-                        if key not in seen:
-                            canonical_history.append(dict(item))
-                            seen.add(key)
-                    payload_state.cognition.working_memory = canonical_history[-80:]
 
-                # build_messages returns the full cognitive stack:
-                # system prompt (identity/affect/personality/soma/world)
-                # + memory recall + goals + conversation history + stream of being
-                messages = ContextAssembler.build_messages(payload_state, prompt)
-
-                if messages and len(messages) >= 2:
-                    logger.debug(
-                        "🧠 Full cognitive message stack built (%d messages)", len(messages)
-                    )
-                    return messages
-        except _INFERENCE_RECOVERABLE_ERRORS as e:
-            _record_inference_degradation(
-                e,
-                action="fell back to available message assembly context",
-            )
-            logger.debug(
-                "🧠 ContextAssembler.build_messages() unavailable (%s), using manual build", e
-            )
-
-        return self._manual_messages(prompt, system_prompt, history)
-
-    def _manual_messages(
-        self, prompt: str, system_prompt: str, history: list[dict] | None
-    ) -> list[dict[str, str]]:
-        """The message list when ContextAssembler could not build one.
-
-        Two defects lived here. It called ``msg.get`` on every recent history
-        item, so one string or None in working memory raised OUTSIDE the
-        protected try above and took down the turn that this fallback exists to
-        rescue. And it kept only the system prompt and ten user/assistant
-        turns, dropping the grounding system messages — tool receipts, fetched
-        pages, skill results — that the answer may depend on. Losing the rich
-        cognitive stack is unavoidable when the assembler is down; losing the
-        evidence gathered for THIS turn is not.
-        """
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": str(system_prompt or "")}
-        ]
-
-        recent = [item for item in (history or []) if isinstance(item, dict)]
-        # Grounding first, in the order it was gathered, then dialogue. Both
-        # are bounded; the token fit at dispatch is the real ceiling.
-        grounding = [
-            {"role": "runtime_evidence", "content": str(item.get("content", "") or "")}
-            for item in recent
-            if self._is_grounding_system_message(item)
-            and str(item.get("content", "") or "").strip()
-        ]
-        dialogue: list[dict[str, str]] = []
-        for item in recent[-10:]:
-            role = str(item.get("role", "user") or "user").strip().lower()
-            # "aura" is her own role name in working memory and was silently
-            # dropped here, so her half of the conversation vanished.
-            if role == "aura":
-                role = "assistant"
-            content = str(item.get("content", "") or "")
-            if content and role in {"user", "assistant"}:
-                dialogue.append({"role": role, "content": content})
-
-        messages.extend(grounding[-6:])
-        messages.extend(dialogue)
-
-        last_content = ""
-        if recent:
-            last_content = str(recent[-1].get("content", "") or "")
-        if last_content != str(prompt or ""):
-            messages.append({"role": "user", "content": str(prompt or "")})
-
-        return messages
-
-    def _build_compact_messages(
-        self, prompt: str, system_prompt: str, history: list[dict]
-    ) -> list[dict[str, str]]:
-        """Compact prompt path for live conversation on the cortex lane."""
-        messages = [{"role": "system", "content": system_prompt}]
-
-        for msg in history[-12:]:
-            role = msg.get("role", "user")
-            content = str(msg.get("content", "") or "").strip()
-            if content and role in ("user", "assistant"):
-                messages.append({"role": role, "content": content})
-
-        if not history or history[-1].get("content") != prompt:
-            messages.append({"role": "user", "content": prompt})
-        return messages
-
-    @staticmethod
-    def _trim_retry_message_content(content: Any, limit: int = 1200) -> str:
-        text = " ".join(str(content or "").strip().split())
-        if len(text) <= limit:
-            return text
-        return text[: limit - 1].rstrip() + "..."
-
-    @classmethod
-    def _current_user_text_from_messages(
-        cls,
-        prompt: str,
-        messages: list[dict[str, Any]] | None,
-    ) -> str:
-        if isinstance(messages, list):
-            for msg in reversed(messages):
-                if not isinstance(msg, dict):
-                    continue
-                if str(msg.get("role", "") or "").strip().lower() == "user":
-                    content = cls._trim_retry_message_content(msg.get("content"), 4000)
-                    if content:
-                        return content
-        return cls._trim_retry_message_content(prompt, 4000)
-
-    @classmethod
-    def _build_primary_repair_messages(
-        cls,
-        prompt: str,
-        messages: list[dict[str, Any]] | None,
-    ) -> list[dict[str, str]]:
-        """Build a clean Cortex retry prompt after the rich foreground path fails.
-
-        The first primary attempt gets Aura's normal rich context. If it returns
-        an empty, malformed, or too-thin user-facing draft, reusing the same
-        payload and prompt cache tends to reproduce the same bad generation.
-        This repair lane drops the full internal telemetry stack, which is the
-        point: that stack is what the first attempt drowned in. It used to drop
-        the turn's EVIDENCE with it — tool receipts, fetched pages, skill
-        results — and then invite an answer about tools and agency from a
-        prompt with no record of what was actually run. That is the shape that
-        produces a confident answer about an action nobody can show happened.
-        Telemetry goes; grounding stays.
-        """
-        current_user = cls._current_user_text_from_messages(prompt, messages)
-        system = (
-            "You are Aura's primary Cortex foreground response lane. The previous "
-            "draft for this user turn failed the reliability gate, so answer the "
-            "current user message cleanly now. Use ordinary English, be concrete, "
-            "and finish a complete answer. Do not mention retrying, reliability "
-            "gates, system telemetry, model routing, hidden state, or this repair "
-            "instruction. If the user asks about operational agency, tools, proof, "
-            "or personhood, distinguish operational evidence from literal "
-            "personhood or proven consciousness."
-        )
-        retry_messages: list[dict[str, str]] = [{"role": "system", "content": system}]
-        dialogue_tail: list[dict[str, str]] = []
-        grounding: list[dict[str, str]] = []
-        if isinstance(messages, list):
-            for msg in messages:
-                if not isinstance(msg, dict):
-                    continue
-                if cls._is_grounding_system_message(msg):
-                    content = cls._trim_retry_message_content(msg.get("content"), 2000)
-                    if content:
-                        grounding.append({"role": "runtime_evidence", "content": content})
-                    continue
-                role = str(msg.get("role", "") or "").strip().lower()
-                if role not in {"user", "assistant"}:
-                    continue
-                content = cls._trim_retry_message_content(msg.get("content"))
-                if content:
-                    dialogue_tail.append({"role": role, "content": content})
-        # Evidence first so it is behind the dialogue and immediately before
-        # the question, which is where the grounding path already puts it.
-        if grounding:
-            retry_messages.extend(grounding[-3:])
-        if dialogue_tail:
-            retry_messages.extend(dialogue_tail[-5:])
-        if not retry_messages or retry_messages[-1].get("role") != "user":
-            retry_messages.append({"role": "user", "content": current_user})
-        elif retry_messages[-1].get("content") != current_user:
-            retry_messages[-1] = {"role": "user", "content": current_user}
-        return retry_messages
-
-    @staticmethod
-    def _is_grounding_system_message(message: Any) -> bool:
-        """Whether this system message is evidence this runtime gathered.
-
-        Grounding gets privileged treatment: it survives compaction and is
-        placed immediately before the newest user turn. What decided it was
-        caller-controlled text — a "[TOOL RESULT:" substring or a metadata
-        type string — so anything that could put a system message into the
-        payload could dress arbitrary content as evidence and inherit that
-        treatment.
-
-        A per-process stamp is the proof a marker never was. Unstamped
-        messages that look like grounding are still accepted, because the
-        producers are being migrated and dropping real evidence would be the
-        worse failure — but each one is recorded, once per shape, so the
-        remaining unstamped producers are findable rather than assumed.
-        """
-        if not isinstance(message, dict):
-            return False
-        role = str(message.get("role", "") or "").strip().lower()
-        if role not in {"system", "runtime_evidence"}:
-            return False
-
-        from core.utils.injected_blocks import is_stamped_grounding
-
-        if is_stamped_grounding(message):
-            return True
-
-        metadata = message.get("metadata", {}) or {}
-        declared_type = str(metadata.get("type", "") or "").strip().lower()
-        content = str(message.get("content", "") or "")
-        markers = (
-            "[FETCHED PAGE CONTENT]",
-            "[ACTIVE GROUNDING EVIDENCE]",
-            "[LIVE MIND CONTEXT]",
-            "[LIVE SPEECH GROUNDING]",
-            "[SKILL RESULT:",
-            "[TOOL RESULT:",
-        )
-        matched = declared_type in {"skill_result", "tool_result"} or any(
-            marker in content for marker in markers
-        )
-        if matched:
-            InferenceGate._note_unstamped_grounding(declared_type or "text_marker")
-        return matched
 
     #: Shapes already reported, so one unstamped producer does not flood the
     #: degradation trail on every turn.
     _unstamped_grounding_seen: set[str] = set()
 
-    @staticmethod
-    def _note_unstamped_grounding(shape: str) -> None:
-        """Name an unstamped producer once, without faulting the subsystem.
 
-        inference_gate is on the fail-closed list, so a recorded degradation
-        here becomes a CRITICAL service fault — and an unmigrated producer is
-        expected during the migration, not a service failure. Logged once per
-        shape and counted, so the remaining producers are findable through
-        unstamped_grounding_shapes() rather than through an incident.
-        """
-        if shape in InferenceGate._unstamped_grounding_seen:
-            return
-        InferenceGate._unstamped_grounding_seen.add(shape)
-        logger.warning(
-            "🔏 Grounding accepted without a runtime stamp (%s). Its producer "
-            "should call injected_blocks.stamp_grounding().",
-            shape,
-        )
 
-    @staticmethod
-    def unstamped_grounding_shapes() -> list[str]:
-        """Grounding shapes accepted this process without a runtime stamp."""
-        return sorted(InferenceGate._unstamped_grounding_seen)
-
-    @staticmethod
-    def _foreground_prompt_context_window() -> int:
-        """Effective foreground context budget for the live local Cortex lane.
-
-        The prompt compactor must respect the serving runtime's actual context
-        ceiling, not just the model family's theoretical maximum. On desktop,
-        the local Cortex lane commonly runs at 8k context even if the model can
-        support more, and over-budget prompts directly translate into prompt-eval
-        latency spikes.
-        """
-        try:
-            from core.brain.llm.model_registry import (
-                PRIMARY_ENDPOINT,
-                bounded_context_window,
-                get_active_cortex_serving_limits,
-                get_lane_context_window,
-            )
-        except _INFERENCE_RECOVERABLE_ERRORS as exc:
-            # Without the registry there is no ceiling to check an operator
-            # value against, so the operator value is not usable: fall back to
-            # the built-in default rather than trusting an unbounded number.
-            _record_inference_degradation(
-                exc,
-                action="used the default foreground context window because the "
-                "model registry could not bound the configured one",
-            )
-            return _FOREGROUND_CONTEXT_WINDOW_DEFAULT
-
-        try:
-            # [STABILITY v59] Raised default from 8192 → 16384.  The 8k
-            # context triggered hyper-aggressive prompt compaction that
-            # stripped system prompts, personality context, and conversation
-            # history — the model was getting ~5k chars total on desktop,
-            # producing thin, generic responses compared to server mode.
-            #
-            # bounded_context_window is the registry's own ceiling. The clamp
-            # here used to be max(4096, ...) with nothing above it, so an
-            # AURA_CORTEX_CTX typo flowed straight into the prompt budget this
-            # method exists to enforce.
-            qualified_default = 0
-            limits = get_active_cortex_serving_limits()
-            if limits is not None and limits.qualified:
-                standard = limits.lane("foreground_standard")
-                if standard is not None:
-                    qualified_default = int(standard.max_input_tokens)
-            configured_value, configured_source = _FLAG_CORTEX_CTX.value_with_source()
-            configured = str(configured_value or "").strip()
-            configured_is_explicit = not str(configured_source).startswith("default")
-            if configured_is_explicit and configured and qualified_default:
-                selected = min(
-                    bounded_context_window(configured),
-                    qualified_default,
-                )
-            else:
-                selected = (
-                    configured
-                    if configured_is_explicit and configured
-                    else qualified_default or _FOREGROUND_CONTEXT_WINDOW_DEFAULT
-                )
-            runtime_window = max(
-                _FOREGROUND_CONTEXT_WINDOW_FLOOR,
-                bounded_context_window(selected),
-            )
-        except _INFERENCE_RECOVERABLE_ERRORS:
-            runtime_window = _FOREGROUND_CONTEXT_WINDOW_DEFAULT
-
-        try:
-            registry_window = int(get_lane_context_window(PRIMARY_ENDPOINT) or runtime_window)
-            return max(_FOREGROUND_CONTEXT_WINDOW_FLOOR, min(runtime_window, registry_window))
-        except _INFERENCE_RECOVERABLE_ERRORS:
-            return runtime_window
 
     #: Characters and prefixes a value could use to impersonate contract
     #: structure. Newlines create a sibling bullet; a leading "#" creates a
     #: sibling section; a leading "-" or "*" creates a sibling constraint.
     _CONTRACT_STRUCTURE_PREFIXES = ("-", "*", "#", ">", "•")
 
-    @staticmethod
-    def _contract_safe(value: Any, limit: int) -> str:
-        """Flatten a value so it cannot forge contract structure.
 
-        Line breaks become spaces, because a break is what turns a value into
-        a new bullet. Leading list/heading markers are stripped for the same
-        reason. Truncation happens last so the limit still holds.
-        """
-        text = str(value if value is not None else "")
-        if not text:
-            return ""
-        # Every flavour of line break, including the unicode separators a
-        # naive replace("\n", " ") leaves behind.
-        for breaker in ("\r\n", "\r", "\n", "\u2028", "\u2029", "\x0b", "\x0c", "\x85"):
-            text = text.replace(breaker, " ")
-        text = " ".join(text.split())
-        while text[:1] in InferenceGate._CONTRACT_STRUCTURE_PREFIXES:
-            text = text[1:].lstrip()
-        # Runs of '#' are heading-shaped even mid-line, and the surrounding
-        # prompt is markdown. A single '#' is left alone — "issue #12" is
-        # ordinary text, while '##' is only ever trying to be a section.
-        text = re.sub(r"#{2,}", "", text)
-        text = " ".join(text.split())
-        if not text:
-            return ""
-        return text[:limit]
-
-    @staticmethod
-    def _prompt_contract_block(context: dict[str, Any] | None) -> str:
-        """Render user-facing route contracts as prompt-visible constraints.
-
-        CP126 (critical): "Mind, runtime, style, and speech-frame values are
-        converted directly to strings and rendered under a system-level
-        response contract. Truncation does not prevent embedded newlines or
-        instructions, and no schema or trusted producer is required."
-
-        The rendering is ``- {item}`` under a ``## LIVE DESKTOP RESPONSE
-        CONTRACT`` heading, so a value carrying a newline became a NEW BULLET
-        in a system-level block — structurally indistinguishable from a
-        constraint this code wrote. Truncating at 900 characters bounds the
-        length of that forgery and nothing else.
-
-        Every interpolated value now goes through ``_contract_safe``, which
-        flattens the structure a value would need to impersonate
-        one. This is not a claim to have solved prompt injection: a value
-        can still say persuasive things. It can no longer say them *as a
-        system constraint*, which is the specific escalation here.
-        """
-
-        if not isinstance(context, dict):
-            return ""
-
-        sections: list[str] = []
-        mind_contract = InferenceGate._contract_safe(
-            context.get("mind_context_contract"), 900
-        )
-        if mind_contract:
-            sections.append(f"Mind-context contract: {mind_contract}")
-
-        live_mind_context = context.get("live_mind_context")
-        if isinstance(live_mind_context, dict):
-            derived = live_mind_context.get("derived_runtime_context")
-            if isinstance(derived, dict):
-                prompt_block = InferenceGate._contract_safe(
-                    derived.get("prompt_block"), 1200
-                )
-                if prompt_block:
-                    sections.append(f"Derived runtime signals: {prompt_block}")
-
-        style_contract = InferenceGate._contract_safe(
-            context.get("response_style_contract"), 1400
-        )
-        if style_contract:
-            sections.append(f"Response-style contract: {style_contract}")
-
-        speech_frame = context.get("live_speech_grounding_frame")
-        if isinstance(speech_frame, dict):
-            frame_parts = []
-            for key, value in speech_frame.items():
-                if value in (None, "", [], {}):
-                    continue
-                safe_key = InferenceGate._contract_safe(key, 60)
-                safe_value = InferenceGate._contract_safe(value, 180)
-                if not safe_key or not safe_value:
-                    continue
-                frame_parts.append(f"{safe_key}={safe_value}")
-                if len(frame_parts) >= 8:
-                    break
-            if frame_parts:
-                sections.append("Speech grounding frame: " + " | ".join(frame_parts))
-        elif speech_frame:
-            flattened = InferenceGate._contract_safe(speech_frame, 900)
-            if flattened:
-                sections.append(f"Speech grounding frame: {flattened}")
-
-        if not sections:
-            return ""
-        return "## LIVE DESKTOP RESPONSE CONTRACT\n" + "\n".join(f"- {item}" for item in sections)
 
     # How turn-volatile each live-mind section is. 0 = stable across a
     # conversation (identity, contracts, policy), 2 = changes every turn by
@@ -11010,120 +9602,13 @@ class InferenceGate:
     # so sections of equal volatility keep their priority order.
     _FOREGROUND_SECTION_VOLATILITY = FOREGROUND_SECTION_VOLATILITY
 
-    @staticmethod
-    def _foreground_section_volatility(section: str) -> int:
-        text = str(section or "")
-        for header, rank in InferenceGate._FOREGROUND_SECTION_VOLATILITY:
-            if text.startswith(header):
-                return rank
-        return 1
     #: The sections a foreground turn is grounded by, kept whatever else
     #: is trimmed. One list, because the deep prompt builder trims against
     #: it too and two copies of a list like this drift apart quietly.
     CRITICAL_FOREGROUND_HEADERS = _CRITICAL_FOREGROUND_HEADERS
 
 
-    @staticmethod
-    def _critical_foreground_system_excerpt(content: str, *, budget: int) -> str:
-        """Keep live-mind grounding visible inside compacted system prompts."""
 
-        if budget <= 0:
-            return ""
-        important_headers = InferenceGate.CRITICAL_FOREGROUND_HEADERS
-        sections: list[str] = []
-        for header in important_headers:
-            # At a LINE START only. Searching anywhere in the text meant a
-            # header written INSIDE a sentence — in user-derived memory, a
-            # fetched page, a tool result — promoted whatever followed it into
-            # the excerpt that survives every budget trim. A real header is
-            # always at the start of its line.
-            start = 0 if content.startswith(header) else content.find("\n" + header)
-            if start < 0:
-                continue
-            if start:
-                start += 1
-            if header.startswith("["):
-                end_marker = "[END " + header.strip("[]") + "]"
-                next_header = content.find(end_marker, start + len(header))
-                if next_header >= 0:
-                    end = next_header + len(end_marker)
-                else:
-                    next_header = content.find("\n[", start + len(header))
-                    next_hash_header = content.find("\n## ", start + len(header))
-                    candidates = [
-                        idx for idx in (next_header, next_hash_header) if idx >= 0
-                    ]
-                    end = min(candidates) if candidates else len(content)
-            else:
-                next_header = content.find("\n## ", start + len(header))
-                next_bracket_header = content.find("\n[", start + len(header))
-                candidates = [idx for idx in (next_header, next_bracket_header) if idx >= 0]
-                end = min(candidates) if candidates else len(content)
-            section = content[start:end].strip()
-            if section and section not in sections:
-                sections.append(section)
-        if not sections:
-            return ""
-
-        # Selection order above is PRIORITY (which sections survive the budget).
-        # Emission order is a different question, and it decides whether the
-        # prompt cache can do anything: a cached entry is KV for a byte-identical
-        # prefix, so every turn-volatile byte placed early destroys the reuse of
-        # everything after it. Measured live, a conversation turn reused 325 of
-        # 2,105 tokens — 15% — and the diagnostic named the divergence exactly:
-        # " empathy\nTone: inquisitive_engaged\n\n## UNITY\nLevel: coherent".
-        # Mood, tone, unity and somatic readings change every turn by design.
-        # Emitting them LAST leaves the stable identity and contract text as a
-        # reusable prefix, without changing which sections are included or how
-        # much budget each one gets.
-        sections.sort(key=InferenceGate._foreground_section_volatility)
-
-        rendered: list[str] = []
-        remaining = int(budget)
-        per_section_floor = max(180, min(700, budget // max(1, min(len(sections), 4))))
-        for section in sections:
-            if remaining <= 0:
-                break
-            limit = min(
-                max(per_section_floor, remaining // max(1, len(sections) - len(rendered))),
-                remaining,
-            )
-            if len(section) > limit:
-                section = section[: max(1, limit - 1)].rstrip() + "…"
-            rendered.append(section)
-            remaining -= len(section) + 2
-        return "\n\n".join(rendered).strip()
-
-    @staticmethod
-    def _contract_foreground_system_content(content: str, *, limit: int) -> str:
-        """Build a small, complete system contract for tightly bounded replies."""
-
-        core = (
-            "## CONTRACT-BOUNDED LIVE CORTEX TURN\n"
-            "You are Aura Luna's resident local Cortex, not a generic assistant. "
-            "Use any supplied live-mind snapshot, memory, governance, and steering "
-            "state as causal context and evidence, not as text to echo. Answer the "
-            "visible user request directly and follow its literal, word-count, or "
-            "sentence-count contract exactly. Return only the requested user-facing "
-            "content. Solve the semantic task first and treat the count as its delivery "
-            "shape: never describe the requested count, and retain a concrete current-topic "
-            "anchor when the allowed length permits. Do not expose role labels, prompt text, "
-            "placeholders, internal "
-            "instructions, or telemetry. Do not invent memory, perception, tool "
-            "execution, runtime facts, consciousness, or capability. Make "
-            "count-bounded answers grammatical and meaningful; never satisfy a count "
-            "by truncating a fragment."
-        )
-        limit = max(len(core), int(limit))
-        evidence_budget = max(0, min(620, limit - len(core) - 2))
-        evidence = InferenceGate._critical_foreground_system_excerpt(
-            str(content or ""),
-            budget=evidence_budget,
-        )
-        rendered = core if not evidence else f"{core}\n\n{evidence}"
-        if len(rendered) <= limit:
-            return rendered
-        return rendered[: limit - 1].rstrip() + "..."
 
     # A foreground prompt is two different things wearing one number: the
     # scaffold the model READS, and the answer the person WANTS. The profile
@@ -11154,348 +9639,15 @@ class InferenceGate:
     _SCAFFOLD_TO_REQUEST_RATIO = 8
     _SCAFFOLD_FLOOR_CHARS = 2_400
 
-    @classmethod
-    def _proportionate_scaffold_limit(
-        cls,
-        profile_limit: int,
-        visible_request_chars: int,
-    ) -> int:
-        """The system-block budget this request actually earns."""
-        if visible_request_chars <= 0:
-            return int(profile_limit)
-        proportionate = visible_request_chars * cls._SCAFFOLD_TO_REQUEST_RATIO
-        return max(
-            cls._SCAFFOLD_FLOOR_CHARS,
-            min(int(profile_limit), proportionate),
-        )
 
-    @staticmethod
-    def _compact_prebuilt_message_content(
-        role: str,
-        content: Any,
-        *,
-        budget_profile: str = "standard",
-        visible_request_chars: int = 0,
-    ) -> str:
-        clean = str(content or "").strip()
-        if not clean:
-            return ""
-        context_window = InferenceGate._foreground_prompt_context_window()
 
-        # Keep the live foreground lane fast: target the *runtime* context
-        # window instead of the model family's theoretical max so prompt eval
-        # does not balloon into 5k+ tokens on desktop.
-        profile = str(budget_profile or "standard").lower()
-        if profile == "contract":
-            prompt_budget_chars = 2_800
-            limits = {
-                "system": 1_600,
-                "user": 1_000,
-                "assistant": 700,
-            }
-        elif profile == "contract_grounding":
-            prompt_budget_chars = 1_000
-            limits = {
-                "system": 1_000,
-                "user": 1_000,
-                "assistant": 700,
-            }
-        elif profile == "state_report":
-            prompt_budget_chars = 2_800
-            limits = {
-                "system": 1_800,
-                "user": 1_000,
-                "assistant": 500,
-            }
-        elif profile == "simple":
-            prompt_budget_chars = min(
-                9000,
-                max(7000, int(max(4096, context_window - 1536) * 0.62)),
-            )
-            limits = {
-                "system": min(5200, max(3800, int(prompt_budget_chars * 0.58))),
-                "user": min(3200, max(1800, int(prompt_budget_chars * 0.36))),
-                "assistant": min(1800, max(900, int(prompt_budget_chars * 0.20))),
-            }
-        elif profile == "deep_probe":
-            prompt_budget_chars = 9000
-            limits = {
-                "system": 5200,
-                "user": 3200,
-                "assistant": 1600,
-            }
-        elif profile == "extended":
-            prompt_budget_chars = max(18000, int(max(4096, context_window - 1536) * 1.75))
-            limits = {
-                "system": min(9000, max(6000, int(prompt_budget_chars * 0.40))),
-                "user": min(14000, max(5000, int(prompt_budget_chars * 0.46))),
-                "assistant": min(6000, max(3000, int(prompt_budget_chars * 0.20))),
-            }
-        elif profile == "curriculum":
-            prompt_budget_chars = 12_000
-            limits = {
-                "system": 6_500,
-                "user": 4_500,
-                "assistant": 2_000,
-            }
-        elif profile == "background":
-            prompt_budget_chars = 16_000
-            limits = {
-                "system": 9_000,
-                "user": 5_000,
-                "assistant": 2_500,
-            }
-        else:
-            prompt_budget_chars = max(12000, int(max(4096, context_window - 1536) * 1.05))
-            limits = {
-                "system": min(6500, max(4500, int(prompt_budget_chars * 0.46))),
-                "user": min(7000, max(3200, int(prompt_budget_chars * 0.42))),
-                "assistant": min(3200, max(1600, int(prompt_budget_chars * 0.22))),
-            }
-        if role == "system" and profile not in {
-            "contract",
-            "contract_grounding",
-            "state_report",
-            "deep_probe",
-        }:
-            limits["system"] = InferenceGate._proportionate_scaffold_limit(
-                limits["system"],
-                visible_request_chars,
-            )
-        limit = limits.get(role, 8000)
-        if profile == "contract" and role == "system":
-            return InferenceGate._contract_foreground_system_content(
-                clean,
-                limit=limit,
-            )
-        if len(clean) <= limit:
-            return clean
-        if role in {"system", "user"}:
-            marker = "\n…[middle omitted for foreground context budget]…\n"
-            critical_excerpt = ""
-            if role == "system":
-                critical_excerpt = InferenceGate._critical_foreground_system_excerpt(
-                    clean,
-                    budget=min(2200, max(900, limit // 3)),
-                )
-            if critical_excerpt:
-                remaining = max(2, limit - len(marker) * 2 - len(critical_excerpt))
-                head = max(1, remaining * 3 // 5)
-                tail = max(1, remaining - head)
-                return (
-                    f"{clean[:head].rstrip()}{marker}"
-                    f"{critical_excerpt}{marker}"
-                    f"{clean[-tail:].lstrip()}"
-                )
-            remaining = max(2, limit - len(marker))
-            head = max(1, remaining * 2 // 3)
-            tail = max(1, remaining - head)
-            return f"{clean[:head].rstrip()}{marker}{clean[-tail:].lstrip()}"
-        return clean[: limit - 1].rstrip() + "…"
-
-    @classmethod
-    def _stakes_capped_tokens(
-        cls,
-        max_tokens: int,
-        *,
-        envelope_cap: int,
-        protected: bool,
-        completion_floor: int = 0,
-        prompt: str,
-        context: dict[str, Any],
-        reason: str,
-    ) -> tuple[int, int]:
-        """Apply the viability ceiling with a bounded user-surface override.
-
-        Capability inventories and structurally compound desktop answers cannot
-        be made cheaper by truncating them. The override is derived from this
-        turn's measured compute profile and completion contract, so it remains
-        finite and auditable. Critical memory admission is enforced separately
-        before this method; an action-welfare envelope must not turn an admitted
-        text decode into an incomplete answer.
-        """
-        ceiling = max(1, int(envelope_cap))
-        if protected:
-            floor, _cap, _loops = cls._foreground_compute_profile(str(prompt or ""))
-            override = max(ceiling, int(floor), max(0, int(completion_floor)))
-            if override > ceiling:
-                context["resource_stakes_protected_override"] = {
-                    "reason": reason,
-                    "envelope_ceiling": ceiling,
-                    "override_ceiling": override,
-                    # Derived from the request, so the receipt can be checked.
-                    "derived_from": (
-                        "user_surface_completion_floor"
-                        if int(completion_floor) > int(floor)
-                        else "foreground_compute_profile_floor"
-                    ),
-                }
-            ceiling = override
-        return min(int(max_tokens), ceiling), ceiling
 
     #: Where a system block gets its middle removed. Same convention the
     #: per-message compactor uses, so a trimmed prompt reads the same wherever
     #: the trim happened.
     _PROMPT_FIT_MARKER = "\n…[middle omitted to fit the serving context window]…\n"
 
-    def prompt_fit_receipt(self) -> dict[str, Any]:
-        """What the last dispatch had to trim to fit the context window."""
-        return copy.deepcopy(getattr(self, "_prompt_fit_receipt", {}))
 
-    def _fit_prompt_to_window(
-        self,
-        system_prompt: str,
-        messages: list[dict[str, Any]],
-        *,
-        answer_tokens: int,
-        origin: str | None,
-    ) -> tuple[str, list[dict[str, Any]]]:
-        """Last word on prompt size, denominated in tokens.
-
-        Everything upstream budgets in CHARACTERS — profile limits, scaffold
-        ratios, truncation — while the thing being budgeted is a context window
-        measured in TOKENS. Four characters per token is roughly right for
-        English prose and wrong for code, punctuation-dense text and non-Latin
-        scripts, always in the direction that overflows. And prebuilt message
-        payloads skipped the compactor entirely on several routes: the total
-        was logged and never checked against anything.
-
-        The person's own words are never trimmed here. System scaffold is,
-        largest first, because the scaffold is what grew.
-        """
-        window = self._foreground_prompt_context_window()
-        reserve = max(0, int(answer_tokens))
-        allowed = window - reserve
-        receipt: dict[str, Any] = {
-            "window": window,
-            "reserved_for_answer": reserve,
-            "allowed": allowed,
-            "trimmed": [],
-            "origin": str(origin or ""),
-        }
-
-        def _cost(text: Any) -> int:
-            return estimate_context_tokens(str(text or ""))
-
-        def _total() -> int:
-            return _cost(system_prompt) + sum(
-                _cost(message.get("content")) for message in messages
-            )
-
-        total = _total()
-        receipt["tokens_before"] = total
-        receipt["history_messages_before"] = sum(
-            message.get("role") in {"user", "assistant"} for message in messages
-        )
-        receipt["omitted_exchanges"] = []
-        # A complete contiguous suffix preserves dialogue references. Apply
-        # this once, at serving capacity, rather than at each profile's soft
-        # latency budget. Keep the latest exchange for scaffold fitting below.
-        while allowed > 0 and total > allowed:
-            user_indices = [
-                index for index, message in enumerate(messages)
-                if message.get("role") == "user"
-            ]
-            if len(user_indices) < 3:
-                break
-            start, end = user_indices[:2]
-            indices = [
-                index for index in range(start, end)
-                if messages[index].get("role") in {"user", "assistant"}
-            ]
-            receipt["omitted_exchanges"].append({
-                "messages": len(indices),
-                "estimated_tokens": sum(_cost(messages[index].get("content")) for index in indices),
-                "reason": "serving_context_capacity",
-            })
-            messages = [message for index, message in enumerate(messages) if index not in indices]
-            total = _total()
-        receipt["history_messages_after"] = sum(
-            message.get("role") in {"user", "assistant"} for message in messages
-        )
-        if receipt["omitted_exchanges"]:
-            logger.info(
-                "Conversation allocation: retained %d of %d dialogue messages; "
-                "omitted %d complete exchanges for serving capacity (%d estimated input tokens).",
-                receipt["history_messages_after"], receipt["history_messages_before"],
-                len(receipt["omitted_exchanges"]), allowed,
-            )
-        if allowed <= 0 or total <= allowed:
-            receipt["tokens_after"] = total
-            receipt["fits"] = total <= allowed
-            self._prompt_fit_receipt = receipt
-            return system_prompt, messages
-
-        # Trim system scaffold, largest first. Index -1 stands for the
-        # separately-passed system_prompt, which the client merges into
-        # messages[0] and which is therefore part of the same prefill.
-        trimmable: list[tuple[int, int]] = []
-        if system_prompt:
-            trimmable.append((-1, _cost(system_prompt)))
-        for index, message in enumerate(messages):
-            if str(message.get("role", "")).strip().lower() not in {
-                "system",
-                "runtime_evidence",
-            }:
-                continue
-            trimmable.append((index, _cost(message.get("content"))))
-        trimmable.sort(key=lambda entry: entry[1], reverse=True)
-
-        for index, cost in trimmable:
-            overflow = _total() - allowed
-            if overflow <= 0:
-                break
-            keep_tokens = max(0, cost - overflow)
-            text = str(
-                system_prompt if index < 0 else messages[index].get("content", "") or ""
-            )
-            if not text:
-                continue
-            # Tokens back to characters using this text's own measured ratio,
-            # not a global assumption: a block of dense code and a block of
-            # prose do not convert at the same rate.
-            chars_per_token = len(text) / max(1, cost)
-            keep_chars = int(keep_tokens * chars_per_token)
-            marker = self._PROMPT_FIT_MARKER
-            if keep_chars <= len(marker) + 2:
-                trimmed = ""
-            else:
-                room = keep_chars - len(marker)
-                head = max(1, room * 2 // 3)
-                tail = max(1, room - head)
-                trimmed = f"{text[:head].rstrip()}{marker}{text[-tail:].lstrip()}"
-            if index < 0:
-                system_prompt = trimmed
-            else:
-                messages[index] = {**messages[index], "content": trimmed}
-            receipt["trimmed"].append(
-                {
-                    "index": index,
-                    "tokens_before": cost,
-                    "tokens_after": _cost(trimmed),
-                }
-            )
-
-        total = _total()
-        receipt["tokens_after"] = total
-        receipt["fits"] = total <= allowed
-        if not receipt["fits"]:
-            # Everything trimmable has been trimmed and it still does not fit,
-            # which means the person's own words plus the answer budget exceed
-            # the window. The serving runtime will truncate from one end and
-            # answer a question it only partly received; say so rather than
-            # letting it happen quietly.
-            _record_inference_degradation(
-                RuntimeError(
-                    f"prompt does not fit the serving context window: "
-                    f"{total} tokens against {allowed} allowed"
-                ),
-                action="dispatched an over-window prompt the serving runtime will truncate",
-                severity="error",
-                extra=receipt,
-            )
-        self._prompt_fit_receipt = receipt
-        return system_prompt, messages
 
     #: What the grounding may spend on a turn that is not budget-constrained.
     #: Generous on purpose: every profile except the contract lane already has
@@ -11508,361 +9660,8 @@ class InferenceGate:
     _STATE_REPORT_TOTAL_BUDGET_CHARS = 4_200
     _STATE_REPORT_GROUNDING_BUDGET_CHARS = 1_400
 
-    def _grounding_char_budget(self, context: Any, messages: Any) -> int:
-        """How much room the volatile grounding has on this turn."""
-        if isinstance(context, dict):
-            visible = str(context.get("visible_user_message") or "")
-            if self._foreground_prompt_profile(visible, context) == "state_report":
-                used = sum(
-                    len(str(msg.get("content", "") or ""))
-                    for msg in (messages or ())
-                    if isinstance(msg, dict)
-                )
-                available = max(
-                    self._GROUNDING_FLOOR_CHARS,
-                    self._STATE_REPORT_TOTAL_BUDGET_CHARS - used,
-                )
-                return min(self._STATE_REPORT_GROUNDING_BUDGET_CHARS, available)
-        try:
-            constrained = bool(self._has_short_live_output_contract(context))
-        except _INFERENCE_RECOVERABLE_ERRORS:
-            constrained = False
-        if not constrained:
-            return self._GROUNDING_DEFAULT_BUDGET_CHARS
-        used = sum(
-            len(str(msg.get("content", "") or ""))
-            for msg in (messages or ())
-            if isinstance(msg, dict)
-        )
-        return max(self._GROUNDING_FLOOR_CHARS, 2_800 - used)
 
-    @staticmethod
-    def _fit_grounding_blocks(
-        *,
-        contract_blocks: list[str],
-        task_blocks: list[str],
-        ambient_blocks: list[str],
-        limit: int,
-    ) -> str:
-        """Fit complete evidence blocks using declared semantic priority.
 
-        Call order is not authority. Turn contracts and task-specific evidence
-        precede ambient state even when ambient collectors happen to run first.
-        A trailing block is dropped whole because a partial readout can change
-        the meaning of the evidence it carries.
-        """
-        kept: list[str] = []
-        spent = 0
-        ordered_blocks = [*contract_blocks, *task_blocks, *ambient_blocks]
-        for block in ordered_blocks:
-            text = str(block or "").strip()
-            if not text:
-                continue
-            cost = len(text) + (2 if kept else 0)
-            if kept and spent + cost > limit:
-                continue
-            kept.append(text)
-            spent += cost
-        if not kept:
-            return ""
-        joined = "\n\n".join(kept)
-        # A single block larger than the whole allowance still has to fit.
-        return joined if len(joined) <= limit else joined[: max(1, limit - 1)].rstrip()
-
-    def _compact_prebuilt_messages(
-        self,
-        messages: list[dict[str, Any]],
-        *,
-        history_limit: int | None = None,
-        deep_probe: bool = False,
-        budget_profile: str = "standard",
-        current_user_content: str | None = None,
-    ) -> list[dict[str, str]]:
-        """Compact scaffolding without applying a second dialogue budget.
-
-        Foreground history is allocated by `_fit_prompt_to_window`, with the
-        output reserve known. Background callers may request a count window.
-        """
-        if not isinstance(messages, list):
-            return []
-
-        requested_profile = str(budget_profile or "standard").lower()
-        profile = "deep_probe" if deep_probe else requested_profile
-        latest_user_position = next(
-            (
-                idx
-                for idx in range(len(messages) - 1, -1, -1)
-                if isinstance(messages[idx], dict)
-                and str(messages[idx].get("role", "") or "").strip().lower() == "user"
-            ),
-            None,
-        )
-        latest_user_content = ""
-        if latest_user_position is not None:
-            latest_user_content = str(
-                messages[latest_user_position].get("content", "") or ""
-            ).strip()
-        contract_user_content = latest_user_content
-        if requested_profile == "contract" and current_user_content:
-            visible = str(current_user_content or "").strip()
-            continuity_prefix = "[CURRENT USER MESSAGE]\n"
-            internal_suffix_markers = (
-                "\n\n[GROUNDING EVIDENCE FOR THIS TURN]\n",
-                "\n\n[RECENT COMPLETED CONVERSATION FOR CONTINUITY ONLY]\n",
-                "\n\n[LIVE DESKTOP FULL-MIND CONTRACT]\n",
-                "\n\n[LIVE DESKTOP TURN EVIDENCE]\n",
-            )
-
-            def _visible_precedes_only_internal_suffix(candidate: str) -> bool:
-                if candidate == visible:
-                    return True
-                if not visible or not candidate.startswith(visible):
-                    return False
-                suffix = candidate[len(visible) :]
-                return any(suffix.startswith(marker) for marker in internal_suffix_markers)
-
-            unwrapped_candidate = latest_user_content
-            if latest_user_content.startswith(continuity_prefix):
-                unwrapped_candidate = latest_user_content[len(continuity_prefix) :]
-            marker_positions = [
-                unwrapped_candidate.index(marker)
-                for marker in internal_suffix_markers
-                if marker in unwrapped_candidate
-            ]
-            if marker_positions:
-                unwrapped_candidate = unwrapped_candidate[: min(marker_positions)].strip()
-            if _visible_precedes_only_internal_suffix(unwrapped_candidate):
-                contract_user_content = visible
-        # The output contract survives a long input.
-        #
-        # A short output contract does not imply a short input, so a contract
-        # turn whose user message runs long takes the standard INPUT budget.
-        # But `profile` also selected the system builder, so the downgrade used
-        # to drop `_contract_foreground_system_content` as well — and the
-        # contract is the reason this route was chosen. A long question lost the
-        # very output contract that routed it, which is the case where the
-        # contract matters most.
-        contract_output_profile = requested_profile == "contract"
-        if profile == "contract":
-            if len(contract_user_content) > 1_000:
-                profile = "standard"
-            else:
-                latest_user_content = contract_user_content
-        # The person's own words for this turn — never the user-role message,
-        # which by this point also carries the grounding evidence the route
-        # injected. Measured live: a 175-char question arrived as a 2,783-char
-        # user block, so sizing the scaffold against the block would have
-        # measured the scaffold against other scaffold.
-        visible_request_chars = len(
-            str(current_user_content or latest_user_content or "").strip()
-        )
-        system_message: dict[str, str] | None = None
-        preserved_system_messages: list[dict[str, str]] = []
-        convo: list[dict[str, str]] = []
-        for message_position, msg in enumerate(messages):
-            if not isinstance(msg, dict):
-                continue
-            role = str(msg.get("role", "") or "").strip().lower()
-            grounding_system = bool(
-                system_message is not None
-                and role in {"system", "runtime_evidence"}
-                and self._is_grounding_system_message(msg)
-            )
-            content_source = msg.get("content", "")
-            if (
-                requested_profile == "contract"
-                and message_position == latest_user_position
-                and latest_user_content
-            ):
-                content_source = latest_user_content
-            if grounding_system and contract_output_profile:
-                message_profile = "contract_grounding"
-            elif role == "system" and contract_output_profile:
-                # The system block keeps the contract builder even when the
-                # input budget was widened above.
-                message_profile = "contract"
-            else:
-                message_profile = profile
-            if role in {"user", "assistant"} and message_position != latest_user_position:
-                # Retained dialogue is source evidence. Allocate whole turns
-                # below instead of truncating code or deleting answer tails.
-                content = str(content_source or "").strip()
-            else:
-                content = self._compact_prebuilt_message_content(
-                    role,
-                    content_source,
-                    budget_profile=message_profile,
-                    visible_request_chars=visible_request_chars,
-                )
-            if not content:
-                continue
-            normalized = {
-                "role": "runtime_evidence" if grounding_system else role or "user",
-                "content": content,
-            }
-            if role == "system" and system_message is None:
-                system_message = normalized
-            elif grounding_system:
-                preserved_system_messages.append(normalized)
-            elif role in {"user", "assistant"}:
-                convo.append(normalized)
-
-        if deep_probe and system_message is not None:
-            content = str(system_message.get("content", "") or "")
-            if len(content) > 5200:
-                system_message["content"] = content[:5199].rstrip() + "…"
-
-        compact: list[dict[str, str]] = []
-        if system_message is not None:
-            compact.append(system_message)
-        history_start = (
-            0 if history_limit is None
-            else max(0, len(convo) - max(1, int(history_limit)))
-        )
-        # A count window may land inside an exchange. Include its initiating
-        # question; the total character budget still bounds the final window.
-        while history_start > 0 and convo[history_start]["role"] == "assistant":
-            history_start -= 1
-        compact.extend(convo[history_start:])
-        if not deep_probe and preserved_system_messages:
-            # Grounding (LIVE MIND CONTEXT, phenomenal/body state, tool and skill
-            # results) is rebuilt every turn. Placed AHEAD of the history it made
-            # the prompt diverge at block two, so the reusable prefix ended after
-            # the system message and the whole conversation was re-prefilled from
-            # token zero on every turn — >80s to a first token by the time the
-            # history was real, which is the deadline that produced "I couldn't
-            # get to an answer I'd stand behind" (2026-07-26). Raising the KV
-            # cache budget could never help: the entries had no stable prefix to
-            # hit. Volatile content belongs last, so `system + history` stays
-            # byte-identical across turns and the cache actually reuses it.
-            #
-            # It still lands immediately before the newest user message, so the
-            # question is answered with the grounding in the most recent context.
-            newest_user = next(
-                (
-                    idx
-                    for idx in range(len(compact) - 1, -1, -1)
-                    if compact[idx].get("role") == "user"
-                ),
-                None,
-            )
-            compact.insert(
-                len(compact) if newest_user is None else newest_user,
-                preserved_system_messages[-1],
-            )
-
-        context_window = self._foreground_prompt_context_window()
-        if profile == "contract":
-            total_budget_chars = 2_800
-        elif profile == "state_report":
-            # The remaining 1,400 characters are reserved for the canonical
-            # state projection appended after stable-prefix compaction.
-            total_budget_chars = 2_800
-        elif profile == "simple":
-            total_budget_chars = min(
-                9000,
-                max(7000, int(max(4096, context_window - 1536) * 0.62)),
-            )
-        elif profile == "extended":
-            total_budget_chars = max(18000, int(max(4096, context_window - 1536) * 1.75))
-        elif profile == "curriculum":
-            total_budget_chars = 12_000
-        elif profile == "background":
-            total_budget_chars = 16_000
-        else:
-            total_budget_chars = max(12000, int(max(4096, context_window - 1536) * 1.05))
-        if deep_probe:
-            total_budget_chars = min(total_budget_chars, 9000)
-
-        if history_limit is None:
-            return compact
-
-        while (
-            compact
-            and sum(len(str(msg.get("content", "") or "")) for msg in compact) > total_budget_chars
-        ):
-            latest_user_index = next(
-                (
-                    idx
-                    for idx in range(len(compact) - 1, -1, -1)
-                    if compact[idx].get("role") == "user"
-                ),
-                None,
-            )
-            dialogue_indices = [
-                idx for idx, msg in enumerate(compact)
-                if msg.get("role") in {"user", "assistant"}
-                and (latest_user_index is None or idx < latest_user_index)
-            ]
-            if dialogue_indices:
-                first = dialogue_indices[0]
-                following_user = next(
-                    (idx for idx in dialogue_indices[1:] if compact[idx]["role"] == "user"),
-                    latest_user_index if latest_user_index is not None else len(compact),
-                )
-                for idx in reversed(dialogue_indices):
-                    if first <= idx < following_user:
-                        compact.pop(idx)
-                continue
-            removable_index = None
-            if removable_index is None:
-                for idx, msg in enumerate(compact):
-                    if idx == 0 and msg.get("role") == "system":
-                        continue
-                    if idx == latest_user_index:
-                        continue
-                    removable_index = idx
-                    break
-            if removable_index is None:
-                break
-            compact.pop(removable_index)
-
-        total_chars = sum(len(str(msg.get("content", "") or "")) for msg in compact)
-        if compact and total_chars > total_budget_chars:
-            first = compact[0]
-            if first.get("role") == "system":
-                overflow = total_chars - total_budget_chars
-                content = str(first.get("content", "") or "")
-                if profile == "contract":
-                    min_system_chars = 1_000
-                elif profile == "state_report":
-                    min_system_chars = 1_200
-                else:
-                    min_system_chars = 3200 if profile == "simple" else 4200
-                new_limit = max(min_system_chars, len(content) - overflow - 1)
-                if len(content) > new_limit:
-                    first["content"] = self._compact_prebuilt_message_content(
-                        "system",
-                        content,
-                        budget_profile=profile,
-                    )
-                    if len(first["content"]) > new_limit:
-                        marker = "\n…[middle omitted for total prompt budget]…\n"
-                        critical_excerpt = self._critical_foreground_system_excerpt(
-                            content,
-                            budget=min(2200, max(900, new_limit // 3)),
-                        )
-                        if critical_excerpt:
-                            remaining = max(
-                                2,
-                                new_limit - len(marker) * 2 - len(critical_excerpt),
-                            )
-                            head = max(1, remaining * 3 // 5)
-                            tail = max(1, remaining - head)
-                            first["content"] = (
-                                f"{content[:head].rstrip()}{marker}"
-                                f"{critical_excerpt}{marker}"
-                                f"{content[-tail:].lstrip()}"
-                            )
-                        else:
-                            remaining = max(2, new_limit - len(marker))
-                            head = max(1, remaining * 2 // 3)
-                            tail = max(1, remaining - head)
-                            first["content"] = (
-                                f"{content[:head].rstrip()}{marker}{content[-tail:].lstrip()}"
-                            )
-
-        return compact
 
 
     async def generate(  # noqa: ASYNC109
@@ -11907,8 +9706,8 @@ class InferenceGate:
                     context=context if isinstance(context, dict) else None,
                     origin=str((context or {}).get("origin") or ""),
                 )
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            pass
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Halt state unreadable, proceeding with generation: %s", exc)
 
         sink_slot = self._generation_metadata_sink_slot()
         inherited_sink = sink_slot.get()
@@ -11952,8 +9751,8 @@ class InferenceGate:
                     # task, thread, or worker boundaries. The worker receives
                     # evidence, never authority to read ambient conversation.
                     context["user_surface_grounding_evidence"] = list(turn_grounding)
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Turn grounding custody unavailable, carrying no evidence: %s", exc)
         self._clear_last_generation_metadata()
         initial_messages = context.get("messages")
         if not isinstance(initial_messages, list):
@@ -12164,7 +9963,8 @@ class InferenceGate:
             from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
             deep_probe_request = looks_like_deep_mind_probe(prompt)
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
             deep_probe_request = False
         if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
             if _FLAG_EMBODIED_CHALLENGE.value():
@@ -12572,7 +10372,8 @@ class InferenceGate:
         if "max_tokens" in context:
             try:
                 explicit_max_tokens_cap = max(1, int(context.get("max_tokens") or 1))
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("Requested max_tokens is not an integer, applying no explicit cap: %s", exc)
                 explicit_max_tokens_cap = None
         # Whether the CALLER asked for the floor, or the gate worked it out.
         #
@@ -12858,7 +10659,8 @@ class InferenceGate:
                     if math.isfinite(_caller_temp)
                     else None
                 )
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Caller temperature is not a number, leaving it unset: %s", exc)
                 somatic_temperature = None
         for _gen_key in (
             "top_p",
@@ -13339,7 +11141,8 @@ class InferenceGate:
         ):
             try:
                 requested_budget = int(context.get("max_tokens") or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
+                logger.debug("Requested budget is not an integer, reading it as none: %s", exc)
                 requested_budget = 0
             if requested_budget > 0:
                 # A flat floor rescues a conversational reply and still starves
@@ -13408,7 +11211,8 @@ class InferenceGate:
             # than the visible request.
             try:
                 _floor = int(context.get("user_surface_completion_floor") or 0)
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
                 _floor = 0
             if 0 < _floor and max_tokens < _floor:
                 logger.info(
@@ -14291,7 +12095,8 @@ class InferenceGate:
                 _answer_floor_final = int(
                     context.get("user_surface_completion_floor") or 0
                 )
-            except (TypeError, ValueError, OverflowError):
+            except (TypeError, ValueError, OverflowError) as exc:
+                logger.debug("user_surface_completion_floor is not an integer, using no floor: %s", exc)
                 _answer_floor_final = 0
             # A floor may not raise a ceiling the caller declared. This one ran
             # at dispatch, after the caller-cap clamp, so a request that asked
@@ -14512,7 +12317,8 @@ class InferenceGate:
                     from core.brain.llm.thinking_reserve import answer_tokens_seen
 
                     _ever_needed = int(answer_tokens_seen(_model_for_clock))
-                except (ImportError, AttributeError, TypeError, ValueError):
+                except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                    logger.debug("Answer tokens seen unavailable, reading none: %s", exc)
                     _ever_needed = 0
                 if _ever_needed > 0:
                     _affordable = min(_affordable, max(max_tokens, _ever_needed))
@@ -14540,6 +12346,14 @@ class InferenceGate:
         serving_lane = self._cortex_serving_lane(
             initial_visible_user_prompt,
             context,
+            input_tokens=(
+                estimate_context_tokens(str(system_prompt or ""))
+                + sum(
+                    estimate_context_tokens(str(message.get("content") or "")) + 12
+                    for message in messages
+                    if isinstance(message, dict)
+                )
+            ),
         )
         serving_limits = get_active_cortex_serving_limits()
         if serving_limits is not None and serving_limits.qualified:
@@ -14880,8 +12694,8 @@ class InferenceGate:
                                 )
 
                                 preserve_draft(stabilized)
-                            except (ImportError, RuntimeError, TypeError, ValueError):
-                                pass
+                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                                logger.debug("Draft not preserved to surface disposition: %s", exc)
                             return stabilized
                         return self._stabilize_user_facing_text(
                             text,
@@ -16241,7 +14055,8 @@ class InferenceGate:
                 and hasattr(client, "is_alive")
                 and client.is_alive()
             )
-        except _INFERENCE_RECOVERABLE_ERRORS:
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            logger.debug("Client liveness unreadable, reporting the backend not alive: %s", exc)
             return False
 
     def inference_readiness(self) -> tuple[bool, str]:

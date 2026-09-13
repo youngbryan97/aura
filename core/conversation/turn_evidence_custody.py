@@ -32,6 +32,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from core.conversation.delivered_history import delivered_exchange_messages
 from core.conversation.session_scope import (
     conversation_session_var,
     conversation_turn_var,
@@ -49,10 +50,12 @@ __all__ = [
     "record_turn_capability_availability",
     "record_turn_model_generation",
     "record_turn_grounding",
+    "record_turn_transcript",
     "record_turn_sensory_evidence",
     "turn_capability_availability",
     "turn_model_generations",
     "turn_grounding_evidence",
+    "turn_transcript",
     "turn_sensory_evidence",
 ]
 
@@ -83,6 +86,7 @@ class TurnEvidenceCustody:
         self._lock = checked_lock("core.conversation.turn_evidence_custody", reentrant=True)
         self._receipts: list[dict[str, Any]] = []
         self._grounding: list[str] = []
+        self._transcript: tuple[tuple[str, str], ...] | None = None
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
         self._generations: list[dict[str, Any]] = []
         self._capability_availability: dict[str, dict[str, Any]] = {}
@@ -200,6 +204,34 @@ class TurnEvidenceCustody:
             if text not in self._grounding and len(self._grounding) < 32:
                 self._grounding.append(text[:16_000])
             return True
+
+    def record_transcript(self, exchanges: Any) -> bool:
+        """Keep the admitted dialogue unchanged across model handoffs."""
+
+        if not self.admits_current_execution():
+            return False
+        snapshot = tuple(
+            (message["role"], message["content"])
+            for message in delivered_exchange_messages(exchanges)
+        )
+        with self._lock:
+            if self._closed:
+                return False
+            if self._transcript is None:
+                self._transcript = snapshot
+            return self._transcript == snapshot
+
+    def transcript(self) -> tuple[dict[str, str], ...] | None:
+        """None means unread; an empty tuple means an admitted empty history."""
+
+        if not self.admits_current_execution():
+            return None
+        with self._lock:
+            if self._transcript is None:
+                return None
+            return tuple(
+                {"role": role, "content": content} for role, content in self._transcript
+            )
 
     def grounding(self) -> tuple[str, ...]:
         """Authenticated recall/evidence text admitted to the current turn."""
@@ -320,6 +352,20 @@ def turn_grounding_evidence() -> tuple[str, ...]:
 
     custody = current_turn_evidence_custody()
     return custody.grounding() if custody is not None else ()
+
+
+def record_turn_transcript(exchanges: Any) -> bool:
+    """Attach runtime-attested completed exchanges to their exact turn."""
+
+    custody = current_turn_evidence_custody()
+    return bool(custody and custody.record_transcript(exchanges))
+
+
+def turn_transcript() -> tuple[dict[str, str], ...] | None:
+    """Read the dialogue already admitted by this turn, not another model."""
+
+    custody = current_turn_evidence_custody()
+    return custody.transcript() if custody is not None else None
 
 
 def record_turn_sensory_evidence(evidence: Any) -> bool:
@@ -476,5 +522,4 @@ def _gave_the_turn_back(lease: Any) -> None:
             )
     except ImportError:
         return
-
 

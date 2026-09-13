@@ -1,0 +1,179 @@
+{
+  "phi_table": {
+    "replay": 0.11982,
+    "time_shuffle": -0.00812,
+    "recurrent": 0.26221,
+    "star": 0.03545,
+    "hub": 0.07014,
+    "one_way": 0.0379,
+    "prompt_only": 0.00968,
+    "frozen_slow": 0.16421
+  },
+  "detail": {
+    "replay": {
+      "phi_do": 0.11982,
+      "draws": [
+        -0.26023,
+        0.03396,
+        0.16605,
+        -2.03382,
+        -0.9493,
+        -0.05551,
+        -0.13079,
+        -0.10333
+      ],
+      "max": 0.16605,
+      "median": -0.11706,
+      "quantile": 0.95,
+      "kind": "surrogate"
+    },
+    "time_shuffle": {
+      "phi_do": -0.00812,
+      "draws": [
+        -0.01222,
+        -0.01427,
+        -0.00688,
+        -0.01042,
+        -0.01218,
+        -0.01083,
+        -0.01108,
+        -0.01156
+      ],
+      "max": -0.00688,
+      "median": -0.01132,
+      "quantile": 0.95,
+      "kind": "surrogate"
+    },
+    "recurrent": {
+      "phi_do": 0.26221,
+      "draws": [
+        0.26375,
+        0.17777,
+        0.24104,
+        0.16455,
+        0.12858,
+        0.23622,
+        0.14565,
+        0.25935
+      ],
+      "max": 0.26375,
+      "median": 0.207,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    },
+    "star": {
+      "phi_do": 0.03545,
+      "draws": [
+        0.00844,
+        0.02481,
+        0.03073,
+        0.00493,
+        0.00221,
+        0.0366,
+        0.03331,
+        -0.00029
+      ],
+      "max": 0.0366,
+      "median": 0.01663,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 3,
+      "reentry": true
+    },
+    "hub": {
+      "phi_do": 0.07014,
+      "draws": [
+        0.01119,
+        0.05542,
+        0.02552,
+        0.00759,
+        0.00155,
+        0.07438,
+        0.06228,
+        -3e-05
+      ],
+      "max": 0.07438,
+      "median": 0.01835,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 1,
+      "reentry": true
+    },
+    "one_way": {
+      "phi_do": 0.0379,
+      "draws": [
+        0.03451,
+        0.03972,
+        0.03296,
+        0.0286,
+        0.02941,
+        0.03053,
+        0.02985,
+        0.03126
+      ],
+      "max": 0.03972,
+      "median": 0.0309,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    },
+    "prompt_only": {
+      "phi_do": 0.00968,
+      "draws": [
+        0.00457,
+        0.00076,
+        0.002,
+        0.00536,
+        -0.00259,
+        0.01035,
+        0.00844,
+        0.0044
+      ],
+      "max": 0.01035,
+      "median": 0.00449,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": true,
+      "vertex_connectivity": 3,
+      "reentry": true
+    },
+    "frozen_slow": {
+      "phi_do": 0.16421,
+      "draws": [
+        0.02068,
+        0.08696,
+        0.08101,
+        0.044,
+        0.02207,
+        0.04372,
+        0.20581,
+        0.03721
+      ],
+      "max": 0.20581,
+      "median": 0.04386,
+      "quantile": 0.95,
+      "kind": "architecture",
+      "one_component": false,
+      "vertex_connectivity": 0,
+      "reentry": false
+    }
+  },
+  "surrogate_floor": 0.11982,
+  "phi_above_floor": -0.08727,
+  "phi_beats_all": false,
+  "all_nulls_fail": false,
+  "nulls_fail_the_bar": false,
+  "reference_architecture_passes": true,
+  "reference_recurrent_phi": 0.26221,
+  "summary": {
+    "reference_recurrent": 0.26221,
+    "worst_null": 0.16421
+  }
+}

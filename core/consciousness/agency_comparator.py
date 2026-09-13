@@ -51,7 +51,7 @@ class EfferenceCopy:
     """
     layer: str                              # Which subsystem generated this (e.g. "executive_authority")
     predicted_state: Dict[str, Any]         # Key-value predictions about the expected outcome
-    emitted_at: float = field(default_factory=time.time)
+    emitted_at: float = field(default_factory=lambda: time.time())
     action_goal: str = ""                   # The goal that triggered this prediction
     action_source: str = ""                 # Source subsystem of the action
 
@@ -76,7 +76,7 @@ class AuthorshipTrace:
     agency_confidence: float                # 0-1: confidence in the attribution
     action_goal: str = ""
     action_source: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def is_high_agency(self) -> bool:

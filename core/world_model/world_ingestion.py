@@ -50,7 +50,7 @@ class IngestDocument:
     status: int
     text: str
     title: str = ""
-    fetched_at: float = field(default_factory=time.time)
+    fetched_at: float = field(default_factory=lambda: time.time())
 
     @property
     def ok(self) -> bool:

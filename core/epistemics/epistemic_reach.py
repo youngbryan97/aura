@@ -159,7 +159,7 @@ class ReachVerdict:
     evidence_excerpt: str = ""
     overlap: float = 0.0
     reason: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

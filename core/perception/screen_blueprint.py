@@ -181,7 +181,7 @@ class ScreenBlueprint:
 
     windows: tuple[WindowFrame, ...] = ()
     frontmost_app: str = ""
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
     #: True when the blueprint could not be taken at all. An empty screen and
     #: an unreadable one are different facts and must never be confused.
     unavailable: bool = False

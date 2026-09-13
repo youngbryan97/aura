@@ -1,133 +1,125 @@
-# mypy strict allowlist — every file here passes `mypy` in strict mode
-# (pyproject [tool.mypy]) with --follow-imports=skip --explicit-package-bases.
-#
-# RATCHET, ONLY GROWS: tests/test_mypy_strict_ratchet.py pins a minimum
-# count and typechecks every entry. Add files as they become clean; removing
-# one requires shrinking the pinned minimum in the test — a loud, reviewed
-# act. `make typecheck` reads this list.
-#
-# Original curated set
-core/conversation/apply_response_patches.py
-core/brain/llm/context_limit.py
-core/runtime/safe_mode.py
-core/runtime/atomic_writer.py
-core/consciousness/continuous_experience.py
-core/environment/experience_replay.py
-core/memory/procedural/store.py
-core/unity/runtime.py
-tools/aura_production_readiness_gate.py
-tools/build_provenance.py
-# Runtime spine (2026-07-12 maturity pass)
-core/container.py
-core/service_names.py
-core/runtime/service_access.py
-core/will.py
-core/runtime/flags.py
-core/runtime/conditions.py
-core/runtime/health_contract.py
-core/health/health_endpoint.py
-core/runtime/file_write_gateway.py
-core/runtime/flight_recorder.py
-core/runtime/subprocess_gateway.py
-core/runtime/runtime_settings.py
-core/runtime/flagship_doctor.py
-core/runtime/launch_provenance.py
-core/brain/lane_admission.py
-core/observability/stall_dump.py
-core/observability/incident_narrator.py
-core/observability/metrics.py
-core/observability/telemetry.py
-core/persistence/db_maintenance.py
-# Maturity-pass tools
-tools/runtime_preflight.py
-tools/state_backup.py
-# Quantum computational module (2026-07-12 capability corpus)
-core/quantum/statevector.py
-core/quantum/algorithms.py
-core/skills/quantum_lab.py
-# Persistent simulation world (2026-07-12 capability corpus)
-core/worlds/physics.py
-core/worlds/generation.py
-core/worlds/embodied.py
-core/worlds/hosting.py
-core/skills/world_forge.py
-# Runtime incident and paired-device boundary (2026-07-12)
-core/orchestrator/mixins/tool_execution.py
-core/self_modification/error_intelligence.py
-interface/auth.py
-interface/websocket_manager.py
-# Receipted self-modification transaction (2026-07-12)
-core/capabilities/self_code_improver.py
-# Objective-specific desktop effect verification (2026-07-12)
-core/runtime/os_automation_effects.py
-core/capabilities/host_automation.py
-core/skills/os_automation.py
-# Bounded multimodal event-time fusion (2026-07-12)
-core/perception/multimodal_sync.py
-# Canonical legacy sensory adapter (2026-07-12)
-core/perception/sensory_integration.py
-# Consented visual-only speech recognition (2026-07-12)
-core/perception/visual_speech.py
-core/perception/visual_speech_tracking.py
-core/perception/visual_speech_auto_avsr.py
-# Calibrated live situation and social inference (2026-07-12)
-core/social/other_agent_model.py
-core/consciousness/theory_of_mind.py
 core/brain/cognitive_situation.py
-# Identity-scoped relational memory authority (2026-07-12)
-core/social/relational_memory.py
-core/memory/social_memory.py
-core/memory/shared_ground.py
-# Authority-backed person-model adapters (2026-07-12)
-core/social/conversational_profile.py
-core/social/dialogue_cognition.py
-core/social/relational_intelligence.py
-core/social/social_imagination.py
-core/conversational/humor_engine.py
-core/utils/output_gate.py
-core/memory/profile_manager.py
-core/memory/semantic_fact_extractor.py
-core/memory/user_profile.py
-core/security/device_pairing.py
-core/memory/chat_turn_logger.py
-core/social/relationship_graph.py
-core/social/person_model.py
-# Evidence-bounded ToM compatibility and observer projections (2026-07-12)
-core/consciousness/recursive_tom.py
-core/consciousness/unified_cognitive_bias.py
-core/social/theory_of_mind.py
-core/voice/speech_profile.py
-# Exact-principal request scope and canonical consent control (2026-07-12)
-core/runtime/principal_context.py
-core/runtime/memory_consent.py
-
-# Adopted by tools/typecheck_changed.py
-core/db/migrations.py
-core/orchestrator/initializers/core_baseline.py
-
-# Adopted by tools/typecheck_changed.py
+core/brain/lane_admission.py
+core/brain/llm/context_limit.py
+core/capabilities/host_automation.py
+core/capabilities/self_code_improver.py
 core/cognition/impasse.py
 core/cognition/procedural_generalization.py
+core/cognition/telling_one_kind_from_another.py
+core/consciousness/continuous_experience.py
+core/consciousness/recursive_tom.py
+core/consciousness/theory_of_mind.py
+core/consciousness/unified_cognitive_bias.py
+core/container.py
 core/context/conversation_log.py
+core/conversation/apply_response_patches.py
+core/conversational/humor_engine.py
+core/db/migrations.py
+core/environment/experience_replay.py
+core/health/health_endpoint.py
 core/language/desktop_actuation.py
 core/language/substrate_store.py
 core/learning/sealed_artifact_admission.py
+core/memory/chat_turn_logger.py
 core/memory/cold_store.py
+core/memory/procedural/store.py
+core/memory/profile_manager.py
+core/memory/semantic_fact_extractor.py
+core/memory/shared_ground.py
+core/memory/social_memory.py
+core/memory/user_profile.py
+core/observability/incident_narrator.py
+core/observability/metrics.py
+core/observability/stall_dump.py
+core/observability/telemetry.py
+core/orchestrator/initializers/core_baseline.py
+core/orchestrator/mixins/tool_execution.py
+core/perception/multimodal_sync.py
+core/perception/sensory_integration.py
+core/perception/visual_speech.py
+core/perception/visual_speech_auto_avsr.py
+core/perception/visual_speech_tracking.py
+core/persistence/db_maintenance.py
+core/quantum/algorithms.py
+core/quantum/statevector.py
 core/reasoning/action_value.py
+core/runtime/atomic_writer.py
+core/runtime/conditions.py
+core/runtime/file_write_gateway.py
+core/runtime/file_write_primitives.py
+core/runtime/flags.py
+core/runtime/flagship_doctor.py
+core/runtime/flight_recorder.py
+core/runtime/health_contract.py
 core/runtime/health_fragments.py
+core/runtime/launch_provenance.py
+core/runtime/memory_consent.py
+core/runtime/os_automation_effects.py
 core/runtime/perception_demand.py
+core/runtime/principal_context.py
+core/runtime/runtime_settings.py
+core/runtime/safe_mode.py
+core/runtime/service_access.py
+core/runtime/subprocess_gateway.py
+core/security/device_pairing.py
+core/self_modification/error_intelligence.py
+core/service_names.py
 core/skill_management/forged_artifact.py
+core/skills/catalog_policy.py
+core/skills/os_automation.py
+core/skills/quantum_lab.py
+core/skills/world_forge.py
+core/social/conversational_profile.py
+core/social/dialogue_cognition.py
+core/social/other_agent_model.py
+core/social/person_model.py
+core/social/relational_intelligence.py
+core/social/relational_memory.py
+core/social/relationship_graph.py
+core/social/social_imagination.py
+core/social/theory_of_mind.py
+core/unity/runtime.py
+core/utils/output_gate.py
+core/voice/speech_profile.py
+core/will.py
+core/worlds/embodied.py
+core/worlds/generation.py
+core/worlds/hosting.py
+core/worlds/physics.py
+interface/auth.py
+interface/websocket_manager.py
+tools/aura_production_readiness_gate.py
+tools/build_provenance.py
 tools/derive_lockfile.py
-
-# Adopted by tools/typecheck_changed.py
 tools/extract_seam.py
+tools/generate_deps.py
 tools/lint_lexical_debt.py
 tools/lint_phrase_pinned_tests.py
-tools/typecheck_changed.py
-
-# Adopted by tools/typecheck_changed.py
-tools/generate_deps.py
-
-# Adopted by tools/typecheck_changed.py
-core/skills/catalog_policy.py
 tools/ratchet_baseline.py
+tools/runtime_preflight.py
+tools/state_backup.py
+tools/typecheck_changed.py
+#
+# (pyproject [tool.mypy]) with --follow-imports=skip --explicit-package-bases.
+# Adopted by tools/typecheck_changed.py
+# Authority-backed person-model adapters (2026-07-12)
+# Bounded multimodal event-time fusion (2026-07-12)
+# Calibrated live situation and social inference (2026-07-12)
+# Canonical legacy sensory adapter (2026-07-12)
+# Consented visual-only speech recognition (2026-07-12)
+# Evidence-bounded ToM compatibility and observer projections (2026-07-12)
+# Exact-principal request scope and canonical consent control (2026-07-12)
+# Identity-scoped relational memory authority (2026-07-12)
+# Maturity-pass tools
+# Objective-specific desktop effect verification (2026-07-12)
+# Original curated set
+# Persistent simulation world (2026-07-12 capability corpus)
+# Quantum computational module (2026-07-12 capability corpus)
+# RATCHET, ONLY GROWS: tests/test_mypy_strict_ratchet.py pins a minimum
+# Receipted self-modification transaction (2026-07-12)
+# Runtime incident and paired-device boundary (2026-07-12)
+# Runtime spine (2026-07-12 maturity pass)
+# act. `make typecheck` reads this list.
+# count and typechecks every entry. Add files as they become clean; removing
+# mypy strict allowlist — every file here passes `mypy` in strict mode
+# one requires shrinking the pinned minimum in the test — a loud, reviewed

@@ -69,7 +69,7 @@ class GovernanceToken:
     receipt_id: str
     domain: str
     source: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     # Monotonic issue time — expiry is measured against this so a wall-clock
     # rollback cannot extend (or a wall-clock jump prematurely revoke) a
     # token's authority window.

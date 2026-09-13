@@ -137,7 +137,7 @@ class Outcome:
     #: Scalar utility in [0, 1] when the resolver could measure one. Always
     #: ``None`` for UNOBSERVED — an unmeasured outcome has no magnitude either.
     utility: float | None = None
-    resolved_at: float = field(default_factory=time.time)
+    resolved_at: float = field(default_factory=lambda: time.time())
     #: Who resolved it and how, e.g. ``"executive.intent_complete"``. The
     #: resolver's identity is part of the evidence: a label is only as good as
     #: the thing that produced it.
@@ -201,7 +201,7 @@ class Episode:
     provenance: Provenance = Provenance.LIVE
     feature_schema: str = ""
     episode_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
     outcome: Outcome | None = None
     repeat_count: int = 1
     #: Free-form context for forensics. Never used as a feature — anything a
@@ -285,6 +285,10 @@ class ExperienceSpine:
         self._queue: deque[Episode] = deque()
         self._pending_resolutions: deque[tuple[str, Outcome]] = deque()
         self._repeat_increments: deque[str] = deque()
+        #: True only for the instance :func:`get_experience_spine` published.
+        #: Set there rather than here, because an instance is not shared until
+        #: something shares it.
+        self.shared = False
         self._resolve_callbacks: list[Callable[[str, Outcome], None]] = []
         self._dedup: dict[str, tuple[str, float]] = {}
         self._burst: dict[str, int] = {}
@@ -294,6 +298,14 @@ class ExperienceSpine:
         self._refused = 0
         self._stopped = threading.Event()
         self._flusher: threading.Thread | None = None
+        # Set while a flush holds an open connection. The flusher is a daemon
+        # thread on a 2s timer that nothing in a test starts or stops, so its
+        # handle on the store appears under whichever test happens to be in
+        # teardown. That handle is in use, not leaked, and the difference is
+        # readable only from here: sqlite objects are thread-affine, so a
+        # sweeper walking the object graph from another thread cannot even
+        # query this connection, let alone decide whether it is finished.
+        self._writing = threading.Event()
         # stats() is three unindexed aggregates over the whole episodes table,
         # and ontogeny_report() calls it once per control point — so a single
         # health report used to scan the corpus N times. Under demo load that
@@ -438,13 +450,37 @@ class ExperienceSpine:
         return original_id
 
     def on_resolve(self, callback: Callable[[str, Outcome], None]) -> None:
-        """Subscribe to outcomes as they land.
+        """Subscribe to outcomes as they land. Subscribing twice subscribes once.
 
         Every resolution in the system passes through :meth:`resolve`, which
         makes this the one place a live tally can be kept honest without
         polling the database from a decision path.
+
+        The spine outlives the things that listen to it, so a subscriber that
+        registers again — a rebuilt organ, a recommissioned one — would have
+        every outcome counted twice for the rest of the process. There is no
+        use for the same callback twice, so the second registration is the
+        first one.
         """
+        if callback in self._resolve_callbacks:
+            return
         self._resolve_callbacks.append(callback)
+
+    def off_resolve(self, callback: Callable[[str, Outcome], None]) -> None:
+        """Unsubscribe. Silent when the callback was never subscribed.
+
+        A subscriber with no way off the list is a leak with a voice: the organ
+        that lost a construction race keeps receiving every outcome in the
+        system and tallying it into state nothing will ever read.
+        """
+        try:
+            self._resolve_callbacks.remove(callback)
+        except ValueError:
+            return
+
+    def subscriber_count(self) -> int:
+        """How many callbacks are listening. For tests and the health report."""
+        return len(self._resolve_callbacks)
 
     def resolve(self, episode_id: str, outcome: Outcome) -> None:
         """Attach an outcome. Queued like a record — resolution is never urgent."""
@@ -497,6 +533,7 @@ class ExperienceSpine:
             self._prune_dedup()
         if not batch and not resolutions and not repeats:
             return 0
+        self._writing.set()
         try:
             with connecting(self._connect()) as conn:
                 if batch:
@@ -539,6 +576,25 @@ class ExperienceSpine:
                 "ontogeny_experience", exc, action="experience batch lost; corpus continues"
             )
             return 0
+        finally:
+            # After the `with`, so the flag drops only once the handle is shut.
+            self._writing.clear()
+
+    def a_write_is_in_flight(self) -> bool:
+        """True while a flush holds the store open."""
+        return self._writing.is_set()
+
+    def wait_until_quiet(self, timeout: float = 5.0) -> bool:
+        """Block until no flush holds the store. True if it went quiet.
+
+        Shutdown wants this and so does anything that measures open handles:
+        both need to know the writer finished, and neither can ask the
+        connection, which belongs to the flusher's thread.
+        """
+        deadline = time.monotonic() + max(0.0, timeout)
+        while self._writing.is_set() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return not self._writing.is_set()
 
     @staticmethod
     def _row(ep: Episode) -> tuple:
@@ -784,6 +840,23 @@ class ExperienceSpine:
             return 0
 
     def close(self) -> None:
+        """Stop the flusher and write what is queued.
+
+        Ownership: whoever built this instance closes it, and nobody else. The
+        process-wide spine is built and owned by :func:`get_experience_spine`,
+        so a subsystem holding a reference to it owes it a :meth:`flush` at
+        shutdown and must not close it — closing stops the flusher thread for
+        every other holder, and every episode recorded after that sits in the
+        queue until the process ends. ``shared`` says which kind of instance
+        this is, and a close on a shared spine is recorded rather than silent.
+        """
+        if self.shared:
+            record_degradation(
+                "ontogeny_experience",
+                RuntimeError("the shared experience spine was closed by a holder"),
+                severity="warning",
+                action="stopped the flusher for every holder; flush() was what was owed",
+            )
         self._stopped.set()
         try:
             self.flush()
@@ -879,9 +952,22 @@ def get_experience_spine() -> ExperienceSpine:
     with _spine_lock:
         if _spine is None:
             _spine, built = built, None
+            _spine.shared = True
     if built is not None:
         built.close()
     return _spine
+
+
+def a_background_write_is_in_flight() -> bool:
+    """True while the process-wide spine's flusher holds its store open."""
+    spine = _spine
+    return spine is not None and spine.a_write_is_in_flight()
+
+
+def wait_for_background_writes(timeout: float = 5.0) -> bool:
+    """Wait out the process-wide spine's flusher. True if it went quiet."""
+    spine = _spine
+    return True if spine is None else spine.wait_until_quiet(timeout)
 
 
 def reset_experience_spine_for_test(spine: ExperienceSpine | None = None) -> None:
@@ -897,6 +983,8 @@ __all__ = [
     "Episode",
     "ExperienceSpine",
     "Outcome",
+    "a_background_write_is_in_flight",
+    "wait_for_background_writes",
     "OutcomeKind",
     "Provenance",
     "SPINE_SCHEMA",

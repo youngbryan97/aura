@@ -103,7 +103,7 @@ class HemisphericState:
     right_pattern_hit: Optional[str] = None   # label of recognised pattern
     confabulation_count: int = 0
     tick: int = 0
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

@@ -8,6 +8,7 @@ from starlette.requests import Request
 
 from core.container import ServiceContainer
 from core.conversation.persistence import ConversationPersistence
+from core.runtime.shared_read import SharedRead
 from interface.routes import chat_history, chat_memory_state
 from interface.routes.chat_common import _CHAT_REQUEST_PRINCIPAL, _CHAT_REQUEST_SURFACE
 
@@ -20,6 +21,7 @@ def history_store(monkeypatch, tmp_path):
         lambda key, default=None: store if key == "persistence" else original(key, default=default)
     ))
     monkeypatch.setattr(chat_memory_state, "_conversation_log", [])
+    monkeypatch.setattr(chat_memory_state, "_durable_history_reads", SharedRead())
     monkeypatch.setattr(chat_history.chat_delivery, "_authenticated_chat_principal", lambda request: "owner-a")
     return store
 
@@ -105,14 +107,26 @@ async def test_completion_during_disk_read_uses_newest_live_state(history_store,
 
 @pytest.mark.asyncio
 async def test_full_live_window_needs_no_disk_read(history_store, monkeypatch):
-    chat_memory_state._conversation_log.extend({"id": str(i), "user": "question", "status": "running"} for i in range(45))
+    count = chat_history.UI_CONVERSATION_EXCHANGES + 5
+    chat_memory_state._conversation_log.extend({"id": str(i), "user": "question", "status": "running"} for i in range(count))
 
     async def forbidden(**kwargs):
         pytest.fail("a full live window should not read older disk history")
 
     monkeypatch.setattr(chat_memory_state, "_load_durable_conversation_exchanges", forbidden)
     rows = await chat_history.recent_ui_conversation(owner_request())
-    assert [row["id"] for row in rows] == [str(i) for i in range(5, 45)]
+    assert [row["id"] for row in rows] == [str(i) for i in range(5, count)]
+
+
+@pytest.mark.asyncio
+async def test_display_restores_one_hundred_exchanges_across_session_boundaries(history_store):
+    for i in range(105):
+        record(history_store, str(i), session=f"session-{i}")
+    rows = await chat_history.recent_ui_conversation(owner_request())
+    assert [row["id"] for row in rows] == [str(i) for i in range(5, 105)]
+    # Display history must not enlarge the model's admission window.
+    from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
+    assert VISIBLE_CONVERSATION_EXCHANGES == 40
 
 
 @pytest.mark.asyncio
@@ -176,3 +190,36 @@ async def test_history_restores_scoped_rows_while_default_executor_is_occupied(
         await pending
         loop._default_executor = original_pool
         pool.shutdown(wait=True, cancel_futures=True)
+
+
+@pytest.mark.asyncio
+async def test_timed_out_history_read_is_delivered_on_the_next_poll(history_store, monkeypatch):
+    record(history_store, "saved", user="before reboot", answer="still here")
+    record(history_store, "private", principal="owner-b", session="private-session")
+    original = chat_memory_state._load_durable_conversation_exchanges_sync
+    release = threading.Event()
+    finished = threading.Event()
+    calls = []
+
+    def slow_read(**kwargs):
+        calls.append((_CHAT_REQUEST_PRINCIPAL.get(), _CHAT_REQUEST_SURFACE.get()))
+        assert release.wait(5)
+        try:
+            return original(**kwargs)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(chat_memory_state, "_load_durable_conversation_exchanges_sync", slow_read)
+    monkeypatch.setattr(chat_memory_state, "_DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S", 0.01)
+    try:
+        assert await chat_history.recent_ui_conversation(owner_request()) == []
+        assert await chat_history.recent_ui_conversation(owner_request()) == []
+        assert calls == [("owner-a", "owner")]
+    finally:
+        release.set()
+    async with asyncio.timeout(5):
+        while not finished.is_set():
+            await asyncio.sleep(0.001)
+    rows = await chat_history.recent_ui_conversation(owner_request())
+    assert [(row["id"], row["aura"]) for row in rows] == [("saved", "still here")]
+    assert calls == [("owner-a", "owner")]

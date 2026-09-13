@@ -67,7 +67,7 @@ class Disclosure:
     withheld_capabilities: list[str]
     retention_seconds: int
     rationale: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class NeedToKnowPolicy:

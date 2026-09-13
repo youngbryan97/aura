@@ -17,6 +17,7 @@ import sqlite3
 import pytest
 
 from core.goals.emergent_goals import EmergentGoalEngine
+from core.runtime.sqlite_support import connecting
 
 
 @pytest.fixture
@@ -25,7 +26,7 @@ def engine(tmp_path):
 
 
 def support_on_disk(engine, goal_id):
-    with sqlite3.connect(engine._db_path) as conn:
+    with connecting(sqlite3.connect(engine._db_path)) as conn:
         row = conn.execute(
             "SELECT support_count FROM emergent_goal_candidates WHERE goal_id = ?",
             (goal_id,),

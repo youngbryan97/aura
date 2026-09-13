@@ -1012,9 +1012,10 @@ def test_compute_mlx_cache_limit_defaults_to_standard_ratio_when_not_safe(monkey
 
 
 def test_rsi_lab_creates_data_dir_without_runtime_globals(monkeypatch, tmp_path):
+    import core.config as config_module
     from research.meta_learning_loop import RSILab
 
-    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", tmp_path)
+    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", (config_module.state_root(), tmp_path))
 
     lab = RSILab()
 
@@ -1024,9 +1025,10 @@ def test_rsi_lab_creates_data_dir_without_runtime_globals(monkeypatch, tmp_path)
 
 @pytest.mark.asyncio
 async def test_rsi_lab_requires_validation_evidence_for_promotion(monkeypatch, tmp_path):
+    import core.config as config_module
     from research.meta_learning_loop import RSILab
 
-    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", tmp_path)
+    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", (config_module.state_root(), tmp_path))
     lab = RSILab()
     weak_id = lab.submit_candidate(
         "heuristic",
@@ -1064,9 +1066,10 @@ async def test_rsi_lab_requires_validation_evidence_for_promotion(monkeypatch, t
 
 
 def test_rsi_lab_loads_valid_candidates_while_skipping_corrupt_records(monkeypatch, tmp_path):
+    import core.config as config_module
     from research.meta_learning_loop import RSILab
 
-    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", tmp_path)
+    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", (config_module.state_root(), tmp_path))
     lab_dir = tmp_path / "data" / "rsi_lab"
     lab_dir.mkdir(parents=True)
     (lab_dir / "candidates.json").write_text(

@@ -48,7 +48,7 @@ class CausalLink:
     context_sum: str
     outcome_delta: dict[str, Any]  # Belief changes recorded
     success: bool
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class ActionConsequenceGraph:
     """Action-Consequence Graph (ACG) v1.0.

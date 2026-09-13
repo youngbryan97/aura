@@ -15,7 +15,7 @@ import time
 @dataclass
 class EnvironmentState:
     """A generalized, structured representation of an environment state at a given moment."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     domain: str = "generic"
     context_id: str = "default"
     observation_id: str = ""

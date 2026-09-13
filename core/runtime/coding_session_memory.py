@@ -175,7 +175,7 @@ class CodingExchange:
     objective: str
     user_summary: str
     assistant_summary: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "CodingExchange":
@@ -195,7 +195,7 @@ class ToolEvent:
     origin: str = ""
     command: str = ""
     files: list[str] = field(default_factory=list)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ToolEvent":
@@ -224,7 +224,7 @@ class ExecutionLoopState:
     steps_total: int = 0
     verification_failures: int = 0
     repair_count: int = 0
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ExecutionLoopState":

@@ -88,7 +88,10 @@ class _Swallowed(ast.NodeVisitor):
         """Whether the handler says, in words, that this is not a failure."""
         first = handler.body[0].lineno if handler.body else handler.lineno
         for line in self._lines[handler.lineno - 1 : first]:
-            if "not a failure:" in line:
+            # Case-insensitive. The marker opens a sentence, so a writer
+            # capitalises it, and a gate that matches only the lowercase form
+            # reads eighteen explained handlers as eighteen silent ones.
+            if "not a failure:" in line.lower():
                 return True
         return False
 

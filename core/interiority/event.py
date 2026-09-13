@@ -88,7 +88,7 @@ class InteriorEvent:
     #: Confidence of the producer that the event happened at all.
     confidence: float = 1.0
     source: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
     def __post_init__(self) -> None:

@@ -41,6 +41,7 @@ from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text, interprocess_file_lock
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.state_ownership import state_root
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.utils.task_tracker import task_tracker
 
@@ -55,10 +56,9 @@ def _default_pending_queue_path() -> Path:
     override = os.environ.get("AURA_PENDING_CHAT_QUEUE_PATH")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/conversation/pending-chat-queue.jsonl"
+    return state_root() / "data" / "conversation" / "pending-chat-queue.jsonl"
 
 
-PENDING_QUEUE_PATH = _default_pending_queue_path()
 
 FILE_READ_BUDGET = 16 * 1024  # 16 KB total across all referenced files
 MAX_FILES_PER_TURN = 3

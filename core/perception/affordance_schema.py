@@ -30,7 +30,7 @@ class Affordance:
     source: str                   # "experience", "inference"
     tags: List[str] = field(default_factory=list)
     observations: int = 1
-    last_tested: float = field(default_factory=time.time)
+    last_tested: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict:
         return {

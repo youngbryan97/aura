@@ -127,7 +127,7 @@ class Signal:
     inference below is not valid for.
     """
 
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     label: str = ""
 
 

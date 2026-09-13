@@ -66,7 +66,7 @@ class TaggedReply:
     content: Any
     origin: str
     session_id: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     request_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
 
     def is_for(self, origin: str, session_id: str = "") -> bool:

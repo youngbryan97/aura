@@ -17,6 +17,8 @@ Two things were wrong, and both are general:
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import pytest
 
 from core.skills import screen_pursuit as sp
@@ -102,10 +104,10 @@ async def test_a_goal_already_met_before_she_moved_is_said_not_claimed(monkeypat
     async def identity():
         return {"url": "https://play2048.co/", "title": "2048", "error": ""}
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
 
     result = await sp.pursue_on_screen(
         goal="play until a 128 tile",
@@ -209,11 +211,11 @@ async def test_a_goal_met_by_an_old_game_is_a_choice_to_begin_again(monkeypatch)
     async def think(objective, evidence):
         return "start over"
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
 
     result = await sp.pursue_on_screen(
         goal="play until a 128 tile",
@@ -249,9 +251,9 @@ async def test_accepting_a_pre_met_goal_is_still_reported_honestly(monkeypatch):
     async def think(objective, evidence):
         return "see it through"
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
 
     result = await sp.pursue_on_screen(
         goal="play until a 128 tile",
@@ -311,11 +313,11 @@ async def test_a_reset_is_waited_for_before_anything_is_judged(monkeypatch):
     async def think(objective, evidence):
         return "start over"
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
-    monkeypatch.setattr(sp, "press", press)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
+    patch_pursuit(monkeypatch, "press", press)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
 
     result = await sp.pursue_on_screen(
         goal="play until a 128 tile",
@@ -359,10 +361,10 @@ async def test_a_click_that_changed_nothing_is_not_a_restart(monkeypatch):
     async def think(objective, evidence):
         return "start over"
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
-    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
-    monkeypatch.setattr(sp, "current_page_identity", identity)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
+    patch_pursuit(monkeypatch, "_ensure_frontmost", frontmost)
+    patch_pursuit(monkeypatch, "current_page_identity", identity)
 
     result = await sp.pursue_on_screen(
         goal="play until a 128 tile",

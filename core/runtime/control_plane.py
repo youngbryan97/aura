@@ -96,7 +96,7 @@ class ObservedServiceState(StrEnum):
 
 @dataclass(frozen=True)
 class PressureSnapshot:
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
     observation_source: str = "unavailable"
     observation_scenario_id: str = ""
     host_observed: bool = False
@@ -286,7 +286,7 @@ class _LeaseRecord:
 class _Waiter:
     sequence: int
     request: AdmissionRequest
-    enqueued_at: float = field(default_factory=time.time)
+    enqueued_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -1242,7 +1242,7 @@ class ServiceObservation:
     observed_state: ObservedServiceState = ObservedServiceState.UNKNOWN
     reason: str = "registered"
     generation: int = 0
-    last_transition_at: float = field(default_factory=time.time)
+    last_transition_at: float = field(default_factory=lambda: time.time())
     last_probe_at: float = 0.0
     probe_available: bool | None = None
     restart_times: list[float] = field(default_factory=list)

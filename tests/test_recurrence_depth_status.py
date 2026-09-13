@@ -116,9 +116,12 @@ def test_without_a_request_the_status_still_reports_what_happened(service):
 def test_the_verifier_only_faults_a_halt_with_no_reason():
     from pathlib import Path
 
+    # The receipt contract, which is where both markers live now. The service
+    # was split for size and reading it found neither, so a verdict that had
+    # only moved looked like one that had been dropped.
     source = Path(
         __file__
-    ).resolve().parents[1] / "core/brain/latent_cortex_service.py"
+    ).resolve().parents[1] / "core/brain/latent_receipt_contract.py"
     text = source.read_text()
     assert "live_recurrence_depth_not_applied" in text
     # The old blanket verdict must not fire on a short-but-explained episode.

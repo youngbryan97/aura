@@ -128,7 +128,7 @@ class ExecutionPlan:
     tool_calls: list[ToolCall]
     replan_budget: int = 3
     metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     plan_hash: str = None
     
     def __post_init__(self):

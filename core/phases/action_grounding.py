@@ -334,6 +334,37 @@ def _success_text(skill_name: str, result: dict[str, Any], tail: str) -> str:
     return f"`{skill_name}` completed."
 
 
+#: Grounding outcomes where a skill was really dispatched and did not succeed.
+_FAILED_DISPATCHES: frozenset[str] = frozenset({"executed_failed", "dispatch_error"})
+
+
+def perceive_failed_actions(world: Any, result: GroundingResult) -> int:
+    """Put each skill that ran and failed into the percept stream as an error.
+
+    Her own action failing is something she perceives, the way a message
+    arriving is. The affect phase maps an `error` percept to fear and
+    frustration, and until this nothing in production emitted one, so that
+    route was exercised only by the subject-core harness. A marker that
+    dispatched nothing is not a failure she saw, and is left out.
+    """
+    from core.state.percepts import emit_percept
+
+    emitted = 0
+    for hit in result.marker_hits:
+        if hit.get("status") not in _FAILED_DISPATCHES:
+            continue
+        record = emit_percept(
+            world,
+            "error",
+            content=f"{hit.get('skill')} failed: {hit.get('error') or 'no reason given'}",
+            source="action_grounding",
+            skill=hit.get("skill"),
+            status=hit.get("status"),
+        )
+        emitted += record is not None
+    return emitted
+
+
 def _failure_text(skill_name: str, result: dict[str, Any]) -> str:
     err = str(result.get("error") or result.get("status") or "unknown failure").strip()
     return (

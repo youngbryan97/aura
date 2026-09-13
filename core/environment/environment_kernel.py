@@ -25,6 +25,7 @@ from .prediction_error import PredictionErrorComputer
 from .receipt_chain import EnvironmentActionReceipt
 from .simulation import TacticalSimulator
 from .state_compiler import StateCompiler
+from core.conversation.word_markers import names_any
 
 
 @dataclass
@@ -987,7 +988,7 @@ class EnvironmentKernel:
         if outcome.is_death or self.run_manager.detect_death(text):
             return "death"
         labels = " ".join(event.label.lower() for event in parsed.semantic_events)
-        if any(token in labels for token in ("victory", "task_completed", "ascended", "success")):
+        if names_any(labels, ("victory", "task_completed", "ascended", "success")):
             return "success"
         return ""
 

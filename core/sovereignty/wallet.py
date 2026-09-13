@@ -96,7 +96,7 @@ class SpendIntent:
     purpose: str
     destination: str  # opaque adapter-specific recipient
     amount: float     # in native units of the adapter
-    when_proposed: float = field(default_factory=time.time)
+    when_proposed: float = field(default_factory=lambda: time.time())
     when_authorized: Optional[float] = None
     when_executed: Optional[float] = None
     when_cancelled: Optional[float] = None

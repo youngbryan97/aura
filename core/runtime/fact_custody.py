@@ -175,7 +175,7 @@ class HeldFact:
     kind: ValueKind = ValueKind.TEXT
     value_forms: tuple[str, ...] = ()
     evidence: tuple[str, ...] = ()
-    established_at: float = field(default_factory=time.time)
+    established_at: float = field(default_factory=lambda: time.time())
 
     @property
     def key(self) -> tuple[str, str]:
@@ -267,7 +267,7 @@ class CustodyBreak:
     stage: str
     kind: BreakKind
     detail: str
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def describe(self) -> str:
         return (

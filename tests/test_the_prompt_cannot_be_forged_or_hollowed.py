@@ -256,6 +256,39 @@ def test_the_repair_lane_still_ends_on_the_user_turn():
     assert repaired[-1]["role"] == "user"
 
 
+def test_repair_does_not_apply_a_second_history_window_or_clip_dialogue():
+    dialogue = [
+        {"role": "user", "content": "Pick a novel for the reading group."},
+        {"role": "assistant", "content": "The Tell-Tale Heart."},
+        {"role": "user", "content": "That is a short story. Please replace it with a novel."},
+        {"role": "assistant", "content": "Gone Girl by Gillian Flynn."},
+        {"role": "user", "content": "Explain the history of paper."},
+        {"role": "assistant", "content": "A complete explanation.\n\n" + "Evidence. " * 200},
+        {"role": "user", "content": "Another question."},
+        {"role": "assistant", "content": "Another answer."},
+        {"role": "user", "content": "Which novel did we choose?"},
+    ]
+    evidence = [
+        stamp_grounding({"role": "system", "content": f"[TOOL RESULT: {index}]\n" + "source\n" * 400})
+        for index in range(4)
+    ]
+    messages = [{"role": "system", "content": "## DERIVED RUNTIME SIGNALS\nambient"}, *dialogue, *evidence]
+    repaired = InferenceGate._build_primary_repair_messages(dialogue[-1]["content"], messages)
+    assert [message for message in repaired if message["role"] in {"user", "assistant"}] == dialogue
+    assert [message["content"] for message in repaired if message["role"] == "runtime_evidence"] == [
+        message["content"] for message in evidence
+    ]
+    assert repaired[-1] == dialogue[-1]
+    assert "DERIVED RUNTIME SIGNALS" not in "\n".join(message["content"] for message in repaired)
+
+
+def test_repair_preserves_the_entire_current_user_input():
+    request = "Inspect each line:\n" + "line = 'a  b'\n" * 400
+    messages = [{"role": "user", "content": request}]
+    repaired = InferenceGate._build_primary_repair_messages(request, messages)
+    assert repaired[-1] == messages[-1]
+
+
 def test_the_retry_declares_that_it_keeps_grounding():
     import inspect
 

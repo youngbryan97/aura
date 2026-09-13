@@ -9,7 +9,7 @@ import pytest
 from core.learning.semantic_program_calibrated_path_replication import (
     adjudicate_calibrated_path_replication,
 )
-from core.learning.semantic_program_corpus import (
+from core.learning.semantic_program_corpus_replication import (
     build_semantic_program_natural_weave_replication_corpus,
 )
 from core.learning.semantic_program_natural_transfer import procedure_schema_signature

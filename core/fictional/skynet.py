@@ -28,8 +28,8 @@ class SubsystemStatus:
     healthy: bool
     failure_count: int
     last_error: str = ""
-    last_checked_at: float = field(default_factory=time.time)
-    last_transition_at: float = field(default_factory=time.time)
+    last_checked_at: float = field(default_factory=lambda: time.time())
+    last_transition_at: float = field(default_factory=lambda: time.time())
     last_reported_at: float = 0.0
 
 

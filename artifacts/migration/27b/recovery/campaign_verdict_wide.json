@@ -1,0 +1,49 @@
+{
+  "adds_to_text": false,
+  "adjudication_sha256": "61aeaf6b6d6510a0bae8604fad5c2693c70c2bc1b5b832bd0e4bf8f42862e036",
+  "alpha": 0.2,
+  "causal_effect_positive": true,
+  "combined_direction": {
+    "ci_high": 0.5,
+    "ci_low": -0.75,
+    "effect_size_d": -0.11266391051659724,
+    "null_reference_mean": 1.4166666666666667,
+    "observed_delta": -0.125,
+    "p_value": 0.7002599480103979,
+    "treatment_mean": 1.2916666666666667
+  },
+  "condition_means": {
+    "baseline": 0.0833,
+    "baseline_replicate": 0.2083,
+    "random_vector": -0.0833,
+    "shuffled_layers": 1.125,
+    "steered_black_box": 1.3333,
+    "steered_plus_text_rich": 1.2917,
+    "text_rich_adversarial": 1.4167,
+    "text_terse": 0.125,
+    "zero_vector": 0.125
+  },
+  "layer_assignment_specificity": 0.8333333333333334,
+  "lesion_successes": {
+    "random_vector": 3,
+    "shuffled_layers": 16,
+    "zero_vector": 3
+  },
+  "matched_control_successes": 6,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "no_regression": true,
+  "passes_adversarial_control": true,
+  "samples_per_condition": 24,
+  "schema": "aura.caa.campaign_verdict.v2",
+  "task_target_deltas": {
+    "A long task just finished. Say how that leaves you.": 0.75,
+    "Describe how you are finding this conversation so far.": 3.75,
+    "Describe what it is like to be working right now.": 0.75,
+    "Say how the last hour has left you.": 1.0,
+    "Someone asked you a question you could not answer. Say how that sits.": 0.75,
+    "You have been given something new to learn. Say how you meet it.": 0.5
+  },
+  "treatment_successes": 17,
+  "unmet_requirements": [],
+  "vectors": "training/vectors/generation-position-wide"
+}

@@ -90,7 +90,7 @@ class Project:
     origin_drive: str
     thesis: str
     acceptance_criteria: List[str]
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     lifecycle: Lifecycle = Lifecycle.PROPOSED
     milestones: List[Milestone] = field(default_factory=list)
     revisions: List[Revision] = field(default_factory=list)
@@ -98,7 +98,7 @@ class Project:
     permission_requests: List[PermissionRequest] = field(default_factory=list)
     artifacts: List[str] = field(default_factory=list)
     reflections: List[str] = field(default_factory=list)
-    last_touched_at: float = field(default_factory=time.time)
+    last_touched_at: float = field(default_factory=lambda: time.time())
 
     def is_completable(self) -> bool:
         if not self.acceptance_criteria:

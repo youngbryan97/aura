@@ -25,12 +25,17 @@ tick that called it.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 from typing import Any
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["register_broadcast_consumers"]
+__all__ = [
+    "consumer_activity",
+    "register_broadcast_consumers",
+    "reset_consumer_activity",
+]
 
 logger = logging.getLogger("Aura.Consciousness.Broadcast")
 
@@ -127,6 +132,86 @@ def _drive_served(source: str) -> str:
     return SOURCE_DRIVES.get(source, "")
 
 
+#: How often each consumer was called and how often it changed anything.
+#:
+#: A consumer that returns early every time is a registered processor with no
+#: effect, and registration alone cannot tell you: the list of what is wired
+#: looks the same either way. Every one of these takes the winner and writes
+#: somewhere its destination domain reads, so a run where one of them never
+#: writes is a run where global access is narrower than the report says.
+_CALLED: dict[str, int] = {}
+_WROTE: dict[str, int] = {}
+#: Ran with a winner to act on and reported no write. Counted separately
+#: because it is neither "wrote" nor "was never called", and the two it sits
+#: between are the two this monitor exists to tell apart.
+_QUIET: dict[str, int] = {}
+
+#: Which consumer is running, so :func:`_wrote` needs no argument and the
+#: consumers keep the signature the workspace calls them with.
+_RUNNING: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "broadcast_consumer", default=""
+)
+
+
+def _wrote() -> None:
+    """The running consumer changed the state its destination reads.
+
+    Called at the point the write lands, never before it. Everything this
+    monitor reports rests on that being true.
+    """
+    name = _RUNNING.get()
+    if name:
+        _WROTE[name] = _WROTE.get(name, 0) + 1
+
+
+def _counted(name: str, consumer: Any) -> Any:
+    """Wrap a consumer so the run can say whether it ever did anything.
+
+    A consumer that ran with a winner and reported nothing used to be counted
+    as having written, on the ground that calling a working consumer dead is
+    worse. That reasoning had a hole big enough to swallow the whole monitor:
+    nothing ever set the marker, so EVERY write in this report was the
+    fallback inventing one, and a consumer that silently did nothing was
+    indistinguishable from one that worked — which is the state of affairs the
+    file was written to detect.
+
+    So the invention is gone and the third state is named instead. A consumer
+    that does not report is `ran_without_writing`, which is a thing a person
+    can go and look at.
+    """
+    import functools
+
+    @functools.wraps(consumer)
+    async def counted(event: Any) -> None:
+        _CALLED[name] = _CALLED.get(name, 0) + 1
+        before = _WROTE.get(name, 0)
+        token = _RUNNING.set(name)
+        try:
+            await consumer(event)
+        finally:
+            _RUNNING.reset(token)
+        if _WROTE.get(name, 0) == before and _winner(event) is not None:
+            _QUIET[name] = _QUIET.get(name, 0) + 1
+
+    return counted
+
+
+def consumer_activity() -> dict[str, Any]:
+    """Which broadcast consumers have done anything, and which never have."""
+    return {
+        "called": dict(sorted(_CALLED.items())),
+        "wrote": dict(sorted(_WROTE.items())),
+        "ran_without_writing": dict(sorted(_QUIET.items())),
+        "never_wrote": sorted(name for name in _CALLED if not _WROTE.get(name)),
+    }
+
+
+def reset_consumer_activity() -> None:
+    _CALLED.clear()
+    _WROTE.clear()
+    _QUIET.clear()
+
+
 def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> list[str]:
     """Wire the winner to the domains it is supposed to become available to.
 
@@ -153,6 +238,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
             await substrate.inject_stimulus(
                 stimulus, weight=min(1.0, max(0.0, float(winner.effective_priority)))
             )
+            _wrote()
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "broadcast_consumers",
@@ -175,6 +261,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 return
             beliefs["attending:source"] = str(winner.source)[:64]
             beliefs["attending:priority"] = round(float(winner.effective_priority), 4)
+            _wrote()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="the self model did not record the broadcast")
@@ -199,6 +286,7 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
                 "source": str(winner.source)[:64],
             }
+            _wrote()
         except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="affect did not take the broadcast")
@@ -237,9 +325,39 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
                 "drive": drive,
                 "priority": max(0.0, min(1.0, float(winner.effective_priority))),
             }
+            _wrote()
         except (AttributeError, TypeError, ValueError) as exc:
             record_degradation("broadcast_consumers", exc, severity="debug",
                                action="deliberation did not take the broadcast")
+
+    async def to_perception(event: Any) -> None:
+        """What is globally available biases what is noticed next.
+
+        The one coupling the theory is most explicit about, and the one this
+        file did not have: the broadcast reached recurrent cognition, the self
+        model, affect and deliberation, and perception was not among them. So
+        nothing she was attending to could change what she noticed, and the
+        only route into perception at all was the readback of a file she had
+        just written.
+
+        Left on the workspace, where `core.state.percepts.emit_percept` reads
+        it as an arriving percept is stamped — the same device the affect
+        consumer uses, and for the same reason: a consumer that writes where
+        its destination cannot look is a consumer that does not count.
+        """
+        winner = _winner(event)
+        if winner is None:
+            return
+        try:
+            workspace.last_broadcast_attention = {
+                "source": str(winner.source)[:64],
+                "content": str(winner.content)[:512],
+                "priority": max(0.0, min(1.0, float(winner.effective_priority))),
+            }
+            _wrote()
+        except (AttributeError, TypeError, ValueError) as exc:
+            record_degradation("broadcast_consumers", exc, severity="debug",
+                               action="perception did not take the broadcast")
 
     # No memory consumer. There was one, and it appended a bounded trace to an
     # attribute on the workspace that nothing anywhere reads — a writer with no
@@ -254,9 +372,10 @@ def register_broadcast_consumers(workspace: Any, *, substrate: Any = None) -> li
         ("self_model", to_self_model),
         ("affect", to_affect),
         ("deliberation", to_deliberation),
+        ("perception", to_perception),
     ):
         try:
-            workspace.register_processor(consumer)
+            workspace.register_processor(_counted(name, consumer))
             registered.append(name)
         except (AttributeError, TypeError) as exc:
             logger.warning("broadcast consumer %s not registered: %s", name, exc)

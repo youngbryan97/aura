@@ -93,7 +93,7 @@ class ActorUsage:
     browser_contexts: int
     queue_depth: int
     cpu_seconds_per_minute: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

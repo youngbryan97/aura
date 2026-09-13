@@ -65,24 +65,45 @@ _ABSOLUTE_MAX_RECURRENT_LOOPS = 8
 MODEL_PROFILE_DEFAULTS = {
     # (min_layers, max_layers): (n_loops, prelude_frac, coda_frac, alpha)
     (72, 999):  (1, 0.15, 0.15, 0.1),   # 72B (80 layers) — interactive solver
-    (56, 71):   (2, 0.20, 0.20, 0.1),   # 32B (64 layers) — recurrent thinking
+    (56, 71):   (1, 0.20, 0.20, 0.1),   # 32B/27B (64 layers) — see below
     (24, 55):   (1, 0.20, 0.20, 0.1),   # 14B (40 layers) — marginal benefit
     (0,  23):   (1, 0.20, 0.20, 0.1),   # 7B and below — too small
 }
 
-# 2026-07-26: this default was briefly set to 1 while chasing the cause of
-# fluent-nonsense replies on the live desktop. The A/B disproved it — the
-# nonsense persisted with depth off AND substrate steering clamped to 0.01
-# (worker log: "Surface decode: steering α=0.01, depth_present=False"), and
-# the actual cause was the foreground kNN datastore, whose 1,689 entries were
-# 99.3% empty and were being blended into the logits at up to λ=0.87. See
-# core/brain/nonparametric_worker.py.
+# 2026-09-12: the 64-layer interactive default goes back to one loop, and this
+# time on the evidence rather than on a suspicion.
 #
-# Depth is restored to the recurrent arc's intended configuration. If it is
-# ever suspected again, AURA_RECURRENT_LOOPS_32B=1 turns it off for the
-# interactive lane WITHOUT touching training (which sets AURA_RECURRENT_LOOPS
-# explicitly) or the RLC (which uses its own RecurrenceConfig) —
-# tests/test_recurrent_depth_lane_separation.py pins that separation.
+# What this module does is the thing its own sibling was built to replace.
+# `core/brain/llm/latent_cortex/recurrence.py` opens: "2026 frozen-loop studies
+# found naive layer repetition unstable. This module is the difference between
+# 'run layers 16-47 again' and a governed dynamical system." Looping the middle
+# band here IS "run layers 16-47 again": a fixed count, one `h + 0.1 * h_embed`
+# injection, and none of the RMSMatch clamp, the convergence epsilon or the
+# divergence guard the RLC carries.
+#
+# Nothing measured whether it helps. Eighteen tests in test_recurrent_depth.py
+# cover cache discipline, layer geometry, override bounds and instance scoping;
+# not one asserts an improvement, and no artifact recorded one. The only
+# measurement that exists is against it: on a 28-layer checkpoint, forcing two
+# loops took a sealed forty-task battery from 21/40 to 2/40
+# (artifacts/recurrent_depth/, tools/run_recurrent_depth_arms.py). That model's
+# own profile row already said one loop, so it is not a verdict on the 27B —
+# but an unmeasured claim does not get to be the default while the only
+# reading anyone has is that shape.
+#
+# So the identity depth is the default and two loops has to earn its way back
+# on the resident checkpoint. Nothing else moves: training sets
+# AURA_RECURRENT_LOOPS explicitly and is read first, AURA_RECURRENT_LOOPS_32B
+# still overrides the interactive lane on its own, and the RLC uses its own
+# RecurrenceConfig and drives the layers itself rather than through the patched
+# forward — tests/test_recurrent_depth_lane_separation.py pins that separation.
+#
+# The 2026-07-26 note this replaces: depth was briefly suspected of causing
+# fluent-nonsense replies and the A/B disproved that. The cause was the
+# foreground kNN datastore, whose 1,689 entries were 99.3% empty and were
+# blended into the logits at up to lambda=0.87. See
+# core/brain/nonparametric_worker.py. That finding still stands; it was never
+# evidence that depth helps.
 
 
 def _get_model_profile_defaults(num_layers: int) -> tuple:
@@ -937,16 +958,13 @@ def apply_for_model(model) -> bool:
     """
     n_loops = resolve_loops_for_model(model)
 
-    if n_loops <= 1:
-        layer_view = resolve_model_layers(model)
-        num_layers = len(layer_view.layers) if layer_view is not None else 0
-        logger.info(
-            "Recurrent depth: standard pass for %d-layer model (n_loops=%d)",
-            num_layers, n_loops,
-        )
-        return False
-
-    # Get other params from env or defaults
+    # Every override is read and bounded BEFORE the loop count decides
+    # anything. It used to be read after, so once the interactive default went
+    # back to one loop an out-of-range AURA_RECURRENT_PRELUDE stopped being
+    # refused — it was simply never parsed. An operator would have learned
+    # their setting was unsafe on the day they turned looping back on, which
+    # is the worst day to find out. A malformed override is malformed whether
+    # or not the depth makes it bite.
     layer_view = resolve_model_layers(model)
     num_layers = len(layer_view.layers) if layer_view is not None else 64
     defaults = _get_model_profile_defaults(num_layers)
@@ -969,6 +987,13 @@ def apply_for_model(model) -> bool:
         minimum=0.0,
         maximum=0.5,
     )
+
+    if n_loops <= 1:
+        logger.info(
+            "Recurrent depth: standard pass for %d-layer model (n_loops=%d)",
+            num_layers, n_loops,
+        )
+        return False
 
     return apply_recurrent_depth(
         model,

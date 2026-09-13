@@ -39,7 +39,7 @@ class ResearchCycle:
     cycle_id: str
     topic: str
     stage: ResearchStage = ResearchStage.HYPOTHESIS
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     hypothesis: Optional[Hypothesis] = None
     mined_facts: List[Dict[str, Any]] = field(default_factory=list)
     experiment_spec: Optional[Dict[str, Any]] = None

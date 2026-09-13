@@ -95,6 +95,7 @@ _QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS = (
 @dataclasses.dataclass
 class TerminalExchangeCapture:
     exchanges: dict[str, dict[str, Any]] = dataclasses.field(default_factory=dict)
+    primary_exchange_id: str = ""
 
 
 _TERMINAL_EXCHANGES: ContextVar[TerminalExchangeCapture | None] = ContextVar(
@@ -639,10 +640,13 @@ async def _persist_pending_conversation_user(
 
 async def _begin_logged_exchange(user_msg: str, *, session_id: str = "") -> str:
     """Create and durably pre-log an in-flight exchange."""
+    capture = _TERMINAL_EXCHANGES.get()
+    if capture is not None and capture.primary_exchange_id:
+        return capture.primary_exchange_id
     exchange_id = _new_exchange_id()
     principal_id, principal_surface = _chat_memory_state._chat_memory_identity()
-    capture = _TERMINAL_EXCHANGES.get()
     if capture is not None:
+        capture.primary_exchange_id = exchange_id
         capture.exchanges[exchange_id] = {
             "user": user_msg, "session": str(session_id or ""),
             "principal": _CHAT_REQUEST_PRINCIPAL.get(),

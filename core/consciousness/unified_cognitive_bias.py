@@ -53,7 +53,7 @@ class UnifiedBiasSnapshot:
     observer_contribution: np.ndarray
     weights: Dict[str, float]
     observer_presence: float
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 class UnifiedCognitiveBias:

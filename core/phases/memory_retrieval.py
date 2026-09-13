@@ -157,11 +157,29 @@ class MemoryRetrievalPhase(BasePhase):
                 }
         query = _safe_text(query)
 
+        # What she is working on, when the last thing in mind is not something
+        # a person said. Retrieval used to run only when the newest
+        # working-memory entry came from the user — "to save cycles" — and the
+        # newest entry after a turn is her own reply, so across an ordinary
+        # hour of thinking she recalled nothing at all. Every autonomous turn,
+        # every turn of her own problem solving, every idle turn: no recall,
+        # and the recalled set every consumer reads went stale and stayed
+        # stale. A memory that can only be reached when somebody speaks is not
+        # hers.
+        #
+        # The cycles are still saved, by the thing that was actually costing
+        # them: a query already answered is not asked again.
         if not query or last_msg.get("role") != "user":
-            # Only retrieve on new user input for now to save cycles
+            query = _safe_text(
+                getattr(state.cognition, "current_objective", "") or objective or ""
+            )
+        if not query:
             return state
 
         if len(query) < 5:
+            return state
+
+        if query == getattr(state.cognition, "last_retrieval_query", None):
             return state
 
         try:
@@ -618,6 +636,33 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
+        new_state.cognition.last_retrieval_query = query
+        # And say that something came back to her.
+        #
+        # The affect phase has carried a mapping from `memory_replay` to
+        # sadness, joy, trust, nostalgia, warmth and belonging since it was
+        # written, and nothing in the tree has ever emitted that percept: a
+        # reader with no writer, so recall could put something in front of her
+        # and her feeling never heard about it. The intensity is the best match
+        # score, so a faint recollection moves affect faintly and there is no
+        # threshold to choose.
+        try:
+            from core.state.percepts import emit_percept
+
+            emit_percept(
+                new_state.world,
+                "memory_replay",
+                content=str(memories[0])[:200],
+                intensity=max(0.0, min(1.0, float(scores[0]) if scores else 0.0)),
+                source="memory_retrieval",
+            )
+        except _MEMORY_RECOVERABLE_ERRORS as exc:
+            _record_memory_degradation(
+                exc,
+                action="recall reached the state but not affect",
+                stage="memory_replay_percept",
+                severity="debug",
+            )
         new_state.response_modifiers["memory_retrieval_signature"] = {
             "query": query[:160],
             "retrieval_limit": retrieval_limit,

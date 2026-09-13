@@ -17,10 +17,12 @@ from core.conversation.requested_reply_shape import (
     without_reply_shape_prefix,
 )
 from core.language import relational_request
+from core.language.word_forms import matching_word_forms
 
 _COVERAGE_STOPWORDS = frozenset(
     {
         "about",
+        "after",
         "actually",
         "again",
         "and",
@@ -33,6 +35,7 @@ _COVERAGE_STOPWORDS = frozenset(
         "aura",
         "because",
         "been",
+        "before",
         "being",
         "both",
         "but",
@@ -47,6 +50,7 @@ _COVERAGE_STOPWORDS = frozenset(
         "done",
         "for",
         "from",
+        "get",
         "give",
         "had",
         "has",
@@ -1114,6 +1118,8 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         if len(wanted) < _MIN_COVERAGE_TOKENS:
             continue
         overlap = wanted & local_answered
+        if not overlap:
+            overlap = matching_word_forms(wanted, local_answered)
         # Numbered multipart requests carry independent explicit obligations.
         # One shared context word cannot prove one of those obligations was
         # answered: "weights" in a graph example must not satisfy a later ask

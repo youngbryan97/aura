@@ -112,7 +112,7 @@ class Situation:
     requirement: float = 1.0
     """How much of the problem has to be solved. Options below this are out."""
 
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)

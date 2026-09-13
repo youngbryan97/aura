@@ -118,7 +118,7 @@ class CompilerFreeResult:
     train_families_total: int
     verdict: str
     reasons: list[str] = field(default_factory=list)
-    ran_at: float = field(default_factory=time.time)
+    ran_at: float = field(default_factory=lambda: time.time())
 
     @property
     def best_lesion(self) -> float:

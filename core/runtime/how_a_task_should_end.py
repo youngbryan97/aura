@@ -28,6 +28,7 @@ import threading
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.HowATaskShouldEnd")
 
@@ -82,7 +83,7 @@ class AnEndingPolicy:
 #: :func:`owners_that_have_not_said` until somebody reads it too.
 _DECLARED: dict[str, AnEndingPolicy] = {}
 _SPAWNED: dict[str, int] = {}
-_LOCK = threading.Lock()
+_LOCK = checked_lock("core.runtime.how_a_task_should_end.LOCK")
 
 #: The tracker's own default, used where an owner has said nothing. Keeping it
 #: explicit is the difference between a default and an accident.

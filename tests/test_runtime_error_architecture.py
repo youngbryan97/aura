@@ -2249,7 +2249,11 @@ def test_runtime_registry_batch_six_large_scc_service_seams(monkeypatch, tmp_pat
         # the registry-seam source contract no longer applies to it.
         inference_phase,
         initiative_generation,
-        motivation_update,
+        # motivation_update is asserted separately below: three of its four
+        # service reads moved to the registry, and the fourth cannot, because
+        # the registry resolves with `peek` and the drive engine is registered
+        # lazily. A lifecycle caller that must instantiate is a different
+        # thing from a phase that reached past the seam.
         reliability_engine,
         scheduler,
         outcome_simulator,
@@ -2262,6 +2266,52 @@ def test_runtime_registry_batch_six_large_scc_service_seams(monkeypatch, tmp_pat
             module,
             forbid_names=("ServiceContainer", "ServiceLifetime", "get_container"),
         )
+
+
+def test_motivation_update_reads_through_the_registry_and_instantiates_once():
+    """Every observation through the seam; the one lifecycle call named.
+
+    `get_runtime_service` resolves with `ServiceContainer.peek`, which never
+    invokes a factory — right for diagnostics and error sinks, which must not
+    boot an organ while they are looking at one. Three reads here are exactly
+    that and now go through it: the free-energy urgency, the soma exertion,
+    and the world-model surprise. Each of them used to be able to instantiate
+    the thing it was reading.
+
+    The fourth gathers drive signals, and the drive engine is registered
+    lazily, so the read-only seam returns None for ever. That one stays on the
+    container, and this test pins the count so a second one cannot appear
+    beside it without a reader noticing.
+    """
+    import ast
+    import inspect
+
+    import core.phases.motivation_update as motivation_update
+
+    source = inspect.getsource(motivation_update)
+    assert "from core.runtime.service_registry import" in source
+    assert source.count("get_runtime_service(") >= 4
+
+    tree = ast.parse(source)
+    container_imports = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "core.container"
+    ]
+    assert len(container_imports) == 1, (
+        f"{len(container_imports)} container imports; the lifecycle caller is "
+        "one, and an observer belongs on the registry"
+    )
+    resolves = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "ServiceContainer"
+    ]
+    assert [call.args[0].value for call in resolves] == ["drive_integration"]
 
 
 def test_runtime_registry_batch_seven_consciousness_adaptation_seams(monkeypatch, tmp_path):

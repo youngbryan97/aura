@@ -26,6 +26,7 @@ import logging
 import re
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.WebInterlocutor.Factcheck")
 
@@ -64,7 +65,7 @@ def extract_checkable_claims(reply: str) -> list[str]:
         if len(s) < 16:
             continue
         low = f" {s.lower()} "
-        if not any(marker in low for marker in _FACTUAL_MARKERS):
+        if not names_any(low, _FACTUAL_MARKERS):
             continue
         # skip clearly-hedged / opinion sentences — challenging those is theater
         if re.search(r"\b(i think|maybe|perhaps|in my view|arguably|might|could be|seems)\b", low):

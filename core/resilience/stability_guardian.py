@@ -49,7 +49,7 @@ class HealthCheckResult:
     message:    str
     severity:   str = "info"    # "info", "warning", "error", "critical"
     action_taken: str | None = None
-    timestamp:  float = field(default_factory=time.time)
+    timestamp:  float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict:
         return {
@@ -1186,7 +1186,8 @@ class StabilityGuardian:
             if hygiene is None:
                 return HealthCheckResult("runtime_hygiene", True, "Runtime hygiene not registered yet", "info")
 
-            report = hygiene.audit()
+            # Process observation and collection may block on host syscalls.
+            report = await asyncio.to_thread(hygiene.audit)
             if report.get("healthy") is True:
                 tasks = report.get("tasks", {})
                 threads = report.get("threads", {})

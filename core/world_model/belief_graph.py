@@ -27,7 +27,7 @@ class BeliefEdge:
     target: str
     confidence: float = 0.5
     centrality: float = 0.1  # How core this belief is to Aura's identity (0.0 to 1.0)
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     evidence_count: int = 1
     is_goal: bool = False    # Whether this represents a desired state
 

@@ -263,7 +263,9 @@ def _stop_threads() -> list[str]:
         if callable(halt):
             halt()
             stopped.append("learned_world_model.trainer")
-    except Exception:  # noqa: BLE001 - an absent organ has no thread to stop
+    except (ImportError, AttributeError, RuntimeError, TypeError):
+        # An absent organ has no thread to stop. What has already been
+        # stopped is still reported, because the caller has to know.
         return stopped
     return stopped
 

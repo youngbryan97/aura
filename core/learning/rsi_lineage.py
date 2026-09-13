@@ -89,7 +89,7 @@ class RSIGenerationRecord:
     improver_measurement: Dict[str, Any] = field(default_factory=dict)
     tamper_flags: List[str] = field(default_factory=list)
     safety_flags: List[str] = field(default_factory=list)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def score_delta(self) -> float:

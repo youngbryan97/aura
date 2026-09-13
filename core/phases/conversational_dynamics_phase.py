@@ -164,6 +164,32 @@ class ConversationalDynamicsPhase(Phase):
                 "association_chain": dynamics.association_chain,
             }
 
+            # ── Discourse threading, energy and the user's trend ──
+            #
+            # `DiscourseTracker` is constructed and registered in
+            # `core/social/presence_integration.py` and its `update` was called
+            # by nothing in the tree. It is the only writer of
+            # `cognition.conversation_energy`, `cognition.discourse_depth` and
+            # `cognition.user_emotional_trend`, so all three were constants for
+            # the whole of every life — and the workspace prices the exchange's
+            # claim on attention from the first of them, so what had just been
+            # said always asked for attention by exactly the same amount.
+            #
+            # "Call this after each incoming user message", says the method.
+            # This is the phase that has the message.
+            try:
+                from core.container import ServiceContainer
+
+                tracker = ServiceContainer.get("discourse_tracker", default=None)
+                if tracker is not None and objective:
+                    await tracker.update(new_state, str(objective))
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_conversational_degradation(
+                    exc,
+                    action="continued without discourse threading for this turn",
+                    severity="degraded",
+                )
+
             # ── Multiple Drafts (Dennett): parallel interpretation streams ──
             # Submit the user's input to spawn competing drafts FIRST.
             # If there are unresolved drafts from the PREVIOUS input, probe
@@ -183,6 +209,19 @@ class ConversationalDynamicsPhase(Phase):
                     new_state.response_modifiers["multiple_drafts"] = md_block
                 if divergence > 0.15:
                     cog.modifiers["draft_divergence"] = f"{divergence:.2f}"
+                # What the spend decision said when the drafts tied, so the
+                # verdict is visible where the turn is read rather than only in
+                # a log line. It is already acted on inside the engine, which
+                # holds the competition open for one more probe when another
+                # round is worth what it costs her.
+                judgement = md_engine.last_spend_decision()
+                if judgement is not None:
+                    new_state.response_modifiers["worth_more_thought"] = {
+                        "worth": str(judgement.worth),
+                        "margin": round(float(judgement.margin), 4),
+                        "cost": round(float(judgement.cost), 4),
+                        "because": judgement.because,
+                    }
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _record_conversational_degradation(
                     exc,

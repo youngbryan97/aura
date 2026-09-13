@@ -38,7 +38,7 @@ logger = logging.getLogger("Aura.MemoryProvenance")
 @dataclass
 class Provenance:
     record_id: str = field(default_factory=lambda: f"M-{uuid.uuid4().hex[:14]}")
-    when_created: float = field(default_factory=time.time)
+    when_created: float = field(default_factory=lambda: time.time())
     source: str = "self_inferred"
     confidence: float = 0.7
     contested: bool = False

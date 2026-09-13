@@ -110,7 +110,7 @@ class ViabilitySample:
     incoherent_beliefs: int
     broken_subsystems: int
     runtime_uptime_s: float = 0.0
-    sampled_at: float = field(default_factory=time.time)
+    sampled_at: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

@@ -17,9 +17,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from interface.routes.chat import (
-    _SERVED_FROM_RECORD_OPENINGS,
     _reply_was_served_from_a_record,
 )
+from interface.routes.chat_recorded_answers import _SERVED_FROM_RECORD_OPENINGS
 
 
 def test_a_generated_reply_is_not_mistaken_for_a_record():

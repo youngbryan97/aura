@@ -31,6 +31,45 @@ def _a_proof_run_does_not_hide_every_other_reason(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _nothing_adaptive_moves_the_budget(monkeypatch):
+    """Freeze what adapts to the host, so these tests measure the tiering.
+
+    Two things reshape a budget after the tier has declared it. The runtime
+    sampling advisories carry a `max_tokens_factor` read off available memory,
+    and `fit_the_answer_to_the_time` trims the length so the decode fits the
+    clock at the rate this machine last measured — which is right, and which
+    means the dispatched number is a function of the prompt's length and the
+    host's speed as well as of the lane.
+
+    So a test comparing the dispatched budget against the tier's declared
+    default was asserting that nothing had to be trimmed today: 384 against
+    383, failing for a reason no line of it mentions. Both have their own
+    tests — tests/test_a_reply_gets_long_enough_to_be_written.py is the fit's.
+    Here the subject is which tier serves the turn and what that tier
+    declares, so the arithmetic is the gate's alone.
+    """
+    monkeypatch.setattr(
+        InferenceGate,
+        "_apply_runtime_sampling_biases",
+        classmethod(
+            lambda cls, *, base_temperature, max_tokens, context, state,
+            allow_token_scaling: (
+                base_temperature,
+                max_tokens,
+                {"temperature_delta": 0.0, "max_tokens_factor": 1.0},
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "core.brain.inference_gate.fit_the_answer_to_the_time",
+        lambda prompt, max_tokens, asked_for, *, floor=0: (
+            float(asked_for),
+            int(max_tokens),
+        ),
+    )
+
+
 _MISSING = object()
 
 
@@ -48,6 +87,45 @@ def test_cortex_serving_lane_uses_typed_turn_contracts():
     assert InferenceGate._cortex_serving_lane(
         "inspect the state", {"deep_mind_probe": True}
     ) == "deep_reasoning"
+
+
+@pytest.mark.parametrize("qualified", [True, False])
+def test_short_followup_uses_a_qualified_envelope_for_its_whole_input(monkeypatch, qualified):
+    from core.brain import inference_gate
+
+    lanes = {
+        "foreground_simple": SimpleNamespace(
+            name="foreground_simple", max_input_tokens=8192, max_output_tokens=2048,
+        ),
+        "foreground_standard": SimpleNamespace(
+            name="foreground_standard", max_input_tokens=16384, max_output_tokens=4096,
+        ),
+        "foreground_extended": SimpleNamespace(
+            name="foreground_extended", max_input_tokens=24576, max_output_tokens=8192,
+        ),
+    }
+    monkeypatch.setattr(
+        inference_gate, "get_active_cortex_serving_limits",
+        lambda: SimpleNamespace(qualified=qualified, lane=lanes.get),
+    )
+    context = {"max_tokens": 512}
+    question = "Which one did we choose?"
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=8000) == "foreground_simple"
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=9090) == (
+        "foreground_standard" if qualified else "foreground_simple"
+    )
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=20000) == (
+        "foreground_extended" if qualified else "foreground_simple"
+    )
+    # A count beyond all measured envelopes cannot manufacture qualification.
+    assert InferenceGate._cortex_serving_lane(question, context, input_tokens=30000) == "foreground_simple"
+    assert context == {"max_tokens": 512}
+    assert InferenceGate._cortex_serving_lane(
+        question, {"serving_lane": "foreground_simple"}, input_tokens=9090,
+    ) == "foreground_simple"
+    assert InferenceGate._cortex_serving_lane(
+        question, {"coding_request": True}, input_tokens=9090,
+    ) == "code"
 
 
 def test_qualified_profile_supplies_default_foreground_context(monkeypatch):
@@ -4733,7 +4811,11 @@ def test_desktop_safe_boot_refuses_explicit_auto_deferred_prewarm_under_pressure
 
 
 def test_explicit_deferred_cortex_prewarm_refusal_is_rate_limited(monkeypatch, caplog):
-    from core.brain import inference_gate as inference_gate_module
+    # The two names below and the clock they compare against live in the
+    # warm-up module now — the watch moved out of the gate when the gate was
+    # split for size. Patching them on `inference_gate` raised AttributeError,
+    # and the split had already carried the behaviour across intact.
+    from core.brain import inference_gate_cortex_warmup as inference_gate_module
 
     monkeypatch.setenv("AURA_DEFERRED_CORTEX_PREWARM", "1")
     monkeypatch.delenv("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", raising=False)

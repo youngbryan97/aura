@@ -37,6 +37,7 @@ import argparse
 import ast
 import json
 import math
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -163,6 +164,67 @@ def unmapped() -> list[str]:
     return sorted(set(_packages()) - set(INVARIANTS))
 
 
+def _git(*args: str) -> str:
+    """Read something from git, or an empty string if git cannot answer."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(ROOT), *args],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def head_commit() -> str:
+    return _git("rev-parse", "HEAD").strip()
+
+
+def landed_since(commit: str, *, top: int = 12) -> dict:
+    """What grew between ``commit`` and now, per package and per file.
+
+    A raise used to carry one sentence. Over a window of days that sentence
+    stands in for a hundred files nobody can name afterwards, and the entry
+    reads as a reset rather than a record. This is the same window measured
+    rather than described, so a reader can check the sentence against it.
+    """
+    if not commit:
+        return {}
+    kernel_dirs = [f"core/{name}" for name in KERNEL]
+    numstat = _git("diff", "--numstat", f"{commit}..HEAD", "--", *kernel_dirs)
+    if not numstat.strip():
+        return {}
+
+    per_file: dict[str, int] = {}
+    for line in numstat.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3 or not parts[0].isdigit() or not parts[1].isdigit():
+            continue  # a binary file, which has no lines to count
+        added, deleted, path = int(parts[0]), int(parts[1]), parts[2]
+        per_file[path] = per_file.get(path, 0) + added - deleted
+
+    per_package: dict[str, int] = {}
+    for path, net in per_file.items():
+        package = path.split("/")[1] if path.count("/") >= 1 else path
+        per_package[package] = per_package.get(package, 0) + net
+
+    authors: dict[str, int] = {}
+    for line in _git("log", "--format=%an", f"{commit}..HEAD", "--", *kernel_dirs).splitlines():
+        name = line.strip()
+        if name:
+            authors[name] = authors.get(name, 0) + 1
+
+    biggest = sorted(per_file.items(), key=lambda item: -item[1])[:top]
+    return {
+        "since": commit,
+        "net_kernel_lines": sum(per_file.values()),
+        "files_touched": len(per_file),
+        "per_package": dict(sorted(per_package.items(), key=lambda item: -item[1])),
+        "largest_files": [{"path": path, "net_lines": net} for path, net in biggest],
+        "commits_by_author": dict(sorted(authors.items(), key=lambda item: -item[1])),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="move the baseline to today")
@@ -194,11 +256,16 @@ def main() -> int:
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         history = previous.get("history", [])
         if went_up:
-            history = [*history, {"raised": went_up, "from": {k: previous[k] for k in went_up},
-                                  "to": {k: current[k] for k in went_up},
-                                  "because": args.because.strip()}]
+            entry = {"raised": went_up, "from": {k: previous[k] for k in went_up},
+                     "to": {k: current[k] for k in went_up},
+                     "because": args.because.strip()}
+            landed = landed_since(str(previous.get("at_commit", "")))
+            if landed:
+                entry["landed"] = landed
+            history = [*history, entry]
         BASELINE.write_text(
-            json.dumps({**current, "history": history}, indent=2) + "\n"
+            json.dumps({**current, "at_commit": head_commit(), "history": history}, indent=2)
+            + "\n"
         )
         print(f"cognitive-complexity: baseline written {current}")
         return 0
@@ -210,6 +277,19 @@ def main() -> int:
         if key in baseline and isinstance(baseline[key], (int, float))
         and current[key] > baseline[key]
     ]
+    if regressions:
+        landed = landed_since(str(baseline.get("at_commit", "")))
+        if landed:
+            print(
+                "cognitive-complexity: since the baseline, "
+                f"{landed['net_kernel_lines']:+d} kernel lines over "
+                f"{landed['files_touched']} files. Largest: "
+                + ", ".join(
+                    f"{item['path']} {item['net_lines']:+d}"
+                    for item in landed["largest_files"][:5]
+                ),
+                file=sys.stderr,
+            )
     for line in regressions:
         print(f"cognitive-complexity: {line}", file=sys.stderr)
     if regressions:

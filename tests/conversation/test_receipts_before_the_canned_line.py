@@ -15,13 +15,21 @@ did not take.
 
 from __future__ import annotations
 
-import inspect
+from pathlib import Path
 
 
 def test_the_search_fallback_consults_receipts_first() -> None:
-    from interface.routes import chat
-
-    source = inspect.getsource(chat)
+    # The fallback and the reading both live in `chat_reply_repair` now — the
+    # chat route was split for size and this test read the file it used to be
+    # in, found neither string, and reported that receipts are never consulted.
+    # A shorter file and a deleted call site are indistinguishable from here,
+    # so the module that HOLDS the two lines is the one to read.
+    source = (
+        Path(__file__).resolve().parents[2]
+        / "interface"
+        / "routes"
+        / "chat_reply_repair.py"
+    ).read_text(encoding="utf-8")
     index_receipts = source.find("concise_past_action_answer(user_message)")
     index_canned = source.find(
         "I don't have a clean grounded answer on that yet. I need to stick"

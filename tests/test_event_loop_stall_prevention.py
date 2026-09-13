@@ -219,14 +219,56 @@ def test_episodic_summary_cached(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 def test_prediction_observe_and_update_offloaded():
+    """The predictor runs in a worker thread, wherever in the class it is called.
+
+    This used to read the source of ``_prediction_loop`` and look for the two
+    words. Splitting the loop body into ``step()`` — same call, same thread,
+    one function further down — failed it, which is a test reporting on where
+    the code lives rather than on what it does. Ask the syntax tree instead:
+    every call to the predictor anywhere in the class has to be an argument to
+    ``to_thread``, and none of them may be awaited inline.
+    """
+    import ast
     import inspect
+    import textwrap
 
     from core.consciousness import closed_loop
 
-    src = inspect.getsource(closed_loop.ClosedCausalLoop._prediction_loop)
-    assert "to_thread" in src and "observe_and_update" in src, (
+    tree = ast.parse(textwrap.dedent(inspect.getsource(closed_loop.ClosedCausalLoop)))
+
+    def _named(node: ast.AST) -> str:
+        while isinstance(node, ast.Attribute):
+            node = node.value
+        return node.id if isinstance(node, ast.Name) else ""
+
+    def _reads(node: ast.AST) -> str:
+        return node.attr if isinstance(node, ast.Attribute) else _named(node)
+
+    offloaded: list[ast.AST] = []
+    for call in ast.walk(tree):
+        if not isinstance(call, ast.Call):
+            continue
+        if _reads(call.func) != "to_thread":
+            continue
+        offloaded.extend(call.args)
+
+    handed_off = {_reads(arg) for arg in offloaded}
+    assert "observe_and_update" in handed_off, (
         "the numpy prediction step must be offloaded from the event loop "
-        "(observed live as a 6.0s stall)"
+        "(observed live as a 6.0s stall); to_thread is handed "
+        f"{sorted(handed_off)}"
+    )
+
+    inline = [
+        call
+        for call in ast.walk(tree)
+        if isinstance(call, ast.Call)
+        and _reads(call.func) == "observe_and_update"
+        and call not in offloaded
+    ]
+    assert not inline, (
+        f"{len(inline)} call(s) to the predictor run on the event loop; "
+        "every one of them has to go through to_thread"
     )
 
 

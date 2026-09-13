@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 class EmbodiedRunMetrics:
     run_id: str
     domain: str
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     finished_at: Optional[float] = None
     progress: Dict[str, float] = field(default_factory=dict)
     counters: Dict[str, int] = field(default_factory=dict)

@@ -265,7 +265,7 @@ class WillDecision:
     # Provenance
     source: str = ""                    # who requested this action
     content_hash: str = ""              # hash of the action content
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     latency_ms: float = 0.0
 
     #: Who filled which role in this decision, and what that leaves it able to

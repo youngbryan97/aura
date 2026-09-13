@@ -26,9 +26,6 @@ import numpy as np
 
 MISSING_FLAGS_CONFIG = Path(tempfile.gettempdir()) / "test_flags_nonexistent.json"
 
-# Ensure AURA_TEST_MODE is set before any imports that might check it
-os.environ.setdefault("AURA_TEST_MODE", "1")
-
 
 class TestWillGateDecorator(unittest.TestCase):
     """Tests for the @will_gated decorator."""

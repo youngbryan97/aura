@@ -26,7 +26,7 @@ class DurableLesson:
     remember_targets: List[str]
     forget_targets: List[str]
     retry_recommendation: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class MemoryCivilization:

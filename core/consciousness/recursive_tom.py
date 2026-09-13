@@ -138,7 +138,7 @@ class BiasProfile:
     total_observer_presence: float
     active_observers: list[str]
     privacy_posture: str
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 class ObserverContextModel:

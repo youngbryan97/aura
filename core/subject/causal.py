@@ -44,6 +44,7 @@ __all__ = [
     "power_note",
     "EDGE_QVALUE",
     "EDGE_REPLICATION",
+    "SUSTAINED",
     "Edge",
     "InterventionSet",
     "Trial",
@@ -64,6 +65,27 @@ EDGE_REPLICATION: int = 3
 #: than its ordinary within-turn wobble, small enough to leave the state in
 #: the operating range every writer clamps to.
 DEFAULT_DELTA: float = 0.15
+
+#: Domains whose displacement is held for the arm rather than delivered once.
+#:
+#: `do(X)` holds X at the value it was set to; a single push is not that. It
+#: makes no difference to a domain whose state persists — a goal stays on the
+#: list, a budget stays where it was filled to — and all the difference to one
+#: whose own dynamics pull it back faster than its consumers look at it.
+#:
+#: Recurrent cognition is the case. The substrate integrates at twenty hertz
+#: with a time constant of a tenth of a second, and the homeostatic coupling
+#: that carries it into how hot and how deep she may think runs on the
+#: heartbeat, once a second. So a push delivered early in a turn had decayed by
+#: five e-foldings before anything downstream looked, and C measured as a
+#: domain that can be moved ten standard deviations and reach a tenth of one
+#: anywhere else. Held, the consumers see the displacement whenever they
+#: sample.
+#:
+#: Membership follows from the layer rates the campaign already freezes, not
+#: from which domains came out badly: a domain backed by a layer whose period
+#: is shorter than a turn cannot deliver a pulse to a once-a-turn consumer.
+SUSTAINED: frozenset[str] = frozenset({"C"})
 
 #: A column with less spread than this during ordinary operation has no scale
 #: to be measured against and is left out of every distance.
@@ -109,6 +131,96 @@ class InterventionSet:
     lags: int = 0
     unwritable: tuple[str, ...] = ()
     seconds: float = 0.0
+
+    def floor_report(self) -> dict[str, Any]:
+        """What two untouched arms did, broken out every way it can be read.
+
+        Sham against sham is the instrument's own noise, and an effect bar it
+        approaches is a bar that is measuring restoration rather than coupling.
+        One pooled number cannot say that: a floor that is clean in seven
+        domains and half the threshold in the eighth leaves exactly one domain
+        uninterpretable, and the pooled mean hides which.
+
+        So it is reported by target domain, by condition, by source, and over
+        lag, with the share of the effect threshold each one takes. Any domain
+        whose floor reaches a third of the bar is named: a negative result
+        there is not interpretable, whatever the pooled number says.
+        """
+        if not self.trials:
+            return {"trials": 0}
+
+        def _summary(values: list[float]) -> dict[str, float]:
+            array = np.asarray(values, dtype=np.float64)
+            return {
+                "mean": round(float(array.mean()), 5),
+                "q95": round(float(np.quantile(array, 0.95)), 5),
+                "max": round(float(array.max()), 5),
+            }
+
+        by_target: dict[str, dict[str, float]] = {}
+        by_condition: dict[str, dict[str, float]] = {}
+        by_source: dict[str, dict[str, float]] = {}
+        for target in DOMAINS:
+            values = [
+                t.floor.get(target, 0.0) for t in self.trials if target in t.floor
+            ]
+            if values:
+                by_target[target] = _summary(values)
+        for condition in sorted({t.condition for t in self.trials}):
+            values = [
+                value
+                for t in self.trials
+                if t.condition == condition
+                for value in t.floor.values()
+            ]
+            if values:
+                by_condition[condition] = _summary(values)
+        for source in sorted({t.source for t in self.trials}):
+            values = [
+                value for t in self.trials if t.source == source
+                for value in t.floor.values()
+            ]
+            if values:
+                by_source[source] = _summary(values)
+
+        # Over lag, pooled across every trial and target: restoration noise
+        # that grows with the horizon is a different problem from restoration
+        # noise that is there on the first frame.
+        by_lag: list[float] = []
+        width = max(
+            (len(trace) for t in self.trials for trace in t.floor_trace.values()),
+            default=0,
+        )
+        for lag in range(width):
+            values = [
+                trace[lag]
+                for t in self.trials
+                for trace in t.floor_trace.values()
+                if len(trace) > lag
+            ]
+            if values:
+                by_lag.append(round(float(np.mean(values)), 5))
+
+        crowded = sorted(
+            target
+            for target, row in by_target.items()
+            if row["q95"] >= EDGE_EFFECT / 3.0
+        )
+        return {
+            "trials": len(self.trials),
+            "threshold": EDGE_EFFECT,
+            "by_target": by_target,
+            "by_condition": by_condition,
+            "by_source": by_source,
+            "by_lag": by_lag,
+            "worst_target": max(by_target, key=lambda k: by_target[k]["q95"], default=None)
+            if by_target
+            else None,
+            # A domain whose floor reaches a third of the bar. A negative
+            # result for one of these is not interpretable.
+            "crowded_by_restoration_noise": crowded,
+            "floor_is_clean": not crowded,
+        }
 
     def attenuation(self) -> dict[str, dict[str, float]]:
         """For each displaced domain: how much it moved, and how much got out.
@@ -191,9 +303,9 @@ def _divergence(
     single-channel effect halves, though nothing about the organism changed.
     An existence claim must not be a function of the schema's granularity.
 
-    The floor is computed the same way from two sham arms, so the maximum's
-    optimism — it is a maximum over the same columns in both — cancels in the
-    comparison the edge rule actually makes.
+    The floor is computed the same way from two sham arms. See
+    `_paired_divergence` for why the two must be maximised over the same
+    column rather than over the domain independently.
     """
     peak: dict[str, float] = {}
     trace: dict[str, list[float]] = {}
@@ -213,6 +325,66 @@ def _divergence(
         trace[domain] = series
         peak[domain] = max(series) if series else 0.0
     return peak, trace
+
+
+def _paired_divergence(
+    pert: Sequence[CoreState],
+    sham_a: Sequence[CoreState],
+    sham_b: Sequence[CoreState],
+    scale: dict[str, np.ndarray],
+) -> tuple[dict[str, float], dict[str, float], dict[str, list[float]], dict[str, list[float]]]:
+    """The effect and the floor, read off the same column.
+
+    Both were a maximum over the domain's live columns, taken independently —
+    the largest effect anywhere against the largest sham wobble anywhere. When
+    the two maxima land on different columns the subtraction the edge rule
+    makes is not a comparison at all, and it is biased in one direction: the
+    effect has to beat a floor set by a column it never touched.
+
+    It bites hardest on columns that barely move. Recurrent cognition's
+    frustration channel has a standard deviation of 0.0019 across a recording,
+    the fourth smallest of the live columns, so an absolute difference of three
+    ten-thousandths between two identical arms reads as a seventh of a standard
+    deviation — and that was the number every effect into that domain had to
+    clear, whichever column carried it.
+
+    So the column is chosen once, by the margin, and both numbers are read off
+    it. The choice is still a maximum over columns, which is what keeps the
+    answer from depending on how finely the domain was written down; what it no
+    longer does is let one column's noise stand in front of another column's
+    signal.
+    """
+    effect: dict[str, float] = {}
+    floor: dict[str, float] = {}
+    trace: dict[str, list[float]] = {}
+    floor_trace: dict[str, list[float]] = {}
+    span = min(len(pert), len(sham_a), len(sham_b))
+    for domain in DOMAINS:
+        unit = scale.get(domain)
+        if unit is None:
+            continue
+        live = unit > SCALE_FLOOR
+        if not live.any() or span == 0:
+            continue
+        scaled = unit[live]
+        moved = np.zeros((span, int(live.sum())), dtype=np.float64)
+        wobble = np.zeros_like(moved)
+        for index in range(span):
+            here = pert[index].domain(domain)[live]
+            there = sham_a[index].domain(domain)[live]
+            other = sham_b[index].domain(domain)[live]
+            moved[index] = np.clip(np.abs(here - there) / scaled, 0.0, DIVERGENCE_CEILING)
+            wobble[index] = np.clip(np.abs(there - other) / scaled, 0.0, DIVERGENCE_CEILING)
+        # Each column's own peak over the lags, then the column whose margin
+        # over its own floor is largest.
+        column_effect = moved.max(axis=0)
+        column_floor = wobble.max(axis=0)
+        best = int(np.argmax(column_effect - column_floor))
+        effect[domain] = float(column_effect[best])
+        floor[domain] = float(column_floor[best])
+        trace[domain] = [float(value) for value in moved[:, best]]
+        floor_trace[domain] = [float(value) for value in wobble[:, best]]
+    return effect, floor, trace, floor_trace
 
 
 async def _arm(
@@ -237,10 +409,11 @@ async def _arm(
     held_latency = None if runtime.frozen_latency is None else dict(runtime.frozen_latency)
     frames: list[CoreState] = []
     applied = {"done": displace is None}
+    sustained = displace is not None and displace[0] in SUSTAINED
 
     async def hit(rt: SubjectRuntime) -> None:
         """Write to both halves of the domain: the state fields and the organ."""
-        if displace is None or applied["done"]:
+        if displace is None or (applied["done"] and not sustained):
             return
         domain, delta = displace
         in_state = perturb(rt.state, domain, delta, ontogeny=rt.ontogeny)
@@ -254,15 +427,20 @@ async def _arm(
             # of overwriting it — which is what a sustained interoceptive
             # perturbation is.
             rt.freeze_host()
-        applied["done"] = bool(in_state or in_organ)
+        applied["done"] = applied["done"] or bool(in_state or in_organ)
 
     try:
         for turn in range(turns):
             frames.extend(
                 await runtime.turn_once(
                     condition,
-                    perturb_at=at if (turn == 0 and displace is not None) else None,
+                    perturb_at=(
+                        at
+                        if (turn == 0 and displace is not None)
+                        else (0 if sustained else None)
+                    ),
                     perturb=hit,
+                    sustain=hit if sustained else None,
                 )
             )
     finally:
@@ -331,8 +509,9 @@ async def run_interventions(
                     unwritable.add(source)
                     logger.debug("%s has no writer that bit in %s", source, condition.name)
                     continue
-                effect, trace = _divergence(runs["pert"], runs["sham_a"], scale)
-                floor, floor_trace = _divergence(runs["sham_a"], runs["sham_b"], scale)
+                effect, floor, trace, floor_trace = _paired_divergence(
+                    runs["pert"], runs["sham_a"], runs["sham_b"], scale
+                )
                 out.trials.append(
                     Trial(
                         source=source,

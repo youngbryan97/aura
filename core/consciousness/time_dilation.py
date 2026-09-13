@@ -55,7 +55,7 @@ class DilationState:
     wall_elapsed_s: float            # Wall-clock seconds since boot
     subjective_elapsed_s: float      # Subjective seconds since boot
     acceleration_reason: str         # Why we're at this rate
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

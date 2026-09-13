@@ -25,9 +25,9 @@ fingerprint, so two runs with the same fingerprint saw the same timeline.
 
 from __future__ import annotations
 
-import threading
 import time as _time
 from typing import Any
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["ExperimentClock", "installed_clock", "real_time"]
 
@@ -40,7 +40,7 @@ real_time = _time.time
 #: The process-wide installed clock, if any. One per process, because it
 #: replaces a module-level function that every subsystem shares.
 _INSTALLED: ExperimentClock | None = None
-_INSTALL_LOCK = threading.Lock()
+_INSTALL_LOCK = checked_lock("core.subject.clock._INSTALL_LOCK")
 
 
 def installed_clock() -> ExperimentClock | None:
@@ -54,14 +54,19 @@ class ExperimentClock:
     def __init__(self, step: float, *, start: float | None = None) -> None:
         self.step = max(1e-6, float(step))
         self._now = float(start if start is not None else _time.time())
-        self._lock = threading.Lock()
+        self._lock = checked_lock("core.subject.clock.experiment_clock")
         self._real_time: Any = None
 
     # ── reading ──────────────────────────────────────────────────────────
 
     def now(self) -> float:
-        with self._lock:
-            return self._now
+        # No lock. This becomes `time.time` for the whole process, so everything
+        # that reads the wall clock calls it, lockdep included, and lockdep reads
+        # the time while holding its own lock. A checked lock here went back
+        # into lockdep from inside lockdep: the first splat raised while a clock
+        # was installed parked every thread that asked the time. Reading a float
+        # attribute is atomic, and only the harness writes one.
+        return self._now
 
     def __call__(self) -> float:
         return self.now()
@@ -93,19 +98,26 @@ class ExperimentClock:
             if _INSTALLED is self:
                 return
             if _INSTALLED is not None:
-                _INSTALLED.uninstall()
+                # The helper, not `uninstall()`. That takes this lock again, and
+                # the lock is not reentrant, so installing a clock over another
+                # one waited on itself forever.
+                _INSTALLED._uninstall_locked()
             self._real_time = _time.time
             _time.time = self.now  # type: ignore[assignment]
             _INSTALLED = self
 
     def uninstall(self) -> None:
-        global _INSTALLED
         with _INSTALL_LOCK:
-            if self._real_time is not None:
-                _time.time = self._real_time  # type: ignore[assignment]
-                self._real_time = None
-            if _INSTALLED is self:
-                _INSTALLED = None
+            self._uninstall_locked()
+
+    def _uninstall_locked(self) -> None:
+        """Put the real clock back. The caller holds `_INSTALL_LOCK`."""
+        global _INSTALLED
+        if self._real_time is not None:
+            _time.time = self._real_time  # type: ignore[assignment]
+            self._real_time = None
+        if _INSTALLED is self:
+            _INSTALLED = None
 
     def __enter__(self) -> ExperimentClock:
         self.install()

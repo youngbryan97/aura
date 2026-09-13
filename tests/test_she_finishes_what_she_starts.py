@@ -15,6 +15,8 @@ General to any consequential control that confirms before acting.
 """
 from __future__ import annotations
 
+from screen_pursuit_support import patch_pursuit
+
 import pytest
 
 from core.skills import screen_pursuit as sp
@@ -56,8 +58,8 @@ async def test_she_answers_the_question_her_own_click_raised(monkeypatch):
         state["phase"] = "fresh"
         return True
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
 
     _after, began = await sp._answer_own_confirmation(BOARD, "Google Chrome", "New Game")
     assert began, "the question went unanswered"
@@ -76,8 +78,8 @@ async def test_she_does_not_press_the_same_control_again(monkeypatch):
         pressed.append((round(x, 2), round(y, 2)))
         return True
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
 
     await sp._answer_own_confirmation(BOARD, "Google Chrome", "New Game")
     assert (0.75, 0.13) not in pressed
@@ -95,8 +97,8 @@ async def test_nothing_is_pressed_when_nothing_is_asking(monkeypatch):
         pressed.append((x, y))
         return True
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
 
     _after, began = await sp._answer_own_confirmation(BOARD, "Google Chrome", "New Game")
     assert not began
@@ -111,8 +113,8 @@ async def test_a_reset_that_simply_worked_asks_nothing(monkeypatch):
     async def click(x, y, *, expect_app="", bounds=None):
         raise AssertionError("nothing needed pressing")
 
-    monkeypatch.setattr(sp, "read_screen", read)
-    monkeypatch.setattr(sp, "click_normalized", click)
+    patch_pursuit(monkeypatch, "read_screen", read)
+    patch_pursuit(monkeypatch, "click_normalized", click)
 
     _after, began = await sp._answer_own_confirmation(BOARD, "Google Chrome", "New Game")
     assert began

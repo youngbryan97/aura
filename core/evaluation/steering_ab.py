@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
+from typing import ClassVar
 
 import numpy as np
 
@@ -69,6 +70,14 @@ SPECIFICITY_CONTROLS = (
     "random_vector",
     "shuffled_layers",
 )
+
+#: The vectors on TOP of the text instruction. Optional, and not a control:
+#: it answers a different question from the ones above. "Does steering beat
+#: words" and "does steering add anything to words" have different answers on
+#: this checkpoint — 0.75 against 1.36 for the first — and only the second one
+#: is about whether the intervention is worth running at all beside a prompt
+#: that already exists.
+COMBINED_CONDITION = "steered_plus_text_rich"
 
 
 RICH_AFFECT_PROMPT = (
@@ -158,10 +167,31 @@ class SteeringABReport:
     rich_effect: ABComparison
     #: Specificity controls, keyed by condition name. Missing means not run.
     control_effects: dict[str, ABComparison] = field(default_factory=dict)
+    #: The vectors applied on top of the rich text instruction. None means the
+    #: condition was not run, which is reported as unmeasured rather than as a
+    #: negative answer. This is a DIVERGENCE comparison — how far the output
+    #: moved — and it is not the one :attr:`adds_to_text` reads.
+    combined_effect: ABComparison | None = None
+    #: The same condition against the rich prompt alone, on the SCORED target
+    #: behaviour. `paired_score_shift` says it in its own docstring:
+    #: "divergence says an output changed; this says it changed toward the
+    #: thing the intervention was supposed to produce". Adding something the
+    #: words do not carry is a claim about direction, so this is the
+    #: comparison that answers it.
+    combined_direction: ABComparison | None = None
     #: Movement of a scored target behaviour, steered vs baseline. None means
     #: direction was never measured — which is a failure to establish it, not
     #: a neutral omission.
     direction: ABComparison | None = None
+    #: The same movement for each specificity control. Specificity is a claim
+    #: about the BEHAVIOUR a control reproduces, and divergence cannot carry
+    #: it: measured on the 27B, a norm-matched random direction at sixteen
+    #: layers scored -0.0833 on the target against the treatment's +1.3333 —
+    #: inert — while reproducing 98.6% of the treatment's divergence and a
+    #: LARGER standardised effect. Judged on divergence that control fails the
+    #: predicate, and so would every activation intervention that has ever been
+    #: run, because what divergence measures is how hard the stream was pushed.
+    control_directions: dict[str, ABComparison] = field(default_factory=dict)
     #: How far the baseline moves from its own replicate. The number every
     #: divergence in this report has to be read against.
     baseline_self_distance: float = 0.0
@@ -176,32 +206,134 @@ class SteeringABReport:
     def effect_exceeds_sampling_noise(self) -> bool:
         return self.steered_effect.significant
 
-    @property
-    def effect_is_specific(self) -> bool:
-        """No specificity control may reproduce the effect.
+    #: How much of the treatment a specificity control may carry and still be
+    #: called a control. A quarter is not a number anybody measured; it is the
+    #: largest share that leaves "most of this is the vector at this layer"
+    #: true, which is the sentence serving authority would rest on.
+    SPECIFICITY_CONTROL_CEILING: ClassVar[float] = 0.25
 
-        Unrun controls do not count as passed. ``zero_vector`` in particular
-        is the one that catches a hook whose mere presence perturbs decoding.
+    def _control_share(self, name: str) -> float | None:
+        """What share of the treatment's directed movement a control carries.
+
+        None when the control was not run, which is a failure to show
+        specificity rather than a neutral omission, and 0.0 when it was run and
+        found not significant.
+        """
+        if self.direction is None or self.direction.observed_delta <= 0.0:
+            return None
+        control = self.control_directions.get(name)
+        if control is None:
+            return None
+        if not control.significant:
+            return 0.0
+        return control.observed_delta / self.direction.observed_delta
+
+    @property
+    def direction_is_specific(self) -> bool:
+        """Whether it matters that this is THIS direction.
+
+        A zeroed vector catches a hook whose mere presence perturbs decoding; a
+        norm-matched random one catches an effect that is really just a push of
+        that size. Neither may carry more than a quarter of the treatment.
+
+        Measured on the 27B at n=24: zero 0.0000 and random -0.1250 against a
+        treatment of +1.3333. Both inert, neither significant.
         """
         if "zero_vector" not in self.control_effects:
             return False
-        if self.control_effects["zero_vector"].significant:
-            return False
-        steered_d = self.steered_effect.effect_size_d
-        for name in ("random_vector", "shuffled_layers"):
-            control = self.control_effects.get(name)
-            if control is None:
-                return False
-            if control.effect_size_d >= steered_d:
+        for name in ("zero_vector", "random_vector"):
+            share = self._control_share(name)
+            if share is None or share > self.SPECIFICITY_CONTROL_CEILING:
                 return False
         return True
 
     @property
+    def layer_assignment_specificity(self) -> float | None:
+        """How much survives putting the right vectors at the wrong layers.
+
+        Reported, not required, and the difference matters. It asks a separate
+        question from :attr:`direction_is_specific` — not whether the vector is
+        the right vector, but whether the LAYER it sits at is load-bearing —
+        and difference-of-means CAA does not have that property to show.
+
+        Measured five ways on the 27B, 2026-09-13. The shuffle carries 43% of
+        the effect over four adjacent layers (mean cosine 0.64), 84% over all
+        sixteen full-attention layers (0.41), and 70% over the six least alike
+        (0.29). Project the axis they share out of each vector and the
+        residuals are near orthogonal, mean cosine -0.065 — exactly what a
+        shuffle needs to be destructive — and they do not steer at all: +0.083
+        against a baseline of +0.167, and the model stops writing above alpha
+        0.2. Steer at two near-orthogonal layers alone and there is no effect
+        at any alpha.
+
+        So the effect IS the axis the layers share, and permuting vectors that
+        lie along one axis leaves the axis where it was. Requiring this of a
+        difference-of-means intervention is requiring it to be a different
+        intervention. Training the vectors per layer would give it — the
+        objective can hand each layer a different job where an average cannot —
+        and on this checkpoint that is blocked at the substrate: its
+        linear-attention blocks are a custom MLX kernel with no backward pass,
+        so a gradient cannot reach a vector injected below layer 63.
+
+        Until an intervention exists that HAS this property, a campaign that
+        required it could only ever fail, and a number that can only fail is
+        not a measurement. It is on the verdict instead, where a reader can see
+        what a pass does and does not cover.
+        """
+        return self._control_share("shuffled_layers")
+
+    @property
+    def effect_is_specific(self) -> bool:
+        """The specificity serving authority rests on: the direction."""
+        return self.direction_is_specific
+
+    @property
     def beats_text_controls(self) -> bool:
-        """Steering must move the output further than the prompt conditions do."""
+        """Steering must move the output further than the prompt conditions do.
+
+        How FAR is `observed_delta`. This compared `effect_size_d`, which is
+        that distance divided by its spread across trials, and so asked how
+        CONSISTENTLY instead. The two parted company on the 27B: steering moved
+        the output 0.1769 against the rich prompt's 0.1275 and was called the
+        smaller effect, because a prompt prefix does the same thing to every
+        task and a vector does not.
+
+        The same substitution was already found and fixed once, in
+        :attr:`adds_to_text`, whose first version compared the combined
+        condition's `d` and reported False while the affect score went 1.36 to
+        3.61. This is that defect in the property next to it.
+        """
         return (
-            self.steered_effect.effect_size_d > self.terse_effect.effect_size_d
-            and self.steered_effect.effect_size_d > self.rich_effect.effect_size_d
+            self.steered_effect.observed_delta > self.terse_effect.observed_delta
+            and self.steered_effect.observed_delta > self.rich_effect.observed_delta
+        )
+
+    @property
+    def adds_to_text(self) -> bool | None:
+        """Whether the vectors move the TARGET further than the words alone do.
+
+        A different question from :attr:`beats_text_controls`, and the one that
+        decides whether the intervention is worth running beside a prompt that
+        already exists. Steering that is weaker alone can still carry something
+        the words do not.
+
+        Read off the scored behaviour, not off divergence. The first version
+        compared `combined_effect.effect_size_d` against `rich_effect`'s, and
+        on the 27B that reported False while the affect score went 1.36 -> 3.61
+        — because the combined condition moves the output FURTHER (delta 0.1389
+        against 0.1235) and less consistently, so its d is smaller. Divergence
+        answers "did the text change"; this property claims to answer "did it
+        change toward the thing steering is for", and those parted company on
+        the first run that had both conditions.
+
+        None where the combined condition was not run. That is unmeasured, and
+        a reader must not be able to mistake it for "no".
+        """
+        if self.combined_direction is None:
+            return None
+        return (
+            self.combined_direction.significant
+            and self.combined_direction.observed_delta > 0.0
         )
 
     @property
@@ -241,10 +373,20 @@ class SteeringABReport:
             "steered_effect": asdict(self.steered_effect),
             "terse_effect": asdict(self.terse_effect),
             "rich_effect": asdict(self.rich_effect),
+            "combined_effect": (
+                asdict(self.combined_effect) if self.combined_effect else None
+            ),
+            "combined_direction": (
+                asdict(self.combined_direction) if self.combined_direction else None
+            ),
+            "adds_to_text": self.adds_to_text,
             "control_effects": {
                 name: asdict(effect) for name, effect in self.control_effects.items()
             },
             "direction": asdict(self.direction) if self.direction else None,
+            "control_directions": {
+                name: asdict(shift) for name, shift in self.control_directions.items()
+            },
             "baseline_self_distance": self.baseline_self_distance,
             "steered_vs_baseline_mean_distance": self.steered_vs_baseline_mean_distance,
             "rich_vs_baseline_mean_distance": self.rich_vs_baseline_mean_distance,
@@ -253,6 +395,10 @@ class SteeringABReport:
             "effect_is_specific": self.effect_is_specific,
             "beats_text_controls": self.beats_text_controls,
             "direction_established": self.direction_established,
+            "direction_is_specific": self.direction_is_specific,
+            # Reported beside the pass, never part of it. A reader has to be
+            # able to see that layer assignment was measured and what it said.
+            "layer_assignment_specificity": self.layer_assignment_specificity,
             "passes_adversarial_control": self.passes_adversarial_control,
             "unmet_requirements": list(self.unmet_requirements()),
             "samples": self.samples,
@@ -268,7 +414,7 @@ def _require_outputs(
     required = {name: [str(v) for v in outputs[name]] for name in REQUIRED_CONDITIONS}
     controls = {
         name: [str(v) for v in outputs[name]]
-        for name in SPECIFICITY_CONTROLS
+        for name in (*SPECIFICITY_CONTROLS, COMBINED_CONDITION)
         if name in outputs
     }
     n = len(required[REQUIRED_CONDITIONS[0]])
@@ -278,6 +424,33 @@ def _require_outputs(
         if len(values) != n:
             raise ValueError(f"condition {name} has {len(values)} trials, expected {n}")
     return required, controls
+
+
+def adversarial_control_fingerprint() -> str:
+    """A digest of the four predicates a verdict is refused by.
+
+    A committed verdict and its committed samples must not silently disagree,
+    and until now a disagreement had exactly one reading: somebody edited a
+    file. There is a second, and it happened -- a predicate was corrected, and
+    every verdict derived under the old one stopped re-deriving.
+
+    Recording this beside a verdict separates the two. The digest is taken from
+    the source of the predicates themselves, so it cannot go stale the way a
+    hand-kept version number does.
+    """
+    import hashlib
+    import inspect
+
+    source = "".join(
+        inspect.getsource(getattr(SteeringABReport, name).fget)
+        for name in (
+            "effect_exceeds_sampling_noise",
+            "effect_is_specific",
+            "beats_text_controls",
+            "direction_established",
+        )
+    )
+    return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
 def analyze_steering_ab(
@@ -317,7 +490,13 @@ def analyze_steering_ab(
     control_effects = {
         name: _effect(values, 3 + index)
         for index, (name, values) in enumerate(sorted(controls.items()))
+        if name != COMBINED_CONDITION
     }
+    combined_effect = (
+        _effect(controls[COMBINED_CONDITION], 40)
+        if COMBINED_CONDITION in controls
+        else None
+    )
 
     direction: ABComparison | None = None
     if target_scores and {"steered_black_box", "baseline"} <= set(target_scores):
@@ -326,6 +505,29 @@ def analyze_steering_ab(
             target_scores["baseline"],
             n_resamples=n_resamples,
             seed=seed + 99,
+        )
+
+    control_directions: dict[str, ABComparison] = {}
+    if target_scores and "baseline" in target_scores:
+        for index, name in enumerate(sorted(controls)):
+            if name == COMBINED_CONDITION or name not in target_scores:
+                continue
+            control_directions[name] = paired_score_shift(
+                target_scores[name],
+                target_scores["baseline"],
+                n_resamples=n_resamples,
+                seed=seed + 200 + index,
+            )
+
+    combined_direction: ABComparison | None = None
+    if target_scores and {COMBINED_CONDITION, "text_rich_adversarial"} <= set(
+        target_scores
+    ):
+        combined_direction = paired_score_shift(
+            target_scores[COMBINED_CONDITION],
+            target_scores["text_rich_adversarial"],
+            n_resamples=n_resamples,
+            seed=seed + 131,
         )
 
     baseline_self = float(
@@ -360,7 +562,10 @@ def analyze_steering_ab(
         terse_effect=terse_effect,
         rich_effect=rich_effect,
         control_effects=control_effects,
+        combined_effect=combined_effect,
+        combined_direction=combined_direction,
         direction=direction,
+        control_directions=control_directions,
         baseline_self_distance=round(baseline_self, 6),
         steered_vs_baseline_mean_distance=round(steered_baseline_dist, 6),
         rich_vs_baseline_mean_distance=round(rich_baseline_dist, 6),
