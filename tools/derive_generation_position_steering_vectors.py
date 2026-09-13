@@ -205,6 +205,29 @@ def main(argv: list[str] | None = None) -> int:
             for block, original in originals:
                 block.__class__ = original
 
+        # What the seal records about these files comes from here, not from a
+        # constant in the sealing tool. That constant said "last token hidden
+        # state" and was written for a capture that ran the statement on its
+        # own; a bundle whose contract describes a different capture is a false
+        # record however correct its hashes are.
+        (arguments.out / "capture.json").write_text(
+            json.dumps(
+                {
+                    "schema": "aura.caa.vector_capture.v1",
+                    "method": "contrastive_activation_addition",
+                    "statistic": "difference_of_means_generation_position_hidden_state",
+                    "position": "last token of the assistant opening, after the "
+                    "served chat template and its generation prompt",
+                    "extraction_carriers": list(EXTRACTION_CARRIERS),
+                    "captured_by": "tools/derive_generation_position_steering_vectors.py",
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
         # How alike the per-layer vectors are. The specificity control permutes
         # them, so a set whose layers all point the same way cannot fail that
         # control -- and the last set could not, at a mean cosine of 0.79.

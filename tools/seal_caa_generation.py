@@ -61,9 +61,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no vectors under {root}", file=sys.stderr)
         return 1
 
+    # How these files were made, from the capture that made them. The
+    # historical values stand in when a generation predates `capture.json`,
+    # which is the only capture they were ever true of.
+    capture_path = root / "capture.json"
+    capture = (
+        json.loads(capture_path.read_text(encoding="utf-8"))
+        if capture_path.exists()
+        else {
+            "method": "contrastive_activation_addition",
+            "statistic": "difference_of_means_last_token_hidden_state",
+            "captured_by": "tools/capture_27b_steering_vectors.py",
+        }
+    )
     extraction = {
-        "method": "contrastive_activation_addition",
-        "statistic": "difference_of_means_last_token_hidden_state",
+        **{key: value for key, value in capture.items() if key != "schema"},
         "model_path": str(plan["model_path"]),
         "model_descriptor_sha256": descriptor,
         "hidden_size": int(plan["hidden_size"]),
@@ -79,7 +91,6 @@ def main(argv: list[str] | None = None) -> int:
             }
             for dimension in AFFECTIVE_DIMENSIONS
         ],
-        "captured_by": "tools/capture_27b_steering_vectors.py",
     }
     extraction["extraction_contract_sha256"] = canonical_sha256(extraction)
 
