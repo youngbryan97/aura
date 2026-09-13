@@ -275,6 +275,27 @@ def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
         return
 
 
+#: CPython's flag on a class made by a class statement rather than written in C.
+_HEAP_TYPE = 1 << 9
+
+
+def _state_is_its_dict(value: Any) -> bool:
+    """Whether everything this object holds is in its `__dict__`.
+
+    Only then can it be restored by writing its fields back. A tensor has a
+    `__dict__` as well, and it is empty: the numbers live in the C base class.
+    Restored field by field, a tensor held on a plain object kept the values an
+    arm had written into it. So every class above `object` has to be one
+    written in Python, and none may declare slots.
+    """
+    if not hasattr(value, "__dict__") or isinstance(value, type):
+        return False
+    return all(
+        klass.__flags__ & _HEAP_TYPE and "__slots__" not in vars(klass)
+        for klass in type(value).__mro__[:-1]
+    )
+
+
 def _restore_into(current: Any, saved: Any, seen: set[int]) -> bool:
     """Make `current` hold what `saved` holds without replacing it.
 
@@ -310,9 +331,12 @@ def _restore_into(current: Any, saved: Any, seen: set[int]) -> bool:
         current.clear()
         current.extend(_place(saved))
         return True
+    if isinstance(current, set):
+        current.clear()
+        current.update(_place(saved))
+        return True
     if (
-        not hasattr(current, "__dict__")
-        or isinstance(current, type)
+        not _state_is_its_dict(current)
         or inspect.ismodule(current)
         or callable(current)
         or _is_process_furniture(current)

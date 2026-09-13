@@ -126,6 +126,37 @@ def test_a_cycle_through_the_held_object_restores_and_ends() -> None:
     assert phase.engine is engine and engine.owner is phase and engine.count == 0
 
 
+def test_a_tensor_is_restored_by_value() -> None:
+    """A tensor's numbers live in its C base class, not in its `__dict__`, so
+    restoring its fields one by one restores nothing."""
+    torch = pytest.importorskip("torch")
+
+    class Holder:
+        def __init__(self) -> None:
+            self.hidden = torch.zeros(4)
+            self.weight = torch.nn.Parameter(torch.zeros(2))
+
+    holder = Holder()
+    saved = _organ_state(holder)
+    with torch.no_grad():
+        holder.hidden += 1.0
+        holder.weight += 2.0
+    _restore_organ(holder, saved)
+    assert holder.hidden.tolist() == [0.0] * 4
+    assert holder.weight.detach().tolist() == [0.0, 0.0]
+
+
+def test_a_set_keeps_its_identity() -> None:
+    engine = Engine()
+    engine.seen = {"weather"}
+    held = engine.seen
+    phase = Phase(engine)
+    saved = _organ_state(phase)
+    held.add("the plan")
+    _restore_organ(phase, saved)
+    assert engine.seen is held and held == {"weather"}
+
+
 @pytest.mark.slow
 def test_the_dynamics_phase_and_every_other_caller_share_one_engine_after_restores() -> None:
     from core.conversational.dynamics import get_dynamics_engine
