@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from core.autonomy.comprehension_loop import ComprehensionLoop, ComprehensionRecord
+from core.runtime.state_ownership import state_root
 from core.autonomy.content_fetcher import ContentFetcher
 from core.autonomy.content_method_router import MethodRouter
 from core.autonomy.content_progress_tracker import (
@@ -87,10 +88,9 @@ def _default_sessions_dir() -> Path:
     override = os.environ.get("AURA_RESEARCH_SESSIONS_DIR")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/autonomy/research-sessions"
+    return state_root() / "data" / "autonomy" / "research-sessions"
 
 
-SESSIONS_DIR = _default_sessions_dir()
 
 #: The only phase meaning the engagement genuinely finished.
 _TERMINAL_SESSION_PHASES = frozenset({"complete"})

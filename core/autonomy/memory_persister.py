@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.MemoryPersister")
 
@@ -47,18 +48,16 @@ def _default_queue_path() -> Path:
     override = os.environ.get("AURA_MEMORY_PERSIST_RETRY_QUEUE_PATH")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/autonomy/persist-retry-queue.jsonl"
+    return state_root() / "data" / "autonomy" / "persist-retry-queue.jsonl"
 
 
 def _default_dedup_path() -> Path:
     override = os.environ.get("AURA_MEMORY_PERSIST_DEDUP_PATH")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/autonomy/persist-dedup.json"
+    return state_root() / "data" / "autonomy" / "persist-dedup.json"
 
 
-QUEUE_PATH = _default_queue_path()
-DEDUP_PATH = _default_dedup_path()
 DEDUP_TTL_DAYS = 30.0
 
 

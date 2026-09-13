@@ -270,6 +270,13 @@ async def main() -> int:
         "policy": "per_run",
         "leaks": state_leaks(),
     }
+    if evidence["notes"]["state"]["leaks"]:
+        # Recorded and then run anyway, a leak was a note beside numbers it
+        # had already contaminated. The other tools that build the organism
+        # refuse here.
+        raise SystemExit(
+            f"refusing: a module kept a path into the shared state root: {evidence['notes']['state']['leaks'][:6]}"
+        )
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
     if organism["down"]:
         _log(f"  did not come up: {organism['down']}")
