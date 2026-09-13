@@ -83,3 +83,25 @@ artifact is retained outside the source tree; no serving authority was granted.
 The next development comparison uses the stronger operation-only candidate.
 The corrected sampler remains the training implementation, but label
 consistency alone has not solved source-general argument binding. G03 is open.
+
+## Remaining Definition Localization
+
+The existing definition-relation diagnostic was run on the operation-only
+candidate's 123 source-validation failures. It supplies gold operation and
+reference spans; these counts are diagnostic links, not runtime answers.
+
+| Family | Reference links | Learned definition top-1 | Gold definition top-1 |
+| --- | ---: | ---: | ---: |
+| Arithmetic | 124 | 39 | 75 |
+| Cataphoric | 120 | 49 | 95 |
+| Fork/join | 258 | 83 | 201 |
+| Role binding | 32 | 17 | 27 |
+| Reserved alias | 44 | 25 | 33 |
+
+The definition pointer chooses a single register span before relation scoring;
+its score scale of zero does not disable that selection. These results support
+testing definition localization separately from relation-tissue retraining.
+Gold-definition errors remain, so localization cannot explain all failures.
+The report is `remaining-source-relation-diagnostic.json` in the same artifact
+directory, SHA-256
+`d286a1240ccc2c8bbdcf9c49f3dbad226d053efcf917d0f717b07f7fd0ea6629`.
