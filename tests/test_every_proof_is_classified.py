@@ -73,7 +73,12 @@ def _names_in(node: ast.AST) -> set[str]:
 
 
 def _classification() -> tuple[tuple[str, ...], tuple[str, ...]]:
-    source = ROUTE.read_text()
+    # The whole lane, not one file. Both tuples moved to chat_refusals when
+    # chat.py was split for size, and reading the old address finds neither —
+    # which is what deleting them would look like from here.
+    from chat_lane_support import chat_lane_source
+
+    source = chat_lane_source()
     ns: dict = {}
     for name in ("_THE_ANSWER_ITSELF_IS_UNFINISHED", "_A_PROOF_ABOUT_THE_BOOKKEEPING"):
         block = re.search(rf"^{name} = \(.*?^\)$", source, re.S | re.M)

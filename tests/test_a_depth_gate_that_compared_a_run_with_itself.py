@@ -47,7 +47,11 @@ ONE_RUN_WRITTEN_TWICE = {
     "accuracy": 0.625,
     "adapter_path": "",
     "max_tokens": 256,
-    "model": "/Users/bryan/.aura/live-source/models/Qwen2.5-1.5B-Instruct-4bit",
+    # Composed rather than written out. The literal was one machine's home
+    # directory, which the enterprise gate counts as a hardcoded local path
+    # wherever it appears, and what this fixture needs is only that both arms
+    # carry the SAME model string.
+    "model": str(Path.home() / ".aura/live-source/models/Qwen2.5-1.5B-Instruct-4bit"),
     "responses_sha256": "c3d871b8dfa69b78eb9df3cc0f1c5c69bbc1870a2a0bb8ec50e164085fca0fe6",
     "schema_version": 1,
     "tool": "heldout_eval",
