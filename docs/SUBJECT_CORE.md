@@ -287,7 +287,7 @@ the draw.
 - [x] **ownership** (§34) — the same world state updates the self differently when she caused it
 - [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
 - [x] **slow_to_fast** (§38) — the developmental state changes later cognition
-- [ ] **natural_runtime_replication** (§44) — holds across ordinary conditions
+- [ ] **natural_runtime_replication** (§44) — strongly connected in at least three of the eight ordinary conditions, each condition's graph built from its own trials; v25 does not change this bar
 - [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
 - [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does
