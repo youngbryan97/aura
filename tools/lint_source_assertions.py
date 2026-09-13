@@ -278,14 +278,24 @@ def look(paths: list[Path]) -> list[dict[str, object]]:
 
 def main() -> int:
     ask = argparse.ArgumentParser(description=__doc__)
-    ask.add_argument("paths", nargs="*", default=["tests"])
+    ask.add_argument("paths", nargs="*", default=["tests", "tools"])
     ask.add_argument("--show", type=int, default=40)
     args = ask.parse_args()
 
     files: list[Path] = []
     for one in args.paths:
         target = ROOT / one
-        files.extend(sorted(target.rglob("test_*.py")) if target.is_dir() else [target])
+        if not target.is_dir():
+            files.append(target)
+            continue
+        # A gate is an assertion about the source too, and a gate that reads a
+        # file for a symbol goes stale the same way a test does. The production
+        # readiness gate read authority_gateway.py for authorize_memory_write
+        # after the module split moved it to a base class, so the check had
+        # been failing on the filing rather than on the contract, and nothing
+        # scanned it because the walk only ever took test_*.py.
+        pattern = "test_*.py" if target.name == "tests" else "*.py"
+        files.extend(sorted(target.rglob(pattern)))
 
     stale = look(files)
     print(f"{len(stale)} assertion(s) reading a module that no longer holds the string")

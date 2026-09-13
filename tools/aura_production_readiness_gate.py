@@ -48,6 +48,51 @@ def _exists(rel: str) -> bool:
     return (ROOT / rel).exists()
 
 
+def _class_surface(rel: str, class_name: str) -> str:
+    """The text of a class and of the bases it inherits from in its package.
+
+    `_contains` on one file asks where a method is WRITTEN, and this gate cares
+    where it is REACHABLE. `authorize_memory_write` moved out of
+    authority_gateway.py into authority_memory_writes.py to clear the module
+    ceiling, and AuthorityGateway inherits it, so the capability never left the
+    gateway -- but the check went red, and a check that a refactor can falsify
+    is a check on the filing rather than on the contract.
+    """
+    import ast
+
+    text = _read(rel)
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    bases: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            bases = [
+                base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+                for base in node.bases
+            ]
+            break
+    if not bases:
+        return text
+    package = str(Path(rel).parent)
+    wanted = set(bases)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or not node.module:
+            continue
+        if not any(alias.name in wanted for alias in node.names):
+            continue
+        # Relative imports name a sibling; absolute ones name a path.
+        module = node.module if node.level == 0 else f"{package}/{node.module}"
+        text += _read(module.replace("core.", "core/").replace(".", "/") + ".py")
+    return text
+
+
+def _class_authorises(rel: str, class_name: str, *names: str) -> bool:
+    surface = _class_surface(rel, class_name).lower()
+    return all(name.lower() in surface for name in names)
+
+
 def _contains(rel: str, *needles: str) -> bool:
     text = _read(rel).lower()
     return all(needle.lower() in text for needle in needles)
@@ -176,7 +221,7 @@ def run_checks() -> list[Check]:
     add("governance_bypass_sweep", _contains("tools/lint_governance.py", "CONSEQUENTIAL_CALLS", "ALLOW_LIST", "governance lint"), "Governance lint scans direct consequential calls")
     add("proof_bundle_regeneration", _exists("tools/proof_bundle.py") and "proof-bundle:" in makefile and "readiness_passed" in _read("tools/proof_bundle.py"), "Proof bundle tool fails closed on artifact readiness")
     add("runtime_authentication", _contains("interface/auth.py", "compare_digest", "Authentication not configured", "validate_runtime_security_request"), "Runtime requests fail closed without auth")
-    add("authorization_gate", _contains("core/executive/authority_gateway.py", "authorize_tool_execution", "authorize_memory_write", "authorize_state_mutation"), "Authority gateway covers tool/memory/state effects")
+    add("authorization_gate", _class_authorises("core/executive/authority_gateway.py", "AuthorityGateway", "authorize_tool_execution", "authorize_memory_write", "authorize_state_mutation"), "Authority gateway covers tool/memory/state effects")
     add("secret_management", _contains("core/security/zenith_secrets.py", "Keychain", "get_secret", "store_credential"), "Secrets resolve through environment/Keychain helpers")
     add("secret_scan", _exists("tools/security_scan.py") and "secret_like_literal" in _read("tools/security_scan.py"), "Secret-like literal scan is present")
     add("dependency_sbom_provenance", _exists("tools/build_provenance.py") and "provenance:" in makefile and "sbom" in release.lower(), "Provenance/SBOM generation is wired")
