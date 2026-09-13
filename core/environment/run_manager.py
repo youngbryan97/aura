@@ -26,7 +26,7 @@ class RunRecord:
     run_id: str
     environment_id: str
     mode: RunMode
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     ended_at: float | None = None
     terminal_reason: str = ""  # "death", "success", "crash", "timeout", "contamination"
     total_steps: int = 0

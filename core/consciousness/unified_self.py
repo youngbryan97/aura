@@ -64,7 +64,7 @@ class UnifiedSelfState:
     """The complete state of Aura's unified identity."""
     # Core identity
     name: str = "Aura"
-    creation_time: float = field(default_factory=time.time)
+    creation_time: float = field(default_factory=lambda: time.time())
     current_state: SelfState = SelfState.AWAKE
 
     # Sense of agency and presence

@@ -129,8 +129,8 @@ class WantTrace:
     trace: float = 0.0
     evaluations: int = 0
     peak: float = 0.0
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
 
     HALF_LIFE_EVALUATIONS = 12.0
 
@@ -185,7 +185,7 @@ class WillingnessModel:
     agent: str
     alpha: float = 1.0
     beta: float = 1.0
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     def expectation(self) -> float:
         """Posterior mean: the probability this agent agrees next time."""
@@ -265,7 +265,7 @@ class GrantResponse:
     #: magnitude because they come apart: a bureaucratic grant opens the path
     #: and generates none of this.
     gratitude: float = 0.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -118,7 +118,7 @@ class ObservationSource(StrEnum):
 class ObservationProvenance:
     source: ObservationSource
     scenario_id: str
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
     observer: str = ""
 
     @property

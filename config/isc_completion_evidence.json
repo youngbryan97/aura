@@ -633,14 +633,9 @@
         "kind": "grep",
         "path": "core/subject/state.py",
         "pattern": "working_profile_"
-      },
-      {
-        "kind": "grep",
-        "path": "core/subject/state.py",
-        "pattern": "def _recency"
       }
     ],
-    "note": "active memory carries a content profile and a real recency",
+    "note": "active memory carries a content profile across fixed buckets over the newest items, beside whose word came last; the recency column was the newest item's age on the clock and is gone",
     "status": "done"
   },
   "P11.6": {
@@ -752,7 +747,7 @@
       {
         "kind": "grep",
         "path": "core/subject/synergy.py",
-        "pattern": "which made it a number\\n        nobody checked"
+        "pattern": "and self\\.null_draws > 1"
       }
     ],
     "note": "a triple passes only when the information-theoretic synergy clears its bar and its null on both the fraction and the raw value, and the held-out interaction gain is positive",
@@ -1034,12 +1029,12 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, right\\)"
+        "pattern": "with clamped\\(runtime, held_first\\)"
       },
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, left\\)"
+        "pattern": "with clamped\\(runtime, held_second\\)"
       }
     ],
     "note": "each side runs with the other held at the cut, so no information crosses and neither side is frozen inside",
@@ -1200,7 +1195,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "Restoring\n    # a snapshot here would measure a fresh baseline"
+        "pattern": "The rescue continues from the individual that was lesioned"
       }
     ],
     "note": "the rescue arm continues from the lesioned individual; two restores a cycle and none before the rescue, which a test counts",
@@ -1211,7 +1206,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "rescued = await measure\\(\\\"rescued\\\"\\)"
+        "pattern": "rescued = await measure\\(\"rescued\", workload, seed \\+ 5\\)"
       },
       {
         "kind": "grep",
@@ -1474,7 +1469,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _organ_state"
       }
     ],
@@ -1501,12 +1496,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1517,12 +1512,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1533,12 +1528,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1549,12 +1544,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _intentions_state"
       }
     ],
@@ -1581,12 +1576,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1602,12 +1597,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1623,12 +1618,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1644,12 +1639,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _world_state"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -1665,7 +1660,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "os\\.utime\\(target"
       }
     ],
@@ -2768,7 +2763,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_intentions"
       }
     ],
@@ -2801,7 +2796,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       }
     ],
@@ -2997,7 +2992,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _service_state"
       }
     ],
@@ -3076,7 +3071,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _restore_world"
       },
       {
@@ -3138,16 +3133,21 @@
         "kind": "grep",
         "path": "core/subject/driver.py",
         "pattern": "self\\.clock\\.advance\\(\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_timestamp_reads_the_clock_when_it_is_taken.py",
+        "pattern": "def test_no_record_is_stamped_with_the_clock_that_existed_at_import"
       }
     ],
-    "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms",
+    "note": "`time.time` is the experiment's clock, so every elapsed interval is the same in both arms; and no record or default in core, interface, llm or skills binds the clock function at import, so a stamp taken in an arm is on the experiment's clock too",
     "status": "done"
   },
   "P22.3": {
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "def _looks_like_an_instant"
       }
     ],
@@ -3264,7 +3264,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "^SUBSTRATE_BODY: tuple"
       },
       {
@@ -4244,7 +4244,7 @@
       {
         "kind": "grep",
         "path": "tools/run_ontogeny_lives.py",
-        "pattern": "the whole argument\\. Anything the frozen twin also shows"
+        "pattern": "frozen twin also shows is accumulation rather than development"
       },
       {
         "kind": "grep",
@@ -5445,8 +5445,8 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
-        "pattern": "The scratch world, byte for byte, and the intention database's rows"
+        "path": "core/subject/snapshot.py",
+        "pattern": "The scratch world, byte for byte, and the intention loop's rows and memory"
       }
     ],
     "note": "the intention database's rows are part of what the fork carries and what a restore puts back",
@@ -5456,12 +5456,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "Every byte under the scratch root, and where the directories are"
       },
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "Put the scratch root back to the bytes it held, and nothing else"
       }
     ],
@@ -5580,7 +5580,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/driver.py",
+        "path": "core/subject/snapshot.py",
         "pattern": "_MODULE_SINGLETONS"
       },
       {
@@ -5740,7 +5740,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "The file ends with\\n        # the same bytes either way"
+        "pattern": "the same bytes either way, the same fact is recorded"
       }
     ],
     "note": "the two arms end with the same file holding the same bytes",
@@ -5762,7 +5762,7 @@
       {
         "kind": "grep",
         "path": "core/subject/driver.py",
-        "pattern": "the same goal is\\n        # appended with the same text"
+        "pattern": "appended with the same text and the same verified outcome"
       }
     ],
     "note": "the same goal appended with the same text",
@@ -6344,15 +6344,25 @@
       {
         "kind": "grep",
         "path": "core/subject/nulls.py",
-        "pattern": "effect_min: float = 0\\.3"
+        "pattern": "edges, _ = build_edges\\(results, seed=seed\\)"
       },
       {
         "kind": "grep",
         "path": "core/subject/causal.py",
-        "pattern": "EDGE_EFFECT: float = 0\\.3"
+        "pattern": "^EDGE_EFFECT: float = 0\\.3"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "effect_min: float = EDGE_EFFECT"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
       }
     ],
-    "note": "the same effect threshold on the nulls as on the real system",
+    "note": "the same effect threshold on the nulls as on the real system: a null's edges come out of build_edges, whose effect bar is EDGE_EFFECT",
     "status": "done"
   },
   "P42.3": {
@@ -6403,7 +6413,7 @@
       {
         "kind": "grep",
         "path": "core/subject/nulls.py",
-        "pattern": "The two arms share a noise stream, so the sham floor is exactly\\n    zero"
+        "pattern": "The two arms share a noise stream, so the sham floor is exactly zero"
       }
     ],
     "note": "the null's two arms share a noise stream, so its floor is exactly zero, and that is stated where the comparison is made",
@@ -8328,7 +8338,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "with clamped\\(runtime, right\\)"
+        "pattern": "with clamped\\(runtime, held_first\\)"
       },
       {
         "kind": "grep",
@@ -8553,7 +8563,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "shuffled_history_floor"
+        "pattern": "shuffled_new_direction_quantile"
       },
       {
         "kind": "grep",
@@ -8596,7 +8606,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core_v25.py",
-        "pattern": "runtime, anchors, CONDITIONS, doses"
+        "pattern": "runtime, anchors, conditions, doses,"
       }
     ],
     "note": "every anchor is probed under all eight conditions rather than the one it arose from",
@@ -10435,7 +10445,7 @@
       {
         "kind": "grep",
         "path": "tools/run_subject_core.py",
-        "pattern": "a null is a distribution rather than one draw"
+        "pattern": "so a null is a distribution rather"
       }
     ],
     "note": "several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix",
@@ -10867,7 +10877,7 @@
       {
         "kind": "grep",
         "path": "core/subject/organism.py",
-        "pattern": "KEPT_TASKS: tuple[str, ...] = ("
+        "pattern": "KEPT_TASKS:\\ tuple\\[str,\\ \\.\\.\\.\\]\\ =\\ \\("
       }
     ],
     "note": "the wind-down cancels every free-running task but the state registry's notification dispatcher and stops the world model's trainer thread; no conversation, memory or tool-use arm ends with a task alive that it started, and none is alive after the restore",
@@ -10962,7 +10972,7 @@
       {
         "kind": "grep",
         "path": "core/consciousness/broadcast_consumers.py",
-        "pattern": "AFFECT_DRIVES: dict[str, str] = {"
+        "pattern": "AFFECT_DRIVES:\\ dict\\[str,\\ str\\]\\ =\\ \\{"
       },
       {
         "kind": "grep",
@@ -11186,6 +11196,245 @@
       }
     ],
     "note": "the closure report names the largest leaks and every column it differenced or dropped as a clock, so a leaking variable is reported rather than hidden",
+    "status": "done"
+  },
+  "P14.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_a_held_side_does_not_move_while_the_other_side_lives"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_held_side_that_moved_is_not_this_lesion"
+      }
+    ],
+    "note": "a held half of the domains stays within 1e-6 on every column through three turns while the free half moves, organs and dict-held fields included; the lesion records any held column that moved and refuses the deficit if one did",
+    "status": "done"
+  },
+  "P14.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_releasing_the_clamp_releases_exactly_it"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_an_organ_of_a_free_domain_is_left_alone"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_rescue_continues_the_lesioned_individual"
+      }
+    ],
+    "note": "releasing the clamp restores the previous hook and nothing else; the clamp only ever held the cut side's fields and organs, and the rescue continues the lesioned individual",
+    "status": "done"
+  },
+  "P14.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_rescue_that_returns_too_little_fails_however_many_cycles"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_deficit_larger_than_the_drift_is_judged"
+      }
+    ],
+    "note": "rescue is measured every cycle as the recovery fraction of each judged measure, against a tolerance fixed before the run",
+    "status": "done"
+  },
+  "P61.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_grain_has_the_macrostate_dimension"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_grain_spans_the_macrostate_far_better_than_chance"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_micro_detail_reaches_no_direction_the_grain_does_not"
+      }
+    ],
+    "note": "a twelve-variable system whose futures run through a two-dimensional macrostate: parallel analysis and bi-cross-validation both find two, the grain spans the macrostate beyond a permutation null, and the micro variables reach no direction the grain misses",
+    "status": "done"
+  },
+  "P16.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_there_are_more_than_three_conditions_to_replicate_across"
+      }
+    ],
+    "note": "the battery runs eight ordinary conditions and replication asks for three of them",
+    "status": "done"
+  },
+  "P16.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is conversation fails natural replication",
+    "status": "done"
+  },
+  "P16.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is tool use fails natural replication",
+    "status": "done"
+  },
+  "P16.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is stress fails natural replication",
+    "status": "done"
+  },
+  "P16.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "strongly connected in at least three of the eight ordinary conditions"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_the_bar_says_three_conditions"
+      }
+    ],
+    "note": "v1 won for the battery, and the document and the criterion's own bar both say at least three of the eight conditions",
+    "status": "done"
+  },
+  "P16.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_the_count_is_compared_in_one_place"
+      }
+    ],
+    "note": "the count of strongly connected conditions is compared in battery.py and nowhere else in core or tools",
+    "status": "done"
+  },
+  "P44.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "HARNESS_ROUTES:\\ dict\\[str,\\ str\\]\\ =\\ \\{"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_every_route_into_the_organism_is_named.py",
+        "pattern": "def test_every_route_a_turn_takes_is_listed"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_every_route_into_the_organism_is_named.py",
+        "pattern": "def test_every_named_counterpart_exists"
+      }
+    ],
+    "note": "every route a driver turn takes into the organism outside its phases is listed with the live runtime's counterpart or marked as the instrument, and a test fails on an unlisted route or a counterpart that does not exist",
+    "status": "done"
+  },
+  "P42.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_every_source_is_tried_the_same_number_of_times_in_every_regime"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_the_sham_floor_is_read_as_the_real_run_reads_it"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def\\ toy_interventions\\("
+      }
+    ],
+    "note": "a null's trials are made the way the real run makes them: per start regime, a cycled injection point, a displaced arm against two shams from one state and one noise stream, effect and floor read off one column by the same _paired_divergence; the doses are matched with that same divergence. The one remaining difference is the dose rule: the v1 battery's frozen flat delta against the nulls' matched doses",
+    "status": "done"
+  },
+  "P42.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "edges,\\ _\\ =\\ build_edges\\(results,\\ seed=seed\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
+      }
+    ],
+    "note": "null edges go through build_edges, so they carry the same sign-flip test, the same Benjamini-Hochberg correction across the ninety pairs, the same effect bar and the same replication count as the organism's",
+    "status": "done"
+  },
+  "P18.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "def test_an_arm_reads_the_same_after_a_different_arm_as_after_itself"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "after_memory = await arm\\(\"conversation\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_order_of_the_arms_does_not_matter.py",
+        "pattern": "memory_after_tool_use = await arm\\(\"memory\"\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/snapshot.py",
+        "pattern": "^def _store_places"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_store_moved_out_of_the_root_is_still_forked.py",
+        "pattern": "def test_every_path_variable_the_tree_reads_is_followed_or_says_why_not"
+      }
+    ],
+    "note": "both orders of a pair are run from one snapshot: a conversation arm after a memory arm and a memory arm after a conversation arm, each against the same arm run first, and a memory arm after a tool-use arm against one after a conversation arm; order may add nothing above the floor two identical arms give (1e-6). It first failed at 0.133: stores the test suite moves beside the state root, the memory store among them, were outside the fork, which now follows every store variable and the configured home",
     "status": "done"
   }
 }

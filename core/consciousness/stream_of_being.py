@@ -342,7 +342,7 @@ class NowMoment:
     unfiltered first-person language of the moment. Not a summary, not a
     description for an outside observer. The interior voice of the experience.
     """
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     
     # The five dimensions of the present
     substrate: SubstratePulse = field(default_factory=SubstratePulse)

@@ -518,7 +518,7 @@ class HealthVerdict:
 
     level: HealthLevel
     services: list[ServiceStatus]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     evaluation_duration_ms: float = 0.0
 
     @property

@@ -38,7 +38,7 @@ class TraceSpanContext:
     parent_span_id: str = ""
     name: str = ""
     origin: str = "runtime"
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     attrs: dict[str, Any] = field(default_factory=dict)
 
     def child(self, name: str, **attrs: Any) -> TraceSpanContext:

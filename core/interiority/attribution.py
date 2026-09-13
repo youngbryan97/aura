@@ -109,7 +109,7 @@ class Trace:
     #: this rather than against whether things went well.
     claim: str
     goals_touched: tuple[str, ...]
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def eligibility(self, now: float) -> float:
         age = max(0.0, now - self.at)

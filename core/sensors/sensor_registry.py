@@ -28,7 +28,7 @@ class PhysicalSensor:
     reliability: float = 1.0  # Weight in free energy / prediction calculations
     history_limit: int = 100
     history: deque[float] = field(default_factory=lambda: deque(maxlen=100))
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def record(self, value: float) -> bool:
         """Records a new sensor reading into the rolling buffer."""

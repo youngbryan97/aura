@@ -119,7 +119,7 @@ class Case:
     features: tuple[float, ...]
     predicted: float
     actual: float | None = None
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     label: str = ""
 
     @property

@@ -120,7 +120,7 @@ class SynthesizedSkill:
     digest: str = ""
     verified: bool = False
     detail: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     use_count: int = 0
 
 

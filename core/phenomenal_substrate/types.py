@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field, asdict
-from time import time
+import time
 from typing import Dict, Optional, Any, List
 
 from .maths import clamp
@@ -28,7 +28,7 @@ class RuntimeBody:
     audio_energy: float = 0.0         # microphone RMS level 0-1
     voice_present: bool = False       # speech detected by VAD
     foreground_app_familiar: float = 0.5  # how familiar the current app is
-    timestamp: float = field(default_factory=time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def observed_vector(self) -> Dict[str, float]:
         return {
@@ -74,7 +74,7 @@ class AttachmentEvent:
     familiarity_delta: float = 0.0
     rupture_delta: float = 0.0
     repair_delta: float = 0.0
-    timestamp: float = field(default_factory=time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 @dataclass
 class ExperienceState:
@@ -105,7 +105,7 @@ class ExperienceState:
     global_broadcast: Dict[str, Any]
     policy_priors: Dict[str, float]
     memory_weights: Dict[str, float]
-    timestamp: float = field(default_factory=time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, Any]:
         return asdict(self)

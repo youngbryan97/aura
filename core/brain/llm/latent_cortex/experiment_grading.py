@@ -594,7 +594,7 @@ class Claim:
     statement: str
     tier: str
     evidence: dict[str, Any] = field(default_factory=dict)
-    graded_at: float = field(default_factory=time.time)
+    graded_at: float = field(default_factory=lambda: time.time())
     #: What the verdict can be reproduced from. See ExperimentProvenance.
     provenance: dict[str, Any] = field(default_factory=dict)
 

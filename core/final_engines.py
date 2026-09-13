@@ -42,7 +42,7 @@ class BeliefNode:
     claim: str
     confidence: float        # 0.0–1.0
     evidence_count: int = 1
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     tags: List[str] = field(default_factory=list)
     source_ids: List[str] = field(default_factory=list)
 
@@ -121,7 +121,7 @@ class WorldModelEngine:
 class IdentityChapter:
     title: str
     content: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class NarrativeIdentityEngine:

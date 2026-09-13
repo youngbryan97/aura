@@ -27,7 +27,7 @@ class BeliefHypothesis:
     label: str
     probability: float
     evidence: List[str] = field(default_factory=list)
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -36,8 +36,8 @@ class EntityKnowledge:
 
     entity_id: str
     entity_type: str
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
     last_known_pos: Optional[Tuple[int, int]] = None
     confidence: float = 0.7
     salience: float = 0.4
@@ -54,7 +54,7 @@ class BeliefNode:
     confidence: float = 0.7
     source: str = "observation"
     evidence: List[str] = field(default_factory=list)
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
     ttl: float = 3600.0
     contested: bool = False
 
@@ -69,7 +69,7 @@ class EventRecord:
 
     event_type: str
     description: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     salience: float = 0.5
     related_entities: List[str] = field(default_factory=list)
     location: Optional[Tuple[int, int]] = None
@@ -83,7 +83,7 @@ class DeferredIntention:
     intention: str
     trigger: str
     priority: float = 0.5
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     expires_at: Optional[float] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 

@@ -61,7 +61,7 @@ class FreeEnergyState:
     arousal: float            # Activation level (0-1)
     dominant_action: str      # What F-minimization wants to do:
                               # "update_beliefs" | "act_on_world" | "explore" | "rest" | "engage" | "reflect"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class FreeEnergyEngine:

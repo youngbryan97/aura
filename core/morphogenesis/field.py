@@ -31,7 +31,7 @@ _FIELD_NAMES = (
 class TissueNode:
     subsystem: str
     values: Dict[str, float] = field(default_factory=lambda: {name: 0.0 for name in _FIELD_NAMES})
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def perturb(self, field_name: str, amount: float) -> None:
         if field_name not in self.values:

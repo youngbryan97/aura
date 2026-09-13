@@ -48,7 +48,7 @@ class CognitiveSituationFrame:
             "claims_require_receipts": True,
         }
     )
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def salience(self) -> float:

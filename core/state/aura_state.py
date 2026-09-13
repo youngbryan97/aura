@@ -234,7 +234,7 @@ class PhenomenalField:
     coherence: float = 1.0
     latent_snapshot: list[float] = field(default_factory=list)
     source: str = "unknown"
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def __str__(self) -> str:
         return self.claim
@@ -281,7 +281,7 @@ def _build_latent_snapshot(seed_text: str, dims: int = 128) -> list[float]:
 class MotivationState:
     """Aura's 'Digital Metabolism' and autonomous drives."""
     budgets: dict[str, dict[str, float]] = field(default_factory=clone_motivation_budget_defaults)
-    last_tick: float = field(default_factory=time.time)
+    last_tick: float = field(default_factory=lambda: time.time())
     latent_interests: list[str] = field(default_factory=lambda: [
         "Post-Quantum Cryptography and Secure Multi-Party Computation",
         "Substrate-Independent Minds and Neural Topography Mapping",
@@ -357,7 +357,7 @@ class AffectVector:
     # [10X] Adaptive Somatic Markers
     markers: dict[str, Any] = field(default_factory=dict)
     
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
     resonance: dict[str, float] = field(default_factory=dict)
 
     def get_resonance_string(self) -> str:
@@ -491,7 +491,7 @@ class SomaState:
 
     sensors: dict[str, Any] = field(default_factory=dict)
     motors: dict[str, float] = field(default_factory=dict)
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
 @dataclass
 class IdentityKernel:
@@ -500,8 +500,8 @@ class IdentityKernel:
     core_values: list[str] = field(default_factory=list)
     current_narrative: str = ""         # First-person living narrative
     narrative_version: int = 0
-    formation_timestamp: float = field(default_factory=time.time)
-    last_evolution_timestamp: float = field(default_factory=time.time)
+    formation_timestamp: float = field(default_factory=lambda: time.time())
+    last_evolution_timestamp: float = field(default_factory=lambda: time.time())
     
     # [10X] Evolutionary State
     concept_graph: dict[str, Any] = field(default_factory=dict)
@@ -582,7 +582,7 @@ class CognitiveContext:
 
     # Transients (Not persisted, but allowed in runtime state)
     pending_intents: list[dict] = field(default_factory=list)
-    last_thought_at: float = field(default_factory=time.time)
+    last_thought_at: float = field(default_factory=lambda: time.time())
     last_response: str | None = None
     modifiers: dict[str, Any] = field(default_factory=dict) # Homeostatic modifiers (temp, depth, etc.)
 
@@ -941,7 +941,7 @@ class CurriculumItem:
     status: str = "suggested"  # suggested, in_progress, completed, ignored
     synthesis_level: str = "none"  # none, shallow, moderate, deep
     synthesis_summary: str = ""
-    added_at: float = field(default_factory=time.time)
+    added_at: float = field(default_factory=lambda: time.time())
     completed_at: float | None = None
 
 @dataclass
@@ -965,8 +965,8 @@ class AuraState:
     """
     state_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     version: int = 0
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
 
     identity: IdentityKernel = field(default_factory=IdentityKernel)
     affect: AffectVector = field(default_factory=AffectVector)

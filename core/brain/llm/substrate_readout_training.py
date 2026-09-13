@@ -73,7 +73,7 @@ class ReadoutFit:
     trained_top_k: float
     random_top_k: float
     top_k: int
-    trained_at: float = field(default_factory=time.time)
+    trained_at: float = field(default_factory=lambda: time.time())
 
     @property
     def improvement_nats(self) -> float:

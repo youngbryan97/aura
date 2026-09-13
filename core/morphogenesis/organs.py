@@ -16,7 +16,7 @@ class Organ:
     members: List[str]
     subsystem: str = "composite"
     confidence: float = 0.5
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     activation_count: int = 0
     success_count: int = 0
     failure_count: int = 0

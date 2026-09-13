@@ -100,7 +100,7 @@ class AutomationReceipt:
     error: str = ""
     duration_ms: float = 0.0
     script_hash: str = ""           # SHA256 of any executed script
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     receipt_id: str = ""
     #: Where the recognized text actually sat, for perception actions that
     #: read a screen. `result` is the words in reading order; this is the same

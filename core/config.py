@@ -53,7 +53,7 @@ class Paths(BaseModel):
     ISSUE #78: Note that @property fields are intentionally excluded from Pydantic serialization.
     """
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    _runtime_home_cache: ClassVar[Path | None] = None
+    _runtime_home_cache: ClassVar[tuple[Path, Path] | None] = None
 
     #: Set explicitly by a caller that wants a particular world. Left unset,
     #: `home_dir` below resolves the same way `data_dir` and `log_dir` do.
@@ -97,11 +97,14 @@ class Paths(BaseModel):
         than redirected, and a blocked test is not a working one. Here it
         gets its own world instead.
         """
-        cached = self.__class__._runtime_home_cache
-        if cached is not None:
-            return cached
-
         candidate = state_root()
+        # Kept per state root, not once. A process that asked where home was
+        # and then gave itself a root kept the first answer: after
+        # `isolate_state`, `data_dir` was still the live `~/.aura/data`.
+        cached = self.__class__._runtime_home_cache
+        if cached is not None and cached[0] == candidate:
+            return cached[1]
+
         try:
             candidate.mkdir(parents=True, exist_ok=True)
             from core.runtime.atomic_writer import atomic_write_text
@@ -117,13 +120,13 @@ class Paths(BaseModel):
             # the intention database.
             atomic_write_text(probe, "ok", encoding="utf-8", durable=False)
             probe.unlink(missing_ok=True)
-            self.__class__._runtime_home_cache = candidate
+            self.__class__._runtime_home_cache = (candidate, candidate)
             return candidate
         except (ImportError, AttributeError, RuntimeError, OSError) as exc:
             record_degradation('config', exc)
             fallback = self.project_root / ".aura_runtime"
             fallback.mkdir(parents=True, exist_ok=True)
-            self.__class__._runtime_home_cache = fallback
+            self.__class__._runtime_home_cache = (candidate, fallback)
             logger.warning(
                 "Paths.home_dir unavailable (%s). Falling back to %s",
                 exc,
@@ -660,5 +663,17 @@ config = get_config()
 
 # Legacy compatibility exports for older boot paths.
 PROJECT_ROOT = config.paths.project_root
-DATA_DIR = config.paths.data_dir
-LOG_DIR = config.paths.log_dir
+
+
+def __getattr__(name: str) -> Path:
+    """`DATA_DIR` and `LOG_DIR`, resolved when they are read.
+
+    They were constants taken at import. A run that gave itself a state root
+    afterwards kept reading the first root through every module that imported
+    them, and `state_leaks` reported both after `isolate_state`.
+    """
+    if name == "DATA_DIR":
+        return config.paths.data_dir
+    if name == "LOG_DIR":
+        return config.paths.log_dir
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

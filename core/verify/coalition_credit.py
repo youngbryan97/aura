@@ -136,7 +136,7 @@ class Attribution:
 
     credits: tuple[Credit, ...]
     trials: int
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def of_role(self, role: Role) -> tuple[Credit, ...]:
         return tuple(c for c in self.credits if c.role is role)

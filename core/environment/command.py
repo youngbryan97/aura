@@ -46,7 +46,7 @@ class CommandSpec:
     rollback: "CommandSpec | None" = None
     trace_id: str = ""
     receipt_id: str | None = None
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def is_effectful(self) -> bool:
         return any(step.kind not in {"observe", "wait"} for step in self.steps)

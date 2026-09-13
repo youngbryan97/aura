@@ -230,7 +230,7 @@ class MessagesTransport:
         driver: MessagesJXADriver | None = None,
         aliases: Sequence[str] = (DEFAULT_MESSAGES_CONTACT_ALIAS,),
         poll_interval_s: float = _POLL_INTERVAL_S,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         if not callable(chat_turn):
             raise TypeError("Messages transport requires a canonical chat callback")

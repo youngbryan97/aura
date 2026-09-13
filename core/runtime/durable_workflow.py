@@ -159,7 +159,7 @@ class ApprovalDecision:
     approver: str
     note: str = ""
     value: Any = None
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
 
     def to_payload(self) -> dict[str, Any]:
         return asdict(self)
@@ -175,8 +175,8 @@ class WorkflowCheckpoint:
     failed_step: str | None = None
     failure_reason: str | None = None
     paused_at_step: str | None = None
-    started_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     #: step_id -> ApprovalDecision payload. The state that makes a pause
     #: escapable.
     approvals: dict[str, Any] = field(default_factory=dict)

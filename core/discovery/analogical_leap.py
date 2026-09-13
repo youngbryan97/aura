@@ -384,7 +384,7 @@ class LeapReport:
     verdict: OODVerdict
     mappings: list[AnalogicalMapping]
     conjectures: list[Conjecture]
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

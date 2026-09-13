@@ -200,7 +200,7 @@ def cycle(label: str = "") -> _CycleScope:
 class EventGraph:
     """The events, their causal edges, and the questions worth asking of them."""
 
-    def __init__(self, *, capacity: int = _DEFAULT_CAPACITY, clock=time.time) -> None:
+    def __init__(self, *, capacity: int = _DEFAULT_CAPACITY, clock=lambda: time.time()) -> None:
         self._lock = checked_lock("core.cognition.cognitive_event.EventGraph", reentrant=True)
         self._events: dict[int, CognitiveEvent] = {}
         self._order: list[int] = []

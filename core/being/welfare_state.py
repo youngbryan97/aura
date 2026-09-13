@@ -113,7 +113,7 @@ class WelfareOutputs:
     # Composite
     welfare_score: float = 0.5          # 0-1, overall welfare
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def is_negative(self) -> bool:
         return self.distress > 0.4 or self.aversion > 0.5

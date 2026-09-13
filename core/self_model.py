@@ -52,7 +52,7 @@ class SelfModel:
     _goal_hierarchy: Any | None = None
     _tool_learner: Any | None = None
     
-    _boot_time: float = field(default_factory=time.time)
+    _boot_time: float = field(default_factory=lambda: time.time())
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
     @classmethod

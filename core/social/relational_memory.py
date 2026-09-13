@@ -204,7 +204,7 @@ class RelationalMemoryAuthority:
         max_records_per_agent: int = 200,
         max_total_records: int = 1000,
         auto_provision_key: bool = True,
-        now_fn: Any = time.time,
+        now_fn: Any = lambda: time.time(),
     ) -> None:
         if storage_path is None:
             try:

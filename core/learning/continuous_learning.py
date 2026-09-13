@@ -67,7 +67,7 @@ class LearningPattern:
     confidence: float
     evidence: int
     domain: str
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
 class ExperienceStore:
     """Persistent storage for experiences and learned patterns using SQLite."""

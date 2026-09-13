@@ -41,7 +41,7 @@ class AutonomyTier(Enum):
 class TrustEvent:
     delta: float
     reason: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ProgressiveAutonomySystem:

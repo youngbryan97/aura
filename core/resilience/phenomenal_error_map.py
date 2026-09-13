@@ -206,7 +206,7 @@ class ErrorEnvelope:
     suggested_action: str
     recovery_buttons: List[Dict[str, str]]  # [{label, action_id}]
     severity: float
-    occurred_at: float = field(default_factory=time.time)
+    occurred_at: float = field(default_factory=lambda: time.time())
     diagnostic_link: Optional[str] = None
     correlation_id: Optional[str] = None
 

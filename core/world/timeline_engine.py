@@ -15,7 +15,7 @@ class WorldEvent:
     event_id: str
     title: str
     description: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     related_entities: List[str] = field(default_factory=list)
 
 

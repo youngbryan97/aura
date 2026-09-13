@@ -25,7 +25,7 @@ class Observation:
     environment_id: str
     run_id: str
     sequence_id: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     context_id: str | None = None
     raw: Any = None
     text: str | None = None

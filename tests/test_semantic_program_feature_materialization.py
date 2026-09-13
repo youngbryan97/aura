@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -21,13 +22,13 @@ from core.learning.semantic_program_corpus import (
     build_semantic_program_corpus,
     build_semantic_program_fork_join_corpus,
 )
-from core.learning.semantic_program_corpus_replication import (
-    build_semantic_program_natural_branch_replication_corpus,
-)
 from core.learning.semantic_program_corpus_natural import (
     build_semantic_program_natural_alias_source_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_source_corpus,
+)
+from core.learning.semantic_program_corpus_replication import (
+    build_semantic_program_natural_branch_replication_corpus,
 )
 from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_binary_corpus,
@@ -47,6 +48,7 @@ from core.learning.semantic_program_feature_materialization import (
     NATURAL_REPLICATION_CORPUS_KIND,
     NATURAL_REQUEST_CORPUS_KIND,
     NATURAL_SOURCE_CORPUS_KIND,
+    NATURAL_WEAVE_DEFINITION_CORPUS_KIND,
     SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
     SEQUENCE_CATAPHORIC_CORPUS_KIND,
     SEQUENCE_CHAIN_CORPUS_KIND,
@@ -126,9 +128,10 @@ class _CharacterTokenizer:
 
 
 class _FeatureClient:
-    def __init__(self, checkpoint: Path) -> None:
+    def __init__(self, checkpoint: Path, tokenizer=None) -> None:
         self.checkpoint = checkpoint
         self.calls = 0
+        self.tokenizer = tokenizer or _CharacterTokenizer()
 
     async def encode_hidden_sequence(
         self,
@@ -140,7 +143,7 @@ class _FeatureClient:
         assert timeout_s == 120.0
         assert representation == FINAL_HIDDEN_V1
         self.calls += 1
-        token_ids = [ord(character) for character in text]
+        token_ids, _ = tokenize_with_offsets(self.tokenizer, text)
         states = np.zeros((len(token_ids), 8), dtype=np.float32)
         for index, token_id in enumerate(token_ids):
             states[index, token_id % states.shape[1]] = 1.0
@@ -276,10 +279,89 @@ def test_materialization_publishes_only_after_cpu_reload(tmp_path: Path) -> None
     }
     assert not any(item.metadata.get("source_text") for item in bundle.examples)
     assert all(
+        item.metadata["register_definition_origin"] == "input_operation_fallback"
+        for item in bundle.examples
+    )
+    assert all(
         len(item.metadata["register_definition_spans"])
         == len(item.metadata["inputs"]) + len(item.metadata["gold_ir"]["instructions"])
         for item in bundle.examples
     )
+
+
+def test_definition_provenance_survives_materialization_and_training_conversion(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from core.learning import semantic_program_feature_materialization as features
+    from core.learning.semantic_program_campaign import (
+        reproject_definition_annotations,
+        training_examples_from_feature_bundle,
+    )
+    from core.runtime.atomic_writer import atomic_write_bytes_if_absent
+
+    checkpoint = tmp_path / "model"
+    checkpoint.mkdir()
+    config = SemanticFeatureConfig(
+        corpus_kind=NATURAL_WEAVE_DEFINITION_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+        seed=3141592653,
+        examples_per_operation_pair=2,
+    )
+    corpus = build_semantic_program_corpus_for_config(config)
+    assert all(item.register_definition_spans for item in corpus)
+
+    def tokenizer(text, **kwargs):
+        matches = list(re.finditer(r"\w+|[^\w\s]", text))
+        return {
+            "input_ids": [int(hashlib.sha256(m[0].encode()).hexdigest()[:7], 16) for m in matches],
+            "offset_mapping": [m.span() for m in matches],
+        }
+
+    output = tmp_path / "features"
+    asyncio.run(materialize_semantic_program_features(
+        client=_FeatureClient(checkpoint, tokenizer), tokenizer=tokenizer,
+        checkpoint=checkpoint, output_directory=output, corpus=corpus, config=config,
+        lane_ownership_receipt=_lane_receipt(checkpoint),
+        tokenizer_identity=_tokenizer_identity(checkpoint),
+    ))
+    bundle = load_semantic_feature_bundle(output, expected_examples=corpus)
+    examples = training_examples_from_feature_bundle(
+        bundle, required_splits=frozenset({"validation", "test"}),
+    )
+    assert all(item.register_definition_origin == "explicit_annotation" for item in examples)
+    revised, receipt = reproject_definition_annotations(bundle, corpus, tokenizer=tokenizer)
+    assert receipt["historical_features_modified"] is False
+    assert receipt["serving_authority"] is False
+    assert len(receipt["bindings"]) == len(corpus)
+    for old, new in zip(examples, revised, strict=True):
+        assert old.ir == new.ir
+        assert np.array_equal(old.hidden_states, new.hidden_states)
+        assert old.register_definition_spans == new.register_definition_spans
+    with pytest.raises(ValueError, match="cohort differs"):
+        reproject_definition_annotations(bundle, corpus[:-1], tokenizer=tokenizer)
+    with pytest.raises(ValueError, match="source or identity"):
+        reproject_definition_annotations(
+            bundle, (replace(corpus[0], source_text=corpus[0].source_text + " "), *corpus[1:]),
+            tokenizer=tokenizer,
+        )
+    with pytest.raises(ValueError, match="explicit annotations"):
+        reproject_definition_annotations(
+            bundle, tuple(replace(item, register_definition_spans=()) for item in corpus),
+            tokenizer=tokenizer,
+        )
+    record = bundle.examples[0]
+    for schema in (features.LEGACY_FEATURE_RECORD_SCHEMA, features.DEFINITION_FEATURE_RECORD_SCHEMA):
+        metadata = dict(record.metadata)
+        metadata.pop("logical_payload_sha256")
+        metadata.pop("register_definition_origin")
+        metadata["schema"] = schema
+        if schema == features.LEGACY_FEATURE_RECORD_SCHEMA:
+            metadata.pop("register_definition_spans")
+        payload = features._encode_record(metadata, record.token_ids, record.hidden_states)
+        path = tmp_path / schema
+        atomic_write_bytes_if_absent(path, payload)
+        loaded = features.load_semantic_feature_record(path)
+        assert "register_definition_origin" not in loaded.metadata
 
 
 def test_standard_loader_reconstructs_the_manifest_seed(tmp_path: Path) -> None:

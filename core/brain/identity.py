@@ -52,7 +52,7 @@ class KinshipMarker:
     name: str
     bond_level: float = 1.0  # 0.0 to 1.0
     trust_score: float = 1.0
-    last_interaction: float = field(default_factory=time.time)
+    last_interaction: float = field(default_factory=lambda: time.time())
     traits: List[str] = field(default_factory=list)
 
 @dataclass
@@ -68,8 +68,8 @@ class IdentityState:
     inner_insights: List[str] = field(default_factory=list)
     long_term_goals: List[Dict[str, Any]] = field(default_factory=list)
     version: int = 2
-    created_at: float = field(default_factory=time.time)
-    last_updated: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_updated: float = field(default_factory=lambda: time.time())
 
 class IdentityService:
     """The persistent Ego-Model service."""

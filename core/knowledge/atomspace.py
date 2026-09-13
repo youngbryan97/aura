@@ -210,7 +210,7 @@ class _Record:
     atom: Atom
     tv: TruthValue
     av: AttentionValue = field(default_factory=AttentionValue)
-    added_at: float = field(default_factory=time.time)
+    added_at: float = field(default_factory=lambda: time.time())
     #: Each source's LATEST contribution to this atom's truth, keyed by the
     #: observation identity that produced it. A source restating itself
     #: replaces its own entry rather than adding a second one, which is what

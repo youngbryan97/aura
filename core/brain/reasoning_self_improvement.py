@@ -59,7 +59,7 @@ class ReasoningTrace:
     task_type: str
     confidence: float
     mode: str
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
     fed: bool = False  # already handed to the training pipe
 
     def to_dict(self) -> dict[str, Any]:

@@ -134,7 +134,7 @@ class ConversationalDirective:
     pacing: PacingDirective = field(default_factory=PacingDirective)
     trajectory: TopicTrajectory = field(default_factory=TopicTrajectory)
     code_switch: CodeSwitchContext = field(default_factory=CodeSwitchContext)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ── Transition bridge phrases ───────────────────────────────────────────────

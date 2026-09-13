@@ -45,7 +45,7 @@ class KnowledgeBottle:
     key_facts: list[str]
     keys: list[str]            # retrieval keys
     source_chars: int
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 class KnowledgeBottlingEngine:

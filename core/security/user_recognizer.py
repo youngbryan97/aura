@@ -79,7 +79,7 @@ class RecognitionResult:
     behavioral_confidence: float   # 0.0–1.0
     combined_confidence: float     # weighted combination
     signals: list[str]             # human-readable signals detected
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class UserRecognizer:

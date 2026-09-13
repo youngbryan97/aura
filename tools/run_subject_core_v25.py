@@ -186,6 +186,7 @@ async def _learn_grain(
     from core.subject.intrinsic_v25 import (
         deterministic_frequency_bank,
         fit_predictive_grain,
+        heldout_new_direction_gain,
         heldout_sufficiency_gain,
     )
     from core.subject.v25_grain import (
@@ -227,16 +228,30 @@ async def _learn_grain(
     state = grain.transform(train)
     gain = float("nan")
     floor = float("nan")
-    if grain.rank > 0 and len(history) >= 5:
-        gain = heldout_sufficiency_gain(history, state, heldout, seed=seed + 12)
+    # Whether history reaches the held-out future along a direction the grain
+    # cannot, against the same question asked of history shuffled across
+    # anchors, as many times and at the same quantile as the parallel analysis
+    # draws its own null. Subtracting one shuffled gain did not work: adding a
+    # block of noise features overfits, the shuffled gain went negative, and
+    # the margin a correct grain and a grain missing a dimension produced was
+    # the same.
+    null_draws = inspect.signature(fit_predictive_grain).parameters["null_draws"].default
+    quantile = inspect.signature(fit_predictive_grain).parameters["quantile"].default
+    folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
+    if grain.rank > 0 and len(history) >= folds:
+        gain = heldout_new_direction_gain(history, state, heldout, seed=seed + 12)
         rng = np.random.default_rng(seed + 13)
-        floor = heldout_sufficiency_gain(
-            history[rng.permutation(len(history))], state, heldout, seed=seed + 14
-        )
+        shuffled = [
+            heldout_new_direction_gain(
+                history[rng.permutation(len(history))], state, heldout, seed=seed + 12
+            )
+            for _ in range(null_draws)
+        ]
+        floor = float(np.quantile(shuffled, quantile))
     sufficient = bool(
         grain.rank > 0
         and gain == gain
-        and (gain - (floor if floor == floor else 0.0)) <= SUFFICIENCY_TOLERANCE
+        and not (gain > SUFFICIENCY_TOLERANCE and gain > floor)
     )
     walk = _history_walk(history, heldout, history_turns=history_turns, seed=seed + 15)
     stability = _rank_stability(train, int(grain.rank), seed=seed + 18)
@@ -255,8 +270,8 @@ async def _learn_grain(
         "signature_columns": int(train.shape[1]),
         "singular_values": [round(float(v), 4) for v in grain.singular_values[:12]],
         "null_quantile": [round(float(v), 4) for v in grain.null_q[:12]],
-        "heldout_sufficiency_gain": None if gain != gain else round(gain, 6),
-        "shuffled_history_floor": None if floor != floor else round(floor, 6),
+        "heldout_new_direction_gain": None if gain != gain else round(gain, 6),
+        "shuffled_new_direction_quantile": None if floor != floor else round(floor, 6),
         "heldout_intervention_sufficient": sufficient,
         **walk,
         **stability,
@@ -775,9 +790,11 @@ def _history_walk(
     allows is still carrying information, and that is UNRESOLVED rather than an
     answer.
     """
-    from core.subject.intrinsic_v25 import heldout_sufficiency_gain
+    from core.subject.intrinsic_v25 import fit_predictive_grain, heldout_sufficiency_gain
 
     ladder = tuple(k for k in HISTORY_LADDER if k <= history_turns)
+    null_draws = inspect.signature(fit_predictive_grain).parameters["null_draws"].default
+    quantile = inspect.signature(fit_predictive_grain).parameters["quantile"].default
     rows, columns = history.shape
     per_turn = columns // max(1, history_turns)
     folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
@@ -789,18 +806,26 @@ def _history_walk(
             recent = history[:, -recent_turns * per_turn:]
             older = history[:, : (history_turns - recent_turns) * per_turn]
             gain = heldout_sufficiency_gain(older, recent, future, seed=seed + recent_turns)
-            floor = heldout_sufficiency_gain(
-                older[rng.permutation(rows)], recent, future, seed=seed + recent_turns
-            )
+            shuffled = [
+                heldout_sufficiency_gain(
+                    older[rng.permutation(rows)], recent, future, seed=seed + recent_turns
+                )
+                for _ in range(null_draws)
+            ]
+            floor = float(np.quantile(shuffled, quantile))
             walk.append(
                 {
                     "recent_turns": recent_turns,
                     "older_turns": history_turns - recent_turns,
                     "gain": round(float(gain), 6),
-                    "shuffled_floor": round(float(floor), 6),
+                    "shuffled_quantile": round(float(floor), 6),
                 }
             )
-            if gain - floor <= SUFFICIENCY_TOLERANCE:
+            # Older history adds nothing when its gain is inside the tolerance
+            # or inside what shuffled older history gains, not when the gain
+            # minus one shuffled draw is small: that draw goes negative as soon
+            # as the extra features overfit, and the difference then grows.
+            if gain <= SUFFICIENCY_TOLERANCE or gain <= floor:
                 needed = recent_turns
                 break
     return {

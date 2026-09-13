@@ -183,8 +183,8 @@ class GoalRecord:
     task_id: str = ""
     intention_id: str = ""
     commitment_id: str = ""
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     started_at: float | None = None
     completed_at: float | None = None
     last_progress_at: float | None = None

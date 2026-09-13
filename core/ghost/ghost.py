@@ -101,7 +101,7 @@ class GhostSnapshot:
     phi_label: str
     last_verdict: str
     risk_flags: list[str] = field(default_factory=list)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def is_intact(self) -> bool:

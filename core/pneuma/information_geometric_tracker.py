@@ -56,7 +56,7 @@ def hellinger_arc_distance(p: np.ndarray, q: np.ndarray) -> float:
 @dataclass
 class ManifoldPoint:
     distribution: np.ndarray   # probability simplex point
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     source: str = "unknown"
     fr_distance_from_prev: float = 0.0
 

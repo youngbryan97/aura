@@ -137,7 +137,7 @@ class _Residency:
     applier_id: str
     applier: Any = None
     size_mb: float = 0.0
-    last_used: float = field(default_factory=time.time)
+    last_used: float = field(default_factory=lambda: time.time())
     evicting: bool = False
 
 
@@ -155,7 +155,7 @@ class LoRAAdapter:
     size_mb: float = 0.0
     quality: float = 0.5     # promotion score; higher wins ties
     source: str = ""         # e.g. "self_improvement", "manual"
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

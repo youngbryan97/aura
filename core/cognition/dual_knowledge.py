@@ -121,7 +121,7 @@ class ConversionResult:
     installed: bool
     equivalence: Equivalence
     reason: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

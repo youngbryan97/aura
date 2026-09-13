@@ -9,16 +9,16 @@ from core.learning.semantic_program_corpus import (
     project_example_to_ir,
     project_register_definition_spans,
 )
-from core.learning.semantic_program_corpus_replication import (
-    build_semantic_program_natural_branch_replication_corpus,
-    build_semantic_program_natural_replication_corpus,
-    build_semantic_program_natural_weave_replication_corpus,
-)
 from core.learning.semantic_program_corpus_natural import (
     build_semantic_program_natural_alias_source_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
+)
+from core.learning.semantic_program_corpus_replication import (
+    build_semantic_program_natural_branch_replication_corpus,
+    build_semantic_program_natural_replication_corpus,
+    build_semantic_program_natural_weave_replication_corpus,
 )
 from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_binary_corpus,
@@ -805,6 +805,50 @@ def test_natural_weave_replication_matches_the_preregistered_six_by_five_graph()
     assert len({item.source_text for item in examples}) == 48
     assert build_semantic_program_natural_weave_replication_corpus() == examples
     assert build_semantic_program_natural_weave_replication_corpus(seed=3141592654) != examples
+
+
+def test_weave_definition_annotations_preserve_historical_text_and_programs() -> None:
+    historical = build_semantic_program_natural_weave_replication_corpus()
+    annotated = build_semantic_program_natural_weave_replication_corpus(
+        annotate_register_definitions=True,
+    )
+    for old, new in zip(historical, annotated, strict=True):
+        assert not old.register_definition_spans
+        assert new.source_text == old.source_text
+        assert new.example_id == old.example_id
+        assert new.program == old.program
+        assert new.split == old.split
+        assert len(new.register_definition_spans) == 11
+        for definition, value in zip(new.register_definition_spans[:6], new.input_spans, strict=True):
+            assert definition.end <= value.start
+            assert new.source_text[definition.end:value.start] == " = "
+        for index in range(6, 10):
+            definition = new.register_definition_spans[index]
+            assert definition.start > new.instructions[index - 6].operation_span.end
+            assert definition.end < new.instructions[index - 5].operation_span.start
+        assert new.register_definition_spans[-1] == new.instructions[-1].operation_span
+
+
+@pytest.mark.parametrize("source_order", [False, True])
+def test_fork_definition_annotations_name_the_declared_values(source_order: bool) -> None:
+    historical = build_semantic_program_fork_join_corpus(source_order_registers=source_order)
+    annotated = build_semantic_program_fork_join_corpus(
+        source_order_registers=source_order, annotate_register_definitions=True,
+    )
+    for old, new in zip(historical, annotated, strict=True):
+        assert not old.register_definition_spans
+        assert new.source_text == old.source_text
+        assert new.example_id == old.example_id
+        assert new.program == old.program
+        assert new.register_definition_spans[:4] == new.input_spans
+        for register in (4, 5):
+            definition = new.register_definition_spans[register]
+            assert new.source_text[:definition.start].endswith("naming it ")
+            instruction = new.instructions[2]
+            position = instruction.instruction.args.index(register)
+            reference = instruction.argument_spans[position]
+            assert new.source_text[definition.start:definition.end] == new.source_text[reference.start:reference.end]
+        assert new.register_definition_spans[-1] == new.instructions[-1].operation_span
 
 
 def test_natural_weave_replication_is_disjoint_from_every_prior_natural_corpus() -> None:

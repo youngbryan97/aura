@@ -97,7 +97,7 @@ class MetaCognitiveReflection:
     evidence: Dict[str, float]
     reasoning: str
     cycle: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

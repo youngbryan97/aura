@@ -103,7 +103,7 @@ class Thought:
     content: str                           # The actual thought text
     confidence: float = 0.0               # How confident Aura is (0.0-1.0)
     metacognition: str = ""               # Aura's assessment of her own reasoning
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -126,7 +126,7 @@ class Observation:
     success: bool = True
     error: str | None = None
     source: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

@@ -16,7 +16,7 @@ class PerformanceMetrics:
     error_rate: float = 0.0
     memory_usage_mb: float = 0.0
     cpu_usage_pct: float = 0.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class MetaOptimizationLoop:
     """Enterprise-grade feedback loop for self-modification.

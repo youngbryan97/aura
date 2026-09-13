@@ -74,7 +74,7 @@ class AStandingGrant:
     expires_at: float = 0.0
     most_activations: int = 1
     reason: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     used: int = 0
 
     def to_dict(self) -> dict[str, Any]:

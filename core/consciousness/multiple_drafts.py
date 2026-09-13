@@ -111,12 +111,15 @@ class Draft:
     valence: float  # Emotional coloring (-1 to +1)
     urgency: float  # How pressing (0 to 1)
     coherence: float  # Internal coherence score (0 to 1)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     mesh_energy: float = 0.0  # Energy from the association columns that produced it
     association_pattern: np.ndarray | None = field(default=None, repr=False)
 
     def age_secs(self) -> float:
-        return time.time() - self.created_at
+        # Never negative. A clock can step back, the experiment's rewinds with
+        # every restore, and a draft that seemed to come from the future took
+        # log1p below its domain and the whole dynamics phase down with it.
+        return max(0.0, time.time() - self.created_at)
 
 
 @dataclass
@@ -129,7 +132,7 @@ class DraftCompetition:
     probe_source: str  # What triggered elevation ("user", "executive_closure", etc.)
     probe_delay_ms: float  # Time between input and probe (key MD metric)
     divergence: float  # How much the drafts disagreed
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     # Whether the winner actually won. Taking the maximum of three coherences
     # that sit inside their own spread is a coin flip that reports as a
     # decision, and it lands differently on the next process. The margin is

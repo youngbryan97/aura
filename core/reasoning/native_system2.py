@@ -142,8 +142,8 @@ class NativePlanNode:
     reflection_trace: List[Dict[str, Any]] = field(default_factory=list)
     retrieval_trace: List[Dict[str, Any]] = field(default_factory=list)
     commitment_status: CommitmentStatus = CommitmentStatus.OPEN
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     state_hash: str = ""
     symbolic_summary: str = ""
     surface_text_optional: str = ""
@@ -237,7 +237,7 @@ class NativeSearchReceipt:
     rejected_branches: List[Dict[str, Any]]
     commitment_reason: str
     will_receipt_id: Optional[str] = None
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
     #: Where the value estimates behind this search came from, counted by
     #: source: caller / learned / prior / none. A search whose values were all
     #: "none" explored faithfully over numbers that expressed no preference,

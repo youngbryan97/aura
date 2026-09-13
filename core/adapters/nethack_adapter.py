@@ -184,7 +184,7 @@ class _Session:
     state: str = "running"
     last_output: str = ""
     exit_disposition: str = ""
-    started_at_unix: float = field(default_factory=time.time)
+    started_at_unix: float = field(default_factory=lambda: time.time())
 
 
 class NetHackAdapter:

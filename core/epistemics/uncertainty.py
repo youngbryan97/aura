@@ -142,7 +142,7 @@ class GenuineFailureState:
     what_is_known: List[str]        # Partial knowledge that IS available
     what_would_help: List[str]      # What information would resolve the uncertainty
     suggested_alternatives: List[str] # Related questions that CAN be answered
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     
     def to_response(self) -> str:
         """Convert failure state into a useful, honest response."""

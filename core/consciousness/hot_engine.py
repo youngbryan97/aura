@@ -111,7 +111,7 @@ class HigherOrderThought:
     target_dim: str  # What first-order state it's about
     feedback_delta: dict  # How it modifies first-order states
     confidence: float = 0.8
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
     is_rich: bool = False  # Was this LLM-generated?
 
     def age_secs(self) -> float:

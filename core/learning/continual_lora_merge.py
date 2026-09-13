@@ -23,7 +23,7 @@ class MergeDistillPlan:
     output_adapter: str
     train_command: tuple[str, ...]
     validation_required: tuple[str, ...] = ("identity_validation", "behavioral_contracts", "hidden_eval")
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

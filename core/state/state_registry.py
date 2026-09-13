@@ -60,7 +60,7 @@ class UnifiedState:
     
     # Metadata
     version: int = 0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class UnifiedStateRegistry:
     """

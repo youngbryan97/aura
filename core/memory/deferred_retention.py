@@ -35,6 +35,7 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind, declare
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.DeferredRetention")
 
@@ -104,7 +105,7 @@ def _default_queue_path() -> Path:
     override = FLAG_PATH.value()
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/memory/deferred-retention.jsonl"
+    return state_root() / "data" / "memory" / "deferred-retention.jsonl"
 
 
 @dataclass(frozen=True)

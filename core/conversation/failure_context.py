@@ -87,7 +87,7 @@ class CapabilityFailure:
     cause: str
     detail: str = ""
     still_possible: tuple[str, ...] = ()
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         cause = str(self.cause or "").strip().lower()

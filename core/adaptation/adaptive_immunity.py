@@ -366,7 +366,7 @@ class Antigen:
     source: str = "unknown"
     error_signature: str = ""
     stack_trace: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     context: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -508,7 +508,7 @@ class ImmuneCell:
     regulatory_strength: float = 1.0
     best_effector: EffectorKind | None = None
     last_antigen_id: str = ""
-    born_at: float = field(default_factory=time.time)
+    born_at: float = field(default_factory=lambda: time.time())
     behavioral_rule: dict[str, Any] | None = None
 
     def resize_receptor(self, new_dim: int, rng: np.random.Generator | None = None) -> None:

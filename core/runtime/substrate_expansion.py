@@ -60,7 +60,7 @@ class SubstrateExpansionPlan:
     max_cpu_percent: float = 70.0
     max_memory_mb: int = 4096
     aura_decision_trace: List[str] = field(default_factory=list)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
@@ -97,7 +97,7 @@ class SubstrateExpansionDecision:
     approved_nodes: List[NodeDecision]
     blocked_nodes: List[NodeDecision]
     runtime_manifest: Dict[str, Any]
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

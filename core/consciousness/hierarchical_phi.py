@@ -154,7 +154,7 @@ class HierarchicalPhiResult:
     n_history_transitions: int
     null_baseline_phi: float = 0.0  # From last null-hypothesis check
     null_baseline_age_s: float = 0.0
-    computed_at: float = field(default_factory=time.time)
+    computed_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

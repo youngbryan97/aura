@@ -508,7 +508,7 @@ class HardwiredPathway(BaseModel):
     verified_hits: int = 0
     verified_misses: int = 0
     unverified_reinforcements: int = 0
-    created_at: float = Field(default_factory=time.time)
+    created_at: float = Field(default_factory=lambda: time.time())
     last_matched: float = Field(default_factory=time.monotonic)
     direct_response: str | None = None  # Legacy non-user emergency response only
     color: str = "#4A90E2"                 # Default Aura Blue

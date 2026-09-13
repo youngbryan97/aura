@@ -97,7 +97,7 @@ class ABatch:
     actions: tuple[AnAction, ...]
     #: The most that may run together. One means in order, one at a time.
     at_once: int = 4
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
     because: str = ""
 
     def __post_init__(self) -> None:

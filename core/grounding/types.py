@@ -42,7 +42,7 @@ class PerceptualEvidence:
     modality: str
     features: list[float]
     raw_ref: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -57,8 +57,8 @@ class GroundedConcept:
     evidence_ids: list[str] = field(default_factory=list)
     positive_count: int = 0
     negative_count: int = 0
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -71,7 +71,7 @@ class SymbolLink:
     source: str = "unknown"
     confirmations: int = 0
     contradictions: int = 0
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -86,4 +86,4 @@ class GroundingEvent:
     confidence_before: float = 0.0
     confidence_after: float = 0.0
     source: str = "unknown"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())

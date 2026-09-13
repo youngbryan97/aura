@@ -26,7 +26,7 @@ class FailureEvent:
     type: FailureType
     component: str
     error_msg: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     severity: float = 0.5 # 0.0 - 1.0
 
 class DegradationManager:

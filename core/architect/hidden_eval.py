@@ -173,7 +173,7 @@ class EvalResult:
     #: accepted — so a completely unavailable subsystem scored a perfect suite.
     available: bool = True
     unavailable_reason: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         measured = self.measured_value
@@ -230,7 +230,7 @@ class EvalSuiteResult:
     #: could not tell durable evidence from an in-memory-only run.
     durable: bool = True
     persistence_error: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

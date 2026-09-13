@@ -18,7 +18,7 @@ class Observation:
     data: dict[str, Any] = field(default_factory=dict)
     severity: float = 0.0  # 0.0 (safe/informational) to 1.0 (highly critical/destructive)
     suggested_affordances: list[str] = field(default_factory=list)  # Action possibilities
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         """Serializes the observation to a dictionary."""

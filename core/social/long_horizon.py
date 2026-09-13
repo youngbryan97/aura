@@ -75,7 +75,7 @@ class Event:
     """One thing that happened, and when."""
 
     episode: Episode
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: What was at stake, in [0, 1]. A broken trivial promise is not a betrayal
     #: and a kept hard one is worth more than a kept easy one.
     weight: float = 1.0
@@ -216,7 +216,7 @@ class Act:
     what: str
     discriminates: Discriminates
     subject: str
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

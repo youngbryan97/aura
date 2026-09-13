@@ -657,7 +657,7 @@ class RealityHistorian:
         self,
         db_path: str | Path | None = None,
         *,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
         busy_timeout_s: float = 3.0,
         max_records: int = 100_000,
         max_quarantine: int = 5_000,

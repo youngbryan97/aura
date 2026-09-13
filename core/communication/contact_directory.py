@@ -140,7 +140,7 @@ class KeychainContactDirectory:
         backend: KeychainBackend | None = None,
         *,
         backend_factory: Callable[[], KeychainBackend] = require_keychain_backend,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         self._backend = backend
         self._backend_factory = backend_factory

@@ -32,9 +32,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from tools.report_expression import ExpressionRefused, evaluate_report_expression
-
+# The gate runs this as `python tools/isc_completion_status.py`, which puts
+# tools/ first on the import path and the repository nowhere on it.
 REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from tools.report_expression import ExpressionRefused, evaluate_report_expression  # noqa: E402
+
 ITEMS = REPO / "config" / "isc_completion_items.json"
 EVIDENCE = REPO / "config" / "isc_completion_evidence.json"
 DOC = REPO / "docs" / "ISC_COMPLETION_TODO.md"

@@ -420,7 +420,7 @@ class Procedure:
     reversibility: Reversibility = Reversibility.UNKNOWN
     #: Procedures this was composed from, innermost last.
     parts: tuple[str, ...] = ()
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     retired: bool = False
     retired_because: str = ""
 
@@ -497,7 +497,7 @@ class ProcedureRegistry:
 
     """Every learned procedure, priced and matched through one door."""
 
-    def __init__(self, *, max_procedures: int = 20_000, clock=time.time) -> None:
+    def __init__(self, *, max_procedures: int = 20_000, clock=lambda: time.time()) -> None:
         self._lock = checked_lock("core.cognition.procedure.ProcedureRegistry", reentrant=True)
         self._procedures: dict[str, Procedure] = {}
         self._interned: dict[tuple[Backend, str], tuple[str, str]] = {}

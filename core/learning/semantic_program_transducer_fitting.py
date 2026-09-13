@@ -29,17 +29,6 @@ from core.learning.semantic_program_shared_transducer import (
     _normalized_weights,
     _relation_span_vector,
 )
-from core.learning.semantic_relation_tissue import (
-    _DIRECTIONAL_RELATION_PARTS,
-    _directional_relation_feature,
-    _fit_directional_relation_head,
-    _fit_low_rank_relation_tissue,
-    _relation_decision_batch,
-    _relation_tissue_logits,
-    _relation_tissue_metrics,
-    _RelationDecisionBatch,
-    DirectionalRelationHead,
-)
 from core.learning.semantic_program_transducer import (
     LinearPointerHead,
     LinearPointerSequenceScores,
@@ -47,6 +36,29 @@ from core.learning.semantic_program_transducer import (
     SemanticTransducerTrainingExample,
     _fit_binary_head,
     _operation_feature,
+)
+from core.learning.semantic_relation_tissue import (
+    _DIRECTIONAL_RELATION_PARTS,
+    DirectionalRelationHead,
+    _directional_relation_feature,
+)
+from core.learning.semantic_relation_tissue import (
+    _fit_directional_relation_head as _fit_directional_relation_head,
+)
+from core.learning.semantic_relation_tissue import (
+    _fit_low_rank_relation_tissue as _fit_low_rank_relation_tissue,
+)
+from core.learning.semantic_relation_tissue import (
+    _relation_decision_batch as _relation_decision_batch,
+)
+from core.learning.semantic_relation_tissue import (
+    _relation_tissue_logits as _relation_tissue_logits,
+)
+from core.learning.semantic_relation_tissue import (
+    _relation_tissue_metrics as _relation_tissue_metrics,
+)
+from core.learning.semantic_relation_tissue import (
+    _RelationDecisionBatch as _RelationDecisionBatch,
 )
 
 if TYPE_CHECKING:  # the model this module fits imports this module, so the
@@ -1248,17 +1260,39 @@ def _assign_typed_arguments(
         *(result_type for _argument_types, result_type in operation_types),
     )
     definition_pointer_scores = model.definition_pointer.score_sequence(hidden)
+    joint_definitions = model.training_receipt.get("definition_selection_policy") == "joint_graph_v1"
     definition_candidates = _register_definition_candidates(
         definitions,
         input_count=len(inputs),
         token_count=hidden.shape[0],
         max_span_tokens=model.max_definition_span_tokens,
         pointer_scores=definition_pointer_scores,
-        strategy=model.definition_candidate_strategy,
+        strategy=(
+            _LOCAL_DEFINITION_CANDIDATE_STRATEGY if joint_definitions
+            else model.definition_candidate_strategy
+        ),
         source_ordered_boundaries=(
             model.training_receipt.get("definition_boundary_policy") == "source_neighbors_v1"
         ),
     )
+    definition_registers = tuple(range(len(definitions)))
+    definition_labels = ()
+    if joint_definitions:
+        # The original anchor remains a hypothesis alongside the best learned
+        # local spans. The graph chooses a shared identity across all uses.
+        hypotheses = tuple(
+            (register, span)
+            for register, candidates in enumerate(definition_candidates)
+            for span in dict.fromkeys((
+                definitions[register],
+                *sorted(candidates, key=lambda s: (
+                    -definition_pointer_scores.score_span(s), s.end - s.start, s.start, s.end,
+                ))[:4],
+            ))
+        )
+        definition_registers = tuple(register for register, _span in hypotheses)
+        definition_labels = tuple(span for _register, span in hypotheses)
+        definition_candidates = tuple((span,) for span in definition_labels)
     definition_vectors = tuple(
         tuple(
             (
@@ -1305,6 +1339,7 @@ def _assign_typed_arguments(
     prefix_feasible = strategy == "prefix_feasible_v1"
     global_constraint = strategy == "global_constraint_v1"
     chart_options = []
+    chart_definition_options = []
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1317,6 +1352,7 @@ def _assign_typed_arguments(
         )
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
         options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
+        definitions_by_position = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
@@ -1334,9 +1370,10 @@ def _assign_typed_arguments(
                     exact_inputs if exact_inputs else tuple(range(len(definitions)))
                 )
                 eligible_registers = tuple(
-                    register
-                    for register in candidate_registers
-                    if register_types[register] == required_type
+                    candidate_index
+                    for candidate_index, register in enumerate(definition_registers)
+                    if register in candidate_registers
+                    and register_types[register] == required_type
                     and register != len(inputs) + node_index
                     and (model.allow_computed_dependencies or register < len(inputs))
                 )
@@ -1356,7 +1393,7 @@ def _assign_typed_arguments(
                     ),
                 )
                 for (
-                    register,
+                    candidate_index,
                     relation_score,
                     candidate_relation_evidence,
                 ) in zip(
@@ -1365,6 +1402,7 @@ def _assign_typed_arguments(
                     relation_evidence,
                     strict=True,
                 ):
+                    register = definition_registers[candidate_index]
                     if (
                         model.training_receipt.get("forward_reference_policy") != "joint_graph_v1"
                         and register >= len(inputs)
@@ -1382,20 +1420,25 @@ def _assign_typed_arguments(
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
-                    by_register.setdefault(register, []).append((score, span))
+                    by_register.setdefault(candidate_index, []).append((score, span))
             if not by_register:
                 return None
-            options = sorted(
+            ranked_options = sorted(
                 (
-                    (score, register, span)
-                    for register, candidates in by_register.items()
+                    (score, definition_registers[candidate_index], span, candidate_index)
+                    for candidate_index, candidates in by_register.items()
                     for score, span in sorted(
                         candidates,
                         key=lambda item: (-item[0], item[1].start, item[1].end),
                     )[:_ARGUMENT_MENTIONS_PER_DEFINITION]
                 ),
-                key=lambda item: (-item[0], item[1], item[2].start, item[2].end),
+                key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
             )
+            options = [(score, register, span) for score, register, span, _index in ranked_options]
+            if joint_definitions:
+                definitions_by_position.append(tuple(
+                    definition_labels[index] for _score, _register, _span, index in ranked_options
+                ))
             if prefix_feasible or global_constraint:
                 options_by_position.append(options)
                 continue
@@ -1424,6 +1467,7 @@ def _assign_typed_arguments(
                 return None
         if global_constraint:
             chart_options.append(options_by_position)
+            chart_definition_options.append(definitions_by_position)
             continue
         candidates: list[
             tuple[
@@ -1495,7 +1539,8 @@ def _assign_typed_arguments(
         from core.learning.semantic_argument_optimization import optimize_argument_chart
 
         optimized = optimize_argument_chart(
-            chart_options, n_inputs=len(inputs), contract=model.register_use_contract
+            chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
+            definition_options=chart_definition_options if joint_definitions else None,
         )
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []

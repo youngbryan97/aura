@@ -630,6 +630,31 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   exposed weave programs and answers; both controls score 0/48 programs.
   Full-source answers improve from 346/500 to 377/500 with 55 gains and 24
   regressions. The candidate is not admitted; G03 remains open.
+  [Argument pointer development](evidence/G03_ARGUMENT_POINTER_DEVELOPMENT_2026-09-12.md)
+  retains the shared quality-calibrator rejection and adds source-only argument
+  pointer plus dependent proposal refitting. Source-test examples used for
+  calibration are explicitly consumed, not fresh replication. Full refit
+  evaluation remains pending; no promotion or G03 closure.
+  Completed argument refit is rejected: 47/48 weave answers and 342/500 source
+  answers versus the frozen parent's 346, with 44 gains and 48 regressions.
+  Coefficient ablations are retained. The operation-only candidate remains
+  stronger; no serving changes or G03 closure.
+  2026-09-13: [definition supervision correction](evidence/G03_DEFINITION_SUPERVISION_2026-09-13.md)
+  rejects the source-complete definition refit (407/500 source, 12/48 weave).
+  Missing annotation provenance is repaired without altering old bundles.
+  Explicit weave definitions recover 470/480 links; automatic selection is
+  450/480 for the operation-only candidate and 286/480 for the rejected refit.
+  Definition selection remains the active development issue.
+  [Fork definition refit](evidence/G03_FORK_DEFINITION_REFIT_2026-09-13.md)
+  corrects source-training annotations and recovers 46/48 weave answers, but
+  372/500 source answers with 66 regressions prevents promotion. Consistent
+  joint definition selection is the next development candidate.
+  [Joint definition selection](evidence/G03_JOINT_DEFINITIONS_2026-09-13.md)
+  reaches 444/500 source answers and 192/192 exact fork/join programs with
+  unchanged learned coefficients. It retains seven source answer regressions
+  and scores 47/48 exposed weave answers; both causal controls score 0/48.
+  Exhaustive solver tests cover consistent definitions across repeated uses.
+  The candidate is development-only; G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

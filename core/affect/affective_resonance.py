@@ -89,7 +89,7 @@ class Resonance:
     channels: dict[str, float] = field(default_factory=dict)
     #: Non-empty when the read was declined, with the reason.
     declined: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class AffectiveResonance:

@@ -547,7 +547,7 @@ _SCHEMAS: dict[str, Schema] = {
         "M",
         (
             ("working_load", "cognition.working_memory"),
-            ("working_recency", "cognition.working_memory[-1]"),
+            ("working_newest_is_user", "cognition.working_memory[-1].role"),
             ("retrieved_load", "cognition.long_term_memory"),
             # What is in mind, not how much of it. The retrieved set is bounded
             # and fills within a few turns, so its length is constant from then
@@ -1170,33 +1170,6 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
-def _recency(entry: Any, scale: float = 2.0) -> float:
-    """How recently this was written, in [0, 1). One is now, zero is long ago.
-
-    The column was the hash of the entry's whole repr, which includes the wall
-    clock it was written at — so two arms of one trial, appending the same
-    sentence a second apart, differed by the full width of the hash. A hash
-    carries no magnitude at the best of times; over a clock it is noise with a
-    name, and it was the largest single term in the floor every edge into
-    active memory had to clear.
-
-    The scale is two seconds because that is the order of one turn. At sixty
-    the whole of a run's spread fell inside three percent of the column, and a
-    column that barely moves turns every wobble into several standard
-    deviations of nothing.
-    """
-    if not isinstance(entry, Mapping):
-        return 0.0
-    stamp = entry.get("timestamp") or entry.get("at") or entry.get("time")
-    try:
-        age = time.time() - float(stamp)
-    except (TypeError, ValueError):
-        return 0.0
-    if age < 0.0:
-        age = 0.0
-    return scale / (scale + age)
-
-
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
     retrieved = _dig(state, "cognition.long_term_memory", []) or []
@@ -1204,7 +1177,11 @@ def _read_M(state: Any) -> np.ndarray:
     return np.array(
         [
             _sat(working, 24.0),
-            _recency(last),
+            # Whether the newest thing in working memory is the user's. This was
+            # the newest item's age on the clock, so a memory held still by a
+            # lesion aged a frame at a time and moved by 0.47 inside its own
+            # clamp. A clock is not state; whose word came last is.
+            1.0 if isinstance(last, Mapping) and str(last.get("role", "")).lower() == "user" else 0.0,
             _sat(retrieved, 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),

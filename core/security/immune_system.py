@@ -113,7 +113,7 @@ class ThreatEvent:
     targeted_vuln: str = ""         # what weakness it tried to exploit
     vector: str = ""                # how it arrived
     evidence: dict[str, Any] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def band(self) -> str:

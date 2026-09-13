@@ -354,7 +354,7 @@ class Observation:
     request: str = ""
     #: Where it came from — frontmost app, window title, device.
     source: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: Anything the faculty knows that the text does not carry.
     detail: dict[str, Any] = field(default_factory=dict)
 

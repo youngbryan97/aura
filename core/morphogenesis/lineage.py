@@ -32,7 +32,7 @@ class LineageRecord:
     cell_id: str
     parent_id: str = ""
     generation: int = 0
-    born_at: float = field(default_factory=time.time)
+    born_at: float = field(default_factory=lambda: time.time())
     born_at_version: int = 0
     cause: str = ""
     motif_id: str = ""

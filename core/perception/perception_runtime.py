@@ -77,7 +77,7 @@ class MovieSessionMemory:
     """
 
     title: str
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     finished_at: Optional[float] = None
     scenes: List[SceneEvent] = field(default_factory=list)
     characters: Dict[str, Dict[str, Any]] = field(default_factory=dict)
@@ -190,7 +190,7 @@ class PerceptionRuntime:
         self,
         *,
         governance_decide: Optional[Callable[..., Any]] = None,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
     ):
         self._governance = governance_decide
         self._clock = clock

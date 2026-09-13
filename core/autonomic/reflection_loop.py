@@ -61,7 +61,7 @@ def _default_journal_path() -> Path:
 @dataclass(frozen=True)
 class AutonomicReflection:
     schema: str = "aura.autonomic_reflection.v1"
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     trigger: str = "ambient_tick"
     ambient_summary: str = ""
     repo_dirty_count: int = 0

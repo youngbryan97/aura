@@ -127,7 +127,7 @@ class ContextBlock:
     source: str = "unknown"
     essential: bool = False            # if True, always included
     max_tokens: int = 256
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     include_if: Callable[[], bool] | None = None
 
     def compact(self) -> ContextBlock:

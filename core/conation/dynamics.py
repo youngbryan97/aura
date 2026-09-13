@@ -99,7 +99,7 @@ class SatiationState:
     key: str
     suppression: float = 0.0
     consummations: int = 0
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     #: How long until half the suppression has lifted. Set to the span of an
     #: exchange rather than of a session: a curiosity satisfied two minutes
@@ -156,7 +156,7 @@ class FrustrationState:
     level: float = 0.0
     attempts: int = 0
     failures: int = 0
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     #: Frustration outlasts the attempt that caused it — that is what makes it
     #: accumulate across tries — but not the session. Five minutes is the span

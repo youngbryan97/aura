@@ -52,7 +52,7 @@ class MemoryEvent:
     """
 
     event_type: str
-    timestamp:  float                              = field(default_factory=time.time)
+    timestamp:  float                              = field(default_factory=lambda: time.time())
     goal:       str | None                      = None
     outcome:    str | dict[str, Any] | None = None
     cost:       float                              = 0.0

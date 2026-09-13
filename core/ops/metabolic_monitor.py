@@ -76,7 +76,7 @@ class MetabolismSnapshot:
     pressure_state: str = "nominal"
     sample_valid: bool = True
     fault: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class MetabolicMonitor:

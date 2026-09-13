@@ -49,7 +49,7 @@ class HealthCheckResult:
     message:    str
     severity:   str = "info"    # "info", "warning", "error", "critical"
     action_taken: str | None = None
-    timestamp:  float = field(default_factory=time.time)
+    timestamp:  float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict:
         return {

@@ -54,7 +54,7 @@ class HostAudioSources:
     pids: tuple[int, ...] = ()
     evidence: str = ""
     readable: bool = True
-    sampled_at: float = field(default_factory=time.time)
+    sampled_at: float = field(default_factory=lambda: time.time())
 
     def excluding(self, pid: int) -> "HostAudioSources":
         """Drop one pid — Aura's own output is not a foreign speaker.

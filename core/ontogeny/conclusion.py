@@ -156,7 +156,7 @@ class Conclusion:
     recommended_action: str = ""
     #: Overall confidence, independent of any individual claim.
     uncertainty: Confidence = Confidence.PROBABLE
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def conclusion_id(self) -> str:

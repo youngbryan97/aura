@@ -37,7 +37,7 @@ class BlackBoxRow:
     latency_ms: float = 0.0
     previous_hash: str = ""
     row_hash: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def compute_hash(self) -> str:
         payload = asdict(self)

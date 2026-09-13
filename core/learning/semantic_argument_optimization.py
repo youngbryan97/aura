@@ -36,6 +36,7 @@ def optimize_argument_chart(
     n_inputs: int,
     contract: RegisterUseContract,
     node_limit: int = 10000,
+    definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -58,13 +59,24 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     uses = defaultdict(list)
     tokens = defaultdict(list)
     local_uses = defaultdict(list)
+    definition_uses = defaultdict(list)
+    if definition_options is not None and (
+        len(definition_options) != len(options)
+        or any(len(labels) != len(arguments) for labels, arguments in zip(definition_options, options, strict=True))
+        or any(
+            len(labels) != len(candidates)
+            for definitions, arguments in zip(definition_options, options, strict=True)
+            for labels, candidates in zip(definitions, arguments, strict=True)
+        )
+    ):
+        raise ValueError("definition options differ from argument chart")
     for node, arguments in enumerate(options):
         if not arguments:
             return None
         for position, candidates in enumerate(arguments):
             if not candidates:
                 return None
-            for score, register, span in candidates:
+            for candidate_index, (score, register, span) in enumerate(candidates):
                 if (
                     not math.isfinite(score)
                     or not 0 <= register < n_inputs + operation_count
@@ -76,13 +88,17 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
                 slots[node, position].append(index)
                 uses[register].append(index)
                 local_uses[node, register].append(index)
+                if definition_options is not None:
+                    definition = definition_options[node][position][candidate_index]
+                    definition_uses[register, definition].append(index)
                 for token in range(span.start, span.end):
                     tokens[token].append(index)
 
     count = len(choices)
-    sink_offset = count
-    order_offset = count + operation_count
-    width = count + 2 * operation_count
+    definition_offset = count
+    sink_offset = count + len(definition_uses)
+    order_offset = sink_offset + operation_count
+    width = order_offset + operation_count
     objective = np.zeros(width)
     objective[:count] = [-choice[2] for choice in choices]
     lower = np.zeros(width)
@@ -105,6 +121,14 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
 
     for indices in slots.values():
         constraint(dict.fromkeys(indices, 1.0), 1.0, 1.0)
+    definitions_by_register = defaultdict(list)
+    for label_index, ((register, _definition), indices) in enumerate(definition_uses.items()):
+        variable = definition_offset + label_index
+        definitions_by_register[register].append(variable)
+        for index in indices:
+            constraint({index: 1.0, variable: -1.0}, -np.inf, 0.0)
+    for variables in definitions_by_register.values():
+        constraint(dict.fromkeys(variables, 1.0), 0.0, 1.0)
     # A token can belong to only one selected argument mention, across the chart.
     for indices in tokens.values():
         constraint(dict.fromkeys(indices, 1.0), 0.0, 1.0)

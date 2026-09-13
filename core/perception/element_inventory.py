@@ -152,7 +152,7 @@ class ElementInventory:
     """Everything actionable on screen at one moment, with an expiry."""
 
     elements: tuple[ScreenElement, ...] = ()
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
     app: str = ""
     window: str = ""
     unavailable_reason: str = ""

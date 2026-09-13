@@ -161,6 +161,10 @@ came from.
 | run_015 | `d3d77f9fd4dc` | `ebee263d` | 11/24 | -0.0066 | 24 | 7/10 | 0 | 0.378 |
 | run_016 | `66b500117d01` | `d50b4b69` | 11/24 | -0.0202 | 30 | 6/10 | 0 | 0.411 |
 | run_017 | `da4f931353c9` | `d50b4b69` | 12/24 | +0.0221 | 36 | 7/10 | 0 | 0.400 |
+| run_019 | `cc4e5f1a60c6` | `f896791b` | 14/24 | +0.0622 | 44 | 9/10 | 0 | 0.522 |
+| run_020 | `5bcb0c40665b` | `120aa3f7` | 15/24 | +0.0345 | 46 | 10/10 | 1 | 0.511 |
+| run_023 | `9d65c5d631c4` | `c6898f47` | 17/24 | +0.0172 | 44 | 10/10 | 1 | 0.578 |
+| run_025 | `c4d52c2a0d19` | `64f758aa` | 19/24 | +0.0183 | 39 | 10/10 | 1 | 0.556 |
 
 <!-- end generated -->
 
@@ -287,7 +291,7 @@ the draw.
 - [x] **ownership** (§34) — the same world state updates the self differently when she caused it
 - [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
 - [x] **slow_to_fast** (§38) — the developmental state changes later cognition
-- [ ] **natural_runtime_replication** (§44) — holds across ordinary conditions
+- [ ] **natural_runtime_replication** (§44) — strongly connected in at least three of the eight ordinary conditions, each condition's graph built from its own trials; v25 does not change this bar
 - [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
 - [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does

@@ -364,7 +364,7 @@ class OtherEstimate:
     channels_used: Mapping[str, float]
     #: 1 - normalised entropy of the posterior, scaled by evidence quality.
     confidence: float
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def top(self) -> tuple[str, float]:
         if not self.tendencies:

@@ -87,7 +87,7 @@ class MetaStep:
     gradient_norm: float
     param_delta_norm: float
     n_evaluations: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

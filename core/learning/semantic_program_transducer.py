@@ -214,6 +214,7 @@ class SemanticTransducerTrainingExample:
     contrast_id: str = ""
     tokenizer_identity_sha256: str = ""
     register_definition_spans: tuple[TokenSpan, ...] = ()
+    register_definition_origin: str = "unrecorded"
 
     def __post_init__(self) -> None:
         hidden = _hidden_array(self.hidden_states)
@@ -241,6 +242,12 @@ class SemanticTransducerTrainingExample:
             )
         ):
             raise ValueError("semantic transducer register definitions are invalid")
+        if self.register_definition_origin not in {
+            "unrecorded", "explicit_annotation", "input_operation_fallback"
+        }:
+            raise ValueError("semantic transducer definition origin is invalid")
+        if self.register_definition_origin == "explicit_annotation" and not self.register_definition_spans:
+            raise ValueError("explicit definition origin requires definition spans")
         if self.tokenizer_identity_sha256 and not _is_sha256(
             self.tokenizer_identity_sha256
         ):

@@ -6,9 +6,10 @@ phase reads one and writes the other, spread across a pipeline. Cutting that
 by hand would mean editing the phases, which changes the organism rather than
 testing it.
 
-Clamping does the same work from the other side. The clamped domain's fields
-are captured once and written back after every phase, so the domain still
-exists, is still read, and never varies. Nothing downstream can carry
+Clamping does the same work from the other side. The clamped domain's fields,
+and the organs its readers read, are captured once and written back after
+every phase and before every reading, so the domain still exists, is still
+read, and never varies. Nothing downstream can carry
 information about it, because there is none to carry. That severs every
 outgoing edge of a node at once, which is a node lesion rather than an edge
 lesion, and the difference matters when reading the result: a deficit shows
@@ -22,13 +23,28 @@ recovered measurement evidence rather than a second baseline.
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from core.subject.state import DOMAINS
+from core.subject.snapshot import _organ_state, _restore_organ
+from core.subject.state import _SCHEMAS, DOMAINS, domain_slices, feature_names
 
-__all__ = ["CLAMPED_FIELDS", "RESERVOIR_FIELDS", "Clamp", "clamped", "compose"]
+__all__ = [
+    "CLAMPED_FIELDS",
+    "HELD_TOLERANCE",
+    "RESERVOIR_FIELDS",
+    "Clamp",
+    "clamped",
+    "compose",
+    "organs_read_by",
+    "still",
+]
+
+#: How far a held column may move and still count as held: floats accumulated
+#: in a different order when a copy is written back. The fork test's bound, far
+#: below the 0.3 standardised effect an edge has to clear.
+HELD_TOLERANCE: float = 1e-6
 
 #: What holding a domain still means, field by field. These are the same
 #: attributes the readers read and the writers write, so a clamped domain
@@ -149,15 +165,39 @@ RESERVOIR_FIELDS: tuple[str, ...] = (
 )
 
 
+def _step(node: Any, name: str) -> Any:
+    """One step down a path, through an attribute or a key.
+
+    Attributes only, this was. `cognition.modifiers` and `affect.physiology`
+    are dicts, so every field held under them resolved to no owner and was
+    never captured: a held workspace's modifiers and a held heart rate moved
+    inside their own lesion.
+    """
+    if isinstance(node, Mapping):
+        return node.get(name)
+    return getattr(node, name, None)
+
+
 def _get(root: Any, path: str) -> tuple[Any, str, Any]:
     parts = path.split(".")
     node = root
     for part in parts[:-1]:
-        node = getattr(node, part, None)
+        node = _step(node, part)
         if node is None:
             return None, parts[-1], None
     name = parts[-1]
-    return node, name, getattr(node, name, None)
+    return node, name, _step(node, name)
+
+
+def organs_read_by(domains: Sequence[str]) -> tuple[str, ...]:
+    """The organs whose own state the readers of these domains read."""
+    names = {
+        source[len("organ:"):].split(".", 1)[0]
+        for domain in domains
+        for source in _SCHEMAS[domain].sources
+        if source.startswith("organ:")
+    }
+    return tuple(sorted(names))
 
 
 class Clamp:
@@ -169,6 +209,7 @@ class Clamp:
         self.values: dict[str, Any] = {}
         self.hidden: Any = None
         self.reservoir: dict[str, Any] = {}
+        self.organs: dict[str, tuple[Any, dict[str, Any]]] = {}
         self.capture()
 
     def capture(self) -> None:
@@ -189,6 +230,17 @@ class Clamp:
             for field in RESERVOIR_FIELDS:
                 if hasattr(ontogeny, field):
                     self.reservoir[field] = copy.deepcopy(getattr(ontogeny, field))
+        # The organs these domains are read from. A held workspace whose own
+        # object kept choosing winners was not held: a probe holding P, I, A, G
+        # and C saw the winner columns move by more than a whole unit, because
+        # they are read off the workspace and not off the state. Each organ
+        # feeds one domain, so holding it holds nothing on the other side.
+        self.organs.clear()
+        kit = getattr(self.holder, "organs", None)
+        for name in organs_read_by(self.domains):
+            organ = getattr(kit, name, None)
+            if organ is not None:
+                self.organs[name] = (organ, _organ_state(organ))
 
     def apply(self) -> None:
         state = self.holder.state
@@ -197,7 +249,10 @@ class Clamp:
             if owner is None:
                 continue
             try:
-                setattr(owner, name, copy.deepcopy(value))
+                if isinstance(owner, Mapping):
+                    owner[name] = copy.deepcopy(value)
+                else:
+                    setattr(owner, name, copy.deepcopy(value))
             except (AttributeError, TypeError):
                 continue
         if self.hidden is not None:
@@ -210,6 +265,8 @@ class Clamp:
                     setattr(ontogeny, field, copy.deepcopy(value))
                 except (AttributeError, TypeError):
                     continue
+        for organ, saved in self.organs.values():
+            _restore_organ(organ, saved)
 
 
 @contextmanager
@@ -250,3 +307,26 @@ def compose(left_rows: Sequence[Any], right_rows: Sequence[Any], left: Sequence[
         misses.update(getattr(b, "misses", {}) or {})
         out.append(dataclasses.replace(a, values=values, misses=misses))
     return out
+
+
+def still(rows: Sequence[Any], domains: Sequence[str], *, tolerance: float = HELD_TOLERANCE) -> dict[str, float]:
+    """Every column of these domains that moved across these readings, and how far.
+
+    Empty is the bar for a held side. A column that moves while its domain is
+    held is a channel the lesion did not sever.
+    """
+    import numpy as np
+
+    if not rows:
+        return {}
+    matrix = np.vstack([row.vector() for row in rows])
+    slices = domain_slices()
+    moved: dict[str, float] = {}
+    for domain in domains:
+        block = matrix[:, slices[domain]]
+        change = np.max(np.abs(block - block[0]), axis=0)
+        for name, amount in zip(feature_names(domain), change, strict=True):
+            if amount > tolerance:
+                moved[name] = round(float(amount), 6)
+    return moved
+

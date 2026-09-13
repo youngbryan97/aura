@@ -64,7 +64,7 @@ class ImprovementSignal:
     metric: str = "quality"
     delta: float = 0.0
     evidence: dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)

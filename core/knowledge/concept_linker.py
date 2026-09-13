@@ -72,7 +72,7 @@ class Link:
     strength: float  # 0.0-1.0
     link_type: str  # "resonance", "contradiction", "analogy", "derivation"
     reasoning: str  # Why they are linked
-    detected_at: float = field(default_factory=time.time)
+    detected_at: float = field(default_factory=lambda: time.time())
 
 
 class ConceptLinker:

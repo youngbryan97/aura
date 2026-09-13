@@ -70,7 +70,7 @@ class PostActionReceipt:
     retry_safe: bool = False
     manual_reconciliation_required: bool = False
     welfare_transaction_completed: bool = True
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -96,7 +96,7 @@ class Offer:
     cost_to_source: float = 0.0
     """What making the offer cost the giver, in the giver's own units."""
 
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     label: str = ""
 
     def threshold(self) -> float:

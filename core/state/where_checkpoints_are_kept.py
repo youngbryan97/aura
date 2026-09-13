@@ -121,7 +121,7 @@ class AKeptCheckpoint:
     name: str
     trigger: ATrigger
     state: dict[str, Any]
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     digest: str = ""
     #: The checkpoint this one came after. Empty for the first on a branch.
     after: str = ""

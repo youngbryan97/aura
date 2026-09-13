@@ -34,8 +34,8 @@ class Device:
     arp_state: str = "reachable"
     scanner_source: str = "unknown"
     observation_confidence: float = 0.0
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         self.fingerprint = str(self.fingerprint or "").strip().lower()

@@ -146,7 +146,7 @@ class CognitiveBranch:
     memory_budget_mb: float = 10.0    # Soft memory limit (informational)
 
     # Lifecycle
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     last_tick_at: float = 0.0
     ticks_active: int = 0
     ticks_suspended: int = 0

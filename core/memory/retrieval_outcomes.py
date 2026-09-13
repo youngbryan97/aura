@@ -101,8 +101,8 @@ class OutcomeStats:
     harmful: int = 0
     neutral: int = 0
     category: MemoryCategory = MemoryCategory.EPISODE
-    first_seen: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
 
     @property
     def graded(self) -> int:

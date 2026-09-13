@@ -231,7 +231,7 @@ class TransformationReceipt:
     skipped: bool = False
     skip_reason: str = ""
     error: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def honoured_contract(self) -> bool:

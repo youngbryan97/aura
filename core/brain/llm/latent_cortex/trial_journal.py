@@ -55,7 +55,7 @@ class TrialRecord:
     ok: bool
     payload: dict[str, Any] = field(default_factory=dict)
     error: str = ""
-    at_unix: float = field(default_factory=time.time)
+    at_unix: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

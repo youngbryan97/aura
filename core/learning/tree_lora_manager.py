@@ -31,7 +31,7 @@ class TaskGradientSignature:
     task_id: str
     gradient_vector: np.ndarray  # Flattened, normalized gradient approximation
     loss_magnitude: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

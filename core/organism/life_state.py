@@ -30,8 +30,8 @@ class BodyState:
     memory_usage: float = 50.0
     current_focus_app: str = "Terminal"
     clipboard_content: str = ""
-    last_user_activity: float = field(default_factory=time.time)
-    last_tick_time: float = field(default_factory=time.time)
+    last_user_activity: float = field(default_factory=lambda: time.time())
+    last_tick_time: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -48,7 +48,7 @@ class CognitiveState:
 @dataclass
 class LifeState:
     """Canonical, single-source-of-truth state for the organism."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     tick_count: int = 0
     
     # Sub-states

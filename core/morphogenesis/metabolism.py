@@ -22,7 +22,7 @@ class ResourceSnapshot:
     pressure: float = 0.0
     observation_source: str = "unavailable"
     observation_scenario_id: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -46,7 +46,7 @@ class CellBudget:
     max_energy: float = 1.0
     spent_total: float = 0.0
     denied_count: int = 0
-    last_used: float = field(default_factory=time.time)
+    last_used: float = field(default_factory=lambda: time.time())
 
     def can_spend(self, amount: float) -> bool:
         return self.energy >= max(0.0, amount)

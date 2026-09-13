@@ -40,7 +40,7 @@ class ConnectionHealth(Enum):
 @dataclass
 class ConnectionStats:
     """Track connection statistics for monitoring."""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     last_success_at: float = 0.0
     last_failure_at: float = 0.0
     success_count: int = 0

@@ -102,7 +102,7 @@ class IntrinsicReward:
     goal_name: str    # Which goal/state this relates to
     reward: float     # The intrinsic reward value
     details: Dict[str, float]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

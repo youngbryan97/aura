@@ -38,6 +38,15 @@ def test_a_run_gets_a_root_inside_its_own_directory(fresh, tmp_path: Path) -> No
     assert os.path.realpath(str(state_root())) == os.path.realpath(str(root))
 
 
+def test_the_data_directory_follows_a_root_given_after_it_was_asked_for(fresh, tmp_path: Path) -> None:
+    """A process that asked where its data lives and then isolated kept the first answer."""
+    from core.config import config
+
+    before = config.paths.data_dir
+    root = isolation.isolate_state(tmp_path / "run_001")
+    after = os.path.realpath(str(config.paths.data_dir))
+    assert after.startswith(os.path.realpath(str(root)) + os.sep), (before, after)
+
 def test_a_root_that_does_not_move_refuses_the_run(fresh, tmp_path: Path) -> None:
     import core.runtime.state_ownership as ownership
 

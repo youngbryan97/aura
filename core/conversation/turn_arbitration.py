@@ -79,7 +79,7 @@ class Suppression:
     reason: str
     suppressed_chars: int
     replaced_with_chars: int
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: What was removed, bounded. Sizes let this be counted; the text lets it
     #: be undone. A refusal site holding "the engine produced no acceptable
     #: reply" is often standing next to the acceptable reply a gate took, and
@@ -101,7 +101,7 @@ class Candidate:
     precedence: LanePrecedence
     chars: int
     authentic: bool
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -109,7 +109,7 @@ class TurnLedger:
     """What happened during one turn, from first lane to served reply."""
 
     turn_id: str
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     candidates: list[Candidate] = field(default_factory=list)
     suppressions: list[Suppression] = field(default_factory=list)
     served_lane: str = ""

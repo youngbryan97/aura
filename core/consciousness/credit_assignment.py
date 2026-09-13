@@ -22,7 +22,7 @@ class CreditEvent:
     action_id: str
     outcome_score: float
     domain: str  # e.g., "chat", "identity", "navigation", "autonomy", "dream"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class CreditAssignmentSystem:

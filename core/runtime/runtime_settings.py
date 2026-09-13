@@ -40,7 +40,6 @@ from core.runtime.settings_schema import (
 )
 from core.runtime.state_ownership import state_root
 
-_DEFAULT_SETTINGS_PATH = state_root() / "data" / "settings" / "runtime.json"
 logger = logging.getLogger("Aura.RuntimeSettings")
 
 # Reads must never raise into a subsystem gate — fall back to the default instead.
@@ -105,7 +104,9 @@ _DESTRUCTIVE_EFFECT_SCOPES = frozenset(
 
 def _settings_path() -> Path:
     override = os.environ.get("AURA_SETTINGS_PATH")
-    return Path(override) if override else _DEFAULT_SETTINGS_PATH
+    # Resolved per call. Taken at import, it stayed under the first state root
+    # after a run gave itself another.
+    return Path(override) if override else state_root() / "data" / "settings" / "runtime.json"
 
 
 def _normalized_path(path: str | Path) -> str:

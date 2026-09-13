@@ -42,7 +42,7 @@ class SubstratePolicyInput:
 class SubstratePolicyVector:
     weights: dict[str, float]
     mode: str
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
     evidence: dict[str, float] = field(default_factory=dict)
 
     def __getitem__(self, key: str) -> float:

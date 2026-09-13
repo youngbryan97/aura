@@ -212,7 +212,7 @@ class FeltThought:
     # Bounded excerpt of the spoken surface (think-stripped) so downstream
     # organs (epistemic reach) can extract claims without re-plumbing text.
     text_excerpt: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

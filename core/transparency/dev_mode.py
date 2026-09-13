@@ -39,7 +39,7 @@ class TransparencyLevel(StrEnum):
 @dataclass
 class ThoughtTrace:
     """Records a thought or reasoning step."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     objective: str = ""
     reasoning: str = ""
     confidence: float = 0.0
@@ -53,7 +53,7 @@ class ThoughtTrace:
 @dataclass
 class ToolExecutionTrace:
     """Records a tool execution event."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     tool_name: str = ""
     params: dict[str, Any] = field(default_factory=dict)
     status: str = "pending"  # pending, running, succeeded, deferred, failed
@@ -75,7 +75,7 @@ class ToolExecutionTrace:
 @dataclass
 class ConsentRequest:
     """Records a consent/approval request."""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     request_type: str = ""  # tool_execution, memory_write, state_mutation, etc.
     description: str = ""
     details: dict[str, Any] = field(default_factory=dict)

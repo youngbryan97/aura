@@ -81,7 +81,7 @@ class BlindIntrospectionReport:
     secondary_states: tuple[str, ...] = ()
     welfare_estimate: float = 0.5
     urgency: float = 0.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     report_hash: str = ""
 
     def to_dict(self) -> dict[str, Any]:

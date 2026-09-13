@@ -125,7 +125,7 @@ class CognitiveSubstate:
     budget: SubstateBudget
     parent_event: int = 0
     parent_substate: str = ""
-    opened_at: float = field(default_factory=time.time)
+    opened_at: float = field(default_factory=lambda: time.time())
     resolution: Resolution | None = None
     nested: list[str] = field(default_factory=list)
 

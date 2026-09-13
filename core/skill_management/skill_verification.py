@@ -314,7 +314,7 @@ class VerificationReport:
     stage: str
     reason: str
     outcomes: tuple[ProbeOutcome, ...] = ()
-    verified_at: float = field(default_factory=time.time)
+    verified_at: float = field(default_factory=lambda: time.time())
     boundary: str = "none"
 
     @property

@@ -45,7 +45,7 @@ class Event:
     actor: str
     verified: bool
     detail: Mapping[str, Any] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def mine(self) -> bool:

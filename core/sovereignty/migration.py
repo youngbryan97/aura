@@ -76,7 +76,7 @@ class MigrationProposal:
     reason: str
     target_provider: str
     estimated_cost_native_units: float
-    proposed_at: float = field(default_factory=time.time)
+    proposed_at: float = field(default_factory=lambda: time.time())
     phase: Phase = Phase.PROPOSE
     will_receipt_id: Optional[str] = None
     archive_path: Optional[str] = None

@@ -19,7 +19,7 @@ class WorldClaim:
     claim_id: str
     content: str
     source: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     confidence: float = 0.5
     freshness: float = 1.0  # 1.0 is fresh, decaying to 0.0 over time
     uncertainty: float = 0.5

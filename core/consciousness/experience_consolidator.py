@@ -120,7 +120,7 @@ class IdentityNarrative:
     """The stable self-model that accumulates over time."""
 
     version: int = 0
-    last_consolidated: float = field(default_factory=time.time)
+    last_consolidated: float = field(default_factory=lambda: time.time())
     stable_traits: list[str] = field(default_factory=list)  # e.g. "I am deeply curious"
     learned_preferences: list[str] = field(
         default_factory=list

@@ -68,7 +68,7 @@ class AttentionalFocus:
     content: str                  # What the system is attending to
     source: str                   # Which subsystem generated this (drive, affect, curiosity, etc.)
     priority: float               # 0.0–1.0 weight at time of broadcast
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     # HOT meta-representation (Higher-Order Thought)
     meta_repr: str = ""           # "I am attending to X because Y"

@@ -23,7 +23,7 @@ class Lesson:
     success: bool
     brier: Optional[float]
     summary: str
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

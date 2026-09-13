@@ -83,7 +83,7 @@ class LearnedSkill:
     steps: list[SkillStep]
     successes: int = 0
     failures: int = 0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def reliability(self) -> float:

@@ -119,12 +119,13 @@ def test_live_boot_paths_do_not_use_generic_exception_boundaries():
 
 
 def test_memory_provider_registers_usable_knowledge_graph_and_dreamer(tmp_path, monkeypatch):
+    import core.config as config_module
     from core.config import Paths
     from core.container import ServiceContainer
     from core.providers.memory_provider import register_memory_services
 
     ServiceContainer.clear()
-    monkeypatch.setattr(Paths, "_runtime_home_cache", tmp_path)
+    monkeypatch.setattr(Paths, "_runtime_home_cache", (config_module.state_root(), tmp_path))
     ServiceContainer.register_instance("cognitive_engine", SimpleNamespace(think=lambda *_args, **_kwargs: None))
 
     try:
@@ -150,6 +151,7 @@ def test_memory_provider_migrates_legacy_knowledge_graph_file(tmp_path, monkeypa
     import contextlib
     import sqlite3
 
+    import core.config as config_module
     from core.config import Paths
     from core.container import ServiceContainer
     from core.providers.memory_provider import register_memory_services
@@ -167,7 +169,7 @@ def test_memory_provider_migrates_legacy_knowledge_graph_file(tmp_path, monkeypa
         conn.commit()
 
     ServiceContainer.clear()
-    monkeypatch.setattr(Paths, "_runtime_home_cache", tmp_path)
+    monkeypatch.setattr(Paths, "_runtime_home_cache", (config_module.state_root(), tmp_path))
     ServiceContainer.register_instance("cognitive_engine", SimpleNamespace(think=lambda *_args, **_kwargs: None))
 
     try:

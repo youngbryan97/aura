@@ -29,7 +29,7 @@ class MetricSample:
     labels: Dict[str, str] = field(default_factory=dict)
     metric_type: str = "gauge"  # gauge, counter, histogram
     help_text: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class MetricsCollector:

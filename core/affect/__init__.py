@@ -44,7 +44,7 @@ class AffectState:
     arousal:          float = 0.3    # 0.0 (calm) to 1.0 (agitated)
     engagement:       float = 0.5    # 0.0 (bored) to 1.0 (hyper-focused)
     dominant_emotion: str   = "Neutral"
-    last_update:      float = field(default_factory=time.time)
+    last_update:      float = field(default_factory=lambda: time.time())
 
 
 # Decay baselines

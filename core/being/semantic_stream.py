@@ -47,8 +47,8 @@ class StreamGoal:
     progress: float = 0.0       # 0-1
     blocked: bool = False
     blocked_reason: str = ""
-    created_at: float = field(default_factory=time.time)
-    last_updated: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def is_stale(self, max_age_s: float = 3600.0) -> bool:
         return (time.time() - self.last_updated) > max_age_s
@@ -61,7 +61,7 @@ class StreamTension:
     description: str
     severity: float = 0.3       # 0-1
     source: str = ""            # where did this come from
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     resolved: bool = False
 
 
@@ -79,7 +79,7 @@ class SemanticState:
     """The full semantic stream state at a point in time."""
     # Situation awareness
     current_situation: str = "idle"
-    situation_since: float = field(default_factory=time.time)
+    situation_since: float = field(default_factory=lambda: time.time())
 
     # Goals
     active_goals: list[StreamGoal] = field(default_factory=list)
@@ -115,7 +115,7 @@ class SemanticState:
 
     # Stream metadata
     tick: int = 0
-    last_evolution: float = field(default_factory=time.time)
+    last_evolution: float = field(default_factory=lambda: time.time())
     evolutions_since_interaction: int = 0
 
     def is_idle(self) -> bool:

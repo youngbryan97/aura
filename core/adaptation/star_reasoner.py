@@ -194,7 +194,7 @@ class TaskTrace:
     form_ok: bool = True
     rationalization: str = ""
     constitutional_pass: bool = True
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

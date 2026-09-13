@@ -57,7 +57,7 @@ class ScreenSnapshot:
     has_modal: bool = False         # dialog/alert detected
     modal_text: str = ""
     has_loading: bool = False       # spinner/progress bar detected
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     capture_denied: bool = False
     unavailable_reason: str = ""
     capture_admission: dict[str, str | bool] = field(default_factory=dict)

@@ -32,7 +32,7 @@ class Directive:
     text: str
     priority: int = 5          # 1 (highest) .. 10 (lowest)
     source: str = "system"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

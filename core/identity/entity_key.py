@@ -82,7 +82,7 @@ class LineageLink:
     previous_signature: str
     signature: str
     scheme: str = _SCHEME
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def payload(self) -> bytes:
         """Exactly the bytes that were signed. One definition, both directions.
@@ -130,7 +130,7 @@ class SuccessionRecord:
     reason: str
     signature: str
     scheme: str = _SCHEME
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def payload(self) -> bytes:
         return json.dumps(

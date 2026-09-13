@@ -124,7 +124,7 @@ class ReflectionRecord:
     new_facts: List[FactRecord] = field(default_factory=list)
     substrate_before: Dict[str, Any] = field(default_factory=dict)
     substrate_after: Dict[str, Any] = field(default_factory=dict)
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: Optional[float] = None
     inference_failures: int = 0
     #: How much of the comprehension actually reached the prompts, and how

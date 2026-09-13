@@ -71,7 +71,7 @@ class OutcomeEvidence:
     engagement_level: float     # 0 to 1
     free_energy: float          # 0 (settled) to 1 (unsettled)
     context: str                # Brief description
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         """Enforce the ranges this class documents.
@@ -121,7 +121,7 @@ class ValueShift:
     reason: str
     evidence_count: int
     cycle_id: int
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

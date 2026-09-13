@@ -120,8 +120,8 @@ class MemoryRecord:
     content: dict[str, Any]
     provenance: dict[str, Any]
     confidence: float
-    created_at: float = field(default_factory=time.time)
-    last_verified: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_verified: float = field(default_factory=lambda: time.time())
     contradictions: list[str] = field(default_factory=list)
     utility_score: float = 0.0
     decay_rate: float = 0.002
@@ -148,7 +148,7 @@ class StabilityReport:
     status: str
     interventions: list[dict[str, Any]]
     metrics: dict[str, Any]
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

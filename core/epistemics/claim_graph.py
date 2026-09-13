@@ -13,7 +13,7 @@ class ClaimNode:
     text: str
     sources: List[str]
     confidence: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     freshness: float = 1.0
     contradiction_links: List[str] = field(default_factory=list)
     supporting_evidence: List[str] = field(default_factory=list)

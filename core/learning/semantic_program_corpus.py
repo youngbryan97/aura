@@ -786,7 +786,8 @@ def _fork_join(
         left=(str(values[first_args[0]]), f"in{first_args[0]}"),
         right=(str(values[first_args[1]]), f"in{first_args[1]}"),
     )
-    builder.append(f", naming it {first_reference}")
+    builder.append(", naming it ")
+    builder.append(first_reference, label="definition0")
     builder.append(branch_bridge)
     second_args = topology.arguments[1]
     second_labels = _append_binary_verb(
@@ -796,7 +797,8 @@ def _fork_join(
         left=(str(values[second_args[0]]), f"in{second_args[0]}"),
         right=(str(values[second_args[1]]), f"in{second_args[1]}"),
     )
-    builder.append(f", naming it {second_reference}")
+    builder.append(", naming it ")
+    builder.append(second_reference, label="definition1")
     builder.append(join_bridge)
     join_args = topology.arguments[2]
     references = {
@@ -1091,6 +1093,7 @@ def build_semantic_program_fork_join_corpus(
     seed: int = 1618033,
     examples_per_operation_triple: int = 1,
     source_order_registers: bool = False,
+    annotate_register_definitions: bool = False,
 ) -> tuple[SemanticProgramExample, ...]:
     """Return a construction- and topology-disjoint three-step corpus.
 
@@ -1132,6 +1135,7 @@ def build_semantic_program_fork_join_corpus(
                                 values=values,
                                 sample_index=sample_index,
                                 source_order_registers=source_order_registers,
+                                annotate_register_definitions=annotate_register_definitions,
                             )
                         )
     return tuple(examples)
@@ -1154,6 +1158,7 @@ def _build_fork_join_example(
     values: tuple[int, int, int, int],
     sample_index: int,
     source_order_registers: bool,
+    annotate_register_definitions: bool = False,
 ) -> SemanticProgramExample:
     builder, input_labels, annotations = renderer(operations, values, topology)
     if source_order_registers:
@@ -1200,6 +1205,11 @@ def _build_fork_join_example(
         instructions=corpus_annotations,
         report_value=6,
         contrast_id=contrast_id,
+        register_definition_spans=(
+            tuple(builder.span(label) for label in corpus_input_labels)
+            + (builder.span("definition0"), builder.span("definition1"), builder.span("op2"))
+            if annotate_register_definitions else ()
+        ),
     )
 
 

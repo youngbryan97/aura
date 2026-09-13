@@ -96,8 +96,8 @@ class TopicNote:
 class RelationshipDossier:
     relationship_id: str
     name: str
-    created_at: float = field(default_factory=time.time)
-    last_seen_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_seen_at: float = field(default_factory=lambda: time.time())
     style_preferences: Dict[str, Any] = field(default_factory=dict)
     humor_style: str = ""
     sensitivities: List[str] = field(default_factory=list)

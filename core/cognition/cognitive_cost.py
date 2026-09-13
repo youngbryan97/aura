@@ -158,7 +158,7 @@ class CognitiveBudget:
     quality: float = 0.5
     expected_cost: float = 0.0
     deadline: float | None = None
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def priority_at(self, now: float) -> float:
         """Priority after decay. A deadline overrides decay as it approaches."""

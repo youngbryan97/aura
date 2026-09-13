@@ -67,7 +67,7 @@ class Exchange:
     episode_id: str
     user_text: str = ""
     assistant_text: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,7 @@ class Proposal:
     valence: Valence = Valence.NEUTRAL
     conditions: str = ""
     rationale: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: Set when the proposal is a correction of an existing belief rather than
     #: a new one.
     corrects: str | None = None

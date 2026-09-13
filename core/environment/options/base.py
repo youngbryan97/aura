@@ -27,7 +27,7 @@ class OptionRun:
     status: str = "running"
     steps: list[str] = field(default_factory=list)
     outcome_score: float = 0.0
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
 
 
 __all__ = ["Option", "OptionRun"]

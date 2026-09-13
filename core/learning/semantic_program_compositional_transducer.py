@@ -513,6 +513,12 @@ class CompositionalSemanticProgramTransducer:
             not in {"positive_relation_v1", "joint_graph_v1"}
             or receipt.get("definition_boundary_policy", "register_neighbors_v1")
             not in {"register_neighbors_v1", "source_neighbors_v1"}
+            or receipt.get("definition_selection_policy", "pointer_first_v1")
+            not in {"pointer_first_v1", "joint_graph_v1"}
+            or (
+                receipt.get("definition_selection_policy") == "joint_graph_v1"
+                and receipt.get("argument_search_strategy") != "global_constraint_v1"
+            )
             or (
                 receipt.get("forward_reference_policy") == "joint_graph_v1"
                 and receipt.get("argument_search_strategy") != "global_constraint_v1"
@@ -873,6 +879,15 @@ class CompositionalSemanticProgramTransducer:
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
         body["definition_boundary_policy"] = "source_neighbors_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_joint_definition_graph(self) -> CompositionalSemanticProgramTransducer:
+        """Resolve one consistent definition per register using all selected uses."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["definition_selection_policy"] = "joint_graph_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
@@ -1382,11 +1397,71 @@ def refit_compositional_operation_pointer(
     )
 
 
-def refit_compositional_argument_proposals(
+def refit_compositional_definition_pointer(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
 ) -> CompositionalSemanticProgramTransducer:
-    """Refit proposal scoring on source splits, preserving the rest of the tissue."""
+    """Fit definition boundaries across both anchor and symbolic supervision."""
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("definition pointer refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("definition pointer refit neural basis differs from its parent")
+    train_ids = {item.ir.source_text_sha256 for item in training}
+    validation_ids = {item.ir.source_text_sha256 for item in validation}
+    if train_ids & validation_ids or len(train_ids) != len(training) or len(validation_ids) != len(validation):
+        raise ValueError("definition pointer refit source examples duplicate or overlap")
+    pointer = _fit_shared_pointer(training, spans=_register_definition_spans)
+    coefficient = model._coefficient_body()
+    coefficient["definition_pointer"] = pointer.to_dict()
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["definition_pointer_refit"] = {
+        "schema": "aura.semantic_program_definition_pointer_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
+        "supervision_selection": "all_source_register_definitions_v1",
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "training_definition_targets_sha256": _sha(sorted(
+            (
+                item.ir.source_text_sha256,
+                item.register_definition_origin,
+                [[span.start, span.end] for span in _register_definition_spans(item)],
+            )
+            for item in training
+        )),
+        "training_definition_origins": dict(Counter(
+            item.register_definition_origin for item in training
+        )),
+        "test_examples_used": 0,
+        "validation_examples_used_for_fitting": 0,
+        "relation_coefficients_and_scale_preserved": True,
+        "serving_authority": False,
+    }
+    return replace(
+        model, definition_pointer=pointer,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
+def refit_compositional_argument_proposals(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    refit_pointer: bool = False,
+) -> CompositionalSemanticProgramTransducer:
+    """Refit proposal scoring, optionally rebuilding its source-trained pointer."""
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -1405,9 +1480,18 @@ def refit_compositional_argument_proposals(
     validation_ids = {item.ir.source_text_sha256 for item in validation}
     if train_ids & validation_ids:
         raise ValueError("argument proposal refit train and validation overlap")
+    pointer = model.argument_pointer
+    if refit_pointer:
+        pointer = _fit_shared_pointer(
+            training,
+            spans=lambda item: tuple(
+                span for instruction in item.ir.instructions
+                for span in instruction.argument_spans
+            ),
+        )
     heads, fit = _fit_argument_proposal_heads(
         training,
-        argument_pointer=model.argument_pointer,
+        argument_pointer=pointer,
         max_arity=len(model.argument_role_heads),
         max_span_tokens=model.max_span_tokens,
         max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
@@ -1416,7 +1500,7 @@ def refit_compositional_argument_proposals(
     )
     scale, calibration = _select_argument_proposal_scale(
         validation,
-        argument_pointer=model.argument_pointer,
+        argument_pointer=pointer,
         semantic_heads=model.argument_role_heads,
         proposal_heads=heads,
         max_span_tokens=model.max_span_tokens,
@@ -1425,6 +1509,7 @@ def refit_compositional_argument_proposals(
         hidden_channel_widths=model.hidden_channel_widths,
     )
     coefficient = model._coefficient_body()
+    coefficient["argument_pointer"] = pointer.to_dict()
     coefficient["argument_proposal_heads"] = [head.to_dict() for head in heads]
     coefficient["argument_proposal_scale"] = scale
     body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
@@ -1447,8 +1532,22 @@ def refit_compositional_argument_proposals(
         "calibration": calibration,
         "serving_authority": False,
     }
+    if refit_pointer:
+        body["argument_pointer_refit"] = {
+            "schema": "aura.semantic_program_argument_pointer_refit.v1",
+            "parent_transducer_receipt_sha256": model.receipt_sha256,
+            "negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
+            "training_example_ids_sha256": _sha(sorted(train_ids)),
+            "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+            "training_examples": len(training),
+            "validation_examples": len(validation),
+            "test_examples_used": 0,
+            "dependent_proposal_heads_refitted": True,
+            "serving_authority": False,
+        }
     return replace(
         model,
+        argument_pointer=pointer,
         argument_proposal_heads=heads,
         argument_proposal_scale=scale,
         training_receipt={**body, "receipt_sha256": _sha(body)},

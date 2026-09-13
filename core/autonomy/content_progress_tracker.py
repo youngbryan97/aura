@@ -27,16 +27,16 @@ from pathlib import Path
 from typing import List, Optional
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.state_ownership import state_root
 
 
 def _default_progress_path() -> Path:
     override = os.environ.get("AURA_CURATED_MEDIA_PROGRESS_PATH")
     if override:
         return Path(override).expanduser()
-    return Path.home() / ".aura/data/autonomy/curated-media-progress.json"
+    return state_root() / "data" / "autonomy" / "curated-media-progress.json"
 
 
-DEFAULT_PROGRESS_PATH = _default_progress_path()
 
 SCHEMA_VERSION = 1
 

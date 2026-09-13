@@ -156,7 +156,7 @@ class BuildGraph:
     sources: dict[str, SourceFile] = field(default_factory=dict)
     tools: dict[str, ToolSpec] = field(default_factory=dict)
     steps: dict[str, BuildStep] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

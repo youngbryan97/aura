@@ -57,7 +57,7 @@ class ConscienceVerdict:
     affected_parties: list[str] = field(default_factory=list)
     reasoning: str = ""
     reversible: bool = True
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class AdversarialConscienceEngine:

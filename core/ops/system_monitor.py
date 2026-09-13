@@ -21,7 +21,7 @@ class SystemHealthState:
     active_shards: int
     unresolved_refinements: int
     cognitive_stability: float  # 0.0 to 1.0 (inverse of entropy/contradiction density)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class SystemStateMonitor:
     """Auditing Aura's own stability."""

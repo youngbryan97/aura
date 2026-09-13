@@ -85,7 +85,7 @@ class TurnoverEvent:
     column_idx: int
     mean_activation_before: float
     mean_activation_after: float
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -94,7 +94,7 @@ class IdentityFingerprint:
     tier_energies: Tuple[float, float, float]   # (sensory, assoc, exec) mean energy
     column_synchrony: float                       # 0..1 global synchrony proxy
     projection_signature: np.ndarray              # 16-d executive-projection slice
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
     def similarity(self, other: "IdentityFingerprint") -> float:
         """Cosine similarity across the combined feature vector."""

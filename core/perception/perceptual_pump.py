@@ -158,7 +158,7 @@ class ScreenState:
     content_snippet: str = ""       # first 200 chars of OCR text
     screen_changed: bool = False    # did the screen change since last frame?
     change_magnitude: float = 0.0   # 0-1, how much changed
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     monotonic_ns: int = field(default_factory=time.monotonic_ns)
     available: bool = False
     source: str = "screen_unavailable"
@@ -174,7 +174,7 @@ class AudioState:
     transcript_snippet: str = ""    # most recent speech (last ~5s, display-bounded)
     transcript_full: str = ""       # full utterance (command-fidelity, 4000-char bound)
     transcript_changed: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     monotonic_ns: int = field(default_factory=time.monotonic_ns)
     available: bool = False
     source: str = "audio_unavailable"
@@ -191,7 +191,7 @@ class SystemState:
     battery_percent: float = 100.0
     battery_charging: bool = True
     disk_io_pressure: float = 0.0   # 0-1
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     monotonic_ns: int = field(default_factory=time.monotonic_ns)
     available: bool = False
     source: str = "system_unavailable"
@@ -207,7 +207,7 @@ class UserState:
     message_count: int = 0
     estimated_mood: str = "unknown"
     presence: float = 0.5           # 0 = absent, 1 = actively engaged
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     monotonic_ns: int = field(default_factory=time.monotonic_ns)
     available: bool = False
     source: str = "user_state_unavailable"
@@ -226,7 +226,7 @@ class PerceptualFrame:
     audio: AudioState = field(default_factory=AudioState)
     system: SystemState = field(default_factory=SystemState)
     user: UserState = field(default_factory=UserState)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     monotonic_ns: int = field(default_factory=time.monotonic_ns)
     fusion: FusedPerceptualFrame | None = None
 

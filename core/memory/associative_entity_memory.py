@@ -102,7 +102,7 @@ class Provenance:
 
     source: str
     evidence_id: str = ""
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
     detail: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -124,8 +124,8 @@ class Association:
     truth: TruthValue = field(default_factory=lambda: TruthValue(0.5, 0.0))
     valence: float = 0.0           # affective colouring of THIS association, [-1, 1]
     arousal: float = 0.0           # how activating it is, [0, 1]
-    first_at: float = field(default_factory=time.time)
-    last_at: float = field(default_factory=time.time)
+    first_at: float = field(default_factory=lambda: time.time())
+    last_at: float = field(default_factory=lambda: time.time())
     provenance: list[Provenance] = field(default_factory=list)
 
     @property
@@ -171,8 +171,8 @@ class Entity:
     kind: EntityKind
     canonical_name: str
     aliases: set[str] = field(default_factory=set)
-    created_at: float = field(default_factory=time.time)
-    last_seen: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_seen: float = field(default_factory=lambda: time.time())
     mention_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -276,7 +276,7 @@ class Stance:
     evidence_mass: float = 0.0
     why: list[StanceCause] = field(default_factory=list)
     attachment: dict[str, Any] | None = None   # people only; from AttachmentSystem
-    computed_at: float = field(default_factory=time.time)
+    computed_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

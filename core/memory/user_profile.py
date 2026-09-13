@@ -143,7 +143,7 @@ class ProfileFact:
     key: str
     value: str
     confidence: float = 0.8
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     source_fact_id: str = ""
     evidence_digests: list[str] = field(default_factory=list)
     observation_count: int = 1

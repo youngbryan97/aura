@@ -707,6 +707,7 @@ def _natural_weave_replication_example(
     sample_index: int,
     inputs: tuple[SemanticValue, ...],
     operations: tuple[str, str, str, str, str],
+    annotate_register_definitions: bool = False,
 ) -> SemanticProgramExample:
     """Render the preregistered branch, extension, merge, and terminal graph."""
     if schema_kind == "scalar_branch_weave_five":
@@ -754,7 +755,7 @@ def _natural_weave_replication_example(
     for index, (name, value) in enumerate(zip(input_names, inputs, strict=True)):
         if index:
             builder.append("; ")
-        builder.append(name)
+        builder.append(name, label=f"weave-replication:definition:{index}")
         builder.append(" = ")
         rendered = (
             "[" + ", ".join(str(item) for item in value) + "]"
@@ -846,7 +847,13 @@ def _natural_weave_replication_example(
         arguments,
         dependencies,
     ) in enumerate(clauses, start=1):
-        builder.append(f". {preceding_alias_clause}. {intro} ")
+        alias = (first_alias, second_alias, extended_alias, merge_alias)[ordinal - 1]
+        if preceding_alias_clause.count(alias) != 1:
+            raise ValueError("weave definition must occur exactly once in its declaration")
+        prefix, _, suffix = preceding_alias_clause.partition(alias)
+        builder.append(f". {prefix}")
+        builder.append(alias, label=f"weave-replication:definition:{ordinal + 5}")
+        builder.append(f"{suffix}. {intro} ")
         _append_natural_binary_operation(
             builder,
             op=operation,
@@ -880,6 +887,12 @@ def _natural_weave_replication_example(
         input_spans=tuple(builder.span(f"weave-replication:input:{index}") for index in range(6)),
         instructions=tuple(instructions),
         report_value=10,
+        register_definition_spans=(
+            tuple(builder.span(f"weave-replication:definition:{index}") for index in range(10))
+            + (instructions[-1].operation_span,)
+            if annotate_register_definitions
+            else ()
+        ),
         contrast_id=hashlib.sha256(
             f"natural-weave-replication|{schema_kind}|{domain_index}|{sample_index}".encode("ascii")
         ).hexdigest()[:24],
@@ -890,6 +903,7 @@ def build_semantic_program_natural_weave_replication_corpus(
     *,
     seed: int = 3141592653,
     examples_per_schema_domain: int = 2,
+    annotate_register_definitions: bool = False,
 ) -> tuple[SemanticProgramExample, ...]:
     """Build the preregistered unseen six-input, five-step transfer corpus."""
     if examples_per_schema_domain < 1:
@@ -949,6 +963,7 @@ def build_semantic_program_natural_weave_replication_corpus(
                         sample_index=sample_index,
                         inputs=inputs,
                         operations=operations,
+                        annotate_register_definitions=annotate_register_definitions,
                     )
                 )
     return tuple(examples)

@@ -122,7 +122,7 @@ class ExperimentRecord:
     preregistration_hash: str = ""
     metrics: Mapping[str, Any] = field(default_factory=dict)
     verdict: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def content_hash(self) -> str:

@@ -24,7 +24,7 @@ class ForgedToolManifest:
     inputs: Dict[str, str]
     outputs: Dict[str, str]
     sandbox_level: str  # restricted, standard, unrestricted
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     verified: bool = False
 
 

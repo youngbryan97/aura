@@ -91,8 +91,8 @@ class Voice:
     weight: float = DEFAULT_WEIGHT              # current amplification
     corpus: List[str] = field(default_factory=list)
     n_reinforcements: int = 0
-    created_at: float = field(default_factory=time.time)
-    last_active_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_active_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

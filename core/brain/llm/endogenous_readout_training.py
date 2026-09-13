@@ -238,7 +238,7 @@ class VocabFit:
     n_replies_holdout: int = 0
     n_replies_train: int = 0
     n_replies_total: int = 0
-    trained_at: float = field(default_factory=time.time)
+    trained_at: float = field(default_factory=lambda: time.time())
 
     @property
     def improvement_nats(self) -> float:

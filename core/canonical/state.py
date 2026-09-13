@@ -85,7 +85,7 @@ class Estimate:
     #: dominate every channel it touches.
     confidence: float
     producer: str
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: Free-text note for the receipt. Never read by fusion.
     note: str = ""
 
@@ -125,7 +125,7 @@ class Disagreement:
     fused: float
     #: Producer and value, worst outlier first.
     positions: tuple[tuple[str, float], ...]
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def extremes(self) -> tuple[tuple[str, float], tuple[str, float]]:
@@ -178,7 +178,7 @@ class Reading:
 class CanonicalState:
     """The one place each canonical variable lives."""
 
-    def __init__(self, *, now: Any = time.time) -> None:
+    def __init__(self, *, now: Any = lambda: time.time()) -> None:
         self._now = now
         self._lock = checked_lock("core.canonical.state.CanonicalState", reentrant=True)
         #: channel id → producer → that producer's latest estimate. One per

@@ -10,6 +10,7 @@ is the part of it that reads as one subject.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
@@ -185,6 +186,8 @@ def _relation_decision_batch(
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
 ) -> _RelationDecisionBatch:
+    from core.learning.semantic_program_transducer_fitting import _register_definition_spans
+
     decisions: list[tuple[np.ndarray, tuple[np.ndarray, ...], int]] = []
     max_candidates = 0
     for item in examples:
@@ -295,6 +298,16 @@ def _fit_low_rank_relation_tissue(
     hidden_channel_widths: Sequence[int],
 ) -> tuple[np.ndarray, np.ndarray, list[dict[str, Any]]]:
     """Fit one cross-feature linker and select its epoch on source validation."""
+    from core.learning.semantic_program_transducer_fitting import (
+        _RELATION_TISSUE_BATCH_SIZE,
+        _RELATION_TISSUE_EPOCHS,
+        _RELATION_TISSUE_GRADIENT_CLIP,
+        _RELATION_TISSUE_LEARNING_RATE,
+        _RELATION_TISSUE_RANK,
+        _RELATION_TISSUE_SEED,
+        _RELATION_TISSUE_SELECTION_INTERVAL,
+        _RELATION_TISSUE_WEIGHT_DECAY,
+    )
 
     train = _relation_decision_batch(
         training,

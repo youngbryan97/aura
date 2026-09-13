@@ -68,7 +68,7 @@ class TimescaleObservation:
 @dataclass(frozen=True)
 class TimescaleReconciliation:
     schema: str = "aura.timescale_reconciliation.v1"
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     idle_gap_s: float = 0.0
     observations_considered: int = 0
     observed_apps: tuple[str, ...] = ()

@@ -338,7 +338,7 @@ class BicameralFrame:
     intent_evidence: Mapping[str, Any]
     scope_id: str
     governance: Mapping[str, Any] = field(default_factory=lambda: _GOVERNANCE)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     integrity: str = ""
 
     def to_dict(self, *, include_integrity: bool = True) -> dict[str, Any]:

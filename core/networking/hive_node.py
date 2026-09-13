@@ -93,7 +93,7 @@ class NodeInfo:
     node_id: str
     ip: str
     port: int
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
 
 class HiveNode:

@@ -151,7 +151,7 @@ class CompletionEvidence:
     #: An independent verifier's verdict, when one ran.
     verifier_passed: Optional[bool] = None
     note: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def is_sufficient(self) -> bool:
@@ -196,8 +196,8 @@ class Goal:
     success_criteria: str
     status: GoalStatus = GoalStatus.ACTIVE
     progress: float = 0.0            # 0.0 to 1.0
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     deadline: Optional[float] = None # epoch timestamp
     notes: List[str] = field(default_factory=list)
     child_ids: List[str] = field(default_factory=list)

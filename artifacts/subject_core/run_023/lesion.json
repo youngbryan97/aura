@@ -1,0 +1,70 @@
+{
+  "cut": [
+    "P",
+    "C"
+  ],
+  "severed": {
+    "left": [
+      "P",
+      "C"
+    ],
+    "right": [
+      "I",
+      "A",
+      "G",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ]
+  },
+  "node_clamp": {
+    "phi_do": -0.0439,
+    "spread": 0.48148,
+    "synergy": 0.04854
+  },
+  "intact": {
+    "phi_do": -0.01852,
+    "spread": 0.44444,
+    "synergy": -0.33031
+  },
+  "lesioned": {
+    "phi_do": 0.00322,
+    "spread": 0.44444,
+    "synergy": -0.25805
+  },
+  "rescued": {
+    "phi_do": -0.03278,
+    "spread": 0.44444,
+    "synergy": -0.08247
+  },
+  "deltas": {
+    "phi_do": -0.02174,
+    "spread": 0.0,
+    "synergy": -0.07226
+  },
+  "rescue": {
+    "phi_do": -0.036,
+    "spread": 0.0,
+    "synergy": 0.17558
+  },
+  "recovery_fraction": {
+    "phi_do": 1.6559,
+    "spread": null,
+    "synergy": -2.4298
+  },
+  "deficit_worth_rescuing": {
+    "phi_do": true,
+    "spread": false,
+    "synergy": true
+  },
+  "judged_on": [
+    "phi_do",
+    "synergy"
+  ],
+  "recovery_tolerance": 0.5,
+  "deficit_share": 0.1,
+  "deficit": false,
+  "rescued_ok": false
+}

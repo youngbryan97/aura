@@ -43,7 +43,7 @@ class BehavioralObservation:
     memory_formed: bool = False  # was a memory created
     self_correction: bool = False  # did she correct herself
     contextual_appropriateness: float = 0.5  # 0-1, was the response appropriate
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ class Subgoal:
     status: str = "pending"  # pending, active, completed, failed
     dependencies: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 @dataclass
 class HierarchicalPlan:
@@ -37,7 +37,7 @@ class HierarchicalPlan:
     stack: List[Subgoal] = field(default_factory=list)
     priority: float = 0.5
     horizon: str = "short"  # short, medium, long
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 class HierarchicalPlanner:
     """Manages multi-step plans and provides subgoals to the Synthesizer."""

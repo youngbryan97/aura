@@ -35,7 +35,7 @@ class HiddenEvalManifest:
     task_count: int
     answer_hashes: Dict[str, str]
     public_tasks: List[Dict[str, Any]]
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
