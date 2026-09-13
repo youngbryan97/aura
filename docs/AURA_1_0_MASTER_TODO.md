@@ -625,6 +625,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   cataphoric source-pilot programs. A pairwise-trained candidate is rejected
   for four answer regressions. Source-order proposal refitting remains a null;
   remaining composition errors and full-source admission are not closed.
+  [Shared pointer repair](evidence/G03_SHARED_POINTER_REPAIR_2026-09-12.md)
+  removes contradictory positive/negative boundary labels and reaches 48/48
+  exposed weave programs and answers; both controls score 0/48 programs.
+  Full-source answers improve from 346/500 to 377/500 with 55 gains and 24
+  regressions. The candidate is not admitted; G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

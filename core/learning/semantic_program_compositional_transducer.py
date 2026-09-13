@@ -507,6 +507,8 @@ class CompositionalSemanticProgramTransducer:
             not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
             or receipt.get("argument_score_strategy", "independent_positive_v1")
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
+            or receipt.get("relation_score_strategy", "positive_label_margin_v1")
+            not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
             not in {"positive_relation_v1", "joint_graph_v1"}
             or receipt.get("definition_boundary_policy", "register_neighbors_v1")
@@ -855,6 +857,14 @@ class CompositionalSemanticProgramTransducer:
         }
         body["argument_search_strategy"] = "global_constraint_v1"
         body["forward_reference_policy"] = "joint_graph_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_categorical_relation_scores(self) -> CompositionalSemanticProgramTransducer:
+        """Preserve trained register log-odds without increasing mention evidence."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["relation_score_strategy"] = "categorical_log_margin_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_source_ordered_definitions(self) -> CompositionalSemanticProgramTransducer:
@@ -1236,6 +1246,7 @@ def fit_compositional_semantic_program_transducer(
             {instruction.op for item in training for instruction in item.ir.instructions}
         ),
         "operation_length_penalty_selection": penalty_rows,
+        "shared_pointer_negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
         "chart_decoder": "stable_register_table_probability_kbest_interval_dag_v4",
         "operation_chart_beam": _OPERATION_CHART_BEAM,
         "argument_span_bounds": max_argument_span_tokens_by_type,
@@ -1307,6 +1318,66 @@ def fit_compositional_semantic_program_transducer(
         definition_relation_scale=1.0,
         argument_pointer_scale=0.5,
         allow_computed_dependencies=True,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
+def refit_compositional_operation_pointer(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Refit shared operation boundaries without contradictory target labels."""
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("operation pointer refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("operation pointer refit neural basis differs from its parent")
+    train_ids = {item.ir.source_text_sha256 for item in training}
+    validation_ids = {item.ir.source_text_sha256 for item in validation}
+    if train_ids & validation_ids:
+        raise ValueError("operation pointer refit train and validation overlap")
+    pointer = _fit_shared_pointer(
+        training,
+        spans=lambda item: tuple(x.operation_span for x in item.ir.instructions),
+    )
+    penalty, calibration = _select_operation_length_penalty(
+        validation,
+        pointer=pointer,
+        classifier=model.operation_head,
+        max_steps=model.max_steps,
+        max_span_tokens=model.max_span_tokens,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    coefficient = model._coefficient_body()
+    coefficient["operation_pointer"] = pointer.to_dict()
+    coefficient["operation_length_penalty"] = penalty
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["operation_pointer_refit"] = {
+        "schema": "aura.semantic_program_operation_pointer_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "test_examples_used": 0,
+        "calibration": calibration,
+        "serving_authority": False,
+    }
+    return replace(
+        model,
+        operation_pointer=pointer,
+        operation_length_penalty=penalty,
         training_receipt={**body, "receipt_sha256": _sha(body)},
     )
 
@@ -1561,6 +1632,7 @@ def refit_compositional_register_identity(
             },
             "identity_refit": {
                 "schema": "aura.semantic_program_register_identity_refit.v1",
+                "pointer_negative_label_policy": "exclude_all_same_head_positive_boundaries_v1",
                 "parent_transducer_receipt_sha256": model.receipt_sha256,
                 "training_example_ids_sha256": _sha(
                     sorted(item.ir.source_text_sha256 for item in training)
