@@ -27,7 +27,7 @@ from core.brain.llm.latent_cortex.external_execution import (
     validate_external_execution_offer,
     validate_external_execution_readiness,
 )
-from core.config import DATA_DIR
+from core.config import config
 from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.diagnostics_bundle import redact_value
@@ -758,7 +758,7 @@ class ExternalExecuteCoordinator:
         *,
         owner_alive: Any = None,
     ) -> None:
-        self.root = Path(root or Path(DATA_DIR) / "latent_cortex" / "external_execution")
+        self.root = Path(root or config.paths.data_dir / "latent_cortex" / "external_execution")
         self._owner_alive = owner_alive or self._default_owner_alive
         self._abandoned_attempt_ids: dict[str, float] = {}
 

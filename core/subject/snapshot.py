@@ -607,6 +607,128 @@ def _store_root() -> Path | None:
     return root if root.is_dir() else None
 
 
+#: Variables that move a store the organism writes out of the state root, each
+#: naming a directory. The fork held the root, so a store moved out of the root
+#: was moved out of the fork. Under the test suite five of these point at a
+#: per-test directory beside the root, the memory store among them, and a memory
+#: arm run after a tool-use arm recalled up to 0.13 differently from the same arm
+#: run after a conversation arm: the tool-use arm's memories sat in that
+#: directory through every restore.
+REDIRECTED_DIRECTORIES: tuple[str, ...] = (
+    "AURA_ALLOSTASIS_DIR",
+    "AURA_BLACK_HOLE_KEY_DIR",
+    "AURA_CAPABILITY_KEY_DIR",
+    "AURA_COVENANT_DIR",
+    "AURA_DATA_DIR",
+    "AURA_ENDOGENOUS_HEAD_DIR",
+    "AURA_ENDOGENOUS_PAIR_DIR",
+    "AURA_ENV_RUNTIME_DIR",
+    "AURA_FOUNDRY_DIR",
+    "AURA_GHOST_DIR",
+    "AURA_MORPHOGENESIS_DIR",
+    "AURA_PHI_DIR",
+    "AURA_RECEIPT_ROOT",
+    "AURA_RESEARCH_SESSIONS_DIR",
+    "AURA_RLC_ACTION_STATE_TEST_ROOT",
+    "AURA_RLC_VERIFIED_REPLAY_SFT_PUBLICATION_ROOT",
+    "AURA_RUNTIME_LEASE_DIR",
+    "AURA_SANDBOX_DIR",
+    "AURA_STATE_DIR",
+    "AURA_TEST_RUNTIME_ROOT",
+)
+
+#: The same, for variables that name one file.
+REDIRECTED_FILES: tuple[str, ...] = (
+    "AURA_AUDIT_DB",
+    "AURA_CAUSAL_WORLD_PATH",
+    "AURA_CHAT_DELIVERY_DB",
+    "AURA_CONTINUOUS_EXPERIENCE_PATH",
+    "AURA_CURATED_MEDIA_PROGRESS_PATH",
+    "AURA_DEFERRED_RETENTION_PATH",
+    "AURA_KNOWLEDGE_DB",
+    "AURA_MEMORY_PERSIST_DEDUP_PATH",
+    "AURA_MEMORY_PERSIST_RETRY_QUEUE_PATH",
+    "AURA_MESSAGES_DELIVERY_DB",
+    "AURA_MODEL_LANE_STATE_PATH",
+    "AURA_ONTOGENY_DB",
+    "AURA_PENDING_CHAT_QUEUE_PATH",
+    "AURA_REALITY_HISTORIAN_DB",
+    "AURA_RESEARCH_TRIGGER_PATH",
+    "AURA_RLC_VERIFIED_REPLAY_PATH",
+    "AURA_SETTINGS_PATH",
+    "AURA_SHUTDOWN_REPORT_PATH",
+)
+
+#: Path variables the fork does not follow, and why. Every path variable the
+#: tree reads is in one of these three lists, and a test fails on one that is not.
+NOT_STORES: dict[str, str] = {
+    "AURA_STATE_ROOT": "the root itself, which is forked first",
+    "AURA_LIVE_STATE_ROOT": "the live instance's root, which a run never writes",
+    "AURA_HOME": "the home an uninjected state root is derived from",
+    "AURA_LOG_DIR": "logs are the instrument's record, and no arm reads them back",
+    "AURA_ASSET_ROOT": "shared assets nothing writes",
+    "AURA_ARK_ROOT": "the existence witness, kept outside the state root so that losing the root does not lose it",
+    "AURA_SHM_FALLBACK_DIR": "a transport shared with other processes, which a rewind would rewind for them too",
+    "AURA_NATIVE_BRIDGE_DIR": "requests and responses exchanged with the desktop app",
+    "AURA_NATIVE_BRIDGE_PID_FILE": "the desktop app's single-instance lock",
+    "AURA_LIVENESS_HEARTBEAT_FILE": "the watchdog's heartbeat; rewound, it reports a live process as stalled",
+    "AURA_LAUNCH_MANIFEST_PATH": "the packaged launch manifest, read at launch",
+    "AURA_LAUNCH_EXPECTED_ROOT": "the source root a launch is checked against",
+    "AURA_ROOT": "the source tree",
+    "AURA_PROJECT_ROOT": "the source tree",
+    "AURA_RUNTIME_SOURCE_ROOT": "the source tree",
+    "AURA_SELF_CODE_ROOT": "the source tree self-modification edits, which a fork of state does not hold",
+    "AURA_ASA_REPO_ROOT": "a source tree",
+    "AURA_INSTALL_PATH": "the installed app bundle",
+    "AURA_SDK_PATH": "the SDK a model worker is built against",
+    "AURA_NETHACK_PATH": "a game binary",
+    "AURA_MODEL_PATH": "model weights",
+    "AURA_MODELS_DIR": "model weights",
+    "AURA_CODE_MODEL_PATH": "model weights",
+    "AURA_FUSED_MODEL_ROOT": "model weights",
+    "AURA_LORA_PATH": "adapter weights, read",
+    "AURA_SPECULATIVE_DRAFT_PATH": "draft model weights",
+    "AURA_MODEL_LANE_INHERITED_MODEL_PATH": "model weights a child worker inherits",
+    "AURA_LLM__MLX_MODEL_PATH": "model weights",
+    "AURA_LLM__MLX_DEEP_MODEL_PATH": "model weights",
+    "AURA_LLM__MLX_BRAINSTEM_PATH": "model weights",
+    "AURA_STEERING_DIR": "steering vectors, read",
+    "AURA_PERCEPTION_FILE_SCAN_ROOT": "a directory perception reads",
+    "AURA_CURATED_MEDIA_CORPUS_PATH": "a corpus, read",
+    "AURA_RLC_ACTION_CALIBRATION_TRUST_ROOT": "a pinned public key",
+    "AURA_RLC_ACTIVATION_TRUST_ROOT": "a pinned public key",
+    "AURA_DEEP_SPECIALIST_TRUST_ROOT": "a pinned public key",
+    "AURA_SECURITY_PROFILE": "a profile name, not a path",
+}
+
+
+def _store_places(root: Path) -> list[tuple[Path, bool]]:
+    """The run's state root and every store it was told to keep somewhere else.
+
+    Each place is a path and whether it is a directory. The configured home is
+    one of them: under the test suite it is a directory of its own, and the
+    engram store, the episodic database and the tool-learning file are written
+    there. A place inside another is held by the outer one and not listed
+    again, so no file is read twice.
+    """
+    from core.config import config
+
+    candidates: list[tuple[Path, bool]] = [(root, True), (Path(config.paths.home_dir), True)]
+    for names, directory in ((REDIRECTED_DIRECTORIES, True), (REDIRECTED_FILES, False)):
+        for name in names:
+            value = os.environ.get(name, "").strip()
+            if value:
+                candidates.append((Path(value).expanduser(), directory))
+    places: list[tuple[Path, bool]] = []
+    held: list[str] = []
+    for path, directory in sorted(candidates, key=lambda place: len(os.path.realpath(place[0]))):
+        real = os.path.realpath(path)
+        if any(real == outer or real.startswith(outer + os.sep) for outer in held):
+            continue
+        held.append(real)
+        places.append((path, directory))
+    return places
+
 def _stamp(path: Path) -> tuple[int, int] | None:
     try:
         stat = path.stat()
@@ -707,39 +829,41 @@ def _cached(name: str, path: Path, stamp: tuple[int, int], is_database: bool) ->
 
 
 def _store_state() -> dict[str, Any] | None:
-    """Every state file in the run's own root, read only where it moved."""
+    """Every state file the run keeps, wherever it keeps it, read only where it moved."""
     root = _store_root()
     if root is None:
         return None
     entries: dict[str, tuple[str, tuple[int, int], bytes]] = {}
     directories: list[str] = []
+    places: list[tuple[str, bool, bool]] = []
     total = 0
-    for item in sorted(root.rglob("*")):
-        relative = item.relative_to(root)
-        if "logs" in relative.parts:
-            continue
-        name = str(relative)
-        if item.is_dir():
-            directories.append(name)
-            continue
-        if not item.is_file() or name.endswith(_STORE_SKIP_SUFFIXES):
-            continue
-        is_database = _is_sqlite(item)
-        stamp = _sqlite_stamp(item) if is_database else _stamp(item)
-        if stamp is None:
-            continue
-        kind, payload = _cached(name, item, stamp, is_database)
-        entries[name] = (kind, stamp, payload)
-        total += len(payload)
-        if total > STORE_BOUND_BYTES:
-            raise RuntimeError(
-                f"state root {root} holds more than {STORE_BOUND_BYTES} bytes; it is not "
-                "one run's own, and forking it into every arm would copy other runs' history"
-            )
+    for place, directory in _store_places(root):
+        places.append((str(place), directory, place.exists()))
+        for item in sorted(place.rglob("*")) if directory else [place]:
+            if directory and "logs" in item.relative_to(place).parts:
+                continue
+            name = str(item)
+            if item.is_dir():
+                directories.append(name)
+                continue
+            if not item.is_file() or name.endswith(_STORE_SKIP_SUFFIXES):
+                continue
+            is_database = _is_sqlite(item)
+            stamp = _sqlite_stamp(item) if is_database else _stamp(item)
+            if stamp is None:
+                continue
+            kind, payload = _cached(name, item, stamp, is_database)
+            entries[name] = (kind, stamp, payload)
+            total += len(payload)
+            if total > STORE_BOUND_BYTES:
+                raise RuntimeError(
+                    f"the stores under {place} take the fork past {STORE_BOUND_BYTES} bytes; they are "
+                    "not one run's own, and forking them into every arm would copy other runs' history"
+                )
     for name in list(_STORE_CACHE):
         if name not in entries:
             del _STORE_CACHE[name]
-    return {"root": str(root), "entries": entries, "directories": directories}
+    return {"root": str(root), "places": places, "entries": entries, "directories": directories}
 
 
 def _restore_stores(saved: dict[str, Any] | None) -> None:
@@ -758,21 +882,34 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
     entries: dict[str, tuple[str, tuple[int, int], bytes]] = saved["entries"]
     keep = set(entries) | set(saved["directories"])
     with local_internal_governed_scope("subject_core.fork"):
-        for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
-            relative = item.relative_to(root)
-            name = str(relative)
-            if "logs" in relative.parts or name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
-                continue
-            try:
-                gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
-            except OSError:
-                continue
-            _STORE_CACHE.pop(name, None)
+        for place_name, directory, existed in saved["places"]:
+            place = Path(place_name)
+            if directory:
+                found = sorted(place.rglob("*"), key=lambda path: len(str(path)), reverse=True)
+                if not existed and place.exists():
+                    # A directory the arm created goes, after what it holds.
+                    found.append(place)
+            else:
+                found = [place] if place.exists() else []
+            for item in found:
+                name = str(item)
+                if directory and item != place and "logs" in item.relative_to(place).parts:
+                    continue
+                if name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
+                    continue
+                try:
+                    gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
+                except OSError:
+                    continue
+                _STORE_CACHE.pop(name, None)
+        for place_name, directory, existed in saved["places"]:
+            if directory and existed:
+                gateway.ensure_directory(Path(place_name), source="subject_core.fork")
         for name in saved["directories"]:
-            gateway.ensure_directory(root / name, source="subject_core.fork")
+            gateway.ensure_directory(Path(name), source="subject_core.fork")
         failures: list[str] = []
         for name, (kind, stamp, payload) in entries.items():
-            target = root / name
+            target = Path(name)
             try:
                 if kind.startswith("database"):
                     # Compared with the stamp that counts the write-ahead log,

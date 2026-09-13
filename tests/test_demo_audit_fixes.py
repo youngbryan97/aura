@@ -110,12 +110,13 @@ async def test_unified_action_log_defers_persistence_on_running_loop(monkeypatch
 
 
 def test_unified_action_log_rehydrates_from_disk(tmp_path):
+    import core.config as config_module
     from core.config import config
     from core.observability.unified_action_log import UnifiedActionLog
 
     paths_cls = type(config.paths)
     original_home = paths_cls._runtime_home_cache
-    paths_cls._runtime_home_cache = tmp_path
+    paths_cls._runtime_home_cache = (config_module.state_root(), tmp_path)
     try:
         data_dir = tmp_path / "data"
         get_task_tracker().create_task(get_storage_gateway().create_dir(data_dir, cause='test_unified_action_log_rehydrates_from_disk'))
@@ -138,12 +139,13 @@ def test_unified_action_log_rehydrates_from_disk(tmp_path):
 
 
 def test_unified_action_log_drops_router_diagnostics(tmp_path):
+    import core.config as config_module
     from core.config import config
     from core.observability.unified_action_log import UnifiedActionLog
 
     paths_cls = type(config.paths)
     original_home = paths_cls._runtime_home_cache
-    paths_cls._runtime_home_cache = tmp_path
+    paths_cls._runtime_home_cache = (config_module.state_root(), tmp_path)
     try:
         data_dir = tmp_path / "data"
         get_task_tracker().create_task(

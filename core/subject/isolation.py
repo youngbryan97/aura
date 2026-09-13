@@ -53,6 +53,7 @@ def isolate_state(run_dir: Path) -> Path:
     because a root that did not move is the failure this exists to stop, and
     it looks exactly like success until the ledgers are compared.
     """
+    from core.config import config
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
     from core.runtime.state_ownership import state_root
@@ -70,6 +71,12 @@ def isolate_state(run_dir: Path) -> Path:
             f"asked for state under {root} and the process resolves {resolved}; "
             "a run that shares state with other runs is not the experiment its "
             "fingerprint names"
+        )
+    data = _real(config.paths.data_dir)
+    if not _inside(data, _real(root)):
+        raise StateIsolationError(
+            f"the state root moved to {root} and the data directory is still {data}; "
+            "every store under it would be written outside the run"
         )
     return root
 

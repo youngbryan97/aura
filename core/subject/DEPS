@@ -33,6 +33,11 @@ include_rules = [
     "+core.governance_context",
     "+core.runtime",
 
+    # Where the organism's home and data directory resolve. The fork has to
+    # hold the home when it sits outside the state root, and isolation has to
+    # refuse a run whose data directory did not move with the root.
+    "+core.config",
+
     # How it reaches the running organism to take a reading. Every one of
     # these is subject -> runtime, which is the direction the rule allows;
     # named module by module rather than package by package, so a wider reach
