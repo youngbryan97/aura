@@ -838,8 +838,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 ## 5. Reliability, security, and release
 
-- [ ] Q01 Local model inventory and retired-provider removal; verify all model
+- [x] Q01 Local model inventory and retired-provider removal; verify all model
   identity, tokenizer, geometry, context, and allocation consumers.
+  CLOSED 2026-09-13. `tools/model_inventory.py` resolves every live role the
+  way the runtime does and reads what its consumers read — geometry and
+  quantization from the checkpoint, the context window from
+  `get_context_window_evidence`, the declared worker footprint, the chat
+  template digest — and `tests/test_model_inventory.py` holds that every
+  required role is on disk with `declared >= size`. Record:
+  `docs/evidence/Q01_MODEL_INVENTORY_2026-09-13.md`. Found on the way: the
+  brainstem was declared at a flat 4GB for a 5.5GB checkpoint (b6a9a35fe).
+  Retired providers stay retired under 12 green tests. 34.7GB on disk is
+  named by nothing — the replaced 32B, a second copy of the 27B base, four
+  empty GGUF shells — listed with sizes and left for the owner to remove.
 - [ ] Q02 Disk retention: bound logs/exports/checkpoints/caches while preserving
   live dependencies, unique source work, state, and scientific evidence.
 - [ ] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
