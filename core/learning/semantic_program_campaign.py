@@ -6,10 +6,14 @@ import hashlib
 import json
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Final
 
 from core.brain.llm.hidden_sequence_contract import hidden_sequence_channel_widths
+from core.learning.semantic_program_corpus import (
+    SemanticProgramExample,
+    project_register_definition_spans,
+)
 from core.learning.semantic_program_evaluation import (
     coefficient_lesion,
     evaluate_semantic_program_transducer,
@@ -18,6 +22,7 @@ from core.learning.semantic_program_evaluation import (
 )
 from core.learning.semantic_program_feature_materialization import (
     LoadedSemanticFeatureBundle,
+    tokenize_with_offsets,
 )
 from core.learning.semantic_program_ir import (
     TokenSpan,
@@ -43,6 +48,61 @@ def _sha(value: Any) -> str:
             allow_nan=False,
         ).encode("ascii")
     ).hexdigest()
+
+
+def reproject_definition_annotations(
+    bundle: LoadedSemanticFeatureBundle,
+    corpus: Sequence[SemanticProgramExample],
+    *,
+    tokenizer: Any,
+) -> tuple[tuple[SemanticTransducerTrainingExample, ...], dict[str, Any]]:
+    """Attach revised annotations to unchanged features with a separate receipt."""
+    by_id = {item.example_id: item for item in corpus}
+    if len(by_id) != len(corpus) or set(by_id) != {
+        item.metadata["example_id"] for item in bundle.examples
+    }:
+        raise ValueError("definition annotation cohort differs from feature bundle")
+    examples = training_examples_from_feature_bundle(
+        bundle, required_splits=frozenset(item.split for item in corpus),
+    )
+    revised = []
+    bindings = []
+    for record, training in zip(bundle.examples, examples, strict=True):
+        annotation = by_id[record.metadata["example_id"]]
+        if not annotation.register_definition_spans:
+            raise ValueError("definition reprojection requires explicit annotations")
+        if (
+            hashlib.sha256(annotation.source_text.encode("utf-8")).hexdigest()
+            != record.metadata["source_text_sha256"]
+            or annotation.split != training.split
+            or annotation.inputs != training.public_inputs
+            or annotation.construction_id != training.construction_id
+            or annotation.topology_id != training.topology_id
+        ):
+            raise ValueError("definition annotation source or identity differs")
+        tokens, offsets = tokenize_with_offsets(tokenizer, annotation.source_text)
+        if tuple(tokens) != training.ir.source_token_ids:
+            raise ValueError("definition annotation tokenization differs from features")
+        definitions = project_register_definition_spans(annotation, offset_mapping=offsets)
+        revised.append(replace(
+            training, register_definition_spans=definitions,
+            register_definition_origin="explicit_annotation",
+        ))
+        bindings.append({
+            "example_id": annotation.example_id,
+            "source_text_sha256": record.metadata["source_text_sha256"],
+            "feature_payload_sha256": record.payload_sha256,
+            "character_spans": [[span.start, span.end] for span in annotation.register_definition_spans],
+            "token_spans": [[span.start, span.end] for span in definitions],
+        })
+    body = {
+        "schema": "aura.semantic_definition_reprojection.v1",
+        "source_manifest_sha256": bundle.manifest["manifest_sha256"],
+        "bindings": bindings,
+        "historical_features_modified": False,
+        "serving_authority": False,
+    }
+    return tuple(revised), {**body, "receipt_sha256": _sha(body)}
 
 
 def training_examples_from_feature_bundle(
@@ -83,6 +143,10 @@ def training_examples_from_feature_bundle(
                 contrast_id=str(item.metadata.get("contrast_id", "")),
                 tokenizer_identity_sha256=str(item.metadata["tokenizer_identity_sha256"]),
                 register_definition_spans=definitions,
+                register_definition_origin=str(item.metadata.get(
+                    "register_definition_origin",
+                    "unrecorded" if isinstance(raw_definitions, list) else "input_operation_fallback",
+                )),
             )
         )
     examples = tuple(converted)

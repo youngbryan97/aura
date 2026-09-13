@@ -639,6 +639,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   answers versus the frozen parent's 346, with 44 gains and 48 regressions.
   Coefficient ablations are retained. The operation-only candidate remains
   stronger; no serving changes or G03 closure.
+  2026-09-13: [definition supervision correction](evidence/G03_DEFINITION_SUPERVISION_2026-09-13.md)
+  rejects the source-complete definition refit (407/500 source, 12/48 weave).
+  Missing annotation provenance is repaired without altering old bundles.
+  Explicit weave definitions recover 470/480 links; automatic selection is
+  450/480 for the operation-only candidate and 286/480 for the rejected refit.
+  Definition selection remains the active development issue.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

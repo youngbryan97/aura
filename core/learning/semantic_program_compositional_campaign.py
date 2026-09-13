@@ -163,7 +163,10 @@ def diagnose_compositional_definition_relations(
         oracle_top1 = 0
         by_construction: dict[str, dict[str, int]] = {}
         by_slot: dict[str, dict[str, int]] = {}
+        definition_origins: dict[str, int] = {}
         for item in selected:
+            origin = item.register_definition_origin
+            definition_origins[origin] = definition_origins.get(origin, 0) + 1
             oracle_definitions = _register_definition_spans(item)
             runtime_anchors = (
                 *item.ir.input_spans,
@@ -267,12 +270,16 @@ def diagnose_compositional_definition_relations(
             "oracle_top1": oracle_top1,
             "by_construction": dict(sorted(by_construction.items())),
             "by_slot": dict(sorted(by_slot.items())),
+            "definition_origin_examples": dict(sorted(definition_origins.items())),
         }
     body = {
-        "schema": "aura.semantic_program_definition_relation_diagnostic.v1",
+        "schema": "aura.semantic_program_definition_relation_diagnostic.v2",
         "transducer_receipt_sha256": model.receipt_sha256,
         "gold_reference_spans_available": True,
-        "gold_definition_spans_available_to_oracle_arm": True,
+        "gold_definition_spans_available_to_oracle_arm": all(
+            item.register_definition_origin == "explicit_annotation" for item in examples
+        ),
+        "definition_targets_available_to_oracle_arm": True,
         "gold_definition_spans_available_to_runtime_arm": False,
         "expected_answers_available": False,
         "serving_authority": False,

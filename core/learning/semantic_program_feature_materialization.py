@@ -39,16 +39,16 @@ from core.learning.semantic_program_corpus import (
     project_example_to_ir,
     project_register_definition_spans,
 )
-from core.learning.semantic_program_corpus_replication import (
-    build_semantic_program_natural_branch_replication_corpus,
-    build_semantic_program_natural_replication_corpus,
-    build_semantic_program_natural_weave_replication_corpus,
-)
 from core.learning.semantic_program_corpus_natural import (
     build_semantic_program_natural_alias_source_corpus,
     build_semantic_program_natural_identity_source_corpus,
     build_semantic_program_natural_request_corpus,
     build_semantic_program_natural_source_corpus,
+)
+from core.learning.semantic_program_corpus_replication import (
+    build_semantic_program_natural_branch_replication_corpus,
+    build_semantic_program_natural_replication_corpus,
+    build_semantic_program_natural_weave_replication_corpus,
 )
 from core.learning.semantic_program_corpus_sequences import (
     build_semantic_program_sequence_binary_corpus,
@@ -65,7 +65,8 @@ from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.file_write_gateway import FileWriteGateway, get_file_write_gateway
 
 LEGACY_FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
-FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v2"
+DEFINITION_FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v2"
+FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v3"
 FEATURE_MANIFEST_SCHEMA: Final = "aura.semantic_program_feature_manifest.v1"
 FEATURE_STATUS_SCHEMA: Final = "aura.semantic_program_feature_status.v1"
 FEATURE_CONFIG_SCHEMA: Final = "aura.semantic_program_feature_config.v2"
@@ -86,6 +87,7 @@ NATURAL_SOURCE_CORPUS_KIND: Final = "natural_source_linear_3x2"
 NATURAL_ALIAS_SOURCE_CORPUS_KIND: Final = "natural_alias_source_linear_3x2"
 NATURAL_BRANCH_REPLICATION_CORPUS_KIND: Final = "natural_branch_replication_5x4"
 NATURAL_WEAVE_REPLICATION_CORPUS_KIND: Final = "natural_weave_replication_6x5"
+NATURAL_WEAVE_DEFINITION_CORPUS_KIND: Final = "natural_weave_replication_6x5_definitions_v1"
 NATURAL_IDENTITY_SOURCE_CORPUS_KIND: Final = "natural_identity_source_linear_3x2"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
@@ -98,6 +100,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         NATURAL_ALIAS_SOURCE_CORPUS_KIND,
         NATURAL_BRANCH_REPLICATION_CORPUS_KIND,
         NATURAL_WEAVE_REPLICATION_CORPUS_KIND,
+        NATURAL_WEAVE_DEFINITION_CORPUS_KIND,
         NATURAL_IDENTITY_SOURCE_CORPUS_KIND,
         NATURAL_SOURCE_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
@@ -276,10 +279,13 @@ def build_semantic_program_corpus_for_config(
             seed=config.seed,
             examples_per_schema_domain=config.examples_per_operation_pair,
         )
-    if config.corpus_kind == NATURAL_WEAVE_REPLICATION_CORPUS_KIND:
+    if config.corpus_kind in {
+        NATURAL_WEAVE_REPLICATION_CORPUS_KIND, NATURAL_WEAVE_DEFINITION_CORPUS_KIND
+    }:
         return build_semantic_program_natural_weave_replication_corpus(
             seed=config.seed,
             examples_per_schema_domain=config.examples_per_operation_pair,
+            annotate_register_definitions=config.corpus_kind == NATURAL_WEAVE_DEFINITION_CORPUS_KIND,
         )
     if config.corpus_kind == NATURAL_IDENTITY_SOURCE_CORPUS_KIND:
         return build_semantic_program_natural_identity_source_corpus(
@@ -816,9 +822,11 @@ def load_semantic_feature_record(
     schema = metadata.get("schema") if isinstance(metadata, dict) else None
     expected_fields = (
         base_fields | {"register_definition_spans"}
-        if schema == FEATURE_RECORD_SCHEMA
+        if schema in {DEFINITION_FEATURE_RECORD_SCHEMA, FEATURE_RECORD_SCHEMA}
         else base_fields
     )
+    if schema == FEATURE_RECORD_SCHEMA:
+        expected_fields |= {"register_definition_origin"}
     if not isinstance(metadata, dict) or set(metadata) != expected_fields:
         raise SemanticFeatureMaterializationError("semantic feature metadata fields differ")
     logical_hash = metadata.pop("logical_payload_sha256")
@@ -828,7 +836,9 @@ def load_semantic_feature_record(
     token_count = metadata.get("token_count")
     hidden_size = metadata.get("hidden_size")
     if (
-        schema not in {LEGACY_FEATURE_RECORD_SCHEMA, FEATURE_RECORD_SCHEMA}
+        schema not in {
+            LEGACY_FEATURE_RECORD_SCHEMA, DEFINITION_FEATURE_RECORD_SCHEMA, FEATURE_RECORD_SCHEMA
+        }
         or metadata.get("token_dtype") != "int32_le"
         or metadata.get("hidden_dtype") != "float32_le"
         or type(token_count) is not int
@@ -838,7 +848,11 @@ def load_semantic_feature_record(
         or metadata.get("evidence_absence") != _EVIDENCE_ABSENCE
     ):
         raise SemanticFeatureMaterializationError("semantic feature metadata contract differs")
-    if schema == FEATURE_RECORD_SCHEMA:
+    if schema == FEATURE_RECORD_SCHEMA and metadata.get("register_definition_origin") not in {
+        "explicit_annotation", "input_operation_fallback"
+    }:
+        raise SemanticFeatureMaterializationError("semantic feature definition origin is invalid")
+    if schema in {DEFINITION_FEATURE_RECORD_SCHEMA, FEATURE_RECORD_SCHEMA}:
         definitions = metadata.get("register_definition_spans")
         if (
             not isinstance(definitions, list)
@@ -1419,6 +1433,11 @@ async def materialize_semantic_program_features(
             "register_definition_spans": [
                 [span.start, span.end] for span in register_definition_spans
             ],
+            "register_definition_origin": (
+                "explicit_annotation"
+                if example.register_definition_spans
+                else "input_operation_fallback"
+            ),
             "evidence_absence": dict(_EVIDENCE_ABSENCE),
         }
         payload = _encode_record(metadata, local_token_ids, states)
@@ -1549,6 +1568,7 @@ __all__ = [
     "NATURAL_REQUEST_CORPUS_KIND",
     "NATURAL_SOURCE_CORPUS_KIND",
     "NATURAL_WEAVE_REPLICATION_CORPUS_KIND",
+    "NATURAL_WEAVE_DEFINITION_CORPUS_KIND",
     "SemanticFeatureConfig",
     "SemanticFeatureMaterializationError",
     "SEMANTIC_CORPUS_KINDS",
