@@ -1,6 +1,10 @@
 import pytest
 
 import interface.routes.chat as chat_mod
+# The resolver moved to chat_turn_recall in the chat-lane split and reads
+# these names from its own namespace, so a patch on chat.py bound nothing
+# and the resolver went on calling the real loader.
+import interface.routes.chat_turn_recall as chat_turn_recall
 import interface.routes.chat_conversation_repair as _chat_conversation_repair
 
 
@@ -40,9 +44,11 @@ async def test_referential_followup_anchor_finds_previous_question(monkeypatch):
             "Aura, name one concrete moment in the last hour where your internal state changed what you did.",
         ]
 
-    monkeypatch.setattr(chat_mod, "_gather_recent_user_messages_for_relevance", _fake_recent)
     monkeypatch.setattr(
-        chat_mod._chat_memory_state,
+        chat_turn_recall, "_gather_recent_user_messages_for_relevance", _fake_recent
+    )
+    monkeypatch.setattr(
+        chat_turn_recall._chat_memory_state,
         "_recent_completed_conversation_exchanges",
         _no_session_history,
     )
@@ -91,9 +97,11 @@ async def test_referential_followup_does_not_anchor_deep_probe(monkeypatch):
     async def _fake_recent(_message, limit=8):
         return ["What is one thing you can notice about your own operation without turning it into roleplay?"]
 
-    monkeypatch.setattr(chat_mod, "_gather_recent_user_messages_for_relevance", _fake_recent)
     monkeypatch.setattr(
-        chat_mod._chat_memory_state,
+        chat_turn_recall, "_gather_recent_user_messages_for_relevance", _fake_recent
+    )
+    monkeypatch.setattr(
+        chat_turn_recall._chat_memory_state,
         "_recent_completed_conversation_exchanges",
         _no_session_history,
     )
