@@ -13,18 +13,25 @@ and then reports green forever.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
-CHAT = Path("interface/routes/chat.py")
 GUARD = "_remove_self_denials_the_record_refutes"
 
 
 def _function(name: str) -> ast.AsyncFunctionDef | ast.FunctionDef:
-    tree = ast.parse(CHAT.read_text(encoding="utf-8"))
+    """The definition, wherever in the lane it lives.
+
+    This parsed `chat.py` alone. The ladder moved to chat_foreground_lane and
+    the stabiliser to chat_reply_repair when that file was split for size, and
+    parsing the old address raised "is gone" for both — which is precisely what
+    deleting them would look like from here.
+    """
+    from chat_lane_support import chat_lane_source
+
+    tree = ast.parse(chat_lane_source())
     for node in ast.walk(tree):
         if isinstance(node, ast.AsyncFunctionDef | ast.FunctionDef) and node.name == name:
             return node
-    raise AssertionError(f"{name} is gone from {CHAT}")
+    raise AssertionError(f"{name} is gone from the chat lane")
 
 
 def _calls(node: ast.AST) -> set[str]:
