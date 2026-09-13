@@ -455,7 +455,7 @@
         "pattern": "_DIFFERENTIATION_EVIDENCE"
       }
     ],
-    "note": "the criterion is two-sided: many effective dimensions, no component holding half the variance, and the ratio below the bar rather than above it \u2014 the one-sided reading is passed by the least mind-like nulls and reported beside it on every run",
+    "note": "the criterion is two-sided: many effective dimensions, no component holding half the variance, and the ratio below the bar rather than above it — the one-sided reading is passed by the least mind-like nulls and reported beside it on every run",
     "status": "done"
   },
   "P10.11": {
@@ -543,7 +543,7 @@
         "pattern": "a verbatim copy of another domain's column"
       }
     ],
-    "note": "columns are removed for failing the schema's own rule \u2014 nothing reads them, or they are another domain's column under this one's name \u2014 and the reason is written beside each removal",
+    "note": "columns are removed for failing the schema's own rule — nothing reads them, or they are another domain's column under this one's name — and the reason is written beside each removal",
     "status": "done"
   },
   "P11.1": {
@@ -2349,7 +2349,7 @@
         "kind": "report"
       }
     ],
-    "note": "D->W is a retained edge in the newest run \u2014 what she did changes what she predicts",
+    "note": "D->W is a retained edge in the newest run — what she did changes what she predicts",
     "status": "done"
   },
   "P2.62": {
@@ -2541,7 +2541,7 @@
         "pattern": "def _chosen_action"
       }
     ],
-    "note": "the deliberation domain is eighteen numbers \u2014 budgets, urgencies, the initiative count, what the will deferred \u2014 and displacing them changes what she does",
+    "note": "the deliberation domain is eighteen numbers — budgets, urgencies, the initiative count, what the will deferred — and displacing them changes what she does",
     "status": "done"
   },
   "P2.78": {
@@ -2582,7 +2582,7 @@
         "pattern": "rooms = sorted\\(p\\.name for p in room\\.glob\\(\\\"room_\\*\\\"\\) if p\\.is_dir\\(\\)\\)"
       }
     ],
-    "note": "the percept carries what was read off the disk \u2014 a line count, a room count, what a room holds \u2014 and never the objective or the intention text",
+    "note": "the percept carries what was read off the disk — a line count, a room count, what a room holds — and never the objective or the intention text",
     "status": "done"
   },
   "P2.80": {
@@ -3958,7 +3958,7 @@
         "pattern": "def test_an_accident_of_her_own_doing_is_not_a_deliberate_one"
       }
     ],
-    "note": "the action log rolls itself when an append makes it too long, which removes lines nobody asked to remove \u2014 her hand, her consequence, and no intention of it anywhere",
+    "note": "the action log rolls itself when an append makes it too long, which removes lines nobody asked to remove — her hand, her consequence, and no intention of it anywhere",
     "status": "done"
   },
   "P26.13": {
@@ -4542,7 +4542,7 @@
         "timeout": 600
       }
     ],
-    "note": "an array enters as a fixed number of columns \u2014 its size, its four moments and a seeded projection \u2014 because every tensor the machine carried fell through the walk and was invisible",
+    "note": "an array enters as a fixed number of columns — its size, its four moments and a seeded projection — because every tensor the machine carried fell through the walk and was invisible",
     "status": "done"
   },
   "P28.8": {
@@ -8097,7 +8097,7 @@
         "pattern": "within_machine_spread"
       }
     ],
-    "note": "irreducibility reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "note": "irreducibility reported twice — the spread between runs on one host and the spread between hosts",
     "status": "done"
   },
   "P50.7": {
@@ -8113,7 +8113,7 @@
         "pattern": "within_machine_spread"
       }
     ],
-    "note": "effective dimension reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "note": "effective dimension reported twice — the spread between runs on one host and the spread between hosts",
     "status": "done"
   },
   "P50.8": {
@@ -8129,7 +8129,7 @@
         "pattern": "within_machine_spread"
       }
     ],
-    "note": "perturbational spread reported twice \u2014 the spread between runs on one host and the spread between hosts",
+    "note": "perturbational spread reported twice — the spread between runs on one host and the spread between hosts",
     "status": "done"
   },
   "P50.9": {
@@ -10855,6 +10855,160 @@
       }
     ],
     "note": "causal closure runs on every architecture, with the broker read as the periphery",
+    "status": "done"
+  },
+  "P20.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_no_background_task_crosses_an_arm.py",
+        "pattern": "def test_no_background_task_crosses_from_one_arm_to_the_next"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/organism.py",
+        "pattern": "KEPT_TASKS: tuple[str, ...] = ("
+      }
+    ],
+    "note": "the wind-down cancels every free-running task but the state registry's notification dispatcher and stops the world model's trainer thread; no conversation, memory or tool-use arm ends with a task alive that it started, and none is alive after the restore",
+    "status": "done"
+  },
+  "P18.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_intention_behind.py",
+        "pattern": "def test_a_restore_closes_what_the_arm_opened"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_intention_behind.py",
+        "pattern": "def test_every_arm_from_one_snapshot_gets_its_own_copy"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/snapshot.py",
+        "pattern": "def _intentions_state"
+      }
+    ],
+    "note": "the fork carries the intention database's rows and the loop's open and finished intentions and persist count, read under the loop's lock and restored in place from a fresh copy; an arm that opened nine intentions leaves the ten it started with",
+    "status": "done"
+  },
+  "P18.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_every_run_has_its_own_state.py",
+        "pattern": "def test_a_run_gets_a_root_inside_its_own_directory"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_database_rows_come_back_through_a_connection_held_open"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_one_snapshot_restores_as_often_as_a_trial_needs"
+      }
+    ],
+    "note": "every run has its own state root, and every snapshot carries that root's files and databases; each arm starts from the snapshot's copy, databases written back through the SQLite backup API under connections still held open",
+    "status": "done"
+  },
+  "P19.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_fork_leaves_nothing_behind.py",
+        "pattern": "the world an arm acted in survived the restore"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_a_memory_the_arm_created_is_gone_after_the_restore"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/snapshot.py",
+        "pattern": "def _sqlite_image"
+      }
+    ],
+    "note": "the fork carries (K, E): the scratch world byte for byte, the run's state files and databases (databases as consistent SQLite images through the backup API), and the intention store; an arm's world, memories and ledgers are gone after the restore",
+    "status": "done"
+  },
+  "P20.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_a_memory_the_arm_created_is_gone_after_the_restore"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_plain_state_files_come_back_with_their_bytes_and_stamp"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_an_arm_leaves_no_state_file_behind.py",
+        "pattern": "def test_a_write_ahead_store_keeps_its_journal_mode_after_a_restore"
+      }
+    ],
+    "note": "an arm of three memory turns changed fifteen files, episodic memories, the outcome ledger and the identity chronicle among them; after the incremental state-file fork the same probe leaves no file and no table row unrestored",
+    "status": "done"
+  },
+  "P5.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/broadcast_consumers.py",
+        "pattern": "AFFECT_DRIVES: dict[str, str] = {"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_feeling_is_not_a_drive_by_its_name.py",
+        "pattern": "def test_every_feeling_names_a_budget_that_exists"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_feeling_is_not_a_drive_by_its_name.py",
+        "pattern": "def test_a_feeling_credits_its_need_and_not_its_own_name"
+      }
+    ],
+    "note": "the affect-to-drive mapping is written out, one feeling to one of the five budgets, by what the feeling is about (warmth and its absence to company, interest to finding out, fear to holding together, frustration to growth); every mapped budget exists",
+    "status": "done"
+  },
+  "P5.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_feeling_is_not_a_drive_by_its_name.py",
+        "pattern": "def test_a_feeling_the_table_does_not_name_credits_nothing"
+      }
+    ],
+    "note": "closed by P5.9, the first branch of the either-or: an affect source credits only the need the written table names, and one the table does not name credits nothing",
+    "status": "done"
+  },
+  "P5.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_broadcast_consumers.py",
+        "pattern": "def test_the_winning_drive_is_credited_where_the_motivation_phase_reads_it"
+      }
+    ],
+    "note": "an attended affect_curiosity winner is broadcast, the consumer credits curiosity, and running the real MotivationUpdatePhase afterwards raises the curiosity budget that deliberation reads; without the credit the budget only decays",
+    "status": "done"
+  },
+  "P5.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_feeling_is_not_a_drive_by_its_name.py",
+        "pattern": "def test_no_code_turns_an_affect_name_into_a_drive_by_cutting_its_prefix"
+      }
+    ],
+    "note": "a scan of core fails on any line that cuts the affect_ prefix without going through AFFECT_DRIVES",
     "status": "done"
   }
 }
