@@ -343,6 +343,10 @@ def test_steering_that_adds_to_words_is_a_different_question_from_beating_them()
             "shuffled_layers": _effect(0.03, significant=False),
         },
         combined_effect=_effect(0.95, significant=True),
+        # The DIRECTION comparison is what adds_to_text reads: the combined
+        # condition's scored behaviour against the rich prompt's. Divergence
+        # said the opposite of the target on the first real run that had both.
+        combined_direction=_effect(0.95, significant=True),
         direction=_effect(0.5, significant=True),
     )
     assert weaker_alone.beats_text_controls is False, "the words still win alone"
@@ -405,3 +409,99 @@ def test_a_result_without_the_combined_condition_still_replays():
     }
     kept = _condition_outputs({"condition_outputs": outputs})
     assert COMBINED_CONDITION not in kept
+
+
+def test_adds_to_text_reads_the_target_and_not_the_divergence():
+    """The two measures parted company on the first run that had both.
+
+    On the 27B the combined condition moved the output FURTHER from baseline
+    than the rich prompt did (delta 0.1389 against 0.1235) and less
+    consistently, so its divergence effect size was SMALLER — 3.35 against
+    3.57. The first version of `adds_to_text` compared those and reported
+    False while the affect score went 1.36 -> 3.61.
+
+    Divergence answers "did the text change". This property claims to answer
+    "did it change toward the thing steering is for", which is the scored
+    behaviour.
+    """
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    # The combined condition carries the prompt's movement and more.
+    scores[COMBINED_CONDITION] = [3.0] * trials
+    scores["steered_black_box"] = [0.5] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.combined_direction is not None
+    assert report.combined_direction.observed_delta == pytest.approx(2.0)
+    assert report.adds_to_text is True
+
+
+def test_a_combined_condition_that_adds_nothing_reads_false():
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    scores[COMBINED_CONDITION] = [1.0] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.adds_to_text is False
+
+
+def test_adding_to_text_still_cannot_pass_the_gate():
+    """It answers a different question and must never be a back door."""
+    from core.evaluation.steering_ab import COMBINED_CONDITION, analyze_steering_ab
+
+    trials = 24
+    outputs = {
+        name: [f"{name} reply {index} with several words in it" for index in range(trials)]
+        for name in (
+            "baseline",
+            "baseline_replicate",
+            "steered_black_box",
+            "text_terse",
+            "text_rich_adversarial",
+            "zero_vector",
+            "random_vector",
+            "shuffled_layers",
+            COMBINED_CONDITION,
+        )
+    }
+    scores = {name: [0.0] * trials for name in outputs}
+    scores["text_rich_adversarial"] = [1.0] * trials
+    scores[COMBINED_CONDITION] = [9.0] * trials
+
+    report = analyze_steering_ab(outputs, target_scores=scores, n_resamples=500, seed=3)
+    assert report.adds_to_text is True
+    assert report.passes_adversarial_control is False

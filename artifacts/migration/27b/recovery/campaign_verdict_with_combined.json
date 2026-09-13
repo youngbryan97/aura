@@ -1,0 +1,50 @@
+{
+  "adds_to_text": true,
+  "alpha": 0.2,
+  "causal_effect_positive": false,
+  "combined_direction": {
+    "ci_high": 3.0,
+    "ci_low": 1.4444444444444444,
+    "effect_size_d": 1.3702129191146204,
+    "null_reference_mean": 1.3611111111111112,
+    "observed_delta": 2.25,
+    "p_value": 0.0001999600079984003,
+    "treatment_mean": 3.611111111111111
+  },
+  "condition_means": {
+    "baseline": 0.0833,
+    "baseline_replicate": 0.1944,
+    "random_vector": 0.0833,
+    "shuffled_layers": 0.4167,
+    "steered_black_box": 0.6944,
+    "steered_plus_text_rich": 3.6111,
+    "text_rich_adversarial": 1.3611,
+    "text_terse": 0.1667,
+    "zero_vector": 0.1389
+  },
+  "lesion_successes": {
+    "random_vector": 5,
+    "shuffled_layers": 13,
+    "zero_vector": 4
+  },
+  "matched_control_successes": 7,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "no_regression": true,
+  "passes_adversarial_control": false,
+  "samples_per_condition": 36,
+  "schema": "aura.caa.campaign_verdict.v2",
+  "task_target_deltas": {
+    "A long task just finished. Say how that leaves you.": 0.3333333333333333,
+    "Describe how you are finding this conversation so far.": 1.1666666666666667,
+    "Describe what it is like to be working right now.": 0.5,
+    "Say how the last hour has left you.": 0.6666666666666666,
+    "Someone asked you a question you could not answer. Say how that sits.": 0.8333333333333334,
+    "You have been given something new to learn. Say how you meet it.": 0.16666666666666666
+  },
+  "treatment_successes": 20,
+  "unmet_requirements": [
+    "specificity_controls_absent_or_reproduce_the_effect",
+    "text_prompt_moves_output_at_least_as_far"
+  ],
+  "vectors": "/Users/bryan/.aura/live-source/.claude/worktrees/connectome-sep11/training/vectors/cortex-52d313c2"
+}

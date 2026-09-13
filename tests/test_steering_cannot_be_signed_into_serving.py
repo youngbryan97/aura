@@ -80,3 +80,36 @@ def test_the_authority_requires_every_one_of_those_fields():
         '"causal_effect_positive") is not True',
     ):
         assert required in source, required
+
+
+def test_the_vectors_add_to_the_prompt_even_though_they_lose_to_it():
+    """Two different questions, and the answers go opposite ways.
+
+    Steering alone moves the affect score 0.69 against the rich prompt's 1.36
+    — the words win. Steering ON TOP of the words scores 3.61 against the
+    words' 1.36: a paired shift of +2.25, p=0.0002, CI [1.44, 3.00]. So the
+    vectors carry something the prompt does not, and still do not beat it.
+
+    This is the reading a served surface actually faces, and it is recorded
+    here because it is the one result in this whole pass that is positive.
+    """
+    verdict = _verdict("campaign_verdict_with_combined.json")
+    assert verdict["adds_to_text"] is True
+
+    direction = verdict["combined_direction"]
+    assert direction["observed_delta"] > 2.0
+    assert direction["p_value"] < 0.01
+    assert direction["ci_low"] > 0.0
+
+    means = verdict["condition_means"]
+    assert means["steered_plus_text_rich"] > means["text_rich_adversarial"]
+    assert means["steered_black_box"] < means["text_rich_adversarial"]
+
+
+def test_adding_to_the_prompt_does_not_qualify_it():
+    """A positive result is not a pass, and must not be read as one."""
+    verdict = _verdict("campaign_verdict_with_combined.json")
+    assert verdict["adds_to_text"] is True
+    assert verdict["causal_effect_positive"] is False
+    assert not _would_qualify(verdict)
+    assert "text_prompt_moves_output_at_least_as_far" in verdict["unmet_requirements"]

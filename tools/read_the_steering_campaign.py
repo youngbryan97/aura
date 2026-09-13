@@ -59,8 +59,10 @@ def read(result: dict) -> dict:
         "passes_adversarial_control": replay["passes_adversarial_control"],
         "unmet_requirements": replay["unmet_requirements"],
         # A different question from whether steering beats the words, and
-        # deliberately not part of the pass predicate.
+        # deliberately not part of the pass predicate. Read off the scored
+        # behaviour: the combined condition against the rich prompt alone.
         "adds_to_text": analysis.get("adds_to_text"),
+        "combined_direction": analysis.get("combined_direction"),
         "task_target_deltas": replay["task_target_deltas"],
     }
 

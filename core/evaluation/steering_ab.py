@@ -169,8 +169,16 @@ class SteeringABReport:
     control_effects: dict[str, ABComparison] = field(default_factory=dict)
     #: The vectors applied on top of the rich text instruction. None means the
     #: condition was not run, which is reported as unmeasured rather than as a
-    #: negative answer.
+    #: negative answer. This is a DIVERGENCE comparison — how far the output
+    #: moved — and it is not the one :attr:`adds_to_text` reads.
     combined_effect: ABComparison | None = None
+    #: The same condition against the rich prompt alone, on the SCORED target
+    #: behaviour. `paired_score_shift` says it in its own docstring:
+    #: "divergence says an output changed; this says it changed toward the
+    #: thing the intervention was supposed to produce". Adding something the
+    #: words do not carry is a claim about direction, so this is the
+    #: comparison that answers it.
+    combined_direction: ABComparison | None = None
     #: Movement of a scored target behaviour, steered vs baseline. None means
     #: direction was never measured — which is a failure to establish it, not
     #: a neutral omission.
@@ -242,21 +250,30 @@ class SteeringABReport:
 
     @property
     def adds_to_text(self) -> bool | None:
-        """Whether the vectors move the output further than the words alone do.
+        """Whether the vectors move the TARGET further than the words alone do.
 
         A different question from :attr:`beats_text_controls`, and the one that
         decides whether the intervention is worth running beside a prompt that
         already exists. Steering that is weaker alone can still carry something
         the words do not.
 
+        Read off the scored behaviour, not off divergence. The first version
+        compared `combined_effect.effect_size_d` against `rich_effect`'s, and
+        on the 27B that reported False while the affect score went 1.36 -> 3.61
+        — because the combined condition moves the output FURTHER (delta 0.1389
+        against 0.1235) and less consistently, so its d is smaller. Divergence
+        answers "did the text change"; this property claims to answer "did it
+        change toward the thing steering is for", and those parted company on
+        the first run that had both conditions.
+
         None where the combined condition was not run. That is unmeasured, and
         a reader must not be able to mistake it for "no".
         """
-        if self.combined_effect is None:
+        if self.combined_direction is None:
             return None
         return (
-            self.combined_effect.significant
-            and self.combined_effect.effect_size_d > self.rich_effect.effect_size_d
+            self.combined_direction.significant
+            and self.combined_direction.observed_delta > 0.0
         )
 
     @property
@@ -298,6 +315,9 @@ class SteeringABReport:
             "rich_effect": asdict(self.rich_effect),
             "combined_effect": (
                 asdict(self.combined_effect) if self.combined_effect else None
+            ),
+            "combined_direction": (
+                asdict(self.combined_direction) if self.combined_direction else None
             ),
             "adds_to_text": self.adds_to_text,
             "control_effects": {
@@ -393,6 +413,17 @@ def analyze_steering_ab(
             seed=seed + 99,
         )
 
+    combined_direction: ABComparison | None = None
+    if target_scores and {COMBINED_CONDITION, "text_rich_adversarial"} <= set(
+        target_scores
+    ):
+        combined_direction = paired_score_shift(
+            target_scores[COMBINED_CONDITION],
+            target_scores["text_rich_adversarial"],
+            n_resamples=n_resamples,
+            seed=seed + 131,
+        )
+
     baseline_self = float(
         np.mean(
             [
@@ -426,6 +457,7 @@ def analyze_steering_ab(
         rich_effect=rich_effect,
         control_effects=control_effects,
         combined_effect=combined_effect,
+        combined_direction=combined_direction,
         direction=direction,
         baseline_self_distance=round(baseline_self, 6),
         steered_vs_baseline_mean_distance=round(steered_baseline_dist, 6),
