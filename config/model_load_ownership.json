@@ -280,6 +280,17 @@
         "mlx_lm"
       ],
       "ownership_mode": "standalone_process",
+      "path": "tools/derive_generation_position_steering_vectors.py",
+      "purpose": "evaluation"
+    },
+    {
+      "expected_load_references": 1,
+      "guard_symbol": "standalone_model_lane",
+      "min_guard_sites": 1,
+      "modules": [
+        "mlx_lm"
+      ],
+      "ownership_mode": "standalone_process",
       "path": "tools/eval_integrated_reasoning.py",
       "purpose": "evaluation"
     },

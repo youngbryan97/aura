@@ -14716,7 +14716,18 @@ async def test_memory_outbox_preserves_continuity_evaluation_for_rejected_reply(
 
 
 @pytest.mark.asyncio
-async def test_failed_outbox_enqueue_restores_direct_experience_path(monkeypatch):
+async def test_a_failed_transcript_commit_does_not_let_learning_run_ahead_of_it(
+    monkeypatch,
+):
+    """Learning waits for the transcript, and the turn is kept for retry.
+
+    This used to assert the opposite -- that a failed write fell back to the
+    direct experience path -- and the fallback is now guarded on a committed
+    write, deliberately: "the journal retains this turn for retry. Do not run
+    learning ahead of a transcript commit that failed." Recording the
+    experience here would teach from a turn whose transcript the retry may yet
+    write differently, and the write that failed is still the one on record.
+    """
     from core.runtime import conversation_support
     from interface.routes import chat as chat_routes
 
@@ -14754,7 +14765,7 @@ async def test_failed_outbox_enqueue_restores_direct_experience_path(monkeypatch
     )
 
     assert state == "failed"
-    experience.assert_awaited_once()
+    experience.assert_not_awaited()
     failed = chat_routes._durable_conversation_write_snapshot(
         f"{exchange_id}:exchange"
     )
@@ -14763,6 +14774,49 @@ async def test_failed_outbox_enqueue_restores_direct_experience_path(monkeypatch
     # The foreground path already surfaced and handled this failure. A later
     # shutdown drain must not attribute it to an unrelated pending write.
     await chat_routes._drain_durable_conversation_writes()
+
+
+@pytest.mark.asyncio
+async def test_a_persistence_with_no_outbox_still_gets_the_direct_experience_path(
+    monkeypatch,
+):
+    """The other half of the same guard, which nothing was holding.
+
+    A compatibility persistence implementation has no memory-log outbox, so
+    nobody supervises learning for it and the direct call is the only path the
+    experience has. Once the transcript commits, it has to run.
+    """
+    from core.runtime import conversation_support
+    from interface.routes import chat as chat_routes
+
+    experience = AsyncCallFixture()
+
+    class _PersistenceWithoutAnOutbox:
+        def record_exchange(self, *_args, **_kwargs):
+            return ("user-turn", "aura-turn")
+
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: _PersistenceWithoutAnOutbox()
+            if name == "persistence"
+            else default
+        ),
+    )
+    monkeypatch.setattr(conversation_support, "record_conversation_experience", experience)
+    async with chat_routes._get_convo_lock():
+        chat_routes._conversation_log.clear()
+
+    exchange_id = await chat_routes._begin_logged_exchange("Keep this turn")
+    state = await chat_routes._complete_logged_exchange(
+        exchange_id,
+        "Keep this turn",
+        "The compatibility path applies the experience itself.",
+    )
+
+    assert state == "committed"
+    experience.assert_awaited_once()
 
 
 @pytest.mark.asyncio
