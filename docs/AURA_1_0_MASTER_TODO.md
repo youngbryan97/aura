@@ -891,6 +891,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   `test_analyze_turn_upgrades_multi_step_skill_chain_to_task` (de076835e), plus
   `test_simple_affect_check_uses_canonical_self_condition_projection`, which
   patched a seam the function had moved away from (b442924f2).
+
+  2026-09-10: both named tests green — the recall test 5 of 5 alone, the
+  cognition-invariants test at 0 errors once a claim with no instrument in
+  this process resolved to NOT_MEASURED (a3b8c08f5) and a canary sealed over
+  drifted source said so instead of "False" (1730d5b86). The 40-chunk run that
+  would have produced the order-dependence register lost it: the isolated
+  retry of `test_foundation_cognition_validation_samples_new_diagnostics_first`
+  ran past 600s — a proof boot running every experiment — and the runner
+  raised out of the loop with no verdict for any of the 137. Both fixed
+  (b1609ccb8): the boot uses its posture (8s), and a test that times out alone
+  is its own outcome. The register still has to be produced: a full run with
+  the runner as it now is, once the resident model is not held by a training
+  campaign.
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.

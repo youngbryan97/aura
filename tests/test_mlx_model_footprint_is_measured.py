@@ -129,7 +129,13 @@ def test_recurrent_depth_follows_the_measured_class(tmp_path, monkeypatch):
 
     loops = mlx_client._expected_recurrent_loops_from_model_path("/models/whatever")
 
-    assert loops == 2
+    # One since 2026-09-12: the interactive default went back to the identity
+    # depth on the evidence (see the note above MODEL_PROFILE_DEFAULTS in
+    # recurrent_depth.py), and the parent's mirror follows the table. What this
+    # test holds is that the measured class is what decides, not the name.
+    assert loops == 1
+    monkeypatch.setattr(mlx_client, "_measured_size_class", lambda _p: "7b")
+    assert mlx_client._expected_recurrent_loops_from_model_path("/models/whatever") == 1
 
 
 def test_the_ram_gate_follows_the_measured_class(monkeypatch):
