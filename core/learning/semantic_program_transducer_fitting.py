@@ -1505,6 +1505,42 @@ def _prefix_feasible_arguments(
     return partial
 
 
+def _definition_relation_score_banks(
+    head: DirectionalRelationHead,
+    reference_vectors: Mapping[TokenSpan, np.ndarray],
+    definition_vectors: Sequence[Sequence[tuple[TokenSpan, np.ndarray]]],
+    pointer_scores: LinearPointerSequenceScores,
+) -> tuple[dict[TokenSpan, tuple[float, ...]], dict[TokenSpan, tuple[float, ...]]]:
+    """Reuse projections within one chart without changing scalar score arithmetic."""
+    definitions = tuple(
+        tuple(
+            (definition, definition @ head.definition_projection,
+             head.pointer_scale * pointer_scores.score_span(span))
+            for span, definition in candidates
+        )
+        for candidates in definition_vectors
+    )
+    combined = {}
+    base = {}
+    for span, reference in reference_vectors.items():
+        query = reference @ head.query_projection
+        combined_registers = []
+        base_registers = []
+        for candidates in definitions:
+            combined_candidates = []
+            base_candidates = []
+            for definition, projected, pointer in candidates:
+                base_score = head.base_score(reference, definition)
+                tissue_score = float(query @ projected)
+                combined_candidates.append(base_score + tissue_score + pointer)
+                base_candidates.append(base_score + pointer)
+            combined_registers.append(max(combined_candidates))
+            base_registers.append(max(base_candidates))
+        combined[span] = tuple(combined_registers)
+        base[span] = tuple(base_registers)
+    return combined, base
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1572,30 +1608,12 @@ def _assign_typed_arguments(
         for proposals in proposals_by_operation
         for span, _score in proposals
     }
-    relation_scores = {
-        span: tuple(
-            max(
-                model.definition_relation_head.score(reference, definition)
-                + model.definition_relation_head.pointer_scale
-                * definition_pointer_scores.score_span(candidate)
-                for candidate, definition in candidates
-            )
-            for candidates in definition_vectors
-        )
-        for span, reference in reference_vectors.items()
-    }
-    base_relation_scores = {
-        span: tuple(
-            max(
-                model.definition_relation_head.base_score(reference, definition)
-                + model.definition_relation_head.pointer_scale
-                * definition_pointer_scores.score_span(candidate)
-                for candidate, definition in candidates
-            )
-            for candidates in definition_vectors
-        )
-        for span, reference in reference_vectors.items()
-    }
+    relation_scores, base_relation_scores = _definition_relation_score_banks(
+        model.definition_relation_head,
+        reference_vectors,
+        definition_vectors,
+        definition_pointer_scores,
+    )
     states: list[
         tuple[
             float,
@@ -1604,7 +1622,10 @@ def _assign_typed_arguments(
             tuple[tuple[int, ...], ...],
         ]
     ] = [(0.0, (), (), ())]
-    prefix_feasible = model.training_receipt.get("argument_search_strategy") == "prefix_feasible_v1"
+    strategy = model.training_receipt.get("argument_search_strategy")
+    prefix_feasible = strategy == "prefix_feasible_v1"
+    global_constraint = strategy == "global_constraint_v1"
+    chart_options = []
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1688,7 +1709,7 @@ def _assign_typed_arguments(
                 ),
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end),
             )
-            if prefix_feasible:
+            if prefix_feasible or global_constraint:
                 options_by_position.append(options)
                 continue
             partial = sorted(
@@ -1714,6 +1735,9 @@ def _assign_typed_arguments(
             )[:_ARGUMENT_BEAM]
             if not partial:
                 return None
+        if global_constraint:
+            chart_options.append(options_by_position)
+            continue
         candidates: list[
             tuple[
                 float,
@@ -1780,6 +1804,13 @@ def _assign_typed_arguments(
         states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
         if not states:
             return None
+    if global_constraint:
+        from core.learning.semantic_argument_optimization import optimize_argument_chart
+
+        optimized = optimize_argument_chart(
+            chart_options, n_inputs=len(inputs), contract=model.register_use_contract
+        )
+        states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:
         order = _operation_order(

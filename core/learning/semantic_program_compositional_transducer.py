@@ -504,7 +504,7 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
             or receipt.get("argument_search_strategy", "legacy_global_v1")
-            not in {"legacy_global_v1", "prefix_feasible_v1"}
+            not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
             or (
                 self.schema
                 in {
@@ -822,6 +822,14 @@ class CompositionalSemanticProgramTransducer:
         body["argument_search_strategy"] = "prefix_feasible_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_global_constraint_arguments(self) -> CompositionalSemanticProgramTransducer:
+        """Create an opt-in solver-assisted chart candidate with unchanged tissue."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
         """Remove only the source-learned graph-use bounds."""
 
@@ -894,24 +902,29 @@ class CompositionalSemanticProgramTransducer:
         )
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
-        assigned = next(
-            (
-                candidate
-                for selected in charts
-                for candidate in (
-                    _assign_typed_arguments(
-                        model=self,
-                        hidden=hidden,
-                        inputs=inputs,
-                        input_spans=input_spans,
-                        operation_nodes=selected,
-                        argument_pointer_scores=argument_pointer_scores,
-                    ),
-                )
-                if candidate is not None
-            ),
-            None,
-        )
+        from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+
+        try:
+            assigned = next(
+                (
+                    candidate
+                    for selected in charts
+                    for candidate in (
+                        _assign_typed_arguments(
+                            model=self,
+                            hidden=hidden,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            operation_nodes=selected,
+                            argument_pointer_scores=argument_pointer_scores,
+                        ),
+                    )
+                    if candidate is not None
+                ),
+                None,
+            )
+        except ArgumentOptimizationIncompleteError as exc:
+            return SemanticTransductionOutcome(None, str(exc), {}, {})
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
         selected = assigned.operation_nodes

@@ -614,6 +614,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   unchanged coefficients, 21/48 answers and 19/48 programs. All 480 gold
   argument spans are present given gold operations. Calibration/runtime
   scoring mismatch and constrained graph selection remain under investigation.
+  [Global argument search development](evidence/G03_GLOBAL_ARGUMENT_SEARCH_2026-09-12.md)
+  reaches 41/48 exact programs with unchanged coefficients, versus 19/48 for
+  the parent. Coefficient and hidden-token controls score 0/48 exact programs.
+  Seven errors and one paired answer regression remain; no promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
