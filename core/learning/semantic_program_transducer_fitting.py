@@ -122,6 +122,24 @@ def _log_sigmoid(value: float) -> float:
     return -math.log1p(math.exp(-abs(value))) + min(value, 0.0)
 
 
+def _argument_semantic_evidence(
+    role_logit: float,
+    proposal_logit: float,
+    *,
+    role_scale: float,
+    proposal_scale: float,
+    strategy: str,
+) -> float:
+    """Score a mention under the declared binary-head selection objective."""
+    if strategy == "conditional_log_odds_v1":
+        # Conditioning binary edge labels on one selected edge cancels the
+        # shared negative-label term, leaving the chosen edge's log odds.
+        return role_scale * role_logit + proposal_scale * proposal_logit
+    if strategy == "independent_positive_v1":
+        return role_scale * _log_sigmoid(role_logit) + proposal_scale * _log_sigmoid(proposal_logit)
+    raise ValueError("unknown semantic argument scoring objective")
+
+
 def _mention_invariant_relation_evidence(
     base_logits: Sequence[float],
     combined_logits: Sequence[float],
@@ -199,6 +217,7 @@ def _register_definition_candidates(
     max_span_tokens: int,
     pointer_scores: LinearPointerSequenceScores,
     strategy: str,
+    source_ordered_boundaries: bool = False,
 ) -> tuple[tuple[TokenSpan, ...], ...]:
     """Localize each register inside its bounded defining clause.
 
@@ -233,12 +252,24 @@ def _register_definition_candidates(
             continue
 
         if direction == "left":
-            clause_start = anchors[index - 1].end if index else 0
+            clause_start = (
+                max((other.end for other in anchors if other.end <= anchor.start), default=0)
+                if source_ordered_boundaries
+                else anchors[index - 1].end if index else 0
+            )
             boundary_start = max(clause_start, anchor.start - max_span_tokens)
             local_bounds = (boundary_start, anchor.start)
-            bounded_envelopes = envelopes
+            bounded_envelopes = (
+                tuple(span for span in envelopes if span.start >= clause_start)
+                if source_ordered_boundaries else envelopes
+            )
         else:
-            next_operation = anchors[index + 1].start if index + 1 < len(anchors) else token_count
+            next_operation = (
+                min((other.start for other in anchors[input_count:]
+                     if other.start >= anchor.end), default=token_count)
+                if source_ordered_boundaries
+                else anchors[index + 1].start if index + 1 < len(anchors) else token_count
+            )
             boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
             local_bounds = (anchor.end, boundary)
             bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
@@ -571,13 +602,20 @@ def _argument_proposals_by_operation(
         shared = tuple(global_proposals)
         return tuple(shared for _node in operation_nodes)
 
-    by_operation: list[tuple[tuple[TokenSpan, float], ...]] = []
+    by_operation: list[tuple[tuple[TokenSpan, float], ...]] = [()] * len(operation_nodes)
     token_count = scores.start.size
-    for node_index, _node in enumerate(operation_nodes):
-        clause_start = operation_nodes[node_index - 1].span.end if node_index else 0
+    # Training IR is execution-ordered; clauses are always source-ordered.
+    source_order = sorted(
+        range(len(operation_nodes)),
+        key=lambda index: (operation_nodes[index].span.start, operation_nodes[index].span.end),
+    )
+    for source_index, node_index in enumerate(source_order):
+        clause_start = (
+            operation_nodes[source_order[source_index - 1]].span.end if source_index else 0
+        )
         clause_end = (
-            operation_nodes[node_index + 1].span.start
-            if node_index + 1 < len(operation_nodes)
+            operation_nodes[source_order[source_index + 1]].span.start
+            if source_index + 1 < len(source_order)
             else token_count
         )
         local: list[tuple[TokenSpan, float]] = []
@@ -592,12 +630,10 @@ def _argument_proposals_by_operation(
         merged: dict[TokenSpan, float] = {}
         for span, score in (*global_proposals, *local[:_LOCAL_ARGUMENT_CANDIDATES]):
             merged[span] = max(score, merged.get(span, -float("inf")))
-        by_operation.append(
-            tuple(
-                sorted(
-                    merged.items(),
-                    key=lambda item: (-item[1], item[0].start, item[0].end),
-                )
+        by_operation[node_index] = tuple(
+            sorted(
+                merged.items(),
+                key=lambda item: (-item[1], item[0].start, item[0].end),
             )
         )
     return tuple(by_operation)
@@ -853,6 +889,7 @@ def _argument_proposal_rows(
     max_argument_span_tokens_by_type: Mapping[str, int],
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    include_semantic_negatives: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     features: list[np.ndarray] = []
     labels: list[int] = []
@@ -862,25 +899,18 @@ def _argument_proposal_rows(
     negative_rows = 0
     for item in examples:
         pointer_scores = argument_pointer.score_sequence(item.hidden_states)
-        proposed = list(
-            pointer_scores.decode_candidates(
-                limit=_ARGUMENT_CANDIDATES,
-                max_span_tokens=max_span_tokens,
-            )
+        nodes = tuple(
+            _OperationNode(instruction.operation_span, instruction.op, 0.0, 0.0, 1.0)
+            for instruction in item.ir.instructions
         )
-        observed = {span for span, _score in proposed}
-        proposed.extend(
-            (span, pointer_scores.score_span(span))
-            for span in item.ir.input_spans
-            if span not in observed
+        proposals = _argument_proposals_by_operation(
+            pointer_scores,
+            input_spans=item.ir.input_spans,
+            operation_nodes=nodes,
+            max_span_tokens=max_span_tokens,
+            clause_local=True,
         )
-        operation_spans = tuple(instruction.operation_span for instruction in item.ir.instructions)
-        candidate_spans = tuple(
-            span
-            for span, _score in proposed
-            if not any(_overlap(span, operation_span) for operation_span in operation_spans)
-        )
-        for instruction in item.ir.instructions:
+        for instruction, candidates in zip(item.ir.instructions, proposals, strict=True):
             if position >= len(instruction.argument_spans):
                 continue
             signature = semantic_primitive_type_signature(instruction.op)
@@ -891,10 +921,17 @@ def _argument_proposal_rows(
             positive = instruction.argument_spans[position]
             negatives = tuple(
                 span
-                for span in candidate_spans
+                for span, _score in candidates
                 if span != positive
                 and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
             )[:_POINTER_HARD_NEGATIVES]
+            if include_semantic_negatives:
+                negatives = tuple(dict.fromkeys((
+                    *negatives,
+                    *(span for span in _all_semantic_spans(item)
+                      if span != positive
+                      and span.end - span.start <= max_argument_span_tokens_by_type[required_type]),
+                )))
             spans = (positive, *negatives)
             operation = _relation_span_vector(
                 item.hidden_states,
@@ -1457,6 +1494,97 @@ def _input_type(value: SemanticValue) -> str:
     return "integer" if isinstance(value, int) else "integer_sequence"
 
 
+def _prefix_feasible_arguments(
+    options_by_position: Sequence[Sequence[tuple[float, int, TokenSpan]]],
+    *,
+    arguments: Sequence[Sequence[int]],
+    spans: Sequence[Sequence[TokenSpan]],
+    dependencies: Sequence[Sequence[int]],
+    operation_nodes: Sequence[_OperationNode],
+    n_inputs: int,
+    contract: RegisterUseContract,
+    beam: int,
+) -> list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]]:
+    """Spend the beam on continuations feasible for this graph prefix."""
+
+    partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
+    prefix_counts = Counter(register for step in arguments for register in step)
+    used_spans = tuple(span for step in spans for span in step)
+    final_operation = len(arguments) + 1 == len(operation_nodes)
+    for position, options in enumerate(options_by_position):
+        candidates = []
+        for total, registers, mentions in partial:
+            for score, register, span in options:
+                if any(_overlap(span, previous) for previous in (*used_spans, *mentions)):
+                    continue
+                if contract.distinct_arguments and register in registers:
+                    continue
+                next_registers = (*registers, register)
+                counts = prefix_counts + Counter(next_registers)
+                if not contract.allows_partial(counts, n_inputs=n_inputs):
+                    continue
+                next_dependencies = (
+                    *dependencies,
+                    tuple(sorted({value - n_inputs for value in next_registers if value >= n_inputs})),
+                )
+                complete = final_operation and position + 1 == len(options_by_position)
+                if _operation_order(
+                    next_dependencies, operation_nodes, require_connected=complete
+                ) is None:
+                    continue
+                if complete:
+                    referenced = {value for values in next_dependencies for value in values}
+                    sink = next(index for index in range(len(operation_nodes)) if index not in referenced)
+                    if not contract.accepts_complete(
+                        counts, n_inputs=n_inputs, operation_count=len(operation_nodes), sink=sink
+                    ):
+                        continue
+                candidates.append((total + score, next_registers, (*mentions, span)))
+        partial = sorted(
+            candidates,
+            key=lambda item: (-item[0], item[1], tuple((s.start, s.end) for s in item[2])),
+        )[:beam]
+        if not partial:
+            break
+    return partial
+
+
+def _definition_relation_score_banks(
+    head: DirectionalRelationHead,
+    reference_vectors: Mapping[TokenSpan, np.ndarray],
+    definition_vectors: Sequence[Sequence[tuple[TokenSpan, np.ndarray]]],
+    pointer_scores: LinearPointerSequenceScores,
+) -> tuple[dict[TokenSpan, tuple[float, ...]], dict[TokenSpan, tuple[float, ...]]]:
+    """Reuse projections within one chart without changing scalar score arithmetic."""
+    definitions = tuple(
+        tuple(
+            (definition, definition @ head.definition_projection,
+             head.pointer_scale * pointer_scores.score_span(span))
+            for span, definition in candidates
+        )
+        for candidates in definition_vectors
+    )
+    combined = {}
+    base = {}
+    for span, reference in reference_vectors.items():
+        query = reference @ head.query_projection
+        combined_registers = []
+        base_registers = []
+        for candidates in definitions:
+            combined_candidates = []
+            base_candidates = []
+            for definition, projected, pointer in candidates:
+                base_score = head.base_score(reference, definition)
+                tissue_score = float(query @ projected)
+                combined_candidates.append(base_score + tissue_score + pointer)
+                base_candidates.append(base_score + pointer)
+            combined_registers.append(max(combined_candidates))
+            base_registers.append(max(base_candidates))
+        combined[span] = tuple(combined_registers)
+        base[span] = tuple(base_registers)
+    return combined, base
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1498,6 +1626,9 @@ def _assign_typed_arguments(
         max_span_tokens=model.max_definition_span_tokens,
         pointer_scores=definition_pointer_scores,
         strategy=model.definition_candidate_strategy,
+        source_ordered_boundaries=(
+            model.training_receipt.get("definition_boundary_policy") == "source_neighbors_v1"
+        ),
     )
     definition_vectors = tuple(
         tuple(
@@ -1524,30 +1655,12 @@ def _assign_typed_arguments(
         for proposals in proposals_by_operation
         for span, _score in proposals
     }
-    relation_scores = {
-        span: tuple(
-            max(
-                model.definition_relation_head.score(reference, definition)
-                + model.definition_relation_head.pointer_scale
-                * definition_pointer_scores.score_span(candidate)
-                for candidate, definition in candidates
-            )
-            for candidates in definition_vectors
-        )
-        for span, reference in reference_vectors.items()
-    }
-    base_relation_scores = {
-        span: tuple(
-            max(
-                model.definition_relation_head.base_score(reference, definition)
-                + model.definition_relation_head.pointer_scale
-                * definition_pointer_scores.score_span(candidate)
-                for candidate, definition in candidates
-            )
-            for candidates in definition_vectors
-        )
-        for span, reference in reference_vectors.items()
-    }
+    relation_scores, base_relation_scores = _definition_relation_score_banks(
+        model.definition_relation_head,
+        reference_vectors,
+        definition_vectors,
+        definition_pointer_scores,
+    )
     states: list[
         tuple[
             float,
@@ -1556,6 +1669,13 @@ def _assign_typed_arguments(
             tuple[tuple[int, ...], ...],
         ]
     ] = [(0.0, (), (), ())]
+    strategy = model.training_receipt.get("argument_search_strategy")
+    score_strategy = model.training_receipt.get(
+        "argument_score_strategy", "independent_positive_v1"
+    )
+    prefix_feasible = strategy == "prefix_feasible_v1"
+    global_constraint = strategy == "global_constraint_v1"
+    chart_options = []
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1567,6 +1687,7 @@ def _assign_typed_arguments(
             hidden_channel_widths=model.hidden_channel_widths,
         )
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
+        options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
@@ -1613,14 +1734,19 @@ def _assign_typed_arguments(
                     strict=True,
                 ):
                     if (
-                        register >= len(inputs)
+                        model.training_receipt.get("forward_reference_policy") != "joint_graph_v1"
+                        and register >= len(inputs)
                         and register - len(inputs) > node_index
                         and relation_score <= 0.0
                     ):
                         continue
                     score = (
-                        model.argument_role_scale * _log_sigmoid(role_score)
-                        + model.argument_proposal_scale * _log_sigmoid(proposal_score)
+                        _argument_semantic_evidence(
+                            role_score, proposal_score,
+                            role_scale=model.argument_role_scale,
+                            proposal_scale=model.argument_proposal_scale,
+                            strategy=score_strategy,
+                        )
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
@@ -1638,6 +1764,9 @@ def _assign_typed_arguments(
                 ),
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end),
             )
+            if prefix_feasible or global_constraint:
+                options_by_position.append(options)
+                continue
             partial = sorted(
                 (
                     (
@@ -1661,6 +1790,9 @@ def _assign_typed_arguments(
             )[:_ARGUMENT_BEAM]
             if not partial:
                 return None
+        if global_constraint:
+            chart_options.append(options_by_position)
+            continue
         candidates: list[
             tuple[
                 float,
@@ -1670,7 +1802,20 @@ def _assign_typed_arguments(
             ]
         ] = []
         for total, arguments, spans, dependencies in states:
-            for step_score, step_arguments, step_spans in partial:
+            continuations = (
+                _prefix_feasible_arguments(
+                    options_by_position,
+                    arguments=arguments,
+                    spans=spans,
+                    dependencies=dependencies,
+                    operation_nodes=operation_nodes,
+                    n_inputs=len(inputs),
+                    contract=model.register_use_contract,
+                    beam=_ARGUMENT_BEAM,
+                )
+                if prefix_feasible else partial
+            )
+            for step_score, step_arguments, step_spans in continuations:
                 if any(
                     _overlap(current, previous)
                     for current in step_spans
@@ -1714,6 +1859,13 @@ def _assign_typed_arguments(
         states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
         if not states:
             return None
+    if global_constraint:
+        from core.learning.semantic_argument_optimization import optimize_argument_chart
+
+        optimized = optimize_argument_chart(
+            chart_options, n_inputs=len(inputs), contract=model.register_use_contract
+        )
+        states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:
         order = _operation_order(

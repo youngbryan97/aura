@@ -15,12 +15,18 @@ other modules already ask it for.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
+import enum
+import functools
 import importlib
 import inspect
 import logging
 import os
 import sqlite3
+import sys
+import types
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -226,28 +232,127 @@ def _guards_its_own_writes(organ: Any) -> bool:
     return type(organ).__setattr__ is not object.__setattr__
 
 
+#: A field an object does not have, as distinct from one that holds None.
+_ABSENT = object()
+
+
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
     if organ is None or _guards_its_own_writes(organ):
         return
+    seen: set[int] = set()
     for name, value in saved.items():
         if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
-        try:
-            setattr(organ, name, _place(value))
-        except (
-            ArithmeticError,
-            AttributeError,
-            ImportError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ):
-            # A field that will not be written stays as it was. The kinds are
-            # named so an interrupt still stops the restore.
-            continue
+        _put_back(organ, name, value, seen)
+
+
+def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
+    """Write one saved field back, into the object already there if it can be.
+
+    Writing a copy over the field is right for a number and wrong for an object
+    something else also holds. `ConversationalDynamicsPhase` keeps the engine
+    that `get_dynamics_engine()` hands every other caller, and the first restore
+    gave the phase a copy of its own. From then on the phase rewound every arm
+    and the shared engine, which the response phase updates, never did: across
+    four arms from one snapshot its message count read 18, 19, 20 and 21. So an
+    object of the same type is restored field by field and keeps its identity,
+    and so are the dicts, lists, deques and arrays it holds.
+    """
+    if _restore_into(getattr(owner, name, _ABSENT), saved, seen):
+        return
+    try:
+        setattr(owner, name, _place(saved))
+    except (
+        ArithmeticError,
+        AttributeError,
+        ImportError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ):
+        # A field that will not be written stays as it was. The kinds are
+        # named so an interrupt still stops the restore.
+        return
+
+
+#: CPython's flag on a class made by a class statement rather than written in C.
+_HEAP_TYPE = 1 << 9
+
+
+def _state_is_its_dict(value: Any) -> bool:
+    """Whether everything this object holds is in its `__dict__`.
+
+    Only then can it be restored by writing its fields back. A tensor has a
+    `__dict__` as well, and it is empty: the numbers live in the C base class.
+    Restored field by field, a tensor held on a plain object kept the values an
+    arm had written into it. So every class above `object` has to be one
+    written in Python, and none may declare slots.
+    """
+    if not hasattr(value, "__dict__") or isinstance(value, type):
+        return False
+    return all(
+        klass.__flags__ & _HEAP_TYPE and "__slots__" not in vars(klass)
+        for klass in type(value).__mro__[:-1]
+    )
+
+
+def _restore_into(current: Any, saved: Any, seen: set[int]) -> bool:
+    """Make `current` hold what `saved` holds without replacing it.
+
+    False when that cannot be done in place, and the caller writes a copy over
+    the field instead. Fields an arm added to an object are left alone: a copy
+    made through `__getstate__` can leave out a lock the live object needs, and
+    deleting whatever the copy lacks would delete the lock.
+    """
+    if current is _ABSENT or current is saved or type(current) is not type(saved):
+        return False
+    if isinstance(saved, _ATOMIC) or isinstance(current, enum.Enum):
+        return False
+    if isinstance(current, np.ndarray):
+        if current.shape != saved.shape or current.dtype != saved.dtype or not current.flags.writeable:
+            return False
+        np.copyto(current, saved)
+        return True
+    if isinstance(current, dict):
+        # Key by key, so an object filed under a key keeps its identity too.
+        rebuilt = {}
+        for key, value in saved.items():
+            held = current.get(key, _ABSENT)
+            rebuilt[key] = held if _restore_into(held, value, seen) else _place(value)
+        current.clear()
+        current.update(rebuilt)
+        return True
+    if isinstance(current, list):
+        current[:] = _place(saved)
+        return True
+    if isinstance(current, deque):
+        if current.maxlen != saved.maxlen:
+            return False
+        current.clear()
+        current.extend(_place(saved))
+        return True
+    if isinstance(current, set):
+        current.clear()
+        current.update(_place(saved))
+        return True
+    if (
+        not _state_is_its_dict(current)
+        or inspect.ismodule(current)
+        or callable(current)
+        or _is_process_furniture(current)
+        or _guards_its_own_writes(current)
+    ):
+        return False
+    if id(saved) in seen:
+        # A cycle: this object is already being restored further up.
+        return True
+    seen.add(id(saved))
+    for key, value in vars(saved).items():
+        _put_back(current, key, value, seen)
+    return True
 
 
 #: The reservoir attributes that make up an ontogenetic state's whole memory.
@@ -470,46 +575,299 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
                 continue
 
 
-def _intentions_state(loop: Any) -> list[tuple] | None:
-    """Every row the intention database holds.
+#: Files a fork leaves to their owners. SQLite manages its own journals, and
+#: logs, locks and keys are not state an arm reads back.
+_STORE_SKIP_SUFFIXES: tuple[str, ...] = ("-wal", "-shm", "-journal", ".lock", ".log", ".pem")
 
-    The loop keeps its open intentions in memory and its record of what came of
-    them on disk, and the fork carried only the first. Efficacy, the capability
-    beliefs the self model reads and the comparator's attributions are all
-    computed from what is on disk, so an arm that acted taught the next arm
-    what it had learned.
+#: What the fork holds in memory for one run's state root. A quick run's root
+#: was 24 MB over 3,178 files, most of them episodic memories and their write
+#: receipts; a root past this bound is not one run's own, and holding it would
+#: be holding other runs' history in every arm.
+STORE_BOUND_BYTES: int = 1024 * 1024 * 1024
+
+#: The latest bytes of every file, keyed by path and by the size and
+#: modification time they were read at. A snapshot stats every file and reads
+#: only the ones that moved, and two snapshots share the bytes of every file
+#: that did not change between them. A whole-root copy per arm scaled with the
+#: root; this scales with what one arm changed.
+_STORE_CACHE: dict[str, tuple[tuple[tuple[int, int], str], tuple[str, bytes]]] = {}
+
+
+def _store_root() -> Path | None:
+    """The run's own state root, or None when the process was not isolated.
+
+    Only an injected root is forked. A process on the shared default root is
+    already not a valid run, and forking its gigabytes of history into each
+    arm would hide that behind a slow run.
+    """
+    injected = os.environ.get("AURA_STATE_ROOT", "")
+    if not injected:
+        return None
+    root = Path(injected)
+    return root if root.is_dir() else None
+
+
+def _stamp(path: Path) -> tuple[int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (int(stat.st_size), int(stat.st_mtime_ns))
+
+
+def _sqlite_stamp(path: Path) -> tuple[int, int] | None:
+    """A database's stamp includes its write-ahead log, where fresh writes land."""
+    own = _stamp(path)
+    if own is None:
+        return None
+    wal = _stamp(path.with_name(path.name + "-wal")) or (0, 0)
+    return (own[0] + wal[0], max(own[1], wal[1]))
+
+
+_SQLITE_MAGIC = b"SQLite format 3\x00"
+
+
+def _is_sqlite(path: Path) -> bool:
+    """A database by its header, not by whether opening it raised.
+
+    Opening a database can fail for a reason that has nothing to do with what
+    the file is, a lock held a moment too long. Deciding "not a database" from
+    that downgraded a real store to a byte copy of its main file, whose stamp
+    does not move while fresh writes sit in the write-ahead log.
+    """
+    try:
+        with path.open("rb") as handle:
+            return handle.read(16) == _SQLITE_MAGIC
+    except OSError:
+        return False
+
+
+def _sqlite_image(path: Path) -> tuple[bytes, bool]:
+    """A consistent image of a database other connections may hold open.
+
+    Through SQLite's backup API, which reads under SQLite's own locks, and not
+    a byte copy of a file in write-ahead mode. Returns the image and whether the
+    store was in write-ahead mode.
+
+    A write-ahead database serializes with the file-format version bytes at
+    offsets 18 and 19 set to 2, and an in-memory connection cannot open such an
+    image: deserializing it fails with "unable to open database file". Every
+    store a run keeps is in that format, so the image is kept with both bytes
+    set to 1, and the restore puts the journal mode back.
+    """
+    source = sqlite3.connect(str(path), timeout=5.0)
+    try:
+        image = sqlite3.connect(":memory:")
+        try:
+            source.backup(image)
+            raw = bytes(image.serialize())
+        finally:
+            image.close()
+    finally:
+        source.close()
+    write_ahead = len(raw) > 19 and raw[18] == 2
+    if write_ahead:
+        raw = raw[:18] + b"\x01\x01" + raw[20:]
+    return raw, write_ahead
+
+
+def _sqlite_restore(path: Path, image: bytes, write_ahead: bool) -> None:
+    """Write an image back through SQLite, so an open connection sees it whole."""
+    held = sqlite3.connect(":memory:")
+    try:
+        held.deserialize(image)
+        live = sqlite3.connect(str(path), timeout=5.0)
+        try:
+            held.backup(live)
+            if write_ahead:
+                live.execute("PRAGMA journal_mode=WAL")
+        finally:
+            live.close()
+    finally:
+        held.close()
+
+
+def _cached(name: str, path: Path, stamp: tuple[int, int], is_database: bool) -> tuple[str, bytes]:
+    """The bytes for this path at this stamp, read only when the stamp moved.
+
+    A failure to read raises. A state file the fork could not capture is a
+    file an arm can leak through, and skipping it silently is how the first
+    version left every database unrestored.
+    """
+    entry = _STORE_CACHE.get(name)
+    if entry is not None and entry[0][0] == stamp:
+        return entry[1]
+    if is_database:
+        payload, write_ahead = _sqlite_image(path)
+        kind = "database-wal" if write_ahead else "database"
+    else:
+        payload, kind = path.read_bytes(), "file"
+    _STORE_CACHE[name] = ((stamp, kind), (kind, payload))
+    return (kind, payload)
+
+
+def _store_state() -> dict[str, Any] | None:
+    """Every state file in the run's own root, read only where it moved."""
+    root = _store_root()
+    if root is None:
+        return None
+    entries: dict[str, tuple[str, tuple[int, int], bytes]] = {}
+    directories: list[str] = []
+    total = 0
+    for item in sorted(root.rglob("*")):
+        relative = item.relative_to(root)
+        if "logs" in relative.parts:
+            continue
+        name = str(relative)
+        if item.is_dir():
+            directories.append(name)
+            continue
+        if not item.is_file() or name.endswith(_STORE_SKIP_SUFFIXES):
+            continue
+        is_database = _is_sqlite(item)
+        stamp = _sqlite_stamp(item) if is_database else _stamp(item)
+        if stamp is None:
+            continue
+        kind, payload = _cached(name, item, stamp, is_database)
+        entries[name] = (kind, stamp, payload)
+        total += len(payload)
+        if total > STORE_BOUND_BYTES:
+            raise RuntimeError(
+                f"state root {root} holds more than {STORE_BOUND_BYTES} bytes; it is not "
+                "one run's own, and forking it into every arm would copy other runs' history"
+            )
+    for name in list(_STORE_CACHE):
+        if name not in entries:
+            del _STORE_CACHE[name]
+    return {"root": str(root), "entries": entries, "directories": directories}
+
+
+def _restore_stores(saved: dict[str, Any] | None) -> None:
+    """Put the run's state files back to what they held when the fork was taken."""
+    if not saved:
+        return
+    root = _store_root()
+    if root is None or str(root) != saved["root"]:
+        # The root moved since the snapshot. Writing old bytes into a new root
+        # would be writing one run's state into another's.
+        return
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    gateway = get_file_write_gateway()
+    entries: dict[str, tuple[str, tuple[int, int], bytes]] = saved["entries"]
+    keep = set(entries) | set(saved["directories"])
+    with local_internal_governed_scope("subject_core.fork"):
+        for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
+            relative = item.relative_to(root)
+            name = str(relative)
+            if "logs" in relative.parts or name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
+                continue
+            try:
+                gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
+            except OSError:
+                continue
+            _STORE_CACHE.pop(name, None)
+        for name in saved["directories"]:
+            gateway.ensure_directory(root / name, source="subject_core.fork")
+        failures: list[str] = []
+        for name, (kind, stamp, payload) in entries.items():
+            target = root / name
+            try:
+                if kind.startswith("database"):
+                    # Compared with the stamp that counts the write-ahead log,
+                    # where a fresh write lands before it reaches the file.
+                    if _sqlite_stamp(target) != stamp:
+                        _sqlite_restore(target, payload, kind == "database-wal")
+                        _STORE_CACHE[name] = ((_sqlite_stamp(target) or stamp, kind), (kind, payload))
+                    continue
+                if _stamp(target) == stamp:
+                    continue
+                gateway.ensure_directory(target.parent, source="subject_core.fork")
+                gateway.write_bytes(target, payload, source="subject_core.fork")
+                # Its old modification time back, so a service caching on the
+                # stamp reloads the restored bytes, and the next snapshot finds
+                # the cached copy still current instead of reading it again.
+                os.utime(target, ns=(stamp[1], stamp[1]))
+                _STORE_CACHE[name] = ((stamp, kind), (kind, payload))
+            except (OSError, sqlite3.Error) as exc:
+                failures.append(f"{name}: {type(exc).__name__}: {exc}")
+    if failures:
+        # Raised, not skipped. The first version caught these and carried on,
+        # and an arm whose store was not put back contaminates every arm after.
+        raise RuntimeError(f"the fork could not restore {len(failures)} state file(s): {failures[:6]}")
+
+
+def _loop_lock(loop: Any) -> Any:
+    """The intention loop's own lock, which every write it makes is taken under."""
+    lock = getattr(loop, "_lock", None)
+    return lock if lock is not None else contextlib.nullcontext()
+
+
+def _intentions_state(loop: Any) -> dict[str, Any] | None:
+    """Every row the intention database holds, and the loop's memory of them.
+
+    Efficacy, the capability beliefs the self model reads and the comparator's
+    attributions are all computed from what is on disk, so an arm that acted
+    taught the next arm what it had learned. The rows alone are half of it. The
+    loop also keeps its open and recently finished intentions in memory, and a
+    restore that rolled back only the rows left the nine intentions a probe arm
+    had opened still open for the arm after it. The persist count travels too,
+    because it decides when the table is next pruned.
     """
     connection = getattr(loop, "_conn", None)
     if connection is None:
         return None
-    try:
-        return list(connection.execute("SELECT * FROM intentions"))
-    except sqlite3.Error:
-        # A database that will not read is not carried across the fork.
-        return None
+    with _loop_lock(loop):
+        try:
+            rows = list(connection.execute("SELECT * FROM intentions"))
+        except sqlite3.Error:
+            # A database that will not read is not carried across the fork.
+            return None
+        return {
+            "rows": rows,
+            "active": copy.deepcopy(getattr(loop, "_active_intentions", None)),
+            "completed": copy.deepcopy(getattr(loop, "_completed_intentions", None)),
+            "persist_count": getattr(loop, "_persist_count", None),
+        }
 
 
-def _restore_intentions(loop: Any, rows: list[tuple] | None) -> None:
-    """Roll the intention database back to the rows the snapshot holds."""
+def _restore_intentions(loop: Any, saved: dict[str, Any] | None) -> None:
+    """Roll the intention database and the loop's memory back to the snapshot."""
     connection = getattr(loop, "_conn", None)
-    if connection is None or rows is None:
+    if connection is None or saved is None:
         return
-    try:
-        with connection:
-            connection.execute("DELETE FROM intentions")
-            if rows:
-                marks = ",".join("?" for _ in rows[0])
-                connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
-    except sqlite3.Error as exc:
-        # The snapshot is still the truth; the arm that could not be rolled
-        # back runs on whatever the database holds, and the run has to say so
-        # rather than carry a silent difference between two arms.
-        record_degradation(
-            "subject_driver",
-            exc,
-            severity="warning",
-            action="intentions were not rolled back to the snapshot; this arm starts from live rows",
-        )
+    rows = saved["rows"]
+    with _loop_lock(loop):
+        try:
+            with connection:
+                connection.execute("DELETE FROM intentions")
+                if rows:
+                    marks = ",".join("?" for _ in rows[0])
+                    connection.executemany(f"INSERT INTO intentions VALUES ({marks})", rows)
+        except sqlite3.Error as exc:
+            # The snapshot is still the truth; the arm that could not be rolled
+            # back runs on whatever the database holds, and the run has to say so
+            # rather than carry a silent difference between two arms.
+            record_degradation(
+                "subject_driver",
+                exc,
+                severity="warning",
+                action="intentions were not rolled back to the snapshot; this arm starts from live rows",
+            )
+        # Filled in place, because a caller may hold the dict or the deque, and
+        # from a fresh copy, because one snapshot starts many arms and an arm
+        # that updates a record must not change the record the next arm gets.
+        active = getattr(loop, "_active_intentions", None)
+        if active is not None and saved["active"] is not None:
+            active.clear()
+            active.update(copy.deepcopy(saved["active"]))
+        completed = getattr(loop, "_completed_intentions", None)
+        if completed is not None and saved["completed"] is not None:
+            completed.clear()
+            completed.extend(copy.deepcopy(saved["completed"]))
+        if saved["persist_count"] is not None:
+            loop._persist_count = saved["persist_count"]
 
 
 def _reanchor(runtime: SubjectRuntime, shift: float) -> None:
@@ -750,6 +1108,151 @@ def _restore_singletons(saved: Mapping[str, dict[str, Any]]) -> None:
             continue
 
 
+#: Packages whose module-level objects are the machinery rather than the mind:
+#: the seven foundation packages, whose DEPS files say what they may not reach,
+#: and the instrument. Rewinding the task tracker would forget tasks that are
+#: still running, rewinding lockdep would forget lock orders it has already
+#: proven, and an instrument that rewinds its own bookkeeping cannot report on
+#: the run it is keeping.
+_MACHINERY_PACKAGES: tuple[str, ...] = (
+    "core.fsw",
+    "core.health",
+    "core.observability",
+    "core.persistence",
+    "core.runtime",
+    "core.subject",
+    "core.utils",
+    "core.verify",
+)
+
+#: Where the organism's own code lives.
+_ORGANISM_PACKAGES: tuple[str, ...] = ("core", "interface", "llm", "skills")
+
+_CALLABLE_TYPES: tuple[type, ...] = (
+    types.FunctionType,
+    types.BuiltinFunctionType,
+    types.MethodType,
+    functools.partial,
+)
+
+_CONTAINERS: tuple[type, ...] = (dict, list, set, deque)
+
+
+def _in_packages(module_name: str, packages: tuple[str, ...]) -> bool:
+    return any(module_name == name or module_name.startswith(name + ".") for name in packages)
+
+
+def _is_held_state(value: Any) -> bool:
+    """Whether a module global is something the organism keeps, as opposed to
+    a constant, a class, a function or a handle."""
+    if isinstance(value, _CONTAINERS):
+        # A registry of callbacks is wiring. A deep copy of a bound method
+        # copies the object it is bound to, and restoring the copy would leave
+        # the registry calling an organ nobody else holds.
+        items = list(value.values()) if isinstance(value, dict) else list(value)
+        return not any(
+            isinstance(item, _CALLABLE_TYPES) or _is_process_furniture(item) for item in items
+        )
+    if (
+        isinstance(value, (type, enum.Enum, *_CALLABLE_TYPES))
+        or inspect.ismodule(value)
+        or _is_process_furniture(value)
+        or not _state_is_its_dict(value)
+    ):
+        return False
+    home = getattr(type(value), "__module__", "") or ""
+    return _in_packages(home, _ORGANISM_PACKAGES) and not _in_packages(home, _MACHINERY_PACKAGES)
+
+
+def _module_holdings(skip: frozenset[int] = frozenset()) -> dict[str, Any]:
+    """Every object the organism keeps at module scope, by `module:name`.
+
+    A service is carried under its name and a phase takes its own attributes
+    with it. Neither reaches the global behind an accessor: the peripheral
+    awareness engine, the narrative gravity centre, the higher-order thought
+    engine, the authority audit and more, each made on first use and kept in
+    an `_instance`-style name. Over three conversation arms off one snapshot,
+    every one of them started each arm a record longer than the arm before. So
+    they are found by scanning, and the two-entry hand list above is what
+    scanning replaced.
+    """
+    out: dict[str, Any] = {}
+    seen: set[int] = set(skip)
+    for module_name, module in sorted(sys.modules.items()):
+        if module is None or not _in_packages(module_name, _ORGANISM_PACKAGES):
+            continue
+        if _in_packages(module_name, _MACHINERY_PACKAGES):
+            continue
+        for name, value in list(vars(module).items()):
+            if name.startswith("__") or id(value) in seen or not _is_held_state(value):
+                continue
+            seen.add(id(value))
+            out[f"{module_name}:{name}"] = value
+    return out
+
+
+def _held(key: str) -> Any:
+    module_name, _, name = key.partition(":")
+    module = sys.modules.get(module_name)
+    return _ABSENT if module is None else vars(module).get(name, _ABSENT)
+
+
+def _module_state(
+    only: set[str] | None = None, skip: frozenset[int] = frozenset()
+) -> dict[str, tuple[Any, Any]]:
+    """Each module-held object, with a copy of what it holds.
+
+    The object itself is kept beside the copy, so a restore can put it back
+    under its name when the arm cleared or rebound the global.
+    """
+    if only is None:
+        holdings = _module_holdings(skip)
+    else:
+        holdings = {key: _held(key) for key in sorted(only)}
+    out: dict[str, tuple[Any, Any]] = {}
+    for key, value in holdings.items():
+        if value is _ABSENT or value is None:
+            continue
+        try:
+            captured = (
+                copy.deepcopy(value)
+                if isinstance(value, _CONTAINERS)
+                else _organ_state(value, skip=skip)
+            )
+        except (
+            ArithmeticError,
+            AttributeError,
+            ImportError,
+            LookupError,
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            copy.Error,
+        ):
+            # Not carried, by kind. Calibration reads the same capture, so a
+            # global that cannot be copied is also never counted as moving.
+            continue
+        out[key] = (value, captured)
+    return out
+
+
+def _restore_module_state(saved: Mapping[str, tuple[Any, Any]] | None) -> None:
+    if not saved:
+        return
+    for key, (held, captured) in saved.items():
+        module_name, _, name = key.partition(":")
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        if vars(module).get(name, _ABSENT) is not held:
+            setattr(module, name, held)
+        if isinstance(held, _CONTAINERS):
+            _restore_into(held, captured, set())
+        else:
+            _restore_organ(held, captured)
+
+
 def _torch_random_state() -> Any:
     try:
         import torch
@@ -933,11 +1436,11 @@ class Snapshot:
     #: are process-wide, so without carrying them the sham arm started from a
     #: state the displaced arm had already moved — a floor on N of nearly two
     #: standard deviations before a single phase had run.
-    #: The scratch world, byte for byte, and the intention database's rows. The
+    #: The scratch world, byte for byte, and the intention loop's rows and memory. The
     #: experiment forks (K, E): what she wrote in one arm is not there for the
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
-    intentions: list[tuple] | None = None
+    intentions: dict[str, Any] | None = None
     #: The harness's frame count. Which free-running layers step on a given
     #: frame is a function of this number, so two arms that do not start from
     #: the same one are not running the same organism.
@@ -987,6 +1490,9 @@ class Snapshot:
     #: Module-level singletons the container does not hold. See
     #: `_MODULE_SINGLETONS`.
     singletons: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: What the organism keeps at module scope outside any container or phase,
+    #: by `module:name`: the object and a copy of what it held.
+    module_state: dict[str, tuple[Any, Any]] = field(default_factory=dict)
 
     #: Where the experiment clock stood. Restoring rewinds the state, and the
     #: clock the phases read is part of the state as far as they are concerned:
@@ -1017,6 +1523,11 @@ class Snapshot:
     #: right about her own effect is one of the things the ownership experiment
     #: has to span.
     outcomes_by_kind: dict[str, bool] = field(default_factory=dict)
+    #: The run's own state files. The services' Python state was forked and
+    #: the files they write and read back were not, so an arm of three turns
+    #: left seventeen changed files and three new episodic memories for the
+    #: next arm to recall.
+    stores: dict[str, Any] | None = None
 
 
 #: The three names other modules ask the driver for. Kept as aliases rather

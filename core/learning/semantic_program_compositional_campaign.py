@@ -26,6 +26,7 @@ from core.learning.semantic_program_compositional_transducer import (
 from core.learning.semantic_program_feature_materialization import (
     LoadedSemanticFeatureBundle,
 )
+from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
 from core.learning.semantic_program_shared_evaluation import (
     evaluate_shared_semantic_program_transducer,
 )
@@ -45,6 +46,94 @@ COMPOSITIONAL_LESION_ARMS: Final = (
     "dependency_lesion",
     "coefficient_lesion",
 )
+
+
+def select_compositional_program_candidate(
+    candidates: Mapping[str, CompositionalSemanticProgramTransducer],
+    examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    incumbent: str,
+) -> dict[str, Any]:
+    """Select on autonomous validation programs, never gold answers or test tasks."""
+    if incumbent not in candidates:
+        raise ValueError("program selection needs a named incumbent")
+    selected = tuple(item for item in examples if item.split == "validation")
+    ids = [item.ir.source_text_sha256 for item in selected]
+    if not ids or len(set(ids)) != len(ids):
+        raise ValueError("program selection needs unique validation examples")
+    if any(
+        item.ir.source_text_sha256 in set(ids)
+        for item in examples
+        if item.split != "validation"
+    ):
+        raise ValueError("program selection validation overlaps another split")
+    outcomes = {}
+    equivalents = {}
+    for name, model in candidates.items():
+        rows = []
+        equivalent_rows = []
+        for item in selected:
+            outcome = model.decode(
+                source_token_ids=item.ir.source_token_ids,
+                hidden_states=item.hidden_states,
+                public_inputs=item.public_inputs,
+                source_text_sha256=item.ir.source_text_sha256,
+                model_basis_sha256=item.ir.model_basis_receipt_sha256,
+            )
+            exact = bool(
+                outcome.ir is not None
+                and outcome.ir.to_program() == item.ir.to_program()
+            )
+            rows.append(exact)
+            equivalent_rows.append(exact or bool(
+                outcome.ir is not None and semantic_programs_structurally_equivalent(
+                    outcome.ir.to_program(), item.ir.to_program()
+                )
+            ))
+        outcomes[name] = rows
+        equivalents[name] = equivalent_rows
+    baseline = outcomes[incumbent]
+    summaries = {
+        name: {
+            "program_exact": sum(rows),
+            "gains": sum(new and not old for new, old in zip(rows, baseline, strict=True)),
+            "regressions": sum(old and not new for new, old in zip(rows, baseline, strict=True)),
+            "program_correct": rows,
+            "program_equivalent": sum(equivalents[name]),
+            "program_equivalent_correct": equivalents[name],
+            "equivalent_gains": sum(new and not old for new, old in zip(
+                equivalents[name], equivalents[incumbent], strict=True
+            )),
+            "equivalent_regressions": sum(old and not new for new, old in zip(
+                equivalents[name], equivalents[incumbent], strict=True
+            )),
+            "transducer_receipt_sha256": candidates[name].receipt_sha256,
+        }
+        for name, rows in outcomes.items()
+    }
+    improving = [
+        name for name, result in summaries.items()
+        if result["gains"] > 0 and result["regressions"] == 0
+    ]
+    winner = min(
+        improving, key=lambda name: (-summaries[name]["program_exact"], name)
+    ) if improving else incumbent
+    body = {
+        "schema": "aura.semantic_program_validation_selection.v1",
+        "objective": "exact_program_gain_without_validation_regression",
+        "incumbent": incumbent,
+        "selected": winner,
+        "validation_examples": len(selected),
+        "validation_example_ids": ids,
+        "candidates": summaries,
+        "expected_answers_available": False,
+        "gold_program_available_to_decode": False,
+        "test_examples_used": 0,
+        "equivalence_rule": "connected_graph_schedule_and_integer_add_mul_exchange_v1",
+        "equivalence_used_for_selection": False,
+        "serving_authority": False,
+    }
+    return {**body, "report_sha256": _sha(body)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -410,4 +499,5 @@ __all__ = [
     "diagnose_compositional_definition_relations",
     "diagnose_compositional_transfer_lesions",
     "run_compositional_leave_family_out_campaign",
+    "select_compositional_program_candidate",
 ]

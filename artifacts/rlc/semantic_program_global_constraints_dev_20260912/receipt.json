@@ -1,0 +1,31 @@
+{
+  "artifacts": {
+    "controls.json": "07d5d90a1f3e9eeee06f83fa35f9ee5ab8c5d6a8544800b89bd3ae36a7549127",
+    "legacy_equivalence.json": "bd4b8d725ae55859902aea7ed6592e0d1c9182d2982ae898558121151dfd770a",
+    "weave.json": "219348d1156f95e09dc5af779ea7a7bdee1da65050912eb5af453128c628ba3d"
+  },
+  "candidate_receipt_sha256": "27f63ee27e3d9ddb98abb849a336c039ac8cdd15c51bd9b516fbe797d67c9b43",
+  "claim_boundary": "Development improvement from explicit constrained search over learned scores; not fresh replication, free-decoded answers, broad reasoning, frontier performance, or serving authority.",
+  "coefficient_changes": false,
+  "feature_manifest_sha256": "2f403cdc3f4a435c2b9d95ec7984308989a87cc0688c46c546a4984fd5cdc75e",
+  "paired_answer_gains": 21,
+  "paired_answer_regressions": 1,
+  "parent_receipt_sha256": "a79674be5460d12e985efe406939e181e0b51bec6163bd3c2b4ae41db9c55c59",
+  "promotion": "RETAIN_INCUMBENT",
+  "receipt_sha256": "ca9fe3295802ce292968670070b3d7df11265e48de113356a8c094b82fc1e0d9",
+  "remaining_wrong_programs": 7,
+  "runtime_score_changes": false,
+  "schema": "aura.semantic_argument_global_search_development.v1",
+  "search_scope": "existing floor-typed mention shortlist and graph-use constraints",
+  "selection_data_previously_exposed": true,
+  "serving_authority": false,
+  "solver": "scipy.optimize.milp/HiGHS",
+  "source_files": {
+    "core/learning/semantic_argument_optimization.py": "f61d11143a4bc292b76143f862043b9f3e682ee6208fa1adb1dc28370285f428",
+    "core/learning/semantic_program_compositional_transducer.py": "a10c8363c63829f9c7791aaafd0fb8c759a938bd7a4a4759a730e1a199944a7e",
+    "core/learning/semantic_program_evaluation.py": "4174dc1dce3d13423cb4d4add13b246d234f916198b59e30539060e1202aadcd",
+    "core/learning/semantic_program_shared_evaluation.py": "5ddd107a9fb81cf9368069cb029fc2828bb957aa7c8d583ef4c33e1bd0e45abb",
+    "core/learning/semantic_program_transducer_fitting.py": "ac3dfd0f706715d46074a8ce35aaa32c08af125bf7273f56f03fc482cd270a5a"
+  },
+  "target_labels_available_to_decode": false
+}

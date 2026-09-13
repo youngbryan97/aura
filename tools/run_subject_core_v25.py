@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import json
 import logging
 import math
@@ -178,8 +179,10 @@ async def _learn_grain(
     frame_seconds: float,
     lags: Sequence[int],
     seed: int,
+    history_turns: int,
 ) -> dict[str, Any]:
-    """The predictive-state rank, and whether held-out interventions break it."""
+    """The predictive-state rank, whether held-out interventions break it, how
+    much history it needs, and whether the rank survives other folds and estimators."""
     from core.subject.intrinsic_v25 import (
         deterministic_frequency_bank,
         fit_predictive_grain,
@@ -235,6 +238,8 @@ async def _learn_grain(
         and gain == gain
         and (gain - (floor if floor == floor else 0.0)) <= SUFFICIENCY_TOLERANCE
     )
+    walk = _history_walk(history, heldout, history_turns=history_turns, seed=seed + 15)
+    stability = _rank_stability(train, int(grain.rank), seed=seed + 18)
     # A rank read off N anchors cannot exceed N - 1, because centring costs one
     # dimension. So a rank at that ceiling is a statement about how many
     # anchors were collected and not about the system, in exactly the way a
@@ -242,7 +247,7 @@ async def _learn_grain(
     # run reads rank 1 from four anchors; that is the bank, not the grain.
     ceiling = max(1, len(anchors) - 1)
     return {
-        "history_turns": int(getattr(anchors[0], "history", np.zeros(0)).size // max(1, width)) if anchors else 0,
+        "history_turns": int(history_turns),
         "predictive_rank": int(grain.rank),
         "anchors": len(anchors),
         "rank_ceiling": ceiling,
@@ -253,6 +258,8 @@ async def _learn_grain(
         "heldout_sufficiency_gain": None if gain != gain else round(gain, 6),
         "shuffled_history_floor": None if floor != floor else round(floor, 6),
         "heldout_intervention_sufficient": sufficient,
+        **walk,
+        **stability,
         "training_actions": [a.name for a in train_actions],
         "heldout_actions": [a.name for a in test_actions],
         "_grain": grain,
@@ -424,7 +431,10 @@ async def main() -> int:
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_v25")
     parser.add_argument("--rounds", type=int, default=24, help="baseline turns per condition")
     parser.add_argument("--anchors", type=int, default=16, help="forkable states the cuts are scored from")
-    parser.add_argument("--history-turns", type=int, default=8)
+    parser.add_argument(
+        "--history-turns", type=int, default=max(HISTORY_LADDER),
+        help="the longest history the grain may reach for; the ladder is walked up to it",
+    )
     parser.add_argument("--turns", type=int, default=1, help="turns each arm runs past the fork")
     parser.add_argument("--cut-rounds", type=int, default=2, help="sequential allocation rounds over the cuts")
     parser.add_argument("--seed", type=int, default=7)
@@ -463,6 +473,7 @@ async def main() -> int:
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
     from core.subject.closure import closure_gain, read_periphery
+    from core.subject.closure import coverage as periphery_coverage
     from core.subject.driver import (
         CONDITIONS,
         build_runtime,
@@ -521,6 +532,7 @@ async def main() -> int:
     }
 
     try:
+        failures_before = dict(getattr(runtime, "failures", {}) or {})
         # ── the baseline, which every scale is read against ────────────
         _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
         frames = []
@@ -537,6 +549,13 @@ async def main() -> int:
             "frames": recording.frames,
             "width": recording.width,
             "live_columns": int(live_mask.sum()),
+            # A source that failed to read on every frame was never running,
+            # and its columns read 0.0 exactly as a quiet source would.
+            "never_read": sorted(
+                source
+                for source, row in (recording.misses or {}).items()
+                if row.get("share", 0.0) >= 1.0
+            ),
         }
         _log(f"  {recording.frames} frames, {int(live_mask.sum())} of {recording.width} columns move")
 
@@ -573,6 +592,7 @@ async def main() -> int:
                 baseline_mean=baseline_mean, baseline_scale=scale,
                 live_mask=live_mask, frame_seconds=frame_seconds,
                 lags=grain_lags, seed=args.seed,
+                history_turns=args.history_turns,
             )
             grain.pop("_grain", None)
             evidence["canonical_grain"] = grain
@@ -649,6 +669,7 @@ async def main() -> int:
             evidence["closure"] = report.as_dict()
         else:
             evidence["closure"] = {"note": "no periphery could be read"}
+        evidence["closure"]["coverage"] = periphery_coverage()
         _log(f"  closed: {closed}, leak {leak:.5f}")
 
         # ── the graph, and which process the carrier is ────────────────
@@ -673,6 +694,7 @@ async def main() -> int:
         evidence["exclusion"] = exclusion.as_dict()
 
         # ── the gates ──────────────────────────────────────────────────
+        evidence["runtime_health"] = _runtime_health(runtime, failures_before)
         evidence["authority"] = _authority(evidence, args)
         evidence["carrier"] = _carrier_verdict(evidence)
         evidence["placement"] = _placement(evidence)
@@ -717,6 +739,111 @@ def _edges_from_cuts(sweep: dict[str, Any], support: Sequence[str]) -> list[tupl
                     edges.add((a, b))
                     edges.add((b, a))
     return sorted(edges)
+
+
+def _runtime_health(runtime: Any, failures_before: dict[str, int]) -> dict[str, Any]:
+    """What raised, and what could not be stepped, while the run was measuring."""
+    from core.subject.steppable import missing_entry_points
+
+    failures = dict(getattr(runtime, "failures", {}) or {})
+    raised = {
+        name: count - failures_before.get(name, 0)
+        for name, count in failures.items()
+        if count > failures_before.get(name, 0)
+    }
+    notes = dict(getattr(runtime, "failure_notes", {}) or {})
+    steps = getattr(runtime, "layer_steps", None)
+    organism = getattr(runtime, "organism", None)
+    return {
+        "raised_on_the_measured_path": raised,
+        "failure_notes": {name: notes.get(name, "") for name in raised},
+        "unsteppable_layers": missing_entry_points(organism) if organism is not None else {},
+        "layer_failures": dict(steps.failures) if steps is not None else {},
+    }
+
+
+def _history_walk(
+    history: np.ndarray, future: np.ndarray, *, history_turns: int, seed: int
+) -> dict[str, Any]:
+    """How many turns of history the state needs, walked rather than chosen.
+
+    At each rung the question is whether every turn older than the last `k`
+    still predicts the held-out futures once those `k` turns are known, asked
+    against the same older turns shuffled across anchors. The first rung where
+    they add nothing is the history the state needs. When the rung below the
+    longest still finds older turns adding, the longest history the ladder
+    allows is still carrying information, and that is UNRESOLVED rather than an
+    answer.
+    """
+    from core.subject.intrinsic_v25 import heldout_sufficiency_gain
+
+    ladder = tuple(k for k in HISTORY_LADDER if k <= history_turns)
+    rows, columns = history.shape
+    per_turn = columns // max(1, history_turns)
+    folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
+    rng = np.random.default_rng(seed)
+    walk: list[dict[str, Any]] = []
+    needed: int | None = None
+    if rows >= folds and per_turn > 0:
+        for recent_turns in ladder[:-1]:
+            recent = history[:, -recent_turns * per_turn:]
+            older = history[:, : (history_turns - recent_turns) * per_turn]
+            gain = heldout_sufficiency_gain(older, recent, future, seed=seed + recent_turns)
+            floor = heldout_sufficiency_gain(
+                older[rng.permutation(rows)], recent, future, seed=seed + recent_turns
+            )
+            walk.append(
+                {
+                    "recent_turns": recent_turns,
+                    "older_turns": history_turns - recent_turns,
+                    "gain": round(float(gain), 6),
+                    "shuffled_floor": round(float(floor), 6),
+                }
+            )
+            if gain - floor <= SUFFICIENCY_TOLERANCE:
+                needed = recent_turns
+                break
+    return {
+        "history_walk": walk,
+        "history_turns_needed": needed,
+        "history_status": "RESOLVED" if needed is not None else "UNRESOLVED",
+    }
+
+
+def _rank_stability(train: np.ndarray, rank: int, *, seed: int) -> dict[str, Any]:
+    """The same rank asked two more ways.
+
+    Refit the parallel analysis with each fold of anchors held out, using the
+    folds the held-out sufficiency gain already uses, and ask a different
+    estimator altogether: bi-cross-validation picks the rank that best predicts
+    held-out blocks of the matrix. A rank that either does not reproduce is a
+    reading of the anchors or of the estimator.
+    """
+    from core.subject.intrinsic_v25 import (
+        bicross_validated_rank,
+        fit_predictive_grain,
+        heldout_sufficiency_gain,
+    )
+
+    rows = train.shape[0]
+    folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
+    fold_ranks: list[int] = []
+    if rows >= folds:
+        order = np.random.default_rng(seed).permutation(rows)
+        for held in np.array_split(order, folds):
+            kept = np.setdiff1d(order, held)
+            fold_ranks.append(int(fit_predictive_grain(train[kept], seed=seed + 1).rank))
+    bicross = int(bicross_validated_rank(train, seed=seed + 2)) if min(train.shape) >= 4 else None
+    return {
+        "fold_ranks": fold_ranks,
+        "bicross_validated_rank": bicross,
+        "rank_stable": bool(
+            fold_ranks
+            and bicross is not None
+            and all(found == rank for found in fold_ranks)
+            and bicross == rank
+        ),
+    }
 
 
 def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
@@ -791,6 +918,48 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append(
             "only a sample of the bipartitions was scored; the weakest cut has not been found"
         )
+    if "runtime_health" not in evidence:
+        blockers.append("which phases raised and which layers stepped was not recorded")
+    health = evidence.get("runtime_health", {})
+    layers = {**health.get("unsteppable_layers", {}), **health.get("layer_failures", {})}
+    if layers:
+        blockers.append(f"a live layer could not be stepped the same way in every arm: {sorted(layers)[:6]}")
+    if health.get("raised_on_the_measured_path"):
+        blockers.append(
+            f"a phase raised while the run was measuring: {sorted(health['raised_on_the_measured_path'])[:6]}"
+        )
+    coverage = closure.get("coverage", {})
+    if "note" not in closure and not coverage:
+        blockers.append("how much of the periphery the closure walk saw was not recorded")
+    if coverage.get("hit_the_cap"):
+        blockers.append(
+            f"the periphery walk stopped at its cap of {coverage.get('cap')} numbers, "
+            "so closure was judged on part of the periphery"
+        )
+    if coverage.get("reader_failures"):
+        blockers.append(
+            f"the periphery reader failed {coverage['reader_failures']} time(s): "
+            f"{coverage.get('last_reader_failure', '')}"
+        )
+    recording = evidence.get("recording", {})
+    if "never_read" not in recording:
+        blockers.append("which state readers missed was not recorded")
+    elif recording["never_read"]:
+        blockers.append(
+            f"a state reader missed on every frame, so its columns are zeros: {recording['never_read'][:6]}"
+        )
+    if grain and not grain.get("skipped"):
+        if grain.get("history_status") != "RESOLVED":
+            blockers.append(
+                "the longest history the ladder allows still predicts held-out futures, "
+                "so the history length is not resolved"
+            )
+        if not grain.get("rank_stable"):
+            blockers.append(
+                "the predictive-state rank does not survive other folds and estimators: "
+                f"{grain.get('predictive_rank')} on every anchor, {grain.get('fold_ranks')} with a "
+                f"fold held out, {grain.get('bicross_validated_rank')} by bi-cross-validation"
+            )
     # A cortex-inclusive claim made while the cortex was stubbed is the one
     # blocker that is about what the run is allowed to say rather than about
     # what it measured. The substrate campaign is a real result; it is just a

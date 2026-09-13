@@ -158,6 +158,11 @@ def main() -> int:
         help="Evaluate treatment plus this lesion; repeat for more lesions",
     )
     parser.add_argument("--transducer", type=Path, required=True)
+    parser.add_argument(
+        "--prefix-feasible-arguments",
+        action="store_true",
+        help="Evaluate a separately identified development search candidate; no serving authority",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -188,6 +193,8 @@ def main() -> int:
         model = compositional_semantic_program_transducer_from_dict(
             json.loads(args.transducer.expanduser().resolve(strict=True).read_text("ascii"))
         )
+        if args.prefix_feasible_arguments:
+            model = model.with_prefix_feasible_arguments()
         manifests = {name: bundle.manifest for name, bundle in bundles.items()}
         training_manifest = (
             _manifest_only(args.training_bundle)
@@ -195,7 +202,10 @@ def main() -> int:
             else None
         )
         examples_by_family = {
-            name: training_examples_from_feature_bundle(bundle)
+            name: training_examples_from_feature_bundle(
+                bundle,
+                required_splits=frozenset(str(item.metadata["split"]) for item in bundle.examples),
+            )
             for name, bundle in bundles.items()
         }
         selected, compatibility = _bind_family_examples(

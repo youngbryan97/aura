@@ -90,7 +90,7 @@ from .semantic_program_transducer_fitting import (
     LinearArgumentRoleHead,
     RegisterUseContract,
     _all_semantic_spans,
-    _argument_proposal_rows,  # noqa: F401
+    _argument_proposal_rows,
     _argument_proposals_by_operation,  # noqa: F401
     _assign_typed_arguments,
     _best_nonoverlapping_node_charts,  # noqa: F401
@@ -503,6 +503,18 @@ class CompositionalSemanticProgramTransducer:
             or not 1 <= self.operation_chart_beam <= _OPERATION_CHART_BEAM
             or receipt.get("operation_chart_beam") != self.operation_chart_beam
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
+            or receipt.get("argument_search_strategy", "legacy_global_v1")
+            not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
+            or receipt.get("argument_score_strategy", "independent_positive_v1")
+            not in {"independent_positive_v1", "conditional_log_odds_v1"}
+            or receipt.get("forward_reference_policy", "positive_relation_v1")
+            not in {"positive_relation_v1", "joint_graph_v1"}
+            or receipt.get("definition_boundary_policy", "register_neighbors_v1")
+            not in {"register_neighbors_v1", "source_neighbors_v1"}
+            or (
+                receipt.get("forward_reference_policy") == "joint_graph_v1"
+                and receipt.get("argument_search_strategy") != "global_constraint_v1"
+            )
             or (
                 self.schema
                 in {
@@ -811,6 +823,48 @@ class CompositionalSemanticProgramTransducer:
             training_receipt={**body, "receipt_sha256": _sha(body)},
         )
 
+    def with_prefix_feasible_arguments(self) -> CompositionalSemanticProgramTransducer:
+        """Create a separately identified search candidate without refitting tissue."""
+
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "prefix_feasible_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_global_constraint_arguments(self) -> CompositionalSemanticProgramTransducer:
+        """Create an opt-in solver-assisted chart candidate with unchanged tissue."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_conditional_argument_scores(self) -> CompositionalSemanticProgramTransducer:
+        """Condition binary argument evidence on selecting one mention per slot."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_score_strategy"] = "conditional_log_odds_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
+        """Let the complete graph decide dependencies regardless of textual order."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["forward_reference_policy"] = "joint_graph_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_source_ordered_definitions(self) -> CompositionalSemanticProgramTransducer:
+        """Bound definition clauses by textual neighbors, not register numbering."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["definition_boundary_policy"] = "source_neighbors_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
         """Remove only the source-learned graph-use bounds."""
 
@@ -883,24 +937,29 @@ class CompositionalSemanticProgramTransducer:
         )
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
-        assigned = next(
-            (
-                candidate
-                for selected in charts
-                for candidate in (
-                    _assign_typed_arguments(
-                        model=self,
-                        hidden=hidden,
-                        inputs=inputs,
-                        input_spans=input_spans,
-                        operation_nodes=selected,
-                        argument_pointer_scores=argument_pointer_scores,
-                    ),
-                )
-                if candidate is not None
-            ),
-            None,
-        )
+        from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+
+        try:
+            assigned = next(
+                (
+                    candidate
+                    for selected in charts
+                    for candidate in (
+                        _assign_typed_arguments(
+                            model=self,
+                            hidden=hidden,
+                            inputs=inputs,
+                            input_spans=input_spans,
+                            operation_nodes=selected,
+                            argument_pointer_scores=argument_pointer_scores,
+                        ),
+                    )
+                    if candidate is not None
+                ),
+                None,
+            )
+        except ArgumentOptimizationIncompleteError as exc:
+            return SemanticTransductionOutcome(None, str(exc), {}, {})
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
         selected = assigned.operation_nodes
@@ -1252,6 +1311,152 @@ def fit_compositional_semantic_program_transducer(
     )
 
 
+def refit_compositional_argument_proposals(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Refit proposal scoring on source splits, preserving the rest of the tissue."""
+
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("argument proposal refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("argument proposal refit neural basis differs from its parent")
+    train_ids = {item.ir.source_text_sha256 for item in training}
+    validation_ids = {item.ir.source_text_sha256 for item in validation}
+    if train_ids & validation_ids:
+        raise ValueError("argument proposal refit train and validation overlap")
+    heads, fit = _fit_argument_proposal_heads(
+        training,
+        argument_pointer=model.argument_pointer,
+        max_arity=len(model.argument_role_heads),
+        max_span_tokens=model.max_span_tokens,
+        max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    scale, calibration = _select_argument_proposal_scale(
+        validation,
+        argument_pointer=model.argument_pointer,
+        semantic_heads=model.argument_role_heads,
+        proposal_heads=heads,
+        max_span_tokens=model.max_span_tokens,
+        max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+        hidden_channels=model.hidden_channels,
+        hidden_channel_widths=model.hidden_channel_widths,
+    )
+    coefficient = model._coefficient_body()
+    coefficient["argument_proposal_heads"] = [head.to_dict() for head in heads]
+    coefficient["argument_proposal_scale"] = scale
+    body = {key: value for key, value in model.training_receipt.items() if key != "receipt_sha256"}
+    body["coefficient_sha256"] = _sha(coefficient)
+    body["argument_proposal_fit"] = {
+        **dict(model.training_receipt["argument_proposal_fit"]),
+        **fit,
+        "scale_selection": calibration,
+    }
+    body["argument_proposal_refit"] = {
+        "schema": "aura.semantic_program_argument_proposal_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "candidate_source": "runtime_per_operation_clause_proposals_v1",
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "test_examples_used": 0,
+        "fit": fit,
+        "calibration": calibration,
+        "serving_authority": False,
+    }
+    return replace(
+        model,
+        argument_proposal_heads=heads,
+        argument_proposal_scale=scale,
+        training_receipt={**body, "receipt_sha256": _sha(body)},
+    )
+
+
+def refit_compositional_argument_rankings(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Fit source-only argument choices while preserving other learned modules."""
+    from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
+
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("argument ranking refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("argument ranking refit neural basis differs from its parent")
+    train_ids = [item.ir.source_text_sha256 for item in training]
+    validation_ids = [item.ir.source_text_sha256 for item in validation]
+    if (
+        len(set(train_ids)) != len(train_ids)
+        or len(set(validation_ids)) != len(validation_ids)
+        or set(train_ids) & set(validation_ids)
+    ):
+        raise ValueError("argument ranking source splits duplicate or overlap")
+    heads, fits = [], []
+    for position, (role, proposal) in enumerate(zip(
+        model.argument_role_heads, model.argument_proposal_heads, strict=True
+    )):
+        features, labels, weights, _, _ = _argument_proposal_rows(
+            training, argument_pointer=model.argument_pointer, position=position,
+            max_span_tokens=model.max_span_tokens,
+            max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+            hidden_channels=model.hidden_channels,
+            hidden_channel_widths=model.hidden_channel_widths,
+            include_semantic_negatives=True,
+        )
+        weight, fit = fit_pairwise_argument_weight(
+            features, labels, weights,
+            initial_weight=model.argument_role_scale * role.weight
+            + model.argument_proposal_scale * proposal.weight,
+        )
+        # Keep the proposal module and its calibration fixed. The role module
+        # carries the residual needed for their combined log odds to equal the ranker.
+        heads.append(LinearArgumentRoleHead(
+            (weight - model.argument_proposal_scale * proposal.weight) / model.argument_role_scale,
+            -model.argument_proposal_scale * proposal.bias / model.argument_role_scale,
+        ))
+        fits.append(fit)
+    candidate = model._with_coefficients(argument_role_heads=tuple(heads))
+    body = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
+    body["argument_score_strategy"] = "conditional_log_odds_v1"
+    body["argument_ranking_refit"] = {
+        "schema": "aura.semantic_argument_ranking_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "negative_source": "runtime_pointer_shortlist_and_source_semantic_spans_v1",
+        "coefficient_parameterization": "combined_ranker_as_role_residual_v1",
+        "role_head_alone_is_calibrated_probability": False,
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "validation_used_for_fit": False,
+        "test_examples_used": 0,
+        "fits": fits,
+        "serving_authority": False,
+    }
+    return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+
 def refit_compositional_register_identity(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
@@ -1518,5 +1723,6 @@ __all__ = [
     "RegisterUseContract",
     "compositional_semantic_program_transducer_from_dict",
     "fit_compositional_semantic_program_transducer",
+    "refit_compositional_argument_proposals",
     "refit_compositional_register_identity",
 ]

@@ -596,9 +596,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   nine hash-bound artifacts, current configured model metadata and source
   snapshot; 600 historical decodes regraded. Focused checks: 44 passed;
   smoke: 164 passed, one skipped. No new benchmark or live activation claim.
-- [ ] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+- [x] G02 Reconcile existing bounded 1.5B/32B/27B evidence and live activation.
+  Closed 2026-09-12: [lineage and activation reconciliation](evidence/G02_RLC_RECONCILIATION_2026-09-12.md).
+  Historical negatives retained; 32B/27B decodes regraded; newer natural
+  composition result re-adjudicated (21/48 versus ordinary 1/48 and 2/48).
+  Exact-contract activation validates; composition remains shadow-only.
+  Runtime was stopped at the current observation, so G11 is not closed.
+  Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
+  A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
+  four and regresses one on 28 exposed cases; no promotion. Existing relation
+  diagnostic resolves 450/480 gold references with runtime definitions.
+  Reference proposals and graph ranking still require development work.
+  Exact-source proposal refit is a [measured null](evidence/G03_FULL_SOURCE_NULL_2026-09-12.md):
+  unchanged coefficients, 21/48 answers and 19/48 programs. All 480 gold
+  argument spans are present given gold operations. Calibration/runtime
+  scoring mismatch and constrained graph selection remain under investigation.
+  [Global argument search development](evidence/G03_GLOBAL_ARGUMENT_SEARCH_2026-09-12.md)
+  reaches 41/48 exact programs with unchanged coefficients, versus 19/48 for
+  the parent. Coefficient and hidden-token controls score 0/48 exact programs.
+  Seven errors and one paired answer regression remain; no promotion.
+  [Conditional graph development](evidence/G03_CONDITIONAL_GRAPH_DEVELOPMENT_2026-09-12.md)
+  reaches 43/48 programs and answers, with 22 answer gains and no regression
+  against the frozen parent on exposed weave cases. Both causal controls score
+  0/48 programs. Forward-reference graph admission recovers five of twelve
+  cataphoric source-pilot programs. A pairwise-trained candidate is rejected
+  for four answer regressions. Source-order proposal refitting remains a null;
+  remaining composition errors and full-source admission are not closed.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
