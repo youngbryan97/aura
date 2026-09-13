@@ -64,7 +64,13 @@ CLIP_GROWTH_CEILING = 1.25
 #: the stream of every later block.
 _NORM_FLOOR = 1e-6
 
-_DEFAULT_MODE = TRANSLATE
+# Projection, because that is what was measured and qualified. Translation
+# lengthens the stream at every layer it touches, which is survivable at four
+# sites and not at sixteen: rotation over all sixteen scored zero at every
+# alpha tried, and translation reached two characters at 0.2. Projection over
+# the same sixteen reached +1.417 with replies at 888 characters against a
+# baseline of 954, and it is the geometry the passing campaign ran.
+_DEFAULT_MODE = PROJECT
 
 _ENV_VAR = "AURA_STEERING_INJECTION"
 

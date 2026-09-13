@@ -120,7 +120,6 @@ from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.AffectiveSteering")
 
-
 #: Completion-position masks, keyed by (shape, dtype-name).
 #
 # The mask is a constant for a given shape: zeros with a 1.0 at the final
@@ -135,7 +134,6 @@ logger = logging.getLogger("Aura.AffectiveSteering")
 # Bounded so a pathological spread of shapes cannot grow without limit.
 _COMPLETION_MASK_CACHE: dict[tuple[tuple[int, ...], str], Any] = {}
 _COMPLETION_MASK_CACHE_MAX = 32
-
 
 def _emit_affective_fault(
     error: BaseException,
@@ -165,7 +163,6 @@ def _emit_affective_fault(
         )
     except TypeError:
         record_degradation("affective_steering", error)
-
 
 # ── Steering Coefficient ───────────────────────────────────────────────────────
 # How strongly the substrate influences generation.
@@ -205,7 +202,6 @@ TARGET_LAYER_RANGE = (0.40, 0.65)
 
 # How often to re-read the substrate state (seconds)
 SUBSTRATE_SYNC_INTERVAL_S = 0.05  # 20 Hz — matches LiquidSubstrate's update rate
-
 
 # ── Affective Dimensions ───────────────────────────────────────────────────────
 # Each dimension has:
@@ -362,9 +358,7 @@ AFFECTIVE_DIMENSIONS = [
     },
 ]
 
-
 # ── Data Structures ────────────────────────────────────────────────────────────
-
 
 @dataclass
 class SteeringVector:
@@ -463,12 +457,9 @@ class SteeringVector:
             "v_norm": float(np.linalg.norm(self.v)),
         }
 
-
 # ── Steering Vector Library ────────────────────────────────────────────────────
 
-
 from .steering_vector_cache import _ReadsACachedVector
-
 
 class SteeringVectorLibrary(_ReadsACachedVector):
     """
@@ -573,11 +564,6 @@ class SteeringVectorLibrary(_ReadsACachedVector):
             )
             logger.debug("Steering vector source inference failed: %s", exc)
         return "configured_caa"
-
-
-
-
-
 
 
 
@@ -2080,11 +2066,12 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
         self._model_info = {
             "n_layers": n_layers,
             "d_model": d_model,
-            "target_layers": self._compute_target_layers(n_layers),
             "model_descriptor_sha256": str(model_identity.get("descriptor_sha256") or ""),
             "model_path": incoming_path,
         }
-
+        # After the identity, because the layers come from the signed
+        # generation when there is one and it is found by descriptor.
+        self._model_info["target_layers"] = self._compute_target_layers(n_layers)
         target_layers = self._model_info["target_layers"]
         logger.info(
             "🧠 Model geometry: %d layers, d_model=%d → targeting layers %s",

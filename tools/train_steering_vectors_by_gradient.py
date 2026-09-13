@@ -28,7 +28,7 @@ by a vector that simply makes everything more likely. `overlap` is the mean
 squared cosine between every pair of layers.
 
 Nothing here reaches a served prompt. The statements become a direction and
-then stop existing, which is the whole point of a steering vector.
+then stop existing.
 """
 
 from __future__ import annotations

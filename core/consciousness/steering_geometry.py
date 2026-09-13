@@ -329,16 +329,25 @@ class _FindsTheModelsGeometry:
 
     def _compute_target_layers(self, n_layers: int) -> list[int]:
         """
-        Compute which layers to hook based on total model depth.
+        Which layers to hook: the ones the active generation was qualified at,
+        and failing that a band chosen from depth.
 
-        Target 40-65% depth — middle layers where semantic representations
-        are rich but generation hasn't been "committed" yet.
+        A qualified generation is an authority over specific vectors at
+        specific layers, measured at those layers. Choosing different ones here
+        serves a configuration nobody measured, and the certificate would then
+        cover an arrangement the runtime never runs. So the extraction contract
+        decides when there is one.
 
-        We hook 2-3 layers in this range for multi-layer steering,
-        which the literature shows is more effective than single-layer.
-        (van der Weij et al., 2024: simultaneous injection at different
-         layers is more effective than single-point injection.)
+        The fallback is the original rule: 40-65% depth, where semantic
+        representations are rich and generation is not yet committed, 2-3 sites
+        because simultaneous injection at several layers beats one (van der
+        Weij et al., 2024). It applies to a checkpoint with no signed
+        generation, which is the only case where nothing has been measured.
         """
+        qualified = self._qualified_target_layers(n_layers)
+        if qualified:
+            return qualified
+
         from .affective_steering import (
             TARGET_LAYER_RANGE,
         )
@@ -354,3 +363,49 @@ class _FindsTheModelsGeometry:
         else:
             # 3 evenly spaced layers in the target range
             return [lo, lo + span // 3, lo + 2 * span // 3]
+
+    def _qualified_generation_dir(self) -> Path | None:
+        """Where the active signed generation's vectors were materialised.
+
+        Resolved here rather than read off the library, because the layers have
+        to be known BEFORE the library is asked for them. Materialisation is
+        idempotent and content-addressed, so asking twice costs a directory
+        check.
+        """
+        digest = str((self._model_info or {}).get("model_descriptor_sha256") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            return None
+        try:
+            from core.brain.llm.model_bound_steering import resolve_active_generation
+
+            resolution = resolve_active_generation(
+                descriptor_sha256=digest,
+                model_cache_root=self._runtime_vector_cache_dir(
+                    n_layers=int((self._model_info or {}).get("n_layers") or 0),
+                    d_model=int((self._model_info or {}).get("d_model") or 0),
+                    model_identity={"descriptor_sha256": digest},
+                ),
+            )
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+        return resolution.cache_dir
+
+    def _qualified_target_layers(self, n_layers: int) -> list[int]:
+        """The layers named by the active generation's extraction contract.
+
+        Read from the vector FILES rather than from a list somebody keeps in
+        step with them: a generation is a directory of `<key>_layer<N>.npz`,
+        and the layers it was measured at are exactly the N it carries.
+        """
+        cache_dir = self._qualified_generation_dir()
+        if cache_dir is None:
+            return []
+        layers: set[int] = set()
+        try:
+            for path in Path(cache_dir).glob("*_layer*.npz"):
+                _, _, tail = path.stem.rpartition("_layer")
+                if tail.isdigit() and int(tail) < n_layers:
+                    layers.add(int(tail))
+        except OSError:
+            return []
+        return sorted(layers)

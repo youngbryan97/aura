@@ -14,6 +14,7 @@ mx = pytest.importorskip("mlx.core")
 
 from core.consciousness.residual_injection_geometry import (  # noqa: E402
     CLIP,
+    INJECTION_MODES,
     CLIP_GROWTH_CEILING,
     LIFT,
     PROJECT,
@@ -103,8 +104,12 @@ def test_the_masked_position_keeps_its_own_length(stream, delta):
 
 
 def test_an_unknown_mode_name_is_not_silently_a_new_geometry(monkeypatch):
+    """It falls back to the measured default, not to whatever was typed."""
+    from core.consciousness.residual_injection_geometry import _DEFAULT_MODE
+
     monkeypatch.setenv("AURA_STEERING_INJECTION", "sideways")
-    assert injection_mode() == TRANSLATE
+    assert injection_mode() == _DEFAULT_MODE
+    assert _DEFAULT_MODE in INJECTION_MODES
 
 
 @pytest.mark.parametrize("name", [TRANSLATE, ROTATE, CLIP, PROJECT, LIFT])
