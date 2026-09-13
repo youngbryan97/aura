@@ -353,6 +353,38 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     this against a signed migration authority, logs it at info, and sent the
     parent the boolean without the reason. The disposition crosses the IPC
     now; an unexplained clear flag still warns. FIXED.
+  UPDATE 2026-09-10 and 2026-09-13. Six more from the live stream, each by
+  cause; the first four were the loudest things in a five-hour session:
+  - `telemetry.channels_are_not_silent @ care.depleted` and twenty-two
+    siblings, every disposition channel "declared but never written" for
+    hours. Not the organs: `phenomena_wiring.sample` held the only `write`
+    for all of them and nothing called it; `conation.wiring.tick` the same.
+    A register the 1Hz cadence runs, and a gate that finds a channel whose
+    every writer has no production caller. FIXED, a3b8c08f5.
+  - `claims.every_claim_has_a_passing_test` — "100 invariants: 105 error(s)",
+    an emergency incident 35 times, taint, resilience at full depletion.
+    The desktop defers the empirical run to "an explicit validation process"
+    that did not exist, so every claim read "never run" and the verifier
+    reported the runtime's own decision as structural errors. The process
+    exists (`tools/run_model_validation.py`), the runtime adopts its verdict
+    when the stamp matches, and unrun is unevidenced, not refuted.
+    FIXED, 1730d5b86.
+  - `llm_code_generator: LLM returned no Python source; the model returned
+    nothing at all`, 34 emergency incidents. The model was never asked:
+    lane admission refused a 6GB brainstem as "34.2GB" — the whole process
+    tree minus the workers a lane still knew, so a worker being reaped was
+    charged as base runtime — and the gate's refusal was recorded nowhere
+    the generator looked. FIXED, 916f7bbbf.
+  - `memory.attribution_is_meaningful: 0.6% of 4213MB attributed`. The
+    serving process holds Qwen3-Embedding-0.6B and no provider claimed it.
+    Three exact providers. FIXED, 910839360.
+  - `KernelInterface chat timed out after its budget` with "deadline 103s →
+    251s" in the same turn: the gate extended its own deadline and the route
+    waited on the admitted one. One clock. FIXED, 666a845ae.
+  - `ValidationError: 2 validation errors for ManimInput` on every answer
+    with an equation, while the answer told the person an animation was on
+    its way. The renderer takes source and a scene name; the caller passed
+    neither, and the promise went out regardless. FIXED, 9a542c22a.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
