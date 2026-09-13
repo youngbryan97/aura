@@ -11353,5 +11353,47 @@
     ],
     "note": "every route a driver turn takes into the organism outside its phases is listed with the live runtime's counterpart or marked as the instrument, and a test fails on an unlisted route or a counterpart that does not exist",
     "status": "done"
+  },
+  "P42.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_every_source_is_tried_the_same_number_of_times_in_every_regime"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_the_sham_floor_is_read_as_the_real_run_reads_it"
+      },
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "def\\ toy_interventions\\("
+      }
+    ],
+    "note": "a null's trials are made the way the real run makes them: per start regime, a cycled injection point, a displaced arm against two shams from one state and one noise stream, effect and floor read off one column by the same _paired_divergence; the doses are matched with that same divergence. The one remaining difference is the dose rule: the v1 battery's frozen flat delta against the nulls' matched doses",
+    "status": "done"
+  },
+  "P42.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/nulls.py",
+        "pattern": "edges,\\ _\\ =\\ build_edges\\(results,\\ seed=seed\\)"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_null_edge_clears_the_same_bars.py",
+        "pattern": "def test_null_edges_go_through_the_real_edge_rule"
+      }
+    ],
+    "note": "null edges go through build_edges, so they carry the same sign-flip test, the same Benjamini-Hochberg correction across the ninety pairs, the same effect bar and the same replication count as the organism's",
+    "status": "done"
   }
 }
