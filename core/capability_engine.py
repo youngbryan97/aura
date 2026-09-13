@@ -1574,7 +1574,7 @@ def _name_what_is_still_available(
     return told
 
 
-from .capability_user_advocate import _AsksWhetherThePersonWouldWantThis
+from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
 
 
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):

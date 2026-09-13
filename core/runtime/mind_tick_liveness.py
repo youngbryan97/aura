@@ -41,7 +41,7 @@ class _KnowsWhetherItIsStillAlive:
         # Imported here rather than at module level: the module these
         # came from imports this one to build the class. A call-time
         # import also still sees a test's patch of the original.
-        from .mind_tick import (
+        from core.mind_tick import (
             DEFAULT_HARD_STALL_S,
             DEFAULT_STALE_PROGRESS_S,
         )
@@ -123,7 +123,7 @@ class _KnowsWhetherItIsStillAlive:
         is the only way to know the cancelled one has really unwound,
         because ``cancel()`` returns long before that happens.
         """
-        from .mind_tick import (
+        from core.mind_tick import (
             _MIND_BOUNDARY_ERRORS,
             _record_mind_degradation,
             _schedule_mind_task,
@@ -199,7 +199,7 @@ class _KnowsWhetherItIsStillAlive:
         turn the health-contract failure into an internal recovery attempt
         instead of leaving the desktop path degraded until the next user prompt.
         """
-        from .mind_tick import (
+        from core.mind_tick import (
             _MIND_BOUNDARY_ERRORS,
             _record_mind_degradation,
             _schedule_mind_task,

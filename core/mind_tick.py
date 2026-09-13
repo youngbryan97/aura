@@ -202,7 +202,7 @@ def _authorize_state_mutation_through_will(
         logger.warning("MindTick: UnifiedWill unavailable for %s; state mutation blocked: %s", source, exc)
         return None
 
-from .mind_tick_liveness import _KnowsWhetherItIsStillAlive
+from .runtime.mind_tick_liveness import _KnowsWhetherItIsStillAlive
 
 
 class MindTick(_KnowsWhetherItIsStillAlive):

@@ -347,6 +347,38 @@ Working list. Deleted when every line is done and green.
       `_validate_steering` is rejected at attach. The gate is checking the
       thing the measurements say is false, which is the gate working.
 
+      Three attempts to MEET the two requirements rather than report them,
+      all measured on the resident 27B:
+
+      * **Alpha.** The sweep peaks at 0.83 at alpha 0.2 and falls away: 0.67
+        at 0.3, 0.00 at 0.4, and ten characters of output at 0.6. Coherence
+        breaks well before the score reaches the prompt's.
+      * **Layer-specific vectors.** Strip the shared axis, keep the residual,
+        rescale to the original norm: the effect vanishes entirely, 0.0833
+        against a baseline of 0.0833. So the effect IS the shared axis, which
+        is also why permuting layers preserves it — the specificity control is
+        right and cannot be tuned away.
+      * **Every attention layer.** Sixteen sites from layer 3 to 63 rather
+        than four adjacent ones. The vectors there are far less alike — mean
+        cosine 0.50 against 0.79, and 0.07 between the ends — so a permutation
+        has further to move. It does raise the effect: 1.33 at alpha 0.05
+        against the narrow set's 0.83. It still loses to the prompt's 2.00,
+        and it costs coherence on the way — replies drop from 1,070
+        characters to 619, and sixteen layers at alpha 0.2 produce eight
+        characters. `artifacts/migration/27b/recovery/wide_layer_probe.txt`.
+
+      So `text_prompt_moves_output_at_least_as_far` is not reachable for this
+      intervention on this checkpoint: every route to a bigger effect breaks
+      the model before it reaches what a sentence does for free. That is a
+      finding about CAA on a residual stream, not a bar set too high.
+
+      What IS reachable, and measured: steering compounds with the prompt.
+      `steered_plus_text_rich` scores 3.6111 against the prompt's 1.3611 — a
+      paired shift of +2.25, p=0.0002, CI [1.44, 3.00]. The vectors carry
+      something the words do not, while losing to them alone. Whether serving
+      authority should rest on beating text or on adding to it is a decision
+      about the bar, and it is Bryan's; the number is now attached to it.
+
 - [x] a certificate for the resident 27B — it cannot have one, and the reason
       is now on the record rather than inferred. The mechanism is proven end to
       end on the reflex 1.5B through the worker's own code path: alpha 0.0

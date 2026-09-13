@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # annotation only; that module imports this one
-    from .capability_engine import SkillMetadata
+    from core.capability_engine import SkillMetadata
 
 import os
 from typing import Any
@@ -63,7 +63,7 @@ class _AsksWhetherThePersonWouldWantThis:
         # Imported here rather than at module level: the module these
         # came from imports this one to build the class. A call-time
         # import also still sees a test's patch of the original.
-        from .capability_engine import (
+        from core.capability_engine import (
             _record_capability_degradation,
         )
 
@@ -125,7 +125,7 @@ class _AsksWhetherThePersonWouldWantThis:
         was the bypass this method used to honour, and any code path or
         deserialized payload could set it.
         """
-        from .capability_engine import (
+        from core.capability_engine import (
             _record_capability_degradation,
         )
 
@@ -176,7 +176,7 @@ class _AsksWhetherThePersonWouldWantThis:
         # sealed_validation is gone: nothing in core/ or interface/ has ever
         # set it, so its only possible source was an external payload. A key
         # that only an attacker can populate is not an authorization signal.
-        from .capability_engine import (
+        from core.capability_engine import (
             _USER_FACING_CONTEXT_ORIGINS,
             _proof_run_environment_active,
         )
@@ -207,7 +207,7 @@ class _AsksWhetherThePersonWouldWantThis:
         params: dict[str, Any],
         effect_scope: str,
     ) -> str:
-        from .capability_engine import (
+        from core.capability_engine import (
             logger,
         )
 
@@ -285,7 +285,7 @@ class _AsksWhetherThePersonWouldWantThis:
         that already arrived through the live user/proof foreground lane with
         visible-local-action metadata.
         """
-        from .capability_engine import (
+        from core.capability_engine import (
             _LIGHTWEIGHT_BACKGROUND_IO_SKILLS,
             _USER_FACING_CONTEXT_ORIGINS,
             CapabilityEngine,
@@ -361,7 +361,7 @@ class _AsksWhetherThePersonWouldWantThis:
         effect_scope: str,
     ) -> bool:
         """Return one confirmation decision for cooldown and advocate review."""
-        from .capability_engine import (
+        from core.capability_engine import (
             _USER_FACING_CONTEXT_ORIGINS,
             _VERIFIED_STANDING_AUTHORITY,
             _record_capability_degradation,
@@ -443,7 +443,7 @@ class _AsksWhetherThePersonWouldWantThis:
         tool_handle: Any,
     ) -> bool:
         """Record trusted standing-authority provenance from an approved handle."""
-        from .capability_engine import (
+        from core.capability_engine import (
             _VERIFIED_STANDING_AUTHORITY,
         )
 
@@ -509,7 +509,7 @@ class _AsksWhetherThePersonWouldWantThis:
         a mention (core/conversation/request_mood.py). An autonomous cycle that
         happens to carry a user id does not qualify.
         """
-        from .capability_engine import (
+        from core.capability_engine import (
             _is_a_person_asking,
         )
 
@@ -576,7 +576,7 @@ class _AsksWhetherThePersonWouldWantThis:
         exec_source: str,
         effect_scope: str,
     ) -> bool:
-        from .capability_engine import (
+        from core.capability_engine import (
             _AUTONOMOUS_RESEARCH_ORIGINS,
             _LIGHTWEIGHT_BACKGROUND_IO_SKILLS,
             _UNSAFE_AUTONOMOUS_WEB_QUERY_MARKERS,
@@ -611,7 +611,7 @@ class _AsksWhetherThePersonWouldWantThis:
         exec_source: str,
         effect_scope: str,
     ) -> str:
-        from .capability_engine import (
+        from core.capability_engine import (
             _USER_FACING_CONTEXT_ORIGINS,
             CapabilityEngine,
         )

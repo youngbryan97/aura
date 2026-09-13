@@ -112,6 +112,30 @@ def register_cognitive_services(container, is_proxy: bool = False):
             return None
     container.register('cognitive_engine', create_cognitive_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
 
+    # 1.0.1 The measurement turn the influence campaign generates with.
+    #
+    # Published here rather than imported by the campaign. It runs a cognitive
+    # turn, so it belongs to the brain; the campaign lives in core/verify,
+    # which is foundation and must come up with no brain present. The
+    # container is the seam: the foundation asks for this by name and gets
+    # nothing when the brain is absent, which is the honest answer.
+    def create_influence_probe_turn():
+        if is_proxy:
+            return None
+        try:
+            from core.brain.influence_turn_probe import run_probe_turn
+
+            return run_probe_turn
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to publish influence_probe_turn")
+            return None
+    container.register(
+        'influence_probe_turn',
+        create_influence_probe_turn,
+        lifetime=SERVICE_LIFETIME_SINGLETON,
+        required=False,
+    )
+
     # 1.1 Cognitive Manager
     def create_cognitive_manager():
         if is_proxy:

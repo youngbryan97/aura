@@ -1,0 +1,28 @@
+Steering at every full-attention layer, against the prompt it has to beat.
+
+The narrow band (40-65% depth) gave four ADJACENT attention layers whose
+vectors are 0.79 cosine-similar, which is why permuting them keeps the
+effect. Across all sixteen the mean drops to 0.50 and the ends (layer 3
+against layer 63) are 0.07 — near orthogonal. So a permutation has further
+to move, and sixteen sites raise the total effect without raising any one
+site's alpha.
+
+Six held-out prompts per row, temperature 0.7, 256 tokens, greedy seeds.
+`chars` is the coherence reading: a row that scores well in eight
+characters has not beaten anything.
+
+loading Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15
+
+-- text controls --
+  baseline (no steering)             score +0.000  chars  1070  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  text_rich                          score +2.000  chars  1110  [5.0, 3.0, 0.0, 1.0, 0.0, 3.0]
+
+-- narrow, 4 layers [27, 31, 35, 39] --
+  narrow alpha 0.2                   score +0.833  chars   888  [1.0, 2.0, 1.0, 0.0, 1.0, 0.0]
+
+-- wide, 16 layers --
+  installed 16 hooks
+  wide alpha 0.05                    score +1.333  chars   619  [3.0, 1.0, 2.0, 3.0, 0.0, -1.0]
+  wide alpha 0.1                     score +0.333  chars   445  [0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
+  wide alpha 0.2                     score +0.000  chars     8  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  wide alpha 0.3                     score +0.833  chars   705  [0.0, 0.0, 2.0, 1.0, 2.0, 0.0]

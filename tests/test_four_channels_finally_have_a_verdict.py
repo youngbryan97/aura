@@ -175,7 +175,7 @@ def test_the_probe_origin_is_foreground_and_its_own():
     """Foreground is what opens the guards; its own name is what keeps a
     measurement distinguishable from a turn somebody took."""
     from core.goals.objective_lifecycle import is_foreground_objective_origin
-    from core.verify.influence_turn_probe import PROBE_ORIGIN
+    from core.brain.influence_turn_probe import PROBE_ORIGIN
 
     assert is_foreground_objective_origin(PROBE_ORIGIN)
     assert PROBE_ORIGIN not in {"desktop_quick_reply", "desktop", "api_chat"}
@@ -186,7 +186,7 @@ def test_the_probe_turn_refuses_to_return_nothing():
     import asyncio
 
     from core.container import ServiceContainer
-    from core.verify.influence_turn_probe import TurnProbeUnavailableError, run_probe_turn
+    from core.brain.influence_turn_probe import TurnProbeUnavailableError, run_probe_turn
 
     class _Silent:
         async def think(self, *_args, **_kwargs):
@@ -233,9 +233,8 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move(monkeypatch):
         lambda *_a, **_k: (),
     )
 
-    class _Engine:
-        async def think(self, *_args, **_kwargs):  # pragma: no cover - never called
-            raise AssertionError("a channel this job cannot move must cost no generations")
+    async def _never(*_args, **_kwargs):  # pragma: no cover - never called
+        raise AssertionError("a channel this job cannot move must cost no generations")
 
     # Counted as a delta, not an absolute. `forget_everything` clears the
     # in-memory fold and the next read loads the persisted counts back, so the
@@ -244,7 +243,11 @@ def test_the_campaign_job_refuses_a_channel_it_cannot_move(monkeypatch):
     before = how_the_campaign_has_gone()["counts"].get("unreachable", 0)
     original = influence_campaign.campaign_admission_reason
     influence_campaign.campaign_admission_reason = lambda **_: ""
-    ServiceContainer.register("cognitive_engine", _Engine())
+    # A FACTORY returning the callable, which is what the provider registers.
+    # Registering the callable itself makes the container call it as the
+    # factory, and the job then reports "unavailable" rather than reaching the
+    # reachability filter this test is about.
+    ServiceContainer.register("influence_probe_turn", lambda: _never)
     try:
         result = asyncio.run(AutonomyConductor()._job_influence_campaign())
     finally:
@@ -283,7 +286,7 @@ def test_the_lesion_is_still_held_inside_the_probe_turn():
 
     from core.container import ServiceContainer
     from core.verify import influence_channels
-    from core.verify.influence_turn_probe import run_probe_turn
+    from core.brain.influence_turn_probe import run_probe_turn
     from core.verify.lesion_registry import LesionHandle, get_lesion_registry
 
     # Registered here rather than assumed: the channel registers when
@@ -330,7 +333,7 @@ def test_the_probe_turn_carries_real_advisory_frames():
     A frame this module invented would make those channels measure a number
     this module chose, which is the defect the whole pass is about.
     """
-    from core.verify.influence_turn_probe import (
+    from core.brain.influence_turn_probe import (
         advisory_frames,
         frames_carrying_a_bias,
         probe_context,

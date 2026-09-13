@@ -615,7 +615,6 @@ class AutonomyConductor:
             campaign_admission_reason,
             run_influence_campaign,
         )
-        from core.verify.influence_turn_probe import run_probe_turn
         from core.verify.lesion_registry import get_lesion_registry
 
         # Counted, not only logged. An hourly job that has produced no verdicts
@@ -630,12 +629,20 @@ class AutonomyConductor:
             note_a_consideration("deferred", because=refusal)
             return {"status": "deferred", "reason": refusal}
 
-        engine = ServiceContainer.get("cognitive_engine", default=None)
-        if engine is None or not hasattr(engine, "think"):
+        # Asked for by name, not imported. The turn runs through the cognitive
+        # engine, so it belongs to core/brain, and this module is core/runtime
+        # — foundation, which must come up with no brain present and whose
+        # DEPS says so. A container that has no brain in it returns nothing
+        # here, and nothing is the honest answer.
+        run_probe_turn = ServiceContainer.get("influence_probe_turn", default=None)
+        if not callable(run_probe_turn):
             note_a_consideration(
-                "unavailable", because="cognitive_engine_not_registered"
+                "unavailable", because="influence_probe_turn_not_registered"
             )
-            return {"status": "unavailable", "reason": "cognitive_engine_not_registered"}
+            return {
+                "status": "unavailable",
+                "reason": "influence_probe_turn_not_registered",
+            }
 
         channels = list(get_lesion_registry().channels())
         if not channels:

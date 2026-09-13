@@ -22,8 +22,11 @@ the campaign that calls it is admitted only when nothing is in the foreground
 it is ContextVar-scoped, so a turn running beside it is never served by a
 lesioned faculty.
 
-Layering: this measures faculties it must not import at module scope. Every
-import is at call time, inside the function that needs it.
+Layering: it lives in ``core/brain`` because it runs a cognitive turn, and
+``core/verify`` is foundation — it has to be able to come up with no brain
+present, so its DEPS forbids reaching one. The campaign that uses this asks
+the container for it rather than importing it, which is the inversion those
+rules exist to produce: the foundation asks, the upper layer registers.
 """
 
 from __future__ import annotations
