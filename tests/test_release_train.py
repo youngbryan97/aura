@@ -61,7 +61,22 @@ class FakeGit:
             self.state["stashed"] = args[3]
             return FakeResult()
         if args[:2] == ["stash", "pop"]:
+            # Never issued any more: pop takes whatever is on top of a stack
+            # other sessions push to. A test that sees it should fail.
+            raise AssertionError("release_train must not `git stash pop` in a shared checkout")
+        if args[:2] == ["stash", "list"]:
+            if not self.state.get("stashed"):
+                return FakeResult(stdout="")
+            if args[2] == "--format=%H %gs":
+                return FakeResult(stdout=f"deadbeef {self.state['stashed']}\n")
+            return FakeResult(stdout=f"stash@{{0}} {self.state['stashed']}\n")
+        if args[:2] == ["stash", "apply"]:
+            assert args[2] == "deadbeef", "apply by the entry's own SHA, not by position"
             self.state["dirty"] = True
+            return FakeResult()
+        if args[:2] == ["stash", "drop"]:
+            self.state["stashed"] = ""
+            return FakeResult()
             return FakeResult()
         if args[0] == "pull":
             if self.state["pull_fails"]:
@@ -95,12 +110,20 @@ class TestUpdate:
         outcome = make_train(tmp_path, git).update()
         assert outcome["step"] == "noop" and outcome["ok"] is True
 
-    def test_dirty_tree_is_autostashed_with_label(self, tmp_path):
+    def test_dirty_tree_is_autostashed_and_given_back(self, tmp_path):
+        """A successful update restores the WIP it set aside.
+
+        It used to leave it in the stash list, labelled, and report the label:
+        "autostashed" that stays stashed is uncommitted work made to disappear
+        on a checkout where other sessions push and pop the same stack.
+        """
         git = FakeGit(dirty=True)
         outcome = make_train(tmp_path, git).update()
         assert outcome["ok"] is True
-        assert "release-train: WIP autostashed" in git.state["stashed"]
-        assert outcome["stash_label"] == git.state["stashed"]
+        assert outcome["stash_restored"] is True
+        assert outcome["stash_label"] == ""
+        assert git.state["dirty"] is True, "the WIP is back in the working tree"
+        assert git.state["stashed"] == "", "and its stash entry was dropped"
 
     def test_failed_pull_restores_stash_and_reports_loudly(self, tmp_path):
         git = FakeGit(dirty=True, pull_fails=True)

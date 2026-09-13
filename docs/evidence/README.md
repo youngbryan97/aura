@@ -36,6 +36,7 @@ starts mattering to how the system runs, it belongs somewhere else.
 | `R08_WATCHDOG_LIFECYCLE_2026-09-09.md` | R08: Keep the observer alive while the observed loop recovers |
 | `Q01_MODEL_INVENTORY_2026-09-13.md` | Q01 model inventory, 2026-09-13 |
 | `Q02_DISK_RETENTION_2026-09-13.md` | Q02 disk retention, 2026-09-13 |
+| `Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md` | Q05 persistence, migration, corruption recovery, backups, rollback |
 | `G02_RLC_RECONCILIATION_2026-09-12.md` | G02: RLC evidence and activation reconciliation |
 | `G03_ARGUMENT_POINTER_DEVELOPMENT_2026-09-12.md` | G03 Argument Pointer Development |
 | `G03_CONDITIONAL_GRAPH_DEVELOPMENT_2026-09-12.md` | G03 conditional graph development |

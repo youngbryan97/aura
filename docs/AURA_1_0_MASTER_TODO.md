@@ -869,7 +869,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   shutdown/restart, sleep/wake, and single-resident ownership.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
-- [ ] Q05 Persistence, migration, corruption recovery, backups, and rollback.
+- [x] Q05 Persistence, migration, corruption recovery, backups, and rollback.
+  CLOSED 2026-09-13. Three ways there was no backup while a green target
+  said otherwise: `make backup` had raised ModuleNotFoundError since
+  2026-08-05; its archive held the repository's `data/` and never the live
+  `~/.aura/data`; `make restore-test` simulated no corruption. Fixed: the
+  live data directory is in the archive, each file bounded, restore routes
+  it home, and `drill` damages a scratch copy and proves the repair
+  (41,540 files, 73 stores, all back). The runtime's daily backup never ran
+  in 77 boots — due a day after each boot — and is due by archive age now.
+  Rollback's stash is addressed by SHA and given back. Migration and
+  corruption recovery already held: `a_versioned_store` (30 tests) and the
+  quarantine the drill found from May. Record:
+  `docs/evidence/Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md`.
 - [ ] Q06 Close all inherited architecture/governance/security debt entries.
   MEASURED 2026-09-09. The module-size ratchet is red and has been for a long
   time — verified red twelve commits back, so it is inherited rather than a
