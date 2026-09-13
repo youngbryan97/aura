@@ -77,7 +77,7 @@ class CounterfactualRecord:
     actual_hedonic_change: float
     regret: float          # how much better the counterfactual would have been
     relief: float          # how much better the actual was than expected
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def is_regret(self) -> bool:

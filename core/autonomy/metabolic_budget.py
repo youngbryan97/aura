@@ -34,7 +34,7 @@ class BudgetAllocation:
     repair: float
     growth_drive: float
     mode: str
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, float | str]:
         return {
@@ -56,7 +56,7 @@ class CuriosityResearchQuestion:
     prompt: str
     priority: float
     evidence_count: int
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

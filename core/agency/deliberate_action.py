@@ -277,7 +277,7 @@ class Deliberation:
     #: is keyed on, so a position she has seen the like of before is
     #: recognised as one.
     shape: str = ""
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
 
     @property
     def reached(self) -> bool:

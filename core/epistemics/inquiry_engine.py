@@ -92,7 +92,7 @@ class Evidence:
     content: str
     source: str                # "research", "conversation", "reflection", "synthesis"
     weight: float              # -1.0 (contradicts) to +1.0 (supports)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     confidence: float = 0.6   # how reliable this piece is
 
 

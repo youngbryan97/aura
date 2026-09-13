@@ -25,7 +25,7 @@ class InternalStatePrediction:
     predicted_dominant_drive: str        # Expected most urgent drive
     predicted_focus_source: str          # Expected GWT winner source
     confidence: float                    # 0.0–1.0 confidence in this prediction
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -37,7 +37,7 @@ class PredictionError:
     focus_error: float                   # 0 if correct focus source, 1 if wrong
     composite_error: float               # Weighted composite 0.0–1.0
     was_surprising: bool                 # True if composite > 0.4
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

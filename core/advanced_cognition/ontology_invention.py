@@ -102,7 +102,7 @@ class OntologyModel:
     hidden_state_hypotheses: list[dict[str, Any]]
     experiments: list[ExperimentProposal]
     confidence: float
-    invented_at: float = field(default_factory=time.time)
+    invented_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -59,12 +59,12 @@ HEALTH_THRESHOLDS = {
 @dataclass
 class SessionMetrics:
     session_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     message_count: int = 0
     successful_responses: int = 0
     empty_responses: int = 0
     consecutive_empty: int = 0
-    last_successful_response_at: float = field(default_factory=time.time)
+    last_successful_response_at: float = field(default_factory=lambda: time.time())
     last_message_at: float = 0.0
     health_level: HealthLevel = HealthLevel.OPTIMAL
     ram_pct: float = 0.0

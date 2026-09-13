@@ -85,7 +85,7 @@ class MorphogenSignal:
     payload: dict[str, Any] = field(default_factory=dict)
     target_cell_id: str | None = None
     ttl_ticks: int = 6
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     signal_id: str = ""
 
     def __post_init__(self):
@@ -168,7 +168,7 @@ class CellState:
     success_count: int = 0
     failure_count: int = 0
     last_activation_at: float = 0.0
-    born_at: float = field(default_factory=time.time)
+    born_at: float = field(default_factory=lambda: time.time())
     last_error: str = ""
     lineage_id: str = ""
     generation: int = 0

@@ -55,7 +55,7 @@ class ConstitutionalProposal:
     urgency: float = 0.5
     confidence: float = 0.5
     proposal_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -71,7 +71,7 @@ class ConstitutionalDecision:
     commitment_id: str | None = None
     constraints: dict[str, Any] = field(default_factory=dict)
     snapshot: dict[str, Any] = field(default_factory=dict)
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -115,7 +115,7 @@ class BeliefMutationRecord:
     confidence: float = 0.35
     evidence: list[str] = field(default_factory=list)
     contradictions: list[str] = field(default_factory=list)
-    recorded_at: float = field(default_factory=time.time)
+    recorded_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -220,7 +220,7 @@ class PerturbationalProbe:
         *,
         sampler: Callable[[], dict[str, float]],
         perturb: Callable[[], bool | ReversiblePerturbation] | None = None,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
         sleep: Callable[[float], None] = time.sleep,
     ):
         self._sampler = sampler

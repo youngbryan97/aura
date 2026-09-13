@@ -138,8 +138,8 @@ class Belief:
     domain: str  # task, self, world, user, identity
     source: str  # conversation, self_reflection, tool_result, axiom
     emotional_valence: float = 0.0  # -1.0 (negative) to +1.0 (positive)
-    creation_time: float = field(default_factory=time.time)
-    last_updated: float = field(default_factory=time.time)
+    creation_time: float = field(default_factory=lambda: time.time())
+    last_updated: float = field(default_factory=lambda: time.time())
     tags: list[str] = field(default_factory=list)
     supporting_evidence: list[str] = field(default_factory=list)
     # PLN evidence mass: how much weighted evidence stands behind confidence.

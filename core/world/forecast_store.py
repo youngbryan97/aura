@@ -24,7 +24,7 @@ class Forecast:
     likely_failure_mode: str
     confidence: float
     change_trigger: str  # observation that would change the forecast
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     actual_outcome: Optional[str] = None  # success, failure, aborted
     brier_score: Optional[float] = None  # forecast accuracy indicator (0 is perfect, 1 is worst)
 

@@ -50,8 +50,8 @@ class Undertaking:
     watching_for: str = ""
     alternatives: tuple[str, ...] = ()
     where: str = ""
-    began_at: float = field(default_factory=time.time)
-    changed_at: float = field(default_factory=time.time)
+    began_at: float = field(default_factory=lambda: time.time())
+    changed_at: float = field(default_factory=lambda: time.time())
     changes: int = 0
     steps: int = 0
     #: Approaches she has already tried and left behind, in order.

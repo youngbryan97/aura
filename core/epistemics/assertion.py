@@ -102,7 +102,7 @@ class Assertion:
     evidence: tuple[str, ...] = field(default_factory=tuple)
     confidence: float = 1.0
     verification: Verification = Verification.UNVERIFIED
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     value: Any = None
 
     def __post_init__(self) -> None:

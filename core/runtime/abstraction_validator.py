@@ -23,7 +23,7 @@ class HeldOutEpisode:
 class PrincipleCandidate:
     principle_id: str
     text: str
-    proposed_at: float = field(default_factory=time.time)
+    proposed_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

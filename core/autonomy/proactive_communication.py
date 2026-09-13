@@ -125,7 +125,7 @@ class ProactiveMessage:
     emotion: EmotionalState
     urgency: InterruptionUrgency
     context: dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     delivery_attempts: int = 0
     next_attempt_at: float = 0.0
     

@@ -855,7 +855,7 @@ class AgencyState(BaseModel):
     last_observation_comment: float = 0.0
     last_skill_use: float = 0.0
     last_agency_action_time: float = 0.0  # Cooldown tracker
-    boot_time: float = Field(default_factory=time.time)
+    boot_time: float = Field(default_factory=lambda: time.time())
     safemode: bool = False
 
     # Social

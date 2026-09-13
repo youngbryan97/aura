@@ -64,7 +64,7 @@ class SituationSnapshot:
     """What was true, all at once, when a decision was made."""
 
     cycle_id: int
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     percepts: Mapping[str, Any] = field(default_factory=dict)
     entities: tuple[str, ...] = ()
     goals: tuple[str, ...] = ()
@@ -122,7 +122,7 @@ class LearningBroadcast:
     #: Who this happened to. "self" for Aura's own action, otherwise the agent.
     ownership: str = "self"
     evidence: EvidencePacket | None = None
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def carries_a_signal(self) -> bool:

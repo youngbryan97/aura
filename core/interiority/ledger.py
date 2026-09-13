@@ -166,8 +166,8 @@ class Bond:
     #: strength: you can be sure of someone you are not close to.
     availability_expectation: float = 1.0
     species: str = "human"
-    first_seen: float = field(default_factory=time.time)
-    last_contact: float = field(default_factory=time.time)
+    first_seen: float = field(default_factory=lambda: time.time())
+    last_contact: float = field(default_factory=lambda: time.time())
     contacts: int = 1
 
     def current_strength(self, now: float | None = None) -> float:
@@ -185,7 +185,7 @@ class Promise:
     text: str
     beneficiary: str | None
     importance: float
-    made_at: float = field(default_factory=time.time)
+    made_at: float = field(default_factory=lambda: time.time())
     deadline: float | None = None
     kept: bool | None = None
     #: Objects or goals this promise names, for stake lookup.
@@ -202,7 +202,7 @@ class Custody:
 
     custody_id: str
     subject: str
-    assumed_at: float = field(default_factory=time.time)
+    assumed_at: float = field(default_factory=lambda: time.time())
     #: What ends it: reunion, handover, recovery, or the agent's own death.
     exit_condition: str = "handover"
     released_at: float | None = None
@@ -247,7 +247,7 @@ class Work:
 
     work_id: str
     description: str
-    made_at: float = field(default_factory=time.time)
+    made_at: float = field(default_factory=lambda: time.time())
     #: Her causal share of the outcome, in [0, 1]. Pride that does not
     #: divide by this is the hubristic kind.
     authorship: float = 1.0

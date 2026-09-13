@@ -89,7 +89,7 @@ class Occurrence:
     procedure_hits: int = 0
     succeeded: bool = True
     variant: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def executive_cost(self, weights: CostWeights) -> float:
         return (

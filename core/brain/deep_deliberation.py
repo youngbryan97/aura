@@ -38,7 +38,7 @@ class DeliberationResult:
     # True when the answer came from a Recursive Latent Cortex episode on the
     # resident model (workspace recurrence), not ordinary token generation.
     used_latent_cortex: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # A deliberation that fell back to the sharpened question is not a failure

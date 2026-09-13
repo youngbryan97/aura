@@ -85,7 +85,7 @@ class Phase:
 
     name: str
     index: int
-    entered_at: float = field(default_factory=time.time)
+    entered_at: float = field(default_factory=lambda: time.time())
     detail: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

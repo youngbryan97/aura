@@ -47,7 +47,7 @@ class FailureEvent:
     source: str
     error_msg: str
     context: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 @dataclass
 class LearnedHeuristic:

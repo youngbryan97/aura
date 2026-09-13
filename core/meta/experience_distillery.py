@@ -47,7 +47,7 @@ class FailureContext:
     substrate_state_summary: str = ""  # Brief substrate snapshot
     confidence_at_failure: float = 0.5
     prediction_error_at_failure: float = 0.0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -62,7 +62,7 @@ class DistilledLesson:
     embedding: List[float]
     retrieval_count: int = 0
     helpfulness_score: float = 0.0    # Updated when lesson leads to success
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

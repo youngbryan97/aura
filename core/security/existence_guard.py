@@ -154,7 +154,7 @@ class SealReport:
 class ArkManifest:
     """What is in the ark, and proof of what it was when it went in."""
 
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     entries: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

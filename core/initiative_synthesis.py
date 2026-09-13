@@ -114,7 +114,7 @@ class Impulse:
     drive: str = ""               # which drive it serves (curiosity, social, etc.)
     urgency: float = 0.5          # 0-1
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def fingerprint(self) -> str:
@@ -131,7 +131,7 @@ class SynthesisResult:
     rationale: str = ""
     will_receipt_id: str = ""
     approved: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -141,7 +141,7 @@ class UnresolvedTension:
     source: str                       # conversation, goal_engine, curiosity, etc.
     category: str = "unresolved"      # "topic", "stalled_goal", "question"
     urgency: float = 0.3
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     last_surfaced: float = 0.0        # when it was last offered as an impulse
     surface_count: int = 0            # how many times it has been surfaced
     resolved: bool = False

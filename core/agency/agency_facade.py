@@ -65,7 +65,7 @@ class InitiativeProposal:
     expected_outcome: str = ""
     counterfactuals: tuple[str, ...] = ()
     context_snapshot: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -113,7 +113,7 @@ class ActionReceipt:
     outcome_raw: Any
     success: bool
     side_effects: dict[str, Any] = field(default_factory=dict)
-    executed_at: float = field(default_factory=time.time)
+    executed_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         raw = self.outcome_raw

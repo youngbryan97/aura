@@ -60,7 +60,7 @@ class SpanStatus(StrEnum):
 class SpanEvent:
     """An event within a span (like a log entry)."""
     name: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     attributes: dict[str, Any] = field(default_factory=dict)
 
 
@@ -74,7 +74,7 @@ class Span:
     span_id: str
     name: str
     parent_span_id: str | None = None
-    start_time: float = field(default_factory=time.time)
+    start_time: float = field(default_factory=lambda: time.time())
     end_time: float | None = None
     status: SpanStatus = SpanStatus.UNSET
     attributes: dict[str, Any] = field(default_factory=dict)

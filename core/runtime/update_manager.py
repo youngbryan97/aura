@@ -78,7 +78,7 @@ class Release:
 class UpdateAttempt:
     attempt_id: str
     release: Release
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     backed_up_to: Optional[str] = None
     staged_at: Optional[str] = None
     continuity_hash_before: Optional[str] = None

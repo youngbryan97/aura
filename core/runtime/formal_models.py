@@ -263,7 +263,7 @@ class CapabilityTokenLifecycle:
     """Tokens may be ISSUED -> USED, ISSUED -> EXPIRED, or ISSUED -> REVOKED.
     USED tokens cannot be re-USED. EXPIRED/REVOKED tokens cannot be USED."""
 
-    def __init__(self, *, clock=time.time):
+    def __init__(self, *, clock=lambda: time.time()):
         self._tokens: Dict[str, CapabilityTokenRecord] = {}
         self._clock = clock
 

@@ -83,7 +83,7 @@ class BodyHealthSnapshot:
     total_pressure: float = 0.0
     operational_health: float = 1.0     # 1 = perfect, 0 = critical
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def is_strained(self) -> bool:
         return self.total_pressure > 0.6 or self.fatigue > 0.5

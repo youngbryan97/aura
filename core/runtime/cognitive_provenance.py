@@ -79,7 +79,7 @@ class CognitiveProvenanceGraph:
     tick_id: str
     objective: str = ""
     priority: bool = False
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     ended_at: float = 0.0
     receipts: list[TransformationReceipt] = field(default_factory=list)
 

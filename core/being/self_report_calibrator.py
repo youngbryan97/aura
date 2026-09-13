@@ -58,7 +58,7 @@ class CalibrationResult:
     #: all. Distinct from `calibrated=False`, which means it looked and found
     #: an overclaim.
     lesioned: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ── Forbidden patterns (overclaiming) ──

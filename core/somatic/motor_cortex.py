@@ -101,7 +101,7 @@ class CapabilityToken:
     max_uses: int = -1  # -1 = unlimited
     ttl: float = 3600.0  # 1 hour default
     constraints: list[str] = field(default_factory=list)
-    issued_at: float = field(default_factory=time.time)
+    issued_at: float = field(default_factory=lambda: time.time())
     uses: int = 0
     revoked: bool = False
 
@@ -134,7 +134,7 @@ class ReflexAction:
     priority: ReflexPriority = ReflexPriority.NORMAL
     payload: dict[str, Any] = field(default_factory=dict)
     source: str = "system"
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -148,7 +148,7 @@ class MotorReceipt:
     latency_ms: float
     result_summary: str = ""
     error: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     payload: dict[str, Any] = field(default_factory=dict)
 
 

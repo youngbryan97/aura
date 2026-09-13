@@ -53,7 +53,7 @@ class _ErrorCluster:
     features: Set[str]
     support: int = 1
     error_sum: float = 0.0
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
     @property
     def mean_error(self) -> float:
@@ -72,7 +72,7 @@ class Concept:
     confidence: float
     status: str = "provisional"      # provisional | consolidated
     explained: int = 0               # times it has since recognized a matching event
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

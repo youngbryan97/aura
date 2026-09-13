@@ -91,7 +91,7 @@ class PipelineProposal:
     rollback_plan: str | None = None
     will_receipt_id: str | None = None
     promotion_artifact_path: str | None = None
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     stages_completed: list[str] = field(default_factory=list)
     blocked_at: str | None = None
     blocked_reason: str | None = None

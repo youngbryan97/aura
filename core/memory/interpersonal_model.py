@@ -176,7 +176,7 @@ class Occurrence:
 
     episode_id: str
     provenance: Provenance = Provenance.OBSERVED
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     note: str = ""
 
     def to_dict(self) -> dict[str, object]:

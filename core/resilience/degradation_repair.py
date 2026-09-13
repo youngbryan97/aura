@@ -31,7 +31,7 @@ class DegradationRepairAction:
     subsystem: str
     severity: str
     incident_id: str = ""
-    routed_at: float = field(default_factory=time.time)
+    routed_at: float = field(default_factory=lambda: time.time())
     resilience_state: str = "unavailable"
     self_modification_status: str = "not_requested"
     self_modification_dispatched: bool = False

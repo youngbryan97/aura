@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 class LifeEvent:
     """Structured autobiographical memory representation for Aura."""
     event_id: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     
     # 7-factor narrative attributes
     perceived: Dict[str, Any] = field(default_factory=dict)

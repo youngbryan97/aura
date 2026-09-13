@@ -35,7 +35,7 @@ class SkillOption:
     predicate: Optional[Predicate] = None
     successes: int = 0
     failures: int = 0
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def matches(self, state: EnvironmentState, risk: RiskProfile, goal: EmbodiedGoal) -> bool:
         if self.predicate is not None:

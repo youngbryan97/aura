@@ -221,7 +221,7 @@ class ExplorationItem:
     question: str
     action_type: str
     priority: float
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     completed: bool = False
     finding: str = ""
     status: str = "pending"

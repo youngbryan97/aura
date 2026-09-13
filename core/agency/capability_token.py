@@ -49,7 +49,7 @@ class CapabilityToken:
     requested_action: str
     approver: str
     parent_receipt: str
-    issued_at: float = field(default_factory=time.time)
+    issued_at: float = field(default_factory=lambda: time.time())
     process_gen: str = _PROCESS_GEN
     thread_id: int = field(default_factory=lambda: threading.get_ident())
     task_id: int | None = field(default_factory=_current_task_id)

@@ -66,7 +66,7 @@ class ActionFeedback:
     error_detail: str = ""         # Error details on failure
     source: str = ""               # Who triggered the action
     metadata: Dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def succeeded(self) -> bool:

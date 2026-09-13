@@ -11,7 +11,7 @@ class ExecutionPlan(BaseModel):
     plan_steps: list[str]
     tool_calls: list[ToolCallPayload] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: float = Field(default_factory=time.time)
+    created_at: float = Field(default_factory=lambda: time.time())
     plan_hash: str | None = None
 
 

@@ -366,7 +366,7 @@ class MultimodalSynchronizer:
         policy: FusionPolicy | None = None,
         *,
         monotonic_clock: Callable[[], int] = time.monotonic_ns,
-        wall_clock: Callable[[], float] = time.time,
+        wall_clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         self.policy = policy or FusionPolicy()
         self._monotonic_clock = monotonic_clock

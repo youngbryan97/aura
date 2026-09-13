@@ -182,7 +182,7 @@ class ConscienceDecision:
     rule_id: Optional[str]
     rationale: str
     requires_fresh_user_auth: bool
-    when: float = field(default_factory=time.time)
+    when: float = field(default_factory=lambda: time.time())
 
 
 class Conscience:

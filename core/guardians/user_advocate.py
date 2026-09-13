@@ -33,7 +33,7 @@ class AdvocateReview:
     verdict: str               # "for_user" | "flagged" | "against_user"
     flags: list[str] = field(default_factory=list)
     on_behalf_of_user: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class UserAdvocateWatchdog:

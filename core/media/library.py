@@ -177,7 +177,7 @@ class ScanResult:
     files_seen: int = 0
     truncated: bool = False
     elapsed_s: float = 0.0
-    built_at: float = field(default_factory=time.time)
+    built_at: float = field(default_factory=lambda: time.time())
 
     def narrative(self) -> str:
         where = ", ".join(self.roots_scanned) or "no configured media folders"

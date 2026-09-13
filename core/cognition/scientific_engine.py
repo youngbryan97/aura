@@ -52,8 +52,8 @@ class Hypothesis:
     status: str = "open"            # open | supported | refuted | inconclusive
     trials: int = 0
     supports: int = 0
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     receipt_id: Optional[str] = None
     evidence: List[Dict[str, Any]] = field(default_factory=list)
 

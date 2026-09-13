@@ -205,7 +205,7 @@ class AdmissionDecision:
     observation_source: str = "unavailable"
     observation_scenario_id: str = ""
     resource_observation_available: bool = False
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -147,7 +147,7 @@ class MutationProposal:
     semantic_surfaces: tuple[SemanticSurface, ...] = ()
     expected_behavior_delta: str = "equivalent"
     smell_ids: tuple[str, ...] = ()
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -176,7 +176,7 @@ class RefactorPlan:
     expected_behavior_delta: str
     promotion_eligible: bool
     proposal: MutationProposal | None = None
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def changed_files(self) -> tuple[str, ...]:
@@ -218,7 +218,7 @@ class BehaviorFingerprint:
     memory_state_write_checks: dict[str, Any]
     latency_resource: dict[str, Any]
     optional_runtime_metrics: dict[str, Any]
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -254,7 +254,7 @@ class ProofReceipt:
     rollback_packet_hash: str
     shadow_artifact_path: str
     decision_hash: str = ""
-    generated_at: float = field(default_factory=time.time)
+    generated_at: float = field(default_factory=lambda: time.time())
 
     @property
     def passed(self) -> bool:
@@ -299,7 +299,7 @@ class PromotionDecision:
     reason: str
     receipt_hash: str
     promoted_files: tuple[str, ...] = ()
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -322,7 +322,7 @@ class ArchitectureGraph:
     ownership: dict[str, OwnershipDomain] = field(default_factory=dict)
     runtime_receipts: list[RuntimeReceipt] = field(default_factory=list)
     metrics: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     def add_node(self, node: ArchitectureNode) -> None:
         self.nodes[node.id] = node

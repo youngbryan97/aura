@@ -199,7 +199,7 @@ class CalmWitness:
     """
 
     def __init__(self, sampler: Callable[[], dict[str, float]] | None = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = lambda: time.time()):
         self._sampler = sampler
         self._clock = clock
 
@@ -491,7 +491,7 @@ class UlyssesCovenant:
 
     def __init__(self, *, root: Path | None = None,
                  witness: CalmWitness | None = None,
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = lambda: time.time()):
         env_root = str(_COVENANT_DIR_FLAG.value() or "")
         self.root = Path(root) if root else (
             Path(env_root) if env_root else (state_root() / "data" / "covenant")

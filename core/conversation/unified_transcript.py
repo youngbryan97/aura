@@ -57,7 +57,7 @@ class TranscriptEntry:
     content: str                # The actual message content
     channel: ChannelType        # How it arrived/was delivered
     modality: ModalityType = "typed"  # Specific delivery mechanism
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     metadata: dict[str, Any] = field(default_factory=dict)
     conversation_id: str = LOCAL_CONVERSATION_ID
 

@@ -106,7 +106,7 @@ class SourceReport:
 class HarvestReport:
     """One pass over every source."""
 
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     sources: tuple[SourceReport, ...] = ()
 
     @property

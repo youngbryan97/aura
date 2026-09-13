@@ -54,7 +54,7 @@ class CognitiveSnapshot:
     #: measurement, which is how an ungraded turn became evidence.
     identity_coherence: float | None
     cross_linkage_density: float # Estimated neural complexity (cross-topic refs)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     recommendation: str = ""
 
 

@@ -77,7 +77,7 @@ class LearningClaim:
     #: Improvement, and what it improved over.
     outcome_delta: float | None = None
     comparator: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def missing(self) -> tuple[Link, ...]:

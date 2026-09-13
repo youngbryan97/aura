@@ -137,7 +137,7 @@ class Outcome:
     #: Scalar utility in [0, 1] when the resolver could measure one. Always
     #: ``None`` for UNOBSERVED — an unmeasured outcome has no magnitude either.
     utility: float | None = None
-    resolved_at: float = field(default_factory=time.time)
+    resolved_at: float = field(default_factory=lambda: time.time())
     #: Who resolved it and how, e.g. ``"executive.intent_complete"``. The
     #: resolver's identity is part of the evidence: a label is only as good as
     #: the thing that produced it.
@@ -201,7 +201,7 @@ class Episode:
     provenance: Provenance = Provenance.LIVE
     feature_schema: str = ""
     episode_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    decided_at: float = field(default_factory=time.time)
+    decided_at: float = field(default_factory=lambda: time.time())
     outcome: Outcome | None = None
     repeat_count: int = 1
     #: Free-form context for forensics. Never used as a feature — anything a

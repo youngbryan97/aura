@@ -69,7 +69,7 @@ class SelfModelDelta:
     old_value: Any
     new_value: Any
     cause: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -161,7 +161,7 @@ class CanonicalSelf:
 
     # ── Versioning ───────────────────────────────────────────────────────
     version: int = 0
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 # ─────────────────────────────────────────────────────────────────────────────

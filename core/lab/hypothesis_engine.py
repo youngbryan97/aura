@@ -20,7 +20,7 @@ class Hypothesis:
     variables: Dict[str, str] = field(default_factory=dict)
     falsifiable: bool = True
     confidence: float = 0.5
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 class HypothesisEngine:

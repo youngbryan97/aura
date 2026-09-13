@@ -18,7 +18,7 @@ class ProgressEntry:
     campaign_id: str
     milestone_id: str
     event: str
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     details: str = ""
 
 

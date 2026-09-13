@@ -235,7 +235,7 @@ class ModificationProposal:
     changes: dict[str, Any]       # Structured change data
     source: str                   # Which subsystem proposed this
     priority: float = 0.5         # 0-1
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def content_hash(self) -> str:
         """Bind authorization to the WHOLE artifact, not just its prose.
@@ -335,7 +335,7 @@ class ModificationReceipt:
     zone: str = ""
     simulation_result: str = ""
     content_hash: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -81,7 +81,7 @@ class ArmAction:
     action_idx: int
     confidence: float             # [0, 1]
     local_sensors: np.ndarray     # (SENSOR_CHANNELS,)
-    ts: float = field(default_factory=time.time)
+    ts: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

@@ -86,7 +86,7 @@ class Channel(StrEnum):
 class Permission:
     channel: str
     granted: bool
-    granted_at: float = field(default_factory=time.time)
+    granted_at: float = field(default_factory=lambda: time.time())
     notes: str = ""
     expires_at: float | None = None
     fresh_auth_required: bool = False

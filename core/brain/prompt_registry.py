@@ -25,8 +25,8 @@ class PromptEntry:
     name: str
     text: str
     version: int = 1
-    created_at: float = field(default_factory=time.time)
-    last_modified: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_modified: float = field(default_factory=lambda: time.time())
     category: str = "system"  # "system", "reflection", "tool", "persona"
     description: str = ""
 

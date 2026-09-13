@@ -95,7 +95,7 @@ class ActionReceipt:
     capability_token: str | None
     execution_receipt: str | None
     outcome_assessment: dict[str, Any]
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: float | None = None
     blocked_at: str | None = None
     blocked_reason: str | None = None

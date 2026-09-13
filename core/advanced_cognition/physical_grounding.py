@@ -95,7 +95,7 @@ class TrackedObject:
     position: tuple[float, float, float] | None = None
     velocity: tuple[float, float, float] = (0.0, 0.0, 0.0)
     confidence: float = 0.5
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
     attributes: dict[str, Any] = field(default_factory=dict)
     history: deque = field(default_factory=lambda: deque(maxlen=32))
     #: How this object's id was derived. "natural" survives reordering;
@@ -157,7 +157,7 @@ class GroundedState:
     confidence: float
     domain: str = ""
     confidence_basis: str = ""
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

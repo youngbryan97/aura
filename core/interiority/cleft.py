@@ -141,7 +141,7 @@ class _Terminal:
     facilitation: float = 0.0
     releases: int = 0
     failures: int = 0
-    last_step: float = field(default_factory=time.time)
+    last_step: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)

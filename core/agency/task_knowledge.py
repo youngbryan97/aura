@@ -186,7 +186,7 @@ class TaskKnowledge:
     stuck: bool = False
     #: Which kind of question was asked, and therefore which source answered.
     asking: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def known(self) -> bool:

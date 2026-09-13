@@ -23,7 +23,7 @@ class GhostBootReport:
     results: tuple[ProofResult, ...]
     graph_metrics: dict[str, Any]
     artifact_path: str
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
 
     def result_map(self) -> dict[str, ProofResult]:
         return {result.obligation_id: result for result in self.results}

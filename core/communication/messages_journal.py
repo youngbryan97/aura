@@ -125,7 +125,7 @@ class MessagesDeliveryJournal:
         self,
         db_path: str | Path | None = None,
         *,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
         busy_timeout_s: float = 3.0,
     ) -> None:
         self.db_path = Path(db_path or default_messages_journal_path()).expanduser()

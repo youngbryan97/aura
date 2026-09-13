@@ -1433,7 +1433,7 @@ class ModelLaneController:
         process_discovery: ProcessDiscoveryProbe | None = discover_external_model_processes,
         policy: LaneAdmissionController | None = None,
         observer: ResourceObserver | None = None,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         configured_state_path = str(
             os.environ.get("AURA_MODEL_LANE_STATE_PATH", "") or ""

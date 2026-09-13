@@ -177,7 +177,7 @@ class CognitiveCandidate:
     content_type: ContentType = ContentType.UNKNOWN
     affect_weight: float = 0.0        # Emotional urgency boost (from AffectEngine)
     focus_bias: float = 0.0           # Priority boost for focused attention (from AttentionSchema)
-    submitted_at: float = field(default_factory=time.time)
+    submitted_at: float = field(default_factory=lambda: time.time())
     gate_instance_id: str = field(default="", repr=False)
     gate_checked_at: float = field(default=0.0, repr=False)
     metadata: dict[str, Any] = field(default_factory=dict, compare=False)
@@ -288,14 +288,14 @@ class BroadcastEvent:
     Compatible with PhenomenologicalExperiencer.
     """
     winners: list[CognitiveCandidate]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
 class BroadcastRecord:
     winner: CognitiveCandidate
     losers: list[str]          # source names of losers
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)

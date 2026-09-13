@@ -54,7 +54,7 @@ class OutboundMessage:
     body: str
     intent: str
     drive: str
-    when: float = field(default_factory=time.time)
+    when: float = field(default_factory=lambda: time.time())
     signature: Optional[str] = None
     will_receipt_id: Optional[str] = None
     capability_token: Optional[str] = None
@@ -67,7 +67,7 @@ class InboundMessage:
     channel: str
     sender: str
     body: str
-    when: float = field(default_factory=time.time)
+    when: float = field(default_factory=lambda: time.time())
 
 
 # ─── transport interface ──────────────────────────────────────────────────

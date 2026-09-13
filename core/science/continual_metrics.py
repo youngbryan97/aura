@@ -180,7 +180,7 @@ class Artifact:
     interference: float = 0.0
     storage_cost: float = 0.0
     match_cost: float = 0.0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     last_used: float = 0.0
     retired: bool = False
     retired_because: str = ""

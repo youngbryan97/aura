@@ -109,8 +109,8 @@ class Belief:
     source: str                           # Where this belief came from
     state: BeliefState = BeliefState.TENTATIVE
     contradicts: List[str] = field(default_factory=list)  # IDs of conflicting beliefs
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     evidence_for: List[str] = field(default_factory=list)   # Supporting evidence
     evidence_against: List[str] = field(default_factory=list)  # Contrary evidence
     tags: List[str] = field(default_factory=list)
@@ -143,7 +143,7 @@ class ParadoxState:
     weight_a: float          # Relative confidence weight of belief A
     weight_b: float          # Relative confidence weight of belief B
     tension: float           # 0-1, how strongly they conflict
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     resolution_notes: str = ""  # Optional notes about why both are held
     domain: str = ""            # Topic area (e.g., "ethics", "self-model", "world-model")
 

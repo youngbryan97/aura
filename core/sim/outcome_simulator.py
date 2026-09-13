@@ -85,7 +85,7 @@ class SimulationResult:
     recommendation: str        # "act" | "act_with_safeguards" | "hold"
     expected_value: float
     worst_case_harm: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class OutcomeSimulationEngine:

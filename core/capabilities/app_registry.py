@@ -88,7 +88,7 @@ class InstalledApp:
     known_issues: List[str] = field(default_factory=list)
     adapter_class: str = ""          # which adapter handles this app
     last_used: float = 0.0
-    discovered_at: float = field(default_factory=time.time)
+    discovered_at: float = field(default_factory=lambda: time.time())
 
 
 # ---------------------------------------------------------------------------

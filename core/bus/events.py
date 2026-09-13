@@ -87,7 +87,7 @@ class Event:
     """
 
     priority: EventPriority = field(default=EventPriority.NORMAL, compare=True)
-    ts: float = field(default_factory=time.time, compare=True)
+    ts: float = field(default_factory=lambda: time.time(), compare=True)
     type: EventType = field(default=EventType.SYSTEM, compare=False)
     topic: str = field(default="", compare=False)
     payload: dict[str, Any] = field(default_factory=dict, compare=False)

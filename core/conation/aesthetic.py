@@ -66,7 +66,7 @@ class CompressionTrace:
     #: a working model, not an archive, and an unbounded buffer keyed on
     #: arbitrary payloads is a leak with a respectable name.
     model: bytes = b""
-    last_seen: float = field(default_factory=time.time)
+    last_seen: float = field(default_factory=lambda: time.time())
 
     MAX_HISTORY = 32
     MAX_MODEL_BYTES = 8192

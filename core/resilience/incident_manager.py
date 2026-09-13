@@ -47,8 +47,8 @@ class Incident:
     root_cause_hint: str = ""
     mitigation_taken: str = ""
     status: IncidentStatus = IncidentStatus.ACTIVE
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     resolved_at: float = 0.0
     occurrence_count: int = 1
     metadata: Dict[str, Any] = field(default_factory=dict)

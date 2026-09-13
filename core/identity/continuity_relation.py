@@ -90,7 +90,7 @@ class Step:
     origin: str = "self"
     #: The step this one followed. Empty for the first.
     parent: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def changed_fraction(self) -> float:

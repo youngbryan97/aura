@@ -86,7 +86,7 @@ class BlockEdit:
     after: str
     author: str
     reason: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass

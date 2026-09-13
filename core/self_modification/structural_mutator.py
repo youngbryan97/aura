@@ -45,7 +45,7 @@ class MutationRequest:
     operation: str
     payload: Dict[str, Any]
     rationale: str
-    requested_at: float = field(default_factory=time.time)
+    requested_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)

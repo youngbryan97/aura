@@ -107,7 +107,7 @@ class WorldModelPrediction:
     latent_mean: np.ndarray         # Posterior mean
     latent_logvar: np.ndarray       # Posterior log-variance
     confidence: float               # 1.0 - surprise (how confident the prediction is)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

@@ -121,7 +121,7 @@ class Proposal:
     reason: str = ""
     silence_exempt: bool = False
     prediction_id: str | None = None
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     decided_at: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -147,7 +147,7 @@ class Prediction:
     claim: str
     p_hat: float
     resolve_by: float
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     outcome: Outcome | None = None
     resolved_at: float | None = None
 

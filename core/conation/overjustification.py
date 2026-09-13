@@ -71,7 +71,7 @@ class ContaminationRecord:
     total_payoff: float = 0.0
     intrinsic_at_first_payoff: float | None = None
     intrinsic_latest: float | None = None
-    last_update: float = field(default_factory=time.time)
+    last_update: float = field(default_factory=lambda: time.time())
 
     def observe(self, payoff: float, intrinsic_now: float) -> None:
         self.payoffs += 1

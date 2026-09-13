@@ -88,7 +88,7 @@ class AnInterruption:
     #: does not have to work it out again.
     was_about_to: Any = None
     said: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     resumed: int = 0
 
     @property

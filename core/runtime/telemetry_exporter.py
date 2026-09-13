@@ -20,7 +20,7 @@ class MetricSample:
     name: str
     value: float
     labels: Dict[str, str] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -29,7 +29,7 @@ class TraceSpan:
     span_id: str
     name: str
     parent_id: Optional[str] = None
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     ended_at: Optional[float] = None
     attrs: Dict[str, Any] = field(default_factory=dict)
 

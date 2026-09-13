@@ -45,7 +45,7 @@ class FactoryJob:
     repo_path: str
     objective: str
     stage: PipelineStage = PipelineStage.MAPPING
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=lambda: time.time())
     completed_at: float = 0.0
     repo_map: dict[str, Any] | None = None
     plan: dict[str, Any] | None = None

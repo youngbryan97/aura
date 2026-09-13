@@ -144,7 +144,7 @@ class ThreatSignal:
     severity: float   # 0.0–1.0
     evidence: dict[str, Any] = field(default_factory=dict)
     threat_class: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class EmergencyProtocol:

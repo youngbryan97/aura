@@ -121,7 +121,7 @@ class Checkpoint:
 
     name: str
     seq: int
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     lane: Lane | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -181,7 +181,7 @@ class EventLog:
         lane: Lane = Lane.SYSTEM,
         actor: str = "",
         causal_parent: int = 0,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
     ) -> Event:
         # The interprocess lock OUTSIDE the thread lock, deliberately. It
         # blocks, and a blocking call under a lock is what lockdep refuses and

@@ -142,7 +142,7 @@ class PracticeDirector:
         self,
         data_dir: Path | str | None = None,
         *,
-        now: Callable[[], float] = time.time,
+        now: Callable[[], float] = lambda: time.time(),
     ) -> None:
         if data_dir is None:
             from core.config import get_config

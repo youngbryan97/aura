@@ -104,7 +104,7 @@ class Rendering:
     text: str
     state_digest: str
     generator: str
-    rendered_at: float = field(default_factory=time.time)
+    rendered_at: float = field(default_factory=lambda: time.time())
     #: The numbers it was written from. Kept, not just digested, because
     #: calibration needs the distance between two states and a hash has none.
     state: Mapping[str, float] = field(default_factory=dict)

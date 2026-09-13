@@ -564,7 +564,7 @@ class StandingAuthorityManager:
         state_gateway: Any | None = None,
         receipt_store: Any | None = None,
         token_store: CapabilityTokenStore | None = None,
-        clock: Any = time.time,
+        clock: Any = lambda: time.time(),
         persistence_enabled: bool = True,
     ) -> None:
         self._builtins = {grant.grant_id: grant for grant in _builtin_grants()}

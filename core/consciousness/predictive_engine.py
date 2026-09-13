@@ -26,7 +26,7 @@ class Prediction:
     expected_state_vector: np.ndarray | None = None # Predicted substrate state
     expected_changes: dict[str, Any] = field(default_factory=dict)
     confidence: float = 0.8 # Precision
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 class PredictiveEngine:
     """Manages the hierarchy of predictions and error minimization.

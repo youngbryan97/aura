@@ -62,7 +62,7 @@ class HealthSnapshotReadModel:
         *,
         config: HealthReadModelConfig | None = None,
         clock: Callable[[], float] = time.monotonic,
-        wall_clock: Callable[[], float] = time.time,
+        wall_clock: Callable[[], float] = lambda: time.time(),
     ) -> None:
         self._collector = collector
         self._fallback_factory = fallback_factory

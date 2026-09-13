@@ -278,7 +278,7 @@ class PhiResult:
     mip_phi_value: float           # φ at the MIP (should equal phi_s)
     all_partition_phis: list[float] # φ for every bipartition (the Φ-structure shape)
     tpm_n_samples: int             # How many transitions the TPM was built from
-    computed_at: float = field(default_factory=time.time)
+    computed_at: float = field(default_factory=lambda: time.time())
 
     # ── What this number is a measurement OF ──────────────────────────────
     # Exact IIT over the 4096-unit mesh is O(2^N) and intractable, so every φ

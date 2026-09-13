@@ -137,7 +137,7 @@ class HumorAttempt:
     """Privacy-safe delivered-attempt evidence awaiting one reaction."""
 
     id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    delivered_at: float = field(default_factory=time.time)
+    delivered_at: float = field(default_factory=lambda: time.time())
     expires_at: float = 0.0
     humor_type: str = "observational"
     response_digest: str = ""
@@ -354,7 +354,7 @@ class BanterState:
     should_escalate: bool = False
     should_land: bool = False
     max_safe_escalation: float = 0.2
-    _last_volley_time: float = field(default_factory=time.time)
+    _last_volley_time: float = field(default_factory=lambda: time.time())
 
     def public_copy(self) -> BanterState:
         return BanterState(**asdict(self))
@@ -379,7 +379,7 @@ class HumorEngine:
         data_path: Path | None = None,
         *,
         authority: RelationalMemoryAuthority | None = None,
-        now_fn: Any = time.time,
+        now_fn: Any = lambda: time.time(),
     ) -> None:
         if data_path is None:
             try:

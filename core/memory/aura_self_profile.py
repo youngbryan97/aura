@@ -45,7 +45,7 @@ class SelfProfileFact:
     key: str       # "good_at_debugging", "prefers_detail", "shared_starship_dream"
     value: str
     confidence: float = 0.8
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     evidence_count: int = 1  # How many times this has been reinforced
     source_fact_ids: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)

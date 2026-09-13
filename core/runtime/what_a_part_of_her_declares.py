@@ -83,7 +83,7 @@ class APart:
     #: When it entered that state. A report without this cannot tell a part
     #: that started a second ago from one that has been wedged since boot,
     #: and both of them read as the same word.
-    alive_since: float = field(default_factory=time.time)
+    alive_since: float = field(default_factory=lambda: time.time())
     why_refused: str = ""
     start: Any = None
     stop: Any = None

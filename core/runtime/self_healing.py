@@ -165,7 +165,7 @@ def _deep_repair_block_reason(origin: str = "self_healing_deep_repair") -> str:
 @dataclass
 class WatchEntry:
     name: str
-    last_heartbeat_at: float = field(default_factory=time.time)
+    last_heartbeat_at: float = field(default_factory=lambda: time.time())
     expected_interval_s: float = 30.0
     restart_async: Callable[[], Awaitable[None]] | None = None
     container_key: str | None = None

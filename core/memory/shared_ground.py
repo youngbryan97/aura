@@ -23,8 +23,8 @@ class SharedGroundEntry:
     context: str
     salience: float
     callback_count: int = 0
-    created_at: float = field(default_factory=time.time)
-    last_referenced: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_referenced: float = field(default_factory=lambda: time.time())
     tags: list[str] = field(default_factory=list)
     agent_id: str = ""
     record_id: str = ""

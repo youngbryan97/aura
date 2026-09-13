@@ -67,8 +67,8 @@ class ResilienceProfile:
     depletion: float = 0.0  # accumulated exhaustion 0–1 (slower decay)
     persistence_drive: float = 0.5  # motivation to continue despite failure
     failure_history: list[FailureEvent] = field(default_factory=list)
-    last_rest: float = field(default_factory=time.time)
-    last_update: float = field(default_factory=time.time)
+    last_rest: float = field(default_factory=lambda: time.time())
+    last_update: float = field(default_factory=lambda: time.time())
 
 
 class ResilienceEngine:

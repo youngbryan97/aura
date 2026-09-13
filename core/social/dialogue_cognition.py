@@ -156,7 +156,7 @@ class DialogueCognitionProfile:
     shared_reference_bank: list[str] = field(default_factory=list)
     interactions_analyzed: int = 0
     confidence: float = 0.0
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

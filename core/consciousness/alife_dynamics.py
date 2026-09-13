@@ -679,7 +679,7 @@ class ALifeState:
     # Allostatic consolidation signals (defaulted for back-compat constructors)
     entropy_needs_consolidation: bool = False  # entropy at/above allostatic line
     entropy_consolidating: bool = False        # a rest/consolidation fired this tick
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 class ALifeDynamics:

@@ -278,7 +278,7 @@ class Report:
     tasks_externally_authored: int
     budget: Budget
     seal: str
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def verdict(self) -> str:

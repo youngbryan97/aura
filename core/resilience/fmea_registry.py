@@ -45,7 +45,7 @@ class FMEAEntry:
     fault_id: str
     mitigations: list[MitigationAction] = field(default_factory=list)
     notes: str = ""
-    last_reviewed: float = field(default_factory=time.time)
+    last_reviewed: float = field(default_factory=lambda: time.time())
     review_owner: str = "system"
 
     def is_mitigated(self) -> bool:

@@ -58,7 +58,7 @@ class StateExpression:
     valence: float              # Affective tone
     prediction_error: float     # Surprise
     loop_strength: float        # Self-reference depth
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     # Expressive aspect — computed simultaneously, not derived after
     first_person: str = ""

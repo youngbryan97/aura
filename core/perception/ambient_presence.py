@@ -158,7 +158,7 @@ class ScreenContext:
 
     app: str = ""
     title: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     adapter: str = ""
     receipt_id: str = ""
     duration_ms: float = 0.0

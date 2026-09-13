@@ -66,8 +66,8 @@ class IdentityFact:
     confidence: float = 0.8
     source: str = "identity_chronicle"
     tags: tuple[str, ...] = field(default_factory=tuple)
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     fact_id: str = ""
 
     def __post_init__(self) -> None:

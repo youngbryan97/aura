@@ -90,7 +90,7 @@ class CognitiveTransaction:
     evidence_id: str
     state: TransactionState = TransactionState.OPEN
     participants: list[Participant] = field(default_factory=list)
-    opened_at: float = field(default_factory=time.time)
+    opened_at: float = field(default_factory=lambda: time.time())
     log: list[str] = field(default_factory=list)
 
     def join(

@@ -81,7 +81,7 @@ class CognitiveStateRef:
     kind: str
     payload: Any
     owner: str
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     evidence: EvidencePacket | None = None
     parents: tuple[str, ...] = ()
     version: int = 0

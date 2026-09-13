@@ -211,7 +211,7 @@ class MetricReading:
     meets_target: bool | None = None
     weight: float = 1.0
     unit: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -317,7 +317,7 @@ class CognitiveSelfModel:
 
     assessments: tuple[FacultyAssessment, ...]
     binding_constraint: str | None
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def by_id(self, faculty_id: str) -> FacultyAssessment | None:
         for assessment in self.assessments:

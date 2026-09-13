@@ -72,7 +72,7 @@ class CredentialBroker:
         self,
         vault: Mapping[str, str],
         *,
-        clock: Callable[[], float] = time.time,
+        clock: Callable[[], float] = lambda: time.time(),
         default_ttl: float = 60.0,
     ) -> None:
         self._lock = checked_lock("core.security.credential_broker.CredentialBroker", reentrant=True)

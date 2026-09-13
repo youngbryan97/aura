@@ -764,7 +764,7 @@ class AllostasisEngine:
         self,
         *,
         specs: tuple[VitalSpec, ...] | None = None,
-        now_fn: Callable[[], float] = time.time,
+        now_fn: Callable[[], float] = lambda: time.time(),
         data_dir: Path | str | None = None,
         history_maxlen: int = 240,            # 4 h at the 60 s metabolic pulse
         trend_window_s: float = 3600.0,

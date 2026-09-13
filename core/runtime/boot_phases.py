@@ -54,7 +54,7 @@ class BootSnapshot:
     blocked_on: List[str] = field(default_factory=list)
     organs: Dict[str, str] = field(default_factory=dict)
     started_at: float = 0.0
-    last_transition_at: float = field(default_factory=time.time)
+    last_transition_at: float = field(default_factory=lambda: time.time())
     last_change: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:

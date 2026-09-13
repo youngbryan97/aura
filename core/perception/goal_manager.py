@@ -30,8 +30,8 @@ class EmbodiedGoal:
     reason: str = ""
     status: GoalStatus = GoalStatus.ACTIVE
     invariant: bool = False
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
     constraints: List[str] = field(default_factory=list)
     success_conditions: List[str] = field(default_factory=list)
     abort_conditions: List[str] = field(default_factory=list)

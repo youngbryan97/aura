@@ -20,7 +20,7 @@ class TemporalEvent:
     source: str                     # Which system generated this
     valence: float = 0.0           # Emotional valence at time of event (-1 to 1)
     significance: float = 0.5      # How significant was this? (0.0–1.0)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     bound_to_prev: bool = False    # Has this been linked to the preceding event?
 
     def age_seconds(self) -> float:

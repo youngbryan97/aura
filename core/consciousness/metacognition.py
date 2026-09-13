@@ -223,7 +223,7 @@ class Reflection:
     content: str
     source_id: str  # ID of the experience/thought being reflected on
     impact_score: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     parent_reflection: Optional[str] = None
     tags: List[str] = field(default_factory=list)
 

@@ -131,7 +131,7 @@ class AnomalyScore:
     feature_vector: np.ndarray
     is_anomaly: bool
     trajectory_slope: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a plain dictionary for logging and event bus."""

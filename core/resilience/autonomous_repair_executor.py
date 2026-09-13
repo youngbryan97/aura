@@ -42,7 +42,7 @@ class AutonomousRepairRequest:
     context: dict[str, Any] = field(default_factory=dict)
     incident_id: str = ""
     occurrence_count: int = 0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
 
     @property
     def fingerprint(self) -> str:

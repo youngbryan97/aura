@@ -105,7 +105,7 @@ class WorldResult:
     success: bool
     data: Any = None
     error_info: Optional[AdapterError] = None
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     adapter_name: str = ""
     latency_ms: float = 0.0
     metadata: Dict[str, Any] = field(default_factory=dict)

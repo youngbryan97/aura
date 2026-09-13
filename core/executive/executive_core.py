@@ -339,7 +339,7 @@ class Intent:
     blocking: bool = False  # does this block other operations?
     requires_tool: bool = False
     requires_memory_commit: bool = False
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -351,7 +351,7 @@ class DecisionRecord:
     coherence_at_decision: float = 1.0
     identity_check: bool = True  # did this pass identity assertion?
     constraints: Dict[str, Any] = field(default_factory=dict)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> Dict[str, Any]:
         return {

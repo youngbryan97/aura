@@ -133,7 +133,7 @@ class AuraMessage:
     # Metadata
     urgency: float = 0.5  # 0.0-1.0
     source_identity: str = "Aura"  # Who sent this
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     message_id: str = ""  # Unique ID (auto-generated if empty)
 
     def __post_init__(self):

@@ -68,7 +68,7 @@ class DiagnosticStatus:
     level: Level
     message: str
     values: dict[str, Any] = field(default_factory=dict)
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     hardware_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:

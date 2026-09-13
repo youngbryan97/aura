@@ -98,7 +98,7 @@ class Observation:
     name: str
     value: Any
     source: str
-    recorded_at: float = field(default_factory=time.time)
+    recorded_at: float = field(default_factory=lambda: time.time())
     units: str = ""
     tolerance: float = 0.0
     note: str = ""
@@ -344,7 +344,7 @@ class TestResult:
     score: Score
     prediction: Any = None
     duration_s: float = 0.0
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     @property
     def passed(self) -> bool:

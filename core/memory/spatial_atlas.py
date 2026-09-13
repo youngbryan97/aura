@@ -20,7 +20,7 @@ class EvidenceItem:
     name: str
     appearance: str
     hypotheses: List[Dict[str, Any]] = field(default_factory=list)
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass

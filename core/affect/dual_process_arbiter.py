@@ -81,7 +81,7 @@ class Judgment:
     probability: float
     channel: str
     grounds: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         self.probability = min(max(float(self.probability), 0.0), 1.0)

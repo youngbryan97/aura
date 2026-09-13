@@ -54,7 +54,7 @@ class ArticleExtract:
     body: str = ""
     source_domain: str = ""
     word_count: int = 0
-    extracted_at: float = field(default_factory=time.time)
+    extracted_at: float = field(default_factory=lambda: time.time())
     #: The URL actually fetched after redirects — which is what the content
     #: is FROM, and need not be the URL that was requested.
     final_url: str = ""

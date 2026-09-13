@@ -108,7 +108,7 @@ class Frame:
     mime_type: str = "image/jpeg"
     width: int = 0
     height: int = 0
-    captured_at: float = field(default_factory=time.time)
+    captured_at: float = field(default_factory=lambda: time.time())
 
     @property
     def age_s(self) -> float:

@@ -151,7 +151,7 @@ class SocialPost:
     author: str = "aura"
     post_id: str | None = None
     parent_id: str | None = None  # for replies/threads
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     likes: int = 0
     reposts: int = 0
     replies_count: int = 0
@@ -167,7 +167,7 @@ class SocialInteraction:
     target_id: str | None
     target_content: str | None
     outcome: str  # "success" | "error" | "rate_limited" | "skipped"
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
     emotional_response: str | None = None
 
 @dataclass
@@ -188,7 +188,7 @@ class SocialEngagementSignal:
     platform: str
     intensity: float  # [0–1]
     positive: bool = True
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 # ────────────────────────────────────────────────────────────────────────────
 # Platform Adapters

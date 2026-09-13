@@ -31,7 +31,7 @@ logger = logging.getLogger("PNEUMA.PrecisionEngine")
 class FHNState:
     v: float = -1.2       # membrane potential
     w: float = -0.6       # recovery variable
-    t: float = field(default_factory=time.time)
+    t: float = field(default_factory=lambda: time.time())
 
 
 class FHNOscillator:

@@ -77,7 +77,7 @@ class UnifiedFeltState:
     dominant_drive: str
     authoritative_source: str           # "being" (grounded) or "kernel" (fallback)
     sources: tuple[str, ...]
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def coherent(self) -> bool:

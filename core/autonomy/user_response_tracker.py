@@ -26,7 +26,7 @@ logger = logging.getLogger("Aura.Autonomy.UserResponseTracker")
 @dataclass
 class ProactiveEvent:
     """Record of a proactive message sent to the user."""
-    sent_at: float = field(default_factory=time.time)
+    sent_at: float = field(default_factory=lambda: time.time())
     source: str = ""
     responded: bool = False
     response_time_s: Optional[float] = None

@@ -131,7 +131,7 @@ class ConversationalProfile:
 
     # --- Meta ---
     interactions_analyzed: int = 0
-    last_updated: float = field(default_factory=time.time)
+    last_updated: float = field(default_factory=lambda: time.time())
     confidence: float = 0.0  # 0-1, grows with interactions
 
     def to_dict(self) -> dict[str, Any]:

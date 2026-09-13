@@ -45,8 +45,8 @@ class Tension:
     category: TensionCategory
     description: str
     severity: float                          # 0.0–1.0
-    created_at: float = field(default_factory=time.time)
-    last_checked_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_checked_at: float = field(default_factory=lambda: time.time())
     resolution_attempts: int = 0
     source_subsystem: str = "unknown"
     related_beliefs: List[str] = field(default_factory=list)

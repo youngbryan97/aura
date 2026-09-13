@@ -56,7 +56,7 @@ class ResourceBudget:
     capacity: float
     level: float
     decay_rate_per_sec: float  # Positive means it goes DOWN per sec
-    last_tick: float = field(default_factory=time.time)
+    last_tick: float = field(default_factory=lambda: time.time())
 
     def tick(self):
         now = time.time()

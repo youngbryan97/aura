@@ -66,8 +66,8 @@ class Commitment:
     deadline: float             # epoch timestamp
     progress: float = 0.0
     status: CommitmentStatus = CommitmentStatus.ACTIVE
-    created_at: float = field(default_factory=time.time)
-    last_checkin: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    last_checkin: float = field(default_factory=lambda: time.time())
     checkin_count: int = 0
     notes: List[str] = field(default_factory=list)
 

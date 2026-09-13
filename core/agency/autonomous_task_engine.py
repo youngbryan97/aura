@@ -187,7 +187,7 @@ class TaskPlan:
     token_id: str | None = None  # Associated CapabilityToken
     is_shadow: bool = False  # If true, no side effects
     requires_approval: bool = False  # If high cost/complexity
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     completed_at: float | None = None
     status: str = "pending"
     final_result: str | None = None

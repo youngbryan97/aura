@@ -24,7 +24,7 @@ class LearningTask:
     expected: Any
     strategy: str = "default"
     iteration: int = 0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

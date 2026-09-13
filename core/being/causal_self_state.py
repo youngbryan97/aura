@@ -61,7 +61,7 @@ class CausalSignal:
     confidence: float
     status: str = "observed"
     note: str = ""
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -129,7 +129,7 @@ class CausalSelfVector:
     causal_valenced_workspace: CausalValencedWorkspaceState | None = None
     aura_state_hash: str = ""
     tick: int = 0
-    created_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
     version: str = "aura-being-v3-main15"
 
     def value(self, name: str, default: float = 0.0) -> float:

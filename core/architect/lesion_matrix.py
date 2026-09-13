@@ -100,7 +100,7 @@ class ProbeResult:
     """Result of a single behavioral probe."""
     name: str
     value: float
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
 
 @dataclass
@@ -116,7 +116,7 @@ class LesionResult:
     #: the criticality average rather than counted as zero impact.
     unavailable_metrics: tuple[str, ...] = ()
     restore_verified: bool = True
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @staticmethod
     def _round(values: Dict[str, Optional[float]], places: int) -> Dict[str, Any]:
@@ -153,7 +153,7 @@ class LesionMatrix:
     probe_failures: Dict[str, int] = field(default_factory=dict)
     step_failures: int = 0
     restore_failures: tuple[str, ...] = ()
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def _row(self, index: int) -> np.ndarray:
         row = np.asarray(self.matrix[index], dtype=np.float64)

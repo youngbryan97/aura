@@ -203,7 +203,7 @@ class Message:
     role: str  # "user", "aura", "system"
     content: str
     type: MessageType = MessageType.SPEECH
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -225,7 +225,7 @@ class ConversationContext:
     history: list[Message] = field(default_factory=list)  # Rolling context window
     last_user_sentiment: str | None = None
     recent_response_patterns: list[str] = field(default_factory=list)
-    last_accessed_at: float = field(default_factory=time.time)
+    last_accessed_at: float = field(default_factory=lambda: time.time())
 
     def add_message(
         self, role: str, content: str, msg_type: MessageType = MessageType.SPEECH

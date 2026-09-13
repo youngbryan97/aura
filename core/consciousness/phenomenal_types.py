@@ -42,7 +42,7 @@ class Quale:
     arousal: float  # 0..1
     intensity: float  # 0..1
     source_content: str  # what workspace content produced this
-    timestamp: float = field(default_factory=time.time)
+    timestamp: float = field(default_factory=lambda: time.time())
 
     @property
     def first_person_description(self) -> str:
@@ -84,7 +84,7 @@ class AttentionSchema:
     owner: str = "Aura"
 
     # Temporal
-    onset_time: float = field(default_factory=time.time)
+    onset_time: float = field(default_factory=lambda: time.time())
     duration: float = 0.0
     preceding_focus: str | None = None
 

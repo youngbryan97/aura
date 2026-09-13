@@ -229,7 +229,7 @@ class AddressVerdict:
     rung: str
     reasons: tuple[str, ...] = ()
     vetoes: tuple[str, ...] = ()
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
 
     def __post_init__(self) -> None:
         # A one-element tuple written without its trailing comma is a string,

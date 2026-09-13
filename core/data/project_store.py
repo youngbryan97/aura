@@ -29,8 +29,8 @@ class StrategicTask:
     parent_id: str | None = None
     priority: int = 1
     metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
 
 
 @dataclass(frozen=True)
@@ -40,8 +40,8 @@ class Project:
     goal: str
     status: str = "active"
     metadata: dict[str, Any] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
+    created_at: float = field(default_factory=lambda: time.time())
+    updated_at: float = field(default_factory=lambda: time.time())
 
 
 class ProjectStore:

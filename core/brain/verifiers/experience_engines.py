@@ -91,7 +91,7 @@ class PredictionResolutionVerifier:
     domains = ("prediction", "forecast")
 
     def __init__(self, *, ledger: Any | None = None,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = lambda: time.time()) -> None:
         self._ledger = ledger
         self._clock = clock
         self._lock = threading.Lock()

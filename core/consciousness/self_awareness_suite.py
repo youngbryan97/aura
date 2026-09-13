@@ -34,7 +34,7 @@ class InternalState:
     integrity: float
     confidence: float
     uncertainty: float
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, float]:
         return {
@@ -54,7 +54,7 @@ class ExternalPerception:
     trust_signal: float
     friction_signal: float
     recent_feedback: Tuple[str, ...] = ()
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -72,7 +72,7 @@ class SocialModel:
     active_norms: Tuple[str, ...]
     commitments: Tuple[str, ...]
     open_conflicts: Tuple[str, ...] = ()
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -91,7 +91,7 @@ class SituationalContext:
     constraints: Tuple[str, ...]
     stakes: float
     time_pressure: float
-    updated_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=lambda: time.time())
 
     def as_dict(self) -> Dict[str, Any]:
         return {

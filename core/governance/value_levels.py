@@ -98,7 +98,7 @@ class Value:
     name: str
     level: Level
     statement: str
-    held_since: float = field(default_factory=time.time)
+    held_since: float = field(default_factory=lambda: time.time())
 
     def to_dict(self) -> dict[str, Any]:
         return {
