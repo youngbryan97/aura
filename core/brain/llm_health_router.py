@@ -525,7 +525,7 @@ _A_TURNS_ANSWER_TOKENS = 2048
 
 
 async def _await_while_it_is_working(
-    coro: Any,
+    coro: Any,  # a coroutine, or a task a caller already owns
     *,
     budget_s: float,
     user_facing: bool,
@@ -548,7 +548,11 @@ async def _await_while_it_is_working(
 
     progress = capture_progress()
     owned_foreground = user_facing and person_is_waiting and current_turn() is not None
-    task = create_owned_asyncio_task(coro)
+    # A caller that already owns a task hands it over rather than a coroutine,
+    # and wrapping a task in another task raises "a coroutine was expected".
+    # The kernel does exactly that: it creates the phase task so it can name
+    # and track it, then asks this to wait on it while the person waits.
+    task = coro if isinstance(coro, asyncio.Task) else create_owned_asyncio_task(coro)
     started = time.monotonic()
     try:
         done, _ = await asyncio.wait({task}, timeout=budget_s)
