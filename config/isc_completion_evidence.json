@@ -11240,5 +11240,26 @@
     ],
     "note": "rescue is measured every cycle as the recovery fraction of each judged measure, against a tolerance fixed before the run",
     "status": "done"
+  },
+  "P61.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_grain_has_the_macrostate_dimension"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_grain_spans_the_macrostate_far_better_than_chance"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_grain_recovers_a_macrostate.py",
+        "pattern": "def test_the_micro_detail_reaches_no_direction_the_grain_does_not"
+      }
+    ],
+    "note": "a twelve-variable system whose futures run through a two-dimensional macrostate: parallel analysis and bi-cross-validation both find two, the grain spans the macrostate beyond a permutation null, and the micro variables reach no direction the grain misses",
+    "status": "done"
   }
 }
