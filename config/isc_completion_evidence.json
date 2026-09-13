@@ -11134,5 +11134,58 @@
     ],
     "note": "a future that depends on history older than the ladder reaches is reported UNRESOLVED rather than given a grain",
     "status": "done"
+  },
+  "P28.16": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_closure_finds_a_hidden_broker.py",
+        "pattern": "def test_a_hidden_broker_leaves_k_open"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_closure_finds_a_hidden_broker.py",
+        "pattern": "def test_the_broker_is_found_on_other_seeds"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_subject_core_measures.py",
+        "pattern": "def test_a_hidden_broker_is_invisible_to_the_graph_measures"
+      }
+    ],
+    "note": "the hidden broker passes every graph measure and the closure test finds it: K is open against the upper tail of its own shuffled floor, on four seeds",
+    "status": "done"
+  },
+  "P28.17": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_carrier_is_measured_not_assumed.py",
+        "pattern": "def test_closure_and_recurrence_are_gates_not_terms"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_carrier_is_measured_not_assumed.py",
+        "pattern": "def test_moving_a_frozen_value_starts_a_different_campaign"
+      }
+    ],
+    "note": "closure is a gate on the carrier verdict, so a K an outside variable predicts cannot be reported as the carrier; redefining K changes a frozen value and so the campaign fingerprint, which starts a new campaign",
+    "status": "done"
+  },
+  "P28.18": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_closure_finds_a_hidden_broker.py",
+        "pattern": "def test_the_leak_is_named_as_the_broker"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_closure_is_harder_to_fool.py",
+        "pattern": "def test_the_report_names_what_it_differenced_and_what_it_dropped"
+      }
+    ],
+    "note": "the closure report names the largest leaks and every column it differenced or dropped as a clock, so a leaking variable is reported rather than hidden",
+    "status": "done"
   }
 }
