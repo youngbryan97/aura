@@ -164,8 +164,17 @@ def _what_the_outcome_record_says() -> str:
     """
 
     try:
-        from core.self.what_has_ever_worked import says
+        from core.self.what_has_ever_worked import never_worked, says
 
+        # An empty record adds nothing to this block. `says` puts the absence
+        # into words — "there is no record of anything having been tried" —
+        # which is the right answer to a question about her capabilities, and
+        # it is text. The block counts any text as evidence, so from 2026-09-05
+        # a machine with no black boxes lost the instruction that the records
+        # are unavailable and was told to answer "from THIS evidence only",
+        # with nothing but that sentence as the evidence.
+        if not any(never_worked().values()):
+            return ""
         return says()
     except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("self_forensics", exc, severity="debug")
