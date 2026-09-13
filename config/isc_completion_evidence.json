@@ -11266,5 +11266,97 @@
     ],
     "note": "a twelve-variable system whose futures run through a two-dimensional macrostate: parallel analysis and bi-cross-validation both find two, the grain spans the macrostate beyond a permutation null, and the micro variables reach no direction the grain misses",
     "status": "done"
+  },
+  "P16.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_there_are_more_than_three_conditions_to_replicate_across"
+      }
+    ],
+    "note": "the battery runs eight ordinary conditions and replication asks for three of them",
+    "status": "done"
+  },
+  "P16.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is conversation fails natural replication",
+    "status": "done"
+  },
+  "P16.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is tool use fails natural replication",
+    "status": "done"
+  },
+  "P16.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_one_workload_alone_does_not_replicate"
+      }
+    ],
+    "note": "a campaign whose only strongly connected condition is stress fails natural replication",
+    "status": "done"
+  },
+  "P16.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "strongly connected in at least three of the eight ordinary conditions"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_the_bar_says_three_conditions"
+      }
+    ],
+    "note": "v1 won for the battery, and the document and the criterion's own bar both say at least three of the eight conditions",
+    "status": "done"
+  },
+  "P16.14": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_integration_is_not_carried_by_one_condition.py",
+        "pattern": "def test_the_count_is_compared_in_one_place"
+      }
+    ],
+    "note": "the count of strongly connected conditions is compared in battery.py and nowhere else in core or tools",
+    "status": "done"
+  },
+  "P44.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "HARNESS_ROUTES: dict[str, str] = {"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_every_route_into_the_organism_is_named.py",
+        "pattern": "def test_every_route_a_turn_takes_is_listed"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_every_route_into_the_organism_is_named.py",
+        "pattern": "def test_every_named_counterpart_exists"
+      }
+    ],
+    "note": "every route a driver turn takes into the organism outside its phases is listed with the live runtime's counterpart or marked as the instrument, and a test fails on an unlisted route or a counterpart that does not exist",
+    "status": "done"
   }
 }
