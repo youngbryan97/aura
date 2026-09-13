@@ -10701,6 +10701,9 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
             "benchmark_request",
             "purpose",
             "cognitive_mode",
+            # The shape the caller will parse, held by the decoder in the
+            # worker (core/brain/llm/a_shape_the_decoder_enforces.py).
+            "output_shape",
             "strict_answer_contract",
             "strict_value_contract",
             "proof_evaluation_contract",

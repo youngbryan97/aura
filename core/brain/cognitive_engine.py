@@ -2255,6 +2255,20 @@ class CognitiveEngine(_RunsItsAugmentors):
         # of three entries has not stopped anything a caller can rely on.
         self._refuse_if_stopped("think")
 
+        # `response_format=<a Pydantic model>` was accepted here and read by
+        # nothing: the planner passed PlanSchema and commented that the content
+        # was "guaranteed to adhere" to it, and the guarantee was a regex for
+        # the first brace. A format is a shape, and the decoder can hold one
+        # (core/brain/llm/a_shape_the_decoder_enforces.py); the request lands
+        # on the turn's context and the response phase forwards it.
+        requested_format = kwargs.pop("response_format", None)
+        if requested_format is not None:
+            context = dict(context or {})
+            context.setdefault(
+                "output_shape",
+                "json_array" if requested_format in ("json_array", list) else "json_object",
+            )
+
         # Restore the antecedent for a message that cannot stand alone. Live
         # on 2026-08-03: "Can you do it now?" after a refused screen read, and
         # "From the grant research funds manager" answering Aura's own

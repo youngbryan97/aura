@@ -5826,6 +5826,12 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     or ""
                 ).strip().lower(),
             }
+            # The shape the caller will parse. `think(response_format=...)` and
+            # `think(context={"output_shape": ...})` both land here, and the
+            # decoder holds it in the worker.
+            requested_shape = str(runtime_context.get("output_shape") or "").strip().lower()
+            if requested_shape:
+                llm_kwargs["output_shape"] = requested_shape
             if is_user_facing:
                 llm_kwargs.update(
                     {
