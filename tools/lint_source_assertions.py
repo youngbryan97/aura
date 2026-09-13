@@ -120,6 +120,12 @@ def _class_surface(dotted: str) -> tuple[Path, str] | None:
     return home, text
 
 
+#: The top-level packages a repo-relative path can start at.
+_REPO_PACKAGES = frozenset(
+    {"core", "interface", "tools", "tests", "skills", "security", "llm", "executors"}
+)
+
+
 def _is_repo_rooted(node: ast.AST, roots: set[str]) -> bool:
     """Whether a path chain starts at this repo rather than at a tmp dir.
 
@@ -131,6 +137,13 @@ def _is_repo_rooted(node: ast.AST, roots: set[str]) -> bool:
     for inner in ast.walk(node):
         if isinstance(inner, ast.Name) and (inner.id == "__file__" or inner.id in roots):
             return True
+        # `Path("core/brain/inference_gate.py")` names the repo as plainly as a
+        # chain anchored at __file__ does, and a test that writes a file under
+        # a tmp dir never spells it starting at one of this repo's packages.
+        if isinstance(inner, ast.Constant) and isinstance(inner.value, str):
+            head = inner.value.split("/", 1)[0]
+            if head in _REPO_PACKAGES and inner.value.endswith(".py"):
+                return True
     return False
 
 

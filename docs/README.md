@@ -13,7 +13,7 @@ you.
 |---|---|
 | [USER_GUIDE.md](USER_GUIDE.md) | Using the app |
 | [OPERATOR_GUIDE.md](OPERATOR_GUIDE.md) | Running it on your own hardware — gates, diagnostics, tuning, debugging entry points |
-| [runbooks/](runbooks/) | 39 incident procedures, one per known failure mode. Written against `aura doctor --bundle` fields |
+| [runbooks/](runbooks/) | 40 incident procedures, one per known failure mode. Written against `aura doctor --bundle` fields |
 | [SLO.md](SLO.md) | What the runtime promises, measured by `slo/` and gated in CI |
 | [PLATFORM_POSTURE.md](PLATFORM_POSTURE.md) | The five deliberate platform decisions (no RBAC, no SSO, single-tenant, manual DR, hash-allowlist plugins) and what enforces each |
 

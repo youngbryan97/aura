@@ -80,7 +80,14 @@ def test_the_contract_budget_is_far_smaller_than_standard() -> None:
     'standard' is ~15.6k on a 16k window and never trimmed the 7,542-char turn
     that failed; 'contract' is a fixed 2,800.
     """
-    from pathlib import Path
+    import inspect
 
-    src = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    # The prompt builder moved to `_BuildsAndFitsThePrompt` when the gate went
+    # under the module ceiling, so one file no longer holds it. Read the class
+    # and what it is built from, which is what the assertion is about.
+    src = "".join(
+        inspect.getsource(klass)
+        for klass in InferenceGate.__mro__
+        if klass is not object
+    )
     assert 'if profile == "contract":\n            total_budget_chars = 2_800' in src
