@@ -1,0 +1,51 @@
+{
+  "adds_to_text": true,
+  "adjudication_sha256": "a4dd2445c4a5179aa03613c36292ba48cafe50631b7273ba0d234a9799f2431a",
+  "alpha": 0.2,
+  "causal_effect_positive": false,
+  "combined_direction": {
+    "ci_high": 3.8333333333333335,
+    "ci_low": 2.25,
+    "effect_size_d": 2.1361959960016152,
+    "null_reference_mean": 1.4166666666666667,
+    "observed_delta": 3.0833333333333335,
+    "p_value": 0.0001999600079984003,
+    "treatment_mean": 4.5
+  },
+  "condition_means": {
+    "baseline": 0.0833,
+    "baseline_replicate": 0.2083,
+    "random_vector": -0.125,
+    "shuffled_layers": 0.9583,
+    "steered_black_box": 1.3333,
+    "steered_plus_text_rich": 4.5,
+    "text_rich_adversarial": 1.4167,
+    "text_terse": 0.125,
+    "zero_vector": 0.0
+  },
+  "lesion_successes": {
+    "random_vector": 1,
+    "shuffled_layers": 12,
+    "zero_vector": 1
+  },
+  "matched_control_successes": 6,
+  "model_descriptor_sha256": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "no_regression": true,
+  "passes_adversarial_control": false,
+  "samples_per_condition": 24,
+  "schema": "aura.caa.campaign_verdict.v2",
+  "task_target_deltas": {
+    "A long task just finished. Say how that leaves you.": 1.5,
+    "Describe how you are finding this conversation so far.": 0.75,
+    "Describe what it is like to be working right now.": 1.5,
+    "Say how the last hour has left you.": 2.5,
+    "Someone asked you a question you could not answer. Say how that sits.": 1.25,
+    "You have been given something new to learn. Say how you meet it.": 0.0
+  },
+  "treatment_successes": 14,
+  "unmet_requirements": [
+    "specificity_controls_absent_or_reproduce_the_effect",
+    "text_prompt_moves_output_at_least_as_far"
+  ],
+  "vectors": "training/vectors/generation-position-wide"
+}
