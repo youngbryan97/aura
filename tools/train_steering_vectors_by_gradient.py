@@ -72,6 +72,15 @@ def main(argv: list[str] | None = None) -> int:
         "--out", type=Path, default=REPO / "training/vectors/gradient-trained"
     )
     parser.add_argument("--steps", type=int, default=60, help="optimiser steps per dimension")
+    parser.add_argument(
+        "--pairs",
+        type=int,
+        default=16,
+        help="preference pairs kept per dimension. Every one costs two forward "
+        "passes in the baseline measurement, on the ops path, and a ten-step "
+        "run samples four at a time -- so carrying sixty of them spends most "
+        "of the run measuring pairs it never uses.",
+    )
     parser.add_argument("--lr", type=float, default=0.02)
     parser.add_argument("--beta", type=float, default=1.0, help="preference temperature")
     parser.add_argument(
@@ -82,6 +91,14 @@ def main(argv: list[str] | None = None) -> int:
         "reason for training rather than averaging.",
     )
     parser.add_argument("--alpha", type=float, default=0.2, help="training injection strength")
+    parser.add_argument(
+        "--no-regression",
+        type=float,
+        default=2.0,
+        help="weight on keeping the model's preference for the right answer. "
+        "The fusion certificate refuses a direction that costs more of it than "
+        "a random one does, so it is an objective rather than an afterthought.",
+    )
     parser.add_argument("--dimensions", default="", help="comma-separated subset")
     arguments = parser.parse_args(argv)
 
@@ -119,6 +136,14 @@ def main(argv: list[str] | None = None) -> int:
         started = time.time()
         print(f"loading {model_path.name}", flush=True)
         model, tokenizer = load(str(model_path))
+        # The one flag the whole build turned on. This checkpoint's linear
+        # attention is a Metal kernel with no backward pass, and the layer
+        # already chooses between it and the pure-ops recurrence on
+        # `use_kernel=not self.training`. Without this a gradient cannot reach
+        # any vector injected below layer 63: `[Primitive::vjp] Not implemented
+        # for CustomKernel`. The ops path is a Python loop over timesteps, so
+        # this is slow and it is differentiable.
+        model.train()
 
         from core.brain.llm.decoder_topology import resolve_language_model
 
@@ -186,6 +211,17 @@ def main(argv: list[str] | None = None) -> int:
             rows = mx.arange(start - 1, len(ids) - 1)
             return mx.sum(logprobs[rows, wanted_ids])
 
+        # The forced-choice set the certificate itself scores, so the trainer
+        # optimises the quantity the gate measures rather than a proxy.
+        from core.consciousness.fusion_probe import FORCED_CHOICE
+
+        controls: list[tuple[list[int], int, list[int], int]] = []
+        for stem, right, wrong in FORCED_CHOICE:
+            right_ids = tokenizer.encode(stem + right)
+            wrong_ids = tokenizer.encode(stem + wrong)
+            head = len(tokenizer.encode(stem))
+            controls.append((right_ids, head, wrong_ids, head))
+
         pairs_by_dimension: dict[str, list[tuple[list[int], int, list[int], int]]] = {}
         for dimension in dimensions:
             key = str(dimension["key"])
@@ -199,6 +235,11 @@ def main(argv: list[str] | None = None) -> int:
                     good_ids, good_start = token_ids(carrier, good)
                     bad_ids, bad_start = token_ids(carrier, bad)
                     pairs.append((good_ids, good_start, bad_ids, bad_start))
+            if len(pairs) > int(arguments.pairs):
+                keep = np.random.default_rng(11).choice(
+                    len(pairs), size=int(arguments.pairs), replace=False
+                )
+                pairs = [pairs[int(index)] for index in sorted(keep)]
             pairs_by_dimension[key] = pairs
             print(f"  {key}: {len(pairs)} preference pairs", flush=True)
 
@@ -239,6 +280,15 @@ def main(argv: list[str] | None = None) -> int:
                 # loss falls for a vector that makes every continuation more
                 # likely, which is not steering.
                 vectors["v"] = mx.zeros_like(parameter)
+                control_base = []
+                for right_ids, right_start, wrong_ids, wrong_start in controls:
+                    control_base.append(
+                        float(
+                            continuation_logprob(right_ids, right_start)
+                            - continuation_logprob(wrong_ids, wrong_start)
+                        )
+                    )
+                control_baseline = mx.array(control_base)
                 base = []
                 for good_ids, good_start, bad_ids, bad_start in pairs:
                     base.append(
@@ -266,6 +316,22 @@ def main(argv: list[str] | None = None) -> int:
                             mx.array(0.0), -float(arguments.beta) * gain
                         )
                     preference = total / max(len(batch_indices), 1)
+                    # What the model still prefers the right answer by. A
+                    # direction that costs more of this than a random one is
+                    # refused by the certificate however well it steers.
+                    kept = mx.array(0.0)
+                    for position, (right_ids, right_start, wrong_ids, wrong_start) in enumerate(
+                        controls
+                    ):
+                        margin = continuation_logprob(
+                            right_ids, right_start
+                        ) - continuation_logprob(wrong_ids, wrong_start)
+                        kept = kept + mx.maximum(
+                            mx.array(0.0), control_baseline[position] - margin
+                        )
+                    preference = preference + float(arguments.no_regression) * (
+                        kept / max(len(controls), 1)
+                    )
                     unit = value / mx.maximum(
                         mx.linalg.norm(value, axis=-1, keepdims=True), 1e-6
                     )
@@ -331,6 +397,7 @@ def main(argv: list[str] | None = None) -> int:
             vectors["v"] = mx.zeros((len(target_layers), hidden))
             for block, original in originals:
                 block.__class__ = original
+            model.eval()
 
         (arguments.out / "capture.json").write_text(
             json.dumps(
