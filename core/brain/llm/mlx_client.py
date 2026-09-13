@@ -4833,6 +4833,8 @@ def _build_the_generation_request(
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
+        # The shape the caller will parse, held by the decoder in the worker.
+        "output_shape": str(kwargs.get("output_shape") or "").strip().lower(),
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),

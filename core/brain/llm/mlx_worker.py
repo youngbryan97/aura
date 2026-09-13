@@ -6316,6 +6316,40 @@ def _mlx_worker_loop(
                 except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                     logger.debug("Foreground non-parametric memory unavailable: %s", e)
 
+                # The shape of the answer, held by the decoder rather than
+                # asked for in the prompt. A caller that will parse JSON says
+                # so on the job, and the sampler cannot then produce prose,
+                # an unclosed string or an unbalanced brace. Ninety-four
+                # "Return ONLY JSON" strings were the request this replaces.
+                _shape = str(job.get("output_shape") or "").strip().lower()
+                if _shape in ("json", "json_object", "json_array"):
+                    try:
+                        from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+
+                        _closing = None
+                        if native_thinking is True:
+                            from core.brain.llm.a_bounded_private_channel import (
+                                _the_token_that_closes_it,
+                            )
+
+                            _closing = _the_token_that_closes_it(tokenizer)
+                        _held = enforce_json(
+                            tokenizer,
+                            after_token=_closing,
+                            require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
+                        )
+                        if _held is not None:
+                            logits_processors.append(_held)
+                            logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
+                        else:
+                            logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without the decoder holding the answer's shape",
+                            severity="warning",
+                        )
+
                 # The private channel, bounded by the decoder rather than by
                 # hope. Nothing had ended it, so what it COST could only be
                 # estimated from the generations that ran away with it, the
@@ -9302,6 +9336,40 @@ def _mlx_worker_loop(
                         action="continued streamed generation without semantic terminal guard",
                         severity="warning",
                     )
+
+                # The shape of the answer, held by the decoder rather than
+                # asked for in the prompt. A caller that will parse JSON says
+                # so on the job, and the sampler cannot then produce prose,
+                # an unclosed string or an unbalanced brace. Ninety-four
+                # "Return ONLY JSON" strings were the request this replaces.
+                _shape = str(job.get("output_shape") or "").strip().lower()
+                if _shape in ("json", "json_object", "json_array"):
+                    try:
+                        from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+
+                        _closing = None
+                        if native_thinking is True:
+                            from core.brain.llm.a_bounded_private_channel import (
+                                _the_token_that_closes_it,
+                            )
+
+                            _closing = _the_token_that_closes_it(tokenizer)
+                        _held = enforce_json(
+                            tokenizer,
+                            after_token=_closing,
+                            require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
+                        )
+                        if _held is not None:
+                            logits_processors.append(_held)
+                            logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
+                        else:
+                            logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without the decoder holding the answer's shape",
+                            severity="warning",
+                        )
 
                 # The private channel, bounded by the decoder rather than by
                 # hope. Nothing had ended it, so what it COST could only be
