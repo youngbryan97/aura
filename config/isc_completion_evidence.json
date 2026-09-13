@@ -11187,5 +11187,58 @@
     ],
     "note": "the closure report names the largest leaks and every column it differenced or dropped as a clock, so a leaking variable is reported rather than hidden",
     "status": "done"
+  },
+  "P14.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_a_held_side_does_not_move_while_the_other_side_lives"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_held_side_that_moved_is_not_this_lesion"
+      }
+    ],
+    "note": "a held half of the domains stays within 1e-6 on every column through three turns while the free half moves, organs and dict-held fields included; the lesion records any held column that moved and refuses the deficit if one did",
+    "status": "done"
+  },
+  "P14.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_releasing_the_clamp_releases_exactly_it"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_a_held_domain_does_not_move.py",
+        "pattern": "def test_an_organ_of_a_free_domain_is_left_alone"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_the_rescue_continues_the_lesioned_individual"
+      }
+    ],
+    "note": "releasing the clamp restores the previous hook and nothing else; the clamp only ever held the cut side's fields and organs, and the rescue continues the lesioned individual",
+    "status": "done"
+  },
+  "P14.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_rescue_that_returns_too_little_fails_however_many_cycles"
+      },
+      {
+        "kind": "grep",
+        "path": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "pattern": "def test_a_deficit_larger_than_the_drift_is_judged"
+      }
+    ],
+    "note": "rescue is measured every cycle as the recovery fraction of each judged measure, against a tolerance fixed before the run",
+    "status": "done"
   }
 }
