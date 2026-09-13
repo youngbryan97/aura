@@ -97,3 +97,42 @@ class TestTheShardPath:
         )
         # The raise must still be reachable for a shard that genuinely ran.
         assert "Swarm cognitive engine returned empty output" in block
+
+
+class TestAStatusCodeIsAnIdentifier:
+    """Every marker was missed, because `\\b` cannot see inside an identifier.
+
+    `names_any("foreground_headroom_reserved", ("headroom",))` is False: an
+    underscore is a word character, so there is no boundary beside it. The
+    recogniser therefore returned "" for every deferral it lists — including
+    `background_deferred:memory_pressure`, which the markers' own comment says
+    "deferred" already catches — and a shard that never ran raised "Swarm
+    cognitive engine returned empty output".
+    """
+
+    def test_the_live_identifier_shapes_are_recognised(self):
+        from core.collective.delegator import _marks_a_deferral
+
+        for status in (
+            "foreground_headroom_reserved",
+            "model_load_admission_denied",
+            "background_deferred:memory_pressure",
+            "candidate_worker_not_ready",
+            "generation_queued",
+            "warmup_in_progress",
+        ):
+            assert _marks_a_deferral(status), status
+
+    def test_a_word_that_merely_contains_a_marker_is_not_one(self):
+        """The word-awareness the boundary matching was for, kept."""
+        from core.collective.delegator import _marks_a_deferral
+
+        for status in ("headroomless", "readmission", "queuedish"):
+            assert not _marks_a_deferral(status), status
+
+    def test_a_worker_that_died_still_raises(self):
+        """Deliberately absent from the markers, and it has to stay absent."""
+        from core.collective.delegator import _marks_a_deferral
+
+        assert not _marks_a_deferral("worker_died_during_generation")
+        assert not _marks_a_deferral("ok")
