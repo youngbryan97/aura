@@ -851,8 +851,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Retired providers stay retired under 12 green tests. 34.7GB on disk is
   named by nothing — the replaced 32B, a second copy of the 27B base, four
   empty GGUF shells — listed with sizes and left for the owner to remove.
-- [ ] Q02 Disk retention: bound logs/exports/checkpoints/caches while preserving
+- [x] Q02 Disk retention: bound logs/exports/checkpoints/caches while preserving
   live dependencies, unique source work, state, and scientific evidence.
+  CLOSED 2026-09-13. `tools/disk_retention.py` classifies every place Aura
+  writes as bounded, live, unreferenced or unknown, and removes nothing;
+  `tests/test_disk_retention_tells_live_from_orphaned.py` holds that it tells
+  the vault's store from an orphan and a fusion a manifest names from one
+  nothing does. Record: `docs/evidence/Q02_DISK_RETENTION_2026-09-13.md`.
+  The one unbounded writer — the state repository's standalone fallback,
+  which wrote a 46GB file of 932MB rows in spring — now takes the owner's
+  capped, pruned commit, and the bounded snapshot bounds `world.facts`.
+  Logs are rotated. 129GB is named by nothing (the 32B fusions and adapters,
+  the replaced 32B and a duplicate 27B base, the orphan store) plus 58GB of
+  untracked training runs in a worktree from August; listed with sizes and
+  ages for the owner, not removed.
 - [ ] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
   shutdown/restart, sleep/wake, and single-resident ownership.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
