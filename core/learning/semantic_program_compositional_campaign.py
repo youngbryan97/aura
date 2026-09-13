@@ -26,6 +26,7 @@ from core.learning.semantic_program_compositional_transducer import (
 from core.learning.semantic_program_feature_materialization import (
     LoadedSemanticFeatureBundle,
 )
+from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
 from core.learning.semantic_program_shared_evaluation import (
     evaluate_shared_semantic_program_transducer,
 )
@@ -67,8 +68,10 @@ def select_compositional_program_candidate(
     ):
         raise ValueError("program selection validation overlaps another split")
     outcomes = {}
+    equivalents = {}
     for name, model in candidates.items():
         rows = []
+        equivalent_rows = []
         for item in selected:
             outcome = model.decode(
                 source_token_ids=item.ir.source_token_ids,
@@ -77,11 +80,18 @@ def select_compositional_program_candidate(
                 source_text_sha256=item.ir.source_text_sha256,
                 model_basis_sha256=item.ir.model_basis_receipt_sha256,
             )
-            rows.append(bool(
+            exact = bool(
                 outcome.ir is not None
                 and outcome.ir.to_program() == item.ir.to_program()
+            )
+            rows.append(exact)
+            equivalent_rows.append(exact or bool(
+                outcome.ir is not None and semantic_programs_structurally_equivalent(
+                    outcome.ir.to_program(), item.ir.to_program()
+                )
             ))
         outcomes[name] = rows
+        equivalents[name] = equivalent_rows
     baseline = outcomes[incumbent]
     summaries = {
         name: {
@@ -89,6 +99,14 @@ def select_compositional_program_candidate(
             "gains": sum(new and not old for new, old in zip(rows, baseline, strict=True)),
             "regressions": sum(old and not new for new, old in zip(rows, baseline, strict=True)),
             "program_correct": rows,
+            "program_equivalent": sum(equivalents[name]),
+            "program_equivalent_correct": equivalents[name],
+            "equivalent_gains": sum(new and not old for new, old in zip(
+                equivalents[name], equivalents[incumbent], strict=True
+            )),
+            "equivalent_regressions": sum(old and not new for new, old in zip(
+                equivalents[name], equivalents[incumbent], strict=True
+            )),
             "transducer_receipt_sha256": candidates[name].receipt_sha256,
         }
         for name, rows in outcomes.items()
@@ -111,6 +129,8 @@ def select_compositional_program_candidate(
         "expected_answers_available": False,
         "gold_program_available_to_decode": False,
         "test_examples_used": 0,
+        "equivalence_rule": "connected_graph_schedule_and_integer_add_mul_exchange_v1",
+        "equivalence_used_for_selection": False,
         "serving_authority": False,
     }
     return {**body, "report_sha256": _sha(body)}

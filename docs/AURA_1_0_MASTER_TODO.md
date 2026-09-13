@@ -618,6 +618,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reaches 41/48 exact programs with unchanged coefficients, versus 19/48 for
   the parent. Coefficient and hidden-token controls score 0/48 exact programs.
   Seven errors and one paired answer regression remain; no promotion.
+  [Conditional graph development](evidence/G03_CONDITIONAL_GRAPH_DEVELOPMENT_2026-09-12.md)
+  reaches 43/48 programs and answers, with 22 answer gains and no regression
+  against the frozen parent on exposed weave cases. Both causal controls score
+  0/48 programs. Forward-reference graph admission recovers five of twelve
+  cataphoric source-pilot programs. A pairwise-trained candidate is rejected
+  for four answer regressions. Source-order proposal refitting remains a null;
+  remaining composition errors and full-source admission are not closed.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

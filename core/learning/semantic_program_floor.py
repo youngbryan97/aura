@@ -99,6 +99,54 @@ def semantic_primitive_type_signature(
     return tuple(arguments), result
 
 
+def semantic_program_structural_key(program: Program) -> tuple[Any, ...] | None:
+    """Recognize the same connected computation under safe graph symmetries.
+
+    Only exact integer addition and multiplication permit argument exchange.
+    Independent instructions may change schedule and register numbers. Input
+    identities, primitive identity, multiplicity and every dependency remain.
+    This positive equivalence check does not decide arbitrary program equality
+    and makes no claim about equal execution cost or source-span attribution.
+    """
+    if (
+        not isinstance(program, Program)
+        or type(program.n_inputs) is not int or program.n_inputs < 1
+        or not program.instructions
+    ):
+        return None
+    keys: list[tuple[Any, ...]] = [("input", index) for index in range(program.n_inputs)]
+    dependencies: list[set[int]] = []
+    for instruction in program.instructions:
+        signature = semantic_primitive_type_signature(instruction.op)
+        if (
+            signature is None or len(instruction.args) != len(signature[0])
+            or any(type(arg) is not int or not 0 <= arg < len(keys) for arg in instruction.args)
+        ):
+            return None
+        arguments = tuple(keys[arg] for arg in instruction.args)
+        if instruction.op in {"add", "mul"}:
+            arguments = tuple(sorted(arguments))
+        keys.append(("operation", instruction.op, arguments))
+        dependencies.append({arg - program.n_inputs for arg in instruction.args
+                             if arg >= program.n_inputs})
+    reachable = set()
+    pending = [len(program.instructions) - 1]
+    while pending:
+        index = pending.pop()
+        if index not in reachable:
+            reachable.add(index)
+            pending.extend(dependencies[index])
+    if reachable != set(range(len(program.instructions))):
+        return None
+    return program.n_inputs, keys[-1], tuple(sorted(keys[program.n_inputs:]))
+
+
+def semantic_programs_structurally_equivalent(left: Program, right: Program) -> bool:
+    """Prove declared graph symmetry without inspecting example input values."""
+    key = semantic_program_structural_key(left)
+    return key is not None and key == semantic_program_structural_key(right)
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -737,4 +785,6 @@ __all__ = [
     "execute_semantic_floor_program",
     "semantic_floor_primitive_coverage",
     "semantic_primitive_type_signature",
+    "semantic_program_structural_key",
+    "semantic_programs_structurally_equivalent",
 ]

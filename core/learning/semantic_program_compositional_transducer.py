@@ -90,7 +90,7 @@ from .semantic_program_transducer_fitting import (
     LinearArgumentRoleHead,
     RegisterUseContract,
     _all_semantic_spans,
-    _argument_proposal_rows,  # noqa: F401
+    _argument_proposal_rows,
     _argument_proposals_by_operation,  # noqa: F401
     _assign_typed_arguments,
     _best_nonoverlapping_node_charts,  # noqa: F401
@@ -505,6 +505,16 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("register_use_contract") != self.register_use_contract.to_dict()
             or receipt.get("argument_search_strategy", "legacy_global_v1")
             not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
+            or receipt.get("argument_score_strategy", "independent_positive_v1")
+            not in {"independent_positive_v1", "conditional_log_odds_v1"}
+            or receipt.get("forward_reference_policy", "positive_relation_v1")
+            not in {"positive_relation_v1", "joint_graph_v1"}
+            or receipt.get("definition_boundary_policy", "register_neighbors_v1")
+            not in {"register_neighbors_v1", "source_neighbors_v1"}
+            or (
+                receipt.get("forward_reference_policy") == "joint_graph_v1"
+                and receipt.get("argument_search_strategy") != "global_constraint_v1"
+            )
             or (
                 self.schema
                 in {
@@ -828,6 +838,31 @@ class CompositionalSemanticProgramTransducer:
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
         body["argument_search_strategy"] = "global_constraint_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_conditional_argument_scores(self) -> CompositionalSemanticProgramTransducer:
+        """Condition binary argument evidence on selecting one mention per slot."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_score_strategy"] = "conditional_log_odds_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
+        """Let the complete graph decide dependencies regardless of textual order."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["forward_reference_policy"] = "joint_graph_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_source_ordered_definitions(self) -> CompositionalSemanticProgramTransducer:
+        """Bound definition clauses by textual neighbors, not register numbering."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["definition_boundary_policy"] = "source_neighbors_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def register_use_lesion(self) -> CompositionalSemanticProgramTransducer:
@@ -1347,6 +1382,79 @@ def refit_compositional_argument_proposals(
         argument_proposal_scale=scale,
         training_receipt={**body, "receipt_sha256": _sha(body)},
     )
+
+
+def refit_compositional_argument_rankings(
+    model: CompositionalSemanticProgramTransducer,
+    examples: Sequence[SemanticTransducerTrainingExample],
+) -> CompositionalSemanticProgramTransducer:
+    """Fit source-only argument choices while preserving other learned modules."""
+    from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
+
+    training = tuple(item for item in examples if item.split == "train")
+    validation = tuple(item for item in examples if item.split == "validation")
+    if not training or not validation:
+        raise ValueError("argument ranking refit needs train and validation examples")
+    selected = (*training, *validation)
+    if (
+        {item.ir.model_basis_receipt_sha256 for item in selected} != {model.model_basis_sha256}
+        or {item.tokenizer_identity_sha256 for item in selected}
+        != {model.input_grounding.tokenizer_identity_sha256}
+        or {(item.hidden_channels, item.hidden_channel_widths) for item in selected}
+        != {(model.hidden_channels, model.hidden_channel_widths)}
+    ):
+        raise ValueError("argument ranking refit neural basis differs from its parent")
+    train_ids = [item.ir.source_text_sha256 for item in training]
+    validation_ids = [item.ir.source_text_sha256 for item in validation]
+    if (
+        len(set(train_ids)) != len(train_ids)
+        or len(set(validation_ids)) != len(validation_ids)
+        or set(train_ids) & set(validation_ids)
+    ):
+        raise ValueError("argument ranking source splits duplicate or overlap")
+    heads, fits = [], []
+    for position, (role, proposal) in enumerate(zip(
+        model.argument_role_heads, model.argument_proposal_heads, strict=True
+    )):
+        features, labels, weights, _, _ = _argument_proposal_rows(
+            training, argument_pointer=model.argument_pointer, position=position,
+            max_span_tokens=model.max_span_tokens,
+            max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
+            hidden_channels=model.hidden_channels,
+            hidden_channel_widths=model.hidden_channel_widths,
+            include_semantic_negatives=True,
+        )
+        weight, fit = fit_pairwise_argument_weight(
+            features, labels, weights,
+            initial_weight=model.argument_role_scale * role.weight
+            + model.argument_proposal_scale * proposal.weight,
+        )
+        # Keep the proposal module and its calibration fixed. The role module
+        # carries the residual needed for their combined log odds to equal the ranker.
+        heads.append(LinearArgumentRoleHead(
+            (weight - model.argument_proposal_scale * proposal.weight) / model.argument_role_scale,
+            -model.argument_proposal_scale * proposal.bias / model.argument_role_scale,
+        ))
+        fits.append(fit)
+    candidate = model._with_coefficients(argument_role_heads=tuple(heads))
+    body = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
+    body["argument_score_strategy"] = "conditional_log_odds_v1"
+    body["argument_ranking_refit"] = {
+        "schema": "aura.semantic_argument_ranking_refit.v1",
+        "parent_transducer_receipt_sha256": model.receipt_sha256,
+        "negative_source": "runtime_pointer_shortlist_and_source_semantic_spans_v1",
+        "coefficient_parameterization": "combined_ranker_as_role_residual_v1",
+        "role_head_alone_is_calibrated_probability": False,
+        "training_examples": len(training),
+        "validation_examples": len(validation),
+        "training_example_ids_sha256": _sha(sorted(train_ids)),
+        "validation_example_ids_sha256": _sha(sorted(validation_ids)),
+        "validation_used_for_fit": False,
+        "test_examples_used": 0,
+        "fits": fits,
+        "serving_authority": False,
+    }
+    return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
 
 
 def refit_compositional_register_identity(

@@ -122,6 +122,24 @@ def _log_sigmoid(value: float) -> float:
     return -math.log1p(math.exp(-abs(value))) + min(value, 0.0)
 
 
+def _argument_semantic_evidence(
+    role_logit: float,
+    proposal_logit: float,
+    *,
+    role_scale: float,
+    proposal_scale: float,
+    strategy: str,
+) -> float:
+    """Score a mention under the declared binary-head selection objective."""
+    if strategy == "conditional_log_odds_v1":
+        # Conditioning binary edge labels on one selected edge cancels the
+        # shared negative-label term, leaving the chosen edge's log odds.
+        return role_scale * role_logit + proposal_scale * proposal_logit
+    if strategy == "independent_positive_v1":
+        return role_scale * _log_sigmoid(role_logit) + proposal_scale * _log_sigmoid(proposal_logit)
+    raise ValueError("unknown semantic argument scoring objective")
+
+
 def _mention_invariant_relation_evidence(
     base_logits: Sequence[float],
     combined_logits: Sequence[float],
@@ -199,6 +217,7 @@ def _register_definition_candidates(
     max_span_tokens: int,
     pointer_scores: LinearPointerSequenceScores,
     strategy: str,
+    source_ordered_boundaries: bool = False,
 ) -> tuple[tuple[TokenSpan, ...], ...]:
     """Localize each register inside its bounded defining clause.
 
@@ -233,12 +252,24 @@ def _register_definition_candidates(
             continue
 
         if direction == "left":
-            clause_start = anchors[index - 1].end if index else 0
+            clause_start = (
+                max((other.end for other in anchors if other.end <= anchor.start), default=0)
+                if source_ordered_boundaries
+                else anchors[index - 1].end if index else 0
+            )
             boundary_start = max(clause_start, anchor.start - max_span_tokens)
             local_bounds = (boundary_start, anchor.start)
-            bounded_envelopes = envelopes
+            bounded_envelopes = (
+                tuple(span for span in envelopes if span.start >= clause_start)
+                if source_ordered_boundaries else envelopes
+            )
         else:
-            next_operation = anchors[index + 1].start if index + 1 < len(anchors) else token_count
+            next_operation = (
+                min((other.start for other in anchors[input_count:]
+                     if other.start >= anchor.end), default=token_count)
+                if source_ordered_boundaries
+                else anchors[index + 1].start if index + 1 < len(anchors) else token_count
+            )
             boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
             local_bounds = (anchor.end, boundary)
             bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
@@ -571,13 +602,20 @@ def _argument_proposals_by_operation(
         shared = tuple(global_proposals)
         return tuple(shared for _node in operation_nodes)
 
-    by_operation: list[tuple[tuple[TokenSpan, float], ...]] = []
+    by_operation: list[tuple[tuple[TokenSpan, float], ...]] = [()] * len(operation_nodes)
     token_count = scores.start.size
-    for node_index, _node in enumerate(operation_nodes):
-        clause_start = operation_nodes[node_index - 1].span.end if node_index else 0
+    # Training IR is execution-ordered; clauses are always source-ordered.
+    source_order = sorted(
+        range(len(operation_nodes)),
+        key=lambda index: (operation_nodes[index].span.start, operation_nodes[index].span.end),
+    )
+    for source_index, node_index in enumerate(source_order):
+        clause_start = (
+            operation_nodes[source_order[source_index - 1]].span.end if source_index else 0
+        )
         clause_end = (
-            operation_nodes[node_index + 1].span.start
-            if node_index + 1 < len(operation_nodes)
+            operation_nodes[source_order[source_index + 1]].span.start
+            if source_index + 1 < len(source_order)
             else token_count
         )
         local: list[tuple[TokenSpan, float]] = []
@@ -592,12 +630,10 @@ def _argument_proposals_by_operation(
         merged: dict[TokenSpan, float] = {}
         for span, score in (*global_proposals, *local[:_LOCAL_ARGUMENT_CANDIDATES]):
             merged[span] = max(score, merged.get(span, -float("inf")))
-        by_operation.append(
-            tuple(
-                sorted(
-                    merged.items(),
-                    key=lambda item: (-item[1], item[0].start, item[0].end),
-                )
+        by_operation[node_index] = tuple(
+            sorted(
+                merged.items(),
+                key=lambda item: (-item[1], item[0].start, item[0].end),
             )
         )
     return tuple(by_operation)
@@ -853,6 +889,7 @@ def _argument_proposal_rows(
     max_argument_span_tokens_by_type: Mapping[str, int],
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    include_semantic_negatives: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     features: list[np.ndarray] = []
     labels: list[int] = []
@@ -888,6 +925,13 @@ def _argument_proposal_rows(
                 if span != positive
                 and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
             )[:_POINTER_HARD_NEGATIVES]
+            if include_semantic_negatives:
+                negatives = tuple(dict.fromkeys((
+                    *negatives,
+                    *(span for span in _all_semantic_spans(item)
+                      if span != positive
+                      and span.end - span.start <= max_argument_span_tokens_by_type[required_type]),
+                )))
             spans = (positive, *negatives)
             operation = _relation_span_vector(
                 item.hidden_states,
@@ -1582,6 +1626,9 @@ def _assign_typed_arguments(
         max_span_tokens=model.max_definition_span_tokens,
         pointer_scores=definition_pointer_scores,
         strategy=model.definition_candidate_strategy,
+        source_ordered_boundaries=(
+            model.training_receipt.get("definition_boundary_policy") == "source_neighbors_v1"
+        ),
     )
     definition_vectors = tuple(
         tuple(
@@ -1623,6 +1670,9 @@ def _assign_typed_arguments(
         ]
     ] = [(0.0, (), (), ())]
     strategy = model.training_receipt.get("argument_search_strategy")
+    score_strategy = model.training_receipt.get(
+        "argument_score_strategy", "independent_positive_v1"
+    )
     prefix_feasible = strategy == "prefix_feasible_v1"
     global_constraint = strategy == "global_constraint_v1"
     chart_options = []
@@ -1684,14 +1734,19 @@ def _assign_typed_arguments(
                     strict=True,
                 ):
                     if (
-                        register >= len(inputs)
+                        model.training_receipt.get("forward_reference_policy") != "joint_graph_v1"
+                        and register >= len(inputs)
                         and register - len(inputs) > node_index
                         and relation_score <= 0.0
                     ):
                         continue
                     score = (
-                        model.argument_role_scale * _log_sigmoid(role_score)
-                        + model.argument_proposal_scale * _log_sigmoid(proposal_score)
+                        _argument_semantic_evidence(
+                            role_score, proposal_score,
+                            role_scale=model.argument_role_scale,
+                            proposal_scale=model.argument_proposal_scale,
+                            strategy=score_strategy,
+                        )
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )

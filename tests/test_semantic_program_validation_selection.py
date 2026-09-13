@@ -65,6 +65,30 @@ def test_tie_keeps_incumbent():
     assert report["selected"] == "parent"
 
 
+def test_equivalent_argument_exchange_is_visible_but_does_not_relax_selection():
+    from core.learning.procedure_induction import Instruction, Program
+
+    gold = Program(2, (Instruction("mul", (0, 1)),))
+    swapped = Program(2, (Instruction("mul", (1, 0)),))
+    example = item("a")
+    example.ir.to_program = lambda: gold
+
+    def candidate(program):
+        return SimpleNamespace(
+            receipt_sha256="candidate",
+            decode=lambda **kwargs: SimpleNamespace(ir=SimpleNamespace(to_program=lambda: program)),
+        )
+
+    report = select_compositional_program_candidate(
+        {"parent": candidate(gold), "swapped": candidate(swapped)}, [example], incumbent="parent",
+    )
+    assert report["selected"] == "parent"
+    assert report["equivalence_used_for_selection"] is False
+    assert report["candidates"]["swapped"]["regressions"] == 1
+    assert report["candidates"]["swapped"]["equivalent_regressions"] == 0
+    assert report["candidates"]["swapped"]["program_equivalent"] == 1
+
+
 @pytest.mark.parametrize("examples", [[], [item("a"), item("a")],
                                          [item("a"), item("a", "train")]])
 def test_empty_duplicate_or_overlapping_validation_is_rejected(examples):
