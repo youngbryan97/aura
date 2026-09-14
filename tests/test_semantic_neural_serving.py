@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from pathlib import Path
 
 from core.brain.llm import semantic_neural_serving
 from core.brain.llm.semantic_neural_serving import (
@@ -138,7 +139,10 @@ def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):
     activation = _activation()
     model_path = activation["model_identity"]["path"]
     monkeypatch.setenv("AURA_SEMANTIC_NEURAL_SERVING", "0")
-    status = semantic_neural_serving_status(model_path)
+    status = semantic_neural_serving_status(
+        model_path,
+        authority_key_path=Path.home() / ".aura/private/cortex-upgrade/migration-authority.key",
+    )
     assert status == {
         "active": False,
         "reason": "semantic_neural_serving_disabled",
@@ -150,7 +154,11 @@ def test_active_serving_receipt_exposes_only_verified_qualification_evidence():
     activation = json.loads(activation_path.read_text(encoding="utf-8"))
     model_path = activation["model_identity"]["path"]
 
-    status = semantic_neural_serving_status(model_path)
+    # Installation evidence is outside pytest's isolated mutable-state root.
+    status = semantic_neural_serving_status(
+        model_path,
+        authority_key_path=Path.home() / ".aura/private/cortex-upgrade/migration-authority.key",
+    )
 
     assert status["active"] is True
     qualification = status["receipt"]["qualification"]

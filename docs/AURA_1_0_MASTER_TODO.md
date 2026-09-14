@@ -739,6 +739,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Atomic literal arguments](evidence/G03_ATOMIC_LITERAL_ARGUMENTS_2026-09-14.md)
   repairs the reproduced fragment-binding regression without changing learned
   coefficients. 150 focused tests pass; full comparison remains pending.
+  [Completed atomic-literal comparison](evidence/G03_ATOMIC_LITERAL_RESULT_2026-09-14.md)
+  is 473/500: four gains and five regressions against the 474/500 parent.
+  Candidate not promoted; learned role assignment remains unresolved.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -866,6 +869,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   one treatment target-score win versus four matched no-op wins, with task
   regressions. The new gradient-trained generation is not qualified or published.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
+  [Manifest continuity repair](evidence/G11_MANIFEST_CONTINUITY_2026-09-14.md)
+  restores installed qualification after a steering-only authority change
+  without rewriting historical evidence. Foreground/service replay passes
+  120/120 with 120 lesion disruptions; source-matched desktop proof remains.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
   that configuration; the earlier evidence has not been relabeled.

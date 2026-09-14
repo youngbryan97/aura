@@ -2122,7 +2122,8 @@ async def _run_chat_preflight(
     _timing_started_at = time.perf_counter()
     _timing_cursor = _timing_started_at
     _timing_ms: dict[str, float] = {}
-    _evidence_profile, _evidence_owner = _chat_evidence_profile(
+    _evidence_profile, _evidence_owner = await asyncio.to_thread(
+        _chat_evidence_profile,
         str(_original_user_message or ""),
         bounded_surface=bool(is_benchmark or conversation_only_surface),
     )

@@ -62,17 +62,21 @@ def test_state_native_owner_requires_active_signed_family(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_state_native_preflight_does_not_collect_unconsumed_evidence(monkeypatch):
+    import threading
+
     task = _semantic_task()
     admission = ingress.admit_qualified_recurrent_objective(task.prompt)
     assert admission is not None
-    monkeypatch.setattr(
-        chat_preflight,
-        "_chat_evidence_profile",
-        lambda *_args, **_kwargs: (
+    caller_thread = threading.get_ident()
+
+    def evidence_profile(*_args, **_kwargs):
+        assert threading.get_ident() != caller_thread
+        return (
             chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT,
             admission,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(chat_preflight, "_chat_evidence_profile", evidence_profile)
 
     body = SimpleNamespace(message=task.prompt, session_id="evidence-owner")
     result = await chat_preflight._run_chat_preflight(
