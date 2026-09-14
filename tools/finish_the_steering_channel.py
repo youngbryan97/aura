@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -180,6 +181,71 @@ def main() -> int:
     return carry_the_result(result)
 
 
+def set_the_certificate_aside() -> None:
+    """Move the old certificate, do not delete it.
+
+    A certificate is measured once per checkpoint, and a new generation under
+    the same descriptor has to be measured again -- so the old one has to stop
+    being found. Renaming does that and keeps the record; unlinking destroys a
+    measurement to trigger a re-measurement, which is a worse trade than it
+    looks when the re-measurement is the thing that might not happen.
+    """
+    if not CERTIFICATE.exists():
+        return
+    aside = CERTIFICATE.with_suffix(f".superseded-{int(time.time())}.json")
+    CERTIFICATE.rename(aside)
+    say("certificate_set_aside", kept_at=aside.name)
+
+
+def stop_the_instance() -> bool:
+    """Signal the instance by pid, having checked the pid is the instance.
+
+    `pkill -f aura_main` matches a pattern against every command line on the
+    machine, including an editor holding the file open, a grep, or another
+    agent's probe. The one process this needs is the one listening on the
+    port, and it is asked to confirm what it is before it is signalled.
+    """
+    listening = subprocess.run(  # noqa: S603
+        ["/usr/sbin/lsof", "-nP", "-t", "-iTCP:8000", "-sTCP:LISTEN"],
+        capture_output=True, text=True, check=False,
+    ).stdout.split()
+    stopped = []
+    for raw in listening:
+        if not raw.isdigit():
+            continue
+        pid = int(raw)
+        command = subprocess.run(  # noqa: S603
+            ["/bin/ps", "-o", "command=", "-p", str(pid)],
+            capture_output=True, text=True, check=False,
+        ).stdout
+        if "aura_main" not in command:
+            say("left_alone", pid=pid, because="listening on 8000 but not the instance")
+            continue
+        os.kill(pid, signal.SIGTERM)
+        stopped.append(pid)
+    if not stopped:
+        say("nothing_to_stop", why="no aura_main is listening on 8000")
+        return True
+    say("instance_stopped", pids=stopped)
+    for _ in range(30):
+        time.sleep(2)
+        alive = [pid for pid in stopped if _still_running(pid)]
+        if not alive:
+            return True
+    say("instance_would_not_stop", pids=alive)
+    return False
+
+
+def _still_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def carry_the_result(result: Path) -> int:
     """Everything between a campaign result and a channel a turn can see."""
     run("verdict", [PYTHON, "tools/read_the_steering_campaign.py", "--result", str(result)])
@@ -238,9 +304,11 @@ print("installed", contract["migration_contract_sha256"][:16])
         say("stopped", why="the authority would not install; pointer unchanged")
         return 1
 
-    CERTIFICATE.unlink(missing_ok=True)
-    subprocess.run(["/usr/bin/pkill", "-f", "aura_main"], check=False)  # noqa: S603
-    time.sleep(10)
+    set_the_certificate_aside()
+    if not stop_the_instance():
+        say("stopped", why="could not identify the instance to stop; the new "
+                           "authority is installed but nothing was restarted")
+        return 1
     boot = OUT / "live_boot.log"
     with boot.open("wb") as handle:
         subprocess.Popen(  # noqa: S603
