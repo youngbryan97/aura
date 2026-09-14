@@ -822,6 +822,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   excludes live state updates from probes and restores intervention state on
   every exit. Per-layer controls and protocol-bound certificate reuse are
   tested; 153 focused tests passed. Model-active qualification remains open.
+  Lower-strength development calibration completed 12/12 public EOS answers.
+  Its warning stream exposed false reverse lock edges on owned recursion;
+  repaired in shared lockdep with positive and negative controls. Qualification
+  and serving proof remain open.
+  [Owned recursion and calibration](evidence/G10_OWNED_REENTRY_AND_CALIBRATION_2026-09-14.md)
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify

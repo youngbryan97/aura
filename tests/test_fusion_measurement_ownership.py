@@ -155,6 +155,10 @@ def test_owned_measurement_has_stable_alpha_but_serving_staleness_is_preserved()
 
 
 def test_multiple_hooks_can_be_reentered_during_a_probe(monkeypatch):
+    from core.runtime import lockdep
+
+    validator = lockdep.LockdepValidator()
+    monkeypatch.setattr(lockdep, "_VALIDATOR", validator)
     engine, hook = engine_and_hook()
     other = steering.AffectiveSteeringHook(object(), 3, hook._vectors, alpha=0.07)
     other.update_substrate(fusion_probe.STATE_LOW)
@@ -171,6 +175,7 @@ def test_multiple_hooks_can_be_reentered_during_a_probe(monkeypatch):
                                 control_context=engine.controlled_measurement(), model_identity="test")
     for item, saved in zip(engine._hooks, before, strict=True):
         assert_restored(item, saved)
+    assert validator.report()["splats"] == []
 
 
 def test_random_controls_match_each_layers_own_magnitude(monkeypatch):

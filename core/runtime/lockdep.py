@@ -373,6 +373,9 @@ class LockdepValidator:
                 self._contexts[key] = state
             held = state.held
             label = state.label
+            owned_reentry = reentrant and any(
+                h.name == name and h.thread_ident == threading.get_ident() for h in held
+            )
 
             # 3. self-deadlock on a non-reentrant lock
             if not reentrant and any(h.name == name for h in held):
@@ -410,6 +413,10 @@ class LockdepValidator:
                     pending.append(splat)
 
             for h in held:
+                # An owned RLock cannot wait on another thread. Keep its depth
+                # below, but do not invent a reverse dependency on inner locks.
+                if owned_reentry:
+                    break
                 # 1a. declared rank inversion
                 if (
                     h.rank is not LockRank.UNRANKED
