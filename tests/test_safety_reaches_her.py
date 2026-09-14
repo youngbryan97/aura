@@ -28,7 +28,7 @@ def _evening(kind: str = "interaction") -> AuraState:
 
 def test_an_untroubled_evening_with_somebody_in_it_reaches_affect() -> None:
     state = _evening()
-    AffectUpdatePhase(SimpleNamespace())._read_safety(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.safety(state, state.affect)
     assert state.affect.safety == pytest.approx(1.0)
     assert state.affect.markers["safety"]["threat"] == 0.0
 
@@ -36,7 +36,7 @@ def test_an_untroubled_evening_with_somebody_in_it_reaches_affect() -> None:
 def test_belonging_is_floored_at_it_rather_than_nudged() -> None:
     state = _evening()
     state.affect.emotions["belonging"] = 0.1
-    AffectUpdatePhase(SimpleNamespace())._read_safety(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.safety(state, state.affect)
     assert state.affect.emotions["belonging"] == pytest.approx(1.0)
 
 
@@ -44,7 +44,7 @@ def test_a_stronger_feeling_is_not_pulled_down_to_it() -> None:
     state = _evening()
     state.affect.emotions["belonging"] = 0.9
     state.cognition.working_memory.append({"role": "assistant", "content": "mine"})
-    AffectUpdatePhase(SimpleNamespace())._read_safety(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.safety(state, state.affect)
     assert state.affect.safety < 0.9
     assert state.affect.emotions["belonging"] == pytest.approx(0.9)
 
@@ -52,7 +52,7 @@ def test_a_stronger_feeling_is_not_pulled_down_to_it() -> None:
 def test_a_stretch_of_threats_is_not_safety() -> None:
     state = _evening("threat_detected")
     state.affect.emotions["belonging"] = 0.2
-    AffectUpdatePhase(SimpleNamespace())._read_safety(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.safety(state, state.affect)
     assert state.affect.safety == 0.0
     assert state.affect.emotions["belonging"] == pytest.approx(0.2)
 

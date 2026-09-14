@@ -31,7 +31,7 @@ def _fresh_ledger():
 def test_the_affect_phase_writes_the_reading_where_both_readers_look() -> None:
     state = AuraState.default()
     state.affect.valence = 0.4
-    AffectUpdatePhase(SimpleNamespace())._read_delivery(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.delivery(state, state.affect)
     row = state.response_modifiers.get("delivery")
     assert row, "the reply path has nothing to size itself by"
     assert row["phrase_budget"] > 0
@@ -45,9 +45,9 @@ def test_a_breakthrough_reaches_affect_once_her_level_is_known() -> None:
     state = AuraState.default()
     for level in (0.20, 0.24, 0.18, 0.22, 0.21, 0.19):
         state.affect.valence = level
-        phase._read_delivery(state, state.affect)
+        phase.readings.delivery(state, state.affect)
     state.affect.valence = 0.95
-    phase._read_delivery(state, state.affect)
+    phase.readings.delivery(state, state.affect)
     assert state.affect.breakthrough is True
     assert state.affect.delivery_z > 1.0
 

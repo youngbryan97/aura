@@ -121,7 +121,7 @@ def test_neutral_steering_is_attached_but_not_injected(monkeypatch):
     from core.brain.llm import mlx_worker
     from core.consciousness import affective_steering
 
-    hook = SimpleNamespace(_phi_residual_channel=None)
+    hook = SimpleNamespace(phi=SimpleNamespace(channel=None))
 
     class Engine:
         _model_attached = True

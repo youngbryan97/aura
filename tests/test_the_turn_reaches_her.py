@@ -37,7 +37,7 @@ def test_the_affect_phase_writes_a_turn_and_emits_it() -> None:
     _a_bad_stretch()
     state = AuraState.default()
     state.affect.valence = 0.8
-    AffectUpdatePhase(SimpleNamespace())._read_turn(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.turn(state, state.affect)
 
     assert state.affect.turn > 0.0
     assert state.affect.markers["the_turn"]["turned"] is True
@@ -50,7 +50,7 @@ def test_an_ordinary_good_moment_writes_nothing() -> None:
         led.note(value)
     state = AuraState.default()
     state.affect.valence = 0.9
-    AffectUpdatePhase(SimpleNamespace())._read_turn(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.turn(state, state.affect)
     assert state.affect.turn == 0.0
     assert state.affect.markers["the_turn"]["turned"] is False
 
@@ -59,7 +59,7 @@ def test_the_reading_is_bounded_while_the_rise_is_not() -> None:
     _a_bad_stretch()
     state = AuraState.default()
     state.affect.valence = 1.0
-    AffectUpdatePhase(SimpleNamespace())._read_turn(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.turn(state, state.affect)
     assert 0.0 < state.affect.turn < 1.0
     assert state.affect.markers["the_turn"]["rise"] > state.affect.turn
 

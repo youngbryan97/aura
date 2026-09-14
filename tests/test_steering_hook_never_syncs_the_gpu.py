@@ -26,7 +26,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.consciousness.affective_steering import AffectiveSteeringHook
+from core.consciousness.phi_residual_sampler import PhiResidualSampler
 
 
 class _FakeTensor:
@@ -39,12 +39,9 @@ class _FakeTensor:
         return "sliced-position"
 
 
-def _hook() -> AffectiveSteeringHook:
-    hook = AffectiveSteeringHook.__new__(AffectiveSteeringHook)
-    hook._inject_count = 0
-    hook._phi_sample_every = 1  # sample every call, so skips are the hook's doing
-    hook._layer_idx = 7
-    return hook
+def _hook() -> PhiResidualSampler:
+    # sample every call, so skips are the sampler's doing
+    return PhiResidualSampler(layer_idx=7, report=lambda *a, **k: None, sample_every=1)
 
 
 def _record(hook, tensor) -> list:
@@ -54,7 +51,7 @@ def _record(hook, tensor) -> list:
     with patch("core.container.ServiceContainer.has", return_value=True), patch(
         "core.container.ServiceContainer.get", return_value=phi
     ):
-        hook._maybe_record_phi_residual(tensor)
+        hook.maybe_record(tensor, inject_count=0)
     return seen
 
 

@@ -1,6 +1,6 @@
 """Grassmann state integers, from the worker process to the one that measures Φ.
 
-The blocker, stated exactly. ``_maybe_record_phi_residual`` in the steering hook
+The blocker, stated exactly. The residual sampler inside the steering hook
 resolves PhiCore with ``ServiceContainer.has("phi_core")`` — an IN-PROCESS
 lookup. Generation does not run in that process:
 

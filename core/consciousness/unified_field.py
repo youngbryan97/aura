@@ -59,6 +59,7 @@ import logging
 import threading
 import time
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -182,6 +183,42 @@ class FieldConfig:
     back_pressure_gain: float = 0.1    # how much field state modulates inputs
 
 
+
+
+def spectral_entropy_of(history: Sequence[np.ndarray]) -> float:
+    """Normalized eigenvalue entropy of recent field dynamics, in [0, 1].
+
+    Uses the singular-value spectrum of the centered recent state history
+    (the eigenvalues of the state covariance up to scale). Shannon entropy
+    of the normalized squared singular values divided by log(k) yields a
+    complexity index: ~1.0 = energy spread across many modes (rich, healthy
+    dynamics); → 0.0 = a single dominant mode (degenerate attractor or
+    rail-saturated collapse). Returns 1.0 until enough history exists.
+    """
+    if len(history) < 20:
+        return 1.0
+    try:
+        hist = np.asarray(list(history), dtype=np.float64)
+        hist = np.nan_to_num(hist, nan=0.0, posinf=1.0, neginf=-1.0)
+        centered = hist - hist.mean(axis=0)
+        sv = np.linalg.svd(centered, compute_uv=False)
+        power = sv.astype(np.float64) ** 2
+        total = float(power.sum())
+        if total <= 1e-12:
+            return 0.0  # zero variance: frozen/fully collapsed
+        p = power / total
+        p = p[p > 1e-12]
+        if p.size <= 1:
+            return 0.0
+        entropy = float(-np.sum(p * np.log(p)))
+        norm = entropy / float(np.log(p.size))
+        return float(min(1.0, max(0.0, norm)))
+    except _RECOVERABLE_FIELD_ERRORS as exc:
+        _record_unified_field_degradation(
+            exc,
+            action="returned neutral UnifiedField spectral entropy after SVD failure",
+        )
+        return 1.0
 
 
 class UnifiedField(_PredictsTheNextField):
@@ -627,7 +664,7 @@ class UnifiedField(_PredictsTheNextField):
         # toward a degenerate attractor, inject proportionally more chaos to
         # keep the dynamics from railing and Phi from dropping to zero.
         if self._tick_count % self._SPECTRAL_ENTROPY_INTERVAL == 0:
-            self._spectral_entropy = self._compute_spectral_entropy()
+            self._spectral_entropy = spectral_entropy_of(self._history)
         noise_scale = self._anti_degeneracy_scale()
         noise = (
             self._rng.standard_normal(cfg.dim).astype(np.float32)
@@ -997,41 +1034,6 @@ class UnifiedField(_PredictsTheNextField):
                     self._spectral_entropy,
                     scale,
                 )
-
-    def _compute_spectral_entropy(self) -> float:
-        """Normalized eigenvalue entropy of recent field dynamics, in [0, 1].
-
-        Uses the singular-value spectrum of the centered recent state history
-        (the eigenvalues of the state covariance up to scale). Shannon entropy
-        of the normalized squared singular values divided by log(k) yields a
-        complexity index: ~1.0 = energy spread across many modes (rich, healthy
-        dynamics); → 0.0 = a single dominant mode (degenerate attractor or
-        rail-saturated collapse). Returns 1.0 until enough history exists.
-        """
-        if len(self._history) < 20:
-            return 1.0
-        try:
-            hist = np.asarray(list(self._history), dtype=np.float64)
-            hist = np.nan_to_num(hist, nan=0.0, posinf=1.0, neginf=-1.0)
-            centered = hist - hist.mean(axis=0)
-            sv = np.linalg.svd(centered, compute_uv=False)
-            power = sv.astype(np.float64) ** 2
-            total = float(power.sum())
-            if total <= 1e-12:
-                return 0.0  # zero variance: frozen/fully collapsed
-            p = power / total
-            p = p[p > 1e-12]
-            if p.size <= 1:
-                return 0.0
-            entropy = float(-np.sum(p * np.log(p)))
-            norm = entropy / float(np.log(p.size))
-            return float(min(1.0, max(0.0, norm)))
-        except _RECOVERABLE_FIELD_ERRORS as exc:
-            _record_unified_field_degradation(
-                exc,
-                action="returned neutral UnifiedField spectral entropy after SVD failure",
-            )
-            return 1.0
 
     def _anti_degeneracy_scale(self) -> float:
         """Noise multiplier (≥ 1.0) that grows as the field nears a degenerate

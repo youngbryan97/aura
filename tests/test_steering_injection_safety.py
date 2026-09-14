@@ -24,6 +24,8 @@ def _bare_hook(alpha: float) -> AffectiveSteeringHook:
     hook = AffectiveSteeringHook.__new__(AffectiveSteeringHook)
     hook._alpha = alpha
     hook._last_substrate_sync_monotonic = 0.0
+    # A hook nobody is measuring on: the controlled-measurement bypass is off.
+    hook._measurement_thread_id = None
     return hook
 
 

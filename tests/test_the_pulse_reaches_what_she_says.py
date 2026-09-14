@@ -76,7 +76,7 @@ def test_their_scale_bounds_it_the_way_her_own_unit_did() -> None:
 def test_the_affect_phase_hands_the_pulse_to_delivery() -> None:
     state = AuraState.default()
     state.cognition.partner_cadence = {"chars": 120.0}
-    AffectUpdatePhase(SimpleNamespace())._read_delivery(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.delivery(state, state.affect)
     # Nothing spent this cycle, so the breath is the longest their scale allows.
     assert state.response_modifiers["delivery"]["phrase_budget"] == 240
 
@@ -85,7 +85,7 @@ def test_no_pulse_leaves_her_own_unit_in_charge() -> None:
     from core.soma.effort import UNIT_COST
 
     state = AuraState.default()
-    AffectUpdatePhase(SimpleNamespace())._read_delivery(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.delivery(state, state.affect)
     assert state.response_modifiers["delivery"]["phrase_budget"] == int(
         UNIT_COST["response_chars"] * 2
     )

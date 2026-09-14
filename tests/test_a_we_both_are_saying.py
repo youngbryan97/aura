@@ -63,7 +63,7 @@ def test_belonging_is_floored_at_it_and_the_edge_adds_nothing() -> None:
     state = AuraState.default()
     state.affect.emotions["belonging"] = 0.0
     state.cognition.togetherness = {"together": 0.4, "edge": 0.9}
-    AffectUpdatePhase(SimpleNamespace())._read_togetherness(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.togetherness(state, state.affect)
     assert state.affect.emotions["belonging"] == pytest.approx(0.4)
 
 
@@ -71,7 +71,7 @@ def test_a_stronger_belonging_is_not_pulled_down() -> None:
     state = AuraState.default()
     state.affect.emotions["belonging"] = 0.8
     state.cognition.togetherness = {"together": 0.3, "edge": 0.0}
-    AffectUpdatePhase(SimpleNamespace())._read_togetherness(state, state.affect)
+    AffectUpdatePhase(SimpleNamespace()).readings.togetherness(state, state.affect)
     assert state.affect.emotions["belonging"] == pytest.approx(0.8)
 
 

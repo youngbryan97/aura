@@ -1152,6 +1152,12 @@ def _install_language_growth_claims(suite: Any) -> None:
                 expensive=name in _AN_EXPERIMENT_NOT_AN_INSTRUMENT,
             )
         )
+    _install_vocabulary_claims(suite)
+    _install_machinery_claims(suite)
+
+
+def _install_vocabulary_claims(suite: Any) -> None:
+    """The words and the ways of building them: admission, growth, universality."""
     suite.add_claim(
         Claim(
             statement=(
@@ -1364,6 +1370,10 @@ def _install_language_growth_claims(suite: Any) -> None:
             ),
         )
     )
+
+
+def _install_machinery_claims(suite: Any) -> None:
+    """The ways of computing: heads, surfaces, provenance, and the one semantics."""
     suite.add_claim(
         Claim(
             statement=(

@@ -131,13 +131,13 @@ class TestTheReaderIsWired:
 
     def test_the_writer_is_still_there_too(self):
         """Both ends, or the channel is half a channel again."""
-        steering = (ROOT / "core" / "consciousness" / "affective_steering.py").read_text(
+        sampler = (ROOT / "core" / "consciousness" / "phi_residual_sampler.py").read_text(
             encoding="utf-8"
         )
-        assert "publish_state(channel, state)" in steering
+        assert "publish_state(channel, state)" in sampler
 
         worker = worker_source()
-        assert "_phi_residual_channel = phi_residual_mem" in worker
+        assert "hook.phi.channel = phi_residual_mem" in worker
 
     def test_the_parent_allocates_the_ring_before_the_fork(self):
         client = client_source()

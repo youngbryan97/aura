@@ -21,6 +21,7 @@ encoder does the expensive part in the worker: ~5120 floats in, one byte out.
 from __future__ import annotations
 
 import multiprocessing as mp
+from types import SimpleNamespace
 
 import pytest
 
@@ -169,7 +170,8 @@ class TestTheWiringIsActuallyPresent:
         from core.brain.llm import mlx_worker
 
         class _Hook:
-            pass
+            def __init__(self):
+                self.phi = SimpleNamespace(channel=None)
 
         class _Engine:
             _model_attached = True
@@ -189,7 +191,7 @@ class TestTheWiringIsActuallyPresent:
             engine, substrate_mem=None, phi_residual_mem=channel,
             steering_active_flag=None,
         )
-        assert all(h._phi_residual_channel is channel for h in engine._hooks)
+        assert all(h.phi.channel is channel for h in engine._hooks)
 
     def test_the_attach_actually_calls_the_finisher(self, monkeypatch):
         """The two halves are joined by a call, so make the call happen."""
@@ -227,11 +229,11 @@ class TestTheWiringIsActuallyPresent:
     def test_the_hook_publishes_rather_than_looking_up_a_local_phi_core(self):
         import inspect
 
-        from core.consciousness.affective_steering import AffectiveSteeringHook
+        from core.consciousness.phi_residual_sampler import PhiResidualSampler
 
-        source = inspect.getsource(AffectiveSteeringHook._maybe_record_phi_residual)
+        source = inspect.getsource(PhiResidualSampler.maybe_record)
         assert "publish_state" in source
-        assert "_encode_grassmann_state" in source
+        assert "self.encode(" in source
 
     def test_compute_phi_drains_before_it_measures(self):
         import inspect

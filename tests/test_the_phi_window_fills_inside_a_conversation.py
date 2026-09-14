@@ -27,11 +27,11 @@ import multiprocessing as mp
 import numpy as np
 import pytest
 
-from core.consciousness.affective_steering import (
-    _PHI_SAMPLE_EVERY,
-    AffectiveSteeringHook,
-)
 from core.consciousness.phi_residual_channel import create_channel, drain
+from core.consciousness.phi_residual_sampler import (
+    PHI_SAMPLE_EVERY as _PHI_SAMPLE_EVERY,
+)
+from core.consciousness.phi_residual_sampler import PhiResidualSampler
 
 #: Decode steps in a typical cortex-lane reply, measured over the recorded
 #: corpus rather than assumed. The warmup is stated in replies because that is
@@ -44,25 +44,20 @@ CORTEX_MEDIAN_REPLY_STEPS = 24
 WARMUP_BUDGET_REPLIES = 8
 
 
-def _hook(channel: object) -> AffectiveSteeringHook:
-    hook = AffectiveSteeringHook.__new__(AffectiveSteeringHook)
-    hook._phi_residual_channel = channel
-    hook._phi_sampled = 0
-    hook._phi_encoded_none = 0
-    hook._phi_published = 0
-    hook._phi_encode_errors = 0
-    hook._phi_last_error = ""
-    hook._grassmann_encoder = None
-    hook._phi_sample_every = _PHI_SAMPLE_EVERY
+def _hook(channel: object) -> PhiResidualSampler:
+    hook = PhiResidualSampler(
+        layer_idx=7, report=lambda *a, **k: None, sample_every=_PHI_SAMPLE_EVERY
+    )
+    hook.channel = channel
     return hook
 
 
-def _decode(hook: AffectiveSteeringHook, steps: int) -> None:
+def _decode(hook: PhiResidualSampler, steps: int) -> None:
     """Drive `steps` single-token decode steps through the publisher."""
     for step in range(steps):
-        hook._inject_count = step
-        hook._maybe_record_phi_residual(
-            np.random.default_rng(step).normal(size=(1, 1, 512)).astype(np.float32)
+        hook.maybe_record(
+            np.random.default_rng(step).normal(size=(1, 1, 512)).astype(np.float32),
+            inject_count=step,
         )
 
 
@@ -84,7 +79,7 @@ def test_the_old_stride_could_not_have_filled_in_a_conversation():
     """The defect, kept as a measurement rather than a story."""
     channel = create_channel(mp.get_context("spawn"))
     hook = _hook(channel)
-    hook._phi_sample_every = 32
+    hook.sample_every = 32
 
     _decode(hook, WARMUP_BUDGET_REPLIES * CORTEX_MEDIAN_REPLY_STEPS)
 
@@ -103,11 +98,11 @@ def test_a_warming_channel_is_distinguishable_from_a_broken_one():
 
     _decode(hook, 4 * CORTEX_MEDIAN_REPLY_STEPS)
 
-    filled = len(getattr(hook._grassmann_encoder, "_buf", ()) or ())
-    needed = int(getattr(hook._grassmann_encoder, "window", 0) or 0)
+    filled = len(getattr(hook.encoder, "_buf", ()) or ())
+    needed = int(getattr(hook.encoder, "window", 0) or 0)
     assert 0 < filled < needed, f"expected a partly full window, got {filled}/{needed}"
-    assert hook._phi_sampled > 0
-    assert hook._phi_encode_errors == 0
+    assert hook.sampled > 0
+    assert hook.encode_errors == 0
 
 
 def test_the_stride_is_not_quietly_raised_back():

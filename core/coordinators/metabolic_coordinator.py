@@ -66,6 +66,37 @@ def _record_metabolic_degradation(
     record_degradation(_METABOLIC_SUBSYSTEM, error, severity=severity, action=action)
 
 
+def lock_file_is_stale(lock_file) -> bool:
+    """A PID lock whose process is gone. Unreadable, empty and foreign locks stay."""
+    try:
+        raw = lock_file.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.debug("Unable to read PID lock %s: %s", lock_file, exc)
+        return False
+
+    if not raw:
+        return False
+
+    pid_text = raw.splitlines()[0].strip()
+    if not pid_text.isdigit():
+        return False
+
+    pid = int(pid_text)
+    if pid <= 0:
+        return False
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    except OSError as exc:
+        logger.debug("Unable to inspect PID %s from %s: %s", pid, lock_file, exc)
+        return False
+    return False
+
+
 def _coerce_float(value, default: float, *, minimum: float | None = None) -> float:
     try:
         number = float(value)
@@ -143,7 +174,7 @@ class MetabolicCoordinator:
             if lock_dir.exists():
                 logger.info("🧹 Inspecting PID locks in %s", lock_dir)
                 for lock_file in lock_dir.glob("*.lock"):
-                    if not self._lock_file_is_stale(lock_file):
+                    if not lock_file_is_stale(lock_file):
                         continue
                     try:
                         lock_file.unlink()
@@ -158,36 +189,6 @@ class MetabolicCoordinator:
         except _METABOLIC_BOUNDARY_ERRORS as e:
             _record_metabolic_degradation(e, action="stale PID lock cleanup skipped")
             logger.debug("Stale lock cleanup failed: %s", e)
-
-    @staticmethod
-    def _lock_file_is_stale(lock_file) -> bool:
-        try:
-            raw = lock_file.read_text(encoding="utf-8").strip()
-        except (OSError, UnicodeDecodeError) as exc:
-            logger.debug("Unable to read PID lock %s: %s", lock_file, exc)
-            return False
-
-        if not raw:
-            return False
-
-        pid_text = raw.splitlines()[0].strip()
-        if not pid_text.isdigit():
-            return False
-
-        pid = int(pid_text)
-        if pid <= 0:
-            return False
-
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            return True
-        except PermissionError:
-            return False
-        except OSError as exc:
-            logger.debug("Unable to inspect PID %s from %s: %s", pid, lock_file, exc)
-            return False
-        return False
 
     @staticmethod
     def _extract_bci_event_data(raw_event):

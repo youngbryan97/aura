@@ -192,7 +192,13 @@ def _apply_surface_generation_controls(
 
     state: dict[str, Any] = {"enabled": True, "apply_errors": []}
     alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None), engine=engine)
-    state["surface_alpha_requested"] = alpha
+    # What was asked for is recorded as asked. The certificate ceiling lowers
+    # what is applied, and an engine that is not there has no certificate to
+    # read, so without this line a job that asked for 0.2 read as a job that
+    # asked for nothing, and "nothing to apply" replaced "could not apply".
+    asked = job.get("clean_user_surface_steering_alpha")
+    requested = alpha if asked is None else max(0.0, _safe_float(asked, 0.0))
+    state["surface_alpha_requested"] = requested
 
     if engine is not None:
         state["engine"] = engine
@@ -214,7 +220,7 @@ def _apply_surface_generation_controls(
                 severity="error",
             )
             logger.warning("Surface steering clamp failed: %s", exc)
-    elif alpha == 0.0:
+    elif alpha == 0.0 and requested == 0.0:
         # A missing optional steering engine is exactly equivalent to a zero
         # steering request.  Treating this as an unapplied control made the
         # neutral, user-visible path depend on the embellishment it disabled.

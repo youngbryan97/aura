@@ -4802,7 +4802,7 @@ def _finish_affective_attachment(
     if phi_residual_mem is not None:
         for hook in getattr(engine, "_hooks", None) or []:
             try:
-                hook._phi_residual_channel = phi_residual_mem
+                hook.phi.channel = phi_residual_mem
             except (AttributeError, TypeError):
                 continue
     active = bool(engine.is_active())

@@ -9,7 +9,7 @@ the channel's whole existence. Zero is consistent with all of:
   - the encoder is still filling its 24-vector window;
   - the encoder is raising on every single call.
 
-The last one was invisible by construction: `_encode_grassmann_state` caught
+The last one was invisible by construction: the encoder caught
 ImportError, AttributeError, RuntimeError, TypeError and ValueError and
 returned None with no record, on the correct principle that a telemetry sample
 is never worth a generation — and the incorrect corollary that it therefore
@@ -26,24 +26,16 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from core.consciousness.affective_steering import AffectiveSteeringHook
+from core.consciousness.phi_residual_sampler import PhiResidualSampler
 
 
 @pytest.fixture
-def hook() -> AffectiveSteeringHook:
-    return AffectiveSteeringHook.__new__(AffectiveSteeringHook)
+def hook() -> PhiResidualSampler:
+    return PhiResidualSampler(layer_idx=7, report=lambda *a, **k: None, sample_every=32)
 
 
-def _prepare(hook: AffectiveSteeringHook, channel: object | None) -> None:
-    hook._phi_residual_channel = channel
-    hook._phi_sampled = 0
-    hook._phi_encoded_none = 0
-    hook._phi_published = 0
-    hook._phi_encode_errors = 0
-    hook._phi_last_error = ""
-    hook._phi_sample_every = 32
-    hook._inject_count = 0
-    hook._grassmann_encoder = None
+def _prepare(hook: PhiResidualSampler, channel: object | None) -> None:
+    hook.channel = channel
 
 
 def test_the_counters_separate_the_four_causes(hook):
@@ -51,8 +43,8 @@ def test_the_counters_separate_the_four_causes(hook):
     _prepare(hook, channel=None)
 
     # Nothing attached: nothing is even sampled.
-    assert hook._phi_sampled == 0
-    assert hook._phi_published == 0
+    assert hook.sampled == 0
+    assert hook.published == 0
 
 
 def test_an_encoder_that_withholds_is_counted_separately_from_one_that_raises(
@@ -66,15 +58,15 @@ def test_an_encoder_that_withholds_is_counted_separately_from_one_that_raises(
     )
 
     # Warming up: the window is not full, so the encoder withholds a state.
-    monkeypatch.setattr(hook, "_encode_grassmann_state", lambda sample: None)
-    hook._maybe_record_phi_residual(np.zeros((1, 1, 8)))
-    assert hook._phi_sampled == 1
-    assert hook._phi_encoded_none == 1
-    assert hook._phi_encode_errors == 0
+    monkeypatch.setattr(hook, "encode", lambda sample: None)
+    hook.maybe_record(np.zeros((1, 1, 8)), inject_count=0)
+    assert hook.sampled == 1
+    assert hook.encoded_none == 1
+    assert hook.encode_errors == 0
 
     # A withheld state must not be counted as an error: warming up and
     # broken are different problems and the counters keep them apart.
-    assert hook._phi_published == 0
+    assert hook.published == 0
     assert published == []
 
 
@@ -85,13 +77,13 @@ def test_a_published_sample_is_counted(hook, monkeypatch):
         "core.consciousness.phi_residual_channel.publish_state",
         lambda channel, state: published.append(state) or True,
     )
-    monkeypatch.setattr(hook, "_encode_grassmann_state", lambda sample: 7)
+    monkeypatch.setattr(hook, "encode", lambda sample: 7)
 
-    hook._maybe_record_phi_residual(np.zeros((1, 1, 8)))
+    hook.maybe_record(np.zeros((1, 1, 8)), inject_count=0)
 
     assert published == [7]
-    assert hook._phi_published == 1
-    assert hook._phi_encoded_none == 0
+    assert hook.published == 1
+    assert hook.encoded_none == 0
 
 
 def test_the_encoder_records_a_degradation_once_not_per_token(monkeypatch):
@@ -103,7 +95,7 @@ def test_the_encoder_records_a_degradation_once_not_per_token(monkeypatch):
         lambda subsystem, exc, **kw: recorded.append((subsystem, type(exc).__name__)),
     )
 
-    hook = AffectiveSteeringHook.__new__(AffectiveSteeringHook)
+    hook = PhiResidualSampler(layer_idx=7, report=lambda *a, **k: None, sample_every=32)
     _prepare(hook, channel=object())
 
     class _Exploding:
@@ -111,13 +103,13 @@ def test_the_encoder_records_a_degradation_once_not_per_token(monkeypatch):
             raise RuntimeError("no subspace")
 
     for _ in range(5):
-        hook._grassmann_encoder = _Exploding()
-        assert hook._encode_grassmann_state(np.zeros(8)) is None
+        hook.encoder = _Exploding()
+        assert hook.encode(np.zeros(8)) is None
 
-    assert hook._phi_encode_errors == 5
+    assert hook.encode_errors == 5
     assert len(recorded) == 1, recorded
     assert recorded[0][0] == "affective_steering.phi_residual"
-    assert "no subspace" in hook._phi_last_error
+    assert "no subspace" in hook.last_error
 
 
 def test_the_health_surface_reads_the_publishers_not_only_the_depth():

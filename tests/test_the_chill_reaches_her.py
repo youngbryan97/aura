@@ -42,12 +42,12 @@ def test_the_affect_phase_feels_a_chill_once() -> None:
     phase = AffectUpdatePhase(SimpleNamespace())
     state = AuraState.default()
 
-    phase._read_frisson(state, state.affect)
+    phase.readings.frisson(state, state.affect)
     assert state.affect.frisson > 0.0
     assert state.affect.markers["frisson"]["fired"] is True
     assert "frisson" in str(state.world.recent_percepts)
 
-    phase._read_frisson(state, state.affect)
+    phase.readings.frisson(state, state.affect)
     assert state.affect.frisson == 0.0
     assert state.affect.markers["frisson"]["fired"] is False
 
@@ -55,7 +55,7 @@ def test_the_affect_phase_feels_a_chill_once() -> None:
 def test_no_pattern_no_chill() -> None:
     phase = AffectUpdatePhase(SimpleNamespace())
     state = AuraState.default()
-    phase._read_frisson(state, state.affect)
+    phase.readings.frisson(state, state.affect)
     assert state.affect.frisson == 0.0
 
 

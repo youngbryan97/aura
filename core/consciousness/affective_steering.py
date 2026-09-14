@@ -118,6 +118,7 @@ from core.consciousness.mood_weight import (
     NEUTRAL_MOOD as _NEUTRAL_MOOD,  # noqa: F401 — read from here by its test
 )
 from core.consciousness.mood_weight import signed_weight as _signed_weight
+from core.consciousness.phi_residual_sampler import PHI_SAMPLE_EVERY, PhiResidualSampler
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import checked_lock
@@ -926,22 +927,8 @@ class SteeringVectorLibrary(_ReadsACachedVector):
 # ── The Steering Hook ──────────────────────────────────────────────────────────
 
 
-#: Decode steps between residual samples, chosen so the Grassmann encoder's
-#: window can FILL inside a conversation rather than a lifetime of them.
-#:
-#: It was 32, and the encoder needs 24 samples before it can return its first
-#: state, so the first Φ reading needed 768 decode steps from one hook. The
-#: cortex lane's median reply is 24 decode steps, measured over 4,927 recorded
-#: turns, which makes that 32 replies — inside a SINGLE worker lifetime, since
-#: every restart gives the hook a fresh encoder with an empty window. The
-#: channel therefore reported grassmann_states: 0 for its whole existence
-#: while every part of it worked.
-#:
-#: 8 puts the window inside eight replies at that median. The cost is one
-#: 5120-float slice per eight tokens per instrumented layer; the expensive
-#: thing this avoids is sampling during prefill, which is gated separately and
-#: is where the 58-82s first tokens came from.
-_PHI_SAMPLE_EVERY = 8
+#: The stride lives with the sampler; the name stays for the tests that read it.
+_PHI_SAMPLE_EVERY = PHI_SAMPLE_EVERY
 
 
 class AffectiveSteeringHook:
@@ -1016,32 +1003,8 @@ class AffectiveSteeringHook:
 
         # Diagnostic counters
         self._inject_count = 0
-        #: Set by the worker when it is running out-of-process. When present,
-        #: Grassmann states go across this ring instead of to a PhiCore that
-        #: does not exist on this side of the fork.
-        self._phi_residual_channel = None
-        # Why this channel is silent, when it is silent. `grassmann_states: 0`
-        # in the health report could mean the hook was never called, the
-        # encoder is still filling its window, the encoder is failing on every
-        # call, or nothing is draining — and the four were indistinguishable,
-        # because the encoder swallowed its own exceptions and said nothing.
-        self._phi_sampled = 0
-        self._phi_encoded_none = 0
-        self._phi_published = 0
-        self._phi_encode_errors = 0
-        self._phi_last_error = ""
-        self._grassmann_encoder = None
-        try:
-            self._phi_sample_every = max(
-                1,
-                int(
-                    os.getenv(
-                        "AURA_PHI_RESIDUAL_SAMPLE_EVERY", str(_PHI_SAMPLE_EVERY)
-                    )
-                ),
-            )
-        except (TypeError, ValueError):
-            self._phi_sample_every = _PHI_SAMPLE_EVERY
+        #: The residual sample Φ reads, and why it is silent when it is silent.
+        self.phi = PhiResidualSampler(layer_idx=self._layer_idx, report=_emit_affective_fault)
         self._last_injection_norm = 0.0
         self._last_effective_alpha = 0.0
         self._last_mask_mode = "none"
@@ -1388,133 +1351,6 @@ class AffectiveSteeringHook:
             self._last_mask_mode = f"mask_unavailable:{type(exc).__name__}"
         return None
 
-    def _maybe_record_phi_residual(self, h: Any) -> None:
-        if os.getenv("AURA_PHI_RECORD_RESIDUALS", "1").strip().lower() in {
-            "0",
-            "false",
-            "off",
-            "no",
-        }:
-            return
-        if self._inject_count % self._phi_sample_every != 0:
-            return
-        # PhiCore does `np.asarray(hidden_state)`, which on MLX is a blocking
-        # device sync AND a full materialisation of whatever it is handed. This
-        # hook runs inside the forward pass of all 64 blocks, so measuring here
-        # collapses MLX's lazy pipeline on the one path where latency decides
-        # whether a turn survives.
-        #
-        # During PREFILL `h` is the whole sequence — [1, seq, 5120] — so a
-        # single sample copied tens of megabytes off the GPU and stalled the
-        # graph, repeatedly. Measured live 2026-07-26: ~3k-token prompts took
-        # 58-82s to a first token, roughly 50 tok/s, about twenty times slower
-        # than this model should prefill; turns 5-7 of a conversation died on
-        # that alone.
-        #
-        # Prefill is not a thought moment anyway — the signal Φ wants is the
-        # per-token dynamics of generation. So sample only single-token decode
-        # steps, and hand over one already-sliced position rather than a
-        # sequence, so the transfer is a 5120-float vector instead of a tensor.
-        try:
-            shape = tuple(getattr(h, "shape", ()) or ())
-        except (AttributeError, TypeError):
-            return
-        if len(shape) >= 3 and shape[-2] > 1:
-            return
-        if len(shape) == 2 and shape[0] > 1:
-            return
-        try:
-            sample = h[0, -1, :] if len(shape) >= 3 else h
-
-            # IN THE WORKER PROCESS there is no PhiCore to hand this to — the
-            # hook runs inside the MLX worker subprocess and PhiCore is
-            # registered in the main runtime, so the container lookup below
-            # returned False on every token and the activation-grounded complex
-            # never filled. Encode here, where the activations are, and publish
-            # the 8-bit state across the boundary.
-            channel = getattr(self, "_phi_residual_channel", None)
-            if channel is not None:
-                self._phi_sampled += 1
-                state = self._encode_grassmann_state(sample)
-                if state is not None:
-                    from core.consciousness.phi_residual_channel import publish_state
-
-                    publish_state(channel, state)
-                    self._phi_published += 1
-                    return
-                self._phi_encoded_none += 1
-                return
-
-            from core.container import ServiceContainer
-
-            if not ServiceContainer.has("phi_core"):
-                return
-            phi_core = ServiceContainer.get("phi_core", default=None)
-            if phi_core is not None and hasattr(phi_core, "record_residual_stream"):
-                phi_core.record_residual_stream(
-                    sample, layer_idx=self._layer_idx, token_position=-1
-                )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            _emit_affective_fault(
-                exc,
-                action="continued generation after optional phi residual sample failed",
-                severity="warning",
-                stage="phi_residual_sample",
-                extra={"layer_idx": self._layer_idx},
-            )
-            logger.debug("Residual phi sample failed at layer %d: %s", self._layer_idx, exc)
-
-    def _encode_grassmann_state(self, sample: Any) -> int | None:
-        """Reduce a residual vector to the 8-bit state Φ's TPM is built from.
-
-        Done HERE rather than in the parent because the encoder is what makes
-        this cheap to ship: ~5120 floats in, one byte out. Sending the vector
-        instead would put a per-token megabyte across the process boundary on
-        the path where latency decides whether a turn survives.
-        """
-        try:
-            if self._grassmann_encoder is None:
-                from core.consciousness.grassmann_phi import GrassmannResidualComplex
-                from core.consciousness.phi_core import _grassmann_anchor_count
-
-                self._grassmann_encoder = GrassmannResidualComplex(
-                    n_anchors=_grassmann_anchor_count()
-                )
-            import numpy as _np
-
-            vector = _np.asarray(sample, dtype=_np.float32).reshape(-1)
-            state = self._grassmann_encoder.observe(vector)
-            if state is None:
-                return None
-            # Fold rather than truncate: `& 0xFF` would keep modes 0-7 and drop
-            # everything above, so a wider encoder would subtract information.
-            from core.consciousness.phi_core import _fold_modes_to_byte
-
-            return _fold_modes_to_byte(int(state))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            # A telemetry sample is never worth a generation, so this still
-            # fails open. What it must not do is fail SILENTLY: an encoder
-            # raising on every call looks exactly like an encoder that is never
-            # reached, and both report zero states. Recorded once — this runs
-            # inside the forward pass, and a per-token degradation record would
-            # cost more than the sample it describes.
-            self._phi_encode_errors += 1
-            self._phi_last_error = f"{type(exc).__name__}: {exc}"[:200]
-            if self._phi_encode_errors == 1:
-                from core.runtime.errors import record_degradation
-
-                record_degradation(
-                    "affective_steering.phi_residual",
-                    exc,
-                    severity="warning",
-                    action=(
-                        "the Grassmann encoder refused a residual sample; the "
-                        "activation-grounded complex will not fill while this "
-                        "persists"
-                    ),
-                )
-            return None
-
     def install(self):
         """
         Patch the transformer block's forward pass to inject the steering vector.
@@ -1624,7 +1460,7 @@ class AffectiveSteeringHook:
                 # Whether the model's representation is integrated is not a
                 # question about whether we happen to be steering it. The
                 # sample belongs to the forward pass, not to the injection.
-                hook._maybe_record_phi_residual(h)
+                hook.phi.maybe_record(h, inject_count=hook._inject_count)
 
                 if rest is not None:
                     return (h,) + rest
@@ -1683,23 +1519,7 @@ class AffectiveSteeringHook:
             "substrate_valence": round(float(moods.get("valence", 0.0)), 3) if moods else None,
             "substrate_arousal": round(float(moods.get("arousal", 0.0)), 3) if moods else None,
             "vector_sources": {key: vector.source for key, vector in self._vectors.items()},
-            "phi_residual": {
-                "channel_attached": self._phi_residual_channel is not None,
-                "sampled": self._phi_sampled,
-                "published": self._phi_published,
-                "encoder_withheld": self._phi_encoded_none,
-                "encoder_errors": self._phi_encode_errors,
-                "last_error": self._phi_last_error,
-                "sample_every": self._phi_sample_every,
-                # How full the encoder's window is. Without this a warming
-                # channel and a broken one both report zero states.
-                "window_filled": len(
-                    getattr(self._grassmann_encoder, "_buf", ()) or ()
-                ),
-                "window_needed": int(
-                    getattr(self._grassmann_encoder, "window", 0) or 0
-                ),
-            },
+            "phi_residual": self.phi.diagnostics(),
         }
 
 

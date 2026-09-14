@@ -20,7 +20,7 @@ import numpy as np
 
 from core.consciousness.alife_dynamics import ALifeDynamics, EntropyTracker
 from core.consciousness.controlled_chaos import ChaosConfig, ChaosEngine
-from core.consciousness.unified_field import FieldConfig, UnifiedField
+from core.consciousness.unified_field import FieldConfig, UnifiedField, spectral_entropy_of
 
 
 # ── A. Entropy allostatic consolidation ─────────────────────────────────────
@@ -89,7 +89,7 @@ def test_field_noise_scales_with_eigenvalue_entropy():
     rng = np.random.default_rng(0)
     for _ in range(40):
         uf._history.append((rng.standard_normal(64) * 0.3).astype(np.float32))
-    uf._spectral_entropy = uf._compute_spectral_entropy()
+    uf._spectral_entropy = spectral_entropy_of(uf._history)
     uf.F = (rng.standard_normal(64) * 0.2).astype(np.float32)
     healthy_entropy = uf.get_spectral_entropy()
     healthy_scale = uf._anti_degeneracy_scale()
@@ -98,7 +98,7 @@ def test_field_noise_scales_with_eigenvalue_entropy():
     uf._history.clear()
     for _ in range(40):
         uf._history.append(np.ones(64, dtype=np.float32) * 0.999)
-    uf._spectral_entropy = uf._compute_spectral_entropy()
+    uf._spectral_entropy = spectral_entropy_of(uf._history)
     uf.F = np.ones(64, dtype=np.float32) * 0.999
     degenerate_entropy = uf.get_spectral_entropy()
     degenerate_scale = uf._anti_degeneracy_scale()
@@ -117,7 +117,7 @@ def test_field_saturation_rescue_breaks_the_rails():
     uf._history.clear()
     for _ in range(40):
         uf._history.append(np.ones(64, dtype=np.float32) * 0.999)
-    uf._spectral_entropy = uf._compute_spectral_entropy()
+    uf._spectral_entropy = spectral_entropy_of(uf._history)
     uf.F = np.ones(64, dtype=np.float32) * 0.999
     before = float(np.mean(np.abs(uf.F)))
     uf._update_coherence()
