@@ -868,7 +868,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   retains all 216 completed decodes and an independently replayed negative:
   one treatment target-score win versus four matched no-op wins, with task
   regressions. The new gradient-trained generation is not qualified or published.
-- [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
+- [x] G11 Prove the qualified mechanism actually serves eligible live requests.
+  Closed 2026-09-14: [desktop serving](evidence/G11_DESKTOP_SERVING_2026-09-14.md).
+  Four fresh desktop requests across all four qualified families delivered
+  exact answers with source/model identity and durable terminal proof.
+  Fifteen evidence tests passed. Runtime health and broad gain are separate.
   [Manifest continuity repair](evidence/G11_MANIFEST_CONTINUITY_2026-09-14.md)
   restores installed qualification after a steering-only authority change
   without rewriting historical evidence. Foreground/service replay passes

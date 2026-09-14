@@ -2345,6 +2345,32 @@ def install_runtime_validation() -> dict[str, Any]:
         )
     )
 
+    suite.add_test(
+        ValidationTest(
+            name="qualified_desktop_delivery_archive_holds",
+            description="Replay the four dated G11 desktop delivery observations.",
+            required_capability="rlc_qualified_foreground_ingress",
+            observation=Observation(
+                name="four_qualified_desktop_answers_delivered",
+                value=True,
+                source="artifacts/migration/27b/recovery/desktop-serving-20260914/delivery.json",
+            ),
+            predict=lambda _m: _qualified_desktop_delivery_archive_holds(),
+            score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="dated desktop delivery"),
+            owner="core/organism/qualified_desktop_evidence.py",
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement="On 2026-09-14 four eligible desktop requests used the qualified semantic mechanism and delivered exact answers.",
+            test="qualified_desktop_delivery_archive_holds",
+            owner="core/organism/qualified_desktop_evidence.py",
+            asserted_in="docs/evidence/G11_DESKTOP_SERVING_2026-09-14.md",
+            evidence=Evidence.MEASURED_LIVE,
+            evidence_note="Dated desktop observations, not current runtime health or broad transfer. Replayed by tests/test_qualified_desktop_delivery_evidence.py.",
+        )
+    )
+
     # ── claims corrected on 2026-08-11 ─────────────────────────────────────
     #
     # Each of these replaces a broader statement that the code did not
@@ -3926,6 +3952,15 @@ def _exclusion_losses_to_iid() -> int:
         ):
             losses += 1
     return losses
+
+
+def _qualified_desktop_delivery_archive_holds() -> bool:
+    from core.organism.qualified_desktop_evidence import verify_archive
+
+    archive = pathlib.Path(__file__).resolve().parents[2] / (
+        "artifacts/migration/27b/recovery/desktop-serving-20260914/delivery.json"
+    )
+    return bool(verify_archive(json.loads(archive.read_text()))["passed"])
 
 
 def _qualified_recurrent_foreground_contract_holds() -> bool:
