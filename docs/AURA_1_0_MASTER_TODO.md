@@ -737,6 +737,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   historical records. This is not fresh gain evidence or G05/G06 closure.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
+  independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
+  A separate semantic audit preserves that result but identifies missing public
+  operation definitions, disabled native thinking, and one repeated construction.
+  This is serialization evidence, not G06 closure.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
