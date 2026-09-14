@@ -752,6 +752,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Runtime tokenizer contract](evidence/G05_RUNTIME_TOKENIZER_CONTRACT_2026-09-14.md)
   repairs vocabulary and EOS discovery in the shared serving processor; 79
   focused tests passed. No public model answer was produced by the failed run.
+  [Resident shape result](evidence/G05_RESIDENT_SHAPE_RESULT_2026-09-14.md)
+  passed 3/3 exact public task answers at EOS with zero processor refusals on
+  the repaired 27B path. This is component evidence, not RLC gain or desktop proof.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
@@ -834,6 +837,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repaired in shared lockdep with positive and negative controls. Qualification
   and serving proof remain open.
   [Owned recursion and calibration](evidence/G10_OWNED_REENTRY_AND_CALIBRATION_2026-09-14.md)
+  [Probe checkpoint identity](evidence/G10_PROBE_CHECKPOINT_IDENTITY_2026-09-14.md)
+  aligns the fusion CLI's actual load and certificate identity. The full
+  public steering comparison is running; launch does not grant qualification.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
