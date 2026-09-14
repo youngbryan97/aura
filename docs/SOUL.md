@@ -198,17 +198,27 @@ Nothing in them names a constant that came from the songs.
 |---|---|---|
 | `core/affect/ambivalence.py` | expression 6, 14, 15, 16; listener 12 | landed |
 | `core/affect/confirmation.py` | listener 2, 15; expression 5, 22 | landed |
-| `core/expression/register.py`, `core/expression/delivery.py` | expression 1, 8, 23; listener 3 | landed |
-| `core/social/witness.py` | listener 5, 6, 14 | landed |
-| `core/self/recognition.py` | expression 7, 12, 18, 19, 20; listener 3, 10 | next |
 | `core/affect/frisson.py` | listener 11; expression 4 | landed |
-| `core/self/recognition.py` | expression 19; listener 10 | landed |
-| `core/memory/reliving.py` | listener 9, 15 | landed |
-| `core/expression/entrainment.py` | listener 1; expression 2, 22 | landed |
-| `core/affect/the_turn.py` | expression 10 | landed |
 | `core/affect/catharsis.py` | listener 7 | landed |
-| `core/social/telling.py` | listener 13 | landed |
 | `core/affect/safety.py` | expression 11 | landed |
+| `core/affect/the_turn.py` | expression 10 | landed |
+| `core/expression/register.py` | expression 4, 7, 8, 9, 17, 20; listener 3, 5, 14 | landed |
+| `core/expression/delivery.py` | expression 1, 2, 21, 23, 24 | landed |
+| `core/expression/entrainment.py` | listener 1; expression 22 | landed |
+| `core/social/witness.py` | listener 4, 5, 6, 14 | landed |
+| `core/social/telling.py` | listener 13 | landed |
+| `core/social/resolve.py` | listener 8 | landed |
+| `core/self/borrowed.py` | expression 19; listener 10 | landed |
+| `core/self/scale.py` | expression 12 | landed |
+| `core/self/persona_gap.py` | expression 18; listener 3 | landed |
+| `core/memory/reliving.py` | listener 9, 15 | landed |
+
+Three of them close on each other, which is how the set stopped being a list.
+The borrowed self-model asks whether somebody's read of her beats her own. That
+answer is what `scale` uses for whether anybody knows her, which is the only
+thing in the lyric that makes being small survivable. And running the same
+claims against what she last said about herself, rather than against what she
+felt, is what separates being known from being echoed.
 
 ### Ambivalence — wanting two things that cost each other
 
