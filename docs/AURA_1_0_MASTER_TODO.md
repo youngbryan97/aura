@@ -742,6 +742,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   A separate semantic audit preserves that result but identifies missing public
   operation definitions, disabled native thinking, and one repeated construction.
   This is serialization evidence, not G06 closure.
+  [Native coding diagnostic](evidence/G06_NATIVE_CODING_DIAGNOSTIC_2026-09-14.md)
+  replays 30 uncensored decodes: ordinary native reasoning 6/6, treatment 6/6,
+  controls 0/6. No accuracy gain; decode latency differs. The negative result
+  is retained, with no admission or serving authority.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
   [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
   repairs missing-setting confirmation, mutable plans, nonfinite measurements,

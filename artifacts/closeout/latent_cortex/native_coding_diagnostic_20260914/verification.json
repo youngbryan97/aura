@@ -1,0 +1,85 @@
+{
+  "admitted": false,
+  "artifact_receipt_sha256": "92f6f7bb65d87d039126d042d20563d372558b04ad5c671b0d90e5d332973401",
+  "artifact_sha256": "6793fab8ec40e911b8ca4b1f7db037e077359106dc113c505a5ad996458fb15e",
+  "claim_boundary": "bounded teacher-free multi-domain neural-state-to-free-decode transfer on the resident model bound by model_identity and resident_manifest_identity; not open-domain, broad reasoning, fusion, frontier performance, or WOW",
+  "coefficient_lesion_contract_verified": true,
+  "decode_coverage": {
+    "attempts_by_arm": {
+      "coefficient_lesion": 6,
+      "matched_wire_base": 6,
+      "matched_wrong_state": 6,
+      "ordinary_base": 6,
+      "treatment": 6
+    },
+    "censored_attempts_by_arm": {
+      "coefficient_lesion": 0,
+      "matched_wire_base": 0,
+      "matched_wrong_state": 0,
+      "ordinary_base": 0,
+      "treatment": 0
+    },
+    "uncensored": true
+  },
+  "decode_policy": "native_public_channel_v1",
+  "difficulties": [
+    1,
+    2,
+    3
+  ],
+  "domains": [
+    "coding"
+  ],
+  "gain_count": 0,
+  "grading_policy": "semantic_values_v2",
+  "independent_exact_by_arm": {
+    "coefficient_lesion": 0,
+    "matched_wire_base": 0,
+    "matched_wrong_state": 0,
+    "ordinary_base": 6,
+    "treatment": 6
+  },
+  "independent_parsed_by_arm": {
+    "coefficient_lesion": 6,
+    "matched_wire_base": 6,
+    "matched_wrong_state": 6,
+    "ordinary_base": 6,
+    "treatment": 6
+  },
+  "integrity_verified": true,
+  "journal_decode_count": 30,
+  "journal_event_count": 32,
+  "journal_final_receipt_sha256": "4993b7992c23eaaa565906164c54ec536c41d9f112ac7206ec9d0bcecf1595d0",
+  "journal_sha256": "0ace7d91abb93a6909735f0d65c9104a3b22c7d51e0f2e09a3a390dc7be715e2",
+  "max_tokens": 8192,
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "paired_discordant_count": 0,
+  "paired_one_sided_exact_p": 1.0,
+  "producer_claim_boundary": "bounded teacher-free multi-domain neural-state-to-free-decode transfer on the resident model bound by model_identity and resident_manifest_identity; not open-domain, broad reasoning, fusion, frontier performance, or WOW",
+  "producer_claim_boundary_legacy": false,
+  "raw_output_count": 30,
+  "regression_count": 0,
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "d96503910e4779346a5bae714f4f94975b2974420c796c66bead3aef9d9faf15",
+    "tag": "cp954-27b-resident"
+  },
+  "schema": "aura.rlc.semantic_neural_decode_verification.v1",
+  "seed": 2026091402,
+  "source_commit": "beab1bf34340de0d99af32bdc8fbd8b3ae7ce1c7",
+  "surface_profile": "canonical",
+  "task_count": 6,
+  "tasks_per_difficulty": 2,
+  "treatment_state_replay_count": 6,
+  "verification_receipt_sha256": "a535879330d6de6426503e6688794668597b4bdb6218ac8bc72245e882e5779a",
+  "verified": false,
+  "verifier_source_sha256": "d1c62623c579519afdccc7763fc408aefd4ca09442e4c0412702f047715f9164"
+}

@@ -382,6 +382,7 @@ def verify_canary(
     model_path: Path,
     journal_path: Path | None = None,
     resident_manifest_path: Path | None = None,
+    require_admission: bool = True,
 ) -> dict[str, Any]:
     artifact_path = artifact_path.expanduser().resolve(strict=True)
     model_path = model_path.expanduser().resolve(strict=True)
@@ -593,7 +594,9 @@ def verify_canary(
             for arm in ("matched_wire_base", "coefficient_lesion", "matched_wrong_state")
         )
     )
-    if payload.get("admitted") is not admitted or not admitted:
+    if payload.get("admitted") is not admitted:
+        raise RuntimeError("semantic decode claimed admission disagrees with independent replay")
+    if require_admission and not admitted:
         raise RuntimeError("semantic decode independently derived admission failed")
 
     journal_verification = (
@@ -613,7 +616,9 @@ def verify_canary(
 
     body = {
         "schema": VERIFICATION_SCHEMA,
-        "verified": True,
+        "verified": admitted,
+        "integrity_verified": True,
+        "admitted": admitted,
         "artifact_sha256": hashlib.sha256(raw_bytes).hexdigest(),
         "artifact_receipt_sha256": payload["receipt_sha256"],
         "source_commit": source_commit,
@@ -653,12 +658,15 @@ def main() -> int:
     parser.add_argument("--journal", type=Path)
     parser.add_argument("--resident-manifest", type=Path)
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--allow-negative", action="store_true",
+                        help="Audit negative results without granting qualification.")
     args = parser.parse_args()
     report = verify_canary(
         args.artifact,
         model_path=args.model,
         journal_path=args.journal,
         resident_manifest_path=args.resident_manifest,
+        require_admission=not args.allow_negative,
     )
     encoded = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.report is not None:

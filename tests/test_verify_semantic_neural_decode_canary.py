@@ -213,6 +213,38 @@ def test_semantic_decode_verifier_regrades_and_replays_frozen_canary(tmp_path):
     assert report["paired_one_sided_exact_p"] == pytest.approx(2**-27)
 
 
+def test_negative_integrity_audit_never_grants_qualification(tmp_path):
+    artifact, model = _portable_artifact(tmp_path)
+    payload = json.loads(artifact.read_bytes())
+    treatment = {row["task_id"]: row["response"] for row in payload["raw_outputs"]
+                 if row["arm"] == "treatment"}
+    for row in payload["raw_outputs"]:
+        if row["arm"] == "ordinary_base":
+            row["response"] = treatment[row["task_id"]]
+            row["response_sha256"] = hashlib.sha256(row["response"].encode()).hexdigest()
+    payload["arms"]["ordinary_base"].update(exact=27, parsed=27, exact_accuracy=1.0, parsed_accuracy=1.0)
+    summary = payload["arms"]["ordinary_base"]
+    summary["receipt_sha256"] = _sha({key: value for key, value in summary.items() if key != "receipt_sha256"})
+    payload.update(gain_count=0, gain_set_sha256=_sha([]), admitted=False)
+    _reseal(artifact, payload)
+    with pytest.raises(RuntimeError, match="admission failed"):
+        verify_canary(artifact, model_path=model)
+    journal = tmp_path / "journal.jsonl"
+    _write_journal(artifact, journal)
+    report = verify_canary(artifact, model_path=model, journal_path=journal, require_admission=False)
+    assert report["integrity_verified"] is True
+    assert report["verified"] is False
+    assert report["admitted"] is False
+    assert report["paired_discordant_count"] == 0
+    assert report["paired_one_sided_exact_p"] == 1.0
+    assert report["journal_decode_count"] == 135
+    payload = json.loads(artifact.read_bytes())
+    payload["admitted"] = True
+    _reseal(artifact, payload)
+    with pytest.raises(RuntimeError, match="claimed admission"):
+        verify_canary(artifact, model_path=model, require_admission=False)
+
+
 def test_semantic_decode_verifier_checks_receipt_chained_journal(tmp_path):
     artifact, model = _portable_artifact(tmp_path)
     journal = tmp_path / "journal.jsonl"
