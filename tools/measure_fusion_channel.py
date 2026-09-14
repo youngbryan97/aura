@@ -144,6 +144,7 @@ def _measure(
         tokenizer,
         hooks,
         engine.set_alpha,
+        control_context=engine.controlled_measurement(),
         model_identity=digest,
         model_name=arguments.model,
         alphas=alphas,

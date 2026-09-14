@@ -166,6 +166,8 @@ def test_campaign_main_resume_matches_uninterrupted(tmp_path, monkeypatch):
             active[:] = [self]
         def install(self):
             pass
+        def preserve_control_state(self):
+            return contextlib.nullcontext()
         def update_substrate(self, moods):
             value = sum(v.v for v in self._vectors.values())
             self.state = value if self.state is None else 0.85 * self.state + 0.15 * value

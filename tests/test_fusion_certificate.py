@@ -12,6 +12,7 @@ import json
 import pytest
 
 from core.consciousness.fusion_certificate import (
+    FUSION_MEASUREMENT_PROTOCOL,
     MIN_DISTRIBUTION_SHIFT,
     MIN_STATE_SEPARATION,
     FusionCertificate,
@@ -26,6 +27,7 @@ from core.consciousness.fusion_certificate import (
 def _certificate(**overrides) -> FusionCertificate:
     """A certificate that holds, so each test can break exactly one thing."""
     fields = {
+        "measurement_protocol": FUSION_MEASUREMENT_PROTOCOL,
         "model_identity": "a" * 64,
         "model_name": "test-model",
         "alpha": 0.2,
@@ -50,6 +52,18 @@ def test_a_full_certificate_holds():
     certificate = _certificate()
     assert certificate.holds
     assert certificate.why_not() == ""
+
+
+def test_old_measurement_is_readable_but_cannot_authorize_current_serving(tmp_path):
+    old = _certificate(measurement_protocol="", basis_sha256="b" * 64)
+    path = write_certificate(old, root=tmp_path)
+    retained = path.read_bytes()
+    assert certificate_for(old.model_identity, basis_sha256=old.basis_sha256, root=tmp_path) == old
+    assert certified_alpha(old.model_identity, basis_sha256=old.basis_sha256, root=tmp_path) == 0.0
+    current = _certificate(basis_sha256=old.basis_sha256)
+    current_path = write_certificate(current, root=tmp_path)
+    assert current_path != path and path.read_bytes() == retained
+    assert certified_alpha(old.model_identity, basis_sha256=old.basis_sha256, root=tmp_path) == 0.2
 
 
 def test_unchanged_answers_refuse_it():

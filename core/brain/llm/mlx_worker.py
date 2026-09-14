@@ -4705,6 +4705,7 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
         return False
     try:
         from core.consciousness.fusion_certificate import (
+            FUSION_MEASUREMENT_PROTOCOL,
             certificate_for,
             steering_basis_sha256,
             write_certificate,
@@ -4721,10 +4722,10 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     if (getattr(engine, "_model_info", None) or {}).get("model_descriptor_sha256") != identity:
         logger.info("Fusion measurement refused: attached engine and worker model identities differ.")
         return False
-    if certificate_for(identity, basis_sha256=basis) is not None:
+    if certificate_for(identity, basis_sha256=basis,
+                       measurement_protocol=FUSION_MEASUREMENT_PROTOCOL) is not None:
         return False
 
-    restore_alpha = float(getattr(engine, "_alpha", 0.0) or 0.0)
     logger.info(
         "Measuring the fusion channel for %s on an idle worker; this holds the GPU "
         "for a minute and happens once per checkpoint and vector basis.",
@@ -4736,6 +4737,7 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
             tokenizer,
             hooks,
             engine.set_alpha,
+            control_context=engine.controlled_measurement(),
             model_identity=identity,
             model_name=str((getattr(engine, "_model_info", None) or {}).get("model_path", "")),
             alphas=FUSION_SELF_CERTIFY_ALPHAS,
@@ -4749,22 +4751,6 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
             severity="warning",
         )
         return False
-    finally:
-        try:
-            engine.set_alpha(restore_alpha)
-        except (AttributeError, TypeError, ValueError) as exc:
-            # Not a swallow. The probe left the engine's alpha wherever its
-            # last measurement put it, and failing to put it back would leave
-            # steering silently off — or silently hot — for the rest of this
-            # worker's life, with nothing anywhere saying why.
-            _record_mlx_degradation(
-                exc,
-                action=(
-                    "could not restore the steering alpha the fusion probe changed; "
-                    "the engine is left at the probe's last setting"
-                ),
-                severity="warning",
-            )
 
     if not certificates:
         return False

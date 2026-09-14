@@ -147,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
             for hook in hooks:
                 hook._alpha = float(value)
 
+        from contextlib import nullcontext
+
         from core.consciousness.fusion_probe import measure_fusion
 
         alphas = tuple(float(a) for a in str(arguments.alphas).split(",") if a.strip())
@@ -155,6 +157,7 @@ def main(argv: list[str] | None = None) -> int:
             tokenizer,
             hooks,
             set_alpha,
+            control_context=nullcontext(),
             model_identity=descriptor,
             model_name=str(model_path),
             alphas=alphas,

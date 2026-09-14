@@ -994,6 +994,7 @@ def test_affective_steering_live_source_annotation_failures_are_visible(monkeypa
     thread = SubstrateSyncThread(
         [hook],
         types.SimpleNamespace(
+            _state_control_lock=affective_steering.checked_lock("test.substrate.sync"),
             governor=types.SimpleNamespace(compute_alpha=lambda *_args: 0.2),
             telemetry=types.SimpleNamespace(alpha=0.0),
         ),

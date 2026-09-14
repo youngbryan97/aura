@@ -6,11 +6,14 @@ reason. These say what reopens it and what keeps it shut.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import pytest
 
 from core.brain.llm import mlx_worker
 from core.consciousness import fusion_certificate
 from core.consciousness.fusion_certificate import (
+    FUSION_MEASUREMENT_PROTOCOL,
     FusionCertificate,
     steering_basis_sha256,
     write_certificate,
@@ -29,6 +32,9 @@ class BoundEngine:
     def active_hooks(self):
         return [BoundHook()]
 
+    def controlled_measurement(self):
+        return nullcontext()
+
     def set_alpha(self, alpha):
         raise AssertionError("a measured basis must not be probed again")
 
@@ -44,6 +50,7 @@ def certified(tmp_path, monkeypatch):
     identity = "c" * 64
     engine = BoundEngine(identity)
     certificate = FusionCertificate(
+        measurement_protocol=FUSION_MEASUREMENT_PROTOCOL,
         model_identity=identity,
         model_name="test-model",
         alpha=0.2,

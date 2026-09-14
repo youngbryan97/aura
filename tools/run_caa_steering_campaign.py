@@ -39,6 +39,7 @@ import math
 import os
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -350,9 +351,12 @@ def main(argv: list[str] | None = None) -> int:
             text = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
-            sample = decode_public_sample(
-                model, tokenizer, text, max_tokens=int(arguments.max_tokens), sampler=sampler,
-            )
+            with ExitStack() as control:
+                for hook in hooks:
+                    control.enter_context(hook.preserve_control_state())
+                sample = decode_public_sample(
+                    model, tokenizer, text, max_tokens=int(arguments.max_tokens), sampler=sampler,
+                )
             return sample.text, {
                 **sample.receipt(),
                 "max_tokens": int(arguments.max_tokens),

@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 
 def _write_vector(
@@ -280,7 +281,10 @@ def test_steering_vector_weight_prefers_direct_substrate_index():
     substrate[4] = 0.75
 
     assert vector.compute_weight({"motivation": -1.0}) < 0.0
-    assert vector.compute_weight_from_state(substrate) > 0.6
+    assert vector.compute_weight_from_state(substrate) == pytest.approx(np.tanh(2 * 0.75 - 1))
+    assert vector.compute_weight_from_state(substrate) == vector.compute_weight({"motivation": 0.75})
+    substrate[4] = 0.5
+    assert vector.compute_weight_from_state(substrate) == 0.0
 
 
 def test_substrate_sync_prefers_shared_state_vector_over_mood_projection():

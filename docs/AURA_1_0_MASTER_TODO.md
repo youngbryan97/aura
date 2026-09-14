@@ -814,6 +814,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   separates private reasoning from scored answers and preserves termination
   evidence per sample. The old campaign stopped with 68 diagnostic samples;
   a fresh public-channel campaign is required. Calibration cannot qualify it.
+  [Fusion intervention ownership](evidence/G10_FUSION_INTERVENTION_OWNERSHIP_2026-09-14.md)
+  excludes live state updates from probes and restores intervention state on
+  every exit. Per-layer controls and protocol-bound certificate reuse are
+  tested; 153 focused tests passed. Model-active qualification remains open.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify

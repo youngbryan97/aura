@@ -106,6 +106,7 @@ import os
 import re
 import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -119,6 +120,7 @@ from core.consciousness.mood_weight import (
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.lockdep import checked_lock
 from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import state_root
 
@@ -1003,10 +1005,11 @@ class AffectiveSteeringHook:
         # Shared substrate state (updated by SubstrateSyncThread)
         self._substrate_x: np.ndarray | None = None
         self._latest_moods: dict[str, float] = {}
-        self._substrate_lock = threading.Lock()
+        self._substrate_lock = checked_lock(f"steering.substrate.{layer_idx}.{id(self)}", reentrant=True)
         # Freshness stamp: 0.0 = never synced. The injection path derates
         # alpha when the sync thread stops feeding us (see _effective_alpha).
         self._last_substrate_sync_monotonic = 0.0
+        self._measurement_thread_id: int | None = None
 
         # Active flag
         self._active = True
@@ -1081,7 +1084,8 @@ class AffectiveSteeringHook:
             return 0.0
         alpha = min(alpha, self._INJECTION_ALPHA_CEILING)
         last_sync = self._last_substrate_sync_monotonic
-        if last_sync <= 0.0 or (time.monotonic() - last_sync) > self._SYNC_STALE_AFTER_S:
+        controlled = self._measurement_thread_id == threading.get_ident()
+        if not controlled and (last_sync <= 0.0 or (time.monotonic() - last_sync) > self._SYNC_STALE_AFTER_S):
             alpha = min(alpha, self._STALE_SAFE_ALPHA)
         return alpha
 
@@ -1248,6 +1252,28 @@ class AffectiveSteeringHook:
         with self._substrate_lock:
             composite = self._last_composite_np
             return None if composite is None else composite.copy()
+
+    @contextmanager
+    def preserve_control_state(self):
+        """Own a temporary intervention and restore the exact incoming state.
+
+        The generation owner may re-enter this lock while probing. Concurrent
+        publishers wait until every cached intervention has been removed.
+        """
+        names = (
+            "_alpha", "_active", "_substrate_x", "_latest_moods",
+            "_last_substrate_sync_monotonic", "_cached_composite_mx",
+            "_last_composite_np", "_cached_substrate_hash",
+            "_measurement_thread_id",
+        )
+        with self._substrate_lock:
+            state = {name: getattr(self, name) for name in names}
+            self._measurement_thread_id = threading.get_ident()
+            try:
+                yield
+            finally:
+                for name, value in state.items():
+                    setattr(self, name, value)
 
     def override_composite_vector(self, vector: Any | None) -> None:
         """Force the injected vector. FOR ABLATION ONLY.
@@ -1788,6 +1814,7 @@ class SubstrateSyncThread:
 
     def _loop(self):
         while self._running:
+            self._engine._state_control_lock.acquire()
             try:
                 moods = {}
                 substrate_x, substrate_source = self._read_substrate_vector()
@@ -1879,6 +1906,8 @@ class SubstrateSyncThread:
                     stage="substrate_sync_loop",
                 )
                 logger.debug("SubstrateSyncThread error: %s", e)
+            finally:
+                self._engine._state_control_lock.release()
 
             time.sleep(SUBSTRATE_SYNC_INTERVAL_S)
 
@@ -1959,6 +1988,7 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
     """
 
     def __init__(self):
+        self._state_control_lock = checked_lock(f"steering.engine.{id(self)}", reentrant=True)
         self._hooks: list[AffectiveSteeringHook] = []
         self._sync_thread: SubstrateSyncThread | None = None
         self._library: SteeringVectorLibrary | None = None
@@ -2281,7 +2311,26 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
         self._attached_model_id = None
         self._model_info = {"attachment_error": "affective_steering_detached"}
 
+    @contextmanager
+    def controlled_measurement(self):
+        """Exclude live publishers while the generation owner runs a probe."""
+        with self._state_control_lock:
+            alpha, override, telemetry_alpha = self._alpha, self._surface_alpha_override, self.telemetry.alpha
+            # The probe measures the candidate alpha; the serving clamp is a
+            # result of qualification and cannot also suppress its experiment.
+            self._surface_alpha_override = None
+            try:
+                yield
+            finally:
+                self._alpha = alpha
+                self._surface_alpha_override = override
+                self.telemetry.alpha = telemetry_alpha
+
     def set_alpha(self, alpha: float):
+        with self._state_control_lock:
+            self._set_alpha_locked(alpha)
+
+    def _set_alpha_locked(self, alpha: float):
         """
         Adjust steering strength at runtime.
         alpha=0 disables steering without uninstalling hooks.
@@ -2309,6 +2358,10 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
 
     def set_surface_alpha_override(self, alpha: float | None):
         """Clamp hook alpha for user-facing surface generations."""
+        with self._state_control_lock:
+            self._set_surface_alpha_override_locked(alpha)
+
+    def _set_surface_alpha_override_locked(self, alpha: float | None):
         if alpha is None:
             self._surface_alpha_override = None
             return

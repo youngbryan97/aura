@@ -79,6 +79,7 @@ __all__ = [
 #: New records bind model and vector basis. Unbound historical records remain
 #: readable, but cannot satisfy a lookup for a measured basis.
 CERTIFICATE_DIR = Path("artifacts/fusion")
+FUSION_MEASUREMENT_PROTOCOL = "owned_layer_matched_v1"
 
 #: The repository, found from this file rather than from the process's working
 #: directory.
@@ -154,6 +155,7 @@ class FusionCertificate:
     runner: str = ""
     note: str = ""
     basis_sha256: str = ""
+    measurement_protocol: str = ""
 
     @property
     def arrives(self) -> bool:
@@ -281,6 +283,8 @@ def write_certificate(certificate: FusionCertificate, *, root: Path | None = Non
     directory = (root or _REPO_ROOT) / CERTIFICATE_DIR
     key = _certificate_key(certificate.model_identity, certificate.basis_sha256)
     path = directory / f"{_slug(certificate.model_identity)}{key[len(certificate.model_identity):]}.json"
+    if certificate.measurement_protocol:
+        path = path.with_name(f"{path.stem}--{_slug(certificate.measurement_protocol)}.json")
     with local_internal_governed_scope("fusion_certificate.write", domain="file_write"):
         get_file_write_gateway().write_text(
             path, json.dumps(certificate.as_json(), indent=2) + "\n",
@@ -294,7 +298,8 @@ def write_certificate(certificate: FusionCertificate, *, root: Path | None = Non
     return path
 
 
-def load_certificates(*, root: Path | None = None) -> dict[str, FusionCertificate]:
+def load_certificates(*, root: Path | None = None,
+                      measurement_protocol: str | None = None) -> dict[str, FusionCertificate]:
     """Every certificate by model and basis, including unbound historical records."""
     directory = (root or _REPO_ROOT) / CERTIFICATE_DIR
     found: dict[str, FusionCertificate] = {}
@@ -303,8 +308,10 @@ def load_certificates(*, root: Path | None = None) -> dict[str, FusionCertificat
     for path in sorted(directory.glob("*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
+            if measurement_protocol is not None and payload.get("measurement_protocol", "") != measurement_protocol:
+                continue
             key = _certificate_key(str(payload["model_identity"]), str(payload.get("basis_sha256", "")))
-            found[key] = FusionCertificate(
+            certificate = FusionCertificate(
                 model_identity=str(payload["model_identity"]),
                 model_name=str(payload.get("model_name", "")),
                 alpha=float(payload["alpha"]),
@@ -324,21 +331,25 @@ def load_certificates(*, root: Path | None = None) -> dict[str, FusionCertificat
                 runner=str(payload.get("runner", "")),
                 note=str(payload.get("note", "")),
                 basis_sha256=str(payload.get("basis_sha256", "")),
+                measurement_protocol=str(payload.get("measurement_protocol", "")),
             )
+            if key not in found or certificate.measured_at >= found[key].measured_at:
+                found[key] = certificate
         except (OSError, KeyError, TypeError, ValueError) as exc:
             logger.debug("unreadable fusion certificate %s: %s", path, exc)
     return found
 
 
 def certificate_for(model_identity: str, *, basis_sha256: str = "",
-                    root: Path | None = None) -> FusionCertificate | None:
+                    root: Path | None = None, measurement_protocol: str | None = None) -> FusionCertificate | None:
     """The certificate for exactly this model, or None.
 
     Exactly this model. A certificate earned by one set of weights says nothing
     about another, which is the whole reason the worker's comment asked for a
     model-specific one.
     """
-    return load_certificates(root=root).get(_certificate_key(str(model_identity or ""), basis_sha256))
+    return load_certificates(root=root, measurement_protocol=measurement_protocol).get(
+        _certificate_key(str(model_identity or ""), basis_sha256))
 
 
 def certified_alpha(model_identity: str, *, basis_sha256: str = "", root: Path | None = None) -> float:
@@ -350,7 +361,8 @@ def certified_alpha(model_identity: str, *, basis_sha256: str = "", root: Path |
     than an arbitrary one, that opposing states of hers move the model to
     different places, and that no answer got worse.
     """
-    certificate = certificate_for(model_identity, basis_sha256=basis_sha256, root=root)
+    certificate = certificate_for(model_identity, basis_sha256=basis_sha256, root=root,
+                                  measurement_protocol=FUSION_MEASUREMENT_PROTOCOL)
     if certificate is None:
         return 0.0
     if not certificate.holds:
