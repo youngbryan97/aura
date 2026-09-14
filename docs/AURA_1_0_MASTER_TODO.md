@@ -745,6 +745,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs prompt/output separation, speculative rewind, whole-token grammar
   caches and Unicode escapes. Fifty-two tests pass, including installed MLX
   generation and the real tokenizer; resident-model validation remains open.
+  [Resident shape canary](evidence/G05_RESIDENT_SHAPE_CANARY_2026-09-14.md)
+  now separates exact task answers from syntax, public completion and processor
+  continuity. Seventy focused tests passed; the model run follows this checkpoint.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)

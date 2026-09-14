@@ -170,3 +170,14 @@ def test_sampled_decode_observes_real_mlx_stream_terminal_metadata(monkeypatch):
     result = channel.decode_public_sample(nn.Linear(2, 2), tokenizer, [2], max_tokens=10, sampler=object())
     assert result.text == "hello" and result.generated_tokens == 2
     assert result.stop_reason == "eos" and result.stopped
+
+
+def test_sampled_decode_preserves_callers_logits_processors(monkeypatch):
+    processor = object()
+    def stream(*args, **kwargs):
+        assert kwargs["logits_processors"] == [processor]
+        yield SimpleNamespace(text="{}", token=1, generation_tokens=1, finish_reason="stop")
+    monkeypatch.setattr(importlib.import_module("mlx_lm.generate"), "stream_generate", stream)
+    result = channel.decode_public_sample(object(), Tokenizer(), "question", max_tokens=8,
+                                          sampler=object(), logits_processors=(processor,))
+    assert result.text == "{}" and result.stopped

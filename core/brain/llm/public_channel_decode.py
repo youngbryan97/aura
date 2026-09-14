@@ -53,6 +53,7 @@ class PublicChannelDecode:
 def decode_public_sample(
     model: Any, tokenizer: Any, prompt: str | Sequence[int], *,
     max_tokens: int, sampler: Any, progress: Callable[[int], None] | None = None,
+    logits_processors: Sequence[Callable] | None = None,
 ) -> PublicChannelDecode:
     """Sample through MLX's streaming API and retain only the public channel.
 
@@ -70,8 +71,9 @@ def decode_public_sample(
     segments, tokens = [], []
     last = None
     started = time.monotonic()
+    options = {} if logits_processors is None else {"logits_processors": list(logits_processors)}
     for response in stream_generate(model, tokenizer, prompt=prompt,
-                                    max_tokens=max_tokens, sampler=sampler):
+                                    max_tokens=max_tokens, sampler=sampler, **options):
         segments.append(response.text)
         tokens.append(int(response.token))
         last = response
