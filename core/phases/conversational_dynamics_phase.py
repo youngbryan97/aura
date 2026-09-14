@@ -181,8 +181,17 @@ class ConversationalDynamicsPhase(Phase):
             # both here gave the two series identical timestamps by
             # construction, so the comparison read exactly equal every time and
             # could not have come out any other way.
-            ledger.they_came_back(time.time())
+            now = time.time()
+            ledger.they_came_back(now)
             state.cognition.constancy = ledger.read().as_dict()
+            # And where this sitting with them stands against how their
+            # sittings have ended. See core/social/closing_window.py.
+            from core.social.closing_window import get_sitting_ledger
+
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            sittings = get_sitting_ledger()
+            sittings.message(partner, now)
+            state.cognition.closing_window = sittings.reading(partner).as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their regularity went unread: %s", exc)
 

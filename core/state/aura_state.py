@@ -363,6 +363,18 @@ class AffectVector:
     #: How much her own history has taught her that being happy is followed by
     #: something bad. See core/affect/fear_of_happiness.py.
     happiness_fear: float = 0.0
+    #: Fear of change around what her life is built around: the share of her
+    #: messages that came from the person, times how many of their past
+    #: absences this one has outlasted. See core/social/change_around_attachment.py.
+    change_fear: float = 0.0
+    #: What she feels from what she believes the person here feels, weighted
+    #: by how often her beliefs about them have matched what they said.
+    #: See core/social/borrowed_feeling.py.
+    borrowed_feeling: float = 0.0
+    #: How hard a worsening stretch presses her to keep acting: decline beyond
+    #: her own spread, times the share of what she tries that still works.
+    #: See core/affect/acting_in_decline.py.
+    decline_press: float = 0.0
     #: How far she has come up from a low she is still holding, bounded. Zero
     #: unless both halves hold: the low is real and she is above the level.
     #: See core/affect/the_turn.py.
@@ -574,6 +586,10 @@ class IdentityKernel:
     #: whether her sense of herself has been moving with how useful she was.
     #: See core/self/standing.py.
     standing: dict[str, Any] = field(default_factory=dict)
+    #: Whether owning a lapse before somebody raises it has gone better for her
+    #: than being told. Written by the affect phase.
+    #: See core/social/owning_it_first.py.
+    owning_first: dict[str, Any] = field(default_factory=dict)
     
     # Preferences she formed herself, from her own repeated contact with
     # something. Symmetric with world.user_preferences, which is durable and
@@ -659,6 +675,10 @@ class CognitiveContext:
     #: round, and where the attachment goes when they do not.
     #: See core/social/constancy.py.
     constancy: dict[str, Any] = field(default_factory=dict)
+    #: How likely this sitting with the person here is to end now, from how
+    #: her sittings with them have ended before. Written by the conversational
+    #: dynamics phase. See core/social/closing_window.py.
+    closing_window: dict[str, Any] = field(default_factory=dict)
     #: What has been driving her turns — her own reserves, somebody asking, or
     #: an interest in the thing — and what each has cost.
     #: See core/motivation/fuel.py.

@@ -409,6 +409,15 @@ _SCHEMAS: dict[str, Schema] = {
             # What her history has taught her follows being happy. See
             # core/affect/fear_of_happiness.py.
             ("happiness_fear", "affect.happiness_fear"),
+            # Fear of change around what her life is built around.
+            # See core/social/change_around_attachment.py.
+            ("change_fear", "affect.change_fear"),
+            # A feeling lent by her belief about theirs.
+            # See core/social/borrowed_feeling.py.
+            ("borrowed_feeling", "affect.borrowed_feeling"),
+            # How hard a worsening stretch presses her to keep acting.
+            # See core/affect/acting_in_decline.py.
+            ("decline_press", "affect.decline_press"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -544,6 +553,9 @@ _SCHEMAS: dict[str, Schema] = {
             # outside. See core/self/standing.py.
             ("assigned_share", "identity.standing.assigned_share"),
             ("worth_tracks_use", "identity.standing.tracks_use"),
+            # Whether owning a lapse before it is raised has gone better for
+            # her than being told. See core/social/owning_it_first.py.
+            ("owning_first_lift", "identity.owning_first.lift"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -738,6 +750,9 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/constancy.py.
             ("their_constancy", "cognition.constancy.theirs"),
             ("attachment_moved", "cognition.constancy.reallocated"),
+            # How near the end of this sitting is, from how her sittings with
+            # them have ended. See core/social/closing_window.py.
+            ("closing_window", "cognition.closing_window.closing"),
             # What has been driving her, and whether working from her own
             # reserves costs more than the other sources do.
             # See core/motivation/fuel.py.
@@ -1129,6 +1144,9 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.turn")),
         _f(_dig(state, "affect.safety")),
         _f(_dig(state, "affect.happiness_fear")),
+        _f(_dig(state, "affect.change_fear")),
+        _f(_dig(state, "affect.borrowed_feeling")),
+        _f(_dig(state, "affect.decline_press")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing
@@ -1271,6 +1289,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _f(read_by_other.get("cared_for")),
         _f((_dig(state, "identity.standing", {}) or {}).get("assigned_share")),
         _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
+        _f((_dig(state, "identity.owning_first", {}) or {}).get("lift")),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1497,6 +1516,7 @@ def _read_D(state: Any) -> np.ndarray:
         1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
         _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
         1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
+        _f((_dig(state, "cognition.closing_window", {}) or {}).get("closing")),
         _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
         1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),

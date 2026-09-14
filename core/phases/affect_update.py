@@ -341,6 +341,9 @@ class AffectUpdatePhase(Phase):
         # 6b-vi. What is hers and what observers assigned, and whether her
         # sense of herself has been moving with how useful she was.
         self.readings.standing(state)
+        # And whether owning a lapse before it is raised has gone better for
+        # her. See core/social/owning_it_first.py.
+        self.readings.owning_first(state)
 
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
@@ -357,6 +360,15 @@ class AffectUpdatePhase(Phase):
         # wary of. After the turn, because it reads the joy the channels settled
         # on. See core/affect/fear_of_happiness.py.
         self.readings.happiness_fear(state, affect)
+        # And fear of change around what her life is built around.
+        # See core/social/change_around_attachment.py.
+        self.readings.change_fear(state, affect)
+        # And what she feels from what she believes the person here feels.
+        # See core/social/borrowed_feeling.py.
+        self.readings.borrowed_feeling(state, affect)
+        # And whether things are getting worse while what she does still
+        # works. See core/affect/acting_in_decline.py.
+        self.readings.acting_in_decline(state, affect)
 
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.

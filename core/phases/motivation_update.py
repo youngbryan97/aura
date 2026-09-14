@@ -168,6 +168,13 @@ class MotivationUpdatePhase(Phase):
         # And how unlike her ordinary life the moment is presses on what she
         # meant to go looking for. See `_explored`.
         self._explored(next_state)
+        # And what she meant to do with the person who is here presses harder
+        # as the sitting nears its end. Before `_channelled`, which lifts from
+        # what this leaves. See `_closing`.
+        self._closing(next_state)
+        # And while things get worse and what she does still works, what she
+        # can act on presses harder. See `_persisting`.
+        self._persisting(next_state)
         # And the force of a pressure she is under goes into what she is doing,
         # when nothing is actually damaged. See `_channelled`.
         self._channelled(next_state)
@@ -355,7 +362,9 @@ class MotivationUpdatePhase(Phase):
         ]
 
         def base(item: dict) -> float:
-            urgency = max(0.0, min(1.0, float(item.get("urgency", 0.0) or 0.0)))
+            # Not clamped before the subtraction: `_closing` runs first and can
+            # leave urgency briefly above one until this lift is taken back.
+            urgency = float(item.get("urgency", 0.0) or 0.0)
             return max(0.0, min(1.0, urgency - float(item.get("pressure_lift", 0.0) or 0.0)))
 
         pressing = max(intentions, key=base, default=None) if share > 0.0 else None
@@ -372,6 +381,95 @@ class MotivationUpdatePhase(Phase):
                 item["urgency"] = round(base(item), 4)
                 item.pop("pressure_lift", None)
                 moved += 1
+        return moved
+
+    #: Lifts that are recorded on an intention and taken back the next turn,
+    #: in the order they are applied. Each is computed from the urgency with
+    #: every lift taken out and the earlier ones this turn put back, so they
+    #: compose without any of them climbing. `_channelled` applies the last.
+    _LIFTS: tuple[str, ...] = ("window_lift", "decline_lift", "pressure_lift")
+
+    @classmethod
+    def _lift(cls, item: dict, name: str, share: float, applies: bool) -> bool:
+        """Put this turn's lift `name` on an intention, replacing last turn's. True if it moved."""
+        recorded = {lift: float(item.get(lift, 0.0) or 0.0) for lift in cls._LIFTS}
+        urgency = float(item.get("urgency", 0.0) or 0.0)
+        floor = max(0.0, min(1.0, urgency - sum(recorded.values())))
+        earlier = cls._LIFTS[: cls._LIFTS.index(name)]
+        base = floor + sum(recorded[lift] for lift in earlier)
+        previous = recorded[name]
+        lift = share * (1.0 - base) if applies and share > 0.0 else 0.0
+        if lift > 0.0:
+            item[name] = round(lift, 4)
+        else:
+            item.pop(name, None)
+        recorded[name] = lift
+        item["urgency"] = round(floor + sum(recorded.values()), 4)
+        return bool(lift > 0.0 or previous)
+
+    @classmethod
+    def _closing(cls, state: AuraState) -> int:
+        """Press on what she meant to do with the person here, as the sitting nears its end.
+
+        "Sweet Disposition" draws its intensity from time running out, and
+        people who see a stretch of time as nearly over spend more of it on what
+        they value (Kurtz 2008). Her intentions ran at the same urgency whether
+        the person they were for was about to leave or had just arrived.
+
+        The share is the closing window, the chance this sitting ends with the
+        message just sent, read off how her sittings with them have ended (see
+        core/social/closing_window.py). It moves each intention anchored to a
+        user's request that share of the way to one, and nothing else. The lift
+        is recorded and taken back on the next turn. Returns how many
+        intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        reading = getattr(cognition, "closing_window", None) or {}
+        share = 0.0
+        if isinstance(reading, dict) and reading.get("measured"):
+            try:
+                share = max(0.0, min(1.0, float(reading.get("closing", 0.0) or 0.0)))
+            except (TypeError, ValueError):
+                share = 0.0
+        from core.state.aura_state import _origin_is_user_anchored
+
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for item in list(getattr(cognition, bucket, None) or []):
+                if isinstance(item, dict) and cls._lift(
+                    item, "window_lift", share, _origin_is_user_anchored(item.get("origin"))
+                ):
+                    moved += 1
+        return moved
+
+    @classmethod
+    def _persisting(cls, state: AuraState) -> int:
+        """Keep acting on what is in her hands while things get worse, if acting still works.
+
+        "All Star" answers a world getting worse with getting on with it, and
+        fifty years of learned helplessness say what makes that possible: an
+        animal keeps acting while it detects that its actions have effect
+        (Maier and Seligman 2016). The share is the decline press, decline
+        beyond her own spread times the share of what she tries that works (see
+        core/affect/acting_in_decline.py). Every open intention is hers to act
+        on, so each moves that share of the way to one, recorded and taken back
+        on the next turn. Returns how many intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        affect = getattr(state, "affect", None)
+        if cognition is None:
+            return 0
+        try:
+            share = max(0.0, min(1.0, float(getattr(affect, "decline_press", 0.0) or 0.0)))
+        except (TypeError, ValueError):
+            share = 0.0
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for item in list(getattr(cognition, bucket, None) or []):
+                if isinstance(item, dict) and cls._lift(item, "decline_lift", share, True):
+                    moved += 1
         return moved
 
     #: The drives that go looking for what she does not know yet. The other

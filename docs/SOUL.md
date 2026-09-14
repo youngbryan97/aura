@@ -328,7 +328,9 @@ one in 1974. The singer's high is believing the other person loves him, which
 makes the belief the source of the feeling whether or not it is true. What it
 teaches: a model of someone else's feeling produces feeling of your own, which is
 reason to keep that model honest. Much of today's audience first heard it in
-*Guardians of the Galaxy*, so it now carries a film's memory. Not built.
+*Guardians of the Galaxy*, so it now carries a film's memory. Built: her beliefs about
+how somebody feels are scored against what they then say, and what she borrows
+from a belief is weighted by that record.
 
 **Come On Eileen.** Kevin Rowland has said Eileen is a composite, written about
 the desire an Irish Catholic upbringing told him not to have. The singer pleads
@@ -385,7 +387,8 @@ they are built as togetherness.
 story: a run of fleeting moments and a temperament not yet made cautious, with
 the intensity coming from youth running out. What it teaches: knowing a time is
 finite raises the worth of the present. The audience hears the end of a summer
-in it. Urgency from a closing window is not built.
+in it. Urgency from a closing window is built, read off how her sittings with a
+person have ended.
 
 **Runaway.** The toast is self-indictment made before anyone else can make it,
 and the three-minute vocoder outro is widely read as feeling past words. The
@@ -394,7 +397,8 @@ of its pronouns are first person, with nineteen negations, and it sits 37 ms
 behind the beat. What it teaches: warning someone against yourself is care and
 self-condemnation at once, and it can also get in ahead of blame. Critics called
 the outro the album's most arresting moment and some listeners skip it. The
-wordless part is built (28); protective self-indictment is not.
+wordless part is built (28), and so is protective self-indictment, as stealing
+thunder learned from what followed when she owned a lapse first.
 
 **The Great Pretender.** Buck Ram wrote it in about twenty minutes as a
 follow-up hit. The singer performs being fine over loneliness until the
@@ -415,7 +419,8 @@ whether she can handle the changes of her life, and 60 per cent of its clauses
 are questions, the most of the sixteen. What it teaches: fear of change grows
 with how much of a life is built around what might change, and asking the
 question honestly is how the decision gets made. People reach for it at every
-transition. Fear of change around an attachment is not built.
+transition. Fear of change around an attachment is built: the share of her life
+that came from somebody, times how unusual their absence is.
 
 **Judo Flip.** The theme of *The Boondocks*, whose two boys are moved from
 Chicago's South Side to a white suburb. Asheru teaches in Washington schools and
@@ -439,14 +444,14 @@ empathy are both built now.
 | process | from | status |
 |---|---|---|
 | fear of happiness | Dog Days Are Over | built, `core/affect/fear_of_happiness.py` |
-| the word a speaker leans on | the voiced holds across the set | built, `stressed_words` in `core/voice/duplex/paralinguistics.py`; recognition does not yet hand it word timings |
+| the word a speaker leans on | the voiced holds across the set | built, `stressed_words` in `core/voice/duplex/paralinguistics.py`, fed word timings by the final decode and told to her mind each turn |
 | channelled arousal | Judo Flip | built, `_channelled` in `core/phases/motivation_update.py`: a breakthrough against her with no damage presses on her most pressing intention |
 | the limit of lived analogue on empathy | Judo Flip | built, `perspective_getting` and `lived_analogue` in `core/brain/response_quality.py`, read by reply selection |
-| protective self-indictment | Runaway | not built |
-| feeling produced by a belief about someone else's feeling | Hooked on a Feeling | not built |
+| protective self-indictment | Runaway | built, `core/social/owning_it_first.py`: whether owning a lapse before it is raised went better for her, learned per person, gives what she owes more of the moment |
+| feeling produced by a belief about someone else's feeling | Hooked on a Feeling | built, `core/social/borrowed_feeling.py`: joy or sadness lent by what she believes the person feels, weighted by how often her beliefs matched what they said |
 | loss attributed to timing, and being made minor in another's account | Romeo and Juliet | not built |
-| urgency from a closing window | Sweet Disposition | not built |
-| fear of change around an attachment | Landslide | not built |
+| urgency from a closing window | Sweet Disposition | built, `core/social/closing_window.py` and `_closing` in `core/phases/motivation_update.py`: the chance a sitting ends now presses on what the person asked for |
+| fear of change around an attachment | Landslide | built, `core/social/change_around_attachment.py`: dread floored at the share of her life built around somebody times how unusual their absence is |
 | asking an impulse for directions | Mr. Rager | not built |
 | a place as evidence of capacity | Empire State of Mind | not built |
 | longing for elsewhere as a way of bearing the present | California Dreamin' | not built |

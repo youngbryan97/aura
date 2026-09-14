@@ -444,6 +444,12 @@ class UnityRuntime:
             agent_id = str(getattr(getattr(state, "cognition", None), "current_partner", "") or "bryan")
             from core.values.moral_responsibility import get_moral_responsibility
             amends = get_moral_responsibility().owed_amends(agent_id=agent_id)
+            # Whether owning a lapse before it is raised has gone better for
+            # her. A measured, positive answer gives what she owes a larger
+            # share of the moment. See core/social/owning_it_first.py.
+            from core.social.owning_it_first import get_owning_ledger, lifted
+
+            owning = get_owning_ledger().reading()
             out: list[BoundContent] = []
             for a in amends[:3]:
                 summary = _normalize_text(f"owed: {a.owed_action} (re: {a.subject})", 180)
@@ -452,11 +458,11 @@ class UnityRuntime:
                     modality="responsibility",
                     source="moral_responsibility",
                     summary=summary,
-                    salience=_clamp(0.5 + 0.5 * a.severity),
+                    salience=lifted(_clamp(0.5 + 0.5 * a.severity), owning),
                     confidence=0.85,
                     timestamp=time.time(),
                     ownership="self",
-                    action_relevance=_clamp(0.5 + 0.5 * a.severity),
+                    action_relevance=lifted(_clamp(0.5 + 0.5 * a.severity), owning),
                     affective_charge=-0.3 * a.severity,
                 ))
             return out

@@ -709,6 +709,7 @@ class OtherAgentStateEstimator:
 
         for channel, pattern in _EXPLICIT_AFFECT_CORRECTIONS.items():
             if pattern.search(bounded_text):
+                self._note_said(before, channel, _AFFECT_SPEC[channel][0], observed_at)
                 self._record(
                     model,
                     channel,
@@ -719,6 +720,7 @@ class OtherAgentStateEstimator:
                     correction=True,
                 )
             elif _EXPLICIT_AFFECT[channel].search(bounded_text):
+                self._note_said(before, channel, 0.85, observed_at)
                 self._record(
                     model,
                     channel,
@@ -851,9 +853,88 @@ class OtherAgentStateEstimator:
             self._models[exact_id] = before
             self._dirty_agents.discard(exact_id)
             return self._estimate_from_model(exact_id, before, observed_at)
+        self._note_heard(
+            exact_id,
+            model,
+            observed_at,
+            complaint=bool(inferred_feedback and feedback_negative),
+        )
         if inferred_feedback:
             self._pending_responses.pop(exact_id, None)
         return self._estimate_from_model(exact_id, model, observed_at)
+
+    @staticmethod
+    def _frustration(model: _AgentModel | None, now: float) -> float | None:
+        signal = (getattr(model, "affect", None) or {}).get("frustration")
+        if signal is None:
+            return None
+        return float(signal.decayed(now)[0])
+
+    def _note_delivered(self, agent_id: str, observed_at: float) -> None:
+        """Tell the owning-it-first ledger a reply went out, and whether it came from what she owed.
+
+        What she owed is in mind when the unified moment the reply was made
+        from carries a responsibility content, which is how moral
+        responsibility enters it. See core/social/owning_it_first.py.
+        """
+        try:
+            from core.container import ServiceContainer
+            from core.social.owning_it_first import get_owning_ledger
+
+            unity = ServiceContainer.get("unity_state", default=None)
+            owed = any(
+                getattr(item, "modality", "") == "responsibility"
+                for item in (getattr(unity, "contents", None) or ())
+            )
+            model = self._models.get(agent_id) or self._load_agent(agent_id, purpose="recall")
+            frustration = self._frustration(model, observed_at)
+            if frustration is not None:
+                get_owning_ledger().delivered(agent_id, owed_in_mind=owed, frustration=frustration)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "other_agent_model",
+                exc,
+                action="kept the reply's feedback window without noting whether she owned a lapse first",
+                severity="debug",
+            )
+
+    def _note_heard(self, agent_id: str, model: _AgentModel, observed_at: float, *, complaint: bool) -> None:
+        """Close whatever lapse event was open for them, and open one if they raised a failure."""
+        try:
+            from core.social.owning_it_first import get_owning_ledger
+
+            frustration = self._frustration(model, observed_at)
+            if frustration is not None:
+                get_owning_ledger().heard(agent_id, frustration=frustration, complaint=complaint)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "other_agent_model",
+                exc,
+                action="kept the observation without closing the owning-it-first event",
+                severity="debug",
+            )
+
+    @staticmethod
+    def _note_said(before: _AgentModel, channel: str, said: float, observed_at: float) -> None:
+        """Score what she believed they felt against what they have just said they feel.
+
+        The belief is the one held before this message, so the statement is
+        not scored against itself. See core/social/borrowed_feeling.py.
+        """
+        signal = (getattr(before, "affect", None) or {}).get(channel)
+        if signal is None:
+            return
+        try:
+            from core.social.borrowed_feeling import get_calibration_ledger
+
+            get_calibration_ledger().said(believed=float(signal.decayed(observed_at)[0]), said=said)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "other_agent_model",
+                exc,
+                action="kept the statement without scoring her belief against it",
+                severity="debug",
+            )
 
     @staticmethod
     def _valid_output_receipt(
@@ -921,6 +1002,7 @@ class OtherAgentStateEstimator:
                     key=lambda key: self._pending_responses[key][1],
                 )
                 self._pending_responses.pop(oldest, None)
+            self._note_delivered(exact_id, observed_at)
         return response_digest
 
     def observe_signal(

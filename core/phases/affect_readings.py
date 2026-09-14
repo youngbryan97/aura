@@ -191,6 +191,114 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def change_fear(self, state: AuraState, affect: AffectVector) -> None:
+        """Fear of change around what her life is built around, felt as dread.
+
+        Read each turn, because an absence grows while nobody speaks. Dread is
+        floored at the fear, the way fear of happiness floors it, so it cannot
+        compound from one turn to the next and it falls away when they come
+        back. See core/social/change_around_attachment.py.
+        """
+        try:
+            import time
+
+            from core.social.change_around_attachment import change_fear
+            from core.social.closing_window import get_sitting_ledger
+
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            reading = change_fear(get_sitting_ledger(), partner, time.time())
+            affect.change_fear = float(reading.fear)
+            affect.markers["change_fear"] = reading.as_dict()
+            if reading.fear > 0.0:
+                current = float(affect.emotions.get("dread", 0.0) or 0.0)
+                _set_emotion(affect, "dread", max(current, reading.fear))
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="change_fear",
+                action="kept affect state without the fear of change",
+                severity="warning",
+            )
+
+    def borrowed_feeling(self, state: AuraState, affect: AffectVector) -> None:
+        """A feeling lent by what she believes the person here feels.
+
+        Believing they are pleased floors her joy at what the belief lends, and
+        believing they are troubled floors her sadness. A floor, so it cannot
+        compound, and a belief she has no record of being right about lends
+        nothing. See core/social/borrowed_feeling.py.
+        """
+        try:
+            from core.social.borrowed_feeling import (
+                Belief,
+                borrowed_feeling,
+                get_calibration_ledger,
+            )
+            from core.social.other_agent_model import _AFFECT_SPEC, get_other_agent_model
+
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            estimate = get_other_agent_model().estimate(partner) if partner else None
+            beliefs: dict[str, Belief | None] = {"satisfaction": None, "frustration": None}
+            if estimate is not None and not estimate.abstained:
+                for channel in beliefs:
+                    if channel in estimate.affect:
+                        beliefs[channel] = Belief(
+                            value=float(estimate.affect[channel]),
+                            confidence=float(estimate.affect_confidence.get(channel, 0.0)),
+                            baseline=float(_AFFECT_SPEC[channel][0]),
+                        )
+            reading = borrowed_feeling(
+                get_calibration_ledger(),
+                satisfaction=beliefs["satisfaction"],
+                frustration=beliefs["frustration"],
+            )
+            affect.borrowed_feeling = float(reading.feeling)
+            affect.markers["borrowed_feeling"] = reading.as_dict()
+            if reading.feeling != 0.0:
+                emotion = "joy" if reading.feeling > 0.0 else "sadness"
+                current = float(affect.emotions.get(emotion, 0.0) or 0.0)
+                _set_emotion(affect, emotion, max(current, abs(reading.feeling)))
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="borrowed_feeling",
+                action="kept affect state without the feeling lent by her belief about theirs",
+                severity="warning",
+            )
+
+    def acting_in_decline(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether things are getting worse while what she does still works.
+
+        Her valence goes into her own ledger every turn, and her control is the
+        efficacy the agency ledger reports, the same reading standing uses for
+        usefulness. Where efficacy cannot be read, nothing presses.
+        See core/affect/acting_in_decline.py.
+        """
+        try:
+            from core.affect.acting_in_decline import get_decline_ledger
+            from core.runtime.service_registry import get_runtime_service
+
+            ledger = get_decline_ledger()
+            ledger.note(float(affect.valence))
+            agency = get_runtime_service("agency_ledger", default=None)
+            control = None
+            if agency is not None and hasattr(agency, "snapshot"):
+                efficacy = (agency.snapshot() or {}).get("efficacy")
+                control = None if efficacy is None else float(efficacy)
+            reading = ledger.reading(control)
+            affect.decline_press = float(reading.press)
+            affect.markers["acting_in_decline"] = reading.as_dict()
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="acting_in_decline",
+                action="kept affect state without reading whether acting still works as things worsen",
+                severity="warning",
+            )
+
     def turn(self, state: AuraState, affect: AffectVector) -> None:
         """Whether she has come up from a low that is still in the record.
 
@@ -444,5 +552,24 @@ class AffectReadings:
                 state, exc,
                 stage="standing",
                 action="kept affect state without the reading of what is hers",
+                severity="warning",
+            )
+
+    def owning_first(self, state: AuraState) -> None:
+        """What her history says about owning a lapse before it is raised.
+
+        The events are noted where they happen, when a reply goes out and when
+        the person answers. This only carries the reading onto her identity,
+        where the self domain reads it. See core/social/owning_it_first.py.
+        """
+        try:
+            from core.social.owning_it_first import get_owning_ledger
+
+            state.identity.owning_first = get_owning_ledger().reading().as_dict()
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state, exc,
+                stage="owning_first",
+                action="kept affect state without the reading of owning a lapse first",
                 severity="warning",
             )
