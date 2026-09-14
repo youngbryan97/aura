@@ -71,6 +71,11 @@ class MotivationUpdatePhase(Phase):
             (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
         )
 
+        # What her budgets stood at before this turn spent any of them, so the
+        # cost of the turn can be attributed to whatever drove it.
+        # See core/motivation/fuel.py.
+        before = MotivationUpdatePhase._budget_total(mot)
+
         for name, budget in mot.budgets.items():
             if legacy_metabolism_active and name in {"energy", "curiosity"}:
                 continue
@@ -112,6 +117,11 @@ class MotivationUpdatePhase(Phase):
             )
 
         mot.last_tick = now
+
+        # And what this turn cost, attributed to whatever drove it. Taken after
+        # the credits above, so a drive that was attended to and replenished is
+        # not counted as having drained. See core/motivation/fuel.py.
+        MotivationUpdatePhase._note_fuel(state, mot, before)
 
         # Drive Recovery (Homeostatic Feedback)
         # Social and Integrity drives recover when affect is high (Trust/Joy)
@@ -853,6 +863,49 @@ class MotivationUpdatePhase(Phase):
         at all.
         """
         return MotivationUpdatePhase._what_to_work_on(state)[0]
+
+    @staticmethod
+    def _budget_total(mot) -> float:
+        """Every drive as a share of its own capacity, summed.
+
+        Normalised per drive rather than raw, so a drive with a large capacity
+        does not decide the total on its own.
+        """
+        try:
+            from core.affect.ambivalence import drive_levels
+
+            levels = drive_levels(getattr(mot, "budgets", None))
+            return float(sum(levels.values()))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _note_fuel(state, mot, before: float) -> None:
+        """What drove this turn, and what her budgets lost over it.
+
+        Three sources, and the first two are the ones her motivation already
+        produces: a drive that had run down, or somebody asking. The third is
+        the one the line says they are missing — being drawn to the thing
+        itself, which is what the curiosity budget is for.
+        """
+        try:
+            from core.motivation.fuel import ASKED, INTEREST, SELF, get_fuel_ledger
+
+            origin = str(getattr(state.cognition, "current_origin", "") or "").lower()
+            drive = str(
+                (getattr(state.cognition, "last_action_source", "") or "")
+            ).lower()
+            if origin.startswith("user"):
+                source = ASKED
+            elif "curiosity" in drive or "curiosity" in origin:
+                source = INTEREST
+            else:
+                source = SELF
+            after = MotivationUpdatePhase._budget_total(mot)
+            get_fuel_ledger().note(source, max(0.0, before - after))
+            state.cognition.fuel = get_fuel_ledger().read().as_dict()
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return
 
     @staticmethod
     def _what_to_work_on(state: AuraState) -> tuple[str, float]:

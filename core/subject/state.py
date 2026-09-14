@@ -735,6 +735,11 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/constancy.py.
             ("their_constancy", "cognition.constancy.theirs"),
             ("attachment_moved", "cognition.constancy.reallocated"),
+            # What has been driving her, and whether working from her own
+            # reserves costs more than the other sources do.
+            # See core/motivation/fuel.py.
+            ("running_on_her_own", "cognition.fuel.share_self"),
+            ("her_own_fuel_costs_more", "cognition.fuel.burning_her_own"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1488,6 +1493,8 @@ def _read_D(state: Any) -> np.ndarray:
         1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
         _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
         1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
+        _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
+        1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),

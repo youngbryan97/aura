@@ -1344,6 +1344,7 @@ def resource_observer(
             "core.self.growth",
             "core.self.standing",
             "core.affect.containment",
+            "core.motivation.fuel",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()

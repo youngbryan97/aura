@@ -656,6 +656,10 @@ class CognitiveContext:
     #: round, and where the attachment goes when they do not.
     #: See core/social/constancy.py.
     constancy: dict[str, Any] = field(default_factory=dict)
+    #: What has been driving her turns — her own reserves, somebody asking, or
+    #: an interest in the thing — and what each has cost.
+    #: See core/motivation/fuel.py.
+    fuel: dict[str, Any] = field(default_factory=dict)
     #: What she has to pass on right now and what it is about — a moment that
     #: moved her rather than how long since anyone spoke.
     #: See core/social/telling.py.
