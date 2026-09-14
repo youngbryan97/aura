@@ -1412,42 +1412,65 @@ class SafeSelfModification:
             "success_rate": f"{success_rate:.1f}%",
         }
 
-    @staticmethod
-    def _should_validate_python_path(relative_path: Path) -> bool:
+    #: Directories the parse walk never enters. A nested checkout — a worktree
+    #: under .claude/, a vendored repository — is somebody else's tree and is
+    #: pruned by its own .git entry whatever it is called.
+    _UNVALIDATED_DIRECTORIES = frozenset(
+        {
+            ".claude",
+            ".git",
+            ".mypy_cache",
+            ".pytest_cache",
+            ".ruff_cache",
+            ".venv",
+            ".worktrees",
+            "__pycache__",
+            "artifacts",
+            "build",
+            "dist",
+            "htmlcov",
+            "node_modules",
+            "site-packages",
+            "venv",
+        }
+    )
+
+    @classmethod
+    def _should_validate_python_path(cls, relative_path: Path) -> bool:
         """Return True for Python paths that belong to live source validation."""
-        parts = set(relative_path.parts)
-        if parts.intersection(
-            {
-                ".git",
-                ".mypy_cache",
-                ".pytest_cache",
-                ".ruff_cache",
-                ".venv",
-                "__pycache__",
-                "artifacts",
-                "build",
-                "dist",
-                "htmlcov",
-                "node_modules",
-                "site-packages",
-                "venv",
-            }
-        ):
-            return False
-        return True
+        return not set(relative_path.parts).intersection(cls._UNVALIDATED_DIRECTORIES)
+
+    @classmethod
+    def _production_python_files(cls, base: Path):
+        """Every .py file that is this tree's own source.
+
+        The walk prunes excluded directories before entering them. rglob listed
+        the venv and every worktree under .claude/ first and filtered after —
+        285,000 files on the live host, minutes of parsing per promotion.
+        """
+        for dirpath, dirnames, filenames in os.walk(base):
+            here = Path(dirpath)
+            dirnames[:] = sorted(
+                name
+                for name in dirnames
+                if name not in cls._UNVALIDATED_DIRECTORIES
+                and not (here / name / ".git").exists()
+            )
+            for name in sorted(filenames):
+                if name.endswith(".py"):
+                    yield here / name
 
     def _validate_python_tree_parse(self) -> bool:
         """Validate all production Python files parse without importing them."""
         logger.info("Running static validation on modified files...")
+        started = time.monotonic()
+        parsed = 0
         try:
-            base = Path(self.code_base)
-            for py_file in base.rglob("*.py"):
-                rel_path = py_file.relative_to(base)
-                if not self._should_validate_python_path(rel_path):
-                    continue
+            for py_file in self._production_python_files(Path(self.code_base)):
                 try:
                     source = py_file.read_text(encoding="utf-8")
                     ast.parse(source, filename=str(py_file))
+                    parsed += 1
                 except SyntaxError as e:
                     logger.error("Syntax error in %s: %s", py_file, e)
                     return False
@@ -1455,7 +1478,11 @@ class SafeSelfModification:
                     record_degradation("safe_modification", e)
                     logger.warning("Could not validate %s: %s", py_file, e)
 
-            logger.info("\u2713 Static validation PASSED")
+            logger.info(
+                "\u2713 Static validation PASSED: %d files parsed in %.1fs",
+                parsed,
+                time.monotonic() - started,
+            )
             return True
 
         except OSError as e:

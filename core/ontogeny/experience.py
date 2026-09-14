@@ -34,6 +34,7 @@ experience to preserve stale experience would be exactly backwards.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -43,7 +44,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -298,14 +299,18 @@ class ExperienceSpine:
         self._refused = 0
         self._stopped = threading.Event()
         self._flusher: threading.Thread | None = None
-        # Set while a flush holds an open connection. The flusher is a daemon
-        # thread on a 2s timer that nothing in a test starts or stops, so its
-        # handle on the store appears under whichever test happens to be in
+        # How many connections this spine holds open right now, on any thread.
+        # The flusher is a daemon thread on a 2s timer, the outcome sweeper and
+        # the maintenance loop read on their own threads every minute, and
+        # nothing in a test starts or stops any of them — so a handle one of
+        # them has open appears under whichever test happens to be in
         # teardown. That handle is in use, not leaked, and the difference is
         # readable only from here: sqlite objects are thread-affine, so a
         # sweeper walking the object graph from another thread cannot even
-        # query this connection, let alone decide whether it is finished.
-        self._writing = threading.Event()
+        # query the connection, let alone decide whether it is finished. A
+        # flag that only writes raised left every read looking like a leak.
+        self._open_handles = 0
+        self._handles_changed = threading.Condition()
         # stats() is three unindexed aggregates over the whole episodes table,
         # and ontogeny_report() calls it once per control point — so a single
         # health report used to scan the corpus N times. Under demo load that
@@ -339,9 +344,23 @@ class ExperienceSpine:
         conn.execute("PRAGMA synchronous=NORMAL")
         return conn
 
-    def _init_schema(self) -> None:
+    @contextlib.contextmanager
+    def _using_the_store(self) -> Iterator[sqlite3.Connection]:
+        """One connection, counted from open to close so a wait can see it."""
+        with self._handles_changed:
+            self._open_handles += 1
         try:
             with connecting(self._connect()) as conn:
+                yield conn
+        finally:
+            # After the `with`, so the count drops only once the handle is shut.
+            with self._handles_changed:
+                self._open_handles -= 1
+                self._handles_changed.notify_all()
+
+    def _init_schema(self) -> None:
+        try:
+            with self._using_the_store() as conn:
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS episodes (
@@ -533,9 +552,8 @@ class ExperienceSpine:
             self._prune_dedup()
         if not batch and not resolutions and not repeats:
             return 0
-        self._writing.set()
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 if batch:
                     conn.executemany(
                         """
@@ -576,25 +594,26 @@ class ExperienceSpine:
                 "ontogeny_experience", exc, action="experience batch lost; corpus continues"
             )
             return 0
-        finally:
-            # After the `with`, so the flag drops only once the handle is shut.
-            self._writing.clear()
 
     def a_write_is_in_flight(self) -> bool:
-        """True while a flush holds the store open."""
-        return self._writing.is_set()
+        """True while any thread holds the store open — a flush or a read."""
+        return self._open_handles > 0
 
     def wait_until_quiet(self, timeout: float = 5.0) -> bool:
-        """Block until no flush holds the store. True if it went quiet.
+        """Block until nothing holds the store. True if it went quiet.
 
         Shutdown wants this and so does anything that measures open handles:
-        both need to know the writer finished, and neither can ask the
-        connection, which belongs to the flusher's thread.
+        both need to know the holder finished, and neither can ask the
+        connection, which belongs to the holder's thread.
         """
         deadline = time.monotonic() + max(0.0, timeout)
-        while self._writing.is_set() and time.monotonic() < deadline:
-            time.sleep(0.01)
-        return not self._writing.is_set()
+        with self._handles_changed:
+            while self._open_handles > 0:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._handles_changed.wait(remaining)
+            return True
 
     @staticmethod
     def _row(ep: Episode) -> tuple:
@@ -653,7 +672,7 @@ class ExperienceSpine:
             params.extend([str(OutcomeKind.SUCCESS), str(OutcomeKind.FAILURE)])
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
                     f"SELECT * FROM episodes {where} ORDER BY decided_at DESC LIMIT ?",
@@ -674,7 +693,7 @@ class ExperienceSpine:
         """
         now = time.time()
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 conn.row_factory = sqlite3.Row
                 if older_than_horizon:
                     rows = conn.execute(
@@ -707,7 +726,7 @@ class ExperienceSpine:
             return self._stats_with_live_counters(cached[1])
         clause, params = ("WHERE control_point = ?", [control_point]) if control_point else ("", [])
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 total, repeats = conn.execute(
                     f"SELECT COUNT(*), COALESCE(SUM(repeat_count), 0) FROM episodes {clause}", params
                 ).fetchone()
@@ -762,7 +781,7 @@ class ExperienceSpine:
         if cached is not None and (time.time() - cached[0]) < _STATS_TTL_S:
             return dict(cached[1])
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 rows = conn.execute(
                     "SELECT outcome_kind, decided_at, resolved_at "
                     "FROM episodes "
@@ -820,7 +839,7 @@ class ExperienceSpine:
     def compact(self, *, retention_rows: int = _RETENTION_ROWS) -> int:
         """Bound the corpus. Drops the oldest resolved rows past the retention line."""
         try:
-            with connecting(self._connect()) as conn:
+            with self._using_the_store() as conn:
                 total = conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]
                 if total <= retention_rows:
                     return 0

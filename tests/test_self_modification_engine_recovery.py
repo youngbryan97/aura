@@ -884,3 +884,37 @@ def test_safe_modification_static_validation_excludes_generated_artifacts(tmp_pa
     runtime_source.write_text("value = '\n", encoding="utf-8")
 
     assert safe_mod._validate_python_tree_parse() is False
+
+
+def test_safe_modification_static_validation_does_not_enter_other_checkouts(tmp_path):
+    """A worktree under .claude/ and a nested checkout are somebody else's tree.
+
+    The live host carries thirty-six worktrees and a venv beside the source;
+    a walk that listed them first and filtered after parsed 285,000 files per
+    promotion. The walk must prune them, so a broken file there is never read.
+    """
+    safe_mod = SafeSelfModification.__new__(SafeSelfModification)
+    safe_mod.code_base = tmp_path
+
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "runtime.py").write_text("value = 1\n", encoding="utf-8")
+
+    worktree = tmp_path / ".claude" / "worktrees" / "other" / "core"
+    worktree.mkdir(parents=True)
+    (worktree / "broken.py").write_text("value = '\n", encoding="utf-8")
+
+    vendored = tmp_path / "vendor" / "checkout"
+    vendored.mkdir(parents=True)
+    (vendored / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+    (vendored / "broken.py").write_text("value = '\n", encoding="utf-8")
+
+    venv = tmp_path / ".venv" / "lib"
+    venv.mkdir(parents=True)
+    (venv / "broken.py").write_text("value = '\n", encoding="utf-8")
+
+    walked = sorted(
+        path.relative_to(tmp_path).as_posix()
+        for path in SafeSelfModification._production_python_files(tmp_path)
+    )
+    assert walked == ["core/runtime.py"]
+    assert safe_mod._validate_python_tree_parse() is True

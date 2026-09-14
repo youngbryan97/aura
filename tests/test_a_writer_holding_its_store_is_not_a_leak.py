@@ -113,3 +113,35 @@ def test_the_fixture_waits_the_shared_spine_out_instead_of_blaming_a_test(tmp_pa
 def test_a_subsystem_a_test_never_imported_is_never_consulted(monkeypatch):
     monkeypatch.delitem(sys.modules, "core.ontogeny.experience", raising=False)
     assert wait_out_declared_background_writers() == []
+
+
+def test_a_read_on_another_thread_is_counted_the_same_as_a_write(tmp_path, monkeypatch):
+    """The sweeper and the maintenance loop read the store from their own threads.
+
+    Three teardowns in one batch reported the shared store leaked while one
+    of those reads was in flight, because the marker only writes raised.
+    """
+    spine = ExperienceSpine(db_path=tmp_path / "experience.db", autoflush=False)
+    holding = threading.Event()
+    release = threading.Event()
+    real = experience.connecting
+
+    def slow(conn):
+        holding.set()
+        release.wait(5.0)
+        return real(conn)
+
+    monkeypatch.setattr(experience, "connecting", slow)
+    reader = threading.Thread(target=spine.stats, name="test-slow-read")
+    reader.start()
+    try:
+        assert holding.wait(5.0), "the read never reached its connection"
+        assert spine.a_write_is_in_flight(), "a read holds the store the way a write does"
+        assert spine.wait_until_quiet(0.2) is False
+        release.set()
+        assert spine.wait_until_quiet(5.0) is True
+    finally:
+        release.set()
+        reader.join(5.0)
+    assert not reader.is_alive()
+    assert not spine.a_write_is_in_flight()
