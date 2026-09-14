@@ -78,6 +78,9 @@ class SelfPredictionLoop:
         #: record of a mind that can only be wrong.
         self._expectation: Any = None
         self._confirmation_count: int = 0
+        #: The direction and the size, scored separately. One confidence over
+        #: both understates what she knows and overstates what she understands.
+        self._conviction: Any = None
 
         # The situation the last prediction was made in, the row it produced,
         # and the accumulated normal equations that turn the two into a model.
@@ -122,6 +125,23 @@ class SelfPredictionLoop:
                     actual_focus_source,
                 )
                 self._record_error(error)
+                # And the two halves of being right, which one confidence
+                # cannot hold: the direction and the size. Scored here rather
+                # than inside `_record_error`, where this turn's actual has not
+                # been recorded yet and the reading would compare a prediction
+                # against the turn before the one it was about.
+                # See core/self/conviction.py.
+                try:
+                    from core.self.conviction import get_conviction_ledger
+
+                    book = get_conviction_ledger()
+                    book.note(
+                        predicted=float(self._current_prediction.predicted_affect_valence),
+                        actual=float(actual_valence),
+                    )
+                    self._conviction = book.read()
+                except (ImportError, AttributeError, TypeError, ValueError):
+                    self._conviction = None
                 if error.was_surprising:
                     logger.debug(
                         f"🌟 Surprise! error={error.composite_error:.2f} "
@@ -182,6 +202,14 @@ class SelfPredictionLoop:
             "smoothed_error": round(self._smoothed_error, 3),
             "surprise_count": self._surprise_count,
             "confirmation_count": self._confirmation_count,
+            "conviction": (
+                round(float(getattr(self._conviction, "conviction", 0.0)), 4)
+                if self._conviction is not None else 0.0
+            ),
+            "understanding": (
+                round(float(getattr(self._conviction, "understanding", 0.0)), 4)
+                if self._conviction is not None else 0.0
+            ),
             "confirmation": (
                 round(float(getattr(self._expectation, "confirmation", 0.0)), 4)
                 if self._expectation is not None
@@ -420,6 +448,7 @@ class SelfPredictionLoop:
             self._expectation = get_expectation_ledger().score_and_note(
                 error.composite_error
             )
+
             if self._expectation.confirmed():
                 self._confirmation_count += 1
             # The same reading, kept as a pattern: a run of being right, and

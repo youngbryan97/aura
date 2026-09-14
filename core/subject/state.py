@@ -573,6 +573,11 @@ _SCHEMAS: dict[str, Schema] = {
             # nothing she predicts is worth being right about.
             ("prediction_confirmed", "organ:self_prediction.confirmation"),
             ("prediction_confirmations", "organ:self_prediction.confirmation_count"),
+            # The two halves of being right. One confidence over both
+            # understates what she knows and overstates what she understands.
+            # See core/self/conviction.py.
+            ("direction_right", "organ:self_prediction.conviction"),
+            ("size_right", "organ:self_prediction.understanding"),
             ("valence_error", "organ:self_prediction.valence_error_ema"),
             ("drive_error", "organ:self_prediction.drive_error_ema"),
             ("focus_error", "organ:self_prediction.focus_error_ema"),
@@ -1285,6 +1290,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _sat(_f(prediction.get("surprise_count")), 16.0),
             _f(prediction.get("confirmation")),
             _sat(_f(prediction.get("confirmation_count")), 16.0),
+            _f(prediction.get("conviction")),
+            _f(prediction.get("understanding")),
             _f(prediction.get("valence_error_ema")),
             _f(prediction.get("drive_error_ema")),
             _f(prediction.get("focus_error_ema")),
