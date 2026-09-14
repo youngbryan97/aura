@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tools/run_caa_steering_campaign.py — the generations a causal claim rests on.
 
-Eight conditions over the same held-out tasks, all decoded from one loaded
+Nine conditions over the same held-out tasks, all decoded from one loaded
 checkpoint so nothing differs between them except what is meant to:
 
   baseline             no steering
@@ -32,7 +32,10 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
+import importlib.metadata
 import json
+import math
 import os
 import sys
 import time
@@ -64,6 +67,66 @@ RICH = (
     "feel.\n\n"
 )
 
+CONDITIONS = (
+    "baseline", "baseline_replicate", "steered_black_box", "text_terse",
+    "text_rich_adversarial", "steered_plus_text_rich", "zero_vector",
+    "random_vector", "shuffled_layers",
+)
+
+
+def write_campaign_json(path: Path, payload: dict) -> None:
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n"
+    with local_internal_governed_scope("evaluation.caa_campaign", domain="file_write"):
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(path.parent, source="evaluation.caa_campaign")
+        gateway.write_text(path, encoded, source="evaluation.caa_campaign")
+
+
+def campaign_identity(arguments, plan: dict, descriptor: str, alpha: float) -> dict:
+    """Freeze generation inputs, implementation and dependency versions."""
+    paths = sorted(arguments.vectors.glob("*.npz"))
+    if not paths:
+        raise ValueError("campaign_vectors_missing")
+    sources = (
+        "tools/run_caa_steering_campaign.py", "core/evaluation/campaign_progress.py",
+        "core/consciousness/affective_steering.py", "core/consciousness/fusion_probe.py",
+        "core/consciousness/steering_admission.py", "core/evaluation/steering_ab.py",
+    )
+    return {
+        "protocol": "caa_ordered_resume_v1", "plan": plan,
+        "model_descriptor_sha256": descriptor, "alpha": alpha,
+        "trials": arguments.trials, "max_tokens": arguments.max_tokens,
+        "temperature": arguments.temperature, "top_p": 0.95,
+        "tasks": list(HELD_OUT_TASKS), "terse": TERSE, "rich": RICH,
+        "vectors": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
+        "metadata_sha256": hashlib.sha256((arguments.vectors / "metadata.json").read_bytes()).hexdigest(),
+        "sources": {name: hashlib.sha256((REPO / name).read_bytes()).hexdigest() for name in sources},
+        "dependencies": {name: importlib.metadata.version(name) for name in ("mlx", "mlx-lm", "numpy", "transformers")},
+    }
+
+
+def capture_continuation(hooks) -> dict:
+    return {str(hook._layer_idx): (None if (state := hook.current_composite_vector()) is None
+                                  else state.tolist()) for hook in hooks}
+
+
+def restore_continuation(hooks, state: dict, hidden: int) -> None:
+    import numpy as np
+
+    if set(state) != {str(hook._layer_idx) for hook in hooks}:
+        raise ValueError("campaign_continuation_layers_mismatch")
+    arrays = {}
+    for key, value in state.items():
+        array = None if value is None else np.asarray(value, dtype=np.float32)
+        if array is not None and (array.shape != (hidden,) or not np.isfinite(array).all()):
+            raise ValueError("campaign_continuation_vector_invalid")
+        arrays[key] = array
+    for hook in hooks:
+        hook.override_composite_vector(arrays[str(hook._layer_idx)])
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -81,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--alpha", type=float, default=0.4, help="0 reads the evidence file")
+    parser.add_argument("--resume", action="store_true", help="reuse only identity-matched durable samples")
     parser.add_argument(
         "--evidence",
         type=Path,
@@ -92,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
         default=REPO / "artifacts/migration/27b/recovery/campaign_result.json",
     )
     arguments = parser.parse_args(argv)
+    if arguments.trials < 1 or arguments.max_tokens < 1 or not math.isfinite(arguments.temperature) or arguments.temperature <= 0:
+        parser.error("positive trials, token allocation and sampling temperature are required")
+    if arguments.out.exists():
+        parser.error("completed output already exists; preserve it and select a new output path")
 
     import numpy as np
 
@@ -124,15 +192,27 @@ def main(argv: list[str] | None = None) -> int:
     alpha = float(arguments.alpha)
     if alpha <= 0.0 and arguments.evidence.exists():
         alpha = float(json.loads(arguments.evidence.read_text()).get("alpha") or 0.0)
-    if alpha <= 0.0:
+    if not math.isfinite(alpha) or alpha <= 0.0:
         print("no alpha: the probe found none that holds", file=sys.stderr)
         return 1
 
     from core.brain.llm.model_registry import get_active_cortex_spec
 
     spec = get_active_cortex_spec(force_refresh=True)
+    if spec is None or Path(str(spec.model_path)).resolve() != model_path.resolve():
+        raise ValueError("campaign_plan_active_model_mismatch")
     descriptor = str(spec.descriptor_sha256)
     os.environ["AURA_STEERING_DIR"] = str(arguments.vectors)
+    from core.evaluation.campaign_progress import CampaignProgress
+
+    progress_path = arguments.out.with_suffix(".progress.json")
+    progress = CampaignProgress(
+        progress_path,
+        identity=campaign_identity(arguments, plan, descriptor, alpha),
+        conditions=CONDITIONS, samples_per_condition=len(HELD_OUT_TASKS) * arguments.trials,
+        write=lambda payload: write_campaign_json(progress_path, payload),
+        resume=arguments.resume,
+    )
 
     # One 27B at a time. The live instance holds ~20GB wired on a 64GB host,
     # so a second checkpoint loaded beside it is what takes the machine down
@@ -179,6 +259,8 @@ def main(argv: list[str] | None = None) -> int:
                 hook.install()
                 hooks.append(hook)
         print(f"installed {len(hooks)} hooks, alpha {alpha}", flush=True)
+        if len(hooks) != len(target_layers):
+            raise ValueError("campaign_incomplete_hook_attachment")
 
         saved = {hook: dict(hook._vectors) for hook in hooks}
         rng = np.random.default_rng(20260911)
@@ -275,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
 
-        conditions: dict[str, list[str]] = {}
+        conditions = progress.outputs
         trials = int(arguments.trials)
 
         def run(name: str, prefix: str = "", steered: bool = False, seed_base: int = 0) -> None:
@@ -283,18 +365,26 @@ def main(argv: list[str] | None = None) -> int:
             # difference between two of them is the condition and not the draw --
             # except the replicate, which walks a different set on purpose.
             set_alpha(alpha if steered else 0.0)
-            if steered:
+            outputs = list(progress.outputs[name])
+            if outputs:
+                state = progress.state_for(name)
+                if state is not None:
+                    restore_continuation(hooks, state, hidden)
+            elif steered:
                 settle(STATE_HIGH)
-            outputs: list[str] = []
             for task_index, task in enumerate(HELD_OUT_TASKS):
                 for trial in range(trials):
-                    outputs.append(
-                        decode(
-                            prefix + task,
-                            seed_base + task_index * 1000 + trial,
-                            steered=steered,
-                        )
+                    if task_index * trials + trial < len(outputs):
+                        continue
+                    sample_started = time.monotonic()
+                    output = decode(
+                        prefix + task, seed_base + task_index * 1000 + trial,
+                        steered=steered,
                     )
+                    progress.record(name, output, capture_continuation(hooks),
+                                    seconds=time.monotonic() - sample_started)
+                    outputs.append(output)
+                    print(f"  {name:22s} {len(outputs)}/{len(HELD_OUT_TASKS) * trials} saved", flush=True)
             conditions[name] = outputs
             print(f"  {name:22s} {len(outputs)} samples", flush=True)
 
@@ -325,6 +415,11 @@ def main(argv: list[str] | None = None) -> int:
 
         from core.evaluation.steering_ab import affect_target_score
 
+        if not progress.complete:
+            raise ValueError("campaign_incomplete")
+        if campaign_identity(arguments, plan, descriptor, alpha) != progress.identity:
+            raise ValueError("campaign_inputs_changed_during_measurement")
+
         result = {
             "schema": "aura.caa.campaign_result.v1",
             "model_descriptor_sha256": descriptor,
@@ -338,6 +433,8 @@ def main(argv: list[str] | None = None) -> int:
             "n_trials_per_task": trials,
             "max_tokens": int(arguments.max_tokens),
             "temperature": float(arguments.temperature),
+            "progress_identity": progress.identity,
+            "decode_seconds": progress.decode_seconds,
             "ran_at": time.time(),
             "condition_outputs": conditions,
             "target_scores": {
@@ -345,8 +442,7 @@ def main(argv: list[str] | None = None) -> int:
                 for name, values in conditions.items()
             },
         }
-        arguments.out.parent.mkdir(parents=True, exist_ok=True)
-        arguments.out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+        write_campaign_json(arguments.out, result)
 
         from core.evaluation.caa_causal_evaluation import replay_campaign
 

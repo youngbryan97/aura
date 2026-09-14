@@ -802,6 +802,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs stale worker identity, binds certificates to actual vector/layer
   bases, and separates campaign preparation from live deployment. Ninety
   focused tests passed; current-model qualification remains open.
+  [Durable campaign progress](evidence/G10_CAMPAIGN_PROGRESS_2026-09-14.md)
+  preserves each completed sample and its steering continuation state; resume
+  checks the exact experiment identity. Thirty-three tests passed. Interrupted
+  progress is not relabeled as a finished campaign or serving qualification.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
