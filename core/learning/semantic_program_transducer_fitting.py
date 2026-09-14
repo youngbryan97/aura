@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from core.verify.invariants import invariant
+
 from core.learning.semantic_definition_candidates import (
     _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
     _LOCAL_DEFINITION_CANDIDATE_STRATEGY as _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
@@ -1178,13 +1180,43 @@ def _definition_relation_score_banks(
     return combined, base
 
 
-def _retained_argument_mentions(candidates, *, literal_anchor=None):
-    """Preserve exact public identity alongside the learned mention shortlist."""
+def _retained_argument_mentions(candidates, *, literal_anchor=None, overlap_complete=False):
+    """Prune within one slot/register/definition, preserving declared semantics."""
+    if overlap_complete:
+        # A better subset occupies fewer tokens with the same binding. Any
+        # assignment using the dominated span can substitute that subset.
+        ranked = sorted(candidates, key=lambda item: (
+            -item[0], item[1].end - item[1].start, item[1].start, item[1].end,
+        ))
+        selected = []
+        for score, span in ranked:
+            if not math.isfinite(score):
+                raise ValueError("nonfinite argument mention score")
+            if any(other_score >= score and span.start <= other.start and other.end <= span.end
+                   for other_score, other in selected):
+                continue
+            selected.append((score, span))
+        return selected
     ranked = sorted(candidates, key=lambda item: (-item[0], item[1].start, item[1].end))
     selected = ranked[:_ARGUMENT_MENTIONS_PER_DEFINITION]
     if literal_anchor is not None and all(span != literal_anchor for _score, span in selected):
         selected.extend(item for item in ranked if item[1] == literal_anchor)
     return selected
+
+
+@invariant(
+    "semantic.mention_pruning_preserves_feasible_replacement", scope="semantic_program",
+    owner="core/learning/semantic_program_transducer_fitting.py", observational=False,
+)
+def _mention_pruning_preserves_feasible_replacement() -> tuple:
+    candidates = [(8., TokenSpan(0, 4)), (8., TokenSpan(1, 2)),
+                  (9., TokenSpan(0, 5)), (1., TokenSpan(6, 7))]
+    selected = _retained_argument_mentions(candidates, overlap_complete=True)
+    for score, span in candidates:
+        assert any(value >= score and span.start <= other.start and other.end <= span.end
+                   for value, other in selected)
+    assert candidates[-1] in selected
+    return ("Every discarded mention has a no-worse subset with the same binding.",)
 
 
 def _assign_typed_arguments(
@@ -1405,6 +1437,10 @@ def _assign_typed_arguments(
                     for candidate_index, candidates in by_register.items()
                     for score, span in _retained_argument_mentions(
                         candidates,
+                        overlap_complete=(
+                            model.training_receipt.get("argument_proposal_retention")
+                            == "overlap_dominance_v3"
+                        ),
                         literal_anchor=(
                             input_spans[definition_registers[candidate_index]]
                             if model.training_receipt.get("argument_proposal_retention")
@@ -1522,6 +1558,9 @@ def _assign_typed_arguments(
             chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
             definition_options=chart_definition_options if joint_definitions else None,
             definition_scores=attachment_scores,
+            prune_dominated=(
+                model.training_receipt.get("argument_proposal_retention") == "overlap_dominance_v3"
+            ),
         )
         if chart_observer is not None:
             chart_observer(chart)

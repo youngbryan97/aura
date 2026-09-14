@@ -521,7 +521,7 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("argument_score_strategy", "independent_positive_v1")
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
             or receipt.get("argument_proposal_retention", "ranked_v1")
-            not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
+            not in {"ranked_v1", "ranked_with_literal_anchors_v2", "overlap_dominance_v3"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
@@ -894,6 +894,14 @@ class CompositionalSemanticProgramTransducer:
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
         body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_overlap_complete_mentions(self) -> CompositionalSemanticProgramTransducer:
+        """Retain every scored mention not dominated under overlap constraints."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_proposal_retention"] = "overlap_dominance_v3"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_feasible_operation_charts(self, *, preserve_arity_states=False) -> CompositionalSemanticProgramTransducer:

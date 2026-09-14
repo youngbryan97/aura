@@ -43,6 +43,7 @@ class ScoredArgumentChart:
     contract: RegisterUseContract
     definition_options: tuple | None = None
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None
+    prune_dominated: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "options", tuple(
@@ -73,6 +74,7 @@ class ScoredArgumentChart:
         return semantic_argument_optimization.optimize_argument_chart(
             self.options, n_inputs=self.n_inputs, contract=self.contract,
             definition_options=self.definition_options, definition_scores=self.definition_scores,
+            prune_dominated=self.prune_dominated,
         )
 
     def diagnose_target(self, targets: Sequence[Sequence[int]]) -> dict:
@@ -110,11 +112,13 @@ but outranked. These cases need different repairs.
         target = None if missing else ScoredArgumentChart(
             tuple(restricted), self.n_inputs, self.contract,
             tuple(labels) if self.definition_options is not None else None, self.definition_scores,
+            prune_dominated=self.prune_dominated,
         ).solve()
         without_definition_consistency = None
         if not missing and target is None and self.definition_options is not None:
             without_definition_consistency = ScoredArgumentChart(
                 tuple(restricted), self.n_inputs, self.contract,
+                prune_dominated=self.prune_dominated,
             ).solve() is not None
         without_mention_exclusivity = None
         if not missing and target is None:
@@ -129,6 +133,7 @@ but outranked. These cases need different repairs.
             without_mention_exclusivity = ScoredArgumentChart(
                 tuple(relaxed), self.n_inputs, self.contract,
                 tuple(labels) if self.definition_options is not None else None, self.definition_scores,
+                prune_dominated=self.prune_dominated,
             ).solve() is not None
         if missing:
             cause = "target_register_not_proposed"

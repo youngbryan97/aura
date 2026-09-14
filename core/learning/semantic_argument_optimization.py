@@ -30,6 +30,64 @@ class ArgumentOptimizationIncompleteError(RuntimeError):
     """A search limit or solver error is not a proof of graph infeasibility."""
 
 
+def _shortlist_mentions(options, definition_options, limit=4):
+    rows, labels = [], []
+    for node, arguments in enumerate(options):
+        row, names = [], []
+        for position, candidates in enumerate(arguments):
+            groups = defaultdict(list)
+            for index, (_score, register, _span) in enumerate(candidates):
+                definition = definition_options[node][position][index] if definition_options is not None else None
+                groups[register, definition].append(index)
+            indices = sorted(index for group in groups.values()
+                             for index in sorted(group, key=lambda i: -candidates[i][0])[:limit])
+            row.append(tuple(candidates[index] for index in indices))
+            if definition_options is not None:
+                names.append(tuple(definition_options[node][position][index] for index in indices))
+        rows.append(tuple(row))
+        labels.append(tuple(names))
+    return tuple(rows), tuple(labels) if definition_options is not None else None
+
+
+def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *, binary_count):
+    """Fix only binary choices whose dual lower bound exceeds a feasible cost."""
+    from scipy.optimize import linprog
+    from scipy.sparse import vstack
+
+    lows, highs = np.asarray(lows), np.asarray(highs)
+    equal = lows == highs
+    finite_high = np.isfinite(highs) & ~equal
+    finite_low = np.isfinite(lows) & ~equal
+    inequalities = vstack((matrix[finite_high], -matrix[finite_low])).tocsc()
+    limits = np.concatenate((highs[finite_high], -lows[finite_low]))
+    equations = matrix[equal]
+    right = highs[equal]
+    # Redundant binary upper bounds can absorb all reduced cost into their
+    # duals. Relax them for pricing; the certified bound below still uses the
+    # original finite domain, including the continuous ordering variables.
+    pricing_upper = upper.copy()
+    pricing_upper[:binary_count] = np.inf
+    relaxation = linprog(objective, A_ub=inequalities, b_ub=limits,
+        A_eq=equations, b_eq=right, bounds=np.column_stack((np.zeros(len(upper)), pricing_upper)),
+        method="highs-ds")
+    if not relaxation.success:
+        return upper
+    # Clipping signs and pricing the remaining stationarity residual against
+    # the bounds gives a valid dual bound without trusting solver optimality.
+    y = np.minimum(np.asarray(relaxation.ineqlin.marginals), 0.)
+    z = np.asarray(relaxation.eqlin.marginals)
+    residual = objective - inequalities.T @ y - equations.T @ z
+    terms = np.concatenate((limits * y, right * z, np.minimum(residual, 0.) * upper))
+    if not np.all(np.isfinite(terms)) or not np.all(np.isfinite(residual)):
+        return upper
+    bound = math.fsum(terms)
+    tolerance = 1e-7 * (1. + abs(incumbent_cost) + float(np.sum(np.abs(terms))))
+    fixed = upper.copy()
+    binary = np.arange(len(upper)) < binary_count
+    fixed[binary & (upper == 1.) & (bound + np.maximum(residual, 0.) > incumbent_cost + tolerance)] = 0.
+    return fixed
+
+
 def optimize_argument_chart(
     options: Sequence[Sequence[Sequence[tuple[float, int, TokenSpan]]]],
     *,
@@ -38,6 +96,7 @@ def optimize_argument_chart(
     node_limit: int = 10000,
     definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
+    prune_dominated: bool = False,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -71,6 +130,14 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         )
     ):
         raise ValueError("definition options differ from argument chart")
+    incumbent = None
+    if prune_dominated:
+        short, names = _shortlist_mentions(options, definition_options)
+        try:
+            incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
+                node_limit=node_limit, definition_options=names, definition_scores=definition_scores)
+        except ArgumentOptimizationIncompleteError:
+            incumbent = None
     for node, arguments in enumerate(options):
         if not arguments:
             return None
@@ -166,6 +233,9 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         (np.asarray(coefficients, dtype=float), (row_indices, column_indices)),
         shape=(len(lows), width),
     ).tocsc()
+    if incumbent is not None:
+        upper = _dual_bound_screen(objective, matrix, lows, highs, upper, -incumbent[0],
+                                  binary_count=order_offset)
     result = milp(
         objective, integrality=integrality, bounds=Bounds(lower, upper),
         constraints=LinearConstraint(matrix, lows, highs),

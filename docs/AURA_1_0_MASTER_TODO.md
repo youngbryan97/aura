@@ -732,6 +732,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Ranked operation pointer](evidence/G03_RANKED_OPERATION_POINTER_2026-09-14.md)
   reduced training loss but fell to 26/128 arithmetic and 6/48 cataphoric
   answers. Evaluation stopped; the other 324 cases are unmeasured. No promotion.
+  [Overlap-complete argument development](evidence/G03_OVERLAP_DOMINANCE_2026-09-14.md)
+  recovers four role-binding cases but regresses two cataphoric cases: 474/500,
+  weave 47/48, both controls 0/48. The search repair preserves the chart optimum;
+  136 focused tests pass. No candidate promotion or G03 closure.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -847,6 +851,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Probe checkpoint identity](evidence/G10_PROBE_CHECKPOINT_IDENTITY_2026-09-14.md)
   aligns the fusion CLI's actual load and certificate identity. The full
   public steering comparison is running; launch does not grant qualification.
+  [Complete public steering result](evidence/G10_PUBLIC_STEERING_RESULT_2026-09-14.md)
+  retains all 216 completed decodes and an independently replayed negative:
+  one treatment target-score win versus four matched no-op wins, with task
+  regressions. The new gradient-trained generation is not qualified or published.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
