@@ -37,16 +37,20 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any
 
 __all__ = [
+    "AURA_PERSON_PATHS",
     "KINDS",
     "Stage",
     "Edge",
     "Lineage",
     "canonical_person_state",
     "continuity_strength",
+    "lineage_from_state_log",
+    "person_state_of",
     "scenarios",
     "state_digest",
 ]
@@ -125,6 +129,91 @@ def state_digest(state: Any) -> str:
     canonical = canonical_person_state(state)
     payload = json.dumps(canonical, sort_keys=True, default=str).encode("utf-8")
     return hashlib.blake2b(payload, digest_size=16).hexdigest()
+
+
+#: Where each person field lives in Aura's own state. A field with no entry is
+#: one her state does not carry, since skills and learned policy live in organs
+#: outside it, and it is recorded as absent rather than defaulted. What changes
+#: every turn, the conversation and the recalled set among it, is not here: a
+#: person is not a different person because she was spoken to.
+AURA_PERSON_PATHS: dict[str, tuple[str, ...]] = {
+    "autobiographical": ("identity.current_narrative", "identity.narrative_version"),
+    "self_model": ("identity.name", "identity.concept_graph"),
+    "values": ("identity.core_values",),
+    "preferences": ("identity.self_preferences",),
+    "dispositions": ("identity.personality_growth",),
+    "relationships": ("world.relationship_graph", "identity.bonding_level"),
+    "developmental": ("identity.evolution_score",),
+}
+
+_ABSENT = object()
+
+
+def _at(state: Any, dotted: str) -> Any:
+    node = state
+    for part in dotted.split("."):
+        if isinstance(node, Mapping):
+            if part not in node:
+                return _ABSENT
+            node = node[part]
+        elif hasattr(node, part):
+            node = getattr(node, part)
+        else:
+            return _ABSENT
+    return node
+
+
+def person_state_of(state: Any) -> dict[str, Any]:
+    """Aura's person-state, from a live state or the JSON a state log keeps."""
+    out: dict[str, Any] = {}
+    for name, paths in AURA_PERSON_PATHS.items():
+        found = {path: value for path in paths if (value := _at(state, path)) is not _ABSENT}
+        if found:
+            out[name] = found
+    return out
+
+
+def lineage_from_state_log(
+    rows: Iterable[Mapping[str, Any]], *, key: bytes | None = None
+) -> Lineage:
+    """Her lineage, from the rows the state repository writes.
+
+    Each row is a stage: `state_id`, `version`, `parent_state_id`, and the
+    state as `state_json` or `state`. A row whose parent is in the log descends
+    from it. A parent with one child in the log was continued. A parent with
+    several was forked, and every child is recorded as a fork so that no one of
+    them is taken for the strict successor. A row whose parent is not in the log
+    is a root.
+    """
+    ordered = sorted(rows, key=lambda r: (int(r.get("version") or 0), str(r.get("state_id") or "")))
+    lineage = Lineage() if key is None else Lineage(key=key)
+    for row in ordered:
+        name = str(row.get("state_id") or "")
+        if not name or name in lineage.stages:
+            continue
+        payload = row.get("state_json", row.get("state"))
+        if isinstance(payload, (str, bytes)):
+            try:
+                payload = json.loads(payload)
+            except (TypeError, ValueError):
+                payload = {}
+        lineage.record(
+            name,
+            person_state_of(payload or {}),
+            at=float(row.get("timestamp") or 0.0),
+            note=str(row.get("transition_cause") or ""),
+        )
+    children: dict[str, dict[str, None]] = {}
+    for row in ordered:
+        parent = str(row.get("parent_state_id") or "")
+        child = str(row.get("state_id") or "")
+        if parent and parent != child and parent in lineage.stages and child in lineage.stages:
+            children.setdefault(parent, {})[child] = None
+    for parent, kids in children.items():
+        kind = "fork" if len(kids) > 1 else "continue"
+        for kid in kids:
+            lineage.descend(parent, kid, kind=kind)
+    return lineage
 
 
 @dataclass(frozen=True)
