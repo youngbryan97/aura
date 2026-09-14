@@ -320,6 +320,16 @@ class AffectVector:
     #: system fires when reality disagrees; this is the one that fires when it
     #: agrees. See core/affect/confirmation.py.
     confirmation: float = 0.0   # 0.0 (ordinary or unread) to 1.0 (exactly so)
+    #: How far the strongest feeling live stands above the level she has been
+    #: holding, in her own spreads. Above one is outside her ordinary range,
+    #: which is a breakthrough. See core/expression/delivery.py.
+    delivery_z: float = 0.0
+    breakthrough: bool = False
+    #: How much expressive control is left this cycle. Falls as exertion rises.
+    steadiness: float = 1.0
+    #: Which way the register moves. Positive when something failed to be what
+    #: it seemed, negative when something held.
+    lift: float = 0.0
     #: Which two wants, and whether being caught between them is how she is
     #: built or where she is now. Empty until her history can say.
     ambivalent_about: tuple[str, ...] = ()
@@ -588,6 +598,11 @@ class CognitiveContext:
     discourse_depth: int = 0                     # Turns spent on this thread
     discourse_branches: list[str] = field(default_factory=list)  # Adjacent topics available
     user_emotional_trend: str = "neutral"        # "warming_up"|"engaged"|"cooling_off"|"neutral"
+    #: Whether she is keeping somebody company rather than helping them: they
+    #: are testifying, asking nothing, and `company` is how low they are while
+    #: she does. Written by the conversation phase; routing, the reply and the
+    #: affect phase read it. See core/social/witness.py.
+    witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
 
     # Constitutional Closure — kernel-level arbitration trace
@@ -934,6 +949,11 @@ class WorldModel:
     # Legacy/canonical bridge: many executive, welfare, proof, and body paths use
     # ``state.world_model`` as a dict-backed scratchpad for verified runtime facts.
     facts: dict[str, Any] = field(default_factory=dict)
+    #: The shape of what the person she is talking to just said — who it is
+    #: about, whether it asks anything, whether it holds on. A fact about them
+    #: rather than about her, which is why it lives here.
+    #: See core/expression/register.py.
+    partner_register: dict[str, Any] = field(default_factory=dict)
 
     def trim_percepts(self, limit: int = 50):
         if len(self.recent_percepts) > limit:

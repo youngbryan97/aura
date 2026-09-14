@@ -69,6 +69,56 @@ class ConversationalDynamicsPhase(Phase):
                 logger.warning("ConversationalDynamics: Engine init failed: %s", e)
         return self._engine
 
+    @staticmethod
+    def _read_register(state: AuraState, message: str) -> None:
+        """Measure the shape of what was just said, and carry the reading.
+
+        The two determinations are what change her behaviour. A register that
+        asks is a request. A first-person register that asks nothing and
+        carries the connectives of holding on is somebody testifying, and the
+        response to testimony is company rather than assistance.
+
+        Written to `response_modifiers` so the response phase sees it, and to
+        `world` because it is a fact about the person she is talking to rather
+        than about her.
+        """
+        try:
+            from core.expression.register import read
+
+            reading = read(message)
+            if not reading.measured:
+                # Nothing resets `response_modifiers` until the turn ends, so
+                # returning here left the last message's reading standing: a
+                # message too short to read would still be treated as testimony
+                # because the one before it was.
+                for key in ("register", "asks_to_be_witnessed", "asks_for_help"):
+                    state.response_modifiers.pop(key, None)
+                state.world.partner_register = {}
+                return
+            row = reading.as_dict()
+            state.response_modifiers["register"] = row
+            state.response_modifiers["asks_to_be_witnessed"] = reading.asks_to_be_witnessed()
+            state.response_modifiers["asks_for_help"] = reading.asks_for_help()
+            state.world.partner_register = row
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("register unread for this message: %s", exc)
+
+    @staticmethod
+    def _read_witness(state: AuraState) -> None:
+        """Whether she is being asked to keep somebody company rather than help.
+
+        Read off the register this phase just measured and the sentiment the
+        integration phase read earlier in the turn, and written to cognition
+        so routing, the reply and the affect phase all read one stance.
+        """
+        try:
+            from core.social.witness import read_witness
+
+            state.cognition.witness = read_witness(state.response_modifiers).as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            state.cognition.witness = {}
+            logger.debug("witness stance unread for this message: %s", exc)
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -93,6 +143,14 @@ class ConversationalDynamicsPhase(Phase):
                 role="user",
                 working_memory=state.cognition.working_memory
             )
+
+            # The shape of what arrived, separately from what it said. Who it
+            # is about, whether it asks anything, and whether it holds on —
+            # which together tell somebody testifying from somebody asking.
+            # Assistance is the wrong response to testimony and nothing here
+            # could tell the difference before. See core/expression/register.py.
+            self._read_register(new_state, objective)
+            self._read_witness(new_state)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()

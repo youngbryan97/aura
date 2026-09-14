@@ -330,6 +330,11 @@ class AffectUpdatePhase(Phase):
         # 6b-iii. And whether what happened is what she expected.
         self._read_confirmation(state, affect)
 
+        # 6b-iv. The level she is speaking from, what breaks through it, and
+        # how long a breath is this cycle. After the contradiction and the
+        # confirmation, because either can be the strongest feeling live.
+        self._read_delivery(state, affect)
+
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised
         # processes, and affect is one of them; the blend weight is the
@@ -441,6 +446,43 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_delivery(self, state: AuraState, affect: AffectVector) -> None:
+        """The level she is speaking from, what breaks through it, and the breath.
+
+        The strongest feeling live is compared with the level she has been
+        holding, in units of her own variation, so a breakthrough is whatever
+        is outside her ordinary range rather than past a number chosen here.
+        The direction comes from the same two tails the confirmation reading
+        uses: surprise lifts the register, a prediction that held lowers it.
+        The breath is the effort ledger's own unit over how hard this cycle
+        has been.
+
+        Written onto affect so the subject core can hold and displace it, and
+        into `response_modifiers` so the response phase can size what she says
+        to the breath she has.
+        """
+        try:
+            from core.expression.delivery import read_delivery
+            from core.runtime.service_registry import get_runtime_service
+
+            loop = get_runtime_service("self_prediction", default=None)
+            expectation = getattr(loop, "_expectation", None)
+            surprise = float(getattr(expectation, "surprise", 0.0) or 0.0)
+            reading = read_delivery(affect, surprise=surprise)
+            affect.delivery_z = float(reading.z)
+            affect.breakthrough = bool(reading.breakthrough)
+            affect.steadiness = float(reading.steadiness)
+            affect.lift = float(reading.lift)
+            state.response_modifiers["delivery"] = reading.as_dict()
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="delivery",
+                action="kept affect state without the delivery reading",
                 severity="warning",
             )
 
@@ -1155,6 +1197,19 @@ class AffectUpdatePhase(Phase):
             or violations
             or hesitation >= 0.7
         ):
+            return
+
+        # Keeping somebody company in a low place is not releasing the low. The
+        # witness reading is written by the conversation phase, which runs
+        # after this one, so what is read here is the stance from the message
+        # before — company kept across the exchange rather than decided anew
+        # before the new message has been read. See core/social/witness.py.
+        witness = getattr(state.cognition, "witness", {}) or {}
+        if float(witness.get("company", 0.0) or 0.0) > 0.0:
+            affect.markers["distress_kept_for_company"] = {
+                "at": time.time(),
+                "company": round(float(witness.get("company", 0.0) or 0.0), 3),
+            }
             return
 
         negative_load = sum(float(affect.emotions.get(emotion, 0.0) or 0.0) for emotion in _STALE_NEGATIVE_EMOTIONS)

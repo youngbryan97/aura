@@ -28,6 +28,7 @@ from core.runtime.turn_analysis import (
     looks_like_deep_mind_probe,
     previous_user_turn_text,
 )
+from core.social.witness import is_witnessing
 from core.utils.conversational_shape import (
     looks_like_simple_dialogue_request as _looks_like_simple_dialogue_request,
 )
@@ -571,6 +572,10 @@ class CognitiveRoutingPhase(BasePhase):
                 and not is_learning_bundle
                 and not is_capability_inventory_dialogue
                 and not request_mood.is_about_rather_than_asking
+                # Somebody testifying is not asking for anything to be run.
+                # The register reads it off the shape of the message before
+                # routing; see core/social/witness.py.
+                and not is_witnessing(new_state.cognition)
             ):
                 matched_skills = list(cap.detect_intent(skill_input_text) or [])
                 if matched_skills:

@@ -79,6 +79,19 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.physiology.heart_rate",
         "affect.physiology.cortisol",
         "affect.physiology.adrenaline",
+        # The organs added since: what she is caught between and how it stands,
+        # whether the moment came out as expected, and the level she is
+        # speaking from. A reads every one, so a clamp on A that left them free
+        # let the lesion's held side move by a third of a unit.
+        "affect.ambivalence",
+        "affect.ambivalent_about",
+        "affect.ambivalence_standing",
+        "affect.markers.ambivalence",
+        "affect.confirmation",
+        "affect.delivery_z",
+        "affect.breakthrough",
+        "affect.steadiness",
+        "affect.lift",
     ),
     "G": (
         "cognition.attention_focus",
@@ -138,6 +151,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "world.user_preferences",
         "cold.concept_graph",
         "cognition.user_emotional_trend",
+        # The shape of what the person just said. A fact about them that W
+        # reads, written by the conversation phase on every message.
+        "world.partner_register",
     ),
     "D": (
         "cognition.active_goals",
@@ -145,6 +161,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.current_origin",
         "cognition.last_action_source",
         "motivation.budgets",
+        # The stance she is taking toward the person, which decides whether she
+        # searches for something to do at all. See core/social/witness.py.
+        "cognition.witness",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

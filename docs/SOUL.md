@@ -170,9 +170,9 @@ Nothing in them names a constant that came from the songs.
 | organ | covers | status |
 |---|---|---|
 | `core/affect/ambivalence.py` | expression 6, 14, 15, 16; listener 12 | landed |
-| `core/affect/confirmation.py` | listener 2, 15; expression 5, 22 | next |
-| `core/expression/register.py` | expression 1, 2, 21, 22, 23, 24 | next |
-| `core/social/witness.py` | listener 4, 5, 6, 14; expression 9 | next |
+| `core/affect/confirmation.py` | listener 2, 15; expression 5, 22 | landed |
+| `core/expression/register.py`, `core/expression/delivery.py` | expression 1, 8, 23; listener 3 | landed |
+| `core/social/witness.py` | listener 5, 6, 14 | landed |
 | `core/self/recognition.py` | expression 7, 12, 18, 19, 20; listener 3, 10 | next |
 | `core/affect/frisson.py` | listener 11; expression 4, 7 | next |
 

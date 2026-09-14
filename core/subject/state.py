@@ -391,11 +391,14 @@ _SCHEMAS: dict[str, Schema] = {
             # getting more accurate while nothing she predicts is worth being
             # right about. See core/affect/confirmation.py.
             ("confirmation", "affect.confirmation"),
-            # The felt side of a prediction landing, which is a different thing
-            # from the self-model's accuracy record in S: one is what it is
-            # like when the moment comes out as expected, the other is how
-            # often it does.
-            ("confirmation", "affect.confirmation"),
+            # The level she is speaking from. How far the strongest feeling
+            # live stands above the level she has been holding, whether that is
+            # outside her ordinary range, how much control is left and which
+            # way the register moves. See core/expression/delivery.py.
+            ("delivery_z", "affect.delivery_z"),
+            ("breakthrough", "affect.breakthrough"),
+            ("steadiness", "affect.steadiness"),
+            ("lift", "affect.lift"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -618,6 +621,15 @@ _SCHEMAS: dict[str, Schema] = {
                 for i in range(CONTENT_BUCKETS)
             ],
             ("concept_load", "cold.concept_graph"),
+            # The shape of what they said, which is a reading of them. The
+            # stance and the two determinations — is this a request, is this
+            # testimony — change what she does next, and nothing watched them.
+            ("partner_asks", "world.partner_register.asking"),
+            ("partner_first_person", "world.partner_register.first"),
+            ("partner_second_person", "world.partner_register.second"),
+            ("partner_together", "world.partner_register.plural"),
+            ("partner_holds_on", "world.partner_register.persistence"),
+            ("partner_wants_a_witness", "world.partner_register.asks_to_be_witnessed"),
             ("user_trend", "cognition.user_emotional_trend"),
             ("user_trend_known", "cognition.user_emotional_trend"),
             ("model_surprise", "organ:world_model.surprise"),
@@ -659,6 +671,11 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"action_source_{i}", "cognition.last_action_source")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # Whether she is keeping somebody company rather than helping, and
+            # how low they are while she does. It decides whether she searches
+            # for anything to do. See core/social/witness.py.
+            ("witnessing", "cognition.witness.witnessing"),
+            ("company", "cognition.witness.company"),
             # The five motivational budgets, deliberation's own resources.
             #
             # Energy and integrity were the two the specification leaves open,
@@ -1032,7 +1049,10 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.social_hunger"), 0.5),
         _f(_dig(state, "affect.ambivalence")),
         _f(_dig(state, "affect.confirmation")),
-        _f(_dig(state, "affect.confirmation")),
+        _f(_dig(state, "affect.delivery_z")),
+        1.0 if _dig(state, "affect.breakthrough") else 0.0,
+        _f(_dig(state, "affect.steadiness"), 1.0),
+        _f(_dig(state, "affect.lift")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing
@@ -1261,6 +1281,12 @@ def _surprise_ratio(current: Any, typical: Any) -> float:
 
 def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
+    # The partner's register is empty until a message has been read, and an
+    # empty register is a reading rather than a failed one, so it is taken as
+    # a mapping instead of dug into field by field.
+    _partner = _dig(state, "world.partner_register", {}) or {}
+    if not isinstance(_partner, Mapping):
+        _partner = {}
     status = _call(organs.world_model, "status", {}, source="organ:world_model.status") or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
     surprise = _call(organs.world_model, "surprise", None, source="organ:world_model.surprise")
@@ -1283,6 +1309,12 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
                 )
             ),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
+            _f(_partner.get("asking")),
+            _f(_partner.get("first")),
+            _f(_partner.get("second")),
+            _f(_partner.get("plural")),
+            _sat(_f(_partner.get("persistence")), 10.0),
+            1.0 if _partner.get("asks_to_be_witnessed") else 0.0,
             *_ladder(_dig(state, "cognition.user_emotional_trend", "neutral"), _USER_TREND_LADDER),
             # How surprising this moment is relative to how surprising things
             # usually are, rather than the raw error squashed. Prediction error
@@ -1349,6 +1381,11 @@ def _read_D(state: Any) -> np.ndarray:
         *_content_buckets(" ".join(_content_of(goal, 320) for goal in goals[-3:])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
         *_content_buckets(_dig(state, "cognition.last_action_source", "")),
+        # Read as a mapping rather than dug field by field: an empty stance is
+        # a reading, "no stance taken", and digging into it would count a miss
+        # on every turn nobody testified.
+        1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
+        _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
     ]
     for name in _DRIVES:
         entry = budgets.get(name)
