@@ -699,13 +699,13 @@ class ConversationalProfiler:
                 "- emotional_support_style (validation/solutions/distraction/presence)\n"
                 "- needs_when_upset (space/empathy/humor/directness/distraction)\n"
                 "- preferred_depth (surface/moderate/deep/philosophical)\n"
-                "\nReturn ONLY a JSON object with the fields you want to update. "
-                "Omit fields that should stay the same."
+                "\nThe update is a JSON object with the fields that change; "
+                "omit fields that should stay the same."
             )
 
             thought = await brain.think(
                 objective=prompt,
-                context={"user_id": user_id, "profile": current},
+                context={"user_id": user_id, "profile": current, "output_shape": "json_object"},
                 mode="FAST",
             )
 

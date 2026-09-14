@@ -1303,7 +1303,7 @@ Rules:
 - For desktop or app goals, break the work into grounded actions such as open, inspect/look, click/focus, type, verify, then summarize
 - Never invent parameter keys; stay inside the listed arguments for the chosen tool
 
-Respond ONLY with a JSON array, no other text:
+The plan is a JSON array of steps:
 [
   {{
     "description": "...",
@@ -1327,6 +1327,7 @@ Respond ONLY with a JSON array, no other text:
                     is_background=True,
                     prefer_tier="tertiary",
                     allow_cloud_fallback=False,
+                    output_shape="json_array",
                 ),
                 timeout=30.0,
             )
@@ -2577,7 +2578,7 @@ Respond ONLY with a JSON array, no other text:
                 f"Original args: {json.dumps(step.args)}\n"
                 f"Error: {step.error}\n"
                 f"Success criterion: {step.success_criterion}\n\n"
-                "Respond ONLY with a JSON object of new args, no other text."
+                "The new args, as a JSON object."
             )
             raw = await asyncio.wait_for(
                 llm.think(
@@ -2586,6 +2587,7 @@ Respond ONLY with a JSON array, no other text:
                     is_background=True,
                     prefer_tier="tertiary",
                     allow_cloud_fallback=False,
+                    output_shape="json_object",
                 ),
                 timeout=15.0,
             )

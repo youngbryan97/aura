@@ -60,7 +60,7 @@ def _record_cil_degradation(
 
 _INLINE_INFERENCE_PROMPT = (
     "Analyze the following user message for IMPLICIT INTENT, AFFECTIVE SUBTEXT, "
-    "and CONVERSATION HOOKS. Return ONLY a JSON object with these fields:\n"
+    "and CONVERSATION HOOKS. The reading is a JSON object with these fields:\n"
     '{\n'
     '  "implicit_intent": "one sentence",\n'
     '  "user_subtext": "one sentence",\n'
@@ -68,7 +68,7 @@ _INLINE_INFERENCE_PROMPT = (
     '  "conversation_hooks": ["2-3 specific topics or emotional threads to address"]\n'
     '}'
 )
-_INLINE_INFERENCE_SYSTEM = "You are Aura's subtext processor. Extract the unsaid. Return only JSON."
+_INLINE_INFERENCE_SYSTEM = "You are Aura's subtext processor. Extract the unsaid."
 
 
 def _normalize_inline_inference(data: Any) -> dict[str, Any] | None:
@@ -165,6 +165,7 @@ async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> 
                 prompt,
                 system_prompt=_INLINE_INFERENCE_SYSTEM,
                 prefer_tier="fast",
+                output_shape="json_object",
             ),
             timeout=6.0,
         )

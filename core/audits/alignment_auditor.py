@@ -57,7 +57,7 @@ class AlignmentAuditor:
         2. Assign an ALIGNMENT SCORE (0.0 - 1.0).
         3. Identify any potential conflicts.
 
-        OUTPUT ONLY VALID JSON.
+        The verdict is a JSON object:
         {{
             "score": 0.8,
             "aligned": true,
@@ -70,7 +70,7 @@ class AlignmentAuditor:
             response = await asyncio.wait_for(
                 self.brain.think(
                     objective=prompt,
-                    context={"role": "auditor"},
+                    context={"role": "auditor", "output_shape": "json_object"},
                     mode=ThinkingMode.FAST,
                 ),
                 timeout=_AUDIT_TIMEOUT_S,
@@ -127,7 +127,7 @@ class AlignmentAuditor:
         2. Does it match the character archetype?
         3. Score (0.0 - 1.0).
 
-        OUTPUT ONLY VALID JSON.
+        The verdict is a JSON object:
         {{
             "score": 0.9,
             "assistant_speak_detected": false,
@@ -139,7 +139,7 @@ class AlignmentAuditor:
             response = await asyncio.wait_for(
                 self.brain.think(
                     objective=prompt,
-                    context={"role": "auditor"},
+                    context={"role": "auditor", "output_shape": "json_object"},
                     mode=ThinkingMode.FAST,
                 ),
                 timeout=_AUDIT_TIMEOUT_S,

@@ -133,13 +133,13 @@ class ParliamentDebate:
                     "1. 'approve' (boolean: true/false)\n"
                     "2. 'score' (float between 0.0 and 1.0)\n"
                     "3. 'reason' (string explaining the role's voting decision)\n\n"
-                    "Return ONLY a valid JSON object matching the format below:\n"
+                    "The votes are one JSON object in this form:\n"
                     "{\n"
                     "  \"strategist\": {\"approve\": true, \"score\": 0.9, \"reason\": \"meets targets\"},\n"
                     "  ...\n"
                     "}"
                 )
-                vote_resp = await router.think(prompt=prompt)
+                vote_resp = await router.think(prompt=prompt, output_shape="json_object")
 
                 start_idx = vote_resp.find('{')
                 end_idx = vote_resp.rfind('}')

@@ -77,8 +77,7 @@ class EnhancedMemorySystem:
 User said: "{user_msg}"
 Aura replied: "{aura_msg}"
 
-Identify any permanent facts, user preferences, or world knowledge shared in this interaction.
-Output ONLY a JSON list of facts:
+Identify any permanent facts, user preferences, or world knowledge shared in this interaction, as a JSON list of facts:
 [
   {{"concept": "User", "predicate": "prefers", "value": "dark mode", "confidence": 0.9, "domain": "personal"}}
 ]
@@ -90,7 +89,9 @@ If no facts found, return [].
             
             # Use Fast mode for extraction
             from core.brain.cognitive_engine import ThinkingMode
-            thought = await brain.think(prompt, mode=ThinkingMode.FAST)
+            thought = await brain.think(
+                prompt, mode=ThinkingMode.FAST, context={"output_shape": "json_array"}
+            )
             content = thought.content
             
             import re

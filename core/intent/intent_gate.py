@@ -446,14 +446,14 @@ class IntentClassifierQueue:
             prompt = (
                 f"Given the user message below, identify if it clearly maps to one of "
                 f"the available skills: [{skills_str}]. "
-                f"If yes, respond ONLY with JSON: {{\"skill\": \"<name>\", \"confidence\": 0.0-1.0}}. "
-                f"If no clear match, respond ONLY with: {{\"skill\": null, \"confidence\": 0.0}}.\n\n"
+                f"The answer is a JSON object {{\"skill\": \"<name>\", \"confidence\": 0.0-1.0}}, "
+                f"with a null skill and confidence 0.0 when nothing clearly matches.\n\n"
                 f"Message: {message[:500]}"
             )
 
             from core.brain.cognitive_engine import ThinkingMode
             response = await cognition.think(
-                objective=prompt, context={}, mode=ThinkingMode.FAST
+                objective=prompt, context={"output_shape": "json_object"}, mode=ThinkingMode.FAST
             )
             content = (response.content if hasattr(response, "content") else str(response)).strip()
 

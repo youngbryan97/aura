@@ -1113,14 +1113,14 @@ class GodModeToolPhase(Phase):
             prompt = (
                 f"Skill: {skill_name}\nParams needed: {param_desc}\n"
                 f"User request: {objective}\n\n"
-                "Extract the params as a JSON object. Output ONLY valid JSON."
+                "The params, as a JSON object."
             )
             llm = self.kernel.organs["llm"].get_instance()
             raw = await llm.think(
                 prompt,
-                system_prompt="You are a param extractor. Output only valid JSON.",
                 is_background=True,
                 prefer_tier="tertiary",
+                output_shape="json_object",
             )
             if raw:
                 import re as _re
@@ -1634,7 +1634,7 @@ class EternalGrowthEngine(Phase):
         llm = self.kernel.organs["llm"].get_instance()
         raw = await llm.think(
             (
-                "Perform one bounded long-term trajectory audit. Return only JSON "
+                "Perform one bounded long-term trajectory audit. The result is a JSON object "
                 'with schema {"milestone": string|null, "upgrade": boolean}. '
                 f"Current evolution score: {evolution_score:.3f}. "
                 + (
@@ -1648,6 +1648,7 @@ class EternalGrowthEngine(Phase):
             origin="eternal_growth",
             is_background=True,
             prefer_tier="tertiary",
+            output_shape="json_object",
             allow_cloud_fallback=False,
             max_tokens=240,
         )

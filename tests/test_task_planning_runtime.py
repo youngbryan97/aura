@@ -34,18 +34,16 @@ async def test_task_decomposer_passes_cognitive_situation_to_llm_planner(monkeyp
     captured: dict[str, object] = {}
 
     class Router:
-        async def route(self, **kwargs):
+        # The real router's entry point. The fake used to answer `route`,
+        # which no router has ever had — so the test passed against a call the
+        # decomposer could never make, and the LLM path was dead in production.
+        async def think(self, prompt, **kwargs):
             captured.update(kwargs)
-            return type(
-                "Response",
-                (),
-                {
-                    "text": (
-                        '[{"id":"t1","action":"get_screen_text","params":{},'
-                        '"depends_on":[],"verify":"true","description":"observe"}]'
-                    )
-                },
-            )()
+            captured["prompt"] = prompt
+            return (
+                '[{"id":"t1","action":"get_screen_text","params":{},'
+                '"depends_on":[],"verify":"true","description":"observe"}]'
+            )
 
     ServiceContainer.register_instance("llm_router", Router(), required=False)
 
@@ -65,6 +63,7 @@ async def test_task_decomposer_passes_cognitive_situation_to_llm_planner(monkeyp
     )
 
     prompt = str(captured["prompt"])
+    assert captured["output_shape"] == "json_array", "the plan's shape is held by the decoder"
     assert "COGNITIVE SITUATION" in prompt
     assert "semantic_flexibility=0.77" in prompt
     assert "frontmost app: Google Docs" in prompt

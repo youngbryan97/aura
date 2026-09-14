@@ -95,8 +95,7 @@ class VisionActorSkill(BaseSkill):
     async def _locate_target(self, image_b64: str, target_desc: str) -> Optional[Tuple[int, int]]:
         prompt = (
             f"You are a UI automation parser. Look at this screen and find the center coordinates of: '{target_desc}'. "
-            "Respond ONLY with a valid JSON strictly matching this schema: {\"x\": integer, \"y\": integer, \"found\": boolean}. "
-            "Do not include any other text."
+            "The answer is a JSON object {\"x\": integer, \"y\": integer, \"found\": boolean}."
         )
         try:
             brain = ServiceContainer.get("cognitive_engine", default=None)
@@ -105,7 +104,12 @@ class VisionActorSkill(BaseSkill):
             
             # Use Brain's unified think with images
             from core.brain.cognitive_engine import ThinkingMode
-            response = await brain.think(prompt=f"ACTOR_IMAGE_PARSE: {prompt}", images=[image_b64], mode=ThinkingMode.QUICK)
+            response = await brain.think(
+                prompt=f"ACTOR_IMAGE_PARSE: {prompt}",
+                images=[image_b64],
+                mode=ThinkingMode.QUICK,
+                context={"output_shape": "json_object"},
+            )
             text = response.content if hasattr(response, 'content') else str(response)
             
             # Simple JSON extraction

@@ -1036,13 +1036,20 @@ class ResearchCycle:
             kernel = ServiceContainer.get("aura_kernel", default=None)
             if kernel:
                 llm = kernel.organs["llm"].get_instance()
+                # The content is what the research fetched; it goes in behind
+                # a fence so a page cannot speak as the extractor (threat
+                # model #13).
+                from core.security.prompt_fencing import fence
+
                 prompt = (
                     f"Extract the most important, concrete facts from this research.\n\n"
-                    f"Goal: {goal}\n\nContent:\n{content[:2000]}\n\n"
-                    "Return ONLY a JSON array of strings, max 8 items. Each item is one specific fact:\n"
+                    f"Goal: {goal}\n\nContent:\n{fence(content, label='research content', limit=2000)}\n\n"
+                    "The facts are a JSON array of strings, at most 8, each one specific:\n"
                     '["fact 1", "fact 2", ...]'
                 )
-                raw = await asyncio.wait_for(llm.think(prompt), timeout=30.0)
+                raw = await asyncio.wait_for(
+                    llm.think(prompt, output_shape="json_array"), timeout=30.0
+                )
                 raw_text = str(raw or "")
                 start = raw_text.find("[")
                 end = raw_text.rfind("]") + 1

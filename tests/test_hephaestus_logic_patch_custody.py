@@ -21,7 +21,11 @@ class _Brain:
             }
         )
 
-    async def think(self, _prompt: str) -> SimpleNamespace:
+    async def think(self, _prompt: str, **kwargs) -> SimpleNamespace:
+        # The real engine's think takes context; the forge asks it to hold
+        # the change as a JSON object, and a fake that refused the kwarg was
+        # the test failing on the request rather than on the patch.
+        assert kwargs.get("context", {}).get("output_shape") == "json_object"
         return SimpleNamespace(content=self._content)
 
 

@@ -556,7 +556,7 @@ Respond in JSON with this exact structure:
   "recommended_tone": "direct|warm|exploratory|skeptical|playful"
 }}
 
-Be concise. No preamble. Output only the JSON."""
+Be concise."""
 
         router = self._ensure_router()
         if not router:
@@ -575,6 +575,7 @@ Be concise. No preamble. Output only the JSON."""
                     purpose="inner_monologue",
                     origin="inner_monologue",
                     allow_cloud_fallback=False,
+                    output_shape="json_object",
                 ),
                 timeout=self._deepening_timeout,
             )

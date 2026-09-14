@@ -135,7 +135,7 @@ class HeuristicSynthesizer:
             "Do NOT repeat existing rules.\n\n"
             f"RECENT ERRORS:\n{signal_text}\n\n"
             f"EXISTING RULES (do not duplicate):\n{existing_rules or '(none yet)'}\n\n"
-            "Respond ONLY with a JSON array of strings, each a new rule. "
+            "The new rules are a JSON array of strings. "
             "Example: [\"Always validate file paths before read operations.\"]"
         )
 
@@ -143,7 +143,7 @@ class HeuristicSynthesizer:
             from core.brain.types import ThinkingMode
             thought = await brain.think(
                 objective=synthesis_prompt,
-                context={"history": []},
+                context={"history": [], "output_shape": "json_array"},
                 mode=ThinkingMode.FAST,
                 priority=0.2
             )

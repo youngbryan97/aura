@@ -347,12 +347,12 @@ class HephaestusEngine(AuraBaseModule):
 
             prompt = (
                 f"Identify a logic improvement in the following code to achieve: '{objective}'.\n"
-                f"Return ONLY a JSON object with 'original_snippet' and 'replacement_snippet'.\n"
+                f"The change is a JSON object with 'original_snippet' and 'replacement_snippet'.\n"
                 f"Code:\n{current_code}"
             )
             
             try:
-                res = await brain.think(prompt)
+                res = await brain.think(prompt, context={"output_shape": "json_object"})
                 self.logger.info("Deep Forge LLM response: %s", res.content)
                 # Handle potential markdown in LLM response
                 content = res.content

@@ -304,20 +304,20 @@ class TaskDecomposer:
                 cognitive_situation=self._render_cognitive_situation_for_planning(context),
             )
 
-            # Route to the fastest available model
-            response = await router.route(
-                prompt=prompt,
-                system="You are a precise task planner. Respond ONLY with valid JSON.",
-                temperature=0.3,
+            # The router's entry point is `think`; this called `route`, which
+            # no router has, so the AttributeError below fired on every
+            # decomposition and the LLM path never ran. The plan is a JSON
+            # array, and the decoder holds that shape.
+            text = await router.think(
+                prompt,
+                origin="task_decomposer",
+                is_background=True,
                 max_tokens=2000,
-                route_hint="planning",
+                output_shape="json_array",
             )
-
-            if not response or not hasattr(response, "text"):
+            if not text:
                 return []
-
-            text = response.text if hasattr(response, "text") else str(response)
-            return self._parse_llm_response(text)
+            return self._parse_llm_response(str(text))
 
         except (ImportError, AttributeError, RuntimeError, TypeError) as e:
             record_degradation("task_decomposer.llm", e)

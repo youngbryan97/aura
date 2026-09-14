@@ -603,6 +603,7 @@ class AutomatedDiagnosisEngine:
                 priority=0.1,
                 origin="self_modification_diagnosis",
                 is_background=True,
+                context={"output_shape": "json_object"},
             )
             # Guard: brain.think() returns None when all LLM endpoints are down
             raw_content = ""
@@ -689,7 +690,7 @@ Return your analysis as JSON:
   "additional_context_needed": "What information would help narrow this down"
 }}
 
-Return ONLY the JSON, no other text.'''
+'''
         
         return prompt
     
