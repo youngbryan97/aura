@@ -624,6 +624,30 @@ class ProcedureRegistry:
         with self._lock:
             return self._procedures.get(procedure_id)
 
+    def execution_contract(self, procedure_id: str) -> tuple | None:
+        """Stable execution identity, without the registry's process-local IDs.
+
+        Legacy registrations without a backend contract remain unbound. A
+        composition is bound only if every executable leaf is bound.
+        """
+        with self._lock:
+            def visit(identity: str, active: frozenset[str]) -> tuple | None:
+                procedure = self._procedures.get(identity)
+                if procedure is None or procedure.retired or identity in active:
+                    return None
+                if procedure.origin is not None and procedure.origin.learner == "compose":
+                    if not procedure.parts or procedure.program != procedure.parts:
+                        return None
+                    parts = tuple(visit(part, active | {identity}) for part in procedure.parts)
+                    return None if None in parts else ("composition", parts)
+                key = self._intern_key_by_procedure.get(identity)
+                if key is None:
+                    return None
+                bound_id, digest = self._interned[key]
+                return ("leaf", key[0].value, key[1], digest) if bound_id == identity else None
+
+            return visit(procedure_id, frozenset())
+
     def _drop_interned_locked(self, procedure_id: str) -> None:
         key = self._intern_key_by_procedure.pop(procedure_id, None)
         if key is not None:

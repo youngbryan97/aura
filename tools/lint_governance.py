@@ -544,6 +544,7 @@ class EffectVisitor(ast.NodeVisitor):
         self.relative_path = relative_path
         self.aliases: dict[str, str] = {}
         self.binding_scopes: list[dict[str, str]] = [{}]
+        self.receiver_type_scopes: list[dict[str, str]] = [{}]
         self.scope_parts: list[str] = ["<module>"]
         self.calls: list[tuple[str, str, int]] = []
         self.local_functions: set[str] = set()
@@ -581,6 +582,7 @@ class EffectVisitor(ast.NodeVisitor):
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
             local = alias.asname or alias.name.split(".", 1)[0]
+            self.receiver_type_scopes[-1][local] = ""
             self.aliases[local] = alias.name if alias.asname else local
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -590,6 +592,7 @@ class EffectVisitor(ast.NodeVisitor):
             if alias.name == "*":
                 continue
             local = alias.asname or alias.name
+            self.receiver_type_scopes[-1][local] = ""
             self.aliases[local] = f"{node.module}.{alias.name}"
 
     def visit_Assign(self, node: ast.Assign) -> None:
@@ -600,8 +603,13 @@ class EffectVisitor(ast.NodeVisitor):
                     self.binding_scopes[-1][target.id] = resolved
         self.generic_visit(node)
 
+    def visit_Name(self, node: ast.Name) -> None:
+        if isinstance(node.ctx, (ast.Store, ast.Del)):
+            self.receiver_type_scopes[-1][node.id] = ""
+
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         if node.value is not None and isinstance(node.target, ast.Name):
+            self.receiver_type_scopes[-1][node.target.id] = ""
             resolved = self._binding_value(node.value)
             if resolved:
                 self.binding_scopes[-1][node.target.id] = resolved
@@ -619,8 +627,18 @@ class EffectVisitor(ast.NodeVisitor):
     def _visit_scoped(self, node: ast.AST, name: str) -> None:
         self.scope_parts.append(name)
         self.binding_scopes.append({})
+        self.receiver_type_scopes.append({})
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            arguments = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]
+            arguments.extend(argument for argument in (node.args.vararg, node.args.kwarg) if argument)
+            for argument in arguments:
+                resolved = self._resolve_expr(argument.annotation) if argument.annotation else ""
+                # Imported nominal types disambiguate overloaded method names.
+                # Unresolved and primitive annotations keep the lexical fallback.
+                self.receiver_type_scopes[-1][argument.arg] = resolved if "." in resolved else ""
         for child in ast.iter_child_nodes(node):
             self.visit(child)
+        self.receiver_type_scopes.pop()
         self.binding_scopes.pop()
         self.scope_parts.pop()
 
@@ -642,6 +660,14 @@ class EffectVisitor(ast.NodeVisitor):
             if delegated_category:
                 classified.append((delegated_category, delegated_callee))
         return classified
+
+    def _open_receiver_type(self, node: ast.Call) -> str:
+        if not isinstance(node.func, ast.Attribute) or not isinstance(node.func.value, ast.Name):
+            return ""
+        for scope in reversed(self.receiver_type_scopes):
+            if node.func.value.id in scope:
+                return scope[node.func.value.id]
+        return ""
 
     def _lookup_binding(self, name: str) -> str | None:
         for scope in reversed(self.binding_scopes):
@@ -735,8 +761,17 @@ class EffectVisitor(ast.NodeVisitor):
             return "raw_file_mutation"
         if _strip_project_prefix(callee) == "os.open":
             return "raw_file_mutation" if _os_open_flags_mutate(node) else None
-        if method == "open" and _open_call_mutates(node, callee):
-            return "raw_file_mutation"
+        if method == "open":
+            receiver_type = self._open_receiver_type(node)
+            open_callee = callee
+            if receiver_type in {"pathlib.Path", "pathlib.PosixPath", "pathlib.WindowsPath"}:
+                open_callee = "<pathlib.Path>.open"
+            elif receiver_type == "core.cognition.outcome_ledger.OutcomeLedger":
+                # This audited API opens a logical receipt. Its SQLite writes
+                # are owned and inspected at the implementation, not this call.
+                return None
+            if _open_call_mutates(node, open_callee):
+                return "raw_file_mutation"
         return None
 
 

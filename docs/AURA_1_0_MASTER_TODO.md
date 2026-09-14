@@ -774,6 +774,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Task-plan feedback](evidence/G09_TASK_PLAN_FEEDBACK_2026-09-14.md) connects
+  whole-composition execution and external assessments to the shared value
+  learner, with stable identities across restarts. Candidate generation and
+  independent broad/live task assessment remain unproven.
   [Evidence refresh](evidence/G09_EVIDENCE_REFRESH_2026-09-14.md) preserves
   outcome notifications during snapshot reads and orders concurrent refreshes.
   Thirty-six focused tests pass; this is learning integrity, not broad gain.
