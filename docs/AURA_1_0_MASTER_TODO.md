@@ -741,6 +741,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   3,027 tokens; the old exact-wire grader rejects only its valid Theta
   notation. Versioned channel/semantic measurement repairs preserve the
   historical records. This is not fresh gain evidence or G05/G06 closure.
+  [Typed decoder state](evidence/G05_TYPED_DECODER_STATE_2026-09-14.md)
+  repairs prompt/output separation, speculative rewind, whole-token grammar
+  caches and Unicode escapes. Fifty-two tests pass, including installed MLX
+  generation and the real tokenizer; resident-model validation remains open.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)

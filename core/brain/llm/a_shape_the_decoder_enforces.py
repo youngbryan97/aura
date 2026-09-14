@@ -29,9 +29,12 @@ the shape applies to the answer, not to the thinking.
 from __future__ import annotations
 
 import logging
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.Brain.LLM.Shape")
 
@@ -50,12 +53,16 @@ _ARR_NEXT = "arr_next"      # after a value: ',' or ']'
 _STRING = "string"          # inside a value string
 _STRING_ESC = "string_esc"  # after a backslash in a string
 _KEY_ESC = "key_esc"
+_STRING_UNICODE = "string_unicode"
+_KEY_UNICODE = "key_unicode"
 _NUMBER = "number"          # inside a number
 _LITERAL = "literal"        # inside true/false/null
 
 _LITERALS = ("true", "false", "null")
 _WHITESPACE = " \t\n\r"
 _DIGITS = "0123456789"
+_HEX_DIGITS = "0123456789abcdefABCDEF"
+_MASK_CACHE_BYTES = 32 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -67,14 +74,15 @@ class JsonState:
     stack: tuple[str, ...] = ()
     literal: str = ""          # the literal being spelled, e.g. "tr"
     number: str = ""           # the number so far, for what may follow
+    unicode_remaining: int = 0
 
     @property
     def top(self) -> str:
         return self.stack[-1] if self.stack else ""
 
-    def cache_key(self) -> tuple[str, str, str, str]:
-        # Depth does not change what is allowed; the top bracket does.
-        return (self.mode, self.top, self.literal, _number_class(self.number))
+    def cache_key(self) -> tuple[str, tuple[str, ...], str, str, int]:
+        # A token can close several containers, so the entire stack matters.
+        return (self.mode, self.stack, self.literal, _number_class(self.number), self.unicode_remaining)
 
 
 def _number_class(number: str) -> str:
@@ -83,7 +91,9 @@ def _number_class(number: str) -> str:
         return ""
     if number in ("-",):
         return "-"
-    if number.endswith(("e", "E", "e-", "E-", "e+", "E+")):
+    if number.endswith(("e-", "E-", "e+", "E+")):
+        return "exp_sign"
+    if number.endswith(("e", "E")):
         return "exp"
     if "." in number and number.endswith("."):
         return "dot"
@@ -156,7 +166,16 @@ def step(state: JsonState, char: str) -> JsonState | None:
             return JsonState(_OBJ_COLON, state.stack)
         return state if char >= " " else None
     if mode == _KEY_ESC:
-        return JsonState(_OBJ_KEY, state.stack) if char in '"\\/bfnrtu' else None
+        if char == "u":
+            return JsonState(_KEY_UNICODE, state.stack, unicode_remaining=4)
+        return JsonState(_OBJ_KEY, state.stack) if char in '"\\/bfnrt' else None
+    if mode in (_KEY_UNICODE, _STRING_UNICODE):
+        if char not in _HEX_DIGITS:
+            return None
+        remaining = state.unicode_remaining - 1
+        if remaining:
+            return JsonState(mode, state.stack, unicode_remaining=remaining)
+        return JsonState(_OBJ_KEY if mode == _KEY_UNICODE else _STRING, state.stack)
     if mode == _OBJ_COLON:
         if char in _WHITESPACE:
             return state
@@ -190,7 +209,9 @@ def step(state: JsonState, char: str) -> JsonState | None:
             return _after_value(state)
         return state if char >= " " else None
     if mode == _STRING_ESC:
-        return JsonState(_STRING, state.stack) if char in '"\\/bfnrtu' else None
+        if char == "u":
+            return JsonState(_STRING_UNICODE, state.stack, unicode_remaining=4)
+        return JsonState(_STRING, state.stack) if char in '"\\/bfnrt' else None
     if mode == _LITERAL:
         spelled = state.literal + char
         for word in _LITERALS:
@@ -235,6 +256,20 @@ def is_complete(state: JsonState) -> bool:
     return state.mode == _NUMBER and not state.stack and _number_may_end(state.number)
 
 
+@invariant("decoder.json_token_state", scope="inference",
+           owner="core/brain/llm/a_shape_the_decoder_enforces.py", observational=False)
+def _complete_token_grammar_state() -> tuple:
+    """Mask identities preserve the continuation language of whole tokens."""
+    deep, shallow = feed(JsonState(), "[["), feed(JsonState(), "[")
+    assert deep is not None and shallow is not None
+    assert deep.cache_key() != shallow.cache_key()
+    assert feed(deep, "]]") is not None and feed(shallow, "]]") is None
+    assert feed(JsonState(), '"\\uZZZZ"') is None
+    valid = feed(JsonState(), '{"\\u0061":[1e+2]}')
+    assert valid is not None and is_complete(valid)
+    return ()
+
+
 class _Vocabulary:
     """Every token as the text it adds, decoded once per tokenizer."""
 
@@ -263,16 +298,22 @@ class _Vocabulary:
                 self.ends.add(ident)
 
 
-_VOCABULARIES: dict[int, _Vocabulary] = {}
+_VOCABULARIES: OrderedDict[int, tuple[Any, _Vocabulary]] = OrderedDict()
 
 
 def _vocabulary_for(tokenizer: Any) -> _Vocabulary:
     key = id(tokenizer)
     found = _VOCABULARIES.get(key)
-    if found is None:
-        found = _Vocabulary(tokenizer)
-        _VOCABULARIES[key] = found
-    return found
+    if found is not None and found[0] is tokenizer:
+        _VOCABULARIES.move_to_end(key)
+        return found[1]
+    vocabulary = _Vocabulary(tokenizer)
+    # Retain the owner, not only its recyclable id. Keep current and draft
+    # tokenizers; a later model swap may rebuild an evicted vocabulary.
+    _VOCABULARIES[key] = (tokenizer, vocabulary)
+    while len(_VOCABULARIES) > 2:
+        _VOCABULARIES.popitem(last=False)
+    return vocabulary
 
 
 def allowed_token_ids(vocabulary: _Vocabulary, state: JsonState) -> list[int]:
@@ -302,6 +343,10 @@ def enforce_json(
     "array" for callers that will parse one; "any" allows any JSON value.
     Returns None where MLX is not importable, so a caller knows the shape is
     not held rather than assuming it is.
+
+    The first call precedes sampling and carries prompt context in MLX. That
+    prefix is not part of the answer. A speculative rewind replays only the
+    generated suffix, rather than retaining grammar state from a rejected draft.
     """
     try:
         import mlx.core as mx
@@ -311,29 +356,51 @@ def enforce_json(
         raise ValueError(f"require must be any, object or array, not {require!r}")
 
     vocabulary = _vocabulary_for(tokenizer)
-    masks: dict[tuple[str, str, str, str], Any] = {}
+    masks: OrderedDict[tuple[tuple[str, tuple[str, ...], str, str, int], str], Any] = OrderedDict()
+    mask_bytes = 0
     opening = JsonState(literal="" if require == "any" else require)
     state = {"json": opening, "seen": 0, "enforcing": after_token is None, "refused": 0}
+    prompt: list[int] | None = None
+    history: list[int] = []
 
     def mask_for(json_state: JsonState, dtype: Any) -> Any:
-        key = json_state.cache_key()
+        nonlocal mask_bytes
+        key = (json_state.cache_key(), str(dtype))
         found = masks.get(key)
         if found is None:
             ids = allowed_token_ids(vocabulary, json_state)
             found = mx.full((vocabulary.size,), -mx.inf, dtype=dtype)
             if ids:
                 found[mx.array(ids)] = 0.0
+            while masks and mask_bytes + found.nbytes > _MASK_CACHE_BYTES:
+                _, evicted = masks.popitem(last=False)
+                mask_bytes -= evicted.nbytes
             masks[key] = found
+            mask_bytes += found.nbytes
+        else:
+            masks.move_to_end(key)
         return found
 
     def hold_the_shape(tokens: Any, logits: Any) -> Any:
+        nonlocal prompt, history
         try:
             produced = len(tokens)
         except TypeError:
             return logits
+        token_ids = tokens.tolist() if hasattr(tokens, "tolist") else list(tokens)
+        if prompt is None:
+            prompt = token_ids
+            state["seen"] = produced
+        elif token_ids[:len(prompt)] != prompt:
+            raise ValueError("JSON processor reused with a different prompt prefix")
+        elif token_ids[:len(history)] != history:
+            state["json"] = opening
+            state["enforcing"] = after_token is None
+            state["seen"] = len(prompt)
+        history = token_ids
         # Catch up on tokens produced since the last call.
         while state["seen"] < produced:
-            token_id = int(tokens[state["seen"]])
+            token_id = int(token_ids[state["seen"]])
             state["seen"] += 1
             if not state["enforcing"]:
                 if token_id == after_token:
