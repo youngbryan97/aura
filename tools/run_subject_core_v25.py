@@ -303,19 +303,25 @@ async def _spectrum(
     domains: Sequence[str] | None = None,
     screen: int = 0,
 ) -> tuple[dict[float, float], dict[str, Any]]:
-    """The weakest cut's rate at every horizon on the ladder."""
-    from core.subject.v25_cut import sweep_cuts
+    """The weakest cut's rate at every horizon on the ladder.
+
+    One set of rollouts per cut serves every horizon. Scoring each lag with its
+    own sweep ran every cut's clamped arms again for every lag, although a
+    rollout already holds all of them. See `sweep_cuts_over_lags`.
+    """
+    from core.subject.v25_cut import sweep_cuts_over_lags
 
     spectrum: dict[float, float] = {}
     detail: dict[str, Any] = {}
-    for lag in lags:
+    reports = await sweep_cuts_over_lags(
+        runtime, anchors, conditions,
+        lags=lags, frame_seconds=frame_seconds,
+        turns=turns, rounds=rounds, seed=seed, domains=domains,
+        screen=screen,
+    )
+    for lag in sorted(reports):
+        report = reports[lag]
         tau = float(lag) * float(frame_seconds)
-        report = await sweep_cuts(
-            runtime, anchors, conditions,
-            tau_frames=int(lag), tau_seconds=tau,
-            turns=turns, rounds=rounds, seed=seed + lag, domains=domains,
-            screen=screen,
-        )
         weakest = report.weakest
         spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
         detail[f"lag_{lag}"] = report.as_dict()
