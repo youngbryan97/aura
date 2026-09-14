@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import logging
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -274,11 +274,22 @@ class _Vocabulary:
     """Every token as the text it adds, decoded once per tokenizer."""
 
     def __init__(self, tokenizer: Any) -> None:
-        size = int(len(tokenizer))
+        get_vocab = getattr(tokenizer, "get_vocab", None)
+        if callable(get_vocab):
+            declared = get_vocab()
+            if not isinstance(declared, Mapping) or not declared or any(
+                type(ident) is not int or ident < 0 for ident in declared.values()
+            ):
+                raise ValueError("tokenizer vocabulary must declare nonnegative integer ids")
+            known_ids = set(declared.values())
+            size = max(known_ids) + 1
+        else:
+            size = int(len(tokenizer))
+            known_ids = set(range(size))
         self.texts: list[str] = []
         specials = set(int(i) for i in (getattr(tokenizer, "all_special_ids", None) or ()))
         for token_id in range(size):
-            if token_id in specials:
+            if token_id not in known_ids or token_id in specials:
                 self.texts.append("")
                 continue
             try:
@@ -287,15 +298,14 @@ class _Vocabulary:
                 self.texts.append("")
         self.specials = specials
         self.size = size
+        # Runtime wrappers may declare several EOS ids. Unknown marker names
+        # can map to UNK, so token-name guesses cannot establish termination.
+        declared_ends = getattr(tokenizer, "eos_token_ids", None)
+        ends = {declared_ends} if type(declared_ends) is int else set(declared_ends or ())
         eos = getattr(tokenizer, "eos_token_id", None)
-        self.ends: set[int] = {int(eos)} if eos is not None else set()
-        for name in ("<|im_end|>", "<|endoftext|>", "</s>"):
-            try:
-                ident = tokenizer.convert_tokens_to_ids(name)
-            except (TypeError, ValueError, AttributeError, KeyError):
-                ident = None
-            if isinstance(ident, int) and 0 <= ident < size:
-                self.ends.add(ident)
+        if eos is not None:
+            ends.add(eos)
+        self.ends: set[int] = {ident for ident in ends if type(ident) is int and ident in known_ids}
 
 
 _VOCABULARIES: OrderedDict[int, tuple[Any, _Vocabulary]] = OrderedDict()

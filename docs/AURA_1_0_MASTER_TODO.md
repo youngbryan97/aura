@@ -748,6 +748,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Resident shape canary](evidence/G05_RESIDENT_SHAPE_CANARY_2026-09-14.md)
   now separates exact task answers from syntax, public completion and processor
   continuity. Seventy focused tests passed; the model run follows this checkpoint.
+  The resident run exposed the MLX wrapper's missing len() interface.
+  [Runtime tokenizer contract](evidence/G05_RUNTIME_TOKENIZER_CONTRACT_2026-09-14.md)
+  repairs vocabulary and EOS discovery in the shared serving processor; 79
+  focused tests passed. No public model answer was produced by the failed run.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
