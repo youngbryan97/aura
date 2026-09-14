@@ -146,6 +146,7 @@ def test_runtime_executes_learned_ir_on_the_universal_floor(monkeypatch):
     assert outcome.receipt["procedure_execution"] == {
         "completed": True, "backend_calls": 1,
         "procedure_ids": calls, "correctness_measured": False,
+        "selection_basis": "learned_ir_procedure_identity", "requirements_met": True,
     }
 
 

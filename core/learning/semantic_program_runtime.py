@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from core.brain.llm.latent_cortex.runtime_identity import worker_representation_basis
-from core.cognition.procedure import Backend, Procedure, ProcedureRegistry
-from core.cognition.procedure_execution import execute_procedure
+from core.cognition.procedure import Backend, Precondition, Procedure, ProcedureRegistry
+from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
 from core.learning.semantic_procedure_currency import (
     from_semantic_program,
     semantic_procedure_backend,
@@ -144,16 +144,28 @@ def execute_compositional_semantic_observation(
             floor_program_receipt = floor_program.receipt
         else:
             procedure = from_semantic_program(decoded.ir, registry=procedure_registry)
-            procedure_execution = execute_procedure(
-                procedure_registry, procedure.procedure_id,
-                {
-                    f"semantic:argument:{index}": value
-                    for index, value in enumerate(public_inputs.values)
-                },
+            initial_state = {
+                f"semantic:argument:{index}": value
+                for index, value in enumerate(public_inputs.values)
+            }
+            plan = plan_procedure(
+                procedure_registry, initial_state,
+                (Precondition(procedure.program.output_key, procedure.program.output_type),),
+                # The learned IR supplies meaning. Equal input/output types do
+                # not make a different computation eligible for this request.
+                eligible=(procedure.procedure_id,), max_steps=1, max_expansions=1,
+            )
+            goal_execution = execute_procedure_plan(
+                procedure_registry, plan, initial_state,
                 backends={Backend.RLC: semantic_procedure_backend},
             )
+            procedure_execution = goal_execution.execution
+            if procedure_execution is None:
+                raise ValueError(f"semantic procedure plan did not execute:{plan.reason}")
             if not procedure_execution.completed:
                 raise ValueError(procedure_execution.execution.failed)
+            if not goal_execution.requirements_met:
+                raise ValueError("semantic procedure did not meet its typed result requirement")
             backend_execution = procedure_execution.steps[0].evidence
             execution = backend_execution.floor_execution
             floor_program_receipt = backend_execution.receipt["floor_program_receipt"]
@@ -199,6 +211,8 @@ def execute_compositional_semantic_observation(
                 "completed": procedure_execution.completed,
                 "backend_calls": procedure_execution.execution.tool_calls,
                 "procedure_ids": [step.procedure_id for step in procedure_execution.steps],
+                "selection_basis": "learned_ir_procedure_identity",
+                "requirements_met": goal_execution.requirements_met,
                 "correctness_measured": False,
             }
             if procedure_execution is not None else None

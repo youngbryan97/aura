@@ -744,6 +744,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Tool results feed real floor programs; the registered semantic runtime uses
   this same dispatch. Task-grounded selection, broad measurements and live
   qualification remain separate obligations; G09 is not closed.
+  [Goal-bound procedure composition](evidence/G09_GOAL_BOUND_PROCEDURES_2026-09-13.md)
+  adds typed dependency search and uses the learned computation identity on
+  the semantic runtime path. CPU tests compose real file reads, floor execution
+  and report formatting, with missing-procedure controls and exhaustive small
+  planning comparisons. Broad language interpretation and live gain are not
+  established; G09 remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

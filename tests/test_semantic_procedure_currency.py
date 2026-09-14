@@ -21,6 +21,7 @@ from core.learning.semantic_procedure_currency import (
     semantic_procedure_backend,
 )
 from core.cognition.procedure_execution import BackendResult, execute_procedure
+from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -58,6 +59,49 @@ def _ir(
         model_basis_receipt_sha256="1" * 64,
         transducer_receipt_sha256="2" * 64,
     )
+
+
+@pytest.mark.parametrize("quantity,price", [(7, 129), (0, 83), (113, 307)])
+def test_goal_composes_local_source_floor_and_report_without_a_prebuilt_chain(tmp_path, quantity, price):
+    import csv
+    from io import StringIO
+
+    registry = reset_procedure_registry_for_test()
+    path = tmp_path / "quote.csv"
+    path.write_text(f"item,quantity,price_cents\npart-A,{quantity},{price}\n", encoding="utf-8")
+    source = registry.register(
+        "read requested quote", Backend.TOOL,
+        Signature((Precondition("quote_path", "string"), Precondition("item", "string")),
+            (Effect("quantity", "integer"), Effect("price_cents", "integer"))),
+    )
+    compute = from_semantic_program(_ir(2, (("mul", (0, 1)),)),
+        input_keys=("quantity", "price_cents"), output_key="subtotal_cents", registry=registry)
+    report = registry.register("format quote", Backend.MACRO,
+        Signature((Precondition("subtotal_cents", "integer"),), (Effect("quote", "string"),)))
+    state = {"quote_path": str(path), "item": "part-A"}
+    plan = plan_procedure(registry, state, (Precondition("quote", "string"),),
+        max_steps=3, max_expansions=20)
+    assert plan.procedure_ids == (source.procedure_id, compute.procedure_id, report.procedure_id)
+
+    def read_source(p, s, context):
+        raw = path.read_bytes()
+        rows = csv.DictReader(StringIO(raw.decode("utf-8")))
+        row = next(row for row in rows if row["item"] == s["item"])
+        return BackendResult({"quantity": int(row["quantity"]), "price_cents": int(row["price_cents"])},
+            {"source_sha256": hashlib.sha256(raw).hexdigest()})
+
+    result = execute_procedure_plan(registry, plan, state, backends={
+        Backend.TOOL: read_source, Backend.RLC: semantic_procedure_backend,
+        Backend.MACRO: lambda p, s, c: BackendResult({"quote": f"{s['subtotal_cents']} cents"}),
+    })
+    assert result.completed
+    assert result.execution.resulting_state["quote"] == f"{quantity * price} cents"
+    assert result.execution.steps[0].evidence["source_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert result.execution.steps[1].evidence.floor_execution.receipt["execution_engine"] == "universal_metered_floor"
+    assert registry.get(compute.procedure_id).value.uses == 0
+    # Removing a required backend/procedure must remove the composition.
+    assert not plan_procedure(registry, state, plan.requirements,
+        eligible=(source.procedure_id, report.procedure_id), max_steps=3, max_expansions=20).found
 
 
 def test_rlc_adapter_registers_a_typed_source_independent_program() -> None:
