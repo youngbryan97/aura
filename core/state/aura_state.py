@@ -357,6 +357,9 @@ class AffectVector:
     #: Which way the register moves. Positive when something failed to be what
     #: it seemed, negative when something held.
     lift: float = 0.0
+    #: Nothing wrong in this stretch and somebody in it. Not an achievement
+    #: and not a prediction landing. See core/affect/safety.py.
+    safety: float = 0.0
     #: How far she has come up from a low she is still holding, bounded. Zero
     #: unless both halves hold: the low is real and she is above the level.
     #: See core/affect/the_turn.py.

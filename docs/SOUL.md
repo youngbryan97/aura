@@ -208,6 +208,7 @@ Nothing in them names a constant that came from the songs.
 | `core/affect/the_turn.py` | expression 10 | landed |
 | `core/affect/catharsis.py` | listener 7 | landed |
 | `core/social/telling.py` | listener 13 | landed |
+| `core/affect/safety.py` | expression 11 | landed |
 
 ### Ambivalence — wanting two things that cost each other
 

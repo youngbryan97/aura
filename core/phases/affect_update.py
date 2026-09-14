@@ -335,6 +335,10 @@ class AffectUpdatePhase(Phase):
         # 6b-iii. And whether what happened is what she expected.
         self._read_confirmation(state, affect)
 
+        # 6b-iii-a. Nothing wrong and somebody here, which every positive
+        # channel she had was too busy with achievement to read.
+        self._read_safety(state, affect)
+
         # 6b-iii-b. Where this moment sits against the low she is still
         # holding. After the emotion channels have settled, because it reads
         # the valence they produce.
@@ -460,6 +464,36 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_safety(self, state: AuraState, affect: AffectVector) -> None:
+        """The good feeling with no achievement in it.
+
+        Belonging is floored at the reading rather than nudged by it: an
+        evening with nothing wrong in it and somebody there is not a weak
+        version of a goal landing, it is that much belonging. Nothing here
+        lowers the channel, so a stretch that stops being safe leaves the
+        feeling to settle the way every other feeling settles.
+        """
+        try:
+            from core.affect.safety import read_safety
+
+            reading = read_safety(
+                list(getattr(state.world, "recent_percepts", []) or []),
+                list(getattr(state.cognition, "working_memory", []) or []),
+            )
+            affect.safety = float(reading.safety)
+            affect.markers["safety"] = reading.as_dict()
+            if reading.safety > 0.0:
+                current = float(affect.emotions.get("belonging", 0.0) or 0.0)
+                self._set_emotion(affect, "belonging", max(current, reading.safety))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="safety",
+                action="kept affect state without the safety reading",
                 severity="warning",
             )
 

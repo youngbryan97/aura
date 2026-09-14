@@ -404,6 +404,8 @@ _SCHEMAS: dict[str, Schema] = {
             ("frisson", "affect.frisson"),
             # Up from a low she is still holding. See core/affect/the_turn.py.
             ("the_turn", "affect.turn"),
+            # Nothing wrong and somebody here. See core/affect/safety.py.
+            ("safety", "affect.safety"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -1087,6 +1089,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.lift")),
         _f(_dig(state, "affect.frisson")),
         _f(_dig(state, "affect.turn")),
+        _f(_dig(state, "affect.safety")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing

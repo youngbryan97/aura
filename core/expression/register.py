@@ -49,6 +49,7 @@ __all__ = [
     "ASKING",
     "PERSISTENCE",
     "Register",
+    "comparable",
     "distance",
     "held_token",
     "read",
@@ -246,6 +247,16 @@ def read(text: str) -> Register:
 #: repetition and breath — each already a share or a rate in its own units, so
 #: none of them needs a weight.
 _AXES: tuple[str, ...] = ("first", "second", "plural", "third", "asking", "variety")
+
+
+def comparable(left: Register, right: Register) -> bool:
+    """Whether two utterances have enough words between them to have a shape.
+
+    The profile has six coordinates and fewer words than that cannot fill
+    them: one pronoun in a four-word message puts a whole share on one axis,
+    and the distance between two such profiles is a reading of their length.
+    """
+    return left.measured and right.measured and min(left.words, right.words) >= len(_AXES)
 
 
 def distance(left: Register, right: Register) -> float:
