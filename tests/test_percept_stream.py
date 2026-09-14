@@ -81,11 +81,13 @@ def test_every_percept_type_the_tree_emits_can_move_affect() -> None:
     emotional event and mapping it would make her react to wallpaper.
     """
     from core.phases.affect_update import AffectUpdatePhase
+    from core.state.percepts import PERCEPT_EMOTIONS
 
     unmapped_on_purpose = {"vision", "ambient_observation", "legacy_update", "unknown"}
-    source = (REPO / "core" / "phases" / "affect_update.py").read_text()
-    body = source[source.index("emotion_map = {") : source.index("command_impacts = {")]
-    mapped = set(re.findall(r'"([a-z_]+)":\s*\[', body))
+    # Read from the table itself rather than from the text of the file that
+    # consumes it. The table moved next to the percept it describes, and a test
+    # that scrapes one call site goes green the moment the call site is renamed.
+    mapped = {kind for kind, emotions in PERCEPT_EMOTIONS.items() if emotions}
     assert {"internal_error", "self_correction", "error", "goal_achieved"} <= mapped
 
     emitted: set[str] = set()
@@ -158,9 +160,9 @@ def test_the_body_under_strain_becomes_a_percept_something_can_feel() -> None:
 
     source = (REPO / "core" / "phases" / "proprioceptive_loop.py").read_text()
     assert '"resource_pressure"' in source, "the body still has no way to report strain"
-    affect = (REPO / "core" / "phases" / "affect_update.py").read_text()
-    body = affect[affect.index("emotion_map = {") : affect.index("command_impacts = {")]
-    assert '"resource_pressure":' in body
+    from core.state.percepts import PERCEPT_EMOTIONS
+
+    assert PERCEPT_EMOTIONS.get("resource_pressure"), "strain arrives and moves nothing"
     assert AffectUpdatePhase is not None
 
 

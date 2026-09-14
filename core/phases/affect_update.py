@@ -11,7 +11,12 @@ from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.state.aura_state import AffectVector, AuraState
-from core.state.percepts import drop_consumed, fresh_for, mark_consumed
+from core.state.percepts import (
+    PERCEPT_EMOTIONS,
+    drop_consumed,
+    fresh_for,
+    mark_consumed,
+)
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -720,33 +725,7 @@ class AffectUpdatePhase(Phase):
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
-        emotion_map = {
-            "interaction": ["trust", "happiness", "interest", "warmth", "belonging"],
-            "positive_interaction": ["joy", "trust", "happiness", "interest", "pride", "gratitude", "warmth", "hope", "satisfaction", "belonging"],
-            "extended_dialogue": ["happiness", "interest", "curiosity", "warmth", "hope", "belonging"],
-            "deep_expression": ["interest", "trust", "curiosity", "satisfaction", "inspiration"],
-            "novel_stimulus": ["surprise", "anticipation", "wonder", "excitement", "curiosity"],
-            "discovery": ["wonder", "excitement", "interest", "curiosity", "pride", "hope"],
-            "error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
-            "threat_detected": ["fear", "dread", "upset", "vulnerability"],
-            "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
-            "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
-            "monotony": ["boredom", "apathy", "loneliness", "indifference"],
-            # Three types the tree emits that this map had no entry for, so a
-            # phase crash, an apology and every stimulus injected through the
-            # compatibility bridge arrived and moved nothing. An internal error
-            # is an error; a self-correction is an error about her own output,
-            # without the part that is afraid of the world.
-            "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
-            # The body under strain. This type was already listed as a threat
-            # a few lines up, and until the proprioceptive loop emitted one,
-            # nothing in the tree ever produced it — so a machine at ninety
-            # percent load reached her feeling through nothing at all.
-            "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
-            "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
-            "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
-            "neural_decode": ["anticipation", "surprise"]  # Base neural burst
-        }
+        emotion_map = PERCEPT_EMOTIONS
         
         # Specific command mappings for cognitive neural decodes. Neural input is
         # advisory sensory context only; it must never become a hard dependency

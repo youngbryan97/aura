@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -41,7 +42,8 @@ import numpy as np
 from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
 
-__all__ = ["ClosureReport", "closure_gain", "coverage", "read_periphery"]
+__all__ = [
+    "periphery_matrix","ClosureReport", "closure_gain", "coverage", "read_periphery"]
 
 #: What the last periphery walk saw, and what it could not reach. Read through
 #: `coverage()`; a closure result without it is a claim about everything
@@ -382,6 +384,22 @@ class ClosureReport:
                 {"variable": name, "gain": round(value, 5)} for name, value in self.top_leaks
             ],
         }
+
+
+def periphery_matrix(rows: Sequence[Mapping[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:
+    """One row per frame, one column per number the machine carried.
+
+    A key missing from a frame reads 0.0 rather than being dropped, because a
+    counter that only exists once the thing it counts has happened is a real
+    reading of zero before then.
+    """
+    names = tuple(sorted({key for row in rows for key in row}))
+    if not names:
+        return np.zeros((len(rows), 0)), ()
+    matrix = np.array(
+        [[float(row.get(name, 0.0)) for name in names] for row in rows], dtype=np.float64
+    )
+    return matrix, names
 
 
 def closure_gain(

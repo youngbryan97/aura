@@ -62,6 +62,12 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+# Before any core import, because the profile decides where state lives and a
+# module that resolved its home under the live root keeps that home. Without
+# this the run's default root is the live instance's, the source checkout sits
+# inside it, and every module constant looks like a leak into it.
+os.environ.setdefault("AURA_TESTING", "1")
+
 logger = logging.getLogger("subject_core_v25")
 
 #: Horizons the rate is measured at, in experiment frames. The ladder doubles
@@ -487,7 +493,7 @@ async def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
-    from core.subject.closure import closure_gain, read_periphery
+    from core.subject.closure import closure_gain, periphery_matrix, read_periphery
     from core.subject.closure import coverage as periphery_coverage
     from core.subject.driver import (
         CONDITIONS,
@@ -551,9 +557,16 @@ async def main() -> int:
         # ── the baseline, which every scale is read against ────────────
         _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
         frames = []
+        periphery_rows: list[dict[str, float]] = []
         for _ in range(args.rounds):
             for condition in conditions:
-                frames.extend(await runtime.turn_once(condition))
+                for reading in await runtime.turn_once(condition):
+                    frames.append(reading)
+                    # Read once per frame, beside the frame. Closure compares
+                    # what the machine was carrying against what K did next, so
+                    # a single reading taken at the end would be one row against
+                    # a whole recording.
+                    periphery_rows.append(read_periphery(runtime.kernel))
         recording = build_recording(frames)
         recording.save(run_dir)
         scale = _pooled_scale(recording)
@@ -676,7 +689,7 @@ async def main() -> int:
 
         # ── closure, which is a gate ───────────────────────────────────
         _log("closure against the measured periphery")
-        periphery, names = read_periphery(runtime)
+        periphery, names = periphery_matrix(periphery_rows)
         closed, leak = False, float("nan")
         if periphery.size:
             report = closure_gain(recording, periphery, names, seed=args.seed)

@@ -26,6 +26,7 @@ from typing import Any
 
 __all__ = [
     "DEFAULT_INTENSITY",
+    "PERCEPT_EMOTIONS",
     "Percept",
     "drop_consumed",
     "emit_percept",
@@ -48,6 +49,39 @@ CONSUMED_KEY: str = "consumed_by"
 #: deletes the event on the way to every consumer that multiplies by it.
 DEFAULT_INTENSITY: float = 0.5
 
+
+#: What each kind of percept is allowed to move, and which emotions. It lived
+#: inside the affect phase that reads it, so the vocabulary percepts arrive in
+#: was invisible to everything else — including the content experiment, whose
+#: percept grid has to be built from the mechanism rather than from whoever
+#: wrote the experiment. It belongs beside the percept it describes.
+PERCEPT_EMOTIONS: dict[str, list[str]] = {
+    "interaction": ["trust", "happiness", "interest", "warmth", "belonging"],
+    "positive_interaction": ["joy", "trust", "happiness", "interest", "pride", "gratitude", "warmth", "hope", "satisfaction", "belonging"],
+    "extended_dialogue": ["happiness", "interest", "curiosity", "warmth", "hope", "belonging"],
+    "deep_expression": ["interest", "trust", "curiosity", "satisfaction", "inspiration"],
+    "novel_stimulus": ["surprise", "anticipation", "wonder", "excitement", "curiosity"],
+    "discovery": ["wonder", "excitement", "interest", "curiosity", "pride", "hope"],
+    "error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+    "threat_detected": ["fear", "dread", "upset", "vulnerability"],
+    "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
+    "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
+    "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+    # Three types the tree emits that this map had no entry for, so a
+    # phase crash, an apology and every stimulus injected through the
+    # compatibility bridge arrived and moved nothing. An internal error
+    # is an error; a self-correction is an error about her own output,
+    # without the part that is afraid of the world.
+    "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+    # The body under strain. This type was already listed as a threat
+    # a few lines up, and until the proprioceptive loop emitted one,
+    # nothing in the tree ever produced it — so a machine at ninety
+    # percent load reached her feeling through nothing at all.
+    "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
+    "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
+    "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
+    "neural_decode": ["anticipation", "surprise"]  # Base neural burst
+}
 
 def _number(value: Any, fallback: float) -> float:
     try:

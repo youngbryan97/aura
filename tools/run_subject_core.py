@@ -52,13 +52,10 @@ async def _record(runtime: Any, conditions: Any, rounds: int) -> tuple[list[Any]
 
 
 def _periphery_matrix(rows: list[dict[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:
-    names = tuple(sorted({key for row in rows for key in row}))
-    if not names:
-        return np.zeros((len(rows), 0)), ()
-    matrix = np.array(
-        [[float(row.get(name, 0.0)) for name in names] for row in rows], dtype=np.float64
-    )
-    return matrix, names
+    """One implementation, beside what consumes it. See `closure.periphery_matrix`."""
+    from core.subject.closure import periphery_matrix
+
+    return periphery_matrix(rows)
 
 
 def _scales(recording: Any) -> dict[str, np.ndarray]:
@@ -1418,6 +1415,12 @@ def _nulls(
         (float(row["phi_do"]) for name, row in table.items() if row.get("kind") == "surrogate"),
         default=None,
     )
+    # ISC-v2, beside v1 and changing none of it: the same lower bound against
+    # the matched surrogates and the nulls that pass the rest of the
+    # conjunction (docs/ISC_V2_PREREGISTRATION.md).
+    from core.subject.null_verdicts import beats_the_comparison_set
+
+    v2_beats, v2_compared = beats_the_comparison_set(real_phi, table)
     return {
         "phi_table": {k: v["phi_do"] for k, v in table.items()},
         "detail": table,
@@ -1439,6 +1442,8 @@ def _nulls(
         },
         "phi_beats_all": all(beaten.values()) if beaten else False,
         "compared_on": "lower_bound",
+        "v2_phi_beats_comparison_set": v2_beats,
+        "v2_comparison_set": {name: round(value, 5) for name, value in v2_compared.items()},
         "real_lower_bound": round(real_phi, 5),
         "real_point_estimate": round(real_point, 5),
         "all_nulls_fail": bool(nulls_fail and reference_passes),
