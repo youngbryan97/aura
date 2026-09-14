@@ -749,6 +749,20 @@ class LearnedWorldModel:
             return 0.0
         return float(np.mean(list(self._surprise_history)))
 
+    def surprise_rank(self) -> float:
+        """Where the latest surprise stands among this model's recent ones.
+
+        The share of the recent surprises no larger than it, in [0, 1]. The raw
+        value is reconstruction error plus a weighted KL term clipped at ten, so
+        it has no scale a caller can hold a fixed line against; its rank among
+        what this model usually sees does. Zero before anything was seen.
+        """
+        if self._last_prediction is None or not self._surprise_history:
+            return 0.0
+        latest = float(self._last_prediction.surprise)
+        history = list(self._surprise_history)
+        return sum(1 for value in history if value <= latest) / len(history)
+
     def get_status(self) -> Dict[str, Any]:
         """Return model status for observability."""
         return {

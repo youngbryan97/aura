@@ -15,6 +15,45 @@ _CONSCIOUSNESS_PHASE_ERRORS = (
     AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError,
 )
 
+async def form_concepts(state: Any, world_model: Any, engine: Any = None) -> dict | None:
+    """Show concept formation this turn's surprise. Returns what it made of it.
+
+    Nothing is shown when there is no world model to rank a surprise or no cue
+    to name the situation by. The engine is the process singleton unless one
+    is given.
+    """
+    rank = world_model.surprise_rank() if world_model is not None else None
+    if rank is None:
+        return None
+    import asyncio
+
+    from core.memory.hippocampus import HippocampalIndex
+    from core.state.percepts import read_percept
+
+    cognition = getattr(state, "cognition", None)
+    objective = str(getattr(cognition, "current_objective", "") or "")
+    attending = str(getattr(cognition, "attention_focus", "") or "")
+    stream = getattr(getattr(state, "world", None), "recent_percepts", None) or []
+    salient = max((read_percept(item) for item in stream), key=lambda p: p.salience, default=None)
+    cues = HippocampalIndex.extract_cues(
+        context=objective,
+        action=attending,
+        outcome=salient.content if salient is not None else "",
+    )
+    if not cues:
+        return None
+    if engine is None:
+        from core.cognition.concept_formation import get_concept_formation_engine
+
+        engine = get_concept_formation_engine()
+    result = await asyncio.to_thread(
+        engine.observe_prediction_error, cues, float(rank), context=objective[:200]
+    )
+    reading = result.to_dict()
+    state.response_modifiers["concept_formation"] = reading
+    return reading
+
+
 class ConsciousnessPhase(BasePhase):
     """
     Phase 8: Phenomenological Awareness.
@@ -69,6 +108,25 @@ class ConsciousnessPhase(BasePhase):
             record_degradation(
                 "consciousness_phase", exc, severity="warning",
                 action="the world model did not see this cycle",
+            )
+
+        # A surprise she keeps meeting becomes a concept.
+        #
+        # Concept formation clusters repeated, similar prediction errors into a
+        # named primitive and publishes it as a belief, and nothing ever showed
+        # it an error. The error is this turn's surprise ranked against the
+        # model's own recent surprises, so a routine turn is not scored as a
+        # startling one. The signature is the cues recall itself would hook on
+        # in what she was working on, attending to and perceiving. It runs off
+        # the loop because the engine saves as it learns.
+        try:
+            await form_concepts(
+                new_state, get_runtime_service("unified_world_model", default=None)
+            )
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation(
+                "consciousness_phase", exc, severity="warning",
+                action="concept formation did not see this cycle's surprise",
             )
 
         # Give the workspace something to compete over.
