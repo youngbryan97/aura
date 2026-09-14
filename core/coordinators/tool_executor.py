@@ -325,21 +325,52 @@ class ToolExecutor:
             return result
 
     async def execute_plan(self, plan: dict[str, Any]) -> list[Any]:
-        """Batch tool execution from a plan dict."""
-        results = []
+        """Batch tool execution from a plan dict.
+
+        Through the batch primitive rather than a loop over a mutable list.
+        The plan is frozen with an id on every action before anything runs, a
+        call that is not a call is recorded as blocked rather than as a tool
+        that ran and failed, and the results come back in the order the plan
+        was decided. One at a time, as before: tools in one plan share a
+        filesystem and a working directory, and running them together is a
+        change of behaviour this adoption does not make.
+        """
+        from core.runtime.what_she_decided_to_do_at_once import (
+            AnAction,
+            HowItWent,
+            a_batch_of,
+            run_the_batch,
+        )
+
         plan = _safe_args(plan)
         tool_calls = plan.get("tool_calls", [])
         if not isinstance(tool_calls, list):
             return [{"ok": False, "error": "invalid_tool_plan"}]
-        for tool_call in tool_calls:
-            if not isinstance(tool_call, dict):
-                results.append({"ok": False, "error": "invalid_tool_call"})
-                continue
-            result = await self.execute_tool(
-                tool_call.get("tool", "unknown"),
-                tool_call.get("args", {}),
-            )
-            results.append(result)
+
+        not_a_call = "invalid_tool_call"
+        actions = [
+            AnAction(name=str(call.get("tool", "unknown")), takes=dict(call.get("args") or {}))
+            if isinstance(call, dict)
+            else AnAction(name=not_a_call, because=not_a_call)
+            for call in tool_calls
+        ]
+        batch = a_batch_of(actions, at_once=1, because="a tool plan")
+
+        async def do(action: AnAction) -> Any:
+            return await self.execute_tool(action.name, dict(action.takes))
+
+        def may_it_run(action: AnAction) -> str:
+            return not_a_call if action.because == not_a_call else ""
+
+        ledger = await run_the_batch(batch, do, may_it_run=may_it_run)
+        results: list[Any] = []
+        for outcome in ledger.in_the_order_decided():
+            if outcome.went is HowItWent.DID_IT:
+                results.append(outcome.value)
+            elif outcome.went is HowItWent.BLOCKED:
+                results.append({"ok": False, "error": outcome.said or "blocked"})
+            else:
+                results.append({"ok": False, "error": "execution_jolt", "message": outcome.said})
         return results
 
     # ── Private helpers ────────────────────────────────────────────
