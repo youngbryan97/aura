@@ -182,6 +182,20 @@ class CognitiveCandidate:
     gate_checked_at: float = field(default=0.0, repr=False)
     metadata: dict[str, Any] = field(default_factory=dict, compare=False)
 
+    #: Who is bidding, when that is not what the label says. Affect names its
+    #: bid after whichever emotion is on top, so one subsystem entered the
+    #: competition under forty-four different labels — and fatigue, which is
+    #: what gives another source a turn, is per label. Affect was therefore
+    #: never fatigued: the channel that had just won handed off to a fresh
+    #: sibling. Over twenty-four competitions affect took thirty-three wins and
+    #: ten sources bid and never once won. Empty means the label is the bidder.
+    bidder_id: str = ""
+
+    @property
+    def bidder(self) -> str:
+        """Who the refractory period applies to. The label, unless declared."""
+        return self.bidder_id or self.source
+
     @property
     def salience(self) -> float:
         """Alias for effective_priority for downstream compatibility."""
@@ -269,7 +283,15 @@ class CognitiveCandidate:
                 severity="debug",
             )
 
-        return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
+        # Affect lends urgency to content that is not itself affect. A bid whose
+        # content IS the feeling already carries it as its priority, so adding
+        # three tenths of the same reading on top counted it twice and the sum
+        # saturated: the affect bid's effective priority was 1.0 whatever it
+        # felt, a percept bidding 0.993 lost to it, and ten sources bid over
+        # twenty-four competitions and never once won. The weight is still
+        # carried, because the winner's affective charge is read off it.
+        lent = 0.0 if self.content_type is ContentType.AFFECTIVE else self.affect_weight * 0.3
+        return min(1.0, (self.priority + lent + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
 
 
 
@@ -530,11 +552,11 @@ class GlobalWorkspace:
         if chosen is not None:
             return chosen
 
-        least = min(self._fatigue.get(c.source, 0.0) for c in contenders)
+        least = min(self._fatigue.get(c.bidder, 0.0) for c in contenders)
         # Float fatigue values are produced by repeated subtraction, so compare
         # against the noise they accumulate rather than for exact equality.
         freshest = [
-            c for c in contenders if self._fatigue.get(c.source, 0.0) - least <= 1e-9
+            c for c in contenders if self._fatigue.get(c.bidder, 0.0) - least <= 1e-9
         ]
         if len(freshest) == 1:
             return freshest[0]
@@ -610,7 +632,7 @@ class GlobalWorkspace:
         adaptation from a recent win, so a source that skips a single tick is
         not written out of the field.
         """
-        competitors = {c.source for c in self._candidates} | set(self._fatigue)
+        competitors = {c.bidder for c in self._candidates} | set(self._fatigue)
         return self._WINNER_FATIGUE / max(1, len(competitors))
 
     def _record_degradation(
@@ -1173,7 +1195,7 @@ class GlobalWorkspace:
 
             def _adjusted(candidate: CognitiveCandidate) -> float:
                 return candidate.priority_at(decided_at) - self._fatigue.get(
-                    candidate.source, 0.0
+                    candidate.bidder, 0.0
                 )
 
             # Frozen before sorting, and the sort reads the frozen value. A
@@ -1223,7 +1245,7 @@ class GlobalWorkspace:
                 # comparison and nothing else.
                 def _cognitive(candidate: CognitiveCandidate) -> float:
                     return candidate.cognitive_priority - self._fatigue.get(
-                        candidate.source, 0.0
+                        candidate.bidder, 0.0
                     )
 
                 cognitive = {id(c): _cognitive(c) for c in self._candidates}
@@ -1282,9 +1304,9 @@ class GlobalWorkspace:
             # uses for the same job. Near-equal sources rotate, a genuinely
             # urgent source still outbids a weak one through the penalty, and a
             # lone source keeps the workspace because nothing outbids it.
-            self._fatigue[winner.source] = min(
+            self._fatigue[winner.bidder] = min(
                 self._MAX_FATIGUE,
-                self._fatigue.get(winner.source, 0.0) + self._WINNER_FATIGUE,
+                self._fatigue.get(winner.bidder, 0.0) + self._WINNER_FATIGUE,
             )
 
             # Clear candidate pool

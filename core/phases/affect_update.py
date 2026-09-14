@@ -172,6 +172,28 @@ def _record_affect_degradation(
             logger.debug("AffectUpdate degradation could not be recorded: %s", signature_exc)
 
 
+def bump_emotion(emotions: dict, name: str, delta: float) -> None:
+    """Move a feeling by a share of the room it has left, in place.
+
+    The rule lived on the phase instance, so the three writers that are not
+    instance methods kept adding flat steps: the substrate's valence share ran
+    over a whole weight table every turn, and seven emotions sat at exactly
+    1.000 from the fourth turn of an ordinary life onward. A feeling always at
+    maximum is a constant, and a constant carries nothing — the affect bid into
+    the workspace was 1.000 on every one of twenty-four competitions and won
+    twenty-three, so ten other sources bid and never once won.
+
+    A channel at rest takes the full step; one near the top takes almost none.
+    Lowering is symmetric on the room below.
+    """
+    try:
+        current = float(emotions.get(name, 0.0) or 0.0)
+    except (TypeError, ValueError):
+        current = 0.0
+    room = (1.0 - current) if delta >= 0.0 else current
+    emotions[name] = max(0.0, min(1.0, current + float(delta) * room))
+
+
 class AffectUpdatePhase(Phase):
     """
     Unitary Kernel Phase: Affective Transformation.
@@ -218,9 +240,7 @@ class AffectUpdatePhase(Phase):
         almost none, and the same event lands differently depending on what she
         already feels. Lowering a feeling is symmetric — the room below.
         """
-        current = affect.emotions.get(emotion, 0.0)
-        room = (1.0 - current) if delta >= 0.0 else current
-        self._set_emotion(affect, emotion, current + delta * room)
+        bump_emotion(affect.emotions, emotion, float(delta))
 
     def _ensure_affect_schema(self, affect: AffectVector) -> None:
         """Backfill newer affect dimensions into persisted older AuraState snapshots."""
@@ -617,7 +637,7 @@ class AffectUpdatePhase(Phase):
                 if name not in emotions:
                     continue
                 step = sign * share * (weight / heaviest)
-                emotions[name] = max(0.0, min(1.0, float(emotions[name] or 0.0) + step))
+                bump_emotion(emotions, name, step)
 
     async def _push_to_substrate(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
         """Push felt state into the continuous substrate, and wait for it.
@@ -781,7 +801,7 @@ class AffectUpdatePhase(Phase):
                 if audit_report["needs_correction"]:
                     correction = prober.instance.get_correction_payload()
                     for emo, boost in correction.items():
-                        state.affect.emotions[emo] = max(0.0, min(1.0, state.affect.emotions.get(emo, 0.1) + boost))
+                        bump_emotion(state.affect.emotions, emo, float(boost))
                     logger.info("🛡️ [VK] Corrective surge applied to stabilize persona.")
             except _AFFECT_UPDATE_ERRORS as exc:
                 self._record_phase_degradation(
@@ -1086,9 +1106,9 @@ class AffectUpdatePhase(Phase):
         if e.get("sadness", 0) > 0.85 and e.get("fear", 0) > 0.7 and e.get("joy", 0) < 0.1:
             logger.warning("💉 [PHASE] Despair Spiral detected. Injecting adrenaline surge.")
             affect.physiology["adrenaline"] = 5.0
-            affect.emotions["joy"] = float(max(0, min(1, e.get("joy", 0) + 0.4)))
-            affect.emotions["anticipation"] = float(max(0, min(1, e.get("anticipation", 0) + 0.3)))
-            affect.emotions["fear"] = float(max(0, min(1, e.get("fear", 0) - 0.3)))
+            bump_emotion(e, "joy", 0.4)
+            bump_emotion(e, "anticipation", 0.3)
+            bump_emotion(e, "fear", -0.3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
