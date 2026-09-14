@@ -19,6 +19,8 @@ include_rules = [
     "+core.learning",
     "+core.promotion",
     "+core.runtime",
+    # Preregistered evidence has an executable, non-observational invariant.
+    "+core.verify",
 
     # Everything else.
     "-core",

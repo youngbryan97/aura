@@ -76,6 +76,7 @@ class TestWhatARunIsAllowedToClaim:
         verdict = _plan().verify_result(
             {"integration_fraction": 0.307, "null_p_value_inverted": 0.99},
             parameters_used={"encoder_width": 12, "null_surrogates": 8},
+            arms_used=("live", "independent_halves", "memoryless"),
         )
         assert verdict["confirms_hypothesis"] is True
         assert all(
@@ -86,6 +87,7 @@ class TestWhatARunIsAllowedToClaim:
         verdict = _plan().verify_result(
             {"integration_fraction": 0.007, "null_p_value_inverted": 0.99},
             parameters_used={"encoder_width": 12, "null_surrogates": 8},
+            arms_used=("live", "independent_halves", "memoryless"),
         )
         statuses = {f["metric"]: f["status"] for f in verdict["findings"]}
         assert statuses["integration_fraction"] == EvidenceStatus.NEGATIVE
@@ -99,6 +101,7 @@ class TestWhatARunIsAllowedToClaim:
                 "phi_s_at_16_modes": 0.219,
             },
             parameters_used={"encoder_width": 12, "null_surrogates": 8},
+            arms_used=("live", "independent_halves", "memoryless"),
         )
         assert verdict["exploratory_metrics"] == ["phi_s_at_16_modes"]
         assert verdict["confirms_hypothesis"] is True, (
@@ -109,6 +112,7 @@ class TestWhatARunIsAllowedToClaim:
         verdict = _plan().verify_result(
             {"integration_fraction": 0.307},
             parameters_used={"encoder_width": 12, "null_surrogates": 8},
+            arms_used=("live", "independent_halves", "memoryless"),
         )
         assert verdict["unmeasured_metrics"] == ["null_p_value_inverted"]
         assert verdict["confirms_hypothesis"] is False
@@ -123,6 +127,7 @@ class TestWhatARunIsAllowedToClaim:
         verdict = _plan().verify_result(
             {"integration_fraction": 0.307, "null_p_value_inverted": 0.99},
             parameters_used={"encoder_width": 16, "null_surrogates": 8},
+            arms_used=("live", "independent_halves", "memoryless"),
         )
         assert verdict["parameter_drift"] == {"encoder_width": "12->16"}
         assert verdict["confirms_hypothesis"] is False

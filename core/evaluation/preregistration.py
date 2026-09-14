@@ -24,12 +24,12 @@ same object to the result. Two things then become checkable rather than
 remembered:
 
 1. **Whether the reported analysis is the declared one.** ``verify_result``
-   fails if a metric appears that was never declared, if a declared metric is
-   missing, or if a parameter differs from the registered value.
+   cannot confirm missing measurements, parameters, or arms. Additional metrics
+   are exploratory without invalidating the declared comparisons.
 
-2. **Whether a value was chosen before or after seeing data.** Anything not in
-   the registration is EXPLORATORY, and ``Finding.status`` says so in the
-   artifact instead of leaving a reader to reconstruct the order of events.
+2. **Which findings were declared.** Anything outside the registration is
+   EXPLORATORY. The content hash does not prove chronology: a campaign must also
+   retain publication evidence from before its data were exposed.
 
 Exploratory findings are not second-class science — they are how the width
 sweep found a real encoder bug. They are second-class EVIDENCE, and the only
@@ -40,14 +40,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.verify.invariants import invariant
 
 __all__ = [
     "EvidenceStatus",
@@ -76,9 +79,41 @@ class EvidenceStatus(StrEnum):
 def canonical_hash(payload: Any) -> str:
     """Stable content hash. Key order and float repr cannot change it."""
     encoded = json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), default=repr
+        _json_value(payload), sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _json_value(value: Any) -> Any:
+    """Copy the declared JSON domain without repr-based identity or nonfinite values."""
+    if isinstance(value, Mapping):
+        if any(not isinstance(key, str) for key in value):
+            raise ValueError("preregistration keys must be strings")
+        return {key: _json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_value(item) for item in value]
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float and math.isfinite(value):
+        return value
+    raise ValueError("preregistration values must be finite JSON data")
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _finite_metric(value: Any) -> float:
+    if isinstance(value, bool):
+        raise ValueError("a boolean is not a measured metric")
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError("metric must be finite")
+    return number
 
 
 @dataclass(frozen=True)
@@ -95,7 +130,10 @@ class Finding:
     def meets_threshold(self) -> bool:
         if self.value is None or self.threshold is None:
             return False
-        return float(self.value) >= float(self.threshold)
+        try:
+            return _finite_metric(self.value) >= _finite_metric(self.threshold)
+        except (TypeError, ValueError, OverflowError):
+            return False
 
     def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "status": str(self.status)}
@@ -120,9 +158,12 @@ class Preregistration:
     notes: str = ""
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "parameters", dict(self.parameters))
-        object.__setattr__(self, "metrics", {k: float(v) for k, v in self.metrics.items()})
+        object.__setattr__(self, "parameters", _freeze(_json_value(self.parameters)))
+        object.__setattr__(self, "metrics", MappingProxyType(
+            {k: _finite_metric(v) for k, v in self.metrics.items()}))
         object.__setattr__(self, "arms", tuple(str(a) for a in self.arms))
+        if len(self.arms) != len(set(self.arms)) or any(not arm for arm in self.arms):
+            raise ValueError("preregistered arms must be unique and nonempty")
         if not self.registered_at:
             object.__setattr__(
                 self, "registered_at", datetime.now(UTC).isoformat()
@@ -139,7 +180,7 @@ class Preregistration:
             {
                 "campaign": self.campaign,
                 "hypothesis": self.hypothesis,
-                "parameters": dict(self.parameters),
+                "parameters": _json_value(self.parameters),
                 "metrics": dict(self.metrics),
                 "arms": list(self.arms),
             }
@@ -149,7 +190,7 @@ class Preregistration:
         return {
             "campaign": self.campaign,
             "hypothesis": self.hypothesis,
-            "parameters": dict(self.parameters),
+            "parameters": _json_value(self.parameters),
             "metrics": dict(self.metrics),
             "arms": list(self.arms),
             "registered_at": self.registered_at,
@@ -191,6 +232,7 @@ class Preregistration:
         observed: Mapping[str, float | None],
         *,
         parameters_used: Mapping[str, Any] | None = None,
+        arms_used: Sequence[str] | None = None,
     ) -> tuple[Finding, ...]:
         """Label every metric this run produced.
 
@@ -202,6 +244,7 @@ class Preregistration:
         different experiment wearing this plan's name.
         """
         drift = self.parameter_drift(parameters_used or {})
+        arm_drift = self.arm_drift(arms_used)
         findings: list[Finding] = []
         for metric, threshold in sorted(self.metrics.items()):
             if metric not in observed or observed[metric] is None:
@@ -209,15 +252,21 @@ class Preregistration:
                     Finding(metric, None, threshold, EvidenceStatus.UNMEASURED)
                 )
                 continue
-            value = float(observed[metric])
-            if drift:
+            try:
+                value = _finite_metric(observed[metric])
+            except (TypeError, ValueError, OverflowError):
+                findings.append(Finding(metric, None, threshold, EvidenceStatus.UNMEASURED,
+                                        note="no finite numerical measurement"))
+                continue
+            if drift or arm_drift:
                 findings.append(
                     Finding(
                         metric,
                         value,
                         threshold,
                         EvidenceStatus.EXPLORATORY,
-                        note=f"ran at unregistered parameters: {', '.join(sorted(drift))}",
+                        note=(f"parameter drift: {', '.join(sorted(drift))}; "
+                              f"arm drift: {', '.join(arm_drift)}"),
                     )
                 )
                 continue
@@ -233,10 +282,14 @@ class Preregistration:
             )
         for metric in sorted(set(observed) - set(self.metrics)):
             value = observed[metric]
+            try:
+                value = None if value is None else _finite_metric(value)
+            except (TypeError, ValueError, OverflowError):
+                value = None
             findings.append(
                 Finding(
                     metric,
-                    None if value is None else float(value),
+                    value,
                     None,
                     EvidenceStatus.EXPLORATORY,
                     note="not declared before the run",
@@ -249,8 +302,13 @@ class Preregistration:
         drift: dict[str, str] = {}
         for key, registered in self.parameters.items():
             if key not in used:
+                drift[key] = "registered parameter not reported"
                 continue
-            if used[key] != registered:
+            try:
+                same = canonical_hash(used[key]) == canonical_hash(registered)
+            except (TypeError, ValueError, OverflowError):
+                same = False
+            if not same:
                 drift[key] = f"{registered!r}->{used[key]!r}"
         return drift
 
@@ -259,15 +317,17 @@ class Preregistration:
         observed: Mapping[str, float | None],
         *,
         parameters_used: Mapping[str, Any] | None = None,
+        arms_used: Sequence[str] | None = None,
     ) -> dict[str, Any]:
         """The whole verdict, as a dict an artifact can carry verbatim."""
-        findings = self.classify(observed, parameters_used=parameters_used)
+        findings = self.classify(observed, parameters_used=parameters_used, arms_used=arms_used)
         confirmatory = [f for f in findings if f.status is EvidenceStatus.CONFIRMATORY]
         return {
             "plan_hash": self.plan_hash,
             "campaign": self.campaign,
             "hypothesis": self.hypothesis,
             "parameter_drift": self.parameter_drift(parameters_used or {}),
+            "arm_drift": self.arm_drift(arms_used),
             "findings": [f.to_dict() for f in findings],
             # Every declared metric confirmatory, and at least one declared.
             "confirms_hypothesis": bool(self.metrics)
@@ -280,11 +340,39 @@ class Preregistration:
             ],
         }
 
+    def arm_drift(self, used: Sequence[str] | None) -> tuple[str, ...]:
+        """Compare measured conditions, without treating declaration as execution."""
+        if used is None:
+            return ("registered arms not reported",) if self.arms else ()
+        if isinstance(used, str) or any(not isinstance(arm, str) for arm in used):
+            return ("invalid arm inventory",)
+        if len(used) != len(set(used)):
+            return ("duplicate arm names",)
+        return tuple(
+            [f"missing:{arm}" for arm in sorted(set(self.arms) - set(used))]
+            + [f"undeclared:{arm}" for arm in sorted(set(used) - set(self.arms))]
+        )
+
+
+@invariant("evaluation.preregistered_evidence", scope="evaluation",
+           owner="core/evaluation/preregistration.py", observational=False)
+def _preregistered_evidence() -> tuple:
+    """Missing configuration and nonfinite observations cannot confirm a plan."""
+    plan = Preregistration("probe", "gain", {"seed": 1}, {"gain": 0.1}, ("base", "treatment"))
+    complete = {"parameters_used": {"seed": 1}, "arms_used": ("base", "treatment")}
+    assert plan.verify_result({"gain": 0.2}, **complete)["confirms_hypothesis"]
+    assert not plan.verify_result({"gain": 0.2})["confirms_hypothesis"]
+    assert not plan.verify_result({"gain": float("inf")}, **complete)["confirms_hypothesis"]
+    assert not plan.verify_result({"gain": 0.2}, parameters_used={"seed": 1})["confirms_hypothesis"]
+    return ()
+
 
 def load_preregistration(path: str | Path) -> Preregistration:
     """Read a plan back, and refuse one whose hash no longer matches itself."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     recorded = str(data.pop("plan_hash", ""))
+    if len(recorded) != 64 or any(char not in "0123456789abcdef" for char in recorded):
+        raise ValueError("preregistration has no valid recorded plan hash")
     plan = Preregistration(
         campaign=str(data.get("campaign", "")),
         hypothesis=str(data.get("hypothesis", "")),

@@ -584,6 +584,7 @@ def main(argv: list[str] | None = None) -> int:
                 # cries wolf gets ignored, which costs more than it saves.
                 "control_arms": list(control_arms),
             },
+            arms_used=tuple(name for name, outputs in conditions.items() if outputs),
         )
         print(
             "PREREGISTRATION "

@@ -743,6 +743,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   operation definitions, disabled native thinking, and one repeated construction.
   This is serialization evidence, not G06 closure.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
+  repairs missing-setting confirmation, mutable plans, nonfinite measurements,
+  and unchecked arm inventories. Fifty-six focused tests pass; this does not
+  turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
