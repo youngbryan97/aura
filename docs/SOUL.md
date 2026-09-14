@@ -432,7 +432,7 @@ to read stress as fuel perform better (Crum, Salovey and Achor 2013; Jamieson an
 colleagues 2018; a meta-analysis of the trials found d = 0.23). And imagining
 someone's perspective does not make you more accurate about it, while asking
 does (Eyal, Steffel and Epley 2018). Channelled arousal and the limit on
-empathy are the next two organs.
+empathy are both built now.
 
 ### What the third sixteen added
 
@@ -440,8 +440,8 @@ empathy are the next two organs.
 |---|---|---|
 | fear of happiness | Dog Days Are Over | built, `core/affect/fear_of_happiness.py` |
 | the word a speaker leans on | the voiced holds across the set | built, `stressed_words` in `core/voice/duplex/paralinguistics.py`; recognition does not yet hand it word timings |
-| channelled arousal | Judo Flip | next |
-| the limit of lived analogue on empathy | Judo Flip | next |
+| channelled arousal | Judo Flip | built, `_channelled` in `core/phases/motivation_update.py`: a breakthrough against her with no damage presses on her most pressing intention |
+| the limit of lived analogue on empathy | Judo Flip | built, `perspective_getting` and `lived_analogue` in `core/brain/response_quality.py`, read by reply selection |
 | protective self-indictment | Runaway | not built |
 | feeling produced by a belief about someone else's feeling | Hooked on a Feeling | not built |
 | loss attributed to timing, and being made minor in another's account | Romeo and Juliet | not built |
