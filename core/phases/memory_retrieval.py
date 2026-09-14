@@ -156,6 +156,37 @@ def novelty_deepens(novelty: float) -> int:
     return 1 if reading > ORDINARY_NOVELTY else 0
 
 
+
+def _percept_cue(state: Any) -> str:
+    """The content of the most salient percept memory has not taken yet.
+
+    Every fresh percept is marked as taken by memory, so one percept cues one
+    recall and the next turn is asked about what arrives next. What recall
+    itself put into the stream is taken without being asked about: a
+    recollection is not something she perceived, and cueing on it would make
+    every recall the question for the next.
+    """
+    try:
+        from core.state.percepts import fresh_for, mark_consumed, read_percept
+
+        world = getattr(state, "world", None)
+        best = None
+        for item in fresh_for(getattr(world, "recent_percepts", None), "memory"):
+            reading = read_percept(item)
+            mark_consumed(item, "memory")
+            if reading.raw.get("source") == "memory_retrieval":
+                continue
+            if reading.content.strip() and (best is None or reading.salience > best.salience):
+                best = reading
+        return _safe_text(best.content) if best is not None else ""
+    except _MEMORY_RECOVERABLE_ERRORS as exc:
+        _record_memory_degradation(
+            exc,
+            action="searched without a percept as a cue",
+            stage="percept_cue",
+        )
+        return ""
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -175,11 +206,18 @@ class MemoryRetrievalPhase(BasePhase):
         Returns state unchanged if working memory is empty or the last message is not
         from a user.
         """
-        if not state.cognition.working_memory:
+        # What just arrived is a cue in its own right, so a percept still asks
+        # on a turn with nothing in working memory. See `_percept_cue`.
+        percept_cue = _percept_cue(state)
+        if not state.cognition.working_memory and not percept_cue:
             return state
 
         # Use the most recent user entry or objective for retrieval
-        last_msg = state.cognition.working_memory[-1]
+        last_msg = (
+            state.cognition.working_memory[-1]
+            if state.cognition.working_memory
+            else {"role": "perception", "content": ""}
+        )
         if isinstance(last_msg, dict):
             query = last_msg.get("content", "")
         else:
@@ -218,6 +256,8 @@ class MemoryRetrievalPhase(BasePhase):
             query = _safe_text(
                 getattr(state.cognition, "current_objective", "") or objective or ""
             )
+        if not query:
+            query = percept_cue
         if not query:
             return state
 
@@ -414,6 +454,16 @@ class MemoryRetrievalPhase(BasePhase):
                     action="searched without the most pressing intention as a cue",
                     stage="intention_cue",
                 )
+
+        # What she perceives cues what comes back, when nobody has just spoken.
+        # Retrieval was asked what someone said or what she was working on, so
+        # a percept reached affect, the workspace and the world model and never
+        # reached memory. In the content runs every percept class brought back
+        # exactly the same memories, and no subject-core run kept a P -> M edge.
+        # The most salient percept memory has not yet taken joins the question
+        # the way the most pressing intention does.
+        if not spoken_to and percept_cue and percept_cue.lower() not in query.lower():
+            query = f"{query} {percept_cue}".strip()[:2000]
 
         # The question and the depth it is asked at. The same words asked with a
         # different limit are a different recall: affect's memory salience, the

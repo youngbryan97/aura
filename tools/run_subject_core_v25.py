@@ -138,14 +138,28 @@ async def _dose_matched(
     same number, and every edge out of the second then looks stronger for a
     reason that is about units. The correction is proportional and repeated: a
     domain that moved half an SD gets twice the dose next round.
+
+    What is matched is the typical column the push reached, not the most
+    sensitive one. The largest movement over a domain's columns let one quiet
+    channel set the whole domain's dose. v25 run_003 put affect, the self and
+    deliberation at the 1e-4 clip: affect's quietest live column has a spread
+    of 4.7e-05, so the first push of 0.15 read as 3,195 of its SDs, and the dose
+    that brought that one channel to a single SD moved nothing else anywhere.
+    The graph came back with no edges. Each column now counts only above
+    SCALE_FLOOR, its movement is clipped at the battery's DIVERGENCE_CEILING,
+    and the median over the columns that moved is brought to one SD.
     """
+    from core.subject.causal import DIVERGENCE_CEILING, SCALE_FLOOR
     from core.subject.state import perturb, perturb_organs
 
     doses = {key: 0.15 for key in domains}
     for _ in range(max(1, rounds)):
         for domain in domains:
             block = slices[domain]
-            unit = np.where(scale[block] > 1e-9, scale[block], 1.0)
+            live = scale[block] > SCALE_FLOOR
+            if not live.any():
+                continue
+            unit = scale[block][live]
             moved: list[float] = []
             for trial in range(max(1, trials)):
                 condition = conditions[trial % len(conditions)]
@@ -161,7 +175,9 @@ async def _dose_matched(
                     await runtime.turn_once(condition, perturb_at=0, perturb=apply)
                 )[-1].vector()[block]
                 runtime.restore(snapshot)
-                moved.append(float(np.max(np.abs(after - before) / unit)))
+                shift = np.clip(np.abs(after - before)[live] / unit, 0.0, DIVERGENCE_CEILING)
+                reached_columns = shift[shift > 0.0]
+                moved.append(float(np.median(reached_columns)) if reached_columns.size else 0.0)
             reached = float(np.median(moved)) if moved else 0.0
             if reached > 1e-6:
                 # Proportional, and bounded. A domain the writer cannot move at
