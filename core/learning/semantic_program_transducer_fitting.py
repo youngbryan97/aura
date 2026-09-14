@@ -1128,11 +1128,16 @@ def _definition_relation_score_banks(
     reference_vectors: Mapping[TokenSpan, np.ndarray],
     definition_vectors: Sequence[Sequence[tuple[TokenSpan, np.ndarray]]],
     pointer_scores: LinearPointerSequenceScores,
+    score_cache: dict | None = None,
 ) -> tuple[dict[TokenSpan, tuple[float, ...]], dict[TokenSpan, tuple[float, ...]]]:
-    """Reuse projections within one chart without changing scalar score arithmetic."""
+    """Reuse scalar scores within a decode over one fixed hidden sequence/head.
+
+    The caller owns the optional cache for that decode only. Span keys identify
+    the same vectors and pointer scores across its competing operation charts.
+    """
     definitions = tuple(
         tuple(
-            (definition, definition @ head.definition_projection,
+            (span, definition, definition @ head.definition_projection,
              head.pointer_scale * pointer_scores.score_span(span))
             for span, definition in candidates
         )
@@ -1147,11 +1152,17 @@ def _definition_relation_score_banks(
         for candidates in definitions:
             combined_candidates = []
             base_candidates = []
-            for definition, projected, pointer in candidates:
-                base_score = head.base_score(reference, definition)
-                tissue_score = float(query @ projected)
-                combined_candidates.append(base_score + tissue_score + pointer)
-                base_candidates.append(base_score + pointer)
+            for definition_span, definition, projected, pointer in candidates:
+                key = (span, definition_span)
+                cached = score_cache.get(key) if score_cache is not None else None
+                if cached is None:
+                    base_score = head.base_score(reference, definition)
+                    tissue_score = float(query @ projected)
+                    cached = (base_score + tissue_score + pointer, base_score + pointer)
+                    if score_cache is not None:
+                        score_cache[key] = cached
+                combined_candidates.append(cached[0])
+                base_candidates.append(cached[1])
             combined_registers.append(max(combined_candidates))
             base_registers.append(max(base_candidates))
         combined[span] = tuple(combined_registers)
@@ -1177,6 +1188,8 @@ def _assign_typed_arguments(
     operation_nodes: Sequence[_OperationNode],
     argument_pointer_scores: LinearPointerSequenceScores,
     chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
+    minimum_score: float | None = None,
+    relation_score_cache: dict | None = None,
 ) -> _TypedArgumentAssignment | None:
     if (
         len(operation_nodes) > 1
@@ -1277,6 +1290,7 @@ def _assign_typed_arguments(
         reference_vectors,
         definition_vectors,
         definition_pointer_scores,
+        **({"score_cache": relation_score_cache} if relation_score_cache is not None else {}),
     )
     states: list[
         tuple[
@@ -1503,6 +1517,8 @@ def _assign_typed_arguments(
         )
         if chart_observer is not None:
             chart_observer(chart)
+        if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
+            return None
         optimized = chart.solve()
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []

@@ -524,6 +524,8 @@ class CompositionalSemanticProgramTransducer:
             not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
+            or receipt.get("operation_assignment_policy", "first_feasible_v1")
+            not in {"first_feasible_v1", "joint_factor_score_v2"}
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
@@ -900,6 +902,12 @@ class CompositionalSemanticProgramTransducer:
         body["operation_chart_feasibility"] = "arity_state_bounds_v3" if preserve_arity_states else "register_edge_bounds_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_joint_operation_argument_scores(self) -> CompositionalSemanticProgramTransducer:
+        """Compare complete graphs using the sum of their declared factor scores."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["operation_assignment_policy"] = "joint_factor_score_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         body = {
@@ -1023,25 +1031,25 @@ class CompositionalSemanticProgramTransducer:
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+        from core.learning.semantic_argument_chart import select_operation_argument_graph
+        relation_score_cache = {}
 
         try:
-            assigned = next(
-                (
-                    candidate
-                    for selected in charts
-                    for candidate in (
-                        _assign_typed_arguments(
-                            model=self,
-                            hidden=hidden,
-                            inputs=inputs,
-                            input_spans=input_spans,
-                            operation_nodes=selected,
-                            argument_pointer_scores=argument_pointer_scores,
-                        ),
-                    )
-                    if candidate is not None
+            assigned = select_operation_argument_graph(
+                charts,
+                lambda selected: _assign_typed_arguments(
+                    model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
+                    relation_score_cache=relation_score_cache,
                 ),
-                None,
+                length_penalty=self.operation_length_penalty,
+                joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
+                bounded_assign=lambda selected, minimum: _assign_typed_arguments(
+                    model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
+                    minimum_score=minimum,
+                    relation_score_cache=relation_score_cache,
+                ),
             )
         except ArgumentOptimizationIncompleteError as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {})

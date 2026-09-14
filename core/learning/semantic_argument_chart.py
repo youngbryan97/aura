@@ -6,12 +6,34 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING
+import math
 
 from core.learning import semantic_argument_optimization
 from core.learning.semantic_program_ir import TokenSpan
 
 if TYPE_CHECKING:
     from core.learning.semantic_program_transducer_fitting import RegisterUseContract
+
+
+def select_operation_argument_graph(charts, assign, *, length_penalty, joint=False, bounded_assign=None):
+    """Select complete graphs under a declared factor score, or replay legacy order."""
+    selected, best = None, -math.inf
+    for chart in charts:
+        operation_score = sum(node.score for node in chart) - length_penalty * len(chart)
+        candidate = (
+            bounded_assign(chart, best - operation_score)
+            if joint and bounded_assign is not None else assign(chart)
+        )
+        if candidate is None:
+            continue
+        if not joint:
+            return candidate
+        score = candidate.score + operation_score
+        if not math.isfinite(score):
+            raise ValueError('nonfinite joint operation-argument score')
+        if score > best:
+            selected, best = candidate, score
+    return selected
 
 
 @dataclass(frozen=True)
@@ -33,6 +55,19 @@ class ScoredArgumentChart:
             ))
         if self.definition_scores is not None:
             object.__setattr__(self, "definition_scores", MappingProxyType(dict(self.definition_scores)))
+
+    def score_upper_bound(self) -> float:
+        """Relax consistency and overlap, retaining every potentially positive term."""
+        maxima = []
+        for node in self.options:
+            for slot in node:
+                if not slot:
+                    return -math.inf
+                maxima.append(max(option[0] for option in slot))
+        per_register = {}
+        for (register, _span), score in (self.definition_scores or {}).items():
+            per_register[register] = max(per_register.get(register, 0.0), score)
+        return math.fsum((*maxima, *per_register.values()))
 
     def solve(self):
         return semantic_argument_optimization.optimize_argument_chart(

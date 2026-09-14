@@ -721,6 +721,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   472/500 with two regressions; excluding coreferent negative labels reaches
   470/500 with four regressions. Both retain 47/48 exposed weave and remain
   unpromoted. The opt-in training correction preserves legacy replay.
+  [Arity-state search](evidence/G03_ARITY_STATE_SEARCH_2026-09-13.md) is a
+  measured null at 464/500 source and 47/48 weave answers. The
+  [joint-score trial](evidence/G03_JOINT_SCORE_TRIAL_2026-09-13.md) is incomplete
+  and not promoted after a split regression. Decode-local score reuse preserves
+  all 48 paired weave rows under the default policy. G03 remains open.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
