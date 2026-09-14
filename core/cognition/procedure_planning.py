@@ -7,18 +7,27 @@ Planning never invokes a backend or treats a signature as an observed value.
 
 from __future__ import annotations
 
+import json
 from collections import deque
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-import json
 from typing import Any
 
 from core.cognition.procedure import (
-    Backend, Effect, Precondition, Procedure, ProcedureRegistry, _kind_accepts_value,
-    _kinds_compose, compose,
+    Backend,
+    Effect,
+    Precondition,
+    Procedure,
+    ProcedureRegistry,
+    _kind_accepts_value,
+    _kinds_compose,
+    compose,
 )
 from core.cognition.procedure_execution import (
-    BackendExecutor, ProcedureExecution, execute_procedure,
+    BackendExecutor,
+    BackendResult,
+    ProcedureExecution,
+    execute_procedure,
 )
 from core.verify.invariants import invariant
 
@@ -32,6 +41,7 @@ class ProcedurePlan:
     found: bool
     expanded: int
     reason: str
+    value_obligations: tuple[tuple[str, Precondition], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,37 +79,45 @@ def _canonical(requirements: Sequence[Precondition]) -> tuple[tuple[str, Precond
     return tuple(sorted({_requirement_key(item): item for item in requirements}.items()))
 
 
-def _effect_meets(effect: Effect, requirement: Precondition) -> bool:
+def _effect_may_meet(effect: Effect, requirement: Precondition) -> bool:
     if effect.key != requirement.key:
         return False
     if effect.value is not None:
         return _kind_accepts_value(effect.kind, effect.value) and requirement.satisfied_by(
             {effect.key: effect.value},
         )
-    # A computed value supplies a type, never a guessed constant or absence.
+    # Search may propose a computed value. Only execution can discharge equality.
     return (
-        not requirement.negated and requirement.equals is None
+        not requirement.negated
         and _kinds_compose(effect.kind, requirement.kind)
+        and (requirement.equals is None or _kind_accepts_value(effect.kind, requirement.equals))
     )
 
 
 def _regress(
     requirements: Sequence[Precondition], procedure: Procedure,
-) -> tuple[Precondition, ...] | None:
+) -> tuple[tuple[Precondition, ...], tuple[tuple[str, Precondition], ...]] | None:
     effects = {effect.key: effect for effect in procedure.signature.effects}
     remaining = []
     contributed = False
+    obligations = []
+    constants = {item.key: item.equals for item in requirements if item.equals is not None}
+    if any(not item.satisfied_by({item.key: constants[item.key]})
+           for item in requirements if item.key in constants):
+        return None
     for requirement in requirements:
         effect = effects.get(requirement.key)
         if effect is None:
             remaining.append(requirement)
-        elif not _effect_meets(effect, requirement):
+        elif not _effect_may_meet(effect, requirement):
             return None
         else:
             contributed = True
+            if effect.value is None and requirement.equals is not None:
+                obligations.append((procedure.procedure_id, requirement))
     if not contributed:
         return None
-    return (*remaining, *procedure.signature.preconditions)
+    return (*remaining, *procedure.signature.preconditions), tuple(obligations)
 
 
 def plan_procedure(
@@ -114,8 +132,8 @@ def plan_procedure(
     """Backward dependency search, with explicit caller-owned work bounds.
 
     Shorter plans are considered first, then the registry's measured values.
-    Only declared effects discharge a requirement. A result whose value is
-    computed cannot satisfy a required constant until execution observes it.
+    Only compatible declared effects advance search. A computed value carries
+    an explicit equality obligation until execution observes it.
     No match is a statement about this finite search, not general inability.
     """
 
@@ -142,12 +160,12 @@ def plan_procedure(
     for procedure in candidates:
         for effect in procedure.signature.effects:
             by_effect.setdefault(effect.key, set()).add(procedure.procedure_id)
-    frontier = deque([(initial, ())])
+    frontier = deque([(initial, (), ())])
     seen = {tuple(key for key, _ in initial)}
     expanded = 0
     depth_limited = False
     while frontier:
-        needed, suffix = frontier.popleft()
+        needed, suffix, obligations = frontier.popleft()
         if len(suffix) >= max_steps:
             depth_limited = True
             continue
@@ -161,14 +179,20 @@ def plan_procedure(
             regressed = _regress(tuple(item for _, item in needed), procedure)
             if regressed is None:
                 continue
-            canonical = _canonical(regressed)
+            requirements_before, added_obligations = regressed
+            canonical = _canonical(requirements_before)
             path = (procedure.procedure_id, *suffix)
+            pending_observations = (*added_obligations, *obligations)
             if all(item.satisfied_by(state) for _, item in canonical):
-                return ProcedurePlan(requested, path, True, expanded, "dependencies_satisfied")
+                return ProcedurePlan(
+                    requested, path, True, expanded,
+                    "value_observation_required" if pending_observations else "dependencies_satisfied",
+                    pending_observations,
+                )
             key = tuple(key for key, _ in canonical)
             if key not in seen:
                 seen.add(key)
-                frontier.append((canonical, path))
+                frontier.append((canonical, path, pending_observations))
     return ProcedurePlan(
         requested, (), False, expanded, "depth_limit" if depth_limited else "no_dependency_plan",
     )
@@ -224,4 +248,12 @@ def _goal_bound_reuse_holds() -> tuple:
     plan = plan_procedure(registry, {}, (Precondition("enabled", "boolean", True),),
         max_steps=1, max_expansions=2)
     assert plan.found and plan.procedure_ids == (intended.procedure_id,)
+    computed = registry.register("computed", Backend.TOOL,
+        Signature(effects=(Effect("count", "integer"),)))
+    proposed = plan_procedure(registry, {}, (Precondition("count", "integer", 5),),
+        eligible=(computed.procedure_id,), max_steps=1, max_expansions=1)
+    observed = execute_procedure_plan(registry, proposed, {}, backends={
+        Backend.TOOL: lambda p, s, c: BackendResult({"count": 4}),
+    })
+    assert proposed.value_obligations and not observed.completed
     return ()

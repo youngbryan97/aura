@@ -783,6 +783,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Conclusive verification](evidence/G09_CONCLUSIVE_VERIFICATION_2026-09-14.md)
   now agrees with the shared verdict when one checking engine fails. Candidate
   ranking is unchanged; independent task assessment remains open.
+  [Computed-value plans](evidence/G09_COMPUTED_VALUE_PLANS_2026-09-14.md)
+  can propose reusable computations for exact goals and check real outputs.
+  129 focused tests passed; task-grounded semantic selection remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

@@ -50,8 +50,6 @@ possibly apply rather than with the number that exist.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -59,6 +57,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.evidence.packet import EvidencePacket
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Backend",
@@ -123,7 +122,10 @@ def _kind_accepts_value(kind: str, value: Any) -> bool:
 def _kinds_compose(produced: str, required: str) -> bool:
     """Whether an effect of one structural kind can satisfy a later read."""
 
-    return produced == "any" or required == "any" or produced == required
+    return (
+        produced == "any" or required == "any" or produced == required
+        or (produced, required) in {("integer", "number"), ("integer_sequence", "sequence")}
+    )
 
 
 class Backend(StrEnum):
@@ -970,9 +972,9 @@ def compose(
 
     register = registry.register
     if intern:
-        from functools import partial
         import hashlib
         import json
+        from functools import partial
 
         identity = hashlib.sha256(json.dumps(
             [backend.value, [part.procedure_id for part in parts]],
