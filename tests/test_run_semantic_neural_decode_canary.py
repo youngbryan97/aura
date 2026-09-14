@@ -222,3 +222,29 @@ def test_mixed_multidomain_cohort_adapts_only_scientific_rows():
     }
     assert all(task.transition_trace is None for task in science)
     assert all(task.transition_trace is not None for task in canonical)
+
+
+def test_new_campaign_defaults_to_channel_separation_and_explicit_legacy_replay():
+    from tools.run_semantic_neural_decode_canary import PUBLIC_CHANNEL_DECODE_POLICY, _parser
+    args = _parser().parse_args(["--model", "/model", "--out", "/result"])
+    assert args.decode_policy == PUBLIC_CHANNEL_DECODE_POLICY
+    assert args.max_tokens is None
+
+
+def test_decode_attempt_reuses_public_channel_without_private_predicate(monkeypatch):
+    import hashlib
+
+    from core.brain.llm.public_channel_decode import PublicChannelDecode
+    from tools import run_semantic_neural_decode_canary as runner
+
+    text = 'FINAL_ANSWER: {"x":2}'
+    result = PublicChannelDecode(text, 25, 5, 2, 7, "public_contract", True, True, 0,
+                                hashlib.sha256(b"").hexdigest(), "a" * 64)
+    def decode(model, tokenizer, prompt, **kwargs):
+        assert kwargs["public_prefill"] == (1, 2, 3, 4, 5)
+        assert kwargs["completion_check"](text)
+        return result
+    monkeypatch.setattr(runner, "decode_public_greedy", decode)
+    observed = runner._decode_attempt(None, None, (1,), prefill=(1, 2, 3, 4, 5),
+                                     max_tokens=64, policy=runner.PUBLIC_CHANNEL_DECODE_POLICY)
+    assert observed == (text, True, 25, 7, result.receipt())

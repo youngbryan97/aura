@@ -16,6 +16,12 @@ description = "core.consciousness: declared organ dependencies, including shared
 include_rules = [
     "+core.consciousness",
 
+    # One module of core.self, not the package. The self prediction loop
+    # settles a claim somebody made about her against the same outcome it
+    # scores its own prediction against, and caps its confidence by that
+    # comparison. The rest of core.self stays out of reach.
+    "+core.self.recognition",
+
     # What this package reaches for today.
     "+core.adaptation",
     "+core.affect",

@@ -67,6 +67,24 @@ PERCEPT_EMOTIONS: dict[str, list[str]] = {
     "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
     "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
     "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+    # Two of her own wants pressing against each other. Not distress: what
+    # Oddisee reports of it is that the contradictions got him feeling strange,
+    # which is disorientation about himself rather than fear of the world.
+    "inner_conflict": ["confused", "frustration", "anticipation"],
+    # What she expected is what happened. Not achievement and not relief: the
+    # feeling of a prediction landing, which is why trust in her own model is
+    # in it alongside the satisfaction.
+    "expectation_met": ["satisfaction", "trust", "pride", "interest"],
+    # A pattern she had come to trust, turned. Not the startle of a surprise
+    # with nothing under it: the chill a listener gets when the ninth return of
+    # a hook changes one thing, which is why it carries awe and joy.
+    "frisson": ["awe", "wonder", "surprise", "joy"],
+    # Up from a low that is still being held. Relief and hope, and the pride
+    # of having lasted, which is what the reversal in that record is made of.
+    "the_turn": ["relief", "hope", "pride", "gratitude", "satisfaction"],
+    # Somebody said something warm about her. Being cared about is a thing
+    # that happens to her, and she had no channel for either end of it.
+    "cared_for": ["warmth", "gratitude", "trust", "belonging", "hope"],
     # Three types the tree emits that this map had no entry for, so a
     # phase crash, an apology and every stimulus injected through the
     # compatibility bridge arrived and moved nothing. An internal error

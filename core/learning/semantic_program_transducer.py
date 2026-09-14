@@ -343,6 +343,12 @@ class MultiViewClassifierHead:
         return self.heads[0].labels
 
     def predict(self, features: Sequence[np.ndarray]) -> tuple[str, float]:
+        probabilities = self.predict_probabilities(features)
+        winner = int(np.argmax(probabilities))
+        return self.labels[winner], float(probabilities[winner])
+
+    def predict_probabilities(self, features: Sequence[np.ndarray]) -> np.ndarray:
+        """Preserve learned alternatives until the typed graph can compare them."""
         if len(features) != len(self.heads):
             raise ValueError("semantic multiview features differ from their head")
         probabilities = np.mean(
@@ -354,8 +360,7 @@ class MultiViewClassifierHead:
             ),
             axis=0,
         )
-        winner = int(np.argmax(probabilities))
-        return self.labels[winner], float(probabilities[winner])
+        return probabilities
 
     def to_dict(self) -> dict[str, Any]:
         return {

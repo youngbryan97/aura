@@ -339,6 +339,9 @@ class MemoryConsolidationPhase(BasePhase):
                     float(affect_signature.get("memory_salience", 0.0) or 0.0),
                     imagination_memory_pressure,
                     bicameral_memory_priority,
+                    # The moment a trusted pattern turned is the one a listener
+                    # remembers the record by. See core/affect/frisson.py.
+                    float(getattr(new_state.affect, "frisson", 0.0) or 0.0),
                 )
                 complexity = float(affect_signature.get("affective_complexity", 0.0) or 0.0)
                 bicameral_verification_pressure = self._safe_float(

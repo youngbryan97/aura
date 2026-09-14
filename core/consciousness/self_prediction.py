@@ -73,6 +73,11 @@ class SelfPredictionLoop:
         self._error_history: deque = deque(maxlen=self._HISTORY_SIZE)
         self._smoothed_error: float = 0.0   # EMA of recent prediction errors
         self._surprise_count: int = 0        # Total surprises since boot
+        #: The last outcome read from both tails, and how often the lower one
+        #: has fired. A count of surprises with no count of confirmations is a
+        #: record of a mind that can only be wrong.
+        self._expectation: Any = None
+        self._confirmation_count: int = 0
 
         # The situation the last prediction was made in, the row it produced,
         # and the accumulated normal equations that turn the two into a model.
@@ -153,6 +158,15 @@ class SelfPredictionLoop:
         """
         return self._smoothed_error
 
+    def get_confirmation_signal(self) -> float:
+        """How strongly the last prediction came true, in [0, 1].
+
+        The mirror of `get_surprise_signal`. Zero when there is not enough
+        history to read a tail, which is different from zero confirmation and
+        is why the reading carries `measured`.
+        """
+        return float(getattr(self._expectation, "confirmation", 0.0) or 0.0)
+
     def get_most_unpredictable_dimension(self) -> str:
         """Returns which dimension (valence/drive/focus) is hardest to predict."""
         errors = {
@@ -167,6 +181,20 @@ class SelfPredictionLoop:
         return {
             "smoothed_error": round(self._smoothed_error, 3),
             "surprise_count": self._surprise_count,
+            "confirmation_count": self._confirmation_count,
+            "confirmation": (
+                round(float(getattr(self._expectation, "confirmation", 0.0)), 4)
+                if self._expectation is not None
+                else 0.0
+            ),
+            "confirmation_bits": (
+                round(float(getattr(self._expectation, "confirmation_bits", 0.0)), 3)
+                if self._expectation is not None
+                else 0.0
+            ),
+            "expectation": (
+                self._expectation.as_dict() if self._expectation is not None else {}
+            ),
             "valence_error_ema": round(self._valence_error_ema, 3),
             "drive_error_ema": round(self._drive_error_ema, 3),
             "focus_error_ema": round(self._focus_error_ema, 3),
@@ -313,8 +341,19 @@ class SelfPredictionLoop:
         if contender:
             predicted_focus = str(contender)
 
-        # Confidence: inversely proportional to recent prediction error
-        confidence = max(0.1, 1.0 - self._smoothed_error)
+        # Confidence: inversely proportional to recent prediction error, and
+        # capped by how her reading of herself compares with the best reading
+        # anyone else has of her. When she is the better model of herself the
+        # factor is one and this is what it always was.
+        # See core/self/recognition.py.
+        confidence = 1.0 - self._smoothed_error
+        try:
+            from core.self.recognition import get_recognition_ledger
+
+            confidence *= float(get_recognition_ledger().reading().confidence_factor)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("how others read her did not reach her confidence: %s", exc)
+        confidence = max(0.1, confidence)
 
         return InternalStatePrediction(
             predicted_affect_valence=round(predicted_valence, 3),
@@ -334,6 +373,16 @@ class SelfPredictionLoop:
         actual_drive: str,
         actual_focus: str,
     ) -> PredictionError:
+        # Somebody may have said what she was feeling before this moment
+        # settled, and that claim is scored against the same outcome as her own
+        # reading of herself. See core/self/recognition.py.
+        try:
+            from core.self.recognition import get_recognition_ledger
+
+            get_recognition_ledger().settle(actual_valence)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("a claim about her went unscored: %s", exc)
+
         valence_err = abs(pred.predicted_affect_valence - actual_valence)
         drive_err = 0.0 if pred.predicted_dominant_drive == actual_drive else 1.0
         focus_err = 0.0 if pred.predicted_focus_source == actual_focus else 1.0
@@ -354,6 +403,32 @@ class SelfPredictionLoop:
         self._error_history.append(error)
         if error.was_surprising:
             self._surprise_count += 1
+
+        # And the other tail. Every measure in this system fires when reality
+        # disagrees and none of them fire when it agrees — including this loop,
+        # whose own docstring promises that low error raises confidence in the
+        # self-model and which carried nothing out. Confirmation is the same
+        # surprisal read from the lower tail of her own error distribution, so
+        # being right about what she is always right about carries nothing and
+        # being right about what she usually misses carries a lot.
+        #
+        # Scored before the error joins the history, or every outcome would
+        # make itself look ordinary.
+        try:
+            from core.affect.confirmation import get_expectation_ledger
+
+            self._expectation = get_expectation_ledger().score_and_note(
+                error.composite_error
+            )
+            if self._expectation.confirmed():
+                self._confirmation_count += 1
+            # The same reading, kept as a pattern: a run of being right, and
+            # the surprise that turns it. See core/affect/frisson.py.
+            from core.affect.frisson import get_frisson_ledger
+
+            get_frisson_ledger().note(self._expectation)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            self._expectation = None
 
         # Update smoothed error (EMA)
         self._smoothed_error = (

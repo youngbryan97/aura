@@ -300,6 +300,33 @@ class MotivationState:
         "Slime mold (Physarum) pathfinding algorithms"
     ])
 
+
+#: Where each virtual physiology channel sits when nothing is happening.
+#: `AffectVector.physiology` starts here, `physiological_strain` measures
+#: pressure as distance above here, and a channel whose writer raised it
+#: returns here.
+PHYSIOLOGY_REST: dict[str, float] = {
+    "heart_rate": 72.0,
+    "gsr": 2.1,
+    "cortisol": 10.0,
+    "adrenaline": 0.0,
+}
+
+#: How far above rest each channel travels for its pressure to count as full.
+#: The first three carry their own units. Adrenaline is the mobilization index
+#: on the 0-10 scale `core/affect/damasio_v2.py` defines for it and
+#: `core/phases/phi_consciousness.py` reads it on, and strain took it raw: the
+#: despair surge of 5.0 arrived as five times full pressure, which held the
+#: whole reading at its ceiling and made heart rate, conductance and cortisol
+#: unreadable behind it.
+PHYSIOLOGY_PRESSURE_SPAN: dict[str, float] = {
+    "heart_rate": 36.0,
+    "gsr": 2.5,
+    "cortisol": 20.0,
+    "adrenaline": 10.0,
+}
+
+
 @dataclass
 class AffectVector:
     """Emotional valence — now strictly mapped to Damasio logic."""
@@ -308,6 +335,42 @@ class AffectVector:
     curiosity: float = 0.5      # 0.0 to 1.0 = anticipation
     engagement: float = 0.5     # 0.0 to 1.0
     social_hunger: float = 0.5  # 0.0 (content) to 1.0 (starving)
+    #: How hard she is caught between two of her own wants that cost each
+    #: other. Not an emotion and not an arbitration: the budgets already
+    #: compete and the lowest one wins the intention, which produces one answer
+    #: and discards the other. This is the reading that says two pressed at
+    #: once, which is a different moment and feels like one.
+    #: See core/affect/ambivalence.py.
+    ambivalence: float = 0.0    # 0.0 (single-minded) to 1.0 (caught)
+    #: How strongly what just happened is what she expected, scaled by how
+    #: often she is right about that kind of thing. Every other measure in the
+    #: system fires when reality disagrees; this is the one that fires when it
+    #: agrees. See core/affect/confirmation.py.
+    confirmation: float = 0.0   # 0.0 (ordinary or unread) to 1.0 (exactly so)
+    #: How far the strongest feeling live stands above the level she has been
+    #: holding, in her own spreads. Above one is outside her ordinary range,
+    #: which is a breakthrough. See core/expression/delivery.py.
+    delivery_z: float = 0.0
+    breakthrough: bool = False
+    #: How much expressive control is left this cycle. Falls as exertion rises.
+    steadiness: float = 1.0
+    #: Which way the register moves. Positive when something failed to be what
+    #: it seemed, negative when something held.
+    lift: float = 0.0
+    #: Nothing wrong in this stretch and somebody in it. Not an achievement
+    #: and not a prediction landing. See core/affect/safety.py.
+    safety: float = 0.0
+    #: How far she has come up from a low she is still holding, bounded. Zero
+    #: unless both halves hold: the low is real and she is above the level.
+    #: See core/affect/the_turn.py.
+    turn: float = 0.0
+    #: How hard a pattern she had come to trust just turned, on the cycle it
+    #: turned and zero otherwise. See core/affect/frisson.py.
+    frisson: float = 0.0
+    #: Which two wants, and whether being caught between them is how she is
+    #: built or where she is now. Empty until her history can say.
+    ambivalent_about: tuple[str, ...] = ()
+    ambivalence_standing: str = "not yet known"
     dominant_emotion: str = "neutral"
     
     # Full primary Plutchik set
@@ -329,12 +392,7 @@ class AffectVector:
     })
     
     # Virtual Physiology (Somatic Markers)
-    physiology: dict[str, float] = field(default_factory=lambda: {
-        "heart_rate": 72.0,
-        "gsr": 2.1,
-        "cortisol": 10.0,
-        "adrenaline": 0.0
-    })
+    physiology: dict[str, float] = field(default_factory=lambda: dict(PHYSIOLOGY_REST))
     
     mood_baselines: dict[str, float] = field(default_factory=lambda: {
         "joy": 0.0, "trust": 0.0, "fear": 0.0, "surprise": 0.0,
@@ -383,15 +441,12 @@ class AffectVector:
         return [(k, v) for k, v in ordered if v > threshold][:limit]
 
     def physiological_strain(self) -> float:
-        heart = float(self.physiology.get("heart_rate", 72.0) or 72.0)
-        gsr = float(self.physiology.get("gsr", 2.1) or 2.1)
-        cortisol = float(self.physiology.get("cortisol", 10.0) or 10.0)
-        adrenaline = float(self.physiology.get("adrenaline", 0.0) or 0.0)
-        heart_pressure = max(0.0, (heart - 72.0) / 36.0)
-        gsr_pressure = max(0.0, (gsr - 2.1) / 2.5)
-        cortisol_pressure = max(0.0, (cortisol - 10.0) / 20.0)
-        adrenaline_pressure = max(0.0, adrenaline)
-        return max(0.0, min(1.0, (heart_pressure * 0.25) + (gsr_pressure * 0.2) + (cortisol_pressure * 0.35) + (adrenaline_pressure * 0.2)))
+        def pressure(channel: str) -> float:
+            rest = PHYSIOLOGY_REST[channel]
+            value = float(self.physiology.get(channel, rest) or rest)
+            return max(0.0, (value - rest) / PHYSIOLOGY_PRESSURE_SPAN[channel])
+
+        return max(0.0, min(1.0, (pressure("heart_rate") * 0.25) + (pressure("gsr") * 0.2) + (pressure("cortisol") * 0.35) + (pressure("adrenaline") * 0.2)))
 
     def affective_complexity(self) -> float:
         values = [float(v) for v in self.emotions.values() if float(v) > 0.08]
@@ -507,6 +562,11 @@ class IdentityKernel:
     concept_graph: dict[str, Any] = field(default_factory=dict)
     evolution_score: float = 0.0
     stability: float = 1.0  # Identity stability (0.0–1.0), degraded on loop detection
+    #: How her own reading of what she is feeling compares with somebody
+    #: else's, scored against the same outcome, and whether the moment was warm
+    #: toward her. Written by the conversation phase.
+    #: See core/self/recognition.py.
+    read_by_other: dict[str, Any] = field(default_factory=dict)
     
     # Preferences she formed herself, from her own repeated contact with
     # something. Symmetric with world.user_preferences, which is durable and
@@ -572,7 +632,27 @@ class CognitiveContext:
     discourse_depth: int = 0                     # Turns spent on this thread
     discourse_branches: list[str] = field(default_factory=list)  # Adjacent topics available
     user_emotional_trend: str = "neutral"        # "warming_up"|"engaged"|"cooling_off"|"neutral"
+    #: Whether she is keeping somebody company rather than helping them: they
+    #: are testifying, asking nothing, and `company` is how low they are while
+    #: she does. Written by the conversation phase; routing, the reply and the
+    #: affect phase read it. See core/social/witness.py.
+    witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
+    #: What she has to pass on right now and what it is about — a moment that
+    #: moved her rather than how long since anyone spoke.
+    #: See core/social/telling.py.
+    telling: dict[str, Any] = field(default_factory=dict)
+    #: How much of what she is about to say she has already said, and what is
+    #: left of the pressure to say it. See core/affect/catharsis.py.
+    catharsis: dict[str, Any] = field(default_factory=dict)
+    #: The pulse the person she is talking to is keeping — how long their
+    #: turns are, how far apart, and how far off it her own last turn sat.
+    #: See core/expression/entrainment.py.
+    partner_cadence: dict[str, Any] = field(default_factory=dict)
+    #: Whether what recall brought back is something she relives or something
+    #: she looked up, and how often this question has been asked before.
+    #: Written by the retrieval phase. See core/memory/reliving.py.
+    relived: dict[str, Any] = field(default_factory=dict)
 
     # Constitutional Closure — kernel-level arbitration trace
     last_kernel_cycle_id: str | None = None   # ID of the last kernel tick that touched this state
@@ -918,6 +998,11 @@ class WorldModel:
     # Legacy/canonical bridge: many executive, welfare, proof, and body paths use
     # ``state.world_model`` as a dict-backed scratchpad for verified runtime facts.
     facts: dict[str, Any] = field(default_factory=dict)
+    #: The shape of what the person she is talking to just said — who it is
+    #: about, whether it asks anything, whether it holds on. A fact about them
+    #: rather than about her, which is why it lives here.
+    #: See core/expression/register.py.
+    partner_register: dict[str, Any] = field(default_factory=dict)
 
     def trim_percepts(self, limit: int = 50):
         if len(self.recent_percepts) > limit:

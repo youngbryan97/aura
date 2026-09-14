@@ -27,9 +27,14 @@ from core.brain.llm.latent_cortex.semantic_neural_composition_decode import (  #
     render_composition_decode_objective,
     render_composition_state_channel,
 )
+from core.brain.llm.public_channel_decode import (  # noqa: E402
+    PUBLIC_CHANNEL_DECODE_POLICY,
+    decode_public_greedy,
+)
 from core.brain.llm.unified_recurrent_transfer_decode import (  # noqa: E402
     decode_base_greedy_tokens,
 )
+from core.learning.public_decode_evidence import validate_public_decode_receipt  # noqa: E402
 from core.learning.semantic_neural_composition import (  # noqa: E402
     render_public_typed_workflow,
 )
@@ -46,6 +51,8 @@ from tools.verify_semantic_neural_composition_canary import (  # noqa: E402
 )
 
 SCHEMA: Final = "aura.rlc.semantic_neural_composition_decode_canary.v1"
+PUBLIC_SCHEMA: Final = "aura.rlc.semantic_neural_composition_decode_canary.v2"
+LEGACY_DECODE_POLICY: Final = "legacy_raw_text_v1"
 JOURNAL_SCHEMA: Final = "aura.rlc.semantic_neural_composition_decode_journal.v1"
 ARMS: Final = (
     "ordinary_base",
@@ -75,6 +82,8 @@ CLAIM_BOUNDARY: Final = (
     "not hidden-state internalization, open-domain reasoning gain, unrestricted "
     "serving, static fusion, or frontier performance"
 )
+PUBLIC_SOURCE_PATHS: Final = (*SOURCE_PATHS,
+    "core/brain/llm/public_channel_decode.py", "core/learning/public_decode_evidence.py")
 
 
 def _sha(value: Any) -> str:
@@ -267,13 +276,18 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--journal", type=Path)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED + 100)
     parser.add_argument("--tasks", type=int, default=8)
-    parser.add_argument("--max-tokens", type=int, default=96)
+    parser.add_argument("--max-tokens", type=int)
+    parser.add_argument("--decode-policy", choices=(PUBLIC_CHANNEL_DECODE_POLICY, LEGACY_DECODE_POLICY),
+                        default=PUBLIC_CHANNEL_DECODE_POLICY)
     parser.add_argument("--source-commit", default="")
     return parser
 
 
 def _run(args: argparse.Namespace, model_path: Path) -> int:
-    if not 2 <= args.tasks <= 24 or not 32 <= args.max_tokens <= 192:
+    public_decode = args.decode_policy == PUBLIC_CHANNEL_DECODE_POLICY
+    if args.max_tokens is None:
+        args.max_tokens = 4096 if public_decode else 96
+    if not 2 <= args.tasks <= 24 or not 32 <= args.max_tokens <= (8192 if public_decode else 192):
         raise ValueError("composition decode canary dimensions are invalid")
     commit = _source_commit(args.source_commit)
     manifest = _resident_manifest(args.resident_manifest, model_path)
@@ -300,6 +314,7 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
             "task_count": args.tasks,
             "arm_count": len(ARMS),
             "max_tokens": args.max_tokens,
+            **({"decode_policy": args.decode_policy} if public_decode else {}),
             "model_identity": {
                 "path": str(model_path),
                 "config_sha256": _file_sha(model_path / "config.json"),
@@ -332,18 +347,23 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
             channel = "" if selected is None else render_composition_state_channel(selected)
             prompt = _prompt_tokens(tokenizer, objective, channel)
             prefill = () if arm == "ordinary_base" else wire
-            generated, stopped, latency_ms = decode_base_greedy_tokens(
-                model,
-                prompt,
-                eos_token_id=tokenizer.eos_token_id,
-                max_tokens=args.max_tokens,
-                prefill_tokens=prefill,
-                completion_check=lambda values, report=report: parse_composition_response(
-                    tokenizer.decode(list(values), skip_special_tokens=True), report
+            decode_receipt = None
+            if public_decode:
+                decoded = decode_public_greedy(
+                    model, tokenizer, prompt, max_tokens=args.max_tokens, public_prefill=prefill,
+                    completion_check=lambda text, report=report: parse_composition_response(text, report) is not None,
                 )
-                is not None,
-            )
-            response = tokenizer.decode(list(generated), skip_special_tokens=True)
+                response, stopped, latency_ms = decoded.text, decoded.stopped, decoded.latency_ms
+                sampled, decode_receipt = decoded.generated_tokens, decoded.receipt()
+            else:
+                generated, stopped, latency_ms = decode_base_greedy_tokens(
+                    model, prompt, eos_token_id=tokenizer.eos_token_id, max_tokens=args.max_tokens,
+                    prefill_tokens=prefill,
+                    completion_check=lambda values, report=report: parse_composition_response(
+                        tokenizer.decode(list(values), skip_special_tokens=True), report) is not None,
+                )
+                response = tokenizer.decode(list(generated), skip_special_tokens=True)
+                sampled = len(generated) - len(prefill)
             parsed = parse_composition_response(response, report)
             row = {
                 "ordinal": index,
@@ -354,10 +374,11 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
                 "response": response,
                 "response_sha256": hashlib.sha256(response.encode()).hexdigest(),
                 "prompt_tokens": len(prompt),
-                "generated_tokens": len(generated) - len(prefill),
+                "generated_tokens": sampled,
                 "prefill_tokens": len(prefill),
                 "stopped": stopped,
                 "latency_ms": latency_ms,
+                **({"decode": decode_receipt} if public_decode else {}),
                 "state_receipt_sha256": (
                     "" if selected is None else selected.receipt()["receipt_sha256"]
                 ),
@@ -411,8 +432,11 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         if correct and not by_arm["treatment"][task_id]
     )
     treatment_exact = arms["treatment"]["exact"]
+    censored = sum(not validate_public_decode_receipt(row["decode"], row["response"], max_tokens=args.max_tokens)
+                   for row in rows) if public_decode else None
     admitted = bool(
         treatment_exact == args.tasks
+        and not censored
         and gain_set
         and not regressions
         and all(
@@ -426,9 +450,10 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         )
     )
     body = {
-        "schema": SCHEMA,
+        "schema": PUBLIC_SCHEMA if public_decode else SCHEMA,
         "source_commit": commit,
-        "source_sha256s": {path: _file_sha(REPO_ROOT / path) for path in SOURCE_PATHS},
+        "source_sha256s": {path: _file_sha(REPO_ROOT / path)
+                           for path in (PUBLIC_SOURCE_PATHS if public_decode else SOURCE_PATHS)},
         "model_identity": {
             "path": str(model_path),
             "config_sha256": _file_sha(model_path / "config.json"),
@@ -447,6 +472,7 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         "regression_set_sha256": _sha(regressions),
         "regression_count": len(regressions),
         "rows": rows,
+        **({"decode_policy": args.decode_policy, "censored_decodes": censored} if public_decode else {}),
         "journal_path": str(journal_path),
         "journal_last_decode_receipt_sha256": journal_receipt,
         "admitted": admitted,

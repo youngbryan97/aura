@@ -63,6 +63,7 @@ from core.runtime.proof_policy import (
 )
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.self.inner_language import say_focus
+from core.social.witness import is_witnessing
 from core.state.aura_state import AuraState
 from core.utils.injected_blocks import stamp_grounding
 from core.utils.intent_normalization import normalize_memory_intent_text
@@ -162,6 +163,28 @@ def _record_response_degradation(
         action=action or message,
     )
     logger.debug(message, *args, exc)
+
+
+def _breath_in_words(state: Any, draft: str) -> int:
+    """How many words one breath holds, read off this draft's own words.
+
+    The delivery reading prices a breath in characters, from the effort
+    ledger's unit for an unremarkable turn. The taste model fits length in
+    words, so the conversion uses how long this draft's words are rather than
+    a typical word length chosen here. Zero when there is no reading or no
+    draft, which leaves the taste model's own length target in charge.
+    """
+    try:
+        delivery = state.response_modifiers.get("delivery") or {}
+        phrase = int(delivery.get("phrase_budget", 0) or 0)
+    except (AttributeError, TypeError, ValueError):
+        return 0
+    text = str(draft or "")
+    words = re.findall(r"[A-Za-z0-9']+", text)
+    if phrase <= 0 or not words:
+        return 0
+    chars_per_word = max(1.0, len(text) / len(words))
+    return max(1, int(round(phrase / chars_per_word)))
 
 
 def _taste_conversation_id(state: Any) -> str:
@@ -2838,6 +2861,11 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
             word_budget = int(state.response_modifiers.get("voice_word_budget", 0) or 0)
         except (AttributeError, TypeError, ValueError):
             word_budget = 0
+        if word_budget <= 0:
+            # Nothing set a spoken-length budget, so the breath does: what she
+            # has left this cycle, priced in the effort ledger's own unit.
+            # Working twice as hard halves it. See core/expression/delivery.py.
+            word_budget = _breath_in_words(state, draft)
 
         budget = float(min(10.0, max(3.0, (request_timeout or 20.0) * 0.25)))
         n_candidates = 2 if budget < 8.0 else 3
@@ -2851,7 +2879,10 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                 word_budget=word_budget,
                 n=n_candidates,
                 time_budget_s=budget,
-                revise=budget >= 6.0,
+                # Witnessing suspends judgement, so a draft for somebody who is
+                # testifying is not revised against a taste model. See
+                # core/social/witness.py.
+                revise=budget >= 6.0 and not is_witnessing(state.cognition),
                 conversation_id=_taste_conversation_id(state),
             )
         except _RESPONSE_RECOVERABLE_ERRORS as exc:

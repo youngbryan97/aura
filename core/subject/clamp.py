@@ -79,6 +79,22 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.physiology.heart_rate",
         "affect.physiology.cortisol",
         "affect.physiology.adrenaline",
+        # The organs added since: what she is caught between and how it stands,
+        # whether the moment came out as expected, and the level she is
+        # speaking from. A reads every one, so a clamp on A that left them free
+        # let the lesion's held side move by a third of a unit.
+        "affect.ambivalence",
+        "affect.ambivalent_about",
+        "affect.ambivalence_standing",
+        "affect.markers.ambivalence",
+        "affect.confirmation",
+        "affect.delivery_z",
+        "affect.breakthrough",
+        "affect.steadiness",
+        "affect.lift",
+        "affect.frisson",
+        "affect.turn",
+        "affect.safety",
     ),
     "G": (
         "cognition.attention_focus",
@@ -115,6 +131,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "identity.core_values",
         "identity.self_preferences",
         "identity.personality_growth",
+        # How somebody else read her, which changes how much she trusts her own
+        # reading. See core/self/recognition.py.
+        "identity.read_by_other",
     ),
     "M": (
         "cognition.working_memory",
@@ -130,6 +149,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # remembered and not how much it counted — and the memory displacement
         # writes exactly this.
         "cognition.memory_scores",
+        # What recall brought back and how often it has been asked for.
+        # See core/memory/reliving.py.
+        "cognition.relived",
     ),
     "W": (
         "world.known_entities",
@@ -138,6 +160,12 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "world.user_preferences",
         "cold.concept_graph",
         "cognition.user_emotional_trend",
+        # The shape of what the person just said. A fact about them that W
+        # reads, written by the conversation phase on every message.
+        "world.partner_register",
+        # The pulse they are keeping, which sizes her own next turn.
+        # See core/expression/entrainment.py.
+        "cognition.partner_cadence",
     ),
     "D": (
         "cognition.active_goals",
@@ -145,6 +173,13 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.current_origin",
         "cognition.last_action_source",
         "motivation.budgets",
+        # The stance she is taking toward the person, which decides whether she
+        # searches for something to do at all. See core/social/witness.py.
+        "cognition.witness",
+        # And how much of what she wants to say she has already said, and
+        # whether she has something worth handing over at all.
+        "cognition.catharsis",
+        "cognition.telling",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

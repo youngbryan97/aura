@@ -504,7 +504,12 @@ async def test_memory_retrieval_retains_recent_episodes_score_and_metadata():
 @pytest.mark.asyncio
 async def test_the_same_question_at_a_greater_depth_is_asked_again():
     """The skip was keyed on the words alone, so pressure that deepened recall
-    changed nothing for as long as the question stayed the same."""
+    changed nothing for as long as the question stayed the same.
+
+    Asking again now looks one deeper on its own, so the second asking is a
+    different recall. The third sits at the same depth as the second — the
+    ladder doubles — and the skip still saves that search.
+    """
     limits: list[int] = []
 
     async def _search(query, limit=5):
@@ -528,13 +533,17 @@ async def test_the_same_question_at_a_greater_depth_is_asked_again():
     assert first is not state
 
     again = await phase.execute(first)
-    assert again is first, "the same question at the same depth is not asked twice"
+    assert again is not first, "asking again looks deeper rather than returning early"
+    assert limits[-1] == limits[0] + 1
 
-    first.response_modifiers["imagination_memory_pressure"] = 0.74
-    deeper = await phase.execute(first)
-    assert deeper is not first
+    third = await phase.execute(again)
+    assert third is again, "a third asking at the same depth is not searched again"
+
+    again.response_modifiers["imagination_memory_pressure"] = 0.74
+    pressed = await phase.execute(again)
+    assert pressed is not again
     assert limits[-1] > limits[0]
-    assert len(deeper.cognition.long_term_memory) > len(first.cognition.long_term_memory)
+    assert len(pressed.cognition.long_term_memory) > len(first.cognition.long_term_memory)
 
 
 def _facade_capturing(captured: dict) -> SimpleNamespace:

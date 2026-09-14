@@ -112,6 +112,34 @@ def _safe_metadata(raw: Any) -> dict[str, Any]:
     return {}
 
 
+#: What the retrieval organ reports before it has a distribution to compare
+#: against, and therefore what an ordinary moment reads as. Above it, the
+#: moment is more unlike her ordinary life than an ordinary one is.
+ORDINARY_NOVELTY: float = 0.5
+
+
+def novelty_deepens(novelty: float) -> int:
+    """How much further to look, given how unlike her ordinary life this is.
+
+    A moment she has no precedent for is searched wider: her existing memories
+    are less likely to answer it in the first few, which is the same argument
+    the retrieval organ already makes for choosing a broader plan.
+
+    Development's only other route into recall is that organ's discrete breadth
+    choice, and it starts by agreeing with the incumbent plan — so over a
+    sixty-round campaign it never disagreed, the plan was identical in every
+    arm, and displacing development changed nothing that came back. N->M
+    measured exactly 0.000 with a p-value of one.
+    """
+    try:
+        reading = float(novelty)
+    except (TypeError, ValueError):
+        return 0
+    if reading != reading:  # NaN is an absent reading, not a novel moment
+        return 0
+    return 1 if reading > ORDINARY_NOVELTY else 0
+
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -276,6 +304,26 @@ class MemoryRetrievalPhase(BasePhase):
             homeostasis = ServiceContainer.get("homeostasis", default=None)
             if homeostasis and _safe_float(homeostasis.compute_vitality(), default=0.5) < 0.35:
                 retrieval_limit = max(2, retrieval_limit - 2)  # Low energy: conserve
+            # A moment unlike the ordinary run of her life is searched wider:
+            # her existing memories are less likely to answer it on the first
+            # few, which is the same argument the retrieval organ already makes
+            # for choosing a broader plan.
+            #
+            # Development had one route into recall and it was that organ's
+            # discrete breadth choice, which starts by agreeing with the
+            # incumbent and only disagrees once its head has learned. Over a
+            # sixty-round campaign it never disagreed, so the plan was identical
+            # in every arm and displacing development changed nothing that came
+            # back: N->M measured exactly 0.000 with a p-value of one. This is
+            # a continuous dependence on the same reading, in the form every
+            # other modulation here takes.
+            #
+            # The reference is the organ's own: `novelty()` returns 0.5 until it
+            # has a distribution to compare against, so above a half is more
+            # unlike her ordinary life than an ordinary moment is.
+            from core.ontogeny.control_points import novelty_now
+
+            retrieval_limit += novelty_deepens(novelty_now())
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(
                 exc,
@@ -357,6 +405,15 @@ class MemoryRetrievalPhase(BasePhase):
         # set the limit, and with the skip keyed on the words alone none of them
         # could change what came back for as long as the objective stayed the
         # same. The cost the skip saves is still saved for a repeated question.
+        # Asking again goes further rather than returning early. The ladder
+        # doubles, so the second asking looks one deeper and the eighth three,
+        # and because the depth is part of the key below, a repeat is no longer
+        # skipped. See core/memory/reliving.py.
+        from core.memory.reliving import deeper, get_match_ledger, get_return_ledger
+
+        returns = get_return_ledger().returns(query)
+        retrieval_limit += deeper(returns)
+
         recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
         if recall_key == getattr(state.cognition, "last_retrieval_query", None):
             return state
@@ -727,6 +784,20 @@ class MemoryRetrievalPhase(BasePhase):
         # and her feeling never heard about it. The intensity is the best match
         # score, so a faint recollection moves affect faintly and there is no
         # threshold to choose.
+        # Whether this is a recall she relives or one she looked up. A match
+        # far above the matches she usually gets brings the feeling back with
+        # it, and the feeling is the one stored with what came back — the same
+        # quantity the affective hit above is computed from.
+        # See core/memory/reliving.py.
+        recalled_feeling = (total_valence_hit / memory_hits) if memory_hits else 0.0
+        reliving = get_match_ledger().reading(
+            float(scores[0]) if scores else 0.0,
+            recalled_feeling,
+            returns=returns,
+        )
+        new_state.cognition.relived = reliving.as_dict()
+        get_return_ledger().note(query)
+
         try:
             from core.state.percepts import emit_percept
 
@@ -736,6 +807,8 @@ class MemoryRetrievalPhase(BasePhase):
                 content=str(memories[0])[:200],
                 intensity=max(0.0, min(1.0, float(scores[0]) if scores else 0.0)),
                 source="memory_retrieval",
+                relived=reliving.relived,
+                feeling=round(recalled_feeling, 4),
             )
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(

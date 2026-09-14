@@ -37,21 +37,33 @@ from core.brain.llm.latent_cortex.semantic_surface_adapter import (  # noqa: E40
     execute_scientific_surface,
     render_scientific_surface,
 )
+from core.brain.llm.public_channel_decode import (  # noqa: E402
+    PUBLIC_CHANNEL_DECODE_POLICY,
+    decode_public_greedy,
+)
 from core.brain.llm.unified_recurrent_transfer_decode import (  # noqa: E402
     decode_base_greedy_tokens,
 )
 from core.learning.frontier_process_supervision import (  # noqa: E402
     frontier_process_task_battery,
 )
+from core.learning.public_decode_evidence import public_decode_coverage  # noqa: E402
 from core.learning.semantic_neural_controls import (  # noqa: E402
     SEMANTIC_FAMILY_LESIONS,
     semantic_neural_family_lesion_machine,
 )
 from core.learning.semantic_neural_machine import SemanticNeuralMachine  # noqa: E402
+from core.learning.semantic_task_grading import (  # noqa: E402
+    LEGACY_GRADING_POLICY,
+    SEMANTIC_GRADING_POLICY,
+    grade_semantic_task,
+)
 from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from core.runtime.model_lane_control import standalone_model_lane  # noqa: E402
 
 CANARY_SCHEMA: Final = "aura.rlc.semantic_neural_decode_canary.v1"
+PUBLIC_CANARY_SCHEMA: Final = "aura.rlc.semantic_neural_decode_canary.v2"
+LEGACY_DECODE_POLICY: Final = "legacy_raw_text_v1"
 JOURNAL_SCHEMA: Final = "aura.rlc.semantic_neural_decode_journal.v1"
 LEGACY_CLAIM_BOUNDARY: Final = (
     "bounded teacher-free multi-domain neural-state-to-free-decode transfer on "
@@ -90,6 +102,14 @@ SOURCE_PATHS: Final = (
 SURFACE_SOURCE_PATHS: Final = (
     *SOURCE_PATHS,
     "core/brain/llm/latent_cortex/semantic_surface_adapter.py",
+)
+PUBLIC_DECODE_SOURCE_PATHS: Final = (
+    "core/brain/llm/public_channel_decode.py",
+    "core/brain/llm/chat_format.py",
+    "core/brain/llm/latent_cortex/answer_contract.py",
+    "core/learning/public_decode_evidence.py",
+    "core/learning/semantic_task_grading.py",
+    "core/reasoning/asymptotic.py",
 )
 SURFACE_PROFILES: Final = (
     "canonical",
@@ -291,6 +311,27 @@ def _complete(tokenizer: Any, token_ids: tuple[int, ...]) -> bool:
     }
 
 
+def _decode_attempt(model, tokenizer, prompt, *, prefill, max_tokens, policy, progress=None):
+    if policy == PUBLIC_CHANNEL_DECODE_POLICY:
+        result = decode_public_greedy(
+            model, tokenizer, prompt, max_tokens=max_tokens, public_prefill=prefill,
+            completion_check=lambda text: contract_decode_disposition(text) in {
+                ContractDecodeDisposition.COMPLETE, ContractDecodeDisposition.INVALID,
+            },
+            progress=progress,
+        )
+        return result.text, result.stopped, result.generated_tokens, result.latency_ms, result.receipt()
+    if policy != LEGACY_DECODE_POLICY:
+        raise ValueError("unknown semantic decode policy")
+    generated, stopped, latency = decode_base_greedy_tokens(
+        model, prompt, eos_token_id=tokenizer.eos_token_id, max_tokens=max_tokens,
+        prefill_tokens=prefill, completion_check=lambda values: _complete(tokenizer, values),
+        progress=progress,
+    )
+    return (tokenizer.decode(list(generated), skip_special_tokens=True), stopped,
+            len(generated) - len(prefill), latency, None)
+
+
 def _wire_prefill(tokenizer: Any, family: str) -> tuple[int, ...]:
     prefixes = {
         "frontier_coding": 'FINAL_ANSWER: {"returns":',
@@ -366,8 +407,8 @@ def _summary(rows: list[dict[str, Any]], arm: str) -> dict[str, Any]:
     return {**body, "receipt_sha256": _sha(body)}
 
 
-def _grade(task: Any, response: str) -> tuple[bool, bool]:
-    verdict = task.grade(response)
+def _grade(task: Any, response: str, *, policy: str = LEGACY_GRADING_POLICY) -> tuple[bool, bool]:
+    verdict = grade_semantic_task(task, response, policy=policy)
     if not isinstance(verdict, dict) or type(verdict.get("correct")) is not bool:
         raise RuntimeError("semantic decode grader returned an invalid verdict")
     return bool(verdict["correct"]), verdict.get("parsed") is not None
@@ -391,7 +432,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=20_260_815_48)
     parser.add_argument("--tasks-per-difficulty", type=int, default=3)
-    parser.add_argument("--max-tokens", type=int, default=384)
+    parser.add_argument("--max-tokens", type=int)
+    parser.add_argument("--decode-policy", choices=(PUBLIC_CHANNEL_DECODE_POLICY, LEGACY_DECODE_POLICY),
+                        default=PUBLIC_CHANNEL_DECODE_POLICY)
     parser.add_argument("--surface-profile", choices=SURFACE_PROFILES, default="canonical")
     parser.add_argument(
         "--source-commit",
@@ -418,8 +461,13 @@ def _lane_kwargs(model_path: Path, output: Path) -> dict[str, Any]:
 def _run(args: argparse.Namespace, model_path: Path) -> int:
     if not 2 <= args.tasks_per_difficulty <= 20:
         raise ValueError("semantic decode task count is outside [2, 20]")
-    if not 32 <= args.max_tokens <= 384:
-        raise ValueError("semantic decode token budget is outside [32, 384]")
+    public_decode = args.decode_policy == PUBLIC_CHANNEL_DECODE_POLICY
+    grading_policy = SEMANTIC_GRADING_POLICY if public_decode else LEGACY_GRADING_POLICY
+    if args.max_tokens is None:
+        args.max_tokens = 4096 if public_decode else 384
+    ceiling = 8192 if public_decode else 384
+    if not 32 <= args.max_tokens <= ceiling:
+        raise ValueError(f"semantic decode token budget is outside [32, {ceiling}]")
     domains = tuple(args.domains)
     if not domains or len(domains) != len(set(domains)):
         raise ValueError("semantic decode domains must be a non-empty unique sequence")
@@ -466,6 +514,8 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
             "arm_count": len(ARMS),
             "surface_profile": args.surface_profile,
             "resident_manifest_identity": resident_manifest_identity,
+            **({"decode_policy": args.decode_policy, "grading_policy": grading_policy,
+                "max_tokens": args.max_tokens} if public_decode else {}),
         },
         previous_receipt_sha256="0" * 64,
     )
@@ -523,15 +573,16 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
                     else render_semantic_neural_decode_correction(selected)
                 )
                 prompt = _prompt_tokens(tokenizer, task.prompt, active_context)
-                generated, stopped, attempt_latency_ms = decode_base_greedy_tokens(
-                    model,
-                    prompt,
-                    eos_token_id=tokenizer.eos_token_id,
-                    max_tokens=args.max_tokens,
-                    prefill_tokens=active_prefill,
-                    completion_check=lambda values: _complete(tokenizer, values),
+                def progress(count, task_id=task.task_id, arm_name=arm, attempt_number=attempt_index + 1):
+                    if count % 256 == 0:
+                        print(json.dumps({"event": "decode_progress", "task_id": task_id,
+                                          "arm": arm_name, "attempt": attempt_number,
+                                          "generated_tokens": count}), flush=True)
+
+                text, stopped, sampled, attempt_latency_ms, decode_receipt = _decode_attempt(
+                    model, tokenizer, prompt, max_tokens=args.max_tokens,
+                    prefill=active_prefill, policy=args.decode_policy, progress=progress,
                 )
-                text = tokenizer.decode(list(generated), skip_special_tokens=True)
                 raw_text = text
                 wire_normalized = False
                 if selected is not None:
@@ -540,7 +591,7 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
                         text,
                     )
                 prompt_tokens += len(prompt)
-                generated_tokens += len(generated) - len(active_prefill)
+                generated_tokens += sampled
                 latency_ms += attempt_latency_ms
                 serialization_verified = (
                     semantic_result_matches_response(selected, text)
@@ -557,11 +608,13 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
                         "prefill_tokens": len(active_prefill),
                         "serialization_verified": serialization_verified,
                         "wire_normalized": wire_normalized,
+                        **({"decode": decode_receipt, "prompt_tokens": len(prompt)}
+                           if public_decode else {}),
                     }
                 )
                 if selected is None or serialization_verified:
                     break
-            correct, parsed = _grade(task, text)
+            correct, parsed = _grade(task, text, policy=grading_policy)
             row = {
                 "task_id": task.task_id,
                 "family": task.family,
@@ -627,8 +680,10 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
     gain_set = sorted(key for key, value in treatment.items() if value and not base[key])
     regressions = sorted(key for key, value in treatment.items() if not value and base[key])
     treatment_accuracy = float(arms["treatment"]["exact_accuracy"])
+    coverage = public_decode_coverage(raw_outputs, max_tokens=args.max_tokens) if public_decode else None
     admitted = bool(
         treatment_accuracy == 1.0
+        and (coverage is None or coverage["uncensored"])
         and gain_set
         and not regressions
         and all(
@@ -637,15 +692,13 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         )
     )
     payload = {
-        "schema": CANARY_SCHEMA,
+        "schema": PUBLIC_CANARY_SCHEMA if public_decode else CANARY_SCHEMA,
         "source_commit": source_commit,
         "source_sha256s": {
             path: _file_sha(REPO_ROOT / path)
-            for path in (
-                SURFACE_SOURCE_PATHS
-                if args.surface_profile != "canonical"
-                else SOURCE_PATHS
-            )
+            for path in (*(
+                SURFACE_SOURCE_PATHS if args.surface_profile != "canonical" else SOURCE_PATHS
+            ), *(PUBLIC_DECODE_SOURCE_PATHS if public_decode else ()))
         },
         "model_identity": {
             "path": str(model_path),
@@ -681,6 +734,9 @@ def _run(args: argparse.Namespace, model_path: Path) -> int:
         "journal_path": str(journal_path),
         "journal_last_decode_receipt_sha256": journal_receipt,
         "raw_outputs": raw_outputs,
+        **({"decode_policy": args.decode_policy, "grading_policy": grading_policy,
+            "max_tokens": args.max_tokens, "decode_coverage": coverage, "rows": rows}
+           if public_decode else {}),
     }
     payload["receipt_sha256"] = _sha(payload)
     atomic_write_text(args.out, json.dumps(payload, indent=2, sort_keys=True) + "\n")

@@ -14,7 +14,7 @@
 #
 # 29 outbound edges after the common procedure currency gained evidence provenance.
 
-description = "core.learning may use cognition's procedure currency and the shared evidence algebra; other new core edges remain explicit."
+description = "core.learning may use cognition's procedure currency, shared evidence algebra, and the structural invariant registrar; other new core edges remain explicit."
 
 include_rules = [
     "+core.learning",
@@ -49,6 +49,9 @@ include_rules = [
     "+core.skills",
     "+core.tasks",
     "+core.utils",
+    # Declare checks next to measured learning evidence. This registrar has
+    # no dependency on learning; broader verifier dependencies remain denied.
+    "+core.verify.invariants",
     "+core.will",
     "+core.world_model",
 

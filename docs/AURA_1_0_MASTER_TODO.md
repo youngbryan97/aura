@@ -726,12 +726,34 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [joint-score trial](evidence/G03_JOINT_SCORE_TRIAL_2026-09-13.md) is incomplete
   and not promoted after a split regression. Decode-local score reuse preserves
   all 48 paired weave rows under the default policy. G03 remains open.
+  [Operation label alternatives](evidence/G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md)
+  scored 459/500 with five regressions and no gains against the 464/500 parent.
+  Both complete trials are retained; neither candidate is promoted.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
+  [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
+  found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
+  One real 27B development task now reaches a correct public result after
+  3,027 tokens; the old exact-wire grader rejects only its valid Theta
+  notation. Versioned channel/semantic measurement repairs preserve the
+  historical records. This is not fresh gain evidence or G05/G06 closure.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
+  independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
+  A separate semantic audit preserves that result but identifies missing public
+  operation definitions, disabled native thinking, and one repeated construction.
+  This is serialization evidence, not G06 closure.
+  [Native coding diagnostic](evidence/G06_NATIVE_CODING_DIAGNOSTIC_2026-09-14.md)
+  replays 30 uncensored decodes: ordinary native reasoning 6/6, treatment 6/6,
+  controls 0/6. No accuracy gain; decode latency differs. The negative result
+  is retained, with no admission or serving authority.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
+  repairs missing-setting confirmation, mutable plans, nonfinite measurements,
+  and unchecked arm inventories. Fifty-six focused tests pass; this does not
+  turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
@@ -755,6 +777,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   runtime. Actual reads link to their latest writers; telemetry failure cannot
   discard a computed answer. The 167-test CPU pass is not broad live evidence
   or independent task-outcome learning. G09 remains open.
+  [Outcome learning evidence](evidence/G09_OUTCOME_LEARNING_EVIDENCE_2026-09-14.md)
+  repairs the production feed that taught unobserved expirations as failures.
+  Sixty-one focused tests pass; shared procedure assessment and broad gain remain open.
+  [Conclusive verification](evidence/G09_CONCLUSIVE_VERIFICATION_2026-09-14.md)
+  now agrees with the shared verdict when one checking engine fails. Candidate
+  ranking is unchanged; independent task assessment remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

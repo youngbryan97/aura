@@ -62,6 +62,22 @@ def extract_features(
     casual = min(1.0, len(_CONTRACTION.findall(t)) / 4.0)
     stance = min(1.0, sum(low.count(m) for m in _STANCE) / 2.0)
 
+    # How close this candidate's shape is to the shape of what they just said.
+    # Who it is about, how much of it asks, how varied it is — the register
+    # reading, which measures the same quantities on both sides. Matching how
+    # somebody is speaking is the other half of matching how much they said.
+    # See core/expression/register.py.
+    register_match = 0.0
+    try:
+        from core.expression.register import comparable, distance, read
+
+        theirs = read(user_message)
+        mine = read(t)
+        if comparable(theirs, mine):
+            register_match = max(0.0, 1.0 - distance(theirs, mine))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        register_match = 0.0
+
     grounding_tokens = grounding_tokens or set()
     callback = min(1.0, len(set(toks) & grounding_tokens) / 5.0) if grounding_tokens else 0.0
 
@@ -88,6 +104,7 @@ def extract_features(
         "callback": callback,
         "casual": casual,
         "length_fit": length_fit,
+        "register_match": register_match,
         "anti_generic": anti_generic,
         "hedge_penalty": hedge_penalty,
         "prompt_farm_penalty": prompt_farm_penalty,

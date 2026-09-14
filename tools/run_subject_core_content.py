@@ -97,6 +97,16 @@ def _authority(evidence: dict[str, Any]) -> dict[str, Any]:
             f"{len(silent)} classes brought back nothing at all, so the behavioural "
             f"geometry has no reading for them: {silent[:4]}"
         )
+    b_floor = evidence.get("behavioural_floor", {})
+    behavioural = evidence.get("behavioural", {})
+    if behavioural and b_floor:
+        worst = max(b_floor.values())
+        smallest = min(behavioural.values())
+        if smallest <= worst:
+            blockers.append(
+                f"two classes recall no more differently ({smallest:.5f}) than one class "
+                f"recalls from itself ({worst:.5f}), so retrieval does not separate the percepts"
+            )
     if internal and floor:
         worst_floor = max(floor.values())
         smallest = min(internal.values())
@@ -159,6 +169,7 @@ async def main() -> int:
 
     from core.subject.content import agreement, design_recovery, gauge, moves_together
     from core.subject.content_runtime import (
+        behavioural_floor,
         behavioural_geometry,
         grid,
         internal_geometry,
@@ -256,6 +267,8 @@ async def main() -> int:
         evidence["internal_floor"] = {f"{i}-{j}": round(v, 6) for (i, j), v in floor.items()}
         evidence["behavioural"] = _as_json(behavioural)
         evidence["behavioural_coverage"] = {k: round(v, 4) for k, v in coverage.items()}
+        b_floor = behavioural_floor(base, classes)
+        evidence["behavioural_floor"] = {k: round(v, 6) for k, v in b_floor.items()}
         _log(
             f"  internal pairs {len(internal)}, behavioural pairs {len(behavioural)}, "
             f"classes that recalled nothing "

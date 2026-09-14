@@ -489,7 +489,10 @@ def _operation_nodes(
     max_span_tokens: int,
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    label_limit: int = 1,
 ) -> tuple[_OperationNode, ...]:
+    if type(label_limit) is not int or not 1 <= label_limit <= len(classifier.labels):
+        raise ValueError("operation label limit is outside the learned vocabulary")
     nodes: list[_OperationNode] = []
     for span, pointer_score in pointer.decode_candidates(
         hidden,
@@ -498,8 +501,7 @@ def _operation_nodes(
     ):
         if any(_overlap(span, input_span) for input_span in input_spans):
             continue
-        operation, confidence = classifier.predict(
-            tuple(
+        features = tuple(
                 _operation_feature(
                     hidden,
                     span,
@@ -509,17 +511,23 @@ def _operation_nodes(
                 )
                 for mode in classifier.modes
             )
-        )
-        score = float(pointer_score + math.log(max(confidence, 1e-12)))
-        nodes.append(
-            _OperationNode(
-                span=span,
-                operation=operation,
-                score=score,
-                pointer_score=float(pointer_score),
-                confidence=confidence,
+        if label_limit == 1:
+            alternatives = (classifier.predict(features),)
+        else:
+            probabilities = classifier.predict_probabilities(features)
+            order = np.argsort(-probabilities, kind="stable")[:label_limit]
+            alternatives = tuple((classifier.labels[index], float(probabilities[index])) for index in order)
+        for operation, confidence in alternatives:
+            score = float(pointer_score + math.log(max(confidence, 1e-12)))
+            nodes.append(
+                _OperationNode(
+                    span=span,
+                    operation=operation,
+                    score=score,
+                    pointer_score=float(pointer_score),
+                    confidence=confidence,
+                )
             )
-        )
     return tuple(nodes)
 
 
