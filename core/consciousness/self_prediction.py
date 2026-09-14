@@ -401,6 +401,11 @@ class SelfPredictionLoop:
             )
             if self._expectation.confirmed():
                 self._confirmation_count += 1
+            # The same reading, kept as a pattern: a run of being right, and
+            # the surprise that turns it. See core/affect/frisson.py.
+            from core.affect.frisson import get_frisson_ledger
+
+            get_frisson_ledger().note(self._expectation)
         except (ImportError, AttributeError, TypeError, ValueError):
             self._expectation = None
 

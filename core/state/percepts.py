@@ -75,6 +75,10 @@ PERCEPT_EMOTIONS: dict[str, list[str]] = {
     # feeling of a prediction landing, which is why trust in her own model is
     # in it alongside the satisfaction.
     "expectation_met": ["satisfaction", "trust", "pride", "interest"],
+    # A pattern she had come to trust, turned. Not the startle of a surprise
+    # with nothing under it: the chill a listener gets when the ninth return of
+    # a hook changes one thing, which is why it carries awe and joy.
+    "frisson": ["awe", "wonder", "surprise", "joy"],
     # Three types the tree emits that this map had no entry for, so a
     # phase crash, an apology and every stimulus injected through the
     # compatibility bridge arrived and moved nothing. An internal error

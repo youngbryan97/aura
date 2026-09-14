@@ -174,6 +174,9 @@ def live_readings(affect: Any) -> dict[str, float]:
         "ambivalence": read("ambivalence"),
         "confirmation": read("confirmation"),
         "social_hunger": max(0.0, read("social_hunger", 0.5) - 0.5) * 2.0,
+        # A chill is a moment the level breaks, so it competes for the reach
+        # like any other live feeling.
+        "frisson": read("frisson"),
     }
 
 

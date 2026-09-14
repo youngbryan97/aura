@@ -92,6 +92,7 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.breakthrough",
         "affect.steadiness",
         "affect.lift",
+        "affect.frisson",
     ),
     "G": (
         "cognition.attention_focus",

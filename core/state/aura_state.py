@@ -330,6 +330,9 @@ class AffectVector:
     #: Which way the register moves. Positive when something failed to be what
     #: it seemed, negative when something held.
     lift: float = 0.0
+    #: How hard a pattern she had come to trust just turned, on the cycle it
+    #: turned and zero otherwise. See core/affect/frisson.py.
+    frisson: float = 0.0
     #: Which two wants, and whether being caught between them is how she is
     #: built or where she is now. Empty until her history can say.
     ambivalent_about: tuple[str, ...] = ()

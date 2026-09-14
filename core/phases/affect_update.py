@@ -330,7 +330,11 @@ class AffectUpdatePhase(Phase):
         # 6b-iii. And whether what happened is what she expected.
         self._read_confirmation(state, affect)
 
-        # 6b-iv. The level she is speaking from, what breaks through it, and
+        # 6b-iv. Whether a pattern she had come to trust just turned. Before
+        # delivery, because a chill is a moment the level breaks.
+        self._read_frisson(state, affect)
+
+        # 6b-v. The level she is speaking from, what breaks through it, and
         # how long a breath is this cycle. After the contradiction and the
         # confirmation, because either can be the strongest feeling live.
         self._read_delivery(state, affect)
@@ -446,6 +450,39 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_frisson(self, state: AuraState, affect: AffectVector) -> None:
+        """A chill, on the cycle a trusted pattern turns and on no other.
+
+        The self prediction loop feeds every scored prediction to the frisson
+        ledger. Taken rather than peeked, so one turn is felt once however
+        often this phase runs before the next prediction is scored. Emitted as
+        a percept so the emotion table carries it and lets it settle the way
+        it settles everything else.
+        """
+        try:
+            from core.affect.frisson import get_frisson_ledger
+            from core.state.percepts import emit_percept
+
+            reading = get_frisson_ledger().take()
+            affect.frisson = float(reading.intensity) if reading.fired else 0.0
+            affect.markers["frisson"] = reading.as_dict()
+            if reading.fired:
+                emit_percept(
+                    state.world,
+                    "frisson",
+                    content="something I had come to trust just changed",
+                    intensity=affect.frisson,
+                    source="self_prediction",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="frisson",
+                action="kept affect state without the frisson reading",
                 severity="warning",
             )
 
