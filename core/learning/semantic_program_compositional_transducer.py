@@ -523,7 +523,7 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("argument_proposal_retention", "ranked_v1")
             not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
-            not in {"unfiltered_v1", "register_edge_bounds_v2"}
+            not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
@@ -892,12 +892,12 @@ class CompositionalSemanticProgramTransducer:
         body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
-    def with_feasible_operation_charts(self) -> CompositionalSemanticProgramTransducer:
+    def with_feasible_operation_charts(self, *, preserve_arity_states=False) -> CompositionalSemanticProgramTransducer:
         """Spend chart capacity only on cardinalities permitted by the graph contract."""
         body = {
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
-        body["operation_chart_feasibility"] = "register_edge_bounds_v2"
+        body["operation_chart_feasibility"] = "arity_state_bounds_v3" if preserve_arity_states else "register_edge_bounds_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
@@ -1017,7 +1017,8 @@ class CompositionalSemanticProgramTransducer:
                 lambda selected: _operation_chart_use_feasible(
                     selected, n_inputs=len(inputs), contract=self.register_use_contract,
                 )
-            ) if self.training_receipt.get("operation_chart_feasibility") == "register_edge_bounds_v2" else None,
+            ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
+            preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
         )
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})

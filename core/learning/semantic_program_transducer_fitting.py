@@ -569,12 +569,21 @@ def _best_nonoverlapping_node_charts(
     count: int,
     *,
     limit: int,
+    preserve_arity_states: bool = False,
 ) -> tuple[tuple[float, tuple[_OperationNode, ...]], ...]:
-    """Exact top-k cardinality-constrained weighted interval scheduling."""
+    """Top-k interval charts, optionally per sufficient arity state.
+
+The feasibility bounds depend only on cardinality, total edges and maximum
+arity. Keeping k prefixes per such state preserves the feasible top-k;
+discarding them across states before testing feasibility does not.
+"""
 
     if limit < 1:
         raise ValueError("compositional operation-chart limit must be positive")
-    ordered = tuple(sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score)))
+    ordered = tuple(sorted(
+        (node for node in nodes if not preserve_arity_states or semantic_primitive_type_signature(node.operation) is not None),
+        key=lambda item: (item.span.end, item.span.start, -item.score),
+    ))
     previous: list[int] = []
     for index, node in enumerate(ordered):
         prior = index - 1
@@ -603,15 +612,25 @@ def _best_nonoverlapping_node_charts(
                 incumbent = unique.get(key)
                 if incumbent is None or candidate[0] > incumbent[0]:
                     unique[key] = candidate
-            table[index][size] = tuple(
-                sorted(
+            ranked = sorted(
                     unique.values(),
                     key=lambda item: (
                         -item[0],
                         tuple((node.span.start, node.span.end) for node in item[1]),
                     ),
-                )[:limit]
-            )
+                )
+            if preserve_arity_states:
+                buckets = Counter()
+                retained = []
+                for candidate in ranked:
+                    arities = [len(semantic_primitive_type_signature(n.operation)[0]) for n in candidate[1]]
+                    state = (sum(arities), max(arities, default=0))
+                    if buckets[state] < limit:
+                        retained.append(candidate)
+                        buckets[state] += 1
+                table[index][size] = tuple(retained)
+            else:
+                table[index][size] = tuple(ranked[:limit])
     return table[len(ordered)][count]
 
 
@@ -622,6 +641,7 @@ def _operation_chart_candidates(
     length_penalty: float,
     limit: int = _OPERATION_CHART_BEAM,
     feasible: Callable[[Sequence[_OperationNode]], bool] | None = None,
+    preserve_arity_states: bool = False,
 ) -> tuple[tuple[_OperationNode, ...], ...]:
     candidates = [
         (score - length_penalty * count, selected)
@@ -630,6 +650,7 @@ def _operation_chart_candidates(
             nodes,
             count,
             limit=limit,
+            preserve_arity_states=preserve_arity_states,
         )
         if feasible is None or feasible(selected)
     ]

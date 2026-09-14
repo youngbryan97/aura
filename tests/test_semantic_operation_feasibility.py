@@ -47,3 +47,41 @@ def test_every_enumerated_valid_connected_program_passes_the_bound(inputs, opera
 def test_unknown_operation_is_not_a_feasibility_claim():
     assert not _operation_chart_use_feasible((node(0, "not-an-operation"),), n_inputs=2,
         contract=RegisterUseContract(0, 3, 0, 3, False))
+
+
+def test_partial_arity_states_preserve_lower_scored_feasible_charts():
+    nodes = (node(0, 'neg', 20.), node(1, 'neg', 19.), node(2, 'add', 2.), node(3, 'add', 1.))
+    contract = RegisterUseContract(1, 1, 1, 1, True)
+    feasible = lambda chart: _operation_chart_use_feasible(chart, n_inputs=3, contract=contract)
+    assert not _operation_chart_candidates(nodes, max_steps=2, length_penalty=0., limit=1, feasible=feasible)
+    charts = _operation_chart_candidates(nodes, max_steps=2, length_penalty=0., limit=1,
+                                        feasible=feasible, preserve_arity_states=True)
+    assert len(charts) == 1
+    assert tuple(n.operation for n in charts[0]) == ('add', 'add')
+
+
+def test_arity_state_search_matches_exhaustive_feasible_top_k():
+    nodes = tuple(node(index, 'neg' if index % 2 else 'add', float(8-index)) for index in range(6))
+    contract = RegisterUseContract(1, 1, 1, 1, True)
+    feasible = lambda chart: _operation_chart_use_feasible(chart, n_inputs=3, contract=contract)
+    exhaustive = [chart for count in range(1, 4) for chart in itertools.combinations(nodes, count) if feasible(chart)]
+    exhaustive.sort(key=lambda chart: (-sum(n.score for n in chart), len(chart), tuple((n.span.start, n.span.end) for n in chart)))
+    actual = _operation_chart_candidates(nodes, max_steps=3, length_penalty=0., limit=3,
+                                        feasible=feasible, preserve_arity_states=True)
+    assert actual == tuple(exhaustive[:3])
+
+
+@pytest.mark.parametrize('seed', range(5))
+def test_arity_state_search_matches_overlapping_exhaustive_charts(seed):
+    import random
+    randomizer = random.Random(seed)
+    nodes = tuple(_OperationNode(TokenSpan(i, i + 2), 'neg' if i % 3 else 'add',
+                                 randomizer.random(), 0., 1.) for i in range(8))
+    contract = RegisterUseContract(1, 1, 1, 1, True)
+    feasible = lambda chart: _operation_chart_use_feasible(chart, n_inputs=2, contract=contract)
+    exhaustive = [chart for count in range(1, 4) for chart in itertools.combinations(nodes, count)
+                  if all(a.span.end <= b.span.start for a, b in zip(chart, chart[1:])) and feasible(chart)]
+    exhaustive.sort(key=lambda chart: (-sum(n.score for n in chart) + .2 * len(chart), len(chart),
+                                      tuple((n.span.start, n.span.end) for n in chart)))
+    assert _operation_chart_candidates(nodes, max_steps=3, length_penalty=.2, limit=3,
+                                       feasible=feasible, preserve_arity_states=True) == tuple(exhaustive[:3])
