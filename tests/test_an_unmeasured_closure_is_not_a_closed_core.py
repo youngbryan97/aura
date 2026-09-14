@@ -82,3 +82,22 @@ def test_a_missing_key_reads_as_zero_rather_than_dropping_the_frame() -> None:
     assert names == ("a", "b")
     assert matrix.shape == (2, 2)
     assert matrix[0, 1] == 0.0
+
+
+def test_the_cap_covers_what_the_machine_carries() -> None:
+    """It was 400 and the walk is exhausted at 2,758, so closure saw a seventh.
+
+    A bound on cost rather than on what may be looked at. What stops one
+    organ's array from swamping the core is the per-source ceiling, and this
+    only stops the walk being unbounded.
+    """
+    assert MAX_PERIPHERY > 2758
+
+
+def test_hitting_the_cap_is_still_reported() -> None:
+    """A larger machine must be able to say the walk stopped early."""
+    from core.subject.closure import coverage
+
+    row = coverage()
+    assert "hit_the_cap" in row
+    assert "numbers_read" in row

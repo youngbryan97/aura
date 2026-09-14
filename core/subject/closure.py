@@ -50,9 +50,19 @@ __all__ = [
 #: outside the core made by a walk that stopped somewhere.
 _COVERAGE: dict[str, Any] = {}
 
-#: How many periphery numbers to keep. A cap, because one organ holding a large
-#: array would otherwise supply more columns than the whole core.
-MAX_PERIPHERY: int = 400
+#: How many periphery numbers to keep. A cost bound and nothing else: what
+#: stops one organ's large array from supplying more columns than the whole
+#: core is the per-source ceiling in `_numbers`, not this.
+#:
+#: It was 400, and the walk is exhausted at 2,758 on this machine — so closure
+#: was judged on a seventh of the periphery and reported `hit_the_cap` every
+#: time, which is the gate on the carrier decided by where the walk stopped.
+#: Set above what this machine carries, with headroom, from the measurement
+#: rather than from a round number that looked safe. The full read costs
+#: 101 ms a frame against 3.3 ms at the old cap; a gate that is wrong is worse
+#: than a gate that is slow. `coverage()["hit_the_cap"]` still says when a
+#: larger machine binds it.
+MAX_PERIPHERY: int = 4000
 
 #: How deep to walk into an object's attributes. Two levels reaches the state a
 #: phase keeps inside a helper it owns, which is where the interesting hidden
