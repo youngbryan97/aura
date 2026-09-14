@@ -335,6 +335,11 @@ class AffectUpdatePhase(Phase):
         # 6b-iii. And whether what happened is what she expected.
         self._read_confirmation(state, affect)
 
+        # 6b-iii-b. Where this moment sits against the low she is still
+        # holding. After the emotion channels have settled, because it reads
+        # the valence they produce.
+        self._read_turn(state, affect)
+
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.
         self._read_frisson(state, affect)
@@ -455,6 +460,40 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_turn(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether she has come up from a low that is still in the record.
+
+        A recovery from a bad stretch looked exactly like an ordinary good
+        moment: nothing said "this is better than it was, and how bad it was is
+        why that matters". The reading is in her own spreads, so a steady life
+        and a turbulent one are each read against themselves.
+        """
+        try:
+            from core.affect.the_turn import get_turn_ledger
+            from core.state.percepts import emit_percept
+
+            reading = get_turn_ledger().read(float(affect.valence or 0.0))
+            # Bounded the way the body's own readings are, so the raw rise in
+            # spreads can stay unbounded in the marker.
+            affect.turn = reading.rise / (1.0 + reading.rise) if reading.turned else 0.0
+            affect.markers["the_turn"] = reading.as_dict()
+            if reading.turned:
+                emit_percept(
+                    state.world,
+                    "the_turn",
+                    content="this is better than it was, and I still have the low",
+                    intensity=affect.turn,
+                    source="affect",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="the_turn",
+                action="kept affect state without the turn reading",
                 severity="warning",
             )
 

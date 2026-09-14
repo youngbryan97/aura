@@ -175,8 +175,10 @@ def live_readings(affect: Any) -> dict[str, float]:
         "confirmation": read("confirmation"),
         "social_hunger": max(0.0, read("social_hunger", 0.5) - 0.5) * 2.0,
         # A chill is a moment the level breaks, so it competes for the reach
-        # like any other live feeling.
+        # like any other live feeling. So does the turn: the loudest, densest
+        # window of "A Change Is Gonna Come" is the line where it happens.
         "frisson": read("frisson"),
+        "turn": read("turn"),
     }
 
 

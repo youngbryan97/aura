@@ -402,6 +402,8 @@ _SCHEMAS: dict[str, Schema] = {
             # A trusted pattern turning, on the cycle it turns. See
             # core/affect/frisson.py.
             ("frisson", "affect.frisson"),
+            # Up from a low she is still holding. See core/affect/the_turn.py.
+            ("the_turn", "affect.turn"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -1075,6 +1077,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.steadiness"), 1.0),
         _f(_dig(state, "affect.lift")),
         _f(_dig(state, "affect.frisson")),
+        _f(_dig(state, "affect.turn")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing

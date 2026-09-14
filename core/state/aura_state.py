@@ -357,6 +357,10 @@ class AffectVector:
     #: Which way the register moves. Positive when something failed to be what
     #: it seemed, negative when something held.
     lift: float = 0.0
+    #: How far she has come up from a low she is still holding, bounded. Zero
+    #: unless both halves hold: the low is real and she is above the level.
+    #: See core/affect/the_turn.py.
+    turn: float = 0.0
     #: How hard a pattern she had come to trust just turned, on the cycle it
     #: turned and zero otherwise. See core/affect/frisson.py.
     frisson: float = 0.0

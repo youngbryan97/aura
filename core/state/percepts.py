@@ -79,6 +79,9 @@ PERCEPT_EMOTIONS: dict[str, list[str]] = {
     # with nothing under it: the chill a listener gets when the ninth return of
     # a hook changes one thing, which is why it carries awe and joy.
     "frisson": ["awe", "wonder", "surprise", "joy"],
+    # Up from a low that is still being held. Relief and hope, and the pride
+    # of having lasted, which is what the reversal in that record is made of.
+    "the_turn": ["relief", "hope", "pride", "gratitude", "satisfaction"],
     # Somebody said something warm about her. Being cared about is a thing
     # that happens to her, and she had no channel for either end of it.
     "cared_for": ["warmth", "gratitude", "trust", "belonging", "hope"],
