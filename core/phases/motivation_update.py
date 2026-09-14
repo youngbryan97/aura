@@ -168,6 +168,9 @@ class MotivationUpdatePhase(Phase):
         # And how unlike her ordinary life the moment is presses on what she
         # meant to go looking for. See `_explored`.
         self._explored(next_state)
+        # And the force of a pressure she is under goes into what she is doing,
+        # when nothing is actually damaged. See `_channelled`.
+        self._channelled(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -303,6 +306,73 @@ class MotivationUpdatePhase(Phase):
             cognition.pending_initiatives = kept
             logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
         return closed
+
+    @staticmethod
+    def _channelled(state: AuraState) -> int:
+        """Use the force of a pressure rather than only softening it.
+
+        "Judo Flip" names the move: take an opponent's momentum and turn it,
+        instead of meeting it head-on. The research behind it is about stress.
+        People who read the arousal of pressure as a resource perform better
+        under it (Crum, Salovey and Achor 2013; Jamieson and colleagues 2018; a
+        meta-analysis of the trials found d = 0.23). Emotional regulation here
+        could hold, dampen or reappraise a feeling that damage did not back,
+        and every one of those makes it smaller. Nothing used it.
+
+        The force is measured. It is a delivery breakthrough, a feeling more
+        than her own spread above the level she has been holding, whose valence
+        is against her, while nociception reads what damage there is. The share
+        that moves is z / (1 + z), the share the voice already carries a
+        breakthrough by, times how undamaged she is. That share of the distance
+        to one goes onto her most pressing open intention. It is recorded and
+        taken back out on the next turn, so it follows the pressure down, and
+        where damage cannot be read nothing is channelled, because using a
+        feeling as fuel on the assumption that nothing is hurt is exactly the
+        mistake regulation refuses to make. Returns how many intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        affect = getattr(state, "affect", None)
+        if cognition is None or affect is None:
+            return 0
+        share = 0.0
+        z = float(getattr(affect, "delivery_z", 0.0) or 0.0)
+        against = float(getattr(affect, "valence", 0.0) or 0.0) < 0.0
+        if bool(getattr(affect, "breakthrough", False)) and z > 1.0 and against:
+            try:
+                from core.affect.nociception import get_nociception_engine
+
+                damage = max(0.0, min(1.0, float(get_nociception_engine().nociceptive_pressure())))
+                share = (z / (1.0 + z)) * (1.0 - damage)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("no damage reading, so the pressure is not channelled: %s", exc)
+                share = 0.0
+
+        intentions = [
+            item
+            for bucket in ("pending_initiatives", "active_goals")
+            for item in list(getattr(cognition, bucket, None) or [])
+            if isinstance(item, dict)
+        ]
+
+        def base(item: dict) -> float:
+            urgency = max(0.0, min(1.0, float(item.get("urgency", 0.0) or 0.0)))
+            return max(0.0, min(1.0, urgency - float(item.get("pressure_lift", 0.0) or 0.0)))
+
+        pressing = max(intentions, key=base, default=None) if share > 0.0 else None
+        moved = 0
+        for item in intentions:
+            previous = float(item.get("pressure_lift", 0.0) or 0.0)
+            if item is pressing:
+                floor = base(item)
+                lift = share * (1.0 - floor)
+                item["urgency"] = round(floor + lift, 4)
+                item["pressure_lift"] = round(lift, 4)
+                moved += 1
+            elif previous:
+                item["urgency"] = round(base(item), 4)
+                item.pop("pressure_lift", None)
+                moved += 1
+        return moved
 
     #: The drives that go looking for what she does not know yet. The other
     #: three keep what she has: her energy, the people she has, her integrity.
