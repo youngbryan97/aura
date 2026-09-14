@@ -167,7 +167,23 @@ def live_readings(affect: Any) -> dict[str, float]:
         except (TypeError, ValueError):
             return default
 
+    def contained() -> float:
+        """How hard something she has not said is pressing.
+
+        Saturating rather than linear, so holding one thing for a very long
+        time cannot swamp every other feeling: the same form the constancy
+        reading uses. Pressure of one reads a half.
+        """
+        try:
+            from core.affect.containment import get_containment_ledger
+
+            pressure = float(get_containment_ledger().read().pressure)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
+        return max(0.0, pressure) / (1.0 + max(0.0, pressure))
+
     return {
+        "containment": contained(),
         "valence": abs(read("valence")),
         # Arousal rests at a half, so what counts is the departure from rest.
         "arousal": abs(read("arousal", 0.5) - 0.5) * 2.0,

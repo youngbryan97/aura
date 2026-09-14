@@ -1205,6 +1205,21 @@ class GlobalWorkspace:
             winner = self._candidates[0]
             losers = self._candidates[1:]
 
+            # What nearly won, kept rather than thrown away. The record below
+            # keeps the losers' source names and nothing about how close they
+            # came, so a source that came within a hair fifty times looked
+            # exactly like one that was never in it — and nothing could know
+            # she had been holding something.
+            # See core/affect/containment.py.
+            try:
+                from core.affect.containment import get_containment_ledger
+
+                get_containment_ledger().competition(
+                    winner.source, {c.source: scores[id(c)] for c in self._candidates}
+                )
+            except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+                pass  # no-op: a missing reader keeps no pressure
+
             # Soar's tie impasse: several candidates that nothing actually
             # discriminates. Taking [0] resolves it silently, and until now
             # nothing recorded that the choice had been arbitrary.

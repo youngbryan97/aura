@@ -1343,6 +1343,7 @@ def resource_observer(
             "core.self.revision",
             "core.self.growth",
             "core.self.standing",
+            "core.affect.containment",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()
