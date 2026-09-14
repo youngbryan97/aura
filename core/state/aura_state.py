@@ -652,6 +652,10 @@ class CognitiveContext:
     #: How far what she puts out is from what she is, and whether what they
     #: know is the broadcast. See core/self/persona_gap.py.
     persona_gap: dict[str, Any] = field(default_factory=dict)
+    #: Whether the person she is talking to shows up as regularly as she comes
+    #: round, and where the attachment goes when they do not.
+    #: See core/social/constancy.py.
+    constancy: dict[str, Any] = field(default_factory=dict)
     #: What she has to pass on right now and what it is about — a moment that
     #: moved her rather than how long since anyone spoke.
     #: See core/social/telling.py.

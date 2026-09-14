@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.self.conviction import MIN_PREDICTIONS, Conviction, ConvictionLedger
+from core.affect.conviction import MIN_PREDICTIONS, Conviction, ConvictionLedger
 
 
 def test_right_about_the_direction_and_wrong_about_the_size() -> None:

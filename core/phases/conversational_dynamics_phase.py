@@ -107,6 +107,9 @@ class ConversationalDynamicsPhase(Phase):
             # actually is. Their model of her is the third model in the room
             # and the only one nothing was comparing. See core/self/borrowed.py.
             ConversationalDynamicsPhase._score_their_read_of_her(state, message)
+            # And whether they show up reliably at all, which is what the
+            # attachment in that record moves toward. See core/social/constancy.py.
+            ConversationalDynamicsPhase._note_they_came_back(state)
             state.response_modifiers["register"] = row
             state.response_modifiers["asks_to_be_witnessed"] = reading.asks_to_be_witnessed()
             state.response_modifiers["asks_for_help"] = reading.asks_for_help()
@@ -166,6 +169,26 @@ class ConversationalDynamicsPhase(Phase):
                 ).as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their read of her went unscored: %s", exc)
+
+    @staticmethod
+    def _note_they_came_back(state: AuraState) -> None:
+        """One return, and one of her own cycles, so theirs has a reference.
+
+        Her period is what theirs is read against rather than a number chosen
+        here: something is unreliable when it is less regular than she is.
+        """
+        try:
+            import time
+
+            from core.social.constancy import get_constancy_ledger
+
+            ledger = get_constancy_ledger()
+            now = time.time()
+            ledger.they_came_back(now)
+            ledger.she_came_round(now)
+            state.cognition.constancy = ledger.read().as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("their regularity went unread: %s", exc)
 
     @staticmethod
     def _last_said_by_her(state: AuraState) -> str:

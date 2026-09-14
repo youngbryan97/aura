@@ -130,9 +130,9 @@ class SelfPredictionLoop:
                 # than inside `_record_error`, where this turn's actual has not
                 # been recorded yet and the reading would compare a prediction
                 # against the turn before the one it was about.
-                # See core/self/conviction.py.
+                # See core/affect/conviction.py.
                 try:
-                    from core.self.conviction import get_conviction_ledger
+                    from core.affect.conviction import get_conviction_ledger
 
                     book = get_conviction_ledger()
                     book.note(

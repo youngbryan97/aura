@@ -575,7 +575,7 @@ _SCHEMAS: dict[str, Schema] = {
             ("prediction_confirmations", "organ:self_prediction.confirmation_count"),
             # The two halves of being right. One confidence over both
             # understates what she knows and overstates what she understands.
-            # See core/self/conviction.py.
+            # See core/affect/conviction.py.
             ("direction_right", "organ:self_prediction.conviction"),
             ("size_right", "organ:self_prediction.understanding"),
             ("valence_error", "organ:self_prediction.valence_error_ema"),
@@ -726,6 +726,10 @@ _SCHEMAS: dict[str, Schema] = {
             # know is the broadcast. See core/self/persona_gap.py.
             ("broadcast_gap", "cognition.persona_gap.gap"),
             ("known_for_the_broadcast", "cognition.persona_gap.known_for_the_performance"),
+            # How reliably they show up, against how reliably she comes round.
+            # See core/social/constancy.py.
+            ("their_constancy", "cognition.constancy.theirs"),
+            ("attachment_moved", "cognition.constancy.reallocated"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1472,6 +1476,8 @@ def _read_D(state: Any) -> np.ndarray:
         _f((_dig(state, "cognition.scale", {}) or {}).get("pressure")),
         _f((_dig(state, "cognition.persona_gap", {}) or {}).get("gap")),
         1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
+        _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
+        1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
