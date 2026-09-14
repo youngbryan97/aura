@@ -15,13 +15,16 @@
       "core/autonomy/genuine_refusal.py": 1,
       "core/being/causal_self_state.py": 1,
       "core/brain/cognitive_engine.py": 1,
-      "core/brain/inference_gate.py": 8,
+      "core/brain/inference_gate.py": 6,
+      "core/brain/inference_gate_cortex_warmup.py": 2,
       "core/brain/llm/latent_cortex/sequential_exclusion.py": 1,
-      "core/brain/llm/mlx_client.py": 12,
-      "core/brain/llm/mlx_worker.py": 2,
+      "core/brain/llm/mlx_client.py": 11,
+      "core/brain/llm/mlx_warmup_and_adapters.py": 1,
+      "core/brain/llm/mlx_worker.py": 1,
+      "core/brain/llm/mlx_worker_surface_repair.py": 1,
       "core/brain/llm_health_router.py": 1,
       "core/brain/semantic_memory.py": 1,
-      "core/consciousness/affective_steering.py": 5,
+      "core/consciousness/affective_steering.py": 3,
       "core/consciousness/crsm_loop_monitor.py": 1,
       "core/consciousness/hot_engine.py": 2,
       "core/consciousness/phi_core.py": 2,
@@ -50,7 +53,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 68
+    "total": 66
   },
   "front": {
     "per_file": {

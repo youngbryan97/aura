@@ -1097,6 +1097,28 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   1900 against its unchanged 1840 ceiling; raw debt is 833 against 854.
   Reduce the outstanding debt and rerun the tier tests; matching the exact
   inventory alone does not close this obligation.
+  2026-09-14. The module-size ratchet is green: total oversize 143,448 lines
+  against a budget of 143,448, down from 144,965 at the start of the day, by
+  extraction rather than baseline refresh — the language-growth claim cluster
+  out of model_validation (1,652 lines), the memory providers out of
+  memory_infra, the perturbation writers out of core/subject/state.py, the
+  residual sampler out of AffectiveSteeringHook, the nine post-settle readings
+  out of AffectUpdatePhase, and one method each out of UnifiedField and
+  MetabolicCoordinator (7ed9da99a, 8f0f51d52). Every one keeps its callers'
+  names. The method-size gate now credits a function that moved to another
+  module as a move rather than as a new function of its full size, so a
+  decomposition no longer reads as growth (7ed9da99a); it is still red on 21
+  functions over 400 lines that predate the baseline, `_generate_with_metadata_sink`
+  at 3,525 lines the largest, and on 42 that grew. That list is the work.
+  Same day, the prompt-steering ratchet: 313 strings across 116 modules to
+  282 across 106. Every site that asked a model for JSON in words now hands
+  `output_shape` to `router.think`, and the decoder holds the shape with the
+  grammar mask (398679f91, 6a9e7ddc5, b4e0a0e6a); the instruction text is
+  gone because nothing reads it. `task_decomposer` was calling a `route`
+  method no router has had for months — the decomposition path was dead and
+  the test double was the only thing that answered it. Codex took the mask
+  to the resident 27B: 3/3 exact public task answers at EOS with zero
+  processor refusals ([resident shape result](evidence/G05_RESIDENT_SHAPE_RESULT_2026-09-14.md)).
 - [ ] Q07 Refresh semantic ledger near code freeze; reconcile changed or
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
@@ -1135,6 +1157,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   is its own outcome. The register still has to be produced: a full run with
   the runner as it now is, once the resident model is not held by a training
   campaign.
+  2026-09-14. A 39-file batch (1,612 tests, 49 minutes on a loaded host)
+  reported three teardown errors and no failures: `hermetic resource leak` on
+  the ontogeny experience store, at three unrelated tests. The store's flusher
+  raised a flag for the length of a write so the fixture could wait it out; the
+  outcome sweeper and the maintenance loop read the same store from their own
+  threads every minute, and a read in flight at teardown carried no flag. The
+  spine counts every connection it opens now and `wait_until_quiet` waits on
+  that count (dfdb6505d). The batch's slowest step was not a test but
+  self-modification's static validation: `rglob("*.py")` over the code base
+  enumerated the venv and thirty-six worktrees under .claude/ before filtering
+  — 285,314 files, minutes of parsing per promotion on this host, and the same
+  cost on the live instance every time it promotes a fix. The walk prunes
+  those directories before entering them and skips any directory with its own
+  .git (dfdb6505d).
 - [ ] Q10 Run source-matched multi-hour soak only after short gates pass;
   inspect latency, growth, errors, capability retention, and recovery.
 - [ ] Q11 Validate installation/update/uninstall and ordinary desktop launch.

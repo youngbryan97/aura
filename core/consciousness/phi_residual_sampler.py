@@ -35,7 +35,7 @@ logger = logging.getLogger("Aura.Consciousness.PhiResidual")
 #: 8 puts the window inside eight replies at that median. The cost is one
 #: 5120-float slice per eight tokens per instrumented layer; the expensive
 #: thing this avoids is sampling during prefill, which is gated separately and
-#: is where the 58-82s first tokens came from.
+#: is where the first tokens that took 58s to 82s came from.
 PHI_SAMPLE_EVERY = 8
 
 #: How the sampler reports a fault: (exc, action=, severity=, stage=, extra=).
@@ -98,7 +98,7 @@ class PhiResidualSampler:
         # During PREFILL `h` is the whole sequence — [1, seq, 5120] — so a
         # single sample copied tens of megabytes off the GPU and stalled the
         # graph, repeatedly. Measured live 2026-07-26: ~3k-token prompts took
-        # 58-82s to a first token, roughly 50 tok/s, about twenty times slower
+        # 58s to 82s to a first token, roughly 50 tok/s, about twenty times slower
         # than this model should prefill; turns 5-7 of a conversation died on
         # that alone.
         #
