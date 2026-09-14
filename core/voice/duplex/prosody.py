@@ -33,6 +33,13 @@ _INERT_AFFECT_TURNS = 15
 _PAUSE_CEILING_MS = 220.0
 _GAIN_CEILING = 1.05
 
+# How far below a line the singers on the eighteen records start, and how long
+# they take to arrive at it: the median across records of each record's median,
+# as tools/measure_onset_bend.py measured them. artifacts/soul/onset_bend.json
+# is that measurement, and a test holds these two to it.
+_RECORDS_FROM_BELOW_CENTS = 36.2
+_RECORDS_GLIDE_MS = 116.1
+
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
@@ -61,12 +68,28 @@ class ProsodySpec:
     # Extra silence after the chunk, in ms. Pauses carry as much affect as
     # rate does — a considered answer has air around it.
     trailing_pause_ms: float = 0.0
+    # How far below the note the utterance starts, in cents, and how long it
+    # takes to arrive. Zero is no bend. Applied to the first chunk of what she
+    # says only, because a line is arrived at once. See pitch.py.
+    onset_bend_cents: float = 0.0
+    glide_ms: float = 0.0
 
     def scaled(self, *, gain: float | None = None, speed: float | None = None) -> ProsodySpec:
         return ProsodySpec(
             voice=self.voice,
             speed=speed if speed is not None else self.speed,
             gain=gain if gain is not None else self.gain,
+            trailing_pause_ms=self.trailing_pause_ms,
+            onset_bend_cents=self.onset_bend_cents,
+            glide_ms=self.glide_ms,
+        )
+
+    def without_bend(self) -> ProsodySpec:
+        """The same voice for every chunk after the first."""
+        return ProsodySpec(
+            voice=self.voice,
+            speed=self.speed,
+            gain=self.gain,
             trailing_pause_ms=self.trailing_pause_ms,
         )
 
@@ -163,6 +186,10 @@ def carry_breakthrough(spec: ProsodySpec, affect: Any | None) -> ProsodySpec:
     breakthrough moves the voice a little and a large one moves it most of the
     way: more air after the line, and a fuller voice. Speed is left alone,
     because the loudest moment of these records is held, not hurried.
+
+    The line is also bent into from underneath, by the same share of how far
+    the singers on the records start below a note, over the time they take to
+    arrive. Nothing past the glide changes pitch. See pitch.py.
     """
     if affect is None or not bool(getattr(affect, "breakthrough", False)):
         return spec
@@ -177,6 +204,8 @@ def carry_breakthrough(spec: ProsodySpec, affect: Any | None) -> ProsodySpec:
         speed=spec.speed,
         gain=round(_clamp(gain, spec.gain, _GAIN_CEILING), 3),
         trailing_pause_ms=round(_clamp(pause, spec.trailing_pause_ms, _PAUSE_CEILING_MS), 1),
+        onset_bend_cents=round(share * _RECORDS_FROM_BELOW_CENTS, 1),
+        glide_ms=_RECORDS_GLIDE_MS,
     )
 
 

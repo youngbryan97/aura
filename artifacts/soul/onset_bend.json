@@ -1,0 +1,145 @@
+{
+ "summary": {
+  "records": 18,
+  "median_from_below_cents": 36.2,
+  "median_glide_ms": 116.1,
+  "median_share_from_below": 0.365
+ },
+ "parameters": {
+  "sample_rate": 22050,
+  "hop": 256,
+  "onset_ms": 60.0,
+  "arrived_cents": 50.0,
+  "tracker_limit_cents": 300.0,
+  "listen_seconds": 150.0
+ },
+ "records": {
+  "01 I Need A Dollar - Good Things - Aloe Blacc - Audio.mp3": {
+   "onsets": 155,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.381,
+   "median_from_below_cents": 70.0,
+   "median_glide_ms": 127.7
+  },
+  "Caleborate - Soul (Music Video - The LOVE Version).mp3": {
+   "onsets": 153,
+   "median_bend_cents": -20.0,
+   "share_from_below": 0.314,
+   "median_from_below_cents": 37.5,
+   "median_glide_ms": 116.1
+  },
+  "Can you feel the Sunshine_- Sonic R (Lyrics).mp3": {
+   "onsets": 149,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.309,
+   "median_from_below_cents": 15.0,
+   "median_glide_ms": 116.1
+  },
+  "Ciscero - Beautiful Mind feat. Oddisee (Prod. by Tee-WaTT, Latrell James, J.Robb) Official Video.mp4": {
+   "onsets": 134,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.172,
+   "median_from_below_cents": 20.0,
+   "median_glide_ms": 162.5
+  },
+  "Dancing in the Moonlight.mp3": {
+   "onsets": 165,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.4,
+   "median_from_below_cents": 40.0,
+   "median_glide_ms": 139.3
+  },
+  "Daniel Caesar - Best Part (Audio) ft. H.E.R..mp3": {
+   "onsets": 141,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.468,
+   "median_from_below_cents": 40.0,
+   "median_glide_ms": 110.3
+  },
+  "Daniel Caesar - Get You ft. Kali Uchis [Official Video].mp3": {
+   "onsets": 161,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.385,
+   "median_from_below_cents": 45.0,
+   "median_glide_ms": 127.7
+  },
+  "David Bowie - Starman (HQ).mp3": {
+   "onsets": 138,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.442,
+   "median_from_below_cents": 20.0,
+   "median_glide_ms": 139.3
+  },
+  "John Legend - Used to Love U (Official Video).mp4": {
+   "onsets": 134,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.254,
+   "median_from_below_cents": 35.0,
+   "median_glide_ms": 121.9
+  },
+  "Little Person.mp3": {
+   "onsets": 153,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.386,
+   "median_from_below_cents": 30.0,
+   "median_glide_ms": 116.1
+  },
+  "Masego   Navajo (audio).mp3": {
+   "onsets": 141,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.277,
+   "median_from_below_cents": 30.0,
+   "median_glide_ms": 145.1
+  },
+  "Oddisee 'You Know Who You Are' {ft  Olivier Daysoul  on Acoustic} (Live Footage).mp4": {
+   "onsets": 136,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.39,
+   "median_from_below_cents": 45.0,
+   "median_glide_ms": 69.7
+  },
+  "Oddisee - Contradiction's Maze (Ft. Maimouna Youssef).mp3": {
+   "onsets": 90,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.089,
+   "median_from_below_cents": 10.0,
+   "median_glide_ms": 46.4
+  },
+  "Phony Ppl - Why iii Love the Moon..mp3": {
+   "onsets": 172,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.395,
+   "median_from_below_cents": 55.0,
+   "median_glide_ms": 104.5
+  },
+  "Remember The Time.mp3": {
+   "onsets": 154,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.24,
+   "median_from_below_cents": 40.0,
+   "median_glide_ms": 104.5
+  },
+  "Sam Cooke - A Change Is Gonna Come (Official Lyric Video).mp3": {
+   "onsets": 152,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.401,
+   "median_from_below_cents": 20.0,
+   "median_glide_ms": 116.1
+  },
+  "Somehow..mp3": {
+   "onsets": 146,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.349,
+   "median_from_below_cents": 20.0,
+   "median_glide_ms": 139.3
+  },
+  "Stereo - John Legend.mp3": {
+   "onsets": 121,
+   "median_bend_cents": 0.0,
+   "share_from_below": 0.289,
+   "median_from_below_cents": 60.0,
+   "median_glide_ms": 92.9
+  }
+ },
+ "failed": {}
+}

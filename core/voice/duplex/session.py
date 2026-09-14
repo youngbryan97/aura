@@ -1764,7 +1764,8 @@ class DuplexVoiceSession:
         overwrite the record of what she actually said.
         """
         spec = self._prosody_spec()
-        spec = spec.scaled(gain=spec.gain * gain)
+        # An aside is not a line she arrives at, so it carries no bend.
+        spec = spec.scaled(gain=spec.gain * gain).without_bend()
         token = CancellationToken()
         try:
             result = await self._tts.synthesize(text, spec, token)

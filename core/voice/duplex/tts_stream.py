@@ -660,6 +660,15 @@ class StreamingTts:
                     return None
 
                 samples = _resample(samples, rate, OUTPUT_RATE)
+                # Arriving at the note from underneath, when the spec carries a
+                # bend. The synthesisers take no pitch, so this is where one is
+                # given. See pitch.py.
+                if spec.onset_bend_cents > 0.0 and spec.glide_ms > 0.0:
+                    from core.voice.duplex.pitch import bend_into
+
+                    samples = bend_into(
+                        samples, OUTPUT_RATE, spec.onset_bend_cents, spec.glide_ms
+                    )
                 if spec.gain != 1.0:
                     samples = samples * float(spec.gain)
                 if spec.trailing_pause_ms > 0:
@@ -721,9 +730,14 @@ class StreamingTts:
         TTS sound synthetic.
         """
         pending: asyncio.Task[SynthesisResult | None] | None = None
+        # A line is arrived at once. The bend belongs to the first chunk of the
+        # utterance, and every chunk after it is spoken from where it arrived.
+        first = [True]
 
         async def _synth(text: str) -> SynthesisResult | None:
-            return await self.synthesize(text, spec, token)
+            chunk_spec = spec if first[0] else spec.without_bend()
+            first[0] = False
+            return await self.synthesize(text, chunk_spec, token)
 
         try:
             async for chunk in chunks:

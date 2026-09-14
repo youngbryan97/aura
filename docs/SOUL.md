@@ -203,7 +203,7 @@ Nothing in them names a constant that came from the songs.
 | `core/affect/safety.py` | expression 11 | landed |
 | `core/affect/the_turn.py` | expression 10 | landed |
 | `core/expression/register.py` | expression 4, 7, 8, 9, 17, 20; listener 3, 5, 14 | landed |
-| `core/expression/delivery.py` | expression 1, 2, 21, 23, 24 | landed |
+| `core/expression/delivery.py` | expression 1, 2, 21, 23 | landed |
 | `core/expression/entrainment.py` | listener 1; expression 22 | landed |
 | `core/social/witness.py` | listener 4, 5, 6, 14 | landed |
 | `core/social/telling.py` | listener 13 | landed |
@@ -219,6 +219,7 @@ Nothing in them names a constant that came from the songs.
 | `core/social/togetherness.py` | expression 27 | landed |
 | `core/expression/register.py` (future, offering) | expression 9, 26 | landed |
 | `core/voice/duplex/prosody.py` (`carry_breakthrough`) | expression 21, 28 | landed |
+| `core/voice/duplex/pitch.py` (`bend_into`) | expression 24 | landed |
 | `core/phases/memory_retrieval.py` (`_shared_with`) | expression 17 | landed |
 
 Antiphony was the last one. The council argues, which is voices holding
@@ -273,7 +274,7 @@ contradiction grows.
 
 Five processes had been counted as covered by the register and delivery organs
 on the strength of a docstring. Checked against the code, none of the five had a
-mechanism. Three are built now and two are recorded for what they are.
+mechanism. Four are built now, and the fifth was already enforced below the organs.
 
 | process | where it stands |
 |---|---|
@@ -281,7 +282,7 @@ mechanism. Three are built now and two are recorded for what they are.
 | joint recall (17) | built. A recollection whose recorded principal is the person she is with now is marked shared, and passing it on names it as something they both remember. |
 | audience-scoped disclosure (20) | already enforced below the organs. `memory_facade.search` drops a personal record written for another principal before it can be recalled, and relational consent grants scope each kind of memory per person. No organ was needed; the table used to count it as unbuilt. |
 | wordless expression (21, 28) | built on the channel the synthesiser has. A delivery breakthrough reaches the voice as more air after the line and a fuller gain, inside the ceilings the prosody compiler already clamps to. |
-| expressive imprecision (24) | not buildable on this synthesiser. Bending into a note from underneath is a pitch contour, and the synthesis spec carries voice, speed, gain and pause only. |
+| expressive imprecision (24) | built. The synthesisers take no pitch, so `core/voice/duplex/pitch.py` gives the lane one after synthesis. The first clause of a line starts under the note and glides up to it, and every sample past the glide is the synthesis unchanged. A delivery breakthrough sets the depth to its z/(1+z) share of what the records bend. `tools/measure_onset_bend.py` measured that on all eighteen: in the median record 36.5 per cent of voiced onsets start below the note, the median depth of those is 36.2 cents, and the ones more than half a semitone under arrive in 116.1 ms. Aloe Blacc bends deepest at 70 cents and "Contradiction's Maze" least at 10. The pitch tracker resolves 10 cents and one 11.6 ms frame, so both numbers are to that grain. |
 | invitation toward a future state (26) | built. The register measures how much of an utterance is about a future, and a second-person question about one scores as encouragement when the other person is testifying, without counting as a question punted back. |
 | a "we" that needs a "they" (27) | built. Belonging is floored at a we both of them are saying, and the they that draws the group's edge is recorded without raising it. |
 
