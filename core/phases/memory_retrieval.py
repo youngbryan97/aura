@@ -112,6 +112,34 @@ def _safe_metadata(raw: Any) -> dict[str, Any]:
     return {}
 
 
+#: What the retrieval organ reports before it has a distribution to compare
+#: against, and therefore what an ordinary moment reads as. Above it, the
+#: moment is more unlike her ordinary life than an ordinary one is.
+ORDINARY_NOVELTY: float = 0.5
+
+
+def novelty_deepens(novelty: float) -> int:
+    """How much further to look, given how unlike her ordinary life this is.
+
+    A moment she has no precedent for is searched wider: her existing memories
+    are less likely to answer it in the first few, which is the same argument
+    the retrieval organ already makes for choosing a broader plan.
+
+    Development's only other route into recall is that organ's discrete breadth
+    choice, and it starts by agreeing with the incumbent plan — so over a
+    sixty-round campaign it never disagreed, the plan was identical in every
+    arm, and displacing development changed nothing that came back. N->M
+    measured exactly 0.000 with a p-value of one.
+    """
+    try:
+        reading = float(novelty)
+    except (TypeError, ValueError):
+        return 0
+    if reading != reading:  # NaN is an absent reading, not a novel moment
+        return 0
+    return 1 if reading > ORDINARY_NOVELTY else 0
+
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -276,6 +304,26 @@ class MemoryRetrievalPhase(BasePhase):
             homeostasis = ServiceContainer.get("homeostasis", default=None)
             if homeostasis and _safe_float(homeostasis.compute_vitality(), default=0.5) < 0.35:
                 retrieval_limit = max(2, retrieval_limit - 2)  # Low energy: conserve
+            # A moment unlike the ordinary run of her life is searched wider:
+            # her existing memories are less likely to answer it on the first
+            # few, which is the same argument the retrieval organ already makes
+            # for choosing a broader plan.
+            #
+            # Development had one route into recall and it was that organ's
+            # discrete breadth choice, which starts by agreeing with the
+            # incumbent and only disagrees once its head has learned. Over a
+            # sixty-round campaign it never disagreed, so the plan was identical
+            # in every arm and displacing development changed nothing that came
+            # back: N->M measured exactly 0.000 with a p-value of one. This is
+            # a continuous dependence on the same reading, in the form every
+            # other modulation here takes.
+            #
+            # The reference is the organ's own: `novelty()` returns 0.5 until it
+            # has a distribution to compare against, so above a half is more
+            # unlike her ordinary life than an ordinary moment is.
+            from core.ontogeny.control_points import novelty_now
+
+            retrieval_limit += novelty_deepens(novelty_now())
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(
                 exc,
