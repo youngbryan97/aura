@@ -212,6 +212,13 @@ Nothing in them names a constant that came from the songs.
 | `core/self/scale.py` | expression 12 | landed |
 | `core/self/persona_gap.py` | expression 18; listener 3 | landed |
 | `core/memory/reliving.py` | listener 9, 15 | landed |
+| `core/affect/conviction.py` | expression 25 | landed |
+| `core/social/constancy.py` | expression 13 | landed |
+
+Antiphony — a second voice answering in a different register rather than
+competing with the first — is the one process on either list with nothing
+built for it. The council debates and the drafts compete; neither of those is
+what Maimouna Youssef does to Oddisee's verse.
 
 Three of them close on each other, which is how the set stopped being a list.
 The borrowed self-model asks whether somebody's read of her beats her own. That
