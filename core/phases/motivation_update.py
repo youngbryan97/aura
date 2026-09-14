@@ -155,6 +155,9 @@ class MotivationUpdatePhase(Phase):
         # What she has just recalled reminds her of what she meant to do. See
         # `_reminded`.
         self._reminded(next_state)
+        # And how unlike her ordinary life the moment is presses on what she
+        # meant to go looking for. See `_explored`.
+        self._explored(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -290,6 +293,57 @@ class MotivationUpdatePhase(Phase):
             cognition.pending_initiatives = kept
             logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
         return closed
+
+    #: The drives that go looking for what she does not know yet. The other
+    #: three keep what she has: her energy, the people she has, her integrity.
+    _SEEKING_DRIVES: frozenset[str] = frozenset({"curiosity", "growth"})
+
+    @classmethod
+    def _explored(cls, state: AuraState) -> int:
+        """Let the novelty of the moment press on seeking. Returns how many moved.
+
+        Development reached deliberation through one reading in the growth
+        branch's footing, which runs only when a drive is below its line. In
+        seed 7 of the organ campaign N -> D measured exactly zero over 48
+        trials.
+
+        A moment unlike anything she has met makes what she meant to find out
+        matter more, and a familiar one lets it settle back. An open intention
+        of a seeking drive gets novelty's share of the distance from its urgency
+        to one. Novelty is the developmental reading affect already puts on the
+        state, in [0, 1], so nothing here is chosen. The lift is recorded, and
+        each turn the previous lift is taken back out before the new one goes
+        in, so urgency follows novelty down as well as up and whatever another
+        reading added is kept.
+        """
+        modifiers = getattr(state, "response_modifiers", None) or {}
+        novelty = max(0.0, min(1.0, float(modifiers.get("ontogenetic_novelty", 0.0) or 0.0)))
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for intention in list(getattr(cognition, bucket, None) or []):
+                if not isinstance(intention, dict):
+                    continue
+                metadata = intention.get("metadata")
+                drive = str(
+                    (metadata.get("drive") if isinstance(metadata, dict) else None)
+                    or intention.get("drive")
+                    or ""
+                )
+                if drive not in cls._SEEKING_DRIVES:
+                    continue
+                previous = float(intention.get("novelty_lift", 0.0) or 0.0)
+                urgency = max(0.0, min(1.0, float(intention.get("urgency", 0.0) or 0.0)))
+                base = max(0.0, min(1.0, urgency - previous))
+                lift = novelty * (1.0 - base)
+                if abs(lift - previous) <= 0.0:
+                    continue
+                intention["urgency"] = round(base + lift, 4)
+                intention["novelty_lift"] = round(lift, 4)
+                moved += 1
+        return moved
 
     @staticmethod
     def _reminded(state: AuraState) -> int:
