@@ -183,9 +183,12 @@ class ConversationalDynamicsPhase(Phase):
             from core.social.constancy import get_constancy_ledger
 
             ledger = get_constancy_ledger()
-            now = time.time()
-            ledger.they_came_back(now)
-            ledger.she_came_round(now)
+            # Their return only. Her own period is noted once per turn by the
+            # affect phase, which runs whether or not anybody spoke — noting
+            # both here gave the two series identical timestamps by
+            # construction, so the comparison read exactly equal every time and
+            # could not have come out any other way.
+            ledger.they_came_back(time.time())
             state.cognition.constancy = ledger.read().as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their regularity went unread: %s", exc)

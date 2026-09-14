@@ -338,6 +338,10 @@ class AffectUpdatePhase(Phase):
         # 6b-iv. How small she is, and whether that costs her anything.
         self._read_scale(state, affect)
 
+        # 6b-v. And one beat of her own period, which is what somebody else's
+        # regularity is read against. See core/social/constancy.py.
+        self._note_her_own_period()
+
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
         self._read_safety(state, affect)
@@ -695,6 +699,24 @@ class AffectUpdatePhase(Phase):
                 action="kept affect state without the reading of how small she is",
                 severity="warning",
             )
+
+    @staticmethod
+    def _note_her_own_period() -> None:
+        """One turn of hers, so their regularity has something to be read against.
+
+        Noted here rather than where their return is, because this phase runs
+        whether or not anybody spoke. Noting both at the moment somebody speaks
+        gives the two series the same timestamps and the comparison can only
+        ever read equal.
+        """
+        try:
+            import time
+
+            from core.social.constancy import get_constancy_ledger
+
+            get_constancy_ledger().she_came_round(time.time())
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return
 
     def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
         """Step her lifetime state, then blend curiosity toward its novelty.
