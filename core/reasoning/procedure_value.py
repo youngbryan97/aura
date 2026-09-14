@@ -10,18 +10,20 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from core.cognition.outcome_ledger import CreditSource, OutcomeLedger, OutcomeReceipt
-from core.cognition.procedure import Backend, ProcedureRegistry
+from core.cognition.procedure import Backend, Precondition, ProcedureRegistry
 from core.cognition.procedure_execution import BackendExecutor
 from core.cognition.procedure_planning import (
     ProcedureGoalExecution,
     ProcedurePlan,
+    ProcedurePlanSearch,
     _canonical,
     execute_procedure_plan,
+    plan_procedure_candidates,
 )
 from core.reasoning.action_value import ActionValue, ActionValueModel
 
@@ -44,6 +46,35 @@ class ValuedProcedurePlan:
     action_key: str
     value: ActionValue
     situation_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class ValuedProcedureSearch:
+    search: ProcedurePlanSearch
+    ranked: tuple[ValuedProcedurePlan, ...]
+
+
+def search_valued_procedure_plans(
+    registry: ProcedureRegistry,
+    state: Mapping[str, Any],
+    requirements: Sequence[Precondition],
+    values: ActionValueModel,
+    *,
+    eligible: Collection[str] | None = None,
+    max_steps: int,
+    max_expansions: int,
+    max_plans: int,
+    situation: Mapping[str, Any] | str | None = None,
+) -> ValuedProcedureSearch:
+    """Rank real search alternatives without discarding search incompleteness.
+
+    Already satisfied goals require no execution and receive no learned action
+    identity. Search and ranking neither open nor resolve outcome receipts.
+    """
+    search = plan_procedure_candidates(registry, state, requirements, eligible=eligible,
+        max_steps=max_steps, max_expansions=max_expansions, max_plans=max_plans)
+    return ValuedProcedureSearch(search, rank_procedure_plans(registry,
+        tuple(plan for plan in search.plans if plan.procedure_ids), values, situation=situation))
 
 
 def rank_procedure_plans(

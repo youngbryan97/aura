@@ -778,6 +778,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Alternative plan search](evidence/G09_PLAN_ALTERNATIVES_2026-09-14.md) retains
+  distinct dependency paths and ranks them from independently measured task
+  outcomes across restart. 100 procedure tests pass; broad gain remains open.
   [Task-plan feedback](evidence/G09_TASK_PLAN_FEEDBACK_2026-09-14.md) connects
   whole-composition execution and external assessments to the shared value
   learner, with stable identities across restarts. Candidate generation and
@@ -824,6 +827,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  [Current-generation channel](evidence/G10_CURRENT_CHANNEL_2026-09-14.md)
+  passes the owned-layer probe at alpha 0.1: 7/8 changed answers and 10/10
+  forced-choice accuracy retained. Exact model/basis certificate archived;
+  no new-generation promotion, broad-gain claim, or live serving closure.
   2026-09-13: the shared conversion comparison no longer counts matching
   exceptions as successful agreement; 36 cross-substrate tests passed.
   This repairs a qualification primitive, not a completed fusion.

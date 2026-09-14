@@ -57,6 +57,17 @@ class ProcedureGoalExecution:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ProcedurePlanSearch:
+    """Plans found within the caller's dependency-search bounds."""
+
+    requirements: tuple[Precondition, ...]
+    plans: tuple[ProcedurePlan, ...]
+    expanded: int
+    complete: bool
+    reason: str
+
+
 def _requirement_key(requirement: Precondition) -> str:
     # Typed JSON constants cover the shared signature's persistent value space.
     return json.dumps(
@@ -137,16 +148,57 @@ def plan_procedure(
     No match is a statement about this finite search, not general inability.
     """
 
+    search = _search_procedure_plans(registry, state, requirements, eligible=eligible,
+        max_steps=max_steps, max_expansions=max_expansions, max_plans=1, distinct_paths=False)
+    return search.plans[0] if search.plans else ProcedurePlan(
+        search.requirements, (), False, search.expanded, search.reason,
+    )
+
+
+def plan_procedure_candidates(
+    registry: ProcedureRegistry,
+    state: Mapping[str, Any],
+    requirements: Sequence[Precondition],
+    *,
+    eligible: Collection[str] | None = None,
+    max_steps: int,
+    max_expansions: int,
+    max_plans: int,
+) -> ProcedurePlanSearch:
+    """Retain distinct execution paths even when they share prerequisites.
+
+    This enumerates dependency-directed proposals, not arbitrary programs or
+    padding after an already satisfied goal. Hitting any supplied bound is
+    reported separately from exhausting the dependency frontier.
+    """
+    return _search_procedure_plans(registry, state, requirements, eligible=eligible,
+        max_steps=max_steps, max_expansions=max_expansions, max_plans=max_plans, distinct_paths=True)
+
+
+def _search_procedure_plans(
+    registry: ProcedureRegistry,
+    state: Mapping[str, Any],
+    requirements: Sequence[Precondition],
+    *,
+    eligible: Collection[str] | None,
+    max_steps: int,
+    max_expansions: int,
+    max_plans: int,
+    distinct_paths: bool,
+) -> ProcedurePlanSearch:
     if type(max_steps) is not int or max_steps < 0:
         raise ValueError("max_steps must be a nonnegative integer")
     if type(max_expansions) is not int or max_expansions < 1:
         raise ValueError("max_expansions must be a positive integer")
+    if type(max_plans) is not int or max_plans < 1:
+        raise ValueError("max_plans must be a positive integer")
     requested = tuple(requirements)
     if not requested or any(not isinstance(item, Precondition) or not item.key for item in requested):
         raise ValueError("a task needs nonempty typed requirements")
     initial = _canonical(requested)
     if all(item.satisfied_by(state) for item in requested):
-        return ProcedurePlan(requested, (), True, 0, "already_satisfied")
+        return ProcedurePlanSearch(requested,
+            (ProcedurePlan(requested, (), True, 0, "already_satisfied"),), 0, True, "already_satisfied")
     allowed = frozenset(eligible) if eligible is not None else None
     available = (
         registry.procedures(refresh=True) if allowed is None
@@ -161,7 +213,9 @@ def plan_procedure(
         for effect in procedure.signature.effects:
             by_effect.setdefault(effect.key, set()).add(procedure.procedure_id)
     frontier = deque([(initial, (), ())])
-    seen = {tuple(key for key, _ in initial)}
+    initial_key = tuple(key for key, _ in initial)
+    seen = {(initial_key, ()) if distinct_paths else initial_key}
+    plans = []
     expanded = 0
     depth_limited = False
     while frontier:
@@ -174,7 +228,7 @@ def plan_procedure(
             if procedure.procedure_id not in relevant:
                 continue
             if expanded >= max_expansions:
-                return ProcedurePlan(requested, (), False, expanded, "expansion_limit")
+                return ProcedurePlanSearch(requested, tuple(plans), expanded, False, "expansion_limit")
             expanded += 1
             regressed = _regress(tuple(item for _, item in needed), procedure)
             if regressed is None:
@@ -184,17 +238,23 @@ def plan_procedure(
             path = (procedure.procedure_id, *suffix)
             pending_observations = (*added_obligations, *obligations)
             if all(item.satisfied_by(state) for _, item in canonical):
-                return ProcedurePlan(
+                plans.append(ProcedurePlan(
                     requested, path, True, expanded,
                     "value_observation_required" if pending_observations else "dependencies_satisfied",
                     pending_observations,
-                )
+                ))
+                if len(plans) >= max_plans:
+                    return ProcedurePlanSearch(requested, tuple(plans), expanded, False, "plan_limit")
+                continue
             key = tuple(key for key, _ in canonical)
+            if distinct_paths:
+                key = (key, path)
             if key not in seen:
                 seen.add(key)
                 frontier.append((canonical, path, pending_observations))
-    return ProcedurePlan(
-        requested, (), False, expanded, "depth_limit" if depth_limited else "no_dependency_plan",
+    return ProcedurePlanSearch(
+        requested, tuple(plans), expanded, not depth_limited,
+        "depth_limit" if depth_limited else "frontier_exhausted" if plans else "no_dependency_plan",
     )
 
 
