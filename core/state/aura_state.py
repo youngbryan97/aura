@@ -308,6 +308,17 @@ class AffectVector:
     curiosity: float = 0.5      # 0.0 to 1.0 = anticipation
     engagement: float = 0.5     # 0.0 to 1.0
     social_hunger: float = 0.5  # 0.0 (content) to 1.0 (starving)
+    #: How hard she is caught between two of her own wants that cost each
+    #: other. Not an emotion and not an arbitration: the budgets already
+    #: compete and the lowest one wins the intention, which produces one answer
+    #: and discards the other. This is the reading that says two pressed at
+    #: once, which is a different moment and feels like one.
+    #: See core/affect/ambivalence.py.
+    ambivalence: float = 0.0    # 0.0 (single-minded) to 1.0 (caught)
+    #: Which two wants, and whether being caught between them is how she is
+    #: built or where she is now. Empty until her history can say.
+    ambivalent_about: tuple[str, ...] = ()
+    ambivalence_standing: str = "not yet known"
     dominant_emotion: str = "neutral"
     
     # Full primary Plutchik set

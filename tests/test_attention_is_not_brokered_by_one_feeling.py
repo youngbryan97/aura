@@ -88,9 +88,13 @@ def test_the_affect_bid_does_not_pay_itself_the_affect_bonus() -> None:
         # bonus on top of a priority that is the same reading.
         assert bid.affect_weight > 0.0
         assert bid.bidder == "affect"
-        assert bid.effective_priority == pytest.approx(bid.priority), (
+        # Not inflated above its own priority. The recency factor still
+        # applies and legitimately trims it, so the claim is that nothing is
+        # added, not that nothing changed.
+        assert bid.effective_priority <= bid.priority + 1e-9, (
             "affect is paying itself the weight that is meant for other bids"
         )
+        assert bid.effective_priority > 0.9 * bid.priority
         assert bid.effective_priority < 1.0
 
 

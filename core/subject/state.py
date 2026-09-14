@@ -380,6 +380,23 @@ _SCHEMAS: dict[str, Schema] = {
             ("curiosity", "affect.curiosity"),
             ("engagement", "affect.engagement"),
             ("social_hunger", "affect.social_hunger"),
+            # Two of her own wants pressing against each other, how opposed
+            # they are over her life, and whether being caught between them is
+            # constitutive. Arbitration over the budgets is already measured in
+            # D; this is the reading that says two pressed at once, which the
+            # winner alone cannot show. See core/affect/ambivalence.py.
+            ("ambivalence", "affect.ambivalence"),
+            ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
+            ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
+            ("ambivalence_is_the_way", "affect.ambivalence_standing"),
+            # Which wants are in it. An identity is not a magnitude, so it is
+            # read as one column per drive rather than as an index: what
+            # changes her next move is which two are pulling, and an index
+            # would make drive three and drive four look adjacent.
+            *(
+                (f"ambivalent_about_{name}", "affect.ambivalent_about")
+                for name in _DRIVES
+            ),
             ("free_energy", "free_energy"),
             *((f"emotion_{name}", f"affect.emotions.{name}") for name in _EMOTIONS),
             ("heart_rate", "affect.physiology.heart_rate"),
@@ -997,6 +1014,17 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.curiosity"), 0.5),
         _f(_dig(state, "affect.engagement"), 0.5),
         _f(_dig(state, "affect.social_hunger"), 0.5),
+        _f(_dig(state, "affect.ambivalence")),
+        _f(_dig(state, "affect.markers.ambivalence.opposition")),
+        _f(_dig(state, "affect.markers.ambivalence.pressure")),
+        # A contradiction she is built with, against one she is passing
+        # through. Constitutive reads one; anything else, including not yet
+        # knowing, reads zero — an unknown standing is not a way.
+        1.0 if str(_dig(state, "affect.ambivalence_standing", "") or "") == "the way" else 0.0,
+        *(
+            1.0 if name in set(_dig(state, "affect.ambivalent_about", ()) or ()) else 0.0
+            for name in _DRIVES
+        ),
         math.tanh(_f(_dig(state, "free_energy"))),
     ]
     head.extend(_f(emotions.get(name)) for name in _EMOTIONS)

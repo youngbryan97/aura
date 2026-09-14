@@ -594,6 +594,22 @@ class MotivationUpdatePhase(Phase):
         """
         candidates = MotivationUpdatePhase._footing(state)
         worst = max(candidates, key=lambda key: candidates[key])
+        # A contradiction outranks a footing when it presses harder than one.
+        # Two wants pulling against each other is a thing to work on in its own
+        # right, and naming the weakest footing instead reports one half of it
+        # as if the other half were not there. Compared on the same scale the
+        # recollection below is compared on: both are readings in [0, 1].
+        affect = getattr(state, "affect", None)
+        caught = float(getattr(affect, "ambivalence", 0.0) or 0.0)
+        about = tuple(getattr(affect, "ambivalent_about", ()) or ())
+        if len(about) == 2 and caught > candidates[worst]:
+            standing = str(getattr(affect, "ambivalence_standing", "") or "")
+            return (
+                f"wanting both {about[0]} and {about[1]}, which is {standing}"
+                if standing
+                else f"wanting both {about[0]} and {about[1]}",
+                max(0.0, min(1.0, caught)),
+            )
         cognition = getattr(state, "cognition", None)
         scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
         recalled = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []

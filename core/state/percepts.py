@@ -67,6 +67,10 @@ PERCEPT_EMOTIONS: dict[str, list[str]] = {
     "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
     "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
     "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+    # Two of her own wants pressing against each other. Not distress: what
+    # Oddisee reports of it is that the contradictions got him feeling strange,
+    # which is disorientation about himself rather than fear of the world.
+    "inner_conflict": ["confused", "frustration", "anticipation"],
     # Three types the tree emits that this map had no entry for, so a
     # phase crash, an apology and every stimulus injected through the
     # compatibility bridge arrived and moved nothing. An internal error

@@ -322,6 +322,11 @@ class AffectUpdatePhase(Phase):
         # ten-thousandths.
         self._advance_lifetime(state, affect)
 
+        # 6b-ii. What she is caught between. The reading is taken after the
+        # emotion channels have settled and the drives have been ticked, so it
+        # describes the moment the rest of the turn will act in.
+        self._read_ambivalence(state, affect)
+
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised
         # processes, and affect is one of them; the blend weight is the
@@ -382,6 +387,59 @@ class AffectUpdatePhase(Phase):
             severity=severity,
             extra={"stage": stage},
         )
+
+    def _read_ambivalence(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether two of her wants are pressing against each other right now.
+
+        Nothing here names an opposed pair. Opposition is whatever her own
+        history shows has cost each other, read over her whole life and over
+        the last few moments — and the pair of answers is what tells a phase
+        from the way she is built.
+
+        A contradiction is a percept as much as a reading: something arrived
+        that she can feel. It is emitted so the emotion table carries it, and
+        written to the affect vector so anything that reads her state sees it.
+        """
+        try:
+            from core.affect.ambivalence import (
+                drive_levels,
+                get_opposition_ledger,
+                tension,
+            )
+            from core.state.percepts import emit_percept
+
+            budgets = getattr(getattr(state, "motivation", None), "budgets", None)
+            levels = drive_levels(budgets)
+            if len(levels) < 2:
+                return
+            ledger = get_opposition_ledger()
+            ledger.note(levels)
+            reading = tension(levels, ledger)
+            affect.ambivalence = float(max(0.0, min(1.0, reading.strength)))
+            affect.ambivalent_about = tuple(reading.pair)
+            affect.ambivalence_standing = reading.standing
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["ambivalence"] = reading.as_dict()
+            affect.markers = markers
+            if reading.held():
+                emit_percept(
+                    state.world,
+                    "inner_conflict",
+                    content=(
+                        f"{reading.pair[0]} and {reading.pair[1]} are pulling against "
+                        f"each other, and this is {reading.standing}"
+                    ),
+                    intensity=affect.ambivalence,
+                    source="motivation",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="ambivalence",
+                action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
 
     def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
         """Step her lifetime state, then blend curiosity toward its novelty.
