@@ -639,6 +639,12 @@ _SCHEMAS: dict[str, Schema] = {
             # The shape of what they said, which is a reading of them. The
             # stance and the two determinations — is this a request, is this
             # testimony — change what she does next, and nothing watched them.
+            # The pulse they are keeping and how far off it she sat, which is
+            # what her own next turn is sized against.
+            # See core/expression/entrainment.py.
+            ("partner_turn_chars", "cognition.partner_cadence.chars"),
+            ("partner_turn_gap", "cognition.partner_cadence.gap"),
+            ("her_placement", "cognition.partner_cadence.placement"),
             ("partner_asks", "world.partner_register.asking"),
             ("partner_first_person", "world.partner_register.first"),
             ("partner_second_person", "world.partner_register.second"),
@@ -1318,6 +1324,9 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
     _partner = _dig(state, "world.partner_register", {}) or {}
     if not isinstance(_partner, Mapping):
         _partner = {}
+    _pulse = _dig(state, "cognition.partner_cadence", {}) or {}
+    if not isinstance(_pulse, Mapping):
+        _pulse = {}
     status = _call(organs.world_model, "status", {}, source="organ:world_model.status") or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
     surprise = _call(organs.world_model, "surprise", None, source="organ:world_model.surprise")
@@ -1340,6 +1349,9 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
                 )
             ),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
+            _sat(_f(_pulse.get("chars")), 400.0),
+            _sat(_f(_pulse.get("gap")), 60.0),
+            _f(_pulse.get("placement")),
             _f(_partner.get("asking")),
             _f(_partner.get("first")),
             _f(_partner.get("second")),

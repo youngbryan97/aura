@@ -631,6 +631,10 @@ class CognitiveContext:
     #: affect phase read it. See core/social/witness.py.
     witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
+    #: The pulse the person she is talking to is keeping — how long their
+    #: turns are, how far apart, and how far off it her own last turn sat.
+    #: See core/expression/entrainment.py.
+    partner_cadence: dict[str, Any] = field(default_factory=dict)
     #: Whether what recall brought back is something she relives or something
     #: she looked up, and how often this question has been asked before.
     #: Written by the retrieval phase. See core/memory/reliving.py.

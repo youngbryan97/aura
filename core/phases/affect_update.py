@@ -513,7 +513,12 @@ class AffectUpdatePhase(Phase):
             loop = get_runtime_service("self_prediction", default=None)
             expectation = getattr(loop, "_expectation", None)
             surprise = float(getattr(expectation, "surprise", 0.0) or 0.0)
-            reading = read_delivery(affect, surprise=surprise)
+            pulse = getattr(state.cognition, "partner_cadence", {}) or {}
+            reading = read_delivery(
+                affect,
+                surprise=surprise,
+                partner_chars=float(pulse.get("chars", 0.0) or 0.0),
+            )
             affect.delivery_z = float(reading.z)
             affect.breakthrough = bool(reading.breakthrough)
             affect.steadiness = float(reading.steadiness)

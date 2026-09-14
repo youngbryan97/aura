@@ -209,6 +209,7 @@ def read_delivery(
     exertion: float | None = None,
     surprise: float = 0.0,
     said: str = "",
+    partner_chars: float = 0.0,
     note: bool = True,
 ) -> Delivery:
     """The level, the breakthrough, the direction and the breath.
@@ -229,6 +230,16 @@ def read_delivery(
         exertion = ledger_exertion(get_effort_ledger())
     effort = max(1e-6, float(exertion))
     unit = float(UNIT_COST.get("response_chars", 400.0))
+    # Their scale when there is a pulse to lock to. A conversation of one-line
+    # messages and a conversation of paragraphs used to get the same length
+    # from her, because the unit was hers alone. Her capacity still sets how
+    # much of their scale she has this cycle. See core/expression/entrainment.py.
+    try:
+        theirs = float(partner_chars)
+    except (TypeError, ValueError):
+        theirs = 0.0
+    if theirs > 0.0:
+        unit = theirs
     # An unremarkable turn is exertion one and gets the unit. Bounded by that
     # unit rather than by numbers chosen here: never shorter than a quarter of
     # a breath and never longer than two.

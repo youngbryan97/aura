@@ -161,6 +161,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # The shape of what the person just said. A fact about them that W
         # reads, written by the conversation phase on every message.
         "world.partner_register",
+        # The pulse they are keeping, which sizes her own next turn.
+        # See core/expression/entrainment.py.
+        "cognition.partner_cadence",
     ),
     "D": (
         "cognition.active_goals",

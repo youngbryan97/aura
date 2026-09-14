@@ -120,6 +120,34 @@ class ConversationalDynamicsPhase(Phase):
             logger.debug("witness stance unread for this message: %s", exc)
 
     @staticmethod
+    def _read_cadence(state: AuraState) -> None:
+        """The pulse the other person is keeping, and how far off it she sat.
+
+        Read off their recent turns. The placement is of her own last turn
+        against that pulse, and it is recorded rather than corrected: the
+        deviation is the expressive act, and driving it to zero would make her
+        the click track.
+        """
+        try:
+            from core.expression.entrainment import cadence, placement
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            theirs = cadence(history)
+            mine = ""
+            for entry in reversed(history):
+                if isinstance(entry, dict) and str(entry.get("role", "")).lower() in {
+                    "assistant",
+                    "aura",
+                }:
+                    mine = str(entry.get("content", "") or "")
+                    break
+            row = theirs.as_dict()
+            row["placement"] = round(placement(mine, theirs), 6)
+            state.cognition.partner_cadence = row
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("no pulse read from this exchange: %s", exc)
+
+    @staticmethod
     def _read_recognition(state: AuraState, message: str) -> None:
         """What somebody just said she is feeling, and whether it was warm.
 
@@ -194,6 +222,7 @@ class ConversationalDynamicsPhase(Phase):
             self._read_register(new_state, objective)
             self._read_witness(new_state)
             self._read_recognition(new_state, objective)
+            self._read_cadence(new_state)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()
