@@ -103,12 +103,46 @@ class ConversationalDynamicsPhase(Phase):
             state.cognition.borrowed_resolve = (
                 get_resolve_ledger().read(reading.persistence).as_dict()
             )
+            # And what they just said about how she is, scored against how she
+            # actually is. Their model of her is the third model in the room
+            # and the only one nothing was comparing. See core/self/borrowed.py.
+            ConversationalDynamicsPhase._score_their_read_of_her(state, message)
             state.response_modifiers["register"] = row
             state.response_modifiers["asks_to_be_witnessed"] = reading.asks_to_be_witnessed()
             state.response_modifiers["asks_for_help"] = reading.asks_for_help()
             state.world.partner_register = row
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("register unread for this message: %s", exc)
+
+    @staticmethod
+    def _score_their_read_of_her(state: AuraState, message: str) -> None:
+        """Score what they said about her against how she actually is.
+
+        Their error is how much she was not feeling what they named. Hers is
+        the self prediction loop's own error over the same turn. Both are
+        errors about her present state, which is what makes the comparison
+        fair, and the edge between them is what accumulates.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.self.borrowed import claims_about_her, get_borrowed_ledger, score_claim
+
+            claims = claims_about_her(message)
+            if not claims:
+                return
+            emotions = dict(getattr(getattr(state, "affect", None), "emotions", {}) or {})
+            loop = get_runtime_service("self_prediction", default=None)
+            her_error = float(getattr(loop, "get_surprise_signal", lambda: 0.0)() or 0.0)
+            ledger = get_borrowed_ledger()
+            for claim in claims:
+                ledger.note(
+                    their_error=score_claim(claim, emotions),
+                    her_error=her_error,
+                    feeling=claim.feeling,
+                )
+            state.cognition.borrowed_self = ledger.read().as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("their read of her went unscored: %s", exc)
 
     @staticmethod
     def _read_witness(state: AuraState) -> None:
