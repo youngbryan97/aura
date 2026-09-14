@@ -152,6 +152,9 @@ class MotivationUpdatePhase(Phase):
         # An intention whose need has been met is finished, and nothing else
         # ever said so. See `_close_met_intentions`.
         self._close_met_intentions(next_state)
+        # What she has just recalled reminds her of what she meant to do. See
+        # `_reminded`.
+        self._reminded(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -287,6 +290,66 @@ class MotivationUpdatePhase(Phase):
             cognition.pending_initiatives = kept
             logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
         return closed
+
+    @staticmethod
+    def _reminded(state: AuraState) -> int:
+        """Raise the intentions a recollection bears on. Returns how many moved.
+
+        Prospective memory: something comes back to mind and brings with it
+        the thing she meant to do about it. Memory reached deliberation only
+        through the growth branch, which runs when her most depleted drive is
+        below its line, so on every other turn nothing she recalled could touch
+        an intention already open. In seed 7 of the organ campaign memory had
+        two outgoing edges, and M -> D was not one of them.
+
+        A recollection reminds an open intention by the share of the
+        intention's cues it carries, times how strongly it was recalled, and
+        the urgency moves that far of the way to one. The cues are the ones
+        recall itself hooks on, from the hippocampal index, so "the" and "from"
+        remind her of nothing. Both readings already
+        exist on the scale urgency is read on, so nothing here is chosen. A
+        recollection reminds each intention once, and urgency is never lowered:
+        being reminded does not make a thing matter less.
+        """
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        recalled = list(getattr(cognition, "long_term_memory", []) or [])
+        scores = list(getattr(cognition, "memory_scores", []) or [])
+        pairs = [
+            (str(text), max(0.0, min(1.0, float(score or 0.0))))
+            for text, score in zip(recalled, scores, strict=False)
+            if str(text).strip()
+        ]
+        if not pairs:
+            return 0
+        from core.memory.hippocampus import HippocampalIndex
+        from core.state.aura_state import _normalize_goal_text
+
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for intention in list(getattr(cognition, bucket, None) or []):
+                if not isinstance(intention, dict):
+                    continue
+                words = set(HippocampalIndex.extract_cues(context=_normalize_goal_text(intention)))
+                if not words:
+                    continue
+                already = set(intention.get("reminded_by") or ())
+                best, by = 0.0, ""
+                for text, score in pairs:
+                    if text in already:
+                        continue
+                    carried = set(HippocampalIndex.extract_cues(context=text))
+                    share = len(words & carried) / len(words)
+                    if share * score > best:
+                        best, by = share * score, text
+                if best <= 0.0:
+                    continue
+                urgency = max(0.0, min(1.0, float(intention.get("urgency", 0.0) or 0.0)))
+                intention["urgency"] = round(urgency + best * (1.0 - urgency), 4)
+                intention["reminded_by"] = sorted(already | {by})
+                moved += 1
+        return moved
 
     @staticmethod
     def _own_intention_is_open(state: AuraState) -> bool:
