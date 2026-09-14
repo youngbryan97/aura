@@ -5689,6 +5689,14 @@
       "scope": "<module>.WorkflowStore.async_save"
     },
     {
+      "callee": "<file_write_gateway>.delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/durable_workflow.py",
+      "scope": "<module>.WorkflowStore.prune"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -16474,6 +16482,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "74670d7a11f0a354ea466efc0fbe666baa5d97418ab7d200ea3bc0f5bd6a60a2",
+  "inventory_sha256": "f510fbfc356001e69c533479da52ed139f0c5e2d1bbc8491a24a4565ddd411e4",
   "schema_version": 1
 }

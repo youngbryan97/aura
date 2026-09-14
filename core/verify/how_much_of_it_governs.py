@@ -164,8 +164,12 @@ def how_much_of_it_governs(root: str = "") -> ACensus:
     packages: Counter[str] = Counter()
     proposals: list[str] = []
     modules = _every_module(root)
+    governing: dict[str, tuple[str, ...]] = {}
     for module in modules:
         reach = how_far_it_reaches(module, root)
+        if reach.reaches is HowFarItReaches.GOVERNING:
+            governing[module] = tuple(reach.production_callers)
+            continue
         if reach.reaches is not HowFarItReaches.A_PROPOSAL:
             states[str(reach.reaches)] += 1
             continue
@@ -178,6 +182,24 @@ def how_much_of_it_governs(root: str = "") -> ACensus:
         proposals.append(module)
         parts = module.split(".")
         packages[".".join(parts[:-1]) or parts[0]] += 1
+
+    # Governing only something nothing reaches is not governing. Imported by
+    # production code was the whole test, so a checkpoint store nobody used
+    # made the write-draining primitive under it read as governing — two
+    # modules deciding nothing, counted as one that decides something. Carried
+    # to a fixed point, because a chain of three is as dead as a chain of two.
+    # A cycle with no member reached from outside it still reads as governing;
+    # telling that apart needs a root set this census does not yet have.
+    dead = set(proposals)
+    changed = True
+    while changed:
+        changed = False
+        for module, callers in governing.items():
+            if module not in dead and callers and set(callers) <= dead:
+                dead.add(module)
+                changed = True
+    for module in governing:
+        states[GOVERNING_A_PROPOSAL if module in dead else GOVERNING] += 1
 
     return ACensus(
         modules=len(modules),
