@@ -1219,6 +1219,27 @@ def _mention_pruning_preserves_feasible_replacement() -> tuple:
     return ("Every discarded mention has a no-worse subset with the same binding.",)
 
 
+def _argument_span_respects_literals(span: TokenSpan, literals: Sequence[TokenSpan]) -> bool:
+    """A reference may contain a literal, but cannot split its parsed atom."""
+    return all(
+        not _overlap(span, literal)
+        or (span.start <= literal.start and span.end >= literal.end)
+        for literal in literals
+    )
+
+
+@invariant("semantic.argument_literal_boundaries", scope="semantic_program",
+           owner="core/learning/semantic_program_transducer_fitting.py", observational=False)
+def _argument_literal_boundaries() -> tuple:
+    literal = TokenSpan(2, 5)
+    for start in range(7):
+        for end in range(start + 1, 8):
+            span = TokenSpan(start, end)
+            if _argument_span_respects_literals(span, (literal,)):
+                assert end <= 2 or start >= 5 or (start <= 2 and end >= 5)
+    return ("Argument references do not split parsed literal atoms.",)
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1244,6 +1265,12 @@ def _assign_typed_arguments(
         max_span_tokens=model.max_span_tokens,
         clause_local=model.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
     )
+    if model.training_receipt.get("argument_literal_boundaries") == "atomic_v1":
+        proposals_by_operation = tuple(
+            tuple((span, score) for span, score in proposals
+                  if _argument_span_respects_literals(span, input_spans))
+            for proposals in proposals_by_operation
+        )
     operation_types: list[tuple[tuple[str, ...], str]] = []
     for node in operation_nodes:
         signature = semantic_primitive_type_signature(node.operation)

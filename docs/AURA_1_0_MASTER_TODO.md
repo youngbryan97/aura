@@ -736,6 +736,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recovers four role-binding cases but regresses two cataphoric cases: 474/500,
   weave 47/48, both controls 0/48. The search repair preserves the chart optimum;
   136 focused tests pass. No candidate promotion or G03 closure.
+  [Atomic literal arguments](evidence/G03_ATOMIC_LITERAL_ARGUMENTS_2026-09-14.md)
+  repairs the reproduced fragment-binding regression without changing learned
+  coefficients. 150 focused tests pass; full comparison remains pending.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
