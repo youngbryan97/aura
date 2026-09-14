@@ -750,6 +750,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and report formatting, with missing-procedure controls and exhaustive small
   planning comparisons. Broad language interpretation and live gain are not
   established; G09 remains open.
+  [Procedure dataflow](evidence/G09_PROCEDURE_DATAFLOW_2026-09-13.md) joins the
+  existing cognitive event graph through the common executor and semantic
+  runtime. Actual reads link to their latest writers; telemetry failure cannot
+  discard a computed answer. The 167-test CPU pass is not broad live evidence
+  or independent task-outcome learning. G09 remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

@@ -7,13 +7,15 @@ only values returned by a backend enter the execution state.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from inspect import iscoroutinefunction
 from types import MappingProxyType
 from typing import Any
+import time
 
+from core.cognition.cognitive_event import EventGraph, get_event_graph
 from core.cognition.procedure import (
     Backend,
     Procedure,
@@ -21,6 +23,7 @@ from core.cognition.procedure import (
     _kind_accepts_value,
 )
 from core.cognition.tool_plan import Execution, Executor, Op, Plan, PlanFailed, Step
+from core.cognition.procedure_trace import ObservedProcedureInputs, ProcedureTrace
 from core.verify.invariants import invariant
 
 
@@ -42,6 +45,8 @@ class ProcedureStepResult:
     output_keys: tuple[str, ...] = ()
     evidence: Any = None
     error: str = ""
+    event_id: int = 0
+    trace_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +61,10 @@ class ProcedureExecution:
     @property
     def completed(self) -> bool:
         return not self.execution.failed
+
+    @property
+    def trace_complete(self) -> bool:
+        return bool(self.steps) and all(step.event_id and not step.trace_errors for step in self.steps)
 
 
 def _events(
@@ -116,6 +125,8 @@ def execute_procedure(
     *,
     backends: Mapping[Backend, BackendExecutor],
     context: Mapping[str, Any] | None = None,
+    event_graph: EventGraph | None = None,
+    parent_events: Sequence[int] = (),
 ) -> ProcedureExecution:
     """Run a registered composition with caller-supplied backend capabilities.
 
@@ -132,14 +143,22 @@ External effects cannot be rolled back by discarding the local state.
     records: list[ProcedureStepResult] = []
     tools: dict[str, Callable[..., Any]] = {}
     instructions: list[Step] = []
+    trace = ProcedureTrace(event_graph if event_graph is not None else get_event_graph(), parent_events)
 
     def invoke(procedure: Procedure, state: Mapping[str, Any]) -> dict[str, Any]:
         nonlocal current
+        started = time.monotonic()
+        observed_state = ObservedProcedureInputs(
+            deepcopy(dict(state)), namespace="procedure:state:", owner=procedure.procedure_id,
+        )
+        observed_context = ObservedProcedureInputs(
+            request_context, namespace="procedure:context:", owner=procedure.procedure_id,
+        )
         try:
-            if not procedure.signature.matches(state):
+            if not procedure.signature.matches(observed_state):
                 raise PlanFailed(f"{procedure.procedure_id}: preconditions do not match")
             result = handlers[procedure.backend](
-                procedure, MappingProxyType(deepcopy(dict(state))), request_context,
+                procedure, observed_state, observed_context,
             )
             if not isinstance(result, BackendResult) or not isinstance(result.outputs, Mapping):
                 raise TypeError("procedure backend must return explicit BackendResult outputs")
@@ -149,13 +168,24 @@ External effects cannot be rolled back by discarding the local state.
                 raise PlanFailed(f"{procedure.procedure_id}: undeclared output writes")
             _check_effects(procedure, outputs)
             current = {**state, **outputs}
+            trace_result = trace.record(
+                procedure.procedure_id, procedure.backend.value, observed_state, observed_context,
+                outputs=tuple(outputs), duration_s=time.monotonic() - started,
+            )
             records.append(ProcedureStepResult(
                 procedure.procedure_id, procedure.backend, tuple(outputs), result.evidence,
+                event_id=trace_result.event_id, trace_errors=trace_result.errors,
             ))
             return current
         except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            trace_result = trace.record(
+                procedure.procedure_id, procedure.backend.value, observed_state, observed_context,
+                outputs=(), duration_s=time.monotonic() - started, error=error,
+            )
             records.append(ProcedureStepResult(
-                procedure.procedure_id, procedure.backend, error=f"{type(exc).__name__}: {exc}",
+                procedure.procedure_id, procedure.backend, error=error,
+                event_id=trace_result.event_id, trace_errors=trace_result.errors,
             ))
             raise
 

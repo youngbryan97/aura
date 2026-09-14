@@ -143,6 +143,14 @@ def test_runtime_executes_learned_ir_on_the_universal_floor(monkeypatch):
         outcome.procedure.program.receipt()["receipt_sha256"]
     )
     assert calls == [outcome.procedure.procedure_id]
+    assert outcome.procedure_execution.trace_complete
+    from core.cognition.cognitive_event import get_event_graph
+    event = get_event_graph().get(outcome.procedure_execution.steps[0].event_id)
+    assert event.outcome == "executed"
+    assert event.detail["correctness_measured"] is False
+    assert {read.key for read in event.reads} >= {
+        "procedure:state:semantic:argument:0", "procedure:state:semantic:argument:1",
+    }
     assert outcome.receipt["procedure_execution"] == {
         "completed": True, "backend_calls": 1,
         "procedure_ids": calls, "correctness_measured": False,

@@ -10,6 +10,7 @@ from typing import Any, Final
 
 from core.brain.llm.latent_cortex.runtime_identity import worker_representation_basis
 from core.cognition.procedure import Backend, Precondition, Procedure, ProcedureRegistry
+from core.cognition.procedure_execution import ProcedureExecution
 from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
 from core.learning.semantic_procedure_currency import (
     from_semantic_program,
@@ -63,6 +64,7 @@ class CompositionalSemanticRuntimeOutcome:
     execution: SemanticFloorExecution
     receipt: dict[str, Any]
     procedure: Procedure | None = None
+    procedure_execution: ProcedureExecution | None = None
 
     def __post_init__(self) -> None:
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
@@ -225,6 +227,7 @@ def execute_compositional_semantic_observation(
         execution,
         receipt,
         procedure,
+        procedure_execution,
     )
 
 
