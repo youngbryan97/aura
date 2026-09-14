@@ -95,6 +95,7 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.frisson",
         "affect.turn",
         "affect.safety",
+        "affect.happiness_fear",
     ),
     "G": (
         "cognition.attention_focus",
@@ -134,6 +135,10 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # How somebody else read her, which changes how much she trusts her own
         # reading. See core/self/recognition.py.
         "identity.read_by_other",
+        # What is hers and what observers assigned, and whether her worth has
+        # been tracking her use. Two self columns read it and nothing held it.
+        # See core/self/standing.py.
+        "identity.standing",
     ),
     "M": (
         "cognition.working_memory",

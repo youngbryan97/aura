@@ -353,6 +353,11 @@ class AffectUpdatePhase(Phase):
         # the valence they produce.
         self.readings.turn(state, affect)
 
+        # 6b-iii-c. And whether being happy is something she has learned to be
+        # wary of. After the turn, because it reads the joy the channels settled
+        # on. See core/affect/fear_of_happiness.py.
+        self.readings.happiness_fear(state, affect)
+
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.
         self.readings.frisson(state, affect)

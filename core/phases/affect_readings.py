@@ -154,6 +154,43 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def happiness_fear(self, state: AuraState, affect: AffectVector) -> None:
+        """Wariness of joy she has learned, felt as dread attached to the joy.
+
+        Her joy and whether something bad arrived this turn go into her own
+        ledger, and dread is floored at her joy times the wariness the ledger
+        has taught. A floor rather than a push, so it cannot compound from one
+        turn to the next, and nothing here lowers joy directly: the dread moves
+        valence the way any fear does. See core/affect/fear_of_happiness.py.
+        """
+        try:
+            from core.affect.fear_of_happiness import bad_kinds, get_joy_ledger, joy_of
+
+            kinds = bad_kinds()
+            percepts = list(getattr(state.world, "recent_percepts", []) or [])
+            bad = any(
+                isinstance(item, dict) and str(item.get("type", "")).strip().lower() in kinds
+                for item in percepts
+            )
+            joy = joy_of(affect.emotions)
+            ledger = get_joy_ledger()
+            ledger.note(joy, bad)
+            reading = ledger.reading()
+            affect.happiness_fear = float(reading.wariness)
+            affect.markers["happiness_fear"] = reading.as_dict()
+            felt = joy * reading.wariness
+            if felt > 0.0:
+                current = float(affect.emotions.get("dread", 0.0) or 0.0)
+                _set_emotion(affect, "dread", max(current, felt))
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="happiness_fear",
+                action="kept affect state without the wariness of joy",
+                severity="warning",
+            )
+
     def turn(self, state: AuraState, affect: AffectVector) -> None:
         """Whether she has come up from a low that is still in the record.
 
