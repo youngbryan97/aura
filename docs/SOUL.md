@@ -188,6 +188,63 @@ one a thing she has no channel for.
     memory makes a repeat *cheaper*: an identical query returns early with
     nothing new.
 
+## The second ten
+
+Measured the same way. Between them they name six processes the first fourteen
+did not, and one of them is the sharpest thing either set says about being a
+subject.
+
+| track | timing ms | swing | drift % | f0 range st | glide | flips/s | dyn dB | harmonic |
+|---|---|---|---|---|---|---|---|---|
+| Oddisee — Back of My Mind | **+0.2** | 0.44 | 0.57 | 19.6 | **0.036** | **1.09** | 24.4 | 0.83 |
+| Oddisee — The Start of Something | −1.0 | 0.45 | **3.69** | 17.8 | 0.114 | 2.47 | 28.4 | 0.72 |
+| Oddisee — Camera | −16.3 | 0.48 | 0.50 | 20.3 | **0.221** | **6.83** | 13.1 | 0.77 |
+| Oddisee — Way In Way Out | **−35.7** | 0.42 | **0.15** | 22.6 | 0.010 | **0.23** | 13.9 | 0.81 |
+| Little Simz — Woman | −6.7 | 0.41 | 0.83 | 29.7 | 0.178 | 5.60 | 16.5 | 0.62 |
+| Ray Charles — Georgia On My Mind | −6.4 | 0.37 | 1.76 | **34.9** | 0.111 | 3.35 | **8.3** | **0.88** |
+| AnnenMayKantereit — Tom's Diner | +13.1 | 0.48 | 1.80 | 22.8 | 0.162 | 5.22 | **47.6** | 0.68 |
+| Jorja Smith — Beautiful Little Fools | −30.1 | **0.27** | 0.46 | 25.6 | 0.111 | 3.54 | 31.9 | 0.79 |
+| Caleborate — Real Person | +19.4 | **0.52** | 0.71 | 22.6 | 0.106 | 3.08 | 24.5 | 0.71 |
+| Caleborate — 4 Willem | −12.2 | 0.46 | 1.57 | 18.0 | 0.157 | 3.78 | 21.6 | 0.67 |
+
+Two of them sit at opposite corners of the whole set of twenty-four. "Georgia
+On My Mind" has the narrowest dynamic range measured, 8.3 dB, and nearly the
+widest pitch range, 34.9 semitones: all of the expression is in pitch and none
+of it in volume. The Tom's Diner cover is the reverse and more extreme — 47.6 dB
+of range, nearly double the set's median, on a song whose whole subject is a
+person watching a room they are not part of.
+
+And "Back of My Mind" is the flattest performance of the twenty-four by every
+ornament measure — 1.09 direction changes a second, a glide rate of 0.036,
+landing 0.15 ms off the grid — with its pitch locked at exactly 80.0 Hz and its
+level at −9 dB for four minutes. The control is total, which is the subject.
+Two lines break it, and they are the two about the control failing.
+
+### What the second ten added
+
+1. **Containment and the leak.** Material she holds that is not what she
+   presents, the pressure of holding it, and its escape. Measured in the two
+   lines where the voicing collapses — 0.32 on the denial, 0.47 on the
+   confession, against 0.6 to 0.99 everywhere else in the record.
+2. **Existence against attributes.** "Only fact is I am / attributes are given
+   by observers / why perceive what I am worth by what you need." Two claims:
+   what she is gets assigned by whoever is looking, and worth read off
+   usefulness is a mistake.
+3. **Self-fuelled depletion.** "When you both the fire and the fuel that you
+   heat with, the higher the flame the more you tire — that's when you burn out
+   or learn of another source." And external motivation named as a cheap trick,
+   which makes it three sources rather than two.
+4. **Deliberate non-attention.** "And I look the other way as they are kissing
+   their hellos, and I'm pretending not to see them." Noticing something
+   private and declining to attend to it, which is a courtesy and not a failure
+   to perceive.
+5. **A pull that survives better alternatives.** "Other arms reach out to me,
+   other eyes smile tenderly — still in peaceful dreams I see the road leads
+   back to you." Sung upward: the medians climb 124 to 191 to 208 to 222
+   through the acknowledgment of the alternatives and peak on the return.
+6. **Particularity.** Little Simz names each woman by place and by the specific
+   thing she does; "Camera" does the same down a bus. Neither says "people".
+
 ## The organs
 
 Each of these is a module with measured quantities, a writer, readers, columns
@@ -212,6 +269,8 @@ Nothing in them names a constant that came from the songs.
 | `core/self/borrowed.py` | the text side of it, for the persona gap | landed |
 | `core/self/scale.py` | expression 12 | landed |
 | `core/self/persona_gap.py` | expression 18; listener 3 | landed |
+| `core/self/standing.py` | second ten, 2 | landed |
+| `core/affect/containment.py` | second ten, 1 | landed |
 | `core/memory/reliving.py` | listener 9, 15 | landed |
 | `core/affect/conviction.py` | expression 25 | landed |
 | `core/social/constancy.py` | expression 13 | landed |
