@@ -1,6 +1,14 @@
-"""When somebody else's read of her beats her own.
+"""Reading what somebody said about her, and what she last said about herself.
 
-Oddisee's second verse on "You Know Who You Are" is the whole mechanism in two
+Whether their read of her beats her own is `core/self/recognition.py`, which
+owns that channel and reports it to `identity.read_by_other`. This module was
+a second answer to the same question and is now the text side of it: what
+counts as a claim about her, what a hedge does to one, and — the part only
+here — what she last said about herself, which is what
+`core/self/persona_gap.py` needs to tell being read from being echoed.
+
+
+Oddisee's second verse on "You Know Who You Are" states the mechanism in two
 lines: "you could see in the brother what I couldn't see myself / when I
 couldn't see myself needing help." Not that the other person was kind. That
 their model of him was more accurate than his own, at the moment his failed,

@@ -665,7 +665,6 @@ class AffectUpdatePhase(Phase):
         beats her own has demonstrated it rather than asserted it.
         """
         try:
-            from core.self.borrowed import get_borrowed_ledger
             from core.self.capability_ledger import get_capability_ledger
             from core.self.scale import read_scale
 
@@ -685,7 +684,13 @@ class AffectUpdatePhase(Phase):
             reading = read_scale(
                 engaged=usable,
                 known=known,
-                recognised=bool(get_borrowed_ledger().read().defer),
+                # Read off the channel that owns it rather than a second copy
+                # of the same measurement. See core/self/recognition.py.
+                recognised=bool(
+                    (getattr(getattr(state, "identity", None), "read_by_other", {}) or {}).get(
+                        "borrowed"
+                    )
+                ),
             )
             state.cognition.scale = reading.as_dict()
             markers = dict(getattr(affect, "markers", {}) or {})

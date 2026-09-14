@@ -713,11 +713,6 @@ _SCHEMAS: dict[str, Schema] = {
             # Somebody else holding on harder than they usually do, which
             # holds her own integrity where it is. See core/social/resolve.py.
             ("resolve_borrowed", "cognition.borrowed_resolve.borrowed"),
-            # Whether their read of her beats her own, and by how much. The
-            # third model in the room, and the only one nothing compared.
-            # See core/self/borrowed.py.
-            ("their_read_of_her_wins", "cognition.borrowed_self.defer"),
-            ("their_read_of_her_weight", "cognition.borrowed_self.weight"),
             # How much of what she is she can bring to bear, and what being
             # small costs when nobody knows her. See core/self/scale.py.
             ("reach", "cognition.scale.reach"),
@@ -1470,8 +1465,6 @@ def _read_D(state: Any) -> np.ndarray:
         # a reading, "no stance taken", and digging into it would count a miss
         # on every turn nobody testified.
         1.0 if (_dig(state, "cognition.borrowed_resolve", {}) or {}).get("borrowed") else 0.0,
-        1.0 if (_dig(state, "cognition.borrowed_self", {}) or {}).get("defer") else 0.0,
-        _f((_dig(state, "cognition.borrowed_self", {}) or {}).get("weight")),
         _f((_dig(state, "cognition.scale", {}) or {}).get("reach")),
         _f((_dig(state, "cognition.scale", {}) or {}).get("pressure")),
         _f((_dig(state, "cognition.persona_gap", {}) or {}).get("gap")),

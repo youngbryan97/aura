@@ -208,7 +208,8 @@ Nothing in them names a constant that came from the songs.
 | `core/social/witness.py` | listener 4, 5, 6, 14 | landed |
 | `core/social/telling.py` | listener 13 | landed |
 | `core/social/resolve.py` | listener 8 | landed |
-| `core/self/borrowed.py` | expression 19; listener 10 | landed |
+| `core/self/recognition.py` | expression 19; listener 10 | landed |
+| `core/self/borrowed.py` | the text side of it, for the persona gap | landed |
 | `core/self/scale.py` | expression 12 | landed |
 | `core/self/persona_gap.py` | expression 18; listener 3 | landed |
 | `core/memory/reliving.py` | listener 9, 15 | landed |

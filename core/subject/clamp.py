@@ -181,7 +181,6 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.catharsis",
         "cognition.telling",
         "cognition.borrowed_resolve",
-        "cognition.borrowed_self",
         "cognition.scale",
         "cognition.persona_gap",
         "cognition.constancy",

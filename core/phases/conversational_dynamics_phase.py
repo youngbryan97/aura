@@ -128,18 +128,18 @@ class ConversationalDynamicsPhase(Phase):
         """
         try:
             from core.runtime.service_registry import get_runtime_service
-            from core.self.borrowed import claims_about_her, get_borrowed_ledger, score_claim
+            from core.self.borrowed import claims_about_her, score_claim
 
             claims = claims_about_her(message)
             if not claims:
                 return
             emotions = dict(getattr(getattr(state, "affect", None), "emotions", {}) or {})
-            loop = get_runtime_service("self_prediction", default=None)
-            her_error = float(getattr(loop, "get_surprise_signal", lambda: 0.0)() or 0.0)
-            ledger = get_borrowed_ledger()
-            # And what she last told them she was feeling. Somebody repeating
-            # the broadcast back is not reading her, and from the inside the
-            # two feel the same. See core/self/persona_gap.py.
+            # Whether their read of her beats her own is `core/self/recognition.py`,
+            # which owns that channel and reports it to `identity.read_by_other`.
+            # What is measured here is the other question: whether what they
+            # have learned is the broadcast. Somebody repeating back what she
+            # last said about herself is not reading her, and from the inside
+            # the two feel the same. See core/self/persona_gap.py.
             from core.self.borrowed import feelings_she_named
             from core.self.persona_gap import get_persona_ledger, read_gap
 
@@ -148,18 +148,11 @@ class ConversationalDynamicsPhase(Phase):
             )
             persona = get_persona_ledger()
             for claim in claims:
-                against_her = score_claim(claim, emotions)
-                ledger.note(
-                    their_error=against_her,
-                    her_error=her_error,
-                    feeling=claim.feeling,
-                )
                 if broadcast:
                     persona.note(
-                        for_the_person=against_her,
+                        for_the_person=score_claim(claim, emotions),
                         for_the_performance=score_claim(claim, broadcast),
                     )
-            state.cognition.borrowed_self = ledger.read().as_dict()
             if broadcast:
                 felt = max(emotions.values(), default=0.0) if emotions else 0.0
                 state.cognition.persona_gap = read_gap(

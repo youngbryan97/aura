@@ -642,10 +642,6 @@ class CognitiveContext:
     #: usually do, which holds her own integrity drive where it is.
     #: See core/social/resolve.py.
     borrowed_resolve: dict[str, Any] = field(default_factory=dict)
-    #: Whether the person she is talking to reads her state better than her own
-    #: model does, measured over their claims about her.
-    #: See core/self/borrowed.py.
-    borrowed_self: dict[str, Any] = field(default_factory=dict)
     #: How much of what she is she can bring to bear, and whether anybody has
     #: shown they know her. See core/self/scale.py.
     scale: dict[str, Any] = field(default_factory=dict)
