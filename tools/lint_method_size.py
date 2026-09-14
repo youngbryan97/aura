@@ -327,6 +327,66 @@ def _check_changed(argv: list[str]) -> int:
     return 0
 
 
+def compare_with_baseline(
+    functions: dict[str, dict[str, int]],
+    previous: dict[str, dict[str, int]],
+) -> tuple[list[str], list[str], list[str]]:
+    """What grew, what appeared, what shrank — with a move kept as history."""
+    grew: list[str] = []
+    appeared: list[str] = []
+    shrank: list[str] = []
+    # A function that left one file for another keeps its history. The gate
+    # keyed on `path::name`, so a move read as a NEW god function in the new
+    # file and "no longer over the threshold" in the old one — and a function
+    # that moved AND grew was reported as new, with nothing to compare against.
+    # Three chat functions moved that way on 2026-09-12 and grew by 292, 171
+    # and 35 lines behind the label NEW. A moved function is matched by its
+    # bare name to the entry that vanished, and measured against it.
+    vanished = {
+        name.rsplit("::", 1)[-1]: (name, stats)
+        for name, stats in previous.items()
+        if name not in functions
+    }
+    moved_from: dict[str, str] = {}
+    for name, stats in functions.items():
+        was = previous.get(name)
+        if was is None:
+            bare = name.rsplit("::", 1)[-1]
+            origin = vanished.get(bare)
+            if origin is not None:
+                old_name, was = origin
+                moved_from[old_name] = name
+                if stats["lines"] > was["lines"]:
+                    grew.append(
+                        f"{name}: moved from {old_name.split('::')[0]} and grew "
+                        f"{was['lines']} -> {stats['lines']} lines "
+                        f"(CC {was['complexity']} -> {stats['complexity']})"
+                    )
+                elif stats["lines"] < was["lines"]:
+                    shrank.append(
+                        f"{name}: moved from {old_name.split('::')[0]}, "
+                        f"{was['lines']} -> {stats['lines']} lines"
+                    )
+                else:
+                    shrank.append(f"{name}: moved from {old_name.split('::')[0]}, unchanged")
+                continue
+            appeared.append(
+                f"{name}: NEW at {stats['lines']} lines, CC {stats['complexity']}"
+            )
+        elif stats["lines"] > was["lines"]:
+            grew.append(
+                f"{name}: {was['lines']} -> {stats['lines']} lines "
+                f"(CC {was['complexity']} -> {stats['complexity']})"
+            )
+        elif stats["lines"] < was["lines"]:
+            shrank.append(f"{name}: {was['lines']} -> {stats['lines']} lines")
+
+    for name in previous:
+        if name not in functions and name not in moved_from:
+            shrank.append(f"{name}: no longer over the threshold")
+    return grew, appeared, shrank
+
+
 def main(argv: list[str]) -> int:
     if "--changed" in argv:
         return _check_changed(argv)
@@ -357,26 +417,7 @@ def main(argv: list[str]) -> int:
     baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     previous: dict[str, dict[str, int]] = baseline.get("functions") or {}
 
-    grew: list[str] = []
-    appeared: list[str] = []
-    shrank: list[str] = []
-    for name, stats in functions.items():
-        was = previous.get(name)
-        if was is None:
-            appeared.append(
-                f"{name}: NEW at {stats['lines']} lines, CC {stats['complexity']}"
-            )
-        elif stats["lines"] > was["lines"]:
-            grew.append(
-                f"{name}: {was['lines']} -> {stats['lines']} lines "
-                f"(CC {was['complexity']} -> {stats['complexity']})"
-            )
-        elif stats["lines"] < was["lines"]:
-            shrank.append(f"{name}: {was['lines']} -> {stats['lines']} lines")
-
-    for name in previous:
-        if name not in functions:
-            shrank.append(f"{name}: no longer over the threshold")
+    grew, appeared, shrank = compare_with_baseline(functions, previous)
 
     if grew or appeared:
         print("\n❌ tracked functions grew, or a new one crossed the threshold:")
