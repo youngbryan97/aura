@@ -32,7 +32,6 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-os.environ.setdefault("AURA_TESTING", "1")
 os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_fusion_probe_logs")
 
 

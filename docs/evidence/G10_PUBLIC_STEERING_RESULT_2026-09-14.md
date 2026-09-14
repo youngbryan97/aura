@@ -39,3 +39,10 @@ loading. `--require-active-cortex` rejects missing authority or a different
 checkpoint instead of measuring a derived substitute. Explicit owner-state
 selection keeps verification against the real authority while logs remain
 isolated. Fifty-two focused identity, ownership and certificate tests pass.
+
+The next preflight exposed the tool's unconditional `AURA_TESTING` default:
+it classified a real model-lane measurement as a hermetic test and therefore
+could not own the live lane. The tool no longer changes the runtime profile.
+Tests still inject their own state explicitly. The expanded 53-test suite
+passes, including a fresh-process check that importing the tool does not
+redirect authority. The failed v3 process made no model measurement.

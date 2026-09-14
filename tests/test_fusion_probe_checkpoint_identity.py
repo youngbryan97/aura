@@ -1,11 +1,25 @@
 """A certificate must describe the checkpoint actually loaded by its runner."""
 
 from contextlib import nullcontext
+import os
+from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
 
 from tools import measure_fusion_channel as runner
+
+
+def test_import_does_not_redirect_a_real_measurement_to_hermetic_authority(tmp_path):
+    environment = {key: value for key, value in os.environ.items() if key != "AURA_TESTING"}
+    environment["AURA_LOG_DIR"] = str(tmp_path / "logs")
+    environment["AURA_STATE_ROOT"] = str(tmp_path / "state")
+    result = subprocess.run([sys.executable, "-c",
+        "import os; from tools import measure_fusion_channel; assert 'AURA_TESTING' not in os.environ"],
+        cwd=Path(__file__).parents[1], env=environment, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize("explicit", [True, False])
