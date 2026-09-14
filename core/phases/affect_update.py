@@ -766,6 +766,26 @@ class AffectUpdatePhase(Phase):
                 min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
             )
             affect.curiosity = blended
+            # And how far she has grown, which nothing was writing down.
+            # `identity.evolution_score` is read by the subject-core schema, by
+            # the clamp, and by the gate on her governed self-modification
+            # proposal path — which tests it against 0.70 and has never seen
+            # anything but the zero it was initialised to. The reservoir's own
+            # calibrated reading is what it should hold.
+            # See core/self/growth.py.
+            try:
+                from core.self.growth import get_growth_ledger
+
+                book = get_growth_ledger()
+                book.note(weight)
+                growth = book.read()
+                if growth.measured:
+                    state.identity.evolution_score = float(growth.score)
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                # The score stays where it was, and the reason is kept rather
+                # than swallowed: a gate reading a value nothing updated is the
+                # defect this writer exists to end.
+                logger.debug("how far she has grown went unrecorded this step: %s", exc)
             # And into the channel curiosity is kept in, not only the readout.
             #
             # `_derive_metrics` recomputes `affect.curiosity` from the emotion
