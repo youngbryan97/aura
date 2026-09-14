@@ -1232,23 +1232,19 @@ def _nulls(
         # What separates them is that K's future depends on a variable no
         # reading of K contains, which is what this measures and what the
         # battery keeps causal closure for.
+        #
+        # Since the periphery walk stopped counting an empty periphery as closed,
+        # a null with no broker read as open, and that included the recurrent
+        # reference: the positive control failed closure on every run and
+        # `beats_every_null` could not pass for anything. A toy's state can be
+        # listed, so `toy_closure` reads "nothing outside K" off it.
         closed = True
         leak = 0.0
         try:
-            from core.subject.closure import closure_gain
-            from core.subject.nulls import toy_periphery
+            from core.subject.nulls import toy_closure
 
             system = architecture(name, seed=args.seed)
-            recording_for_closure = toy_recording(system, steps=2500, seed=args.seed)
-            outside = toy_periphery(system, steps=2500, seed=args.seed)
-            report = closure_gain(
-                recording_for_closure,
-                outside,
-                tuple(f"broker.{index}" for index in range(outside.shape[1])),
-                seed=args.seed,
-            )
-            closed = bool(report.closed)
-            leak = float(report.leak)
+            closed, leak = toy_closure(system, steps=2500, seed=args.seed)
         except (ImportError, ValueError, RuntimeError, AttributeError) as exc:
             _log(f"  closure unavailable for the {name} null: {exc}")
         # And the rest of the suite, on the same toy recording. A null suite

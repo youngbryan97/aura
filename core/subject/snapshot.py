@@ -28,7 +28,7 @@ import sys
 import types
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -1148,8 +1148,51 @@ def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
     built = _built_services()
     for name, fields in saved.items():
         instance = built.get(name)
-        if instance is not None:
+        if instance is None:
+            continue
+        if _is_published_value(instance):
+            _republish(name, instance, fields)
+        else:
             _restore_organ(instance, fields)
+
+
+def _is_published_value(instance: Any) -> bool:
+    """A frozen dataclass the container holds: a value published each tick, not an organ.
+
+    `mind_moment`, `aura_now`, `ghost_snapshot` and `continuous_experience_frame`
+    are replaced every tick rather than changed, and a frozen dataclass refuses
+    field writes. The in-place restore skips anything that guards its own
+    writes, so all four came back from a restore holding whatever the arm had
+    published last, and the fork check found them there.
+    """
+    params = getattr(type(instance), "__dataclass_params__", None)
+    return bool(is_dataclass(instance) and params is not None and params.frozen)
+
+
+def _republish(name: str, current: Any, saved: Mapping[str, Any]) -> None:
+    """Publish the saved value under its name again, as a new object.
+
+    The object the arm published is left alone: anything else holding it holds
+    a value, and a value is rewound by replacing it, not by writing into it.
+    """
+    rebuilt = copy.copy(current)
+    for field_name, value in saved.items():
+        if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
+            _restore_organ(getattr(rebuilt, field_name, None), value[1])
+            continue
+        # A new object nothing else holds yet, so its frozen guard has no one
+        # to protect.
+        object.__setattr__(rebuilt, field_name, _place(value))
+    try:
+        from core.container import ServiceContainer
+
+        ServiceContainer.set(name, rebuilt, required=False)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "subject_snapshot",
+            exc,
+            action=f"left {name} holding the value the arm published",
+        )
 
 
 def _effort_state() -> dict[str, float] | None:
