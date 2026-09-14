@@ -237,7 +237,10 @@ _ABSENT = object()
 
 
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
-    if organ is None or _guards_its_own_writes(organ):
+    if organ is None:
+        return
+    if _guards_its_own_writes(organ):
+        _restore_guarded(organ, saved)
         return
     seen: set[int] = set()
     for name, value in saved.items():
@@ -245,6 +248,40 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
         _put_back(organ, name, value, seen)
+
+
+def _restore_guarded(organ: Any, saved: Mapping[str, Any]) -> None:
+    """Rewind an object that polices its own writes, without asking it to rebind what it protects.
+
+    The mycelial network refuses to have `pathways`, `hyphae` or
+    `_pathway_order` replaced and declares exactly those. Routing learns their
+    contents every turn by design, so they are rewound in place, under the lock
+    its readers take, and what it does not protect is written back the usual
+    way. Left out of the fork entirely, its topology revision went from 33 to 37
+    across one arm and the next arm routed on what the first had learned.
+
+    An object that guards its writes without declaring what it protects is left
+    alone, as before: there is no way to rewind it that respects its guard.
+    """
+    protected = getattr(type(organ), "_AEGIS_PROTECTED_ATTRS", None)
+    if not protected:
+        return
+    lock = getattr(type(organ), "_lock", None)
+    with lock if hasattr(lock, "__enter__") else contextlib.nullcontext():
+        seen: set[int] = set()
+        for name, value in saved.items():
+            if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
+                _restore_organ(getattr(organ, name, None), value[1])
+                continue
+            if name not in protected:
+                _put_back(organ, name, value, seen)
+                continue
+            if not _restore_into(getattr(organ, name, _ABSENT), value, seen):
+                record_degradation(
+                    "subject_snapshot",
+                    RuntimeError(f"{type(organ).__name__}.{name} could not be rewound in place"),
+                    action="left it holding what the arm learned, rather than rebinding a protected container",
+                )
 
 
 def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
@@ -1075,11 +1112,11 @@ _UNFORKED_SERVICES: frozenset[str] = frozenset(
         "vault",
         "service_container",
         "file_write_gateway",
-        # The mycelial topology is guarded against rebinding on purpose and is
-        # not per-arm state: it is the wiring the arms both run on. Writing to
-        # it raises, and the guard logs a critical before it does.
-        "mycelium",
-        "mycelial_network",
+        # The mycelial network is not listed. It was, on the reading that its
+        # topology is the wiring both arms run on, but routing learns during a
+        # turn and the fork check found its revision moving between arms. It is
+        # rewound in place by `_restore_guarded`, which never rebinds what its
+        # guard protects.
     }
 )
 
