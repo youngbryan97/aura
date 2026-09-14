@@ -405,6 +405,15 @@ class MemoryRetrievalPhase(BasePhase):
         # set the limit, and with the skip keyed on the words alone none of them
         # could change what came back for as long as the objective stayed the
         # same. The cost the skip saves is still saved for a repeated question.
+        # Asking again goes further rather than returning early. The ladder
+        # doubles, so the second asking looks one deeper and the eighth three,
+        # and because the depth is part of the key below, a repeat is no longer
+        # skipped. See core/memory/reliving.py.
+        from core.memory.reliving import deeper, get_match_ledger, get_return_ledger
+
+        returns = get_return_ledger().returns(query)
+        retrieval_limit += deeper(returns)
+
         recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
         if recall_key == getattr(state.cognition, "last_retrieval_query", None):
             return state
@@ -775,6 +784,20 @@ class MemoryRetrievalPhase(BasePhase):
         # and her feeling never heard about it. The intensity is the best match
         # score, so a faint recollection moves affect faintly and there is no
         # threshold to choose.
+        # Whether this is a recall she relives or one she looked up. A match
+        # far above the matches she usually gets brings the feeling back with
+        # it, and the feeling is the one stored with what came back — the same
+        # quantity the affective hit above is computed from.
+        # See core/memory/reliving.py.
+        recalled_feeling = (total_valence_hit / memory_hits) if memory_hits else 0.0
+        reliving = get_match_ledger().reading(
+            float(scores[0]) if scores else 0.0,
+            recalled_feeling,
+            returns=returns,
+        )
+        new_state.cognition.relived = reliving.as_dict()
+        get_return_ledger().note(query)
+
         try:
             from core.state.percepts import emit_percept
 
@@ -784,6 +807,8 @@ class MemoryRetrievalPhase(BasePhase):
                 content=str(memories[0])[:200],
                 intensity=max(0.0, min(1.0, float(scores[0]) if scores else 0.0)),
                 source="memory_retrieval",
+                relived=reliving.relived,
+                feeling=round(recalled_feeling, 4),
             )
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(

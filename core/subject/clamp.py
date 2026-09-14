@@ -129,6 +129,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "identity.core_values",
         "identity.self_preferences",
         "identity.personality_growth",
+        # How somebody else read her, which changes how much she trusts her own
+        # reading. See core/self/recognition.py.
+        "identity.read_by_other",
     ),
     "M": (
         "cognition.working_memory",
@@ -144,6 +147,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # remembered and not how much it counted — and the memory displacement
         # writes exactly this.
         "cognition.memory_scores",
+        # What recall brought back and how often it has been asked for.
+        # See core/memory/reliving.py.
+        "cognition.relived",
     ),
     "W": (
         "world.known_entities",

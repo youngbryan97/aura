@@ -555,6 +555,11 @@ class IdentityKernel:
     concept_graph: dict[str, Any] = field(default_factory=dict)
     evolution_score: float = 0.0
     stability: float = 1.0  # Identity stability (0.0–1.0), degraded on loop detection
+    #: How her own reading of what she is feeling compares with somebody
+    #: else's, scored against the same outcome, and whether the moment was warm
+    #: toward her. Written by the conversation phase.
+    #: See core/self/recognition.py.
+    read_by_other: dict[str, Any] = field(default_factory=dict)
     
     # Preferences she formed herself, from her own repeated contact with
     # something. Symmetric with world.user_preferences, which is durable and
@@ -626,6 +631,10 @@ class CognitiveContext:
     #: affect phase read it. See core/social/witness.py.
     witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
+    #: Whether what recall brought back is something she relives or something
+    #: she looked up, and how often this question has been asked before.
+    #: Written by the retrieval phase. See core/memory/reliving.py.
+    relived: dict[str, Any] = field(default_factory=dict)
 
     # Constitutional Closure — kernel-level arbitration trace
     last_kernel_cycle_id: str | None = None   # ID of the last kernel tick that touched this state

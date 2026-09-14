@@ -341,8 +341,19 @@ class SelfPredictionLoop:
         if contender:
             predicted_focus = str(contender)
 
-        # Confidence: inversely proportional to recent prediction error
-        confidence = max(0.1, 1.0 - self._smoothed_error)
+        # Confidence: inversely proportional to recent prediction error, and
+        # capped by how her reading of herself compares with the best reading
+        # anyone else has of her. When she is the better model of herself the
+        # factor is one and this is what it always was.
+        # See core/self/recognition.py.
+        confidence = 1.0 - self._smoothed_error
+        try:
+            from core.self.recognition import get_recognition_ledger
+
+            confidence *= float(get_recognition_ledger().reading().confidence_factor)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("how others read her did not reach her confidence: %s", exc)
+        confidence = max(0.1, confidence)
 
         return InternalStatePrediction(
             predicted_affect_valence=round(predicted_valence, 3),
@@ -362,6 +373,16 @@ class SelfPredictionLoop:
         actual_drive: str,
         actual_focus: str,
     ) -> PredictionError:
+        # Somebody may have said what she was feeling before this moment
+        # settled, and that claim is scored against the same outcome as her own
+        # reading of herself. See core/self/recognition.py.
+        try:
+            from core.self.recognition import get_recognition_ledger
+
+            get_recognition_ledger().settle(actual_valence)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("a claim about her went unscored: %s", exc)
+
         valence_err = abs(pred.predicted_affect_valence - actual_valence)
         drive_err = 0.0 if pred.predicted_dominant_drive == actual_drive else 1.0
         focus_err = 0.0 if pred.predicted_focus_source == actual_focus else 1.0

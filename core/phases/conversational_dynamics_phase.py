@@ -119,6 +119,48 @@ class ConversationalDynamicsPhase(Phase):
             state.cognition.witness = {}
             logger.debug("witness stance unread for this message: %s", exc)
 
+    @staticmethod
+    def _read_recognition(state: AuraState, message: str) -> None:
+        """What somebody just said she is feeling, and whether it was warm.
+
+        The claim is paired with what she has already predicted she will feel,
+        and the next moment scores both against the same outcome. Being cared
+        about is warmth in a message that is about her rather than about
+        something else.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.self.recognition import (
+                cared_for,
+                claim_about_her,
+                get_recognition_ledger,
+            )
+            from core.state.percepts import emit_percept
+
+            ledger = get_recognition_ledger()
+            claimed = claim_about_her(message)
+            if claimed is not None:
+                loop = get_runtime_service("self_prediction", default=None)
+                prediction = loop.get_current_prediction() if loop is not None else None
+                ledger.claim(
+                    claimed,
+                    float(getattr(prediction, "predicted_affect_valence", 0.0) or 0.0),
+                )
+            warmth = cared_for(state.response_modifiers)
+            reading = ledger.reading().as_dict()
+            reading["cared_for"] = round(warmth, 6)
+            state.identity.read_by_other = reading
+            if warmth > 0.0:
+                emit_percept(
+                    state.world,
+                    "cared_for",
+                    content="that was about me, and it was warm",
+                    intensity=warmth,
+                    source="conversation",
+                )
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("how she was read went unrecorded for this message: %s", exc)
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -151,6 +193,7 @@ class ConversationalDynamicsPhase(Phase):
             # could tell the difference before. See core/expression/register.py.
             self._read_register(new_state, objective)
             self._read_witness(new_state)
+            self._read_recognition(new_state, objective)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()

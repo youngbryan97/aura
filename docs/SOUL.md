@@ -1,7 +1,9 @@
-# What fourteen records do, and which of it she cannot do yet
+# What eighteen records do, and which of it she cannot do yet
 
 Bryan came back from a Masego show with fourteen tracks and a question: what
 exactly makes these soulful, and which of it is a process rather than a style.
+Four more arrived while the first organs were being built, and they changed
+what the measurements say rather than confirming it.
 
 The records were transcribed locally with `whisper-large-v3-turbo` and measured
 with librosa — pitch track, microtiming against the beat grid, dynamics at
@@ -32,6 +34,10 @@ has to be able to cause, and mostly she has no machinery for either end.
 | Michael Jackson — Remember the Time | +4.9 | 0.35 | **0.04** | 21.4 | 5.53 | 0.17 | 4.5 | 15.5 | 0.55 |
 | King Harvest — Dancing in the Moonlight | +0.2 | 0.36 | 2.90 | 25.6 | 3.66 | 0.13 | 3.6 | 23.4 | 0.72 |
 | Jon Brion — Little Person | −20.9 | 0.41 | 2.20 | 25.6 | 4.28 | **0.08** | 3.2 | 26.7 | **0.97** |
+| Daniel Caesar & Kali Uchis — Get You | −11.6 | 0.34 | 0.79 | 29.7 | 5.46 | 0.11 | 3.5 | 31.9 | 0.55 |
+| Sonic R — Can You Feel the Sunshine | −1.0 | **0.15** | 0.50 | 31.1 | 6.57 | 0.11 | **2.6** | **10.6** | 0.70 |
+| David Bowie — Starman | −14.5 | 0.35 | **4.01** | **15.5** | **7.35** | 0.11 | 4.2 | 17.4 | 0.75 |
+| Ciscero & Oddisee — Beautiful Mind | **−29.2** | 0.38 | **0.01** | 29.5 | 4.92 | 0.13 | 4.1 | 77.9 | 0.67 |
 
 Two results hold across all fourteen.
 
@@ -40,8 +46,16 @@ spread of deliberate lateness and earliness. Aloe Blacc sits a thirty-second of
 a second behind his own band for four minutes; Phony Ppl drag a sixteenth. The
 placement is the feel, and it is chosen.
 
-**Vibrato is in every one of them**, 3.66 to 7.14 Hz, strength 4.4 to 6.2 over
-the noise floor. Fourteen for fourteen. The held note never holds still.
+**Vibrato is in every one of them**, 3.66 Hz at the slowest and 7.35 Hz at the
+fastest. Eighteen for eighteen. The held note never holds still.
+
+Two of the four late arrivals sit at the ends of the set. Bowie's pulse drifts
+4.01 %, which puts "Starman" beside Sam Cooke among the records where the band
+follows a singer; and Ciscero's drifts 0.007 %, the most machine-steady grid
+here, with the vocal placed 29 ms behind it — the widest gap in the set between
+how rigid the frame is and how far the voice sits off it. Ciscero's 77.9 dB
+spread is a fact about the video file rather than about the performance: the
+rip carries near-silence at both ends.
 
 And the outliers say something specific. Sam Cooke's pulse drifts 4.11 % — the
 orchestra follows him rather than a click. Michael Jackson's drifts 0.04 % and
@@ -113,6 +127,19 @@ Twenty-five processes, each stated as a mechanism rather than a style.
 25. **Directional conviction.** "I don't know what's up there beyond the sky...
     but I know a change gonna come." High confidence in a direction with
     admitted ignorance of the mechanism.
+26. **Invitation toward a future state.** "Can you feel the sunshine? Don't you
+    want to be somebody?" Sixty-one per cent of that record's clauses are
+    questions and seventy-four per cent of its pronouns are second person, with
+    thirteen future markers. Encouragement addressed as a question about
+    something the other could have rather than as a claim about them.
+27. **A "we" that needs a "they".** "Cause we come from runaway" lands twelve
+    times over a record that is 37 % first-person plural and 25 % third-person
+    plural and asks nothing. Belonging stated as a shared origin, with the
+    boundary of the group carried by the other pronoun.
+28. **The wordless part carrying the loudest moment.** "Starman" says la two
+    hundred and eighteen times and its loudest window is that chorus rather
+    than any line of the verse. What cannot be said is not a gap in the
+    record; it is the part of it people sing.
 
 ## What happens in the listener
 
@@ -174,7 +201,9 @@ Nothing in them names a constant that came from the songs.
 | `core/expression/register.py`, `core/expression/delivery.py` | expression 1, 8, 23; listener 3 | landed |
 | `core/social/witness.py` | listener 5, 6, 14 | landed |
 | `core/self/recognition.py` | expression 7, 12, 18, 19, 20; listener 3, 10 | next |
-| `core/affect/frisson.py` | listener 11; expression 4, 7 | next |
+| `core/affect/frisson.py` | listener 11; expression 4 | landed |
+| `core/self/recognition.py` | expression 19; listener 10 | landed |
+| `core/memory/reliving.py` | listener 9, 15 | landed |
 
 ### Ambivalence — wanting two things that cost each other
 

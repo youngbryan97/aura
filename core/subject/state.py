@@ -525,6 +525,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("narrative_len", "identity.current_narrative"),
             ("value_load", "identity.core_values"),
             ("preference_load", "identity.self_preferences"),
+            # How her reading of herself compares with somebody else's, scored
+            # against the same outcome, and whether the moment was warm toward
+            # her. See core/self/recognition.py.
+            ("read_better_by_other", "identity.read_by_other.borrowed"),
+            ("own_reading_error", "identity.read_by_other.her_error"),
+            ("cared_for", "identity.read_by_other.cared_for"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -601,6 +607,12 @@ _SCHEMAS: dict[str, Schema] = {
             # by, so it is part of active memory's state rather than a
             # bookkeeping detail of the phase that produced it.
             ("recall_score", "cognition.memory_scores"),
+            # Whether what came back is relived or looked up, what came back
+            # with it, and how often this has been asked before.
+            # See core/memory/reliving.py.
+            ("recall_relived", "cognition.relived.relived"),
+            ("recall_feeling", "cognition.relived.intensity"),
+            ("recall_returns", "cognition.relived.returns"),
             *[
                 (f"working_profile_{i}", "cognition.working_memory[*]")
                 for i in range(CONTENT_BUCKETS)
@@ -1181,6 +1193,11 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_S(state: Any, organs: Organs) -> np.ndarray:
     growth = _dig(state, "identity.personality_growth", {}) or {}
+    # As a mapping: nobody having read her yet is an answer rather than a
+    # failed read, and digging field by field would count a miss every turn.
+    read_by_other = _dig(state, "identity.read_by_other", {}) or {}
+    if not isinstance(read_by_other, Mapping):
+        read_by_other = {}
     head = [
         _f(_dig(state, "identity.stability"), 1.0),
         _f(_dig(state, "identity.evolution_score")),
@@ -1189,6 +1206,9 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _sat(str(_dig(state, "identity.current_narrative", "") or ""), 512.0),
         _sat(_dig(state, "identity.core_values", []) or [], 8.0),
         _sat(_dig(state, "identity.self_preferences", {}) or {}, 8.0),
+        1.0 if read_by_other.get("borrowed") else 0.0,
+        _f(read_by_other.get("her_error")),
+        _f(read_by_other.get("cared_for")),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1244,6 +1264,10 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
+    # As a mapping: no recall yet is an answer rather than a failed read.
+    relived = _dig(state, "cognition.relived", {}) or {}
+    if not isinstance(relived, Mapping):
+        relived = {}
     retrieved = _dig(state, "cognition.long_term_memory", []) or []
     last = working[-1] if isinstance(working, list) and working else {}
     return np.array(
@@ -1257,6 +1281,9 @@ def _read_M(state: Any) -> np.ndarray:
             _sat(retrieved, 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
+            1.0 if relived.get("relived") else 0.0,
+            _f(relived.get("intensity")),
+            _sat(_f(relived.get("returns")), 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
