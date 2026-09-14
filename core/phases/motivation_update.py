@@ -149,6 +149,9 @@ class MotivationUpdatePhase(Phase):
         # was closed on almost every turn she was thinking carefully: the guard
         # tested a mode that means she is concentrating and read it as meaning
         # she is already busy with herself.
+        # An intention whose need has been met is finished, and nothing else
+        # ever said so. See `_close_met_intentions`.
+        self._close_met_intentions(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -216,6 +219,74 @@ class MotivationUpdatePhase(Phase):
             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    @staticmethod
+    def _need_threshold(mot: Any) -> float:
+        """The level below which a drive asks for an intention.
+
+        Scaled by energy: a rested mind lets a need get lower before acting on
+        it, a tired one acts sooner. The same line the need was judged against
+        when the intention formed, which is why it also says when it is met.
+        """
+        energy = float(mot.budgets["energy"]["level"])
+        baseline = 40.0
+        sensitivity = 0.5
+        return max(10.0, min(90.0, baseline + (energy - 50.0) * sensitivity))
+
+    @classmethod
+    def _close_met_intentions(cls, state: AuraState) -> int:
+        """Retire her own intentions whose need is no longer unmet.
+
+        Nothing in the system ever marked an initiative done. The guard below
+        blocks a new intention while one of hers is open, so the first
+        intention of a run stayed open for the rest of it and no second one
+        ever formed: across the 15,840 frames of run 031 deliberation's goal
+        urgency never changed and its initiative load took three values. That
+        is why nothing else in the mind could be shown to reach deliberation.
+
+        An intention is finished when what formed it is gone. One formed from
+        a drive is met once that drive is back above the line it was judged
+        against. One formed to pass something on is met once there is nothing
+        left to pass on. An intention that says neither is left exactly as it
+        was, because nothing here can tell whether it was addressed.
+        """
+        try:
+            cognition = state.cognition
+            pending = list(getattr(cognition, "pending_initiatives", []) or [])
+            budgets = state.motivation.budgets
+            threshold = cls._need_threshold(state.motivation)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return 0
+        telling_urge = None
+        kept: list[Any] = []
+        closed = 0
+        for item in pending:
+            if not isinstance(item, dict) or str(item.get("source", "")) != "motivation_update":
+                kept.append(item)
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            drive = str(metadata.get("drive") or "")
+            met = False
+            if drive and isinstance(budgets.get(drive), dict):
+                met = float(budgets[drive].get("level", 0.0) or 0.0) > threshold
+            elif str(item.get("type", "")) == "passing_on" or metadata.get("kind"):
+                if telling_urge is None:
+                    try:
+                        from core.social.telling import worth_telling
+
+                        telling_urge = worth_telling(state.affect, cognition).urge
+                    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                        logger.debug("could not read whether there is still something to pass on: %s", exc)
+                        telling_urge = 1.0
+                met = telling_urge <= 0.0
+            if met:
+                closed += 1
+                continue
+            kept.append(item)
+        if closed:
+            cognition.pending_initiatives = kept
+            logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
+        return closed
 
     @staticmethod
     def _own_intention_is_open(state: AuraState) -> bool:
@@ -376,11 +447,7 @@ class MotivationUpdatePhase(Phase):
         """Ported logic from MotivationEngine._assess_needs."""
         mot = state.motivation
         
-        # Calculate threshold based on energy
-        energy = mot.budgets["energy"]["level"]
-        baseline = 40.0
-        sensitivity = 0.5
-        threshold = max(10.0, min(90.0, baseline + (energy - 50.0) * sensitivity))
+        threshold = self._need_threshold(mot)
         
         # Find most urgent drive
         urgent = sorted(mot.budgets.items(), key=lambda x: x[1]["level"])
