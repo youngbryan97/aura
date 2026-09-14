@@ -362,8 +362,17 @@ class HorcruxManager:
         return await asyncio.to_thread(self._load_file_sync)
 
     def _load_file_sync(self):
+        path = Path(self.aura_dir) / ".core_seed"
+        if not path.exists():
+            # A shard that has not been written yet is a first boot, not a
+            # fault. Recorded as one, every fresh state root opened a
+            # degradation and a resilience incident before anything had gone
+            # wrong — the same shape as a continuity record that does not exist
+            # yet being reported as a failure to read one.
+            logger.debug("No file shard yet at %s; this is a first boot.", path)
+            return None, None
         try:
-            return self._unpack(base64.b64decode((Path(self.aura_dir) / ".core_seed").read_text().strip()))
+            return self._unpack(base64.b64decode(path.read_text().strip()))
         except _HORCRUX_RECOVERABLE_ERRORS as exc:
             record_degradation("horcrux", exc)
             logger.debug("File shard load failed: %s", exc)
@@ -374,8 +383,13 @@ class HorcruxManager:
         return await asyncio.to_thread(self._load_hint_sync, response)
 
     def _load_hint_sync(self, response):
+        hint = Path(self.aura_dir) / ".hint_seed"
+        if not hint.exists():
+            # Same as the shard above: nothing written yet is a first boot.
+            logger.debug("No hint shard yet at %s; this is a first boot.", hint)
+            return None, None
         try:
-            enc = base64.b64decode((Path(self.aura_dir) / ".hint_seed").read_text().strip())
+            enc = base64.b64decode(hint.read_text().strip())
             h = hashlib.sha256(response.encode()).digest()
             mask = (h * (len(enc)//32 + 1))[:len(enc)]
             dec = bytes(a ^ b for a, b in zip(enc, mask, strict=True))
