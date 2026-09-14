@@ -766,6 +766,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   runtime. Actual reads link to their latest writers; telemetry failure cannot
   discard a computed answer. The 167-test CPU pass is not broad live evidence
   or independent task-outcome learning. G09 remains open.
+  [Outcome learning evidence](evidence/G09_OUTCOME_LEARNING_EVIDENCE_2026-09-14.md)
+  repairs the production feed that taught unobserved expirations as failures.
+  Sixty-one focused tests pass; shared procedure assessment and broad gain remain open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

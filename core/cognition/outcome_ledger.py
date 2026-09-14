@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import sqlite3
 import threading
 import time
@@ -44,6 +45,7 @@ from typing import Any, Callable, Dict, List, Optional
 from core.config import config
 from core.runtime.errors import record_degradation
 from core.runtime.sqlite_support import connecting
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Cognition.OutcomeLedger")
 
@@ -56,6 +58,8 @@ _DEFAULT_COLLAPSE_WINDOW_S = 300.0
 
 
 def _clamp(x: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    if not math.isfinite(x):
+        raise ValueError("outcome value must be finite")
     return lo if x < lo else hi if x > hi else x
 
 
@@ -121,7 +125,31 @@ class OutcomeReceipt:
     @property
     def is_evidence(self) -> bool:
         """True when this receipt may be used as a training label or a statistic."""
-        return self.observation == "measured" and self.observed is not None
+        return (
+            self.status == "resolved"
+            and self.observation == "measured"
+            and isinstance(self.observed, (int, float))
+            and math.isfinite(self.observed)
+            and 0.0 <= self.observed <= 1.0
+        )
+
+
+@invariant("outcome.measured_learning_evidence", scope="cognition",
+           owner="core/cognition/outcome_ledger.py", observational=False)
+def _measured_learning_evidence() -> tuple:
+    """Expiry and incomplete observations cannot serve as training labels."""
+    receipt = OutcomeReceipt("probe", "action", "probe", 0.5, [], 0.0, 1.0)
+    assert not receipt.is_evidence
+    receipt.observed = 0.0
+    receipt.status = "expired"
+    receipt.observation = "unobserved"
+    assert not receipt.is_evidence
+    receipt.status = "resolved"
+    receipt.observation = "measured"
+    assert receipt.is_evidence
+    receipt.observed = float("nan")
+    assert not receipt.is_evidence
+    return ()
 
 
 class OutcomeLedger:
@@ -343,6 +371,7 @@ class OutcomeLedger:
         The returned id is still a valid, resolvable receipt — callers do not
         have to know this happened.
         """
+        expected = _clamp(float(expected))
         now = time.time() if now is None else now
         window = self._collapse_window if collapse_window_s is None else float(collapse_window_s)
         if window > 0:
@@ -353,7 +382,7 @@ class OutcomeLedger:
             receipt_id=f"rcpt-{uuid.uuid4().hex[:12]}",
             action=action,
             category=category,
-            expected=_clamp(float(expected)),
+            expected=expected,
             sources=list(sources or []),
             opened_at=now,
             horizon_s=float(horizon_s if horizon_s is not None else self._default_horizon),
@@ -420,6 +449,7 @@ class OutcomeLedger:
 
         Returns the resolved receipt, or None if the id is unknown/already closed.
         """
+        observed = _clamp(float(observed))
         now = time.time() if now is None else now
         with self._lock:
             receipt = self._pending.pop(receipt_id, None)
@@ -427,7 +457,7 @@ class OutcomeLedger:
                 receipt = self._fetch_pending_receipt(receipt_id)
                 if receipt is None:
                     return None
-            receipt.observed = _clamp(float(observed))
+            receipt.observed = observed
             receipt.resolved_at = now
             receipt.prediction_error = receipt.observed - receipt.expected
             receipt.status = "resolved"
@@ -523,15 +553,6 @@ class OutcomeLedger:
         observed = receipt.observed if receipt.observed is not None else 0.0
         reward = 2.0 * observed - 1.0  # [0,1] → [-1,1]
 
-        # An outcome that carried weight (strongly good or bad) teaches the mattering model
-        # that this action's topics matter — so "what matters" is learned from consequences,
-        # not declared.
-        try:
-            from core.cognition.mattering import get_mattering_model
-            get_mattering_model().note_mattered(receipt.action, weight=0.5 * abs(reward))
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-            pass
-
         total_w = sum(max(0.0, s.weight) for s in receipt.sources) or 1.0
         try:
             from core.consciousness.credit_assignment import get_credit_assignment_system
@@ -543,6 +564,17 @@ class OutcomeLedger:
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as e:
             record_degradation("outcome_ledger", e, severity="debug",
                                action="skipped credit-assignment feed")
+
+        # Expiry retains accountability credit, but is not a correctness label
+        # or a measured consequence for either learning consumer.
+        if not receipt.is_evidence:
+            return
+        try:
+            from core.cognition.mattering import get_mattering_model
+            get_mattering_model().note_mattered(receipt.action, weight=0.5 * abs(reward))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("outcome_ledger", exc, severity="debug",
+                               action="skipped measured mattering feed")
 
         try:
             from core.cognition.outcome_learner import get_outcome_learner
@@ -558,6 +590,8 @@ class OutcomeLedger:
                     "observed": observed,
                     "prediction_error": receipt.prediction_error,
                     "status": receipt.status,
+                    "observation": receipt.observation,
+                    "receipt_id": receipt.receipt_id,
                     "sources": [s.as_dict() for s in receipt.sources],
                 },
             )
