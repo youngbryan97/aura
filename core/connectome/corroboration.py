@@ -192,18 +192,30 @@ def read_domain_edges(
     about the rule.
     """
     found: dict[tuple[str, str], tuple[bool, float, float]] = {}
+    unreadable = 0
     with Path(path).open(encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             try:
                 effect = float(row["effect"])
                 q = float(row["q"])
             except (KeyError, TypeError, ValueError):
+                unreadable += 1
                 continue
             found[(row["source"].strip(), row["target"].strip())] = (
                 q <= q_ceiling,
                 effect,
                 q,
             )
+    if unreadable:
+        # A dropped row is an edge the comparison never saw, and a
+        # corroboration over fewer edges than the battery measured is a
+        # different result. Said once, with the number.
+        logger.warning(
+            "read %d edge(s) from %s and could not read %d row(s)",
+            len(found),
+            path,
+            unreadable,
+        )
     return found
 
 

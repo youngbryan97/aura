@@ -259,6 +259,16 @@ def get_world_actuator() -> WorldActuator:
                 try:
                     from core.container import ServiceContainer
                     ServiceContainer.register_instance("world_actuator", _actuator_instance, required=False)
-                except (ImportError, RuntimeError, AttributeError, TypeError):
-                    pass  # registration is best-effort; the singleton still stands
+                except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
+                    # Best-effort, and the singleton still stands for anyone
+                    # holding it. Anyone asking the container for it gets
+                    # nothing, and that is worth a record rather than a guess.
+                    from core.runtime.errors import record_degradation
+
+                    record_degradation(
+                        "world_actuator",
+                        exc,
+                        severity="warning",
+                        action="kept the actuator singleton unregistered in the container",
+                    )
     return _actuator_instance
