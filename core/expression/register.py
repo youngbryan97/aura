@@ -47,6 +47,8 @@ from dataclasses import dataclass
 
 __all__ = [
     "ASKING",
+    "FUTURE",
+    "OFFER",
     "PERSISTENCE",
     "Register",
     "comparable",
@@ -90,6 +92,22 @@ PERSISTENCE: tuple[str, ...] = (
     "regardless", "whatever happens",
 )
 
+#: Markers that place a clause in a future. "Can you feel the sunshine? It's
+#: gonna be a brighter day" carries thirteen of them, and a clause with one is
+#: about something that has not happened yet.
+FUTURE: tuple[str, ...] = (
+    "gonna", "going to", "will", "i'll", "you'll", "we'll", "tomorrow",
+    "someday", "one day", "soon", "next", "could be", "can be",
+)
+
+#: What an offer sounds like inside a request. "If I share with you my story,
+#: would you share your dollar with me?" asks and gives in one breath; the
+#: markers are the giving half.
+OFFER: tuple[str, ...] = (
+    "i can", "i could", "i'll", "i will", "let me", "if i", "i share",
+    "in return", "i'd be glad", "i owe", "i promise",
+)
+
 _WORD = re.compile(r"[a-z']+")
 _CLAUSE = re.compile(r"[.!?;\n]+|,\s+(?=but|and|so|because)")
 
@@ -110,6 +128,10 @@ class Register:
     #: Connectives of persistence, per hundred words, so a long utterance is
     #: not automatically more insistent than a short one.
     persistence: float = 0.0
+    #: Clauses that place what they say in a future, as a share of clauses.
+    future: float = 0.0
+    #: Clauses that offer something of her own, as a share of clauses.
+    offering: float = 0.0
     #: Distinct words over total. Low is a refrain; the two records that say
     #: the least say it the most times.
     variety: float = 0.0
@@ -218,10 +240,17 @@ def read(text: str) -> Register:
     total = sum(placed.values())
     clauses = [c.strip() for c in _CLAUSE.split(body) if c.strip()]
     asking = 0
+    ahead = 0
+    giving = 0
     for clause in clauses:
         head = _WORD.findall(clause.lower())
         if clause.rstrip().endswith("?") or (head and head[0] in ASKING):
             asking += 1
+        spaced = f" {' '.join(head)} "
+        if any(f" {marker} " in spaced for marker in FUTURE):
+            ahead += 1
+        if any(f" {marker} " in spaced for marker in OFFER):
+            giving += 1
     lowered = f" {' '.join(tokens)} "
     persistence = sum(lowered.count(f" {m} ") for m in PERSISTENCE)
     refrain, times = _refrain(tokens)
@@ -234,6 +263,8 @@ def read(text: str) -> Register:
         placed=total,
         asking=asking / max(len(clauses), 1),
         persistence=100.0 * persistence / len(tokens),
+        future=ahead / max(len(clauses), 1),
+        offering=giving / max(len(clauses), 1),
         variety=len(set(tokens)) / len(tokens),
         refrain=refrain,
         refrain_times=times,

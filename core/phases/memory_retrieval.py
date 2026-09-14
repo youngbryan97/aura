@@ -118,6 +118,22 @@ def _safe_metadata(raw: Any) -> dict[str, Any]:
 ORDINARY_NOVELTY: float = 0.5
 
 
+def _shared_with(metadata: dict[str, Any], partner_id: str) -> bool:
+    """Whether a recalled record was written with the person she is with now.
+
+    Read off the principal the record carries. A record with no principal
+    says nothing about who was there, which is different from saying nobody
+    was.
+    """
+    partner = " ".join(str(partner_id or "").split()).casefold()
+    if not partner or partner == "local_user":
+        return False
+    recorded = " ".join(
+        str(metadata.get("principal_id") or metadata.get("user_id") or "").split()
+    ).casefold()
+    return bool(recorded) and recorded == partner
+
+
 def novelty_deepens(novelty: float) -> int:
     """How much further to look, given how unlike her ordinary life this is.
 
@@ -609,6 +625,14 @@ class MemoryRetrievalPhase(BasePhase):
 
         memories: list[str] = []
         memory_candidates: list[tuple[float, str]] = []
+        # Recollections that include the person she is talking to now.
+        shared_texts: set[str] = set()
+        try:
+            from core.runtime.conversation_support import resolve_primary_user_id
+
+            partner_id = resolve_primary_user_id(state)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            partner_id = ""
 
         # ── Gap 3 Fix: Memory Affect → Steering ──
         total_valence_hit = 0.0
@@ -676,6 +700,12 @@ class MemoryRetrievalPhase(BasePhase):
                         memory_candidates.append(
                             (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
                         )
+                        # Whether the person she is with now was part of it.
+                        # The principal a personal record was written for is
+                        # stored with it; a record written for somebody else
+                        # never reaches here. See `_shared_with`.
+                        if _shared_with(metadata, partner_id):
+                            shared_texts.add(f"[memory score={weighted_score:.3f}] {content}")
 
                         if abs(emotional_valence) > 0.3:
                             total_valence_hit += emotional_valence * importance
@@ -796,6 +826,12 @@ class MemoryRetrievalPhase(BasePhase):
             returns=returns,
         )
         new_state.cognition.relived = reliving.as_dict()
+        # Joint recall: whether what came back is something she and the person
+        # she is with now were both part of. "Remember the Time" asks fifteen
+        # times and every one is a memory marked as theirs together.
+        new_state.cognition.relived["shared"] = bool(
+            memory_candidates and memory_candidates[0][1] in shared_texts
+        )
         get_return_ledger().note(query)
 
         try:

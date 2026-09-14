@@ -77,7 +77,11 @@ def worth_telling(affect: Any, cognition: Any) -> Telling:
         return Telling()
 
     about = ""
-    if kind == "something I remembered":
+    if kind == "something I remembered" and relived.get("shared"):
+        # A memory with the person she is talking to in it is passed on as
+        # theirs together, which is what joint recall is.
+        kind = "something we both remember"
+    if kind in {"something I remembered", "something we both remember"}:
         recalled = list(getattr(cognition, "long_term_memory", []) or [])
         about = str(recalled[0])[:160] if recalled else ""
     else:

@@ -659,6 +659,9 @@ class CognitiveContext:
     #: How much of what she is about to say she has already said, and what is
     #: left of the pressure to say it. See core/affect/catharsis.py.
     catharsis: dict[str, Any] = field(default_factory=dict)
+    #: Whether both of them are saying we, and the they that draws its edge.
+    #: See core/social/togetherness.py.
+    togetherness: dict[str, Any] = field(default_factory=dict)
     #: The pulse the person she is talking to is keeping — how long their
     #: turns are, how far apart, and how far off it her own last turn sat.
     #: See core/expression/entrainment.py.

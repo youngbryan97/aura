@@ -345,6 +345,8 @@ class AffectUpdatePhase(Phase):
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
         self._read_safety(state, affect)
+        # And a we both of them are saying. See core/social/togetherness.py.
+        self._read_togetherness(state, affect)
 
         # 6b-iii-b. Where this moment sits against the low she is still
         # holding. After the emotion channels have settled, because it reads
@@ -471,6 +473,29 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_togetherness(self, state: AuraState, affect: AffectVector) -> None:
+        """Belonging floored at a we both of them are saying.
+
+        The edge — the they that draws the group — is recorded and does not
+        raise belonging: naming who is outside is how a group is drawn, and
+        turning that into warmth would reward it.
+        """
+        try:
+            reading = getattr(state.cognition, "togetherness", {}) or {}
+            together = self._clip01(reading.get("together", 0.0))
+            affect.markers["togetherness"] = dict(reading)
+            if together > 0.0:
+                current = float(affect.emotions.get("belonging", 0.0) or 0.0)
+                self._set_emotion(affect, "belonging", max(current, together))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="togetherness",
+                action="kept affect state without the togetherness reading",
                 severity="warning",
             )
 

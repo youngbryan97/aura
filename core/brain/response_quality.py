@@ -78,6 +78,36 @@ def extract_features(
     except (ImportError, AttributeError, TypeError, ValueError):
         register_match = 0.0
 
+    # An invitation toward a future they could have. When somebody is
+    # testifying, "can you feel the sunshine?" is encouragement rather than a
+    # question punted back: second person, asking, and about what has not
+    # happened yet. Counted only against testimony, because the same shape
+    # answering a request is a deflection. See core/expression/register.py.
+    invitation = 0.0
+    try:
+        from core.expression.register import comparable, read
+
+        theirs = read(user_message)
+        mine = read(t)
+        if comparable(theirs, mine) and theirs.asks_to_be_witnessed():
+            invitation = max(0.0, min(1.0, mine.second * mine.asking * mine.future))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        invitation = 0.0
+
+    # Dignified need: when the reply asks for something, whether it also
+    # offers. A request with nothing of hers in it is a plea; one that gives in
+    # the same breath keeps her agency. Scored only on replies that ask,
+    # because an offer nobody asked for is not what this measures.
+    dignity = 0.0
+    try:
+        from core.expression.register import read as read_register
+
+        mine_shape = read_register(t)
+        if mine_shape.measured and mine_shape.asks_for_help():
+            dignity = max(0.0, min(1.0, mine_shape.offering))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        dignity = 0.0
+
     grounding_tokens = grounding_tokens or set()
     callback = min(1.0, len(set(toks) & grounding_tokens) / 5.0) if grounding_tokens else 0.0
 
@@ -95,7 +125,9 @@ def extract_features(
     hedge_penalty = float(sum(low.count(h) for h in _HEDGES))
     banned_phrase_penalty = float(sum(low.count(b) for b in _BANNED))
     # ending on a question that punts back to the user = prompt farming
-    ends_question = 1.0 if t.endswith("?") else 0.0
+    # An invitation to somebody testifying is not prompt farming, even though it
+    # ends on a question mark.
+    ends_question = 1.0 if t.endswith("?") and invitation <= 0.0 else 0.0
     prompt_farm_penalty = float(sum(low.count(p) for p in _PROMPT_FARM)) + ends_question
 
     return {
@@ -105,6 +137,8 @@ def extract_features(
         "casual": casual,
         "length_fit": length_fit,
         "register_match": register_match,
+        "invitation": invitation,
+        "dignity": dignity,
         "anti_generic": anti_generic,
         "hedge_penalty": hedge_penalty,
         "prompt_farm_penalty": prompt_farm_penalty,

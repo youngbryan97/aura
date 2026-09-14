@@ -214,6 +214,22 @@ class ConversationalDynamicsPhase(Phase):
             logger.debug("witness stance unread for this message: %s", exc)
 
     @staticmethod
+    def _read_togetherness(state: AuraState) -> None:
+        """Whether both of them are saying we, and what draws its edge.
+
+        Her own register was never read, so an exchange where both had started
+        saying "we" looked the same as one where only one had.
+        See core/social/togetherness.py.
+        """
+        try:
+            from core.social.togetherness import read_togetherness
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            state.cognition.togetherness = read_togetherness(history).as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("no we read from this exchange: %s", exc)
+
+    @staticmethod
     def _read_cadence(state: AuraState) -> None:
         """The pulse the other person is keeping, and how far off it she sat.
 
@@ -317,6 +333,7 @@ class ConversationalDynamicsPhase(Phase):
             self._read_witness(new_state)
             self._read_recognition(new_state, objective)
             self._read_cadence(new_state)
+            self._read_togetherness(new_state)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()

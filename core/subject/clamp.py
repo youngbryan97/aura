@@ -166,6 +166,8 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # The pulse they are keeping, which sizes her own next turn.
         # See core/expression/entrainment.py.
         "cognition.partner_cadence",
+        # A we both of them are saying. See core/social/togetherness.py.
+        "cognition.togetherness",
     ),
     "D": (
         "cognition.active_goals",

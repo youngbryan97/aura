@@ -50,6 +50,14 @@ FEATURE_PRIORS: dict[str, float] = {
 # chosen for it. See core/expression/register.py.
 FEATURE_PRIORS["register_match"] = FEATURE_PRIORS["length_fit"]
 
+# An invitation toward a future is the same kind of fit — the shape of the reply
+# against the shape of what they said — so it carries the same prior.
+FEATURE_PRIORS["invitation"] = FEATURE_PRIORS["register_match"]
+
+# Asking while offering is the shape of the reply measured against what it
+# does, the same kind of fit, so the same prior.
+FEATURE_PRIORS["dignity"] = FEATURE_PRIORS["register_match"]
+
 _LR = 0.05            # online learning rate
 _WEIGHT_CLAMP = 4.0   # keep any single feature from dominating
 _MIN_REWARD = -1.0

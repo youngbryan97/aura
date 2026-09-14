@@ -65,7 +65,12 @@ from core.voice.duplex.paralinguistics import (
 from core.voice.duplex.paralinguistics import (
     interpret as interpret_delivery,
 )
-from core.voice.duplex.prosody import ProsodyCompiler, live_speech_profile
+from core.voice.duplex.prosody import (
+    ProsodyCompiler,
+    carry_breakthrough,
+    live_affect,
+    live_speech_profile,
+)
 from core.voice.duplex.streaming_asr import StreamingAsr, looks_hallucinated
 from core.voice.duplex.style import StyleController
 from core.voice.duplex.tts_stream import CancellationToken, StreamingTts
@@ -1992,6 +1997,9 @@ class DuplexVoiceSession:
         currently is rather than snapping to a fixed rate.
         """
         spec = self._prosody.compile(live_speech_profile())
+        # A feeling past her ordinary range is carried by the voice as well as
+        # the words. See `carry_breakthrough`.
+        spec = carry_breakthrough(spec, live_affect())
 
         # Move partway toward how the user is speaking. Full mirroring is
         # mimicry; none at all is the flat-affect problem this exists to fix.

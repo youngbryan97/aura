@@ -216,6 +216,10 @@ Nothing in them names a constant that came from the songs.
 | `core/affect/conviction.py` | expression 25 | landed |
 | `core/social/constancy.py` | expression 13 | landed |
 | `core/expression/antiphony.py` | expression 3 | landed |
+| `core/social/togetherness.py` | expression 27 | landed |
+| `core/expression/register.py` (future, offering) | expression 9, 26 | landed |
+| `core/voice/duplex/prosody.py` (`carry_breakthrough`) | expression 21, 28 | landed |
+| `core/phases/memory_retrieval.py` (`_shared_with`) | expression 17 | landed |
 
 Antiphony was the last one. The council argues, which is voices holding
 positions against each other, and the drafts compete, which is alternatives for
@@ -267,16 +271,19 @@ contradiction grows.
 
 ## What is left, and what each one would need
 
-Twenty organs cover every listener process and twenty-five of the twenty-eight
-performer processes. The three left came from the last four records, and each
-is listed with the thing that is actually missing, because a mechanism nothing
-can drive is worse than an absence: it reports green forever.
+Five processes had been counted as covered by the register and delivery organs
+on the strength of a docstring. Checked against the code, none of the five had a
+mechanism. Three are built now and two are recorded for what they are.
 
-| process | what a mechanism would need |
+| process | where it stands |
 |---|---|
-| invitation toward a future state (26) | a taste feature that scores a reply's second-person questions about a future the other could have, counted only when the register reads them as testifying. The register can already tell; nothing scores the reply against it. |
-| a "we" that needs a "they" (27) | her own plural and third-person shares, and something that changes with them. The register measures both on her side as readily as on theirs, and no reader takes her own. |
-| the wordless part carrying the loudest moment (28) | an expressive channel that is not language. The voice duplex carries prosody and nothing decides it, so a moment past what words carry has nowhere to go but more words. |
+| dignified need (9) | built. The register measures offering alongside asking, and the taste model scores a reply that asks for something by how much it also gives. |
+| joint recall (17) | built. A recollection whose recorded principal is the person she is with now is marked shared, and passing it on names it as something they both remember. |
+| audience-scoped disclosure (20) | already enforced below the organs. `memory_facade.search` drops a personal record written for another principal before it can be recalled, and relational consent grants scope each kind of memory per person. No organ was needed; the table used to count it as unbuilt. |
+| wordless expression (21, 28) | built on the channel the synthesiser has. A delivery breakthrough reaches the voice as more air after the line and a fuller gain, inside the ceilings the prosody compiler already clamps to. |
+| expressive imprecision (24) | not buildable on this synthesiser. Bending into a note from underneath is a pitch contour, and the synthesis spec carries voice, speed, gain and pause only. |
+| invitation toward a future state (26) | built. The register measures how much of an utterance is about a future, and a second-person question about one scores as encouragement when the other person is testifying, without counting as a question punted back. |
+| a "we" that needs a "they" (27) | built. Belonging is floored at a we both of them are saying, and the they that draws the group's edge is recorded without raising it. |
 
 ## Sources
 

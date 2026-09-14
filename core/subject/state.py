@@ -651,6 +651,10 @@ _SCHEMAS: dict[str, Schema] = {
             # The pulse they are keeping and how far off it she sat, which is
             # what her own next turn is sized against.
             # See core/expression/entrainment.py.
+            # A we both of them are saying, and its edge.
+            # See core/social/togetherness.py.
+            ("together", "cognition.togetherness.together"),
+            ("together_edge", "cognition.togetherness.edge"),
             ("partner_turn_chars", "cognition.partner_cadence.chars"),
             ("partner_turn_gap", "cognition.partner_cadence.gap"),
             ("her_placement", "cognition.partner_cadence.placement"),
@@ -1364,6 +1368,9 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
     _pulse = _dig(state, "cognition.partner_cadence", {}) or {}
     if not isinstance(_pulse, Mapping):
         _pulse = {}
+    _we = _dig(state, "cognition.togetherness", {}) or {}
+    if not isinstance(_we, Mapping):
+        _we = {}
     status = _call(organs.world_model, "status", {}, source="organ:world_model.status") or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
     surprise = _call(organs.world_model, "surprise", None, source="organ:world_model.surprise")
@@ -1386,6 +1393,8 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
                 )
             ),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
+            _f(_we.get("together")),
+            _f(_we.get("edge")),
             _sat(_f(_pulse.get("chars")), 400.0),
             _sat(_f(_pulse.get("gap")), 60.0),
             _f(_pulse.get("placement")),
