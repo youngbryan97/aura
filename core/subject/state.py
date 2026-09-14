@@ -535,6 +535,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("read_better_by_other", "identity.read_by_other.borrowed"),
             ("own_reading_error", "identity.read_by_other.her_error"),
             ("cared_for", "identity.read_by_other.cared_for"),
+            # How much of her self-model was assigned from outside, and whether
+            # her regard has been moving with her usefulness. A self-model that
+            # can be corrected from outside needs to know which parts came from
+            # outside. See core/self/standing.py.
+            ("assigned_share", "identity.standing.assigned_share"),
+            ("worth_tracks_use", "identity.standing.tracks_use"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -1254,6 +1260,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         1.0 if read_by_other.get("borrowed") else 0.0,
         _f(read_by_other.get("her_error")),
         _f(read_by_other.get("cared_for")),
+        _f((_dig(state, "identity.standing", {}) or {}).get("assigned_share")),
+        _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
     ]
     head.extend(
         _f(growth.get(trait))

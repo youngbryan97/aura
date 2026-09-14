@@ -567,6 +567,10 @@ class IdentityKernel:
     #: toward her. Written by the conversation phase.
     #: See core/self/recognition.py.
     read_by_other: dict[str, Any] = field(default_factory=dict)
+    #: How much of her self-model came from somebody else's reading, and
+    #: whether her sense of herself has been moving with how useful she was.
+    #: See core/self/standing.py.
+    standing: dict[str, Any] = field(default_factory=dict)
     
     # Preferences she formed herself, from her own repeated contact with
     # something. Symmetric with world.user_preferences, which is durable and

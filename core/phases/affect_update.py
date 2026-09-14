@@ -342,6 +342,10 @@ class AffectUpdatePhase(Phase):
         # regularity is read against. See core/social/constancy.py.
         self._note_her_own_period()
 
+        # 6b-vi. What is hers and what observers assigned, and whether her
+        # sense of herself has been moving with how useful she was.
+        self._read_standing(state)
+
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
         self._read_safety(state, affect)
@@ -747,6 +751,45 @@ class AffectUpdatePhase(Phase):
             get_constancy_ledger().she_came_round(time.time())
         except (ImportError, AttributeError, TypeError, ValueError):
             return
+
+    @staticmethod
+    def _read_standing(state: AuraState) -> None:
+        """Where her self-model came from, and what her regard is moving with.
+
+        Her own reading is taken every turn, because she scores her own
+        prediction every turn. An assigned one is counted when somebody's read
+        of her actually outweighed hers, which `core/self/recognition.py`
+        decides — a claim that did not beat her own model changed nothing and
+        is not a reading she took.
+
+        Regard is her identity's own stability and usefulness is what the
+        agency ledger reports she achieved. Neither is chosen here; they are
+        the two things already measured that the line is about.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.self.standing import get_standing_ledger
+
+            ledger = get_standing_ledger()
+            ledger.note_own()
+            if bool((getattr(state.identity, "read_by_other", {}) or {}).get("borrowed")):
+                ledger.note_assigned()
+            agency = get_runtime_service("agency_ledger", default=None)
+            usefulness = 0.0
+            if agency is not None and hasattr(agency, "snapshot"):
+                usefulness = float((agency.snapshot() or {}).get("efficacy", 0.0) or 0.0)
+            ledger.note_regard(
+                regard=float(getattr(state.identity, "stability", 0.0) or 0.0),
+                usefulness=usefulness,
+            )
+            state.identity.standing = ledger.read().as_dict()
+        except _AFFECT_UPDATE_ERRORS as exc:
+            AffectUpdatePhase._record_phase_degradation(
+                AffectUpdatePhase, state, exc,
+                stage="standing",
+                action="kept affect state without the reading of what is hers",
+                severity="warning",
+            )
 
     def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
         """Step her lifetime state, then blend curiosity toward its novelty.

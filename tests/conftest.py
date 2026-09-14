@@ -1342,6 +1342,7 @@ def resource_observer(
             "core.social.resolve",
             "core.self.revision",
             "core.self.growth",
+            "core.self.standing",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()
