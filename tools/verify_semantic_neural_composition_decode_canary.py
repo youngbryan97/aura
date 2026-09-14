@@ -34,6 +34,8 @@ from tools.run_semantic_neural_composition_decode_canary import (  # noqa: E402
     ARMS,
     CLAIM_BOUNDARY,
     JOURNAL_SCHEMA,
+    PUBLIC_SCHEMA,
+    PUBLIC_SOURCE_PATHS,
     SCHEMA,
     SOURCE_PATHS,
     _arm_order,
@@ -228,6 +230,8 @@ def _verify_journal(
         "max_tokens": payload.get("max_tokens"),
         "model_identity": model_identity,
     }
+    if "decode_policy" in payload:
+        expected_start["decode_policy"] = payload["decode_policy"]
     if any(started.get(key) != value for key, value in expected_start.items()):
         raise RuntimeError("composition decode journal campaign identity differs")
     for index, (event, row) in enumerate(zip(decode_events, rows, strict=True), start=1):
@@ -262,13 +266,21 @@ def verify(
     *,
     journal_path: Path | None = None,
 ) -> dict[str, Any]:
-    if not isinstance(payload, dict) or payload.get("schema") != SCHEMA:
+    from core.brain.llm.public_channel_decode import PUBLIC_CHANNEL_DECODE_POLICY
+    from core.learning.public_decode_evidence import validate_public_decode_receipt
+    if not isinstance(payload, dict) or payload.get("schema") not in {SCHEMA, PUBLIC_SCHEMA}:
         raise RuntimeError("composition decode schema mismatch")
+    public_decode = payload["schema"] == PUBLIC_SCHEMA
+    if public_decode and (payload.get("decode_policy") != PUBLIC_CHANNEL_DECODE_POLICY
+                          or type(payload.get("max_tokens")) is not int
+                          or not 32 <= payload["max_tokens"] <= 8192):
+        raise RuntimeError("composition public decode policy or budget differs")
     _verify_receipt(payload, "receipt_sha256")
     source_commit = str(payload.get("source_commit") or "")
     if len(source_commit) != 40:
         raise RuntimeError("composition decode source commit is invalid")
-    expected_sources = {path: _git_blob_sha(source_commit, path) for path in SOURCE_PATHS}
+    expected_sources = {path: _git_blob_sha(source_commit, path)
+                        for path in (PUBLIC_SOURCE_PATHS if public_decode else SOURCE_PATHS)}
     if payload.get("source_sha256s") != expected_sources:
         raise RuntimeError("composition decode source identity mismatch")
 
@@ -304,6 +316,7 @@ def verify(
         raise RuntimeError("composition decode row population is invalid")
 
     replayed_rows = []
+    censored = 0
     cursor = 0
     for index, (document, workflow, answer) in enumerate(
         zip(documents, workflows, expected_answers, strict=True)
@@ -349,6 +362,13 @@ def verify(
                 raise RuntimeError("composition decode independent row replay differs")
             if (arm == "ordinary_base") != (row["prefill_tokens"] == 0):
                 raise RuntimeError("composition decode prefill contract differs")
+            if public_decode:
+                censored += not validate_public_decode_receipt(row.get("decode"), response,
+                                                               max_tokens=payload["max_tokens"])
+                if (any(row[field] != row["decode"][field] for field in (
+                        "generated_tokens", "prefill_tokens", "latency_ms"))
+                        or row["stopped"] is not (row["decode"]["stop_reason"] in {"eos", "public_contract"})):
+                    raise RuntimeError("composition public decode accounting differs")
             replayed_rows.append(row)
 
     arms = {arm: _summary(replayed_rows, arm) for arm in ARMS}
@@ -375,6 +395,7 @@ def verify(
     treatment_exact = arms["treatment"]["exact"]
     admitted = bool(
         treatment_exact == task_count
+        and not censored
         and gain_set
         and not regressions
         and all(arms[arm]["exact"] < treatment_exact for arm in ARMS if arm != "treatment")
@@ -388,6 +409,7 @@ def verify(
         or payload.get("regression_count") != len(regressions)
         or payload.get("admitted") is not admitted
         or payload.get("claim_boundary") != CLAIM_BOUNDARY
+        or (public_decode and payload.get("censored_decodes") != censored)
     ):
         raise RuntimeError("composition decode adjudication differs")
     journal_identity = _verify_journal(payload, journal_path)
@@ -410,6 +432,7 @@ def verify(
         ),
         "claim_boundary": CLAIM_BOUNDARY,
         "verifier_source_sha256": _file_sha(Path(__file__).resolve()),
+        **({"decode_policy": payload["decode_policy"], "censored_decodes": censored} if public_decode else {}),
     }
     return {**body, "verification_receipt_sha256": _sha(body)}
 

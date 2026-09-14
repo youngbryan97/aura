@@ -729,6 +729,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
+  [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
+  found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
+  One real 27B development task now reaches a correct public result after
+  3,027 tokens; the old exact-wire grader rejects only its valid Theta
+  notation. Versioned channel/semantic measurement repairs preserve the
+  historical records. This is not fresh gain evidence or G05/G06 closure.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.

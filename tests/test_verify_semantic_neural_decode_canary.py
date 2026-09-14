@@ -51,13 +51,17 @@ def _write_journal(artifact: Path, destination: Path) -> None:
             "arm_count": 5,
         }
     ]
+    for field in ("domains", "difficulties", "surface_profile", "resident_manifest_identity",
+                  "decode_policy", "grading_policy", "max_tokens"):
+        if field in payload:
+            events[0][field] = payload[field]
     for index, raw_output in enumerate(payload["raw_outputs"], start=1):
         events.append(
             {
                 "event": "decode_committed",
                 "completed": index,
                 "total": len(payload["raw_outputs"]),
-                "row": {
+                "row": payload["rows"][index - 1] if "rows" in payload else {
                     "task_id": raw_output["task_id"],
                     "arm": raw_output["arm"],
                     "response_sha256": hashlib.sha256(raw_output["response"].encode()).hexdigest(),
@@ -96,6 +100,99 @@ def _write_journal(artifact: Path, destination: Path) -> None:
     lines[-1] = json.dumps(completed, sort_keys=True)
     artifact.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
     destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _public_fixture(tmp_path, monkeypatch):
+    """Synthetic receipts test verifier integrity; they are not model evidence."""
+    from core.brain.llm.public_channel_decode import (
+        PUBLIC_CHANNEL_DECODE_POLICY,
+        PublicChannelDecode,
+    )
+    from core.learning.public_decode_evidence import public_decode_coverage
+    from core.learning.semantic_task_grading import SEMANTIC_GRADING_POLICY
+    from tools.run_semantic_neural_decode_canary import (
+        PUBLIC_DECODE_SOURCE_PATHS,
+        SOURCE_PATHS,
+        _summary,
+    )
+    artifact, model = _portable_artifact(tmp_path)
+    payload = json.loads(artifact.read_bytes())
+    payload.update(schema="aura.rlc.semantic_neural_decode_canary.v2",
+                   decode_policy=PUBLIC_CHANNEL_DECODE_POLICY, grading_policy=SEMANTIC_GRADING_POLICY,
+                   max_tokens=4096,
+                   source_sha256s={path: "a" * 64 for path in (*SOURCE_PATHS, *PUBLIC_DECODE_SOURCE_PATHS)})
+    monkeypatch.setattr("tools.verify_semantic_neural_decode_canary._git_blob_sha", lambda *_: "a" * 64)
+    from tools.verify_semantic_neural_decode_canary import (
+        LEGACY_DIFFICULTIES,
+        LEGACY_DOMAINS,
+        _expected_tasks,
+    )
+    tasks = {task.task_id: task for task in _expected_tasks(
+        payload["seed"], payload["tasks_per_difficulty"], LEGACY_DOMAINS, LEGACY_DIFFICULTIES, "canonical",
+    )}
+    rows = []
+    for output in payload["raw_outputs"]:
+        text = output["response"]
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        decode = PublicChannelDecode(text, 32, 0, 0, 10, "eos", True, True, 0,
+                                     hashlib.sha256(b"").hexdigest(), "a" * 64).receipt()
+        output["attempts"] = [{"attempt": 1, "raw_response": text, "raw_response_sha256": digest,
+                               "response": text, "response_sha256": digest, "prefill_tokens": 0,
+                               "prompt_tokens": 16, "decode": decode}]
+        grade = tasks[output["task_id"]].grade(text)
+        rows.append({"task_id": output["task_id"], "arm": output["arm"], "response_sha256": digest,
+                     "correct": grade["correct"], "parsed": grade["parsed"] is not None,
+                     "decode_attempts": 1, "generated_tokens": 32, "prompt_tokens": 16,
+                     "latency_ms": 10, "stopped": True})
+    payload["rows"] = rows
+    payload["arms"] = {arm: _summary(rows, arm) for arm in payload["arms"]}
+    payload["decode_coverage"] = public_decode_coverage(payload["raw_outputs"], max_tokens=4096)
+    _reseal(artifact, payload)
+    journal = tmp_path / "journal.jsonl"
+    _write_journal(artifact, journal)
+    return artifact, model, journal
+
+
+def _reseal(path, payload):
+    payload["receipt_sha256"] = _sha({key: value for key, value in payload.items() if key != "receipt_sha256"})
+    path.write_text(json.dumps(payload))
+
+
+def test_public_verifier_checks_policy_and_all_attempts(tmp_path, monkeypatch):
+    artifact, model, journal = _public_fixture(tmp_path, monkeypatch)
+    report = verify_canary(artifact, model_path=model, journal_path=journal)
+    assert report["verified"]
+    assert report["decode_coverage"]["uncensored"]
+    assert report["grading_policy"] == "semantic_values_v2"
+    with pytest.raises(RuntimeError, match="policy, budget or journal"):
+        verify_canary(artifact, model_path=model)
+
+
+@pytest.mark.parametrize("mutation", ["private_predicate", "censor", "count", "policy", "downgrade", "journal_row"])
+def test_public_verifier_rejects_resealed_bad_measurement(tmp_path, monkeypatch, mutation):
+    artifact, model, journal = _public_fixture(tmp_path, monkeypatch)
+    payload = json.loads(artifact.read_bytes())
+    attempt = payload["raw_outputs"][0]["attempts"][0]
+    if mutation == "private_predicate":
+        attempt["decode"].update(boundary_closed=False, stop_reason="public_contract")
+    elif mutation == "censor":
+        attempt["decode"].update(stop_reason="token_limit", generated_tokens=4096)
+        from core.learning.public_decode_evidence import public_decode_coverage
+        payload["decode_coverage"] = public_decode_coverage(payload["raw_outputs"], max_tokens=4096)
+        payload["rows"][0].update(generated_tokens=4096, stopped=False)
+    elif mutation == "count":
+        payload["rows"][0]["generated_tokens"] += 1
+    elif mutation == "policy":
+        payload["grading_policy"] = "exact_wire_v1"
+    elif mutation == "downgrade":
+        payload["schema"] = "aura.rlc.semantic_neural_decode_canary.v1"
+    else:
+        payload["rows"][0]["unrecorded"] = True
+    _reseal(artifact, payload)
+    if mutation != "journal_row":
+        _write_journal(artifact, journal)
+    with pytest.raises((ValueError, RuntimeError)):
+        verify_canary(artifact, model_path=model, journal_path=journal)
 
 
 def test_semantic_decode_verifier_regrades_and_replays_frozen_canary(tmp_path):
