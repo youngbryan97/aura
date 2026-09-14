@@ -13,13 +13,13 @@
     13
   ],
   "independent_initialisations": 3,
-  "holds": 15,
+  "holds": 17,
   "unresolved": 2,
-  "fails": 7,
+  "fails": 5,
   "totals_per_run": [
-    17,
-    17,
-    15
+    18,
+    19,
+    18
   ],
   "criteria": [
     {
@@ -216,18 +216,18 @@
       "section": "39",
       "requires": "cutting the cheapest partition degrades the measures it should",
       "bar": "irreducibility, complexity and synergy all fall",
-      "held": 0,
+      "held": 3,
       "runs": 3,
-      "verdict": "fails"
+      "verdict": "holds"
     },
     {
       "criterion": "rescue",
       "section": "40",
       "requires": "restoring the cut restores them",
       "bar": "a deficit first, then the measures return towards the intact values",
-      "held": 0,
+      "held": 3,
       "runs": 3,
-      "verdict": "fails"
+      "verdict": "holds"
     },
     {
       "criterion": "beats_every_null",
@@ -242,133 +242,133 @@
   "numbers": {
     "phi_do": {
       "values": [
-        0.00107,
-        0.01831,
-        -0.03034
+        -0.03154,
+        0.00316,
+        -0.02468
       ],
-      "spread": 0.04865,
-      "median": 0.00107,
-      "mean": -0.00365,
-      "sd": 0.02467,
-      "min": -0.03034,
-      "max": 0.01831
+      "spread": 0.0347,
+      "median": -0.02468,
+      "mean": -0.01769,
+      "sd": 0.01838,
+      "min": -0.03154,
+      "max": 0.00316
     },
     "d_eff_normalised": {
       "values": [
-        0.0843,
-        0.0851,
-        0.0911
+        0.091,
+        0.0889,
+        0.0853
       ],
-      "spread": 0.0068,
-      "median": 0.0851,
-      "mean": 0.08683,
-      "sd": 0.00372,
-      "min": 0.0843,
-      "max": 0.0911
+      "spread": 0.0057,
+      "median": 0.0889,
+      "mean": 0.0884,
+      "sd": 0.00288,
+      "min": 0.0853,
+      "max": 0.091
     },
     "intrinsic": {
       "values": [
-        0.5153,
-        0.53353,
-        0.0012
+        -0.44016,
+        0.66841,
+        0.53451
       ],
-      "spread": 0.53233,
-      "median": 0.5153,
-      "mean": 0.35001,
-      "sd": 0.30222,
-      "min": 0.0012,
-      "max": 0.53353
+      "spread": 1.10857,
+      "median": 0.53451,
+      "mean": 0.25425,
+      "sd": 0.60509,
+      "min": -0.44016,
+      "max": 0.66841
     },
     "spread": {
       "values": [
-        0.53333,
-        0.54444,
-        0.55556
+        0.55556,
+        0.56667,
+        0.53333
       ],
-      "spread": 0.02222,
-      "median": 0.54444,
-      "mean": 0.54444,
-      "sd": 0.01111,
+      "spread": 0.03333,
+      "median": 0.55556,
+      "mean": 0.55185,
+      "sd": 0.01697,
       "min": 0.53333,
-      "max": 0.55556
+      "max": 0.56667
     },
     "pci": {
       "values": [
-        0.19718,
-        0.19601,
-        0.21461
+        0.20221,
+        0.20775,
+        0.20009
       ],
-      "spread": 0.0186,
-      "median": 0.19718,
-      "mean": 0.2026,
-      "sd": 0.01042,
-      "min": 0.19601,
-      "max": 0.21461
+      "spread": 0.00766,
+      "median": 0.20221,
+      "mean": 0.20335,
+      "sd": 0.00395,
+      "min": 0.20009,
+      "max": 0.20775
     },
     "surrogate_floor": {
       "values": [
-        0.02037,
-        0.02069,
-        0.01149
+        0.03268,
+        0.02275,
+        0.02549
       ],
-      "spread": 0.0092,
-      "median": 0.02037,
-      "mean": 0.01752,
-      "sd": 0.00522,
-      "min": 0.01149,
-      "max": 0.02069
+      "spread": 0.00993,
+      "median": 0.02549,
+      "mean": 0.02697,
+      "sd": 0.00513,
+      "min": 0.02275,
+      "max": 0.03268
     },
     "phi_lower_bound": {
       "values": [
-        -0.0274,
-        -0.01482,
-        -0.08321
+        -0.09947,
+        -0.00247,
+        -0.04932
       ],
-      "spread": 0.06838,
-      "median": -0.0274,
-      "mean": -0.04181,
-      "sd": 0.0364,
-      "min": -0.08321,
-      "max": -0.01482
+      "spread": 0.097,
+      "median": -0.04932,
+      "mean": -0.05042,
+      "sd": 0.04851,
+      "min": -0.09947,
+      "max": -0.00247
     },
     "phi_standard_error": {
       "values": [
-        0.01452,
-        0.01691,
-        0.02697
+        0.03466,
+        0.00288,
+        0.01257
       ],
-      "spread": 0.01245,
-      "median": 0.01691,
-      "mean": 0.01947,
-      "sd": 0.00661,
-      "min": 0.01452,
-      "max": 0.02697
+      "spread": 0.03178,
+      "median": 0.01257,
+      "mean": 0.0167,
+      "sd": 0.01629,
+      "min": 0.00288,
+      "max": 0.03466
     },
     "d_eff": {
       "values": [
-        12.0528,
-        11.7505,
-        13.2116
+        13.0108,
+        12.1746,
+        11.5978
       ],
-      "spread": 1.4611,
-      "median": 12.0528,
-      "mean": 12.3383,
-      "sd": 0.77126,
-      "min": 11.7505,
-      "max": 13.2116
+      "spread": 1.413,
+      "median": 12.1746,
+      "mean": 12.26107,
+      "sd": 0.71046,
+      "min": 11.5978,
+      "max": 13.0108
     },
     "largest_component_share": {
       "values": [
-        0.2495,
-        0.254,
-        0.2329
+        0.2339,
+        0.2456,
+        0.2503
       ],
-      "spread": 0.0211,
-      "median": 0.2495,
-      "mean": 0.24547,
-      "sd": 0.01111,
-      "min": 0.2329,
-      "max": 0.254
+      "spread": 0.0164,
+      "median": 0.2456,
+      "mean": 0.24327,
+      "sd": 0.00845,
+      "min": 0.2339,
+      "max": 0.2503
     },
     "vertex_connectivity": {
       "values": [
@@ -385,131 +385,131 @@
     },
     "edges_kept": {
       "values": [
-        41.0,
-        43.0,
-        43.0
+        48.0,
+        47.0,
+        44.0
       ],
-      "spread": 2.0,
-      "median": 43.0,
-      "mean": 42.33333,
-      "sd": 1.1547,
-      "min": 41.0,
-      "max": 43.0
+      "spread": 4.0,
+      "median": 47.0,
+      "mean": 46.33333,
+      "sd": 2.08167,
+      "min": 44.0,
+      "max": 48.0
     },
     "lesion_deficit_phi": {
       "values": [
-        0.0,
-        0.0,
-        0.0
+        -0.15436,
+        0.00273,
+        0.0561
       ],
-      "spread": 0.0,
-      "median": 0.0,
-      "mean": 0.0,
-      "sd": 0.0,
-      "min": 0.0,
-      "max": 0.0
+      "spread": 0.21046,
+      "median": 0.00273,
+      "mean": -0.03184,
+      "sd": 0.10941,
+      "min": -0.15436,
+      "max": 0.0561
     },
     "lesion_deficit_spread": {
       "values": [
-        0.26543,
-        0.19753,
-        0.33951
+        0.14198,
+        0.37654,
+        0.29012
       ],
-      "spread": 0.14198,
-      "median": 0.26543,
-      "mean": 0.26749,
-      "sd": 0.07101,
-      "min": 0.19753,
-      "max": 0.33951
+      "spread": 0.23456,
+      "median": 0.29012,
+      "mean": 0.26955,
+      "sd": 0.11863,
+      "min": 0.14198,
+      "max": 0.37654
     },
     "lesion_deficit_synergy": {
       "values": [
-        0.0,
-        0.0,
-        0.0
+        -0.00243,
+        0.09413,
+        0.05212
       ],
-      "spread": 0.0,
-      "median": 0.0,
-      "mean": 0.0,
-      "sd": 0.0,
-      "min": 0.0,
-      "max": 0.0
+      "spread": 0.09656,
+      "median": 0.05212,
+      "mean": 0.04794,
+      "sd": 0.04842,
+      "min": -0.00243,
+      "max": 0.09413
     },
     "rescue_phi": {
       "values": [
-        0.0,
-        0.0,
-        0.0
+        0.08857,
+        -0.00514,
+        0.07896
       ],
-      "spread": 0.0,
-      "median": 0.0,
-      "mean": 0.0,
-      "sd": 0.0,
-      "min": 0.0,
-      "max": 0.0
+      "spread": 0.09371,
+      "median": 0.07896,
+      "mean": 0.05413,
+      "sd": 0.05155,
+      "min": -0.00514,
+      "max": 0.08857
     },
     "ownership": {
       "values": [
-        1.4161,
-        621054827684.2852,
-        1.3326
+        1.27605,
+        3.13435,
+        1.07465
       ],
-      "spread": 621054827682.9525,
-      "median": 1.4161,
-      "mean": 207018275895.67795,
-      "sd": 358566171944.2452,
-      "min": 1.3326,
-      "max": 621054827684.2852
+      "spread": 2.0597,
+      "median": 1.27605,
+      "mean": 1.82835,
+      "sd": 1.1355,
+      "min": 1.07465,
+      "max": 3.13435
     },
     "ownership_floor": {
       "values": [
-        0.0066,
-        0.04065,
-        0.03255
+        0.01435,
+        0.0099,
+        0.0
       ],
-      "spread": 0.03405,
-      "median": 0.03255,
-      "mean": 0.0266,
-      "sd": 0.01779,
-      "min": 0.0066,
-      "max": 0.04065
+      "spread": 0.01435,
+      "median": 0.0099,
+      "mean": 0.00808,
+      "sd": 0.00735,
+      "min": 0.0,
+      "max": 0.01435
     },
     "self_to_action": {
       "values": [
-        0.0916,
-        0.1255,
-        0.16825
+        0.1209,
+        0.0772,
+        0.08845
       ],
-      "spread": 0.07665,
-      "median": 0.1255,
-      "mean": 0.12845,
-      "sd": 0.03841,
-      "min": 0.0916,
-      "max": 0.16825
+      "spread": 0.0437,
+      "median": 0.08845,
+      "mean": 0.09552,
+      "sd": 0.02269,
+      "min": 0.0772,
+      "max": 0.1209
     },
     "global_access_consumers": {
       "values": [
+        7.0,
         8.0,
-        8.0,
-        8.0
+        7.0
       ],
-      "spread": 0.0,
-      "median": 8.0,
-      "mean": 8.0,
-      "sd": 0.0,
-      "min": 8.0,
+      "spread": 1.0,
+      "median": 7.0,
+      "mean": 7.33333,
+      "sd": 0.57735,
+      "min": 7.0,
       "max": 8.0
     },
     "metastability_regimes": {
       "values": [
         2.0,
-        3.0,
+        2.0,
         6.0
       ],
       "spread": 4.0,
-      "median": 3.0,
-      "mean": 3.66667,
-      "sd": 2.08167,
+      "median": 2.0,
+      "mean": 3.33333,
+      "sd": 2.3094,
       "min": 2.0,
       "max": 6.0
     },
@@ -530,47 +530,47 @@
   "synergy_triples": {
     "A+S->G": {
       "values": [
-        0.0763,
-        0.1201,
-        0.0813
+        0.1311,
+        0.0947,
+        0.0792
       ],
-      "mean": 0.09257,
-      "sd": 0.02398,
-      "min": 0.0763,
-      "max": 0.1201
+      "mean": 0.10167,
+      "sd": 0.02664,
+      "min": 0.0792,
+      "max": 0.1311
     },
     "P+M->W": {
       "values": [
-        0.2293,
-        0.2555,
-        0.4374
+        0.4581,
+        0.518,
+        0.3339
       ],
-      "mean": 0.3074,
-      "sd": 0.11334,
-      "min": 0.2293,
-      "max": 0.4374
+      "mean": 0.43667,
+      "sd": 0.0939,
+      "min": 0.3339,
+      "max": 0.518
     },
     "S+D->C": {
       "values": [
-        0.1487,
-        0.0783,
-        0.1152
+        0.2647,
+        0.0645,
+        0.0957
       ],
-      "mean": 0.11407,
-      "sd": 0.03521,
-      "min": 0.0783,
-      "max": 0.1487
+      "mean": 0.14163,
+      "sd": 0.10771,
+      "min": 0.0645,
+      "max": 0.2647
     },
     "W+A->D": {
       "values": [
-        0.2118,
-        0.214,
-        0.0642
+        0.2109,
+        0.2072,
+        0.1962
       ],
-      "mean": 0.16333,
-      "sd": 0.08586,
-      "min": 0.0642,
-      "max": 0.214
+      "mean": 0.20477,
+      "sd": 0.00765,
+      "min": 0.1962,
+      "max": 0.2109
     }
   },
   "v2_null_verdict": {
@@ -584,129 +584,129 @@
   },
   "couplings": {
     "A": {
-      "outgoing": 4,
+      "outgoing": 7,
       "incoming": 8,
       "weakest_outgoing": {
-        "to": "C",
-        "effect": 0.6381
+        "to": "N",
+        "effect": 0.4064
       },
       "weakest_incoming": {
-        "from": "D",
-        "effect": 0.3643
+        "from": "I",
+        "effect": 0.3466
       }
     },
     "C": {
       "outgoing": 5,
-      "incoming": 7,
+      "incoming": 6,
       "weakest_outgoing": {
         "to": "P",
-        "effect": 0.7268
+        "effect": 1.1004
       },
       "weakest_incoming": {
-        "from": "I",
-        "effect": 0.3955
+        "from": "P",
+        "effect": 0.4538
       }
     },
     "D": {
       "outgoing": 2,
-      "incoming": 2,
+      "incoming": 1,
       "weakest_outgoing": {
         "to": "A",
-        "effect": 0.3643
+        "effect": 0.349
       },
       "weakest_incoming": {
         "from": "I",
-        "effect": 0.5525
+        "effect": 3.1012
       }
     },
     "G": {
-      "outgoing": 8,
-      "incoming": 4,
+      "outgoing": 7,
+      "incoming": 5,
       "weakest_outgoing": {
-        "to": "A",
-        "effect": 0.7626
+        "to": "M",
+        "effect": 0.6423
       },
       "weakest_incoming": {
-        "from": "W",
-        "effect": 0.7389
+        "from": "M",
+        "effect": 1.3925
       }
     },
     "I": {
-      "outgoing": 5,
-      "incoming": 3,
+      "outgoing": 4,
+      "incoming": 2,
       "weakest_outgoing": {
-        "to": "C",
-        "effect": 0.3955
+        "to": "A",
+        "effect": 0.3466
       },
       "weakest_incoming": {
-        "from": "S",
-        "effect": 0.342
+        "from": "C",
+        "effect": 2.7219
       }
     },
     "M": {
       "outgoing": 2,
-      "incoming": 1,
+      "incoming": 2,
       "weakest_outgoing": {
-        "to": "S",
-        "effect": 0.3586
+        "to": "W",
+        "effect": 0.527
       },
       "weakest_incoming": {
-        "from": "G",
-        "effect": 1.1928
+        "from": "A",
+        "effect": 0.4533
       }
     },
     "N": {
       "outgoing": 2,
-      "incoming": 6,
+      "incoming": 7,
       "weakest_outgoing": {
         "to": "C",
-        "effect": 0.4306
+        "effect": 0.5087
       },
       "weakest_incoming": {
-        "from": "G",
-        "effect": 1.1514
+        "from": "A",
+        "effect": 0.4064
       }
     },
     "P": {
       "outgoing": 4,
-      "incoming": 4,
+      "incoming": 5,
       "weakest_outgoing": {
-        "to": "S",
-        "effect": 0.3718
+        "to": "C",
+        "effect": 0.4538
       },
       "weakest_incoming": {
-        "from": "S",
-        "effect": 0.6501
+        "from": "A",
+        "effect": 0.6936
       }
     },
     "S": {
       "outgoing": 6,
-      "incoming": 6,
+      "incoming": 4,
       "weakest_outgoing": {
-        "to": "I",
-        "effect": 0.342
+        "to": "P",
+        "effect": 1.1292
       },
       "weakest_incoming": {
-        "from": "M",
-        "effect": 0.3586
+        "from": "G",
+        "effect": 1.6364
       }
     },
     "W": {
       "outgoing": 5,
-      "incoming": 2,
+      "incoming": 4,
       "weakest_outgoing": {
         "to": "S",
-        "effect": 0.4055
+        "effect": 1.7217
       },
       "weakest_incoming": {
-        "from": "G",
-        "effect": 1.7993
+        "from": "P",
+        "effect": 0.4953
       }
     }
   },
   "runs_read": [
-    "artifacts/subject_core/run_026",
-    "artifacts/subject_core/run_027",
-    "artifacts/subject_core/run_028"
+    "artifacts/subject_core/run_029",
+    "artifacts/subject_core/run_030",
+    "artifacts/subject_core/run_031"
   ]
 }
