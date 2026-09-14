@@ -97,7 +97,46 @@ def training_is_finished() -> bool:
     return alive.returncode != 0
 
 
+def wait_for_someone_elses_campaign(result: Path) -> bool:
+    """Wait for a campaign this process did not start, and did not interrupt.
+
+    The parallel agent restarted the campaign at 01:07 with install and restart
+    switched off, so it ends at a result file and stops. Running a second
+    campaign beside it would fight for the one GPU and measure neither, so this
+    waits for theirs -- for the file AND for the process that writes it to be
+    gone, because the file appears at the end of a long write and a half-read
+    result is worse than no result.
+    """
+    say("waiting_for_campaign", result=str(result), started_by="not this process")
+    waited = 0
+    while waited < CAMPAIGN_TIMEOUT_S:
+        running = subprocess.run(  # noqa: S603
+            ["/usr/bin/pgrep", "-f", "run_caa_steering_campaign"],
+            capture_output=True, text=True, check=False,
+        ).returncode == 0
+        if result.exists() and not running:
+            size = result.stat().st_size
+            time.sleep(20)
+            if result.stat().st_size == size:
+                say("campaign_result_arrived", bytes=size, waited_s=waited)
+                return True
+        if not running and not result.exists() and waited > 300:
+            say("gave_up_waiting_for_campaign",
+                why="nothing is running and no result was written", seconds=waited)
+            return False
+        time.sleep(60)
+        waited += 60
+    say("gave_up_waiting_for_campaign", why="wall clock", seconds=waited)
+    return False
+
+
 def main() -> int:
+    result = REPO / "artifacts/migration/27b/recovery/campaign_result_trained.json"
+    if "--from-campaign" in sys.argv:
+        if not wait_for_someone_elses_campaign(result):
+            return 1
+        return carry_the_result(result)
+
     say("waiting_for_training")
     waited = 0
     last_change = (0, time.time())
@@ -128,7 +167,6 @@ def main() -> int:
         say("stopped", why="the generation would not seal")
         return 1
 
-    result = REPO / "artifacts/migration/27b/recovery/campaign_result_trained.json"
     campaign = run(
         "campaign",
         [PYTHON, "tools/run_caa_steering_campaign.py", "--plan", str(PLAN),
@@ -139,7 +177,11 @@ def main() -> int:
     if not result.exists():
         say("stopped", why="the campaign wrote no result", returncode=campaign.returncode)
         return 1
+    return carry_the_result(result)
 
+
+def carry_the_result(result: Path) -> int:
+    """Everything between a campaign result and a channel a turn can see."""
     run("verdict", [PYTHON, "tools/read_the_steering_campaign.py", "--result", str(result)])
     verdict_path = REPO / "artifacts/migration/27b/recovery/campaign_verdict_trained.json"
     verdict = json.loads(verdict_path.read_text()) if verdict_path.exists() else {}
