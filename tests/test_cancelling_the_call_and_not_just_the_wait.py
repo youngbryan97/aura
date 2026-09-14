@@ -143,3 +143,69 @@ def test_the_report_says_how_often_work_outlived_its_caller() -> None:
     assert seen["calls"] == 1
     assert seen["given_up_on"] == 0
     assert seen["longest"] >= 0.0
+
+
+# ── the give-up reaches work that reads the ambient token ────────────────
+
+def test_giving_up_stops_the_token_that_governed_code_reads() -> None:
+    """The handler that was handed the call heard it. The code under it did not.
+
+    ``inference_gate.generate`` reads ``what_stops_it.current()``. A give-up
+    that only set this module's own Event reached the handler and stopped
+    there, so the generation the handler was awaiting held the model lane to
+    the end of a turn nobody was waiting for. The work now runs under a child
+    of the ambient token, and giving up stops it.
+    """
+    import asyncio
+
+    from core.runtime.cancelling_the_call_and_not_just_the_wait import (
+        GaveUpWaiting,
+        call,
+    )
+    from core.runtime.what_stops_it import current
+
+    heard: dict[str, object] = {}
+
+    async def deep_work_that_only_reads_the_ambient_token() -> None:
+        for _ in range(200):
+            if current().stopping.stopped:
+                heard["why"] = current().stopping.why
+                return
+            await asyncio.sleep(0.01)
+
+    async def work(one) -> None:
+        # Never asks one.should_stop(): only the ambient token can reach it.
+        await deep_work_that_only_reads_the_ambient_token()
+
+    async def run() -> None:
+        try:
+            await call("a slow generation", work, by="a test", seconds=0.05)
+        except GaveUpWaiting:
+            pass
+
+    asyncio.run(run())
+    assert "why" in heard, "the give-up never reached work reading the ambient token"
+
+
+def test_the_callers_own_token_is_not_stopped_by_a_child_giving_up() -> None:
+    """A child stops when its parent does, never the other way round."""
+    import asyncio
+
+    from core.runtime.cancelling_the_call_and_not_just_the_wait import (
+        GaveUpWaiting,
+        call,
+    )
+    from core.runtime.what_stops_it import current, stopping_with
+
+    async def work(one) -> None:
+        await asyncio.sleep(1.0)
+
+    async def run() -> bool:
+        with stopping_with("the turn") as turn:
+            try:
+                await call("a subcall", work, seconds=0.02)
+            except GaveUpWaiting:
+                pass
+            return turn.stopping.stopped or current().stopping.stopped
+
+    assert asyncio.run(run()) is False

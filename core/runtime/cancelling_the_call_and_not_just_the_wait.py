@@ -29,6 +29,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+
 from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.CancellingTheCall")
@@ -59,6 +60,11 @@ class ACall:
     by: str = ""
     #: Set when the caller gives up. The handler reads it and stops.
     stop: threading.Event = field(default_factory=threading.Event, repr=False)
+    #: The token the work runs under, a child of whatever was ambient. Giving
+    #: up stops it, so work deep inside the call that reads
+    #: ``what_stops_it.current()`` — the inference gate does, and six other
+    #: governing modules — hears the give-up without being handed this call.
+    context: Any = field(default=None, repr=False)
     task: asyncio.Task | None = field(default=None, repr=False)
     started: float = field(default_factory=time.monotonic)
     gave_up: bool = False
@@ -66,12 +72,16 @@ class ACall:
 
     @property
     def cancelled(self) -> bool:
-        return self.stop.is_set()
+        return self.stop.is_set() or self._token_stopped()
+
+    def _token_stopped(self) -> bool:
+        stopping = getattr(self.context, "stopping", None)
+        return bool(stopping is not None and stopping.stopped)
 
     def should_stop(self) -> bool:
         """For the handler. Reading it is what makes a cancel arrive."""
         self.checked_the_stop = True
-        return self.stop.is_set()
+        return self.cancelled
 
     def give_up(self, why: str = "") -> None:
         """Ask the work to stop. Does not cancel it — :func:`call` does that.
@@ -84,6 +94,13 @@ class ACall:
         """
         self.gave_up = True
         self.stop.set()
+        # The same news through the mechanism that composes. Setting only the
+        # Event reached a handler that was handed this call and nothing else:
+        # the generation it was awaiting read the ambient token, saw nothing,
+        # and held the model lane to the end of a turn nobody was waiting for.
+        stopping = getattr(self.context, "stopping", None)
+        if stopping is not None:
+            stopping.stop(why or f"{self.by or 'a caller'} gave up waiting")
         if why:
             logger.info("%s gave up on %s: %s", self.by or "a caller", self.what, why)
 
@@ -118,10 +135,17 @@ async def call(
     Raises :class:`GaveUpWaiting` where the caller stopped waiting — including
     on its own timeout — and whatever ``work`` raised where the work failed.
     """
+    from core.runtime.what_stops_it import stopping_with
+
     one = ACall(what=str(what), by=str(by))
-    # Raw task, deliberately: this is the cancellation primitive. Creating it through the tracker
-    # would put the tracker inside the mechanism that cancels.
-    running = asyncio.ensure_future(work(one))
+    # The task is made INSIDE the child context so it inherits it: a task
+    # copies the context variables that are set when it is created and none
+    # that are set after.
+    with stopping_with(str(what), seconds=float(seconds or 0.0), asked_by=str(by)) as made:
+        one.context = made
+        # Raw task, deliberately: this is the cancellation primitive. Creating it through the tracker
+        # would put the tracker inside the mechanism that cancels.
+        running = asyncio.ensure_future(work(one))
     one.task = running
     try:
         if seconds > 0:

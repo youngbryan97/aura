@@ -85,7 +85,19 @@ def _workspace_roots() -> list[Path]:
             continue
         try:
             roots.append(Path(entry).expanduser().resolve(strict=False))
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RuntimeError, ValueError) as exc:
+            # A root that was configured and cannot resolve is a root every
+            # write under it will now be refused for, and the refusal will not
+            # say this is why. Skipping it is right; skipping it silently was
+            # the part that sent the next person to the wrong place.
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "file_actuator",
+                exc,
+                severity="warning",
+                action=f"skipped a workspace root that does not resolve: {entry!r}",
+            )
             continue
     if not roots:
         # Default capability: the Aura data/workspace tree and the system

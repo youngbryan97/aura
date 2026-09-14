@@ -85,7 +85,7 @@ def test_the_live_mind_controls_are_lesionable_and_unmeasured(measured):
     """
     from core.verify.what_has_a_measured_effect import the_declared_lesions
 
-    assert "LIVE_MIND_GENERATION_CONTROLS" in the_declared_lesions()
+    assert "live_mind.generation_controls" in the_declared_lesions()
     assert measured["measured"] == 0
 
 

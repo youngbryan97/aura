@@ -106,14 +106,33 @@ def test_the_loop_registered_channels_are_declared():
     """
     declared = set(the_declared_lesions())
     assert {
-        "SPIKING_SAMPLING_BIAS",
-        "IMAGINATION_SAMPLING_BIAS",
-        "BICAMERAL_SAMPLING_BIAS",
+        "spiking.sampling_bias",
+        "imagination.sampling_bias",
+        "bicameral.sampling_bias",
     } <= declared
 
 
 def test_the_decorator_form_is_declared_too():
-    assert "AFFECT_GENERATION_CONTROLS" in set(the_declared_lesions())
+    assert "affect.generation_controls" in set(the_declared_lesions())
+
+
+def test_a_channel_is_declared_under_the_id_its_verdicts_use():
+    """One spelling per channel, and it is the registry's.
+
+    Declared under the constant's name and recorded under the id, the report
+    unioned two spellings of one set: ten channels read as twenty lesionable,
+    and a verdict recorded against an id could never mark its declared channel
+    measured.
+    """
+    import core.brain.cognitive_engine  # noqa: F401 - registers the live-mind channels
+    from core.verify.lesion_registry import get_lesion_registry
+
+    declared = set(the_declared_lesions())
+    assert not any(name.isupper() for name in declared), sorted(declared)
+    assert declared <= set(get_lesion_registry().channels()) | declared
+    held = how_much_is_measured()
+    assert held["lesionable"] == len(set(declared) | set(get_lesion_registry().channels()))
+    assert set(held["substrate_verdicts"]) <= declared
 
 
 def test_the_baseline_never_walks_back_a_verdict():

@@ -112,3 +112,46 @@ def test_tool_executor_sanitizes_invalid_plan_calls(monkeypatch):
 
     assert results[0] == {"ok": False, "error": "invalid_tool_call"}
     assert results[1] == {"ok": False, "error": "invalid_tool_name"}
+
+
+def test_a_tool_plan_runs_as_a_frozen_batch_in_the_order_decided(monkeypatch):
+    """The plan is frozen, run one at a time, and reported by the batch ledger.
+
+    Tools in one plan share a filesystem, so a write that a later read depends
+    on must finish first. The batch primitive also records what a plan did,
+    which the loop over a mutable list never did, and a call that is not a
+    call is BLOCKED — it never ran — rather than a tool that failed.
+    """
+    from core.coordinators.tool_executor import ToolExecutor
+    from core.runtime.what_she_decided_to_do_at_once import (
+        forget_everything,
+        how_the_batches_have_gone,
+    )
+
+    forget_everything()
+    happened: list[str] = []
+
+    async def execute_tool(self, name, args):
+        happened.append(f"start {name}")
+        await asyncio.sleep(0.02 if name == "write" else 0.0)
+        happened.append(f"end {name}")
+        return {"ok": True, "tool": name}
+
+    monkeypatch.setattr(ToolExecutor, "execute_tool", execute_tool)
+    orch = types.SimpleNamespace(_current_objective="", status=None, router=None)
+
+    results = asyncio.run(
+        ToolExecutor(orch).execute_plan(
+            {"tool_calls": [{"tool": "write"}, "not a call", {"tool": "read"}]}
+        )
+    )
+
+    assert happened == ["start write", "end write", "start read", "end read"]
+    assert results[0] == {"ok": True, "tool": "write"}
+    assert results[1] == {"ok": False, "error": "invalid_tool_call"}
+    assert results[2] == {"ok": True, "tool": "read"}
+    went = how_the_batches_have_gone()
+    assert went["batches"] == 1
+    assert went["counted"].get("blocked") == 1
+    assert went["counted"].get("did it") == 2
+    assert went["widest"] == 1

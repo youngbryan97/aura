@@ -5,7 +5,13 @@ from dataclasses import replace
 import pytest
 
 from core.cognition.procedure import (
-    Backend, Effect, Origin, Precondition, ProceduralValue, ProcedureRegistry, Signature,
+    Backend,
+    Effect,
+    Origin,
+    Precondition,
+    ProceduralValue,
+    ProcedureRegistry,
+    Signature,
 )
 from core.cognition.procedure_execution import BackendResult
 from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
@@ -47,9 +53,78 @@ def test_constant_goal_rejects_a_more_valuable_opposite_effect():
 
 def test_computed_output_is_not_a_prediction_of_its_exact_value():
     registry = ProcedureRegistry()
-    _register(registry, "compute", writes=(Effect("answer", "integer"),))
+    procedure = _register(registry, "compute", writes=(Effect("answer", "integer"),))
     plan = _plan(registry, {}, (Precondition("answer", "integer", 42),))
-    assert not plan.found
+    assert plan.found and plan.reason == "value_observation_required"
+    assert plan.value_obligations == ((procedure.procedure_id, plan.requirements[0]),)
+    for actual in (7, 42):
+        run = execute_procedure_plan(registry, plan, {}, backends={
+            Backend.TOOL: lambda p, s, c, actual=actual: BackendResult({"answer": actual}),
+        })
+        assert run.execution.completed
+        assert run.completed is (actual == 42)
+    assert registry.get(procedure.procedure_id).value.uses == 0
+
+
+def test_computed_intermediate_is_observed_before_dependent_backend_executes():
+    registry = ProcedureRegistry()
+    first = _register(registry, "measure", writes=(Effect("x", "integer"),))
+    second = _register(registry, "requires measured four", reads=(Precondition("x", "integer", 4),),
+        writes=(Effect("answer", "integer"),), backend=Backend.RLC)
+    plan = _plan(registry, {}, (Precondition("answer", "integer", 8),))
+    assert plan.procedure_ids == (first.procedure_id, second.procedure_id)
+    assert len(plan.value_obligations) == 2
+    for actual in (3, 4):
+        calls = []
+        def compute(p, s, c, calls=calls):
+            calls.append(s["x"])
+            return BackendResult({"answer": 2 * s["x"]})
+        run = execute_procedure_plan(registry, plan, {}, backends={
+            Backend.TOOL: lambda p, s, c, actual=actual: BackendResult({"x": actual}), Backend.RLC: compute,
+        })
+        assert run.completed is (actual == 4)
+        assert calls == ([4] if actual == 4 else [])
+
+
+def test_impossible_constant_and_type_constraints_do_not_become_speculation():
+    registry = ProcedureRegistry()
+    _register(registry, "compute", writes=(Effect("answer", "integer"),))
+    for goal in (
+        (Precondition("answer", "integer", 1), Precondition("answer", "integer", 2)),
+        (Precondition("answer", "any", "word"),),
+        (Precondition("answer", "boolean", False),),
+        (Precondition("answer", "integer", negated=True),),
+    ):
+        assert not _plan(registry, {}, goal).found
+
+
+@pytest.mark.parametrize("produced,required,value", [
+    ("integer", "number", 7), ("integer_sequence", "sequence", (2, 3)),
+])
+def test_structural_subtype_crosses_backend_boundary(produced, required, value):
+    registry = ProcedureRegistry()
+    first = _register(registry, "produce", writes=(Effect("x", produced),))
+    second = _register(registry, "consume", reads=(Precondition("x", required),),
+        writes=(Effect("answer", "string"),), backend=Backend.MACRO)
+    plan = _plan(registry, {}, (Precondition("answer", "string", "observed"),))
+    assert plan.procedure_ids == (first.procedure_id, second.procedure_id)
+    result = execute_procedure_plan(registry, plan, {}, backends={
+        Backend.TOOL: lambda p, s, c: BackendResult({"x": value}),
+        Backend.MACRO: lambda p, s, c: BackendResult({"answer": "observed"}),
+    })
+    assert result.completed
+
+
+@pytest.mark.parametrize("produced,required", [
+    ("number", "integer"), ("sequence", "integer_sequence"),
+    ("boolean", "number"), ("string", "sequence"),
+])
+def test_subtyping_does_not_invent_a_downcast(produced, required):
+    registry = ProcedureRegistry()
+    _register(registry, "produce", writes=(Effect("x", produced),))
+    _register(registry, "consume", reads=(Precondition("x", required),),
+        writes=(Effect("answer", "string"),))
+    assert not _plan(registry, {}, (Precondition("answer", "string"),)).found
 
 
 def test_task_identity_prevents_type_matched_semantic_substitution():
@@ -189,8 +264,8 @@ def test_constant_identity_preserves_list_tuple_distinctions_in_search():
 
 @pytest.mark.parametrize("seed", range(20))
 def test_dependency_search_matches_exhaustive_constant_effect_plans(seed):
-    from itertools import product
     import random
+    from itertools import product
 
     rng = random.Random(seed)
     registry = ProcedureRegistry()

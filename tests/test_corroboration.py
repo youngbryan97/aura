@@ -129,3 +129,24 @@ def test_the_disagreements_are_the_connectomes_weakest_pairs():
         if not pair.agree and pair.connectome_gain >= 0.05
     ]
     assert not loud, [pair.as_json() for pair in loud]
+
+
+def test_an_unreadable_row_is_said_once_with_the_number(tmp_path, caplog):
+    """A dropped row is an edge the comparison never saw."""
+    import logging
+
+    from core.connectome.corroboration import read_domain_edges
+
+    edges = tmp_path / "edges.csv"
+    edges.write_text(
+        "source,target,effect,q\n"
+        "a,b,0.5,0.01\n"
+        "a,c,not-a-number,0.01\n"
+        "b,c,0.2,\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.WARNING):
+        found = read_domain_edges(edges)
+    assert list(found) == [("a", "b")]
+    said = [one.getMessage() for one in caplog.records if one.levelno >= logging.WARNING]
+    assert any("could not read 2 row(s)" in one for one in said), said

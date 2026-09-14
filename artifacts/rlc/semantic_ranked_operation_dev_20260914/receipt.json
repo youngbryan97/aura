@@ -1,0 +1,70 @@
+{
+  "candidate_path": "/Users/bryan/.aura/rlc-evidence/semantic-ranked-operation-dev-20260914/candidate.json",
+  "candidate_promoted": false,
+  "candidate_receipt_sha256": "70370439fecfdedee47df283f8803a61f31e726647f0d47abb7327fa81eaf3fe",
+  "candidate_sha256": "1863894ca06a30ef7f5cef641c9f996d1a5d2f591aac3672e41ed2c471e0599f",
+  "complete": false,
+  "completed_family_total": 176,
+  "evaluation_evidence": "interim family summaries captured from exec session 81976; no per-row report retained",
+  "families": {
+    "arithmetic": {
+      "answer_exact": 26,
+      "equivalent": 21,
+      "exact": 19,
+      "immediate_parent_answer_exact": 117,
+      "total": 128
+    },
+    "cataphoric": {
+      "answer_exact": 6,
+      "equivalent": 4,
+      "exact": 3,
+      "immediate_parent_answer_exact": 41,
+      "total": 48
+    }
+  },
+  "fit": {
+    "feature": "start_end_sqrt_width_diagonal_product_v1",
+    "objective": "source_grouped_pairwise_logistic_v1",
+    "parent_transducer_receipt_sha256": "55dd181db139602ffa3e8b170f90ff34f03d29a4b6f50744675b8ad5bde6f91e",
+    "schema": "aura.semantic_paired_operation_pointer_refit.v1",
+    "serving_authority": false,
+    "supervision": {
+      "negative_spans": 15488,
+      "positive_spans": 1648,
+      "ranking_fit": {
+        "bias_fitted": false,
+        "converged": true,
+        "exported_loss": 0.003661819265550161,
+        "groups": 1648,
+        "initial_loss": 0.1833127621650876,
+        "iterations": 58,
+        "objective": "source_grouped_pairwise_logistic_v1",
+        "pairs": 15488,
+        "regularization": 6.4412557475820515e-06,
+        "test_examples_used": 0
+      },
+      "rows": 17136,
+      "targets_sha256": "c24af05571e308c80ab4b799f11cca9a4e784ae63303eef7bd140d2bfebc27f8"
+    },
+    "test_examples_used": 0,
+    "training_example_ids_sha256": "e37ea8279345d4bd6f50edea13e09fc7dea8c9c3ab48d23cff3a5c4280c8c5d3",
+    "training_examples": 728,
+    "validation_example_ids_sha256": "0b7112a312440fbfc5dcad54be3fecb3a13f89058fc0a3d78907eee889caf259",
+    "validation_examples": 500,
+    "validation_targets_sha256": "249958ea1fb528bbca6d0ae41aa81ce1e6f6942b326b89fa29c20f223bee1f79",
+    "validation_used_for_fit": false
+  },
+  "fit_source_sha256": {
+    "core/learning/semantic_argument_ranking.py": "675b42279a548d89db69e6539cfeac69c0d126985292d5d66f31290e5a06f453",
+    "core/learning/semantic_paired_pointer_refit.py": "9e11a0fc0c68603a9597773686158ae0edb854f0fc0bcdf69c0e4db89a1e31cc",
+    "tools/refit_semantic_argument_proposals.py": "9a4852c9d5162944313f7b0d4c7e2d1e65362864177e159f0aeb9f46028258a5"
+  },
+  "full_cohort_answer_exact": null,
+  "g03_complete": false,
+  "intended_cohort_total": 500,
+  "parent_report_sha256": "5b2c2b8ed9ffe1508ba367aca766a21e20d45389d5f56685df2b098f30bc5040",
+  "scope": "exposed_development_only",
+  "serving_authority": false,
+  "status": "rejected_interrupted_after_regression",
+  "stop_evidence": "SIGINT to evaluator PID 79863 after arithmetic and cataphoric summaries; exit 130 while loading next bundle"
+}

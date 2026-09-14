@@ -283,9 +283,19 @@ class SelfImprovingResearchCore:
                 prior_prob=0.85 if predicted else 0.15,
             )
             self.ledger.resolve(pid, observed={"applies": observed}, observed_truth=observed)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            # Ledger failures must not break the cycle.
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            # Ledger failures must not break the cycle. They must not vanish
+            # either: an unresolved prediction reads later as a prediction
+            # that was never tested, and the record of what she found is the
+            # thing this core exists to keep.
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "research_core",
+                exc,
+                severity="warning",
+                action="continued the cycle with a prediction left unresolved in the ledger",
+            )
 
     # ------------------------------------------------------------------
     # discovery

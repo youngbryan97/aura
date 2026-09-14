@@ -3197,3 +3197,22 @@ def test_neither_density_decides_how_near_criticality_this_mesh_runs():
         f"criticality they put this mesh; the widest gap over {len(seeds)} "
         f"seeds was {worst:.4f}"
     )
+
+
+def test_a_file_the_layer_scan_cannot_parse_is_counted(layered_repo):
+    """Every channel in an unparseable file is absent from every layer.
+
+    That is a smaller connectome rather than an empty file, and it used to be
+    indistinguishable from one.
+    """
+    from core.connectome.layers import extract_layers
+
+    reconstructor = VolumeReconstructor(layered_repo, ReconstructionConfig(roots=("core",)))
+    reconstructor.scan()
+    snapshot = reconstructor.build()
+    clean = extract_layers(snapshot, layered_repo, roots=("core",))
+    assert clean.unreadable_files == 0
+
+    (layered_repo / "core" / "layered" / "broken.py").write_text("def (:\n")
+    broken = extract_layers(snapshot, layered_repo, roots=("core",))
+    assert broken.unreadable_files == 1
