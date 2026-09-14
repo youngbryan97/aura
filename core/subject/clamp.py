@@ -183,6 +183,7 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.borrowed_resolve",
         "cognition.borrowed_self",
         "cognition.scale",
+        "cognition.persona_gap",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

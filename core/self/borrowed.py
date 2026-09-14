@@ -41,6 +41,7 @@ from typing import Any, Iterable, Mapping
 
 __all__ = [
     "MIN_CLAIMS",
+    "feelings_she_named",
     "Borrowed",
     "BorrowedLedger",
     "claims_about_her",
@@ -127,6 +128,32 @@ class Claim:
     def weight(self) -> float:
         """A guess counts for less than an assertion, and says so."""
         return 0.5 if self.hedged else 1.0
+
+
+def feelings_she_named(text: str) -> dict[str, float]:
+    """What she said about her own state, as the channels it would imply.
+
+    The broadcast. Somebody repeating this back is not reading her — they are
+    reading what she put out, and from the inside the two feel the same. Scored
+    at full strength because a thing she said outright is not a hedge about
+    herself.
+    """
+    vocabulary = _vocabulary()
+    if not vocabulary or not text:
+        return {}
+    out: dict[str, float] = {}
+    for clause in _CLAUSE.split(str(text).lower()):
+        words = _WORD.findall(clause)
+        if not words or _ABOUT_HER & set(words):
+            # A clause addressed to them is not her saying how she is.
+            continue
+        if not ({"i", "i'm", "im", "i've", "ive", "me", "my", "myself"} & set(words)):
+            continue
+        for word in words:
+            feeling = vocabulary.get(word)
+            if feeling is not None:
+                out[feeling] = 1.0
+    return out
 
 
 def claims_about_her(text: str) -> tuple[Claim, ...]:

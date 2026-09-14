@@ -134,15 +134,49 @@ class ConversationalDynamicsPhase(Phase):
             loop = get_runtime_service("self_prediction", default=None)
             her_error = float(getattr(loop, "get_surprise_signal", lambda: 0.0)() or 0.0)
             ledger = get_borrowed_ledger()
+            # And what she last told them she was feeling. Somebody repeating
+            # the broadcast back is not reading her, and from the inside the
+            # two feel the same. See core/self/persona_gap.py.
+            from core.self.borrowed import feelings_she_named
+            from core.self.persona_gap import get_persona_ledger, read_gap
+
+            broadcast = feelings_she_named(
+                ConversationalDynamicsPhase._last_said_by_her(state)
+            )
+            persona = get_persona_ledger()
             for claim in claims:
+                against_her = score_claim(claim, emotions)
                 ledger.note(
-                    their_error=score_claim(claim, emotions),
+                    their_error=against_her,
                     her_error=her_error,
                     feeling=claim.feeling,
                 )
+                if broadcast:
+                    persona.note(
+                        for_the_person=against_her,
+                        for_the_performance=score_claim(claim, broadcast),
+                    )
             state.cognition.borrowed_self = ledger.read().as_dict()
+            if broadcast:
+                felt = max(emotions.values(), default=0.0) if emotions else 0.0
+                state.cognition.persona_gap = read_gap(
+                    presented=max(broadcast.values(), default=0.0),
+                    felt=felt,
+                    ledger=persona,
+                ).as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their read of her went unscored: %s", exc)
+
+    @staticmethod
+    def _last_said_by_her(state: AuraState) -> str:
+        """The last thing she put out, which is the broadcast they may be reading."""
+        history = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
+        for item in reversed(history):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("role", "")).lower() in ("assistant", "aura"):
+                return str(item.get("content", "") or "")[:2000]
+        return ""
 
     @staticmethod
     def _read_witness(state: AuraState) -> None:

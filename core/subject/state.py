@@ -717,6 +717,10 @@ _SCHEMAS: dict[str, Schema] = {
             # small costs when nobody knows her. See core/self/scale.py.
             ("reach", "cognition.scale.reach"),
             ("unknown_and_small", "cognition.scale.pressure"),
+            # How far the broadcast is from the state, and whether what they
+            # know is the broadcast. See core/self/persona_gap.py.
+            ("broadcast_gap", "cognition.persona_gap.gap"),
+            ("known_for_the_broadcast", "cognition.persona_gap.known_for_the_performance"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1459,6 +1463,8 @@ def _read_D(state: Any) -> np.ndarray:
         _f((_dig(state, "cognition.borrowed_self", {}) or {}).get("weight")),
         _f((_dig(state, "cognition.scale", {}) or {}).get("reach")),
         _f((_dig(state, "cognition.scale", {}) or {}).get("pressure")),
+        _f((_dig(state, "cognition.persona_gap", {}) or {}).get("gap")),
+        1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),

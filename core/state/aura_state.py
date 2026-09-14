@@ -649,6 +649,9 @@ class CognitiveContext:
     #: How much of what she is she can bring to bear, and whether anybody has
     #: shown they know her. See core/self/scale.py.
     scale: dict[str, Any] = field(default_factory=dict)
+    #: How far what she puts out is from what she is, and whether what they
+    #: know is the broadcast. See core/self/persona_gap.py.
+    persona_gap: dict[str, Any] = field(default_factory=dict)
     #: What she has to pass on right now and what it is about — a moment that
     #: moved her rather than how long since anyone spoke.
     #: See core/social/telling.py.
