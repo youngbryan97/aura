@@ -27,11 +27,11 @@ share the percepts and share nothing else.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Sequence
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
-
 
 from core.state.percepts import DEFAULT_INTENSITY, PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
@@ -42,6 +42,7 @@ __all__ = [
     "EMOTIONS",
     "KINDS",
     "ClassSamples",
+    "behavioural_floor",
     "behavioural_geometry",
     "internal_geometry",
     "grid",
@@ -113,12 +114,22 @@ def present(cls: PerceptClass) -> Any:
 
 @dataclass
 class ClassSamples:
-    """What one percept class produced, per anchor."""
+    """What one percept class produced, per anchor.
+
+    Two arms, because the floor a distance is read against has to be the same
+    comparison. Splitting one class's samples by anchor gave an unpaired
+    distance — every anchor differs from every other far more than two percepts
+    do — and the first run of this measured a same-class floor of 3.91 against
+    between-class distances of 0.16. The second arm presents the same class from
+    the same anchor again, so the floor is paired exactly as the comparison is.
+    """
 
     name: str
     futures: list[np.ndarray]
     retrieved: list[frozenset[str]]
     context: list[np.ndarray]
+    futures_b: list[np.ndarray] = field(default_factory=list)
+    retrieved_b: list[frozenset[str]] = field(default_factory=list)
 
 
 def _retrieved(runtime: Any) -> frozenset[str]:
@@ -148,28 +159,35 @@ async def sample_classes(
     out: dict[str, ClassSamples] = {
         cls.name: ClassSamples(cls.name, [], [], []) for cls in classes
     }
+
+    async def one_arm(anchor: Any, condition: Any, cls: PerceptClass) -> tuple[Any, frozenset[str]] | None:
+        runtime.restore(anchor.snapshot)
+        if displace is not None:
+            domain, delta = displace
+            perturb(runtime.state, domain, delta, ontogeny=runtime.ontogeny)
+            await perturb_organs(runtime.organs, domain, delta, state=runtime.state)
+        shown = replace(condition, prepare=present(cls))
+        rows: list[Any] = []
+        for _ in range(turns):
+            rows.extend(await runtime.turn_once(shown))
+        if not rows:
+            return None
+        index = min(max(1, lag) - 1, len(rows) - 1)
+        return np.asarray(rows[index].vector(), dtype=np.float64), _retrieved(runtime)
+
     for anchor in anchors:
         for condition in conditions:
             for cls in classes:
-                runtime.restore(anchor.snapshot)
-                if displace is not None:
-                    domain, delta = displace
-                    perturb(runtime.state, domain, delta, ontogeny=runtime.ontogeny)
-                    await perturb_organs(
-                        runtime.organs, domain, delta, state=runtime.state
-                    )
-                shown = replace(condition, prepare=present(cls))
-                rows: list[Any] = []
-                for _ in range(turns):
-                    rows.extend(await runtime.turn_once(shown))
-                if not rows:
+                first = await one_arm(anchor, condition, cls)
+                second = await one_arm(anchor, condition, cls)
+                if first is None or second is None:
                     continue
-                index = min(max(1, lag) - 1, len(rows) - 1)
-                out[cls.name].futures.append(
-                    np.asarray(rows[index].vector(), dtype=np.float64)
-                )
-                out[cls.name].retrieved.append(_retrieved(runtime))
-                out[cls.name].context.append(np.asarray(anchor.current, dtype=np.float64))
+                slot = out[cls.name]
+                slot.futures.append(first[0])
+                slot.retrieved.append(first[1])
+                slot.futures_b.append(second[0])
+                slot.retrieved_b.append(second[1])
+                slot.context.append(np.asarray(anchor.current, dtype=np.float64))
     return out
 
 
@@ -200,18 +218,29 @@ def internal_geometry(
             return future
         return np.hstack([np.vstack(rows.context), future])
 
+    def block_b(name: str) -> np.ndarray | None:
+        rows = samples.get(name)
+        if rows is None or len(rows.futures_b) < folds:
+            return None
+        future = np.vstack(rows.futures_b)
+        if not with_context or not rows.context:
+            return future
+        return np.hstack([np.vstack(rows.context)[: len(future)], future])
+
     blocks = {name: block(name) for name in names}
     for i, left_name in enumerate(names):
         left = blocks[left_name]
         if left is None:
             continue
-        # The floor for this class: its own samples against its own samples,
-        # split by the same estimator. Anything the estimator reads off finite
-        # data rather than off the classes shows up here.
-        half = len(left) // 2
-        if half >= folds:
+        # The floor for this class: the same class presented again from the
+        # same anchors, scored by the same estimator. Paired the way the
+        # comparison is — splitting one arm by anchor instead measured how far
+        # apart two anchors are, which is an order of magnitude larger than any
+        # difference between percepts and made every distance look like noise.
+        second = block_b(left_name)
+        if second is not None and len(second) >= folds:
             same = crossfit_fisher_rao(
-                left[:half], left[half : 2 * half], folds=folds, seed=seed
+                left, second, folds=folds, seed=seed
             )
             floor[(i, i)] = float(same.distance_sq)
         for j in range(i + 1, len(names)):
@@ -221,6 +250,42 @@ def internal_geometry(
             estimate = crossfit_fisher_rao(left, right, folds=folds, seed=seed)
             distances[(i, j)] = float(estimate.distance_sq)
     return distances, floor
+
+
+def _jaccard_distance(a: frozenset[str], b: frozenset[str]) -> float | None:
+    union = a | b
+    if not union:
+        # Neither recalled anything. That is not a distance of zero and not
+        # one; it is a pair the measure could not read, and it is left out
+        # rather than given a number.
+        return None
+    return 1.0 - len(a & b) / len(union)
+
+
+def behavioural_floor(
+    samples: dict[str, ClassSamples],
+    classes: Sequence[PerceptClass],
+) -> dict[str, float]:
+    """How differently the same class recalls when presented twice.
+
+    The floor the between-class distances have to clear. A floor of zero with
+    between-class distances also at zero says retrieval does not depend on the
+    percept at all, which is a fact about the channel rather than about the
+    geometry.
+    """
+    out: dict[str, float] = {}
+    for cls in classes:
+        rows = samples.get(cls.name)
+        if rows is None:
+            continue
+        values = [
+            value
+            for a, b in zip(rows.retrieved, rows.retrieved_b, strict=True)
+            if (value := _jaccard_distance(a, b)) is not None
+        ]
+        if values:
+            out[cls.name] = float(np.mean(values))
+    return out
 
 
 def behavioural_geometry(
@@ -249,16 +314,11 @@ def behavioural_geometry(
             paired = min(len(left_sets), len(right_sets))
             if paired == 0:
                 continue
-            values: list[float] = []
-            for index in range(paired):
-                a, b = left_sets[index], right_sets[index]
-                union = a | b
-                if not union:
-                    # Neither recalled anything. That is not a distance of zero
-                    # and not one; it is a pair the measure could not read, and
-                    # it is left out rather than given a number.
-                    continue
-                values.append(1.0 - len(a & b) / len(union))
+            values = [
+                value
+                for index in range(paired)
+                if (value := _jaccard_distance(left_sets[index], right_sets[index])) is not None
+            ]
             if values:
                 distances[(i, j)] = float(np.mean(values))
     return distances, coverage
