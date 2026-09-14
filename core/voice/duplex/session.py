@@ -58,6 +58,7 @@ from core.voice.duplex.paralinguistics import (
     DeliveryReading,
     SpeakerBaseline,
     convergence_factors,
+    stressed_words,
 )
 from core.voice.duplex.paralinguistics import (
     analyze as analyze_delivery,
@@ -683,7 +684,12 @@ class DuplexVoiceSession:
             return
         self._speculative = result
 
-    def _read_delivery(self, audio: np.ndarray, transcript: str) -> None:
+    def _read_delivery(
+        self,
+        audio: np.ndarray,
+        transcript: str,
+        words: tuple[tuple[str, float, float], ...] = (),
+    ) -> None:
         """Measure how this turn was said, relative to how they usually sound.
 
         Runs after the transcript exists because speaking rate needs a word
@@ -697,8 +703,14 @@ class DuplexVoiceSession:
             # it — otherwise every utterance partly normalises itself away.
             self._delivery = interpret_delivery(signature, self._speaker_baseline)
             self._speaker_baseline.observe(signature)
+            # And the words they leaned on, read against the rest of what they
+            # said, now that recognition keeps when each word was said.
+            self._delivery.stressed = stressed_words(audio, CAPTURE_RATE, words)
             if self._delivery.notable:
-                logger.info("Delivery: %s", ", ".join(self._delivery.descriptors))
+                logger.info(
+                    "Delivery: %s",
+                    ", ".join((*self._delivery.descriptors, *(f"leaned on {w}" for w in self._delivery.stressed))),
+                )
         except (ValueError, TypeError, FloatingPointError, ZeroDivisionError) as exc:
             record_degradation(
                 "voice_duplex.paralinguistics",
@@ -1070,7 +1082,7 @@ class DuplexVoiceSession:
             # Delivery is measured before the addressivity check, not after,
             # because how near and how loudly something was said is evidence
             # about who it was said to.
-            self._read_delivery(audio, transcript)
+            self._read_delivery(audio, transcript, final.words)
 
             # Was that meant for her? On an open microphone this is the
             # question that decides whether she is present in the room or
@@ -1114,6 +1126,7 @@ class DuplexVoiceSession:
                     "transcript": transcript,
                     "reason": reason,
                     "delivery": list(self._delivery.descriptors),
+                    "stressed": list(self._delivery.stressed),
                 },
             )
 

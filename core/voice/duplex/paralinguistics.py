@@ -362,16 +362,21 @@ class DeliveryReading:
     pitch_z: float = 0.0
     rising_final: bool = False
     hesitant: bool = False
+    #: The words they leaned on, from `stressed_words`, in the order said.
+    stressed: tuple[str, ...] = ()
 
     @property
     def notable(self) -> bool:
-        return bool(self.descriptors)
+        return bool(self.descriptors or self.stressed)
 
     def as_context(self) -> str:
         """A short observation for her mind, or "" when nothing stands out."""
-        if not self.descriptors:
-            return ""
-        return f"[you can hear that the user sounds {', '.join(self.descriptors)}]"
+        parts: list[str] = []
+        if self.descriptors:
+            parts.append(f"[you can hear that the user sounds {', '.join(self.descriptors)}]")
+        if self.stressed:
+            parts.append(f"[you can hear them lean on: {', '.join(self.stressed)}]")
+        return " ".join(parts)
 
 
 # Deviation past this many standard deviations is worth mentioning. Lower

@@ -108,10 +108,57 @@ class Transcript:
     is_final: bool = False
     decode_ms: float = 0.0
     audio_s: float = 0.0
+    #: (word, start, end) in seconds from the start of the decoded audio, for
+    #: a final decode whose backend reports timings. Empty otherwise.
+    words: tuple[tuple[str, float, float], ...] = ()
 
     @property
     def full(self) -> str:
         return " ".join(p for p in (self.stable.strip(), self.tentative.strip()) if p)
+
+
+def _parakeet_words(tokens: Any) -> tuple[tuple[str, float, float], ...]:
+    """Parakeet's sub-word tokens joined into timed words.
+
+    Its tokenizer turns the word-boundary marker into a leading space, so a
+    token that starts with one begins a word, and every token after it belongs
+    to that word until the next one does.
+    """
+    out: list[list[Any]] = []
+    for token in tokens or ():
+        piece = str(getattr(token, "text", "") or "")
+        try:
+            start = float(getattr(token, "start", 0.0) or 0.0)
+            end = float(getattr(token, "end", start) or start)
+        except (TypeError, ValueError):
+            continue
+        if not out or piece.startswith(" "):
+            out.append([piece.strip(), start, end])
+        else:
+            out[-1][0] += piece
+            out[-1][2] = max(out[-1][2], end)
+    return tuple((word, start, end) for word, start, end in out if word)
+
+
+def _whisper_words(segments: Any) -> tuple[tuple[str, float, float], ...]:
+    """Timed words from Whisper segments, as mlx-whisper's dicts or faster-whisper's objects."""
+    out: list[tuple[str, float, float]] = []
+    for segment in segments or ():
+        items = segment.get("words") if isinstance(segment, dict) else getattr(segment, "words", None)
+        for item in items or ():
+            if isinstance(item, dict):
+                word, start, end = item.get("word"), item.get("start"), item.get("end")
+            else:
+                word = getattr(item, "word", None)
+                start = getattr(item, "start", None)
+                end = getattr(item, "end", None)
+            try:
+                text = str(word or "").strip()
+                if text:
+                    out.append((text, float(start), float(end)))
+            except (TypeError, ValueError):
+                continue
+    return tuple(out)
 
 
 def _is_parakeet_repo(repo: str) -> bool:
@@ -363,26 +410,56 @@ class _WhisperBackend:
 
     def transcribe(self, audio: np.ndarray, repo: str) -> str:
         """Blocking decode. Always called on a worker thread."""
+        return self._decode(audio, repo, words=False)[0]
+
+    def transcribe_words(
+        self, audio: np.ndarray, repo: str
+    ) -> tuple[str, tuple[tuple[str, float, float], ...]]:
+        """Blocking decode that also keeps when each word was said.
+
+        The final decode is the one her mind reasons over, and how a word was
+        said is read against where it sits in the audio. Parakeet and both
+        Whisper backends report timings; a backend that cannot gives text and
+        no words rather than a guess at them. See `stressed_words` in
+        paralinguistics.
+        """
+        return self._decode(audio, repo, words=True)
+
+    def _decode(
+        self, audio: np.ndarray, repo: str, *, words: bool
+    ) -> tuple[str, tuple[tuple[str, float, float], ...]]:
         with self._usage_lock:
             self._ensure_impl_loaded()
             if not self._impl:
                 raise RuntimeError("no voice ASR backend is installed")
             lease, acquired = self._acquire_model_lane()
             try:
+                timed: tuple[tuple[str, float, float], ...] = ()
                 if self._impl == "parakeet":
-                    text = self._transcribe_parakeet(audio, repo)
+                    result = self._parakeet_result(audio, repo)
+                    text = str(result.text) if result is not None else ""
+                    if words and result is not None:
+                        timed = _parakeet_words(getattr(result, "tokens", ()) or ())
                 elif self._impl == "mlx":
-                    result = self._transcribe_mlx(audio, repo)
+                    result = self._transcribe_mlx(audio, repo, word_timestamps=words)
                     text = str(result.get("text", "") or "")
+                    if words:
+                        timed = _whisper_words(result.get("segments") or ())
                 else:
                     model = self._faster_model(repo)
                     segments, _info = model.transcribe(
-                        audio, beam_size=1, language=self._config.language
+                        audio,
+                        beam_size=1,
+                        language=self._config.language,
+                        word_timestamps=words,
                     )
+                    segments = list(segments)
                     text = "".join(seg.text for seg in segments)
+                    if words:
+                        timed = _whisper_words(segments)
                 if not lease.set_preemptible(True):
                     raise RuntimeError("voice ASR model-lane activation fence was lost")
-                return text
+                return text, timed
             except (
                 AttributeError,
                 ImportError,
@@ -397,7 +474,12 @@ class _WhisperBackend:
                 raise
 
     def _transcribe_parakeet(self, audio: np.ndarray, repo: str) -> str:
-        """Decode with Parakeet TDT.
+        """Parakeet's text for this audio. See `_parakeet_result`."""
+        result = self._parakeet_result(audio, repo)
+        return str(result.text) if result is not None else ""
+
+    def _parakeet_result(self, audio: np.ndarray, repo: str) -> Any:
+        """Decode with Parakeet TDT, keeping the aligned result with its timings.
 
         Note the API shape: ``BaseParakeet.transcribe`` takes a FILE PATH, so
         it is not usable here — Aura holds a live capture buffer, never a
@@ -420,9 +502,11 @@ class _WhisperBackend:
 
         mel = get_logmel(mx.array(np.asarray(audio, dtype=np.float32)), model.preprocessor_config)
         results = model.generate(mel)
-        return str(results[0].text) if results else ""
+        return results[0] if results else None
 
-    def _transcribe_mlx(self, audio: np.ndarray, repo: str) -> dict[str, Any]:
+    def _transcribe_mlx(
+        self, audio: np.ndarray, repo: str, *, word_timestamps: bool = False
+    ) -> dict[str, Any]:
         holder = self._mlx_holder
         if holder is None:
             return self._mlx.transcribe(
@@ -431,6 +515,7 @@ class _WhisperBackend:
                 language=self._config.language,
                 fp16=True,
                 condition_on_previous_text=False,
+                word_timestamps=word_timestamps,
             )
 
         with _MLX_HOLDER_LOCK:
@@ -444,6 +529,7 @@ class _WhisperBackend:
                 language=self._config.language,
                 fp16=True,
                 condition_on_previous_text=False,
+                word_timestamps=word_timestamps,
             )
             loaded = getattr(holder, "model", None)
             if loaded is not None:
@@ -637,12 +723,19 @@ class StreamingAsr:
             return Transcript(is_final=True)
         started = time.perf_counter()
         text = ""
+        timed: tuple[tuple[str, float, float], ...] = ()
         try:
             async with self._decode_lock:
                 loop = asyncio.get_running_loop()
-                text = await loop.run_in_executor(
-                    None, self._backend.transcribe, audio, self._config.final_model
-                )
+                decode_words = getattr(self._backend, "transcribe_words", None)
+                if callable(decode_words):
+                    text, timed = await loop.run_in_executor(
+                        None, decode_words, audio, self._config.final_model
+                    )
+                else:
+                    text = await loop.run_in_executor(
+                        None, self._backend.transcribe, audio, self._config.final_model
+                    )
         except (RuntimeError, ValueError, OSError, AttributeError, MemoryError) as exc:
             record_degradation(
                 "voice_duplex.asr",
@@ -664,4 +757,5 @@ class StreamingAsr:
             is_final=True,
             decode_ms=(time.perf_counter() - started) * 1000.0,
             audio_s=audio.size / float(CAPTURE_RATE),
+            words=tuple(timed) if cleaned else (),
         )
