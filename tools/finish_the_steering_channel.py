@@ -48,6 +48,21 @@ PYTHON = "/Users/bryan/.aura/live-source/.venv/bin/python"
 CAMPAIGN_TIMEOUT_S = 5 * 60 * 60
 STEP_TIMEOUT_S = 45 * 60
 
+#: The wait for training gets its own bound, and a far longer one. It borrowed
+#: the campaign's and gave up at five hours on a run that needed six and a
+#: quarter -- with three of five dimensions already trained and written. A wait
+#: that ends before the thing it is waiting for is not a timeout, it is a
+#: guess. Progress is checked as well as elapsed time, so a run that has
+#: genuinely stopped writing still ends the wait.
+TRAINING_WAIT_S = 18 * 60 * 60
+
+#: A dimension writes its sixteen vectors when it FINISHES, and a dimension
+#: takes about ninety minutes. So a ninety-minute stall threshold is the
+#: interval it is meant to detect, and it fired forty-nine minutes before the
+#: last dimension finished -- on a run that then completed all eighty vectors.
+#: Three hours is twice the longest gap the run actually has.
+TRAINING_STALL_S = 3 * 60 * 60
+
 
 def say(stage: str, **facts: object) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
@@ -85,11 +100,21 @@ def training_is_finished() -> bool:
 def main() -> int:
     say("waiting_for_training")
     waited = 0
+    last_change = (0, time.time())
     while not training_is_finished():
         time.sleep(60)
         waited += 60
-        if waited > CAMPAIGN_TIMEOUT_S:
-            say("gave_up_waiting_for_training", seconds=waited)
+        written = len(list(TRAINED.glob("*_layer*.npz")))
+        if written != last_change[0]:
+            last_change = (written, time.time())
+            say("training_progress", vectors=written, waited_s=waited)
+        elif time.time() - last_change[1] > TRAINING_STALL_S:
+            say("gave_up_waiting_for_training",
+                seconds=waited, vectors=written, why="no vector written in "
+                f"{TRAINING_STALL_S // 60} minutes")
+            return 1
+        if waited > TRAINING_WAIT_S:
+            say("gave_up_waiting_for_training", seconds=waited, why="wall clock")
             return 1
     report = TRAINED / "training_report.json"
     vectors = sorted(TRAINED.glob("*_layer*.npz"))
