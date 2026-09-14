@@ -180,6 +180,7 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # whether she has something worth handing over at all.
         "cognition.catharsis",
         "cognition.telling",
+        "cognition.borrowed_resolve",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

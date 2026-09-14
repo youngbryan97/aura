@@ -705,6 +705,9 @@ _SCHEMAS: dict[str, Schema] = {
             # Having something worth handing over, which is a pull on her
             # separate from how long since anyone spoke.
             # See core/social/telling.py.
+            # Somebody else holding on harder than they usually do, which
+            # holds her own integrity where it is. See core/social/resolve.py.
+            ("resolve_borrowed", "cognition.borrowed_resolve.borrowed"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1442,6 +1445,7 @@ def _read_D(state: Any) -> np.ndarray:
         # Read as a mapping rather than dug field by field: an empty stance is
         # a reading, "no stance taken", and digging into it would count a miss
         # on every turn nobody testified.
+        1.0 if (_dig(state, "cognition.borrowed_resolve", {}) or {}).get("borrowed") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),

@@ -638,6 +638,10 @@ class CognitiveContext:
     #: affect phase read it. See core/social/witness.py.
     witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
+    #: Whether the person she is talking to is holding on harder than they
+    #: usually do, which holds her own integrity drive where it is.
+    #: See core/social/resolve.py.
+    borrowed_resolve: dict[str, Any] = field(default_factory=dict)
     #: What she has to pass on right now and what it is about — a moment that
     #: moved her rather than how long since anyone spoke.
     #: See core/social/telling.py.

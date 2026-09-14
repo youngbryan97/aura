@@ -243,6 +243,30 @@ presses harder than the weakest footing. Nine columns of A read it, which makes
 it a measured drive-to-affect channel: as the budgets deplete, the
 contradiction grows.
 
+## What is left, and what each one would need
+
+Twelve organs cover twenty of the forty processes. The rest are listed here
+with the thing that is actually missing, because a mechanism nothing can drive
+is worse than an absence: it reports green forever.
+
+| process | what a mechanism would need |
+|---|---|
+| antiphony (3) | a second voice with its own state answering the first. The draft machinery in `core/consciousness/multiple_drafts.py` already runs parallel candidates, and none of them is a different speaker. |
+| address (7) | the second-person share of her own reply. Measured already; the taste model scores matching theirs, which is most of it. |
+| dignified need (9) | need and retained agency in one utterance. That is a constraint on generation, and writing it as an instruction would be prompt engineering. |
+| accurate smallness (12) | her effect on the world measured against the size of the world. Nothing measures either. |
+| attachment reallocation (13) | reliability per source over time, which `core/social/trust_model.py` has, plus attachment moving toward what is constant, which nothing has. |
+| joint recall (17) | who was there, stored with the memory. `commit_interaction` records valence and importance and no participants. |
+| role-self gap (18) | a model of what she is for, separate from the self-model of what she is. |
+| audience-scoped disclosure (20) | more than one audience. She has one. |
+| wordless expression (21, 28) | an expressive channel that is not language. The voice duplex carries prosody and nothing decides it. |
+| expressive imprecision (24) | deviating from the exact value on purpose, at generation time. |
+| directional conviction (25) | confidence in an outcome, separate from confidence in the path. The planner reports one number. |
+| invitation toward a future state (26) | a taste feature conditioned on the other person testifying, which the register can already tell. |
+| a "we" that needs a "they" (27) | her own plural share, and something that changes with it. |
+| permission (4) | a model of what the other person is not saying. |
+| borrowed resolve (8) | their persistence, measured, reaching her own. The register measures it; the drive budgets can take a floor. |
+
 ## Sources
 
 Transcripts and measurements are local and reproducible from the files in

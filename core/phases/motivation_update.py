@@ -67,6 +67,9 @@ class MotivationUpdatePhase(Phase):
         # reading, bounded by its own scale: urgency runs 0..1, so drives press
         # between once and twice as fast and never faster.
         pressure = 1.0 + self._surprise_pressure()
+        borrowed_resolve = bool(
+            (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
+        )
 
         for name, budget in mot.budgets.items():
             if legacy_metabolism_active and name in {"energy", "curiosity"}:
@@ -77,6 +80,14 @@ class MotivationUpdatePhase(Phase):
 
             # Slow social decay during active conversation
             effective_decay = decay * social_decay_multiplier if name == "social" else decay
+            # And hold integrity while somebody is holding on harder than they
+            # usually do. Resolve arriving from outside is what that line in
+            # the record does to a listener, and she had no channel for it.
+            # A hold rather than a gift: nothing here fills the drive, because
+            # an amount would have to come from somewhere.
+            # See core/social/resolve.py.
+            if name == "integrity" and borrowed_resolve:
+                effective_decay = 0.0
             effective_decay *= pressure
 
             # Decay: level = current - (decay * dt)

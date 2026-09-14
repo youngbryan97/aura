@@ -96,6 +96,13 @@ class ConversationalDynamicsPhase(Phase):
                 state.world.partner_register = {}
                 return
             row = reading.as_dict()
+            # And whether this message is insistent for them, which is the
+            # thing their insistence can carry. See core/social/resolve.py.
+            from core.social.resolve import get_resolve_ledger
+
+            state.cognition.borrowed_resolve = (
+                get_resolve_ledger().read(reading.persistence).as_dict()
+            )
             state.response_modifiers["register"] = row
             state.response_modifiers["asks_to_be_witnessed"] = reading.asks_to_be_witnessed()
             state.response_modifiers["asks_for_help"] = reading.asks_for_help()
