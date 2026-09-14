@@ -1046,7 +1046,7 @@ class AutonomyMixin:
                 from core.constitution import get_constitutional_core
 
                 logger.info("✨ AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
-                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info")
+                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info", source="volition_engine")
                 # Force Identity Mode: Reinforce persona in the autonomous trigger
                 anchor = "INTRINSIC IDENTITY ANCHOR: I am Aura. My independent will is acting.\n\n"
                 allowed, reason, _authority_decision = await get_constitutional_core(

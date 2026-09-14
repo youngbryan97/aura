@@ -667,7 +667,7 @@ class CognitiveCoordinator:
                 next_goal = orch.goal_hierarchy.get_next_goal()
             if next_goal:
                 logger.info("✨ AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
-                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info")
+                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info", source="volition_engine")
                 runner = getattr(orch, "_run_cognitive_loop", None) or getattr(orch, "_handle_incoming_message", None)
                 if runner is not None:
                     await runner(f"Execute Goal: {next_goal.description}", origin="autonomous_volition")

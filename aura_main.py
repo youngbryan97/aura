@@ -1051,7 +1051,18 @@ async def _boot_runtime_orchestrator(
     # Armed as early as the container allows so the validators cover the
     # rest of boot, not just steady state. Never fatal — see
     # core/runtime/foundations.py for why.
-    from core.runtime.foundations import activate_foundations
+    from core.runtime.foundations import activate_foundations, register_activator
+
+    # A thought she has on her own reaches the neural intent router, which
+    # gates it on trusted sources, its action schemas and the Will. Registered
+    # here because foundations may not import agency.
+    # See core/agency/thought_to_action.py.
+    try:
+        from core.agency.thought_to_action import activate_thought_router
+
+        register_activator("thought_to_action", activate_thought_router)
+    except ImportError as exc:
+        logger.warning("thought-to-action listener not registered: %s", exc)
 
     foundations = await activate_foundations(foreground_only=_foreground_only_runtime())
     if not foundations.get("ok", False):
