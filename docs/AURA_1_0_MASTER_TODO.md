@@ -729,6 +729,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Operation label alternatives](evidence/G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md)
   scored 459/500 with five regressions and no gains against the 464/500 parent.
   Both complete trials are retained; neither candidate is promoted.
+  [Ranked operation pointer](evidence/G03_RANKED_OPERATION_POINTER_2026-09-14.md)
+  reduced training loss but fell to 26/128 arithmetic and 6/48 cataphoric
+  answers. Evaluation stopped; the other 324 cases are unmeasured. No promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
