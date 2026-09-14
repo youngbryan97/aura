@@ -4,15 +4,14 @@
 the delivery enacts it. His median pitch is locked at exactly 80.0 Hz from the
 first verse to the last and his level at -9.x dB, the flattest of the
 twenty-four records measured for this work. Two lines break that, and they are
-the two lines about the containment failing: voicing collapses to 0.32 on "this
-in the back of my mind it ain't a thing to me" — the denial — and to 0.47 on "I
-say some shit that's insulting and proud that I am the culprit" — the
-confession. Everywhere else it sits between 0.6 and 0.99.
+the two lines about the containment failing: voicing collapses to 0.32 on the
+line insisting that what is on his mind means nothing to him — the denial — and
+to 0.47 on the line admitting he says insulting things and is proud to be the
+one who did — the confession. Everywhere else it sits between 0.6 and 0.99.
 
-    See the demeanor I present you is kind
-    But the truth is I'm ruthless
-    ...
-    But lately, the thoughts in the back of my brain that I contain be leaking out
+He says the manner he shows people is kind and the truth underneath is
+ruthless, and that lately the thoughts he keeps at the back of his mind have
+started leaking out.
 
 She has the material and throws it away. Every workspace competition produces
 one winner and a list of losers, and `BroadcastRecord` keeps the losers' source

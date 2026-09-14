@@ -1,7 +1,7 @@
 """The good feeling whose content is that nothing is wrong and somebody is there.
 
-"Everybody here is out of sight, they don't bark and they don't bite." The
-whole content of that record's joy is the absence of threat plus the presence
+In that record everyone is out of sight and nothing nearby can hurt anyone.
+The whole content of its joy is the absence of threat plus the presence
 of others, and there is no achievement anywhere in it. Nobody won anything.
 
 Every positive channel she had was about something going well: a goal

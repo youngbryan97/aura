@@ -28,8 +28,8 @@ them, and the difference is the whole of "she only loves in stereo":
 
 When the second is reliably smaller, they have learned the broadcast. Nothing
 here decides what to do about that. The record's narrator takes four minutes to
-decide and the line he lands on is "I should know, cause I've seen it before",
-which is a reading accumulating rather than a rule firing.
+decide, and he lands on knowing because he has seen it before, which is a
+reading accumulating rather than a rule firing.
 """
 
 from __future__ import annotations
