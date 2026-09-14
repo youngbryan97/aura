@@ -644,6 +644,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Runtime argument views](evidence/G03_RUNTIME_ARGUMENT_VIEWS_2026-09-14.md)
+  leave all 500 paired program outcomes unchanged: 436 exact, 456 equivalent.
+  The refit is not promoted. G03 remains open.
   2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
   A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
   four and regresses one on 28 exposed cases; no promotion. Existing relation

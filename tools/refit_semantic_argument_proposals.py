@@ -36,9 +36,24 @@ def main() -> int:
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
+    parser.add_argument("--validation-checkpoint", type=Path)
+    parser.add_argument("--evaluate-existing", action="store_true",
+                        help="evaluate the saved output candidate without fitting again")
+    parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
+    if args.evaluate_existing and args.validation_output is None:
+        parser.error("evaluate-existing requires validation-output")
+    if args.validation_output is not None:
+        args.validation_checkpoint = args.validation_checkpoint or args.validation_output.with_suffix(".checkpoint.json")
+    if args.validation_checkpoint is not None and args.validation_checkpoint.resolve() in {
+        path.resolve() for path in (args.output, args.transducer, args.source_report, args.validation_output)
+        if path is not None
+    }:
+        parser.error("validation checkpoint must not overwrite inputs or final outputs")
+    if args.runtime_operation_views and args.objective != "pairwise_arguments":
+        parser.error("runtime operation views require pairwise_arguments")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
@@ -62,7 +77,7 @@ def main() -> int:
     )
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
-    if args.output.exists():
+    if args.output.exists() and not args.evaluate_existing:
         raise FileExistsError(args.output)
     if args.validation_output is not None and (
         args.validation_output.exists()
@@ -99,15 +114,28 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
+    if args.runtime_operation_views:
+        options["use_runtime_operation_views"] = True
+        options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective == "ranked_operation_pointer":
         options = {"ranking": True}
-    candidate = refit(model, bound, **options)
-    payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
-    if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
-        raise FileExistsError(args.output)
+    if args.evaluate_existing:
+        candidate = compositional_semantic_program_transducer_from_dict(
+            json.loads(args.output.read_text("ascii"))
+        )
+        verify_source_splits(bound, candidate.training_receipt)
+        if candidate.model_basis_sha256 != model.model_basis_sha256:
+            raise ValueError("saved candidate representation differs from incumbent")
+    else:
+        candidate = refit(model, bound, **options)
+        payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
+        if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
+            raise FileExistsError(args.output)
     if args.validation_output is not None:
         selection = select_compositional_program_candidate(
-            {"incumbent": model, "refit": candidate}, bound, incumbent="incumbent"
+            {"incumbent": model, "refit": candidate}, bound, incumbent="incumbent",
+            checkpoint_path=args.validation_checkpoint,
+            progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True),
         )
         payload = json.dumps(selection, sort_keys=True, separators=(",", ":")) + "\n"
         if not atomic_write_bytes_if_absent(

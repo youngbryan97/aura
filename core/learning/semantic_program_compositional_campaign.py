@@ -53,6 +53,8 @@ def select_compositional_program_candidate(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
     incumbent: str,
+    checkpoint_path=None,
+    progress=None,
 ) -> dict[str, Any]:
     """Select on autonomous validation programs, never gold answers or test tasks."""
     if incumbent not in candidates:
@@ -67,12 +69,31 @@ def select_compositional_program_candidate(
         if item.split != "validation"
     ):
         raise ValueError("program selection validation overlaps another split")
+    checkpoint = None
+    if checkpoint_path is not None:
+        from core.learning.semantic_validation_checkpoint import (
+            SemanticValidationCheckpoint, validation_identity,
+        )
+
+        checkpoint = SemanticValidationCheckpoint(
+            checkpoint_path, validation_identity(candidates, selected), candidates, ids,
+        )
     outcomes = {}
     equivalents = {}
     for name, model in candidates.items():
         rows = []
         equivalent_rows = []
         for item in selected:
+            source = item.ir.source_text_sha256
+            cached = checkpoint.get(name, source) if checkpoint is not None else None
+            if progress is not None:
+                progress({"stage": "semantic_validation", "candidate": name,
+                          "completed": len(rows), "total": len(selected),
+                          "source": source, "cached": cached is not None})
+            if cached is not None:
+                rows.append(cached[0])
+                equivalent_rows.append(cached[1])
+                continue
             outcome = model.decode(
                 source_token_ids=item.ir.source_token_ids,
                 hidden_states=item.hidden_states,
@@ -90,6 +111,11 @@ def select_compositional_program_candidate(
                     outcome.ir.to_program(), item.ir.to_program()
                 )
             ))
+            if checkpoint is not None:
+                checkpoint.record(name, source, exact, equivalent_rows[-1])
+        if progress is not None:
+            progress({"stage": "semantic_validation", "candidate": name,
+                      "completed": len(rows), "total": len(selected)})
         outcomes[name] = rows
         equivalents[name] = equivalent_rows
     baseline = outcomes[incumbent]

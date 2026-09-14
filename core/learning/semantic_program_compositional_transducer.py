@@ -1652,6 +1652,8 @@ def refit_compositional_argument_rankings(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
     preserve_coreferent_mentions: bool = False,
+    use_runtime_operation_views: bool = False,
+    progress=None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
     from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
@@ -1677,12 +1679,22 @@ def refit_compositional_argument_rankings(
         or set(train_ids) & set(validation_ids)
     ):
         raise ValueError("argument ranking source splits duplicate or overlap")
+    if type(use_runtime_operation_views) is not bool:
+        raise ValueError("runtime operation views must be a boolean")
+    fitting_examples = training
+    runtime_view_receipt = None
+    if use_runtime_operation_views:
+        from core.learning.semantic_runtime_argument_views import runtime_argument_training_views
+
+        fitting_examples, runtime_view_receipt = runtime_argument_training_views(
+            model, training, progress=progress,
+        )
     heads, fits = [], []
     for position, (role, proposal) in enumerate(zip(
         model.argument_role_heads, model.argument_proposal_heads, strict=True
     )):
         features, labels, weights, _, _ = _argument_proposal_rows(
-            training, argument_pointer=model.argument_pointer, position=position,
+            fitting_examples, argument_pointer=model.argument_pointer, position=position,
             max_span_tokens=model.max_span_tokens,
             max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
             hidden_channels=model.hidden_channels,
@@ -1724,6 +1736,8 @@ def refit_compositional_argument_rankings(
         "fits": fits,
         "serving_authority": False,
     }
+    if runtime_view_receipt is not None:
+        body["argument_ranking_refit"]["runtime_operation_views"] = runtime_view_receipt
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
 
 

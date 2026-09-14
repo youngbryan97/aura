@@ -96,3 +96,72 @@ def test_empty_duplicate_or_overlapping_validation_is_rejected(examples):
         select_compositional_program_candidate(
             {"parent": Candidate({"a"})}, examples, incumbent="parent"
         )
+
+
+def test_interrupted_validation_resumes_without_changing_report(tmp_path):
+    path = tmp_path / "validation.json"
+    examples = [item("a"), item("b")]
+    candidate = Candidate({"a", "b"})
+    original = candidate.decode
+
+    def interrupt(**kwargs):
+        if kwargs["source_text_sha256"] == "b":
+            raise RuntimeError("interrupted")
+        return original(**kwargs)
+
+    candidate.decode = interrupt
+    with pytest.raises(RuntimeError, match="interrupted"):
+        select_compositional_program_candidate({"parent": candidate}, examples,
+                                               incumbent="parent", checkpoint_path=path)
+    resumed = Candidate({"a", "b"})
+    events = []
+    report = select_compositional_program_candidate({"parent": resumed}, examples,
+        incumbent="parent", checkpoint_path=path, progress=events.append)
+    assert resumed.calls == ["b"]
+    assert events[0]["cached"] is True
+    assert events[-1]["completed"] == 2
+    fresh = select_compositional_program_candidate({"parent": Candidate({"a", "b"})},
+                                                   examples, incumbent="parent")
+    assert report == fresh
+
+
+@pytest.mark.parametrize("change", ["model", "hidden", "tokens", "inputs", "gold", "basis"])
+def test_checkpoint_cannot_cross_observation_or_model_changes(tmp_path, change):
+    import numpy as np
+
+    path = tmp_path / "validation.json"
+    example = item("a")
+    example.hidden_states = np.zeros((1, 2), dtype=np.float32)
+    select_compositional_program_candidate({"parent": Candidate({"a"})}, [example],
+                                           incumbent="parent", checkpoint_path=path)
+    model = Candidate({"a"})
+    if change == "model":
+        model.receipt_sha256 = "changed"
+    elif change == "hidden":
+        example.hidden_states[0, 0] = 1
+    elif change == "tokens":
+        example.ir.source_token_ids = (2,)
+    elif change == "inputs":
+        example.public_inputs = (7,)
+    elif change == "gold":
+        example.ir.to_program = lambda: "changed"
+    else:
+        example.ir.model_basis_receipt_sha256 = "changed"
+    with pytest.raises(ValueError, match="identity"):
+        select_compositional_program_candidate({"parent": model}, [example],
+                                               incumbent="parent", checkpoint_path=path)
+    assert model.calls == []
+
+
+def test_checkpoint_corruption_is_not_a_score(tmp_path):
+    import json
+
+    path = tmp_path / "validation.json"
+    select_compositional_program_candidate({"parent": Candidate({"a"})}, [item("a")],
+                                           incumbent="parent", checkpoint_path=path)
+    body = json.loads(path.read_text())
+    body["rows"]["parent"]["a"] = [False, False]
+    path.write_text(json.dumps(body))
+    with pytest.raises(ValueError, match="checksum"):
+        select_compositional_program_candidate({"parent": Candidate({"a"})}, [item("a")],
+                                               incumbent="parent", checkpoint_path=path)
