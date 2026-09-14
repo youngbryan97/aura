@@ -729,6 +729,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Operation label alternatives](evidence/G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md)
   scored 459/500 with five regressions and no gains against the 464/500 parent.
   Both complete trials are retained; neither candidate is promoted.
+  [Ranked operation pointer](evidence/G03_RANKED_OPERATION_POINTER_2026-09-14.md)
+  reduced training loss but fell to 26/128 arithmetic and 6/48 cataphoric
+  answers. Evaluation stopped; the other 324 cases are unmeasured. No promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -783,6 +786,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Conclusive verification](evidence/G09_CONCLUSIVE_VERIFICATION_2026-09-14.md)
   now agrees with the shared verdict when one checking engine fails. Candidate
   ranking is unchanged; independent task assessment remains open.
+  [Computed-value plans](evidence/G09_COMPUTED_VALUE_PLANS_2026-09-14.md)
+  can propose reusable computations for exact goals and check real outputs.
+  129 focused tests passed; task-grounded semantic selection remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

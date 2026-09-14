@@ -92,3 +92,42 @@ def test_duplicate_sources_fail_before_fit(parent, monkeypatch):
     examples = _examples()
     with pytest.raises(ValueError, match="unique disjoint"):
         refit.refit_compositional_paired_operation_pointer(parent, (*examples, examples[0]))
+
+
+def test_ranked_pointer_fits_source_groups_and_preserves_nonpointer_modules(parent, monkeypatch):
+    from core.learning import semantic_argument_ranking
+
+    fit = semantic_argument_ranking.fit_pairwise_argument_weight
+    captured = []
+    def capture(features, labels, weights, **kwargs):
+        starts = np.flatnonzero(labels == 1)
+        assert starts[0] == 0
+        stops = (*starts[1:], len(labels))
+        assert all(stop - start >= 2 for start, stop in zip(starts, stops, strict=True))
+        captured.append(len(starts))
+        return fit(features, labels, weights, **kwargs)
+
+    monkeypatch.setattr(semantic_argument_ranking, "fit_pairwise_argument_weight", capture)
+    model = refit.refit_compositional_paired_operation_pointer(parent, _examples(), ranking=True)
+    receipt = model.training_receipt["paired_operation_pointer_refit"]
+    trained = [item for item in _examples() if item.split == "train"]
+    assert captured == [sum(len(set(i.operation_span for i in item.ir.instructions)) for item in trained)]
+    assert receipt["objective"] == "source_grouped_pairwise_logistic_v1"
+    measured = receipt["supervision"]["ranking_fit"]
+    assert measured["converged"] and measured["exported_loss"] < measured["initial_loss"]
+    assert not receipt["validation_used_for_fit"]
+    assert model.receipt_sha256 != parent.receipt_sha256
+    assert model.operation_head.to_dict() == parent.operation_head.to_dict()
+    assert model.argument_pointer.to_dict() == parent.argument_pointer.to_dict()
+    assert model.operation_pointer.start_bias + model.operation_pointer.end_bias == pytest.approx(
+        parent.operation_pointer.start_bias + parent.operation_pointer.end_bias)
+    assert compositional_semantic_program_transducer_from_dict(model.to_dict()).to_dict() == model.to_dict()
+
+
+@pytest.mark.parametrize("ranking", [1, "yes", None])
+def test_ranking_policy_is_explicit(parent, ranking):
+    with pytest.raises(ValueError, match="boolean"):
+        refit.fit_paired_boundary_pointer(
+            _examples(), spans=lambda item: tuple(i.operation_span for i in item.ir.instructions),
+            pointer=parent.operation_pointer, max_span_tokens=parent.max_span_tokens, ranking=ranking,
+        )

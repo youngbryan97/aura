@@ -14,14 +14,14 @@ from core.cognition.procedure import (
     compose,
     reset_procedure_registry_for_test,
 )
+from core.cognition.procedure_execution import BackendResult, execute_procedure
+from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
 from core.learning.semantic_procedure_currency import (
     SemanticProcedureProgram,
     execute_semantic_procedure,
     from_semantic_program,
     semantic_procedure_backend,
 )
-from core.cognition.procedure_execution import BackendResult, execute_procedure
-from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
     SemanticProgramIR,
@@ -62,7 +62,8 @@ def _ir(
 
 
 @pytest.mark.parametrize("quantity,price", [(7, 129), (0, 83), (113, 307)])
-def test_goal_composes_local_source_floor_and_report_without_a_prebuilt_chain(tmp_path, quantity, price):
+@pytest.mark.parametrize("exact_goal", [False, True])
+def test_goal_composes_local_source_floor_and_report_without_a_prebuilt_chain(tmp_path, quantity, price, exact_goal):
     import csv
     from io import StringIO
 
@@ -79,7 +80,8 @@ def test_goal_composes_local_source_floor_and_report_without_a_prebuilt_chain(tm
     report = registry.register("format quote", Backend.MACRO,
         Signature((Precondition("subtotal_cents", "integer"),), (Effect("quote", "string"),)))
     state = {"quote_path": str(path), "item": "part-A"}
-    plan = plan_procedure(registry, state, (Precondition("quote", "string"),),
+    plan = plan_procedure(registry, state,
+        (Precondition("quote", "string", f"{quantity * price} cents" if exact_goal else None),),
         max_steps=3, max_expansions=20)
     assert plan.procedure_ids == (source.procedure_id, compute.procedure_id, report.procedure_id)
 
@@ -99,6 +101,14 @@ def test_goal_composes_local_source_floor_and_report_without_a_prebuilt_chain(tm
     assert result.execution.steps[0].evidence["source_sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert result.execution.steps[1].evidence.floor_execution.receipt["execution_engine"] == "universal_metered_floor"
     assert registry.get(compute.procedure_id).value.uses == 0
+    if exact_goal:
+        assert plan.value_obligations == ((report.procedure_id, plan.requirements[0]),)
+        wrong_surface = execute_procedure_plan(registry, plan, state, backends={
+            Backend.TOOL: read_source, Backend.RLC: semantic_procedure_backend,
+            Backend.MACRO: lambda p, s, c: BackendResult({"quote": "unrelated answer"}),
+        })
+        assert wrong_surface.execution.completed
+        assert not wrong_surface.requirements_met and not wrong_surface.completed
     # Removing a required backend/procedure must remove the composition.
     assert not plan_procedure(registry, state, plan.requirements,
         eligible=(source.procedure_id, report.procedure_id), max_steps=3, max_expansions=20).found
