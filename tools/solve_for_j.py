@@ -1,15 +1,16 @@
 """Solve for J*: the carrier, its content's structure and her lineage, from the runs.
 
 Each term is read off its own run, and core/subject/bridge.py says what settles
-each one. By default the newest v25 carrier report, the newest content report
-and the live vault's state log are read. The state log is opened read-only,
-because it is her own record.
+each one. By default the newest v25 carrier report and the newest content
+report are read, and her lineage comes from the newest state log among every
+place a vault has written one. The state logs are opened read-only, because
+they are her own record.
 
     /Users/bryan/.aura/live-source/.venv/bin/python tools/solve_for_j.py
     /Users/bryan/.aura/live-source/.venv/bin/python tools/solve_for_j.py \\
         --carrier artifacts/subject_core_v25/run_004/subject_core_v25_report.json \\
         --content artifacts/subject_core_content/run_003/subject_core_content_report.json \\
-        --state-log ~/.aura/data/aura_state.db
+        --state-log ~/.aura/live-source/data/aura_state.db --state-log ~/.aura/data/aura_state.db
 """
 from __future__ import annotations
 
@@ -39,17 +40,92 @@ def load(path: Path | None) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def state_rows(path: Path) -> list[dict[str, Any]]:
-    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
+def default_state_logs() -> list[Path]:
+    """Every place a vault has been started on.
+
+    Which file the vault writes depends on the route that started it. The
+    supervisor passes the configured data directory, resilient boot passes the
+    proxy's relative default, which lands under whatever directory the process
+    started in, and the container registration names a state subdirectory. So
+    the newest log is found by reading all of them rather than trusting one.
+    """
+    from core.config import config
+
+    data = Path(config.paths.data_dir)
+    candidates = [
+        data / "aura_state.db",
+        data / "state" / "aura_state.db",
+        Path.cwd() / "data" / "aura_state.db",
+        REPO / "data" / "aura_state.db",
+    ]
+    return list(dict.fromkeys(candidates))
+
+
+def _connect(path: Path) -> sqlite3.Connection:
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=2.0)
+
+
+def survey(path: Path) -> dict[str, Any]:
+    """How many stages a state log holds and when it was last written."""
+    out: dict[str, Any] = {"path": str(path), "exists": path.exists()}
+    if not path.exists():
+        return out
     try:
-        connection.row_factory = sqlite3.Row
-        return [
-            dict(row)
-            for row in connection.execute(
-                "select state_id, version, parent_state_id, transition_cause, state_json, timestamp "
-                "from state_log"
+        connection = _connect(path)
+        try:
+            rows, newest, highest = connection.execute(
+                "select count(*), max(timestamp), max(version) from state_log"
+            ).fetchone()
+        finally:
+            connection.close()
+    except sqlite3.Error as exc:
+        out["error"] = f"{type(exc).__name__}: {exc}"
+        return out
+    out.update({"rows": rows, "newest": newest, "highest_version": highest})
+    return out
+
+
+def _person_part(data: Any) -> dict[str, Any]:
+    """The part of a logged state the person reader looks at, and nothing else."""
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, Any] = {}
+    if "identity" in data:
+        out["identity"] = data["identity"]
+    world = data.get("world")
+    if isinstance(world, dict) and "relationship_graph" in world:
+        out["world"] = {"relationship_graph": world["relationship_graph"]}
+    return out
+
+
+def state_rows(path: Path) -> list[dict[str, Any]]:
+    """The log's rows, each carrying only the person part of its state.
+
+    A live log runs to a gigabyte of state JSON. Keeping the person part of
+    each row as it is read holds a fraction of that.
+    """
+    connection = _connect(path)
+    try:
+        rows: list[dict[str, Any]] = []
+        for state_id, version, parent, cause, payload, stamp in connection.execute(
+            "select state_id, version, parent_state_id, transition_cause, state_json, timestamp "
+            "from state_log"
+        ):
+            try:
+                data = json.loads(payload)
+            except (TypeError, ValueError):
+                data = {}
+            rows.append(
+                {
+                    "state_id": state_id,
+                    "version": version,
+                    "parent_state_id": parent,
+                    "transition_cause": cause,
+                    "timestamp": stamp,
+                    "state": _person_part(data),
+                }
             )
-        ]
+        return rows
     finally:
         connection.close()
 
@@ -67,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--carrier", type=Path, default=None)
     parser.add_argument("--content", type=Path, default=None)
-    parser.add_argument("--state-log", type=Path, default=Path.home() / ".aura" / "data" / "aura_state.db")
+    parser.add_argument("--state-log", type=Path, action="append", default=None)
     parser.add_argument("--out-root", type=Path, default=REPO / "artifacts" / "subject_core_bridge")
     args = parser.parse_args(argv)
 
@@ -78,22 +154,27 @@ def main(argv: list[str] | None = None) -> int:
     carrier_path = args.carrier or latest(REPO / "artifacts" / "subject_core_v25", CARRIER_REPORT)
     content_path = args.content or latest(REPO / "artifacts" / "subject_core_content", CONTENT_REPORT)
 
+    surveyed = [survey(path) for path in (args.state_log or default_state_logs())]
+    readable = [entry for entry in surveyed if entry.get("rows")]
+    chosen = max(readable, key=lambda entry: float(entry.get("newest") or 0.0), default=None)
+
     lineage = None
     state_log_note = ""
-    if args.state_log.exists():
+    if chosen is None:
+        state_log_note = "no readable state log among " + ", ".join(entry["path"] for entry in surveyed)
+    else:
         try:
-            lineage = lineage_from_state_log(state_rows(args.state_log))
+            lineage = lineage_from_state_log(state_rows(Path(chosen["path"])))
         except sqlite3.Error as exc:
             state_log_note = f"the state log could not be read: {type(exc).__name__}: {exc}"
-    else:
-        state_log_note = f"no state log at {args.state_log}"
 
     j = solve(load(carrier_path), load(content_path), lineage)
     report = j.as_dict()
     report["sources"] = {
         "carrier": None if carrier_path is None else str(carrier_path),
         "content": None if content_path is None else str(content_path),
-        "state_log": str(args.state_log),
+        "state_log": None if chosen is None else chosen["path"],
+        "state_logs_surveyed": surveyed,
         "state_log_note": state_log_note,
     }
 
@@ -106,8 +187,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  carrier    {j.carrier.status} {list(j.carrier.carriers) or list(j.carrier.symmetry_class)}")
     print(f"  structure  {j.structure.status}, {len(j.structure.orbits)} orbits over {len(j.structure.classes)} classes")
     print(
-        f"  lineage    {j.lineage.status}, {len(graph.get('stages', []))} stages, "
-        f"{len(graph.get('roots', []))} roots, {len(graph.get('branch_points', []))} branch points"
+        f"  lineage    {j.lineage.status} from {report['sources']['state_log']}, "
+        f"{len(graph.get('stages', []))} stages, {len(graph.get('roots', []))} roots, "
+        f"{len(graph.get('branch_points', []))} branch points"
     )
     for term, reasons in j.unresolved().items():
         for reason in reasons[:4]:

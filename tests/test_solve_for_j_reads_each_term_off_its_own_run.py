@@ -104,3 +104,28 @@ def test_each_solve_is_its_own_run(tool: Any, tmp_path: Path) -> None:
     for _ in range(2):
         tool.main(["--carrier", str(carrier), "--content", str(content), "--state-log", str(tmp_path / "x.db"), "--out-root", str(out_root)])
     assert sorted(p.parent.name for p in out_root.glob("run_*/j_star_report.json")) == ["run_001", "run_002"]
+
+
+def test_the_newest_of_several_state_logs_is_the_one_read_and_all_are_listed(tool: Any, tmp_path: Path) -> None:
+    carrier, content = _reports(tmp_path)
+    old = _state_log(tmp_path / "old.db")
+    new_dir = tmp_path / "live"
+    new_dir.mkdir()
+    new = _state_log(new_dir / "aura_state.db")
+    connection = sqlite3.connect(new)
+    connection.execute("update state_log set timestamp = timestamp + 1000")
+    connection.commit()
+    connection.close()
+    out_root = tmp_path / "bridge"
+    tool.main(
+        [
+            "--carrier", str(carrier), "--content", str(content),
+            "--state-log", str(old), "--state-log", str(new), "--state-log", str(tmp_path / "gone.db"),
+            "--out-root", str(out_root),
+        ]
+    )
+    (written,) = out_root.glob("run_*/j_star_report.json")
+    sources = json.loads(written.read_text())["sources"]
+    assert sources["state_log"] == str(new)
+    assert [entry["path"] for entry in sources["state_logs_surveyed"]] == [str(old), str(new), str(tmp_path / "gone.db")]
+    assert sources["state_logs_surveyed"][2]["exists"] is False
