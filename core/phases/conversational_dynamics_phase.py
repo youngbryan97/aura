@@ -119,15 +119,15 @@ class ConversationalDynamicsPhase(Phase):
 
     @staticmethod
     def _score_their_read_of_her(state: AuraState, message: str) -> None:
-        """Score what they said about her against how she actually is.
+        """Score what they said about her against her state and against her broadcast.
 
-        Their error is how much she was not feeling what they named. Hers is
-        the self prediction loop's own error over the same turn. Both are
-        errors about her present state, which is what makes the comparison
-        fair, and the edge between them is what accumulates.
+        Whether their read beats her own is `core/self/recognition.py`. What is
+        scored here is the other question: the same claim against what she
+        actually felt and against what she last said she felt. Somebody
+        repeating the broadcast back is not reading her, and the difference
+        between those two errors is the only thing that separates them.
         """
         try:
-            from core.runtime.service_registry import get_runtime_service
             from core.self.borrowed import claims_about_her, score_claim
 
             claims = claims_about_her(message)
