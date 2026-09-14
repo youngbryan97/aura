@@ -8,7 +8,7 @@
 #
 # 10 outbound edges when this was generated.
 
-description = "core.planning: may import only what it already imports; every new edge is an edit here."
+description = "core.planning: declared service dependencies plus invariant registration for durable execution records."
 
 include_rules = [
     "+core.planning",
@@ -24,6 +24,7 @@ include_rules = [
     "+core.runtime",
     "+core.synthesis",
     "+core.utils",
+    "+core.verify.invariants",
 
     # Everything else.
     "-core",

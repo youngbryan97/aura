@@ -793,6 +793,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Computed-value plans](evidence/G09_COMPUTED_VALUE_PLANS_2026-09-14.md)
   can propose reusable computations for exact goals and check real outputs.
   129 focused tests passed; task-grounded semantic selection remains open.
+  [Mission observation recovery](evidence/G09_MISSION_OBSERVATION_RECOVERY_2026-09-14.md)
+  preserves executed effects across unavailable checks and SQLite reloads.
+  Full task contracts survive persistence; 111 focused tests passed. Broad
+  task-outcome learning and live gain remain unproved.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

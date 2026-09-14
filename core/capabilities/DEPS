@@ -8,7 +8,7 @@
 #
 # 18 outbound edges when this was generated.
 
-description = "core.capabilities: may import only what it already imports; every new edge is an edit here."
+description = "core.capabilities: declared service dependencies plus invariant registration for observation evidence."
 
 include_rules = [
     "+core.capabilities",
@@ -32,6 +32,7 @@ include_rules = [
     "+core.self_modification",
     "+core.skills",
     "+core.utils",
+    "+core.verify.invariants",
 
     # Everything else.
     "-core",

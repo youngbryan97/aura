@@ -17,19 +17,31 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
-from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.runtime.subprocess_gateway import (
+    _terminate_async_process_group,
+    get_subprocess_gateway,
+)
 from core.security.execution_authority import (
     KIND_SHELL,
     authorize_execution,
     release_execution,
 )
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.PostActionVerifier")
+
+
+class VerificationOutcome(StrEnum):
+    MATCH = "measured_match"
+    MISMATCH = "measured_mismatch"
+    UNAVAILABLE = "unavailable"
+    NOT_REQUESTED = "not_requested"
 
 
 @dataclass
@@ -43,11 +55,49 @@ class VerificationResult:
     screenshot_path: str = ""       # optional verification screenshot
     duration_ms: float = 0.0
     timestamp: float = field(default_factory=lambda: time.time())
+    outcome: VerificationOutcome | None = None
+
+    def __post_init__(self) -> None:
+        if self.outcome is None:
+            self.outcome = (
+                VerificationOutcome.MATCH if self.success else VerificationOutcome.MISMATCH
+            )
+        else:
+            self.outcome = VerificationOutcome(self.outcome)
+        # `success` remains compatible with callers that allow an omitted check.
+        self.success = self.outcome in (
+            VerificationOutcome.MATCH, VerificationOutcome.NOT_REQUESTED,
+        )
+
+    @property
+    def checked(self) -> bool:
+        return self.outcome in (VerificationOutcome.MATCH, VerificationOutcome.MISMATCH)
+
+    @property
+    def infrastructure_failed(self) -> bool:
+        return self.outcome == VerificationOutcome.UNAVAILABLE
+
+    @property
+    def conclusive_success(self) -> bool:
+        return self.outcome == VerificationOutcome.MATCH
+
+    @classmethod
+    def unavailable(cls, predicate: str, args: Dict[str, Any], evidence: str) -> VerificationResult:
+        return cls(predicate, args, False, evidence, outcome=VerificationOutcome.UNAVAILABLE)
+
+    @classmethod
+    def not_requested(cls, predicate: str, args: Dict[str, Any]) -> VerificationResult:
+        return cls(predicate, args, True, "No verification requested",
+                   outcome=VerificationOutcome.NOT_REQUESTED)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "predicate": self.predicate,
             "success": self.success,
+            "outcome": self.outcome.value,
+            "checked": self.checked,
+            "infrastructure_failed": self.infrastructure_failed,
+            "conclusive_success": self.conclusive_success,
             "evidence": self.evidence[:300],
             "expected": self.expected[:200],
             "screenshot": self.screenshot_path,
@@ -69,6 +119,8 @@ class PostActionVerifier:
         self._verification_count = 0
         self._success_count = 0
         self._failure_count = 0
+        self._unavailable_count = 0
+        self._not_requested_count = 0
         self._started = False
 
     async def start(self) -> None:
@@ -85,35 +137,80 @@ class PostActionVerifier:
         self._verification_count += 1
 
         try:
+            self._validate_args(predicate, args)
             handler = self._get_handler(predicate)
             if handler is None:
-                result = VerificationResult(
-                    predicate=predicate, args=args, success=False,
-                    evidence=f"Unknown predicate: {predicate}",
-                    duration_ms=(time.time() - start) * 1000,
+                result = VerificationResult.unavailable(
+                    predicate, args, f"Unknown predicate: {predicate}",
                 )
             else:
                 result = await handler(args)
                 result.predicate = predicate
                 result.args = args
                 result.duration_ms = (time.time() - start) * 1000
-        except (OSError, RuntimeError, TypeError, ValueError) as e:
-            result = VerificationResult(
-                predicate=predicate, args=args, success=False,
-                evidence=f"Verification error: {e}",
-                duration_ms=(time.time() - start) * 1000,
+        except Exception as e:
+            record_degradation("post_action_verifier.verify", e)
+            result = VerificationResult.unavailable(
+                predicate, args, f"Verification error: {e}",
             )
 
-        if result.success:
+        result.duration_ms = (time.time() - start) * 1000
+        if result.outcome == VerificationOutcome.MATCH:
             self._success_count += 1
-        else:
+        elif result.outcome == VerificationOutcome.MISMATCH:
             self._failure_count += 1
             logger.info(
                 "Verification FAILED: %s(%s) — evidence: %s",
                 predicate, args, result.evidence[:100],
             )
+        elif result.outcome == VerificationOutcome.UNAVAILABLE:
+            self._unavailable_count += 1
+        else:
+            self._not_requested_count += 1
 
         return result
+
+    @staticmethod
+    def _validate_args(predicate: str, args: Dict[str, Any]) -> None:
+        required = {
+            "app_is_frontmost": ("name",), "app_is_running": ("name",),
+            "file_exists": ("path",), "file_has_content": ("path",),
+            "folder_exists": ("path",), "file_is_pdf": ("path",),
+            "file_is_image": ("path",), "file_in_folder": ("file", "folder"),
+            "window_title_contains": ("text",), "screen_contains_text": ("text",),
+            "wallpaper_is": ("path",), "wallpaper_changed": ("previous",),
+        }
+        for key in required.get(predicate, ()):
+            if not isinstance(args.get(key), str) or not args[key].strip():
+                raise ValueError(f"{predicate} requires a nonempty {key}")
+
+    @staticmethod
+    def _receipt_value(receipt: Any, value_type: type) -> Any:
+        if receipt.success is not True:
+            raise RuntimeError(f"Host observation failed: {receipt.error}")
+        if not isinstance(receipt.result, value_type):
+            raise TypeError(f"Invalid host observation: expected {value_type.__name__}")
+        return receipt.result
+
+    @staticmethod
+    async def _communicate(proc: Any, timeout: float) -> tuple[bytes, bytes]:
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except (TimeoutError, asyncio.CancelledError):
+            await _terminate_async_process_group(proc, grace_s=0.5)
+            raise
+        if type(proc.returncode) is not int:
+            raise RuntimeError("Observation process has no exit status")
+        return stdout or b"", stderr or b""
+
+    async def _read_process(self, proc: Any, timeout: float) -> bytes:
+        stdout, stderr = await self._communicate(proc, timeout)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Observation process exited {proc.returncode}: "
+                f"{stderr.decode('utf-8', errors='replace')[:200]}"
+            )
+        return stdout
 
     def _get_handler(self, predicate: str) -> Optional[Callable]:
         """Map predicate name to handler function."""
@@ -134,6 +231,7 @@ class PostActionVerifier:
             "clipboard_contains": self._verify_clipboard,
             "command_succeeded": self._verify_command,
             "true": self._verify_always_true,
+            "": self._verify_always_true,
         }
         return handlers.get(predicate)
 
@@ -147,7 +245,7 @@ class PostActionVerifier:
         try:
             from core.capabilities.host_automation import get_host_automation
             receipt = await get_host_automation().get_frontmost_app()
-            actual = str(receipt.result or "").strip()
+            actual = self._receipt_value(receipt, str).strip()
             match = expected.lower() in actual.lower() if expected and actual else False
             return VerificationResult(
                 predicate="app_is_frontmost", args=args,
@@ -160,6 +258,7 @@ class PostActionVerifier:
                 predicate="app_is_frontmost", args=args,
                 success=False, evidence=f"Check failed: {e}",
                 expected=expected,
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_app_running(self, args: Dict[str, Any]) -> VerificationResult:
@@ -168,7 +267,9 @@ class PostActionVerifier:
         try:
             from core.capabilities.host_automation import get_host_automation
             receipt = await get_host_automation().get_running_apps()
-            apps = receipt.result if isinstance(receipt.result, list) else []
+            apps = self._receipt_value(receipt, list)
+            if not all(isinstance(app, str) for app in apps):
+                raise TypeError("Invalid running application list")
             running = any(expected.lower() in str(a).lower() for a in apps)
             return VerificationResult(
                 predicate="app_is_running", args=args,
@@ -180,6 +281,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="app_is_running", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_file_exists(self, args: Dict[str, Any]) -> VerificationResult:
@@ -246,6 +348,7 @@ class PostActionVerifier:
                 return VerificationResult(
                     predicate="file_has_content", args=args,
                     success=False, evidence=f"Read error: {e}",
+                    outcome=VerificationOutcome.UNAVAILABLE,
                 )
 
         # Just check it has content
@@ -289,6 +392,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="file_is_pdf", args=args,
                 success=False, evidence=f"Read error: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_file_is_image(self, args: Dict[str, Any]) -> VerificationResult:
@@ -322,6 +426,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="file_is_image", args=args,
                 success=False, evidence=f"Read error: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_file_in_folder(self, args: Dict[str, Any]) -> VerificationResult:
@@ -348,6 +453,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="file_in_folder", args=args,
                 success=False, evidence=f"Permission denied: {folder_path}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
         return VerificationResult(
@@ -363,7 +469,7 @@ class PostActionVerifier:
         try:
             from core.capabilities.host_automation import get_host_automation
             receipt = await get_host_automation().get_window_title(app)
-            actual = str(receipt.result or "").strip()
+            actual = self._receipt_value(receipt, str).strip()
             match = expected.lower() in actual.lower() if expected and actual else False
             return VerificationResult(
                 predicate="window_title_contains", args=args,
@@ -375,6 +481,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="window_title_contains", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_screen_text(self, args: Dict[str, Any]) -> VerificationResult:
@@ -383,7 +490,7 @@ class PostActionVerifier:
         try:
             from core.capabilities.host_automation import get_host_automation
             receipt = await get_host_automation().get_screen_text()
-            screen_text = str(receipt.result or "")
+            screen_text = self._receipt_value(receipt, str)
             found = expected.lower() in screen_text.lower() if expected else False
             return VerificationResult(
                 predicate="screen_contains_text", args=args,
@@ -395,6 +502,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="screen_contains_text", args=args,
                 success=False, evidence=f"OCR failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_wallpaper(self, args: Dict[str, Any]) -> VerificationResult:
@@ -409,8 +517,10 @@ class PostActionVerifier:
                 source="post_action_verifier.wallpaper_is",
                 accelerator_capability="none",
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+            stdout = await self._read_process(proc, timeout=3.0)
             actual = stdout.decode("utf-8", errors="replace").strip() if stdout else ""
+            if not actual:
+                raise ValueError("Wallpaper observation is empty")
             match = expected_path in actual if expected_path and actual else False
             return VerificationResult(
                 predicate="wallpaper_is", args=args,
@@ -422,6 +532,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="wallpaper_is", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_wallpaper_changed(self, args: Dict[str, Any]) -> VerificationResult:
@@ -436,8 +547,10 @@ class PostActionVerifier:
                 source="post_action_verifier.wallpaper_changed",
                 accelerator_capability="none",
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
+            stdout = await self._read_process(proc, timeout=3.0)
             actual = stdout.decode("utf-8", errors="replace").strip() if stdout else ""
+            if not actual:
+                raise ValueError("Wallpaper observation is empty")
             changed = actual != previous_path if previous_path and actual else bool(actual)
             return VerificationResult(
                 predicate="wallpaper_changed", args=args,
@@ -448,6 +561,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="wallpaper_changed", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_browser_tabs(self, args: Dict[str, Any]) -> VerificationResult:
@@ -464,8 +578,10 @@ class PostActionVerifier:
                 source="post_action_verifier.browser_tabs",
                 accelerator_capability="none",
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3.0)
-            count = int(stdout.decode().strip()) if stdout else 0
+            stdout = await self._read_process(proc, timeout=3.0)
+            count = int(stdout.decode().strip())
+            if count < 0 or min_count < 0:
+                raise ValueError("Tab counts must be nonnegative")
             return VerificationResult(
                 predicate="browser_has_tabs", args=args,
                 success=count >= min_count,
@@ -476,6 +592,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="browser_has_tabs", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_clipboard(self, args: Dict[str, Any]) -> VerificationResult:
@@ -490,7 +607,7 @@ class PostActionVerifier:
                 source="post_action_verifier.clipboard_contains",
                 accelerator_capability="none",
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=2.0)
+            stdout = await self._read_process(proc, timeout=2.0)
             content = stdout.decode("utf-8", errors="replace") if stdout else ""
             found = expected.lower() in content.lower() if expected else bool(content)
             return VerificationResult(
@@ -502,6 +619,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="clipboard_contains", args=args,
                 success=False, evidence=f"Check failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
     async def _verify_command(self, args: Dict[str, Any]) -> VerificationResult:
@@ -517,6 +635,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="command_succeeded", args=args,
                 success=False, evidence="No command specified",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
         verdict = await authorize_execution(
@@ -529,6 +648,7 @@ class PostActionVerifier:
             return VerificationResult(
                 predicate="command_succeeded", args=args,
                 success=False, evidence=verdict.reason,
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
 
         try:
@@ -539,18 +659,20 @@ class PostActionVerifier:
                 source="post_action_verifier.command_succeeded",
                 accelerator_capability="auto",
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+            stdout, stderr = await self._communicate(proc, timeout=10.0)
             success = proc.returncode == 0
             return VerificationResult(
                 predicate="command_succeeded", args=args,
                 success=success,
                 evidence=f"Return code: {proc.returncode}" +
-                         (f", stdout: {stdout.decode()[:100]}" if stdout else ""),
+                         (f", stdout: {stdout.decode('utf-8', errors='replace')[:100]}" if stdout else "") +
+                         (f", stderr: {stderr.decode('utf-8', errors='replace')[:100]}" if stderr else ""),
             )
         except (OSError, asyncio.TimeoutError) as e:
             return VerificationResult(
                 predicate="command_succeeded", args=args,
                 success=False, evidence=f"Command failed: {e}",
+                outcome=VerificationOutcome.UNAVAILABLE,
             )
         finally:
             release_execution(
@@ -559,10 +681,7 @@ class PostActionVerifier:
 
     async def _verify_always_true(self, args: Dict[str, Any]) -> VerificationResult:
         """Always-true predicate for steps that don't need verification."""
-        return VerificationResult(
-            predicate="true", args=args, success=True,
-            evidence="No verification needed",
-        )
+        return VerificationResult.not_requested("true", args)
 
     # ------------------------------------------------------------------
     # Composite verification
@@ -577,14 +696,29 @@ class PostActionVerifier:
         return results
 
     def get_status(self) -> Dict[str, Any]:
+        measured = self._success_count + self._failure_count
         return {
             "total_verifications": self._verification_count,
             "successes": self._success_count,
             "failures": self._failure_count,
+            "unavailable": self._unavailable_count,
+            "not_requested": self._not_requested_count,
+            "measured_verifications": measured,
             "success_rate": round(
-                self._success_count / max(1, self._verification_count), 3
-            ),
+                self._success_count / measured, 3
+            ) if measured else None,
         }
+
+
+@invariant("capabilities.verification_observation", scope="capabilities",
+           owner="core/capabilities/post_action_verifier.py", observational=False)
+def _verification_observation() -> tuple:
+    for outcome in VerificationOutcome:
+        result = VerificationResult("check", {}, True, outcome=outcome)
+        assert result.checked == (outcome in (VerificationOutcome.MATCH, VerificationOutcome.MISMATCH))
+        assert result.conclusive_success == (outcome == VerificationOutcome.MATCH)
+        assert result.infrastructure_failed == (outcome == VerificationOutcome.UNAVAILABLE)
+    return ()
 
 
 # ---------------------------------------------------------------------------
@@ -604,5 +738,6 @@ def get_post_action_verifier() -> PostActionVerifier:
 __all__ = [
     "PostActionVerifier",
     "VerificationResult",
+    "VerificationOutcome",
     "get_post_action_verifier",
 ]

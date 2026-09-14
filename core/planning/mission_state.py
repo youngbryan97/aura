@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
-from core.planning.task_graph import TaskGraph, TaskNode
+from core.planning.task_graph import TaskGraph, TaskNode, TaskStatus
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.state_ownership import state_root
@@ -110,6 +110,7 @@ class MissionState:
         self._active_missions: dict[str, Mission] = {}
         self._conn: sqlite3.Connection | None = None
         self._started = False
+        self._advancing: set[str] = set()
 
     async def start(self) -> None:
         if self._started:
@@ -271,6 +272,16 @@ class MissionState:
         return mission
 
     async def advance_mission(self, mission_id: str) -> TaskNode | None:
+        """Advance one mission once, including an outstanding observation."""
+        if mission_id in self._advancing:
+            return None
+        self._advancing.add(mission_id)
+        try:
+            return await self._advance_mission(mission_id)
+        finally:
+            self._advancing.discard(mission_id)
+
+    async def _advance_mission(self, mission_id: str) -> TaskNode | None:
         """Execute the next ready node in a mission's graph.
 
         Returns the node that was executed, or None if no nodes are ready.
@@ -284,6 +295,15 @@ class MissionState:
             return None
 
         graph = mission.graph
+        node = next((item for item in graph.nodes.values()
+                     if item.status == TaskStatus.AWAITING_VERIFICATION), None)
+        if node is not None:
+            self._persist_mission(mission)
+            await self._finish_executed_node(mission, node)
+            self._persist_mission(mission)
+            if graph.is_complete:
+                await self._complete_mission(mission)
+            return node
         node = graph.get_next_node()
         if node is None:
             if graph.is_complete:
@@ -293,7 +313,12 @@ class MissionState:
         # Mark running
         graph.mark_running(node.task_id)
         mission.narration_log.append(f"Starting: {node.description or node.action}")
-        self._persist_mission(mission)
+        try:
+            self._persist_mission(mission)
+        except (sqlite3.Error, RuntimeError, OSError, TypeError, ValueError):
+            # No effect has started; this node is safe to admit after storage recovers.
+            node.status = TaskStatus.PENDING
+            raise
 
         # Execute the action
         try:
@@ -302,22 +327,12 @@ class MissionState:
             )
 
             if result.get("success", False):
-                # Verify
-                verification_ok = await self._verify_node(node)
-                if verification_ok:
-                    graph.mark_succeeded(
-                        node.task_id,
-                        result=result,
-                        receipt_id=result.get("receipt_id", ""),
-                        artifacts=result.get("artifacts", []),
-                    )
-                    mission.narration_log.append(f"✓ {node.description or node.action}")
-                else:
-                    # Verification failed — try recovery
-                    recovered = await self._try_recovery(mission, node, "verification_failed")
-                    if not recovered:
-                        graph.mark_failed(node.task_id, "Verification failed after execution")
-                        mission.narration_log.append(f"✗ {node.description}: verification failed")
+                node.result = result
+                node.receipt_id = result.get("receipt_id", "")
+                node.status = TaskStatus.AWAITING_VERIFICATION
+                # Persist the effect receipt before awaiting an independent observer.
+                self._persist_mission(mission)
+                await self._finish_executed_node(mission, node)
             else:
                 # Execution failed — try recovery
                 error = result.get("error", "Unknown error")
@@ -327,6 +342,8 @@ class MissionState:
                     mission.narration_log.append(f"✗ {node.description}: {error[:100]}")
 
         except TimeoutError:
+            if node.status == TaskStatus.AWAITING_VERIFICATION:
+                raise
             error_msg = (
                 f"Step exceeded its {self._node_timeout_s(node):.0f}s budget"
             )
@@ -336,6 +353,8 @@ class MissionState:
                 mission.narration_log.append(f"✗ {node.description}: {error_msg}")
 
         except (RuntimeError, OSError, TypeError, ValueError) as e:
+            if node.status == TaskStatus.AWAITING_VERIFICATION:
+                raise
             error_msg = str(e)
             recovered = await self._try_recovery(mission, node, error_msg)
             if not recovered:
@@ -350,6 +369,27 @@ class MissionState:
             await self._complete_mission(mission)
 
         return node
+
+    async def _finish_executed_node(self, mission: Mission, node: TaskNode) -> None:
+        graph = mission.graph
+        result = node.result or {}
+        if await self._verify_node(node):
+            node.error = ""
+            graph.mark_succeeded(node.task_id, result=result, receipt_id=node.receipt_id,
+                                 artifacts=result.get("artifacts", []))
+            mission.narration_log.append(f"Completed: {node.description or node.action}")
+            return
+        observation = node.verification_result or {}
+        if not observation.get("checked") or observation.get("infrastructure_failed"):
+            node.status = TaskStatus.AWAITING_VERIFICATION
+            node.error = "Action executed; verification observation unavailable"
+            logger.info("Mission %s step %s awaits observation; effect will not be repeated",
+                        mission.mission_id, node.task_id)
+            return
+        recovered = await self._try_recovery(mission, node, "verification_failed")
+        if not recovered:
+            graph.mark_failed(node.task_id, "Verification measured a mismatch", result=result)
+            mission.narration_log.append(f"Verification mismatch: {node.description or node.action}")
 
     #: Floors for actions whose real work cannot finish inside TaskNode's 30s
     #: default. The default was never enforced at all, so nothing noticed that
@@ -864,24 +904,32 @@ class MissionState:
 
     async def _verify_node(self, node: TaskNode) -> bool:
         """Run post-action verification for a node."""
-        if node.verification == "true" or not node.verification:
-            return True
-
         try:
+            from core.capabilities.post_action_verifier import VerificationResult
+            if node.verification == "true" or not node.verification:
+                result = VerificationResult.not_requested(node.verification, node.verification_args)
+                node.verification_result = result.to_dict()
+                return True
             verifier = ServiceContainer.get("post_action_verifier", default=None)
             if verifier is None:
                 from core.capabilities.post_action_verifier import get_post_action_verifier
                 verifier = get_post_action_verifier()
 
             result = await verifier.verify(node.verification, node.verification_args)
+            if not isinstance(result, VerificationResult):
+                raise TypeError("Verifier returned no typed observation")
             node.verification_result = result.to_dict()
             return result.success
-        except (ImportError, AttributeError, RuntimeError) as e:
+        except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             record_degradation("mission_state.verify", e)
             logger.debug("Verification failed for %s: %s", node.task_id, e)
             node.verification_result = {
                 "predicate": node.verification,
                 "success": False,
+                "checked": False,
+                "infrastructure_failed": True,
+                "conclusive_success": False,
+                "outcome": "unavailable",
                 "evidence": f"Verifier unavailable: {e}",
             }
             return False
@@ -974,7 +1022,7 @@ class MissionState:
     def _persist_mission(self, mission: Mission) -> None:
         """Save mission state to SQLite."""
         if not self._conn:
-            return
+            raise RuntimeError("Mission persistence is not open")
         try:
             graph_json = mission.graph.to_json() if mission.graph else ""
             narration_json = json.dumps(mission.narration_log[-50:])
@@ -992,7 +1040,9 @@ class MissionState:
             )
             self._conn.commit()
         except sqlite3.Error as e:
+            self._conn.rollback()
             record_degradation("mission_state.persist", e)
+            raise
 
     def _log_to_life_trace(self, event_type: str, mission_id: str, data: dict[str, Any]) -> None:
         try:
