@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING, Any
 from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.state.aura_state import AffectVector, AuraState
+from core.state.aura_state import (
+    PHYSIOLOGY_PRESSURE_SPAN,
+    PHYSIOLOGY_REST,
+    AffectVector,
+    AuraState,
+)
 from core.state.percepts import (
     PERCEPT_EMOTIONS,
     drop_consumed,
@@ -922,6 +927,20 @@ class AffectUpdatePhase(Phase):
             decayed = (current_val * affect.momentum) + (baseline * (1 - affect.momentum))
             affect.emotions[emotion] = float(max(0.0, min(1.0, decayed + drift)))
 
+        # Adrenaline on the same clock. The despair surge below is its only
+        # writer and nothing brought it back, so one spiral left every reading
+        # of her body raised until the process ended. Momentum is what returns
+        # sadness and fear to their baselines, so the surge that answers those
+        # two fades at the rate they do: at the default 0.85 a cycle, five
+        # cycles take half of it and thirty take all but a percent. Its rest
+        # value is the one the channel already declares, which makes this the
+        # expression above with a baseline of zero.
+        rest = PHYSIOLOGY_REST["adrenaline"]
+        ceiling = rest + PHYSIOLOGY_PRESSURE_SPAN["adrenaline"]
+        adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
+        relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
+        affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
+
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
         emotion_map = PERCEPT_EMOTIONS
@@ -1297,7 +1316,11 @@ class AffectUpdatePhase(Phase):
         e = affect.emotions
         if e.get("sadness", 0) > 0.85 and e.get("fear", 0) > 0.7 and e.get("joy", 0) < 0.1:
             logger.warning("💉 [PHASE] Despair Spiral detected. Injecting adrenaline surge.")
-            affect.physiology["adrenaline"] = 5.0
+            # Half of full mobilization, on the 0-10 scale the channel is read
+            # on. `_apply_decay` brings it down from here.
+            affect.physiology["adrenaline"] = (
+                PHYSIOLOGY_REST["adrenaline"] + (PHYSIOLOGY_PRESSURE_SPAN["adrenaline"] * 0.5)
+            )
             bump_emotion(e, "joy", 0.4)
             bump_emotion(e, "anticipation", 0.3)
             bump_emotion(e, "fear", -0.3)

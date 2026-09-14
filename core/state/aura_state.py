@@ -300,6 +300,33 @@ class MotivationState:
         "Slime mold (Physarum) pathfinding algorithms"
     ])
 
+
+#: Where each virtual physiology channel sits when nothing is happening.
+#: `AffectVector.physiology` starts here, `physiological_strain` measures
+#: pressure as distance above here, and a channel whose writer raised it
+#: returns here.
+PHYSIOLOGY_REST: dict[str, float] = {
+    "heart_rate": 72.0,
+    "gsr": 2.1,
+    "cortisol": 10.0,
+    "adrenaline": 0.0,
+}
+
+#: How far above rest each channel travels for its pressure to count as full.
+#: The first three carry their own units. Adrenaline is the mobilization index
+#: on the 0-10 scale `core/affect/damasio_v2.py` defines for it and
+#: `core/phases/phi_consciousness.py` reads it on, and strain took it raw: the
+#: despair surge of 5.0 arrived as five times full pressure, which held the
+#: whole reading at its ceiling and made heart rate, conductance and cortisol
+#: unreadable behind it.
+PHYSIOLOGY_PRESSURE_SPAN: dict[str, float] = {
+    "heart_rate": 36.0,
+    "gsr": 2.5,
+    "cortisol": 20.0,
+    "adrenaline": 10.0,
+}
+
+
 @dataclass
 class AffectVector:
     """Emotional valence — now strictly mapped to Damasio logic."""
@@ -358,12 +385,7 @@ class AffectVector:
     })
     
     # Virtual Physiology (Somatic Markers)
-    physiology: dict[str, float] = field(default_factory=lambda: {
-        "heart_rate": 72.0,
-        "gsr": 2.1,
-        "cortisol": 10.0,
-        "adrenaline": 0.0
-    })
+    physiology: dict[str, float] = field(default_factory=lambda: dict(PHYSIOLOGY_REST))
     
     mood_baselines: dict[str, float] = field(default_factory=lambda: {
         "joy": 0.0, "trust": 0.0, "fear": 0.0, "surprise": 0.0,
@@ -412,15 +434,12 @@ class AffectVector:
         return [(k, v) for k, v in ordered if v > threshold][:limit]
 
     def physiological_strain(self) -> float:
-        heart = float(self.physiology.get("heart_rate", 72.0) or 72.0)
-        gsr = float(self.physiology.get("gsr", 2.1) or 2.1)
-        cortisol = float(self.physiology.get("cortisol", 10.0) or 10.0)
-        adrenaline = float(self.physiology.get("adrenaline", 0.0) or 0.0)
-        heart_pressure = max(0.0, (heart - 72.0) / 36.0)
-        gsr_pressure = max(0.0, (gsr - 2.1) / 2.5)
-        cortisol_pressure = max(0.0, (cortisol - 10.0) / 20.0)
-        adrenaline_pressure = max(0.0, adrenaline)
-        return max(0.0, min(1.0, (heart_pressure * 0.25) + (gsr_pressure * 0.2) + (cortisol_pressure * 0.35) + (adrenaline_pressure * 0.2)))
+        def pressure(channel: str) -> float:
+            rest = PHYSIOLOGY_REST[channel]
+            value = float(self.physiology.get(channel, rest) or rest)
+            return max(0.0, (value - rest) / PHYSIOLOGY_PRESSURE_SPAN[channel])
+
+        return max(0.0, min(1.0, (pressure("heart_rate") * 0.25) + (pressure("gsr") * 0.2) + (pressure("cortisol") * 0.35) + (pressure("adrenaline") * 0.2)))
 
     def affective_complexity(self) -> float:
         values = [float(v) for v in self.emotions.values() if float(v) > 0.08]
