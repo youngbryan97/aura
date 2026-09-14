@@ -51,6 +51,7 @@ def extract_features(
     user_message: str = "",
     grounding_tokens: set[str] | None = None,
     word_budget: int = 0,
+    lived_analogue: float | None = None,
 ) -> dict[str, float]:
     """Interpretable features of a candidate response, roughly normalized to [0,1]."""
     t = str(text or "").strip()
@@ -108,6 +109,27 @@ def extract_features(
     except (ImportError, AttributeError, TypeError, ValueError):
         dignity = 0.0
 
+    # Getting a perspective instead of taking one. When somebody is testifying
+    # about something she has little of in her own memory, imagining their side
+    # does not make her more accurate about it, and asking them does (Eyal,
+    # Steffel and Epley 2018). "Judo Flip" puts the limit as living in someone's
+    # circumstances for a while without coming away with what they carry. A
+    # reply that asks them scores by how unfamiliar the situation is to her,
+    # which is one minus her best recall match for it. Unmeasured is not the
+    # same as unfamiliar, so nothing is scored without a match reading.
+    perspective_getting = 0.0
+    try:
+        from core.expression.register import comparable, read
+
+        if lived_analogue is not None:
+            unfamiliar = 1.0 - max(0.0, min(1.0, float(lived_analogue)))
+            theirs = read(user_message)
+            mine = read(t)
+            if comparable(theirs, mine) and theirs.asks_to_be_witnessed():
+                perspective_getting = max(0.0, min(1.0, unfamiliar * mine.second * mine.asking))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        perspective_getting = 0.0
+
     grounding_tokens = grounding_tokens or set()
     callback = min(1.0, len(set(toks) & grounding_tokens) / 5.0) if grounding_tokens else 0.0
 
@@ -127,7 +149,10 @@ def extract_features(
     # ending on a question that punts back to the user = prompt farming
     # An invitation to somebody testifying is not prompt farming, even though it
     # ends on a question mark.
-    ends_question = 1.0 if t.endswith("?") and invitation <= 0.0 else 0.0
+    # Nor is asking somebody about an experience she has little analogue for.
+    ends_question = (
+        1.0 if t.endswith("?") and invitation <= 0.0 and perspective_getting <= 0.0 else 0.0
+    )
     prompt_farm_penalty = float(sum(low.count(p) for p in _PROMPT_FARM)) + ends_question
 
     return {
@@ -139,11 +164,37 @@ def extract_features(
         "register_match": register_match,
         "invitation": invitation,
         "dignity": dignity,
+        "perspective_getting": perspective_getting,
         "anti_generic": anti_generic,
         "hedge_penalty": hedge_penalty,
         "prompt_farm_penalty": prompt_farm_penalty,
         "banned_phrase_penalty": banned_phrase_penalty,
     }
+
+
+def lived_analogue(cognition: Any, message: str) -> float | None:
+    """Her best recall match for this message, or None when recall was not about it.
+
+    Retrieval keeps the scores of what came back beside the question it
+    answered, and when somebody has spoken the question starts with what they
+    said. The scores are read only when that question is this message, so a
+    recall made for something else is never taken as her analogue for this. A
+    recall that was about it and found nothing is an analogue of zero.
+    """
+    said = " ".join(str(message or "").split())
+    if not said:
+        return None
+    asked = str(getattr(cognition, "last_retrieval_query", "") or "").split("\x1f", 1)[0]
+    if not " ".join(asked.split()).startswith(said):
+        return None
+    scores = [
+        float(score)
+        for score in (getattr(cognition, "memory_scores", None) or [])
+        if isinstance(score, (int, float))
+    ]
+    if not scores:
+        return 0.0
+    return max(0.0, min(1.0, max(scores)))
 
 
 def score_candidate(text: str, **kw: Any) -> tuple[float, dict[str, float]]:
