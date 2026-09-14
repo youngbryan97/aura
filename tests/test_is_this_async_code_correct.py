@@ -281,3 +281,98 @@ def test_correct_generated_code_leaves_no_findings() -> None:
     made = LLMCodeGenerator(router=_Router())
     asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
     assert made.last_async_findings == ()
+
+
+def test_a_draft_with_async_mistakes_is_redrafted_once_against_the_findings() -> None:
+    """Found and served anyway is what this row was open for.
+
+    The first draft drops a coroutine. The second draft is asked with the
+    checker's findings attached as data, and it awaits. The second is served,
+    and what was found is recorded against the draft that shipped.
+    """
+    import asyncio
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    wrong = "async def go():\n    pass\n\n\nasync def run():\n    go()\n"
+    right = "async def go():\n    pass\n\n\nasync def run():\n    await go()\n"
+    asked: list[str] = []
+
+    class _Router:
+        async def generate(self, prompt, **_kwargs):
+            asked.append(str(prompt))
+            return f"```python\n{wrong if len(asked) == 1 else right}```"
+
+    made = LLMCodeGenerator(router=_Router())
+    code = asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+
+    assert len(asked) == 2
+    assert "<<<FINDINGS" in asked[1] and "FINDINGS>>>" in asked[1]
+    assert "line 6:" in asked[1], asked[1][-300:]
+    assert "await go()" in code
+    assert made.last_async_findings == ()
+    assert made.last_async_redraft["served"] == "second"
+
+
+def test_a_redraft_no_better_than_the_first_keeps_the_first() -> None:
+    """Nothing says the second draft is better when the checker cannot tell."""
+    import asyncio
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    first = "async def go():\n    pass\n\n\nasync def run():\n    go()\n"
+    second = "async def go():\n    pass\n\n\nasync def run():\n    go()\n    # again\n"
+    calls = {"n": 0}
+
+    class _Router:
+        async def generate(self, request):
+            calls["n"] += 1
+            return f"```python\n{first if calls['n'] == 1 else second}```"
+
+    made = LLMCodeGenerator(router=_Router())
+    code = asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+
+    assert calls["n"] == 2
+    assert "# again" not in code
+    assert made.last_async_redraft["served"] == "first"
+    assert made.last_async_findings, "the findings still describe what shipped"
+
+
+def test_a_redraft_that_breaks_keeps_the_first_draft() -> None:
+    import asyncio
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    first = "async def go():\n    pass\n\n\nasync def run():\n    go()\n"
+    calls = {"n": 0}
+
+    class _Router:
+        async def generate(self, request):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return f"```python\n{first}```"
+            return "```python\ndef (:\n```"
+
+    made = LLMCodeGenerator(router=_Router())
+    code = asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+    assert code.strip() == first.strip()
+    assert made.last_async_redraft["second"] is None
+
+
+def test_clean_code_is_not_redrafted() -> None:
+    import asyncio
+
+    from core.brain.llm.code_generator import LLMCodeGenerator
+
+    right = "async def go():\n    pass\n\n\nasync def run():\n    await go()\n"
+    calls = {"n": 0}
+
+    class _Router:
+        async def generate(self, request):
+            calls["n"] += 1
+            return f"```python\n{right}```"
+
+    made = LLMCodeGenerator(router=_Router())
+    asyncio.run(made.generate_async("write it", {"module_path": "x.py"}))
+    assert calls["n"] == 1
+    assert made.last_async_redraft == {}
