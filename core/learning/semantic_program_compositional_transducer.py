@@ -1616,6 +1616,8 @@ def refit_compositional_argument_proposals(
 def refit_compositional_argument_rankings(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    preserve_coreferent_mentions: bool = False,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
     from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
@@ -1652,6 +1654,7 @@ def refit_compositional_argument_rankings(
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths,
             include_semantic_negatives=True,
+            preserve_coreferent_mentions=preserve_coreferent_mentions,
         )
         weight, fit = fit_pairwise_argument_weight(
             features, labels, weights,
@@ -1671,7 +1674,11 @@ def refit_compositional_argument_rankings(
     body["argument_ranking_refit"] = {
         "schema": "aura.semantic_argument_ranking_refit.v1",
         "parent_transducer_receipt_sha256": model.receipt_sha256,
-        "negative_source": "runtime_pointer_shortlist_and_source_semantic_spans_v1",
+        "negative_source": (
+            "runtime_pointer_and_noncoreferent_source_spans_v2"
+            if preserve_coreferent_mentions
+            else "runtime_pointer_shortlist_and_source_semantic_spans_v1"
+        ),
         "coefficient_parameterization": "combined_ranker_as_role_residual_v1",
         "role_head_alone_is_calibrated_probability": False,
         "training_examples": len(training),

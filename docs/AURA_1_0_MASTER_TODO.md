@@ -717,6 +717,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   removes impossible edge counts before beam truncation. Source answers reach
   464/500, eight gains and zero regressions against the immediate parent;
   exposed weave remains 47/48. No serving authority or G03 closure.
+  [Argument ranking](evidence/G03_ARGUMENT_RANKING_2026-09-13.md) reaches
+  472/500 with two regressions; excluding coreferent negative labels reaches
+  470/500 with four regressions. Both retain 47/48 exposed weave and remain
+  unpromoted. The opt-in training correction preserves legacy replay.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

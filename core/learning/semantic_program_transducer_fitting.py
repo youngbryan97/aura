@@ -729,6 +729,17 @@ def _fit_argument_role_heads(
     return tuple(heads)
 
 
+def _argument_identity_spans(item, register):
+    """Unambiguous source-labeled mentions of one register, not equal values."""
+    owners = {}
+    for index, span in enumerate(item.ir.input_spans):
+        owners.setdefault(span, set()).add(index)
+    for instruction in item.ir.instructions:
+        for owner, span in zip(instruction.args, instruction.argument_spans, strict=True):
+            owners.setdefault(span, set()).add(owner)
+    return frozenset(span for span, identities in owners.items() if identities == {register})
+
+
 def _argument_proposal_rows(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
@@ -739,6 +750,7 @@ def _argument_proposal_rows(
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
     include_semantic_negatives: bool = False,
+    preserve_coreferent_mentions: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     features: list[np.ndarray] = []
     labels: list[int] = []
@@ -781,6 +793,9 @@ def _argument_proposal_rows(
                       if span != positive
                       and span.end - span.start <= max_argument_span_tokens_by_type[required_type]),
                 )))
+            if preserve_coreferent_mentions:
+                aliases = _argument_identity_spans(item, instruction.args[position])
+                negatives = tuple(span for span in negatives if span not in aliases)
             spans = (positive, *negatives)
             operation = _relation_span_vector(
                 item.hidden_states,
