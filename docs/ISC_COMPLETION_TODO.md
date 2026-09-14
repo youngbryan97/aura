@@ -11,9 +11,9 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**738 done, 0 blocked, 0 not applicable, 165 open, of 903.**
+**741 done, 0 blocked, 0 not applicable, 162 open, of 903.**
 
-Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
+Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
 
 ## Phase 0 — Freeze what “passing” means
@@ -42,11 +42,11 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 
 ## Phase 1 — Rerun current Aura before adding more architecture
 
-- [ ] `P1.1` Run make subject-core-frozen on a frozen current head.
+- [x] `P1.1` Run make subject-core-frozen on a frozen current head. — make subject-core-frozen ran three seeds, 7, 11 and 13, at 670f3e955 in one campaign; runs 026, 027 and 028 scored 17, 17 and 15 of 24, with fifteen criteria holding on all three
 
 **Required work:**
 
-- [ ] `P1.2` Stop using 11/13/12 as the current score after that rerun.
+- [x] `P1.2` Stop using 11/13/12 as the current score after that rerun. — the document reads the three-seed frozen campaign as the current score and no longer cites 11, 13 and 12
 - [x] `P1.3` Record all three complete reports. — every run keeps its own complete report, and the scorecard reads several at once rather than the newest
 - [x] `P1.4` Recompute stable-pass, unstable, and stable-fail criteria. — each criterion is recorded as holding, failing, or changing answer between runs
 - [x] `P1.5` Recompute the entire retained-edge graph. — the retained-edge graph is recomputed on every run and the edges are archived beside it
@@ -64,10 +64,10 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 
 **Perception (P)**
 
-- [ ] `P2.1` P -> W: perception changes the learned world model. — P->W is a retained edge in the newest run
+- [x] `P2.1` P -> W: perception changes the learned world model. — P->W is a retained edge in the newest run
 - [x] `P2.2` P -> A: perceptual content changes appraisal/affect. — P->A is a retained edge in the newest run
 - [ ] `P2.3` P -> G: salient perception changes attention competition. — P->G is a retained edge in the newest run
-- [ ] `P2.4` P -> C: sensory content changes recurrent cognition/substrate state. — P->C is a retained edge in the newest run
+- [x] `P2.4` P -> C: sensory content changes recurrent cognition/substrate state. — P->C is a retained edge in the newest run
 - [ ] `P2.5` P -> M: perception changes active/episodic memory. — P->M is a retained edge in the newest run
 - [ ] `P2.6` P -> D: perception can alter intention/planning. — P->D is a retained edge in the newest run
 - [x] `P2.7` Demonstrate a return route to perception through action/environment: D/S -> Act -> E -> P. — she acts on her own intention, the action writes the filesystem, and what the filesystem then holds is read back in through the senses in the same call
@@ -75,7 +75,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P2.9` Generalize the current file-action reafference probe beyond one scratch-file pathway. Interoception/body (I) — eight action kinds over five filesystem structures and a surface, chosen by what won attention and then by which drive is most depleted; they can succeed, half work or fail, and one of them fails for a reason of her own making
 - [x] `P2.10` I -> A: sustained load/body state changes affect. — I->A is a retained edge in the newest run
 - [ ] `P2.11` I -> G: bodily pressure can compete for attention. — I->G is a retained edge in the newest run
-- [x] `P2.12` I -> C: body state changes cognitive depth, temperature, focus, or recurrent dynamics. — I->C is a retained edge in the newest run
+- [ ] `P2.12` I -> C: body state changes cognitive depth, temperature, focus, or recurrent dynamics. — I->C is a retained edge in the newest run
 - [x] `P2.13` I -> D: resource state changes planning/action selection. — I->D is a retained edge in the newest run
 - [x] `P2.14` Establish at least one legitimate route back into I. — the effort ledger is the route back into the body: five places in cognition report what they spent, the proprioceptive loop drains the ledger at the top of the turn, and exertion is what it computes
 - [x] `P2.15` Cognition/action must be capable of changing some sensed bodily/computational state. — acting spends effort through the intention loop, and the interoception domain reads that spend as its own column
@@ -83,7 +83,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P2.17` A -> G: feelings genuinely affect attention. — A->G is a retained edge in the newest run
 - [ ] `P2.18` A -> D: affect changes motivation/intention. — A->D is a retained edge in the newest run
 - [x] `P2.19` A -> C: affect changes cognitive dynamics. — A->C is a retained edge in the newest run
-- [ ] `P2.20` A -> N: affectively significant experience changes development where justified. — A->N is a retained edge in the newest run
+- [x] `P2.20` A -> N: affectively significant experience changes development where justified. — A->N is a retained edge in the newest run
 - [x] `P2.21` G -> A: broadcast/ignition changes later affect. — G->A is a retained edge in the newest run
 - [x] `P2.22` W -> A: prediction error/surprise changes affect. — W->A is a retained edge in the newest run
 - [x] `P2.23` I -> A: bodily state changes affect. — I->A is a retained edge in the newest run
@@ -99,7 +99,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [ ] `P2.33` G must not become the mandatory hidden broker for the entire architecture. — the graph survives the removal of any one node, so no single domain brokers it; and the architecture where one does is a null the battery separates by closure
 - [x] `P2.34` Registered processors only count if destination-domain state actually changes. Recurrent cognition/substrate (C) — an edge is scored on the destination domain's own columns, and a column whose reader failed is recorded as a miss rather than as a zero
 - [x] `P2.35` G -> C: broadcast changes substrate/recurrent state. — G->C is a retained edge in the newest run
-- [ ] `P2.36` P -> C: perception enters continuous cognition. — P->C is a retained edge in the newest run
+- [x] `P2.36` P -> C: perception enters continuous cognition. — P->C is a retained edge in the newest run
 - [x] `P2.37` A -> C: affect changes recurrent dynamics. — A->C is a retained edge in the newest run
 - [x] `P2.38` W -> C: prediction/world-state changes recurrent processing. — W->C is a retained edge in the newest run
 - [x] `P2.39` C -> G: substrate activity/volatility changes attention. — C->G is a retained edge in the newest run
@@ -107,7 +107,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P2.41` C -> S: recurrent processing affects self-prediction/self-model where justified. — C->S is a retained edge in the newest run
 - [ ] `P2.42` C -> D: recurrent computation changes deliberation. — C->D is a retained edge in the newest run
 - [x] `P2.43` Verify the new substrate-volatility workspace bid earns a real retained edge. Self-state (S) — C->G is a retained edge in the newest run
-- [ ] `P2.44` Preserve S -> G. — S->G is a retained edge in the newest run
+- [x] `P2.44` Preserve S -> G. — S->G is a retained edge in the newest run
 - [ ] `P2.45` Preserve S -> D/action. — S->D is a retained edge in the newest run
 - [x] `P2.46` Preserve authorship-sensitive updates into S. — the two arms of the ownership experiment differ only in who is named as the author, and the self model is handed that attribution through the agency ledger
 - [ ] `P2.47` Preserve M -> S. — M->S is a retained edge in the newest run
@@ -120,12 +120,12 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [ ] `P2.54` N -> M: developmental state changes retrieval policy. — N->M is a retained edge in the newest run
 - [x] `P2.55` M -> G: recalled material can win attention. — M->G is a retained edge in the newest run
 - [ ] `P2.56` M -> S: memory changes the self. — M->S is a retained edge in the newest run
-- [ ] `P2.57` M -> W: recalled context contributes to world inference. — M->W is a retained edge in the newest run: what she recalled reaches the world model as a coordinate rather than as a score and a count
+- [x] `P2.57` M -> W: recalled context contributes to world inference. — M->W is a retained edge in the newest run: what she recalled reaches the world model as a coordinate rather than as a score and a count
 - [ ] `P2.58` M -> D: relevant memory changes planning. — M->D is a retained edge in the newest run
 - [x] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W) — the memory displacement moves the retrieved items themselves, which is what the consumers read
-- [ ] `P2.60` P -> W: actual observations update W. — P->W is a retained edge in the newest run
+- [x] `P2.60` P -> W: actual observations update W. — P->W is a retained edge in the newest run
 - [ ] `P2.61` Action consequences update W. — D->W is a retained edge in the newest run — what she did changes what she predicts
-- [ ] `P2.62` M -> W: remembered evidence helps construct/predict the world. — remembered evidence helps construct the world: the retrieved set is part of the observation the model learns from
+- [x] `P2.62` M -> W: remembered evidence helps construct/predict the world. — remembered evidence helps construct the world: the retrieved set is part of the observation the model learns from
 - [x] `P2.63` W -> G: surprise/prediction error changes attention. — W->G is a retained edge in the newest run
 - [x] `P2.64` W -> A: prediction error changes affect/free energy. — W->A is a retained edge in the newest run
 - [ ] `P2.65` W -> D: predictions affect plans. — W->D is a retained edge in the newest run
@@ -200,7 +200,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P5.4` Each replicates in at least 3 conditions. — each of them in at least three conditions
 - [x] `P5.5` This holds on every replicate run, not only 2 of 3. — the workspace's own tally says which sources reached attention, run by run, so a criterion holding on one run and not the next is visible
 - [x] `P5.6` G’s consumers modify fields that the destination-domain reader actually reads. — a broadcast consumer writes a field the destination domain's reader reads, and the displacement test says which
-- [x] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
+- [ ] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
 - [x] `P5.8` Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget. — a consumer that raised is recorded as a degradation rather than swallowed
 - [x] `P5.9` Define an explicit, theoretically justified affect-to-drive mapping; or — the affect-to-drive mapping is written out, one feeling to one of the five budgets, by what the feeling is about (warmth and its absence to company, interest to finding out, fear to holding together, frustration to growth); every mapped budget exists
 - [x] `P5.10` stop treating affect_* as drive names and only credit genuine drive_* candidates. — closed by P5.9, the first branch of the either-or: an affect source credits only the need the written table names, and one the table does not name credits nothing
@@ -251,13 +251,13 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 ## Phase 8 — Beat matched nulls on irreducibility
 
 - [ ] `P8.1` Real Phi exceeds replay surrogate. — irreducibility above the replay null
-- [x] `P8.2` Real Phi exceeds time-shuffled surrogate. — irreducibility above the time_shuffle null
+- [ ] `P8.2` Real Phi exceeds time-shuffled surrogate. — irreducibility above the time_shuffle null
 - [ ] `P8.3` Real Phi exceeds star architecture. — irreducibility above the star null
 - [ ] `P8.4` Real Phi exceeds stateful hub architecture. — irreducibility above the hub null
 - [ ] `P8.5` Real Phi exceeds one-way architecture. — irreducibility above the one_way null
-- [x] `P8.6` Real Phi exceeds prompt-only architecture. — irreducibility above the prompt_only null
-- [x] `P8.7` Real Phi exceeds frozen-slow architecture. — irreducibility above the frozen_slow null
-- [x] `P8.8` The recurrent positive reference still passes. — the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes
+- [ ] `P8.6` Real Phi exceeds prompt-only architecture. — irreducibility above the prompt_only null
+- [ ] `P8.7` Real Phi exceeds frozen-slow architecture. — irreducibility above the frozen_slow null
+- [ ] `P8.8` The recurrent positive reference still passes. — the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes
 - [ ] `P8.9` Increase replay-surrogate draws substantially.
 - [ ] `P8.10` Increase shuffle draws substantially.
 - [x] `P8.11` Report distributions, not one or a few point estimates. — every draw is kept, not one point estimate
@@ -278,10 +278,10 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P9.6` perturbational complexity/spread. — perturbational spread runs on every null architecture
 - [x] `P9.7` synergy. — synergy runs on every null architecture
 - [x] `P9.8` intrinsic persistence. — intrinsic persistence runs on every null architecture
-- [x] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
+- [ ] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
 - [x] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction including differentiation, which is the only line a broadcast fails
-- [x] `P9.11` Require ISC(N)=0 for every null N. — no null passes the conjunction
-- [x] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the recurrent reference passes the conjunction it is there to demonstrate
+- [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes the conjunction
+- [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the recurrent reference passes the conjunction it is there to demonstrate
 - [x] `P9.13` Add a hidden-broker null where the broker is deliberately outside K. — a broker outside K that remembers nearly all its own past; the graph cannot tell it from a mind and causal closure can
 - [x] `P9.14` Add a high-dimensional independent-noise null. — ten domains of independent noise at the same width, decay and noise, with nothing crossing
 - [x] `P9.15` Add a common-clock/common-driver null. — a common-driver null: one drifting variable outside them all reaching every domain, so every pair moves together and no pair moves the other
@@ -307,7 +307,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [ ] `P10.9` Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
 - [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
-- [ ] `P10.12` Preregister ISC-v2.
+- [x] `P10.12` Preregister ISC-v2. — ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported
 - [ ] `P10.13` Use a better differentiation measure.
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
 
@@ -362,9 +362,9 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P13.6` Use sufficient horizon. — rounds per cycle are reported beside the cycle count, so the horizon each arm was measured over is in the record rather than inferred
 - [x] `P13.7` Preregister lesion power analysis. — the lesion's own tolerances are preregistered in the fingerprint beside the rounds it runs
 - [x] `P13.8` Intact/cut differences must exceed normal measurement noise. — a measure only counts as damaged when its deficit is a tenth of its own intact value, which is a bar above the reading noise rather than a sign test
-- [ ] `P13.9` Require Phi_do to fall. — irreducibility falls when the partition is cut
+- [x] `P13.9` Require Phi_do to fall. — irreducibility falls when the partition is cut
 - [x] `P13.10` Require perturbational spread to fall. — perturbational spread falls
-- [ ] `P13.11` Require synergy to fall. — synergy falls
+- [x] `P13.11` Require synergy to fall. — synergy falls
 - [x] `P13.12` Repeat across seeds. — each cycle runs on its own seed, so the cycles are independent draws rather than the same draw repeated
 - [x] `P13.13` Repeat across run order. — which side of the partition runs first alternates between cycles; running one side always first puts the other side's whole life later in the cycle
 - [x] `P13.14` Rule out ordinary temporal drift. — two plain lives back to back in every cycle, with nothing cut between them; a deficit inside that band is ordinary drift and is not judged
@@ -394,7 +394,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 
 - [x] `P15.1` Lesion produces a reliable deficit first. — the lesion produces a deficit in every measure before any rescue is judged
 - [x] `P15.2` Restore only what was cut. — the rescue restores exactly the channels the lesion cut
-- [ ] `P15.3` Phi rises again. — irreducibility rises again
+- [x] `P15.3` Phi rises again. — irreducibility rises again
 - [x] `P15.4` Spread rises again. — spread rises again
 - [x] `P15.5` Synergy rises again. — synergy is judged when the lesion damaged it, and its recovery is reported either way
 - [x] `P15.6` Recovery is larger than normal drift. — half the deficit has to come back, which is a tolerance rather than a comparison two noisy readings pass half the time
@@ -782,7 +782,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P40.4` Determine whether a nondegenerate recurrent system can satisfy both Phi_do > 0.05 and D_eff/D >= 0.40 under the current estimator. — whether any coupling strength clears both at once is a measurement rather than an argument
 - [ ] `P40.5` If yes, demonstrate it.
 - [x] `P40.6` If no, formally document ISC-v1’s internal inconsistency. — and if none does, the run says the conjunction is internally impossible for the architecture the test was designed around
-- [ ] `P40.7` Design ISC-v2 before observing the next Aura result used for v2.
+- [x] `P40.7` Design ISC-v2 before observing the next Aura result used for v2. — the preregistration was committed while runs 029, 030 and 031 were still recording, names them as v1 results only, and applies v2 first to runs started after the commit that implements it
 - [x] `P40.8` Retain v1 forever for provenance. A test should be difficult, but it should not be internally impossible for the positive reference it is designed around. — the original one-sided reading is kept and reported beside the two-sided one on every run, rather than replaced
 
 ## Phase 41 — Improve the irreducibility null floor
@@ -829,7 +829,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P43.16` Fast-to-slow but no slow-to-fast. — fast domains write the slow ones and the slow ones write nothing back
 - [x] `P43.17` Slow-to-fast but no fast-to-slow. — slow state drives the fast domains and nothing they do reaches it
 - [x] `P43.18` Recurrent but minimally differentiated. — recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent
-- [x] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
+- [ ] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
 
 ## Phase 44 — Remove hidden test-specific shortcuts
 
@@ -852,7 +852,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
 - [x] `P45.7` Audit model observers that never receive observations. — the world model's own step count moves across a run, so it received the observations the cycle sends it
 - [ ] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
-- [x] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
+- [ ] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
 - [x] `P45.10` Audit return paths that terminate in local dictionaries. — a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one
 - [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
 - [x] `P45.12` Audit service-name mismatches. — the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent
@@ -935,7 +935,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [ ] `P49.4` Prefer 5 or more for statistical characterization.
 - [x] `P49.5` No seed selected based on result. — the seeds are in the target, chosen before any result
 - [ ] `P49.6` For the strongest claim, all 24 pass each run.
-- [ ] `P49.7` Otherwise report per-criterion pass frequency. — per-criterion pass frequency is what the scorecard reports, rather than a total
+- [x] `P49.7` Otherwise report per-criterion pass frequency. — per-criterion pass frequency is what the scorecard reports, rather than a total
 - [x] `P49.8` Report mean/std/range for continuous measures. — every tracked continuous measure carries its mean, spread, standard deviation and range
 - [x] `P49.9` Especially Phi. — irreducibility especially, with its own lower bound and standard error beside it
 - [x] `P49.10` Especially synergy. — synergy especially, per triple and by name
@@ -988,7 +988,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [x] `P52.8` ownership. — ownership holds on the newest run
 - [x] `P52.9` fast-to-slow coupling. — fast_to_slow holds on the newest run
 - [x] `P52.10` slow-to-fast coupling. — slow_to_fast holds on the newest run
-- [x] `P52.11` null separation. Stabilize: — beats_every_null holds on the newest run
+- [ ] `P52.11` null separation. Stabilize: — beats_every_null holds on the newest run
 - [x] `P52.12` global access. — global_access holds on the newest run
 - [x] `P52.13` lesion deficit. Aura must move upward through the conjunction rather than trade one checkbox for another. — lesion_deficit holds on the newest run
 
@@ -1026,7 +1026,7 @@ Newest run with a report: `run_025` — 19/24 criteria, commit `c4d52c2a0d19`.
 - [ ] `P54.21` Independent external replication.
 - [ ] `P54.22` Independent methodological critique.
 - [ ] `P54.23` Held-out conditions.
-- [x] `P54.24` Adversarial controls. — a positive control that must pass and nineteen nulls that must fail, each for the reason it was built for
+- [ ] `P54.24` Adversarial controls. — a positive control that must pass and nineteen nulls that must fail, each for the reason it was built for
 - [ ] `P54.25` Result survives reasonable alternate estimators. Priority roadmap If work has to be sequenced, use this order.
 
 ## Phase 55 — Derive the canonical grain instead of choosing it

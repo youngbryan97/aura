@@ -335,3 +335,141 @@ async def sweep_cuts(
             unscorable,
         )
     return report
+
+
+async def sweep_cuts_over_lags(
+    runtime: Any,
+    anchors: Sequence[Any],
+    conditions: Sequence[Any],
+    *,
+    lags: Sequence[int],
+    frame_seconds: float,
+    turns: int = 1,
+    rounds: int = 3,
+    alpha: float = 0.05,
+    seed: int = 0,
+    domains: Sequence[str] | None = None,
+    screen: int = 0,
+) -> dict[int, SweepReport]:
+    """Every bipartition at every horizon, from one set of rollouts per cut.
+
+    `sweep_cuts` scores one horizon, and the spectrum called it once per
+    horizon, so every cut's four clamped arms were run again for every lag on
+    the ladder. One rollout already holds every lag: `lag_vector` reads a frame
+    index out of the same trajectory. Seven horizons cost seven times what one
+    did, which put an exhaustive run on this host at days rather than hours.
+
+    Here each round collects once per pending cut, at every horizon together,
+    and decides each horizon on its own slot with its own seed. A cut keeps
+    drawing anchors while any horizon it reached is undecided.
+
+    A horizon the rollouts did not reach is reported as unreached and left
+    undecided. `lag_vector` clamps a lag past the last recorded frame to that
+    last frame, so without this every lag longer than a rollout would be scored
+    as the same frame under a different name.
+    """
+    if len(anchors) < MINIMUM_ANCHORS:
+        raise ValueError(
+            f"{len(anchors)} anchors is fewer than the {MINIMUM_ANCHORS} the "
+            "cross-fitted estimator needs; a sweep from this many scores no cut "
+            "at all and would report an empty result as a measurement"
+        )
+    ladder = sorted({int(lag) for lag in lags})
+    if not ladder:
+        raise ValueError("a sweep needs at least one horizon to score")
+    cuts = list(bipartitions(tuple(domains))) if domains else list(bipartitions())
+    every_cut = len(cuts)
+    screened = False
+    if screen and 0 < screen < len(cuts):
+        # The same deterministic stride `sweep_cuts` screens with, so a
+        # screened look at the ladder covers the same cuts as before.
+        stride = max(1, len(cuts) // screen)
+        cuts = cuts[::stride][:screen]
+        screened = True
+
+    reports = {
+        lag: SweepReport(
+            tau_seconds=float(lag) * float(frame_seconds),
+            screened=screened,
+            cuts_in_full=every_cut,
+        )
+        for lag in ladder
+    }
+    names = [f"{''.join(left)}|{''.join(right)}" for left, right in cuts]
+    verdicts = {
+        lag: {
+            name: CutVerdict(left=left, right=right, anchors_used=0)
+            for name, (left, right) in zip(names, cuts, strict=True)
+        }
+        for lag in ladder
+    }
+    unreached: dict[int, set[str]] = {lag: set() for lag in ladder}
+    unscorable: dict[int, int] = {lag: 0 for lag in ladder}
+
+    def open_at(name: str, lag: int) -> bool:
+        return not verdicts[lag][name].decided and name not in unreached[lag]
+
+    budget = OPENING_ANCHORS
+    for _round in range(max(1, rounds)):
+        pending = [name for name in names if any(open_at(name, lag) for lag in ladder)]
+        if not pending:
+            break
+        take = min(len(anchors), budget)
+        if take < 2:
+            break
+        chosen = list(anchors[:take])
+        for position, name in enumerate(pending):
+            cut = verdicts[ladder[0]][name]
+            samples = await collect_partition_samples(
+                runtime,
+                chosen,
+                conditions,
+                left=cut.left,
+                right=cut.right,
+                turns=turns,
+                lags=tuple(ladder),
+            )
+            for lag in ladder:
+                if not open_at(name, lag):
+                    continue
+                verdict = verdicts[lag][name]
+                slot = samples[lag]
+                reached = slot.get("reached")
+                if reached is not None and float(np.min(reached)) < 1.0:
+                    unreached[lag].add(name)
+                    verdict.note = (
+                        f"the rollouts ended before frame {lag}, so this horizon was not reached"
+                    )
+                    continue
+                reports[lag].anchors_spent += take
+                verdict.anchors_used = take
+                try:
+                    estimate, excess, lower, p_value = decide_cut(
+                        slot,
+                        tau_seconds=reports[lag].tau_seconds,
+                        seed=seed + lag + position,
+                        alpha=alpha,
+                    )
+                except ValueError as exc:
+                    verdict.note = f"not enough matched contexts: {exc}"
+                    unscorable[lag] += 1
+                    continue
+                verdict.estimate = estimate
+                verdict.excess = excess
+                verdict.lower_bound = lower
+                verdict.p_value = p_value
+                verdict.decided = lower > 0.0
+        budget += ANCHOR_STEP
+
+    for lag in ladder:
+        report = reports[lag]
+        report.verdicts = list(verdicts[lag].values())
+        report.undecided = sorted(v.name for v in report.verdicts if not v.decided)
+        report.unscorable = unscorable[lag]
+        if unscorable[lag] and not any(v.estimate is not None for v in report.verdicts):
+            logger.warning(
+                "every one of %d cuts was unscorable at lag %d; the sweep measured nothing there",
+                unscorable[lag],
+                lag,
+            )
+    return reports

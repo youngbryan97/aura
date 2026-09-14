@@ -72,6 +72,15 @@ HANDWRITTEN = {
     # core.conversation or the whole of core.state and the narrowing is gone
     # with the gate still green.
     "consciousness", "world_model",
+    # Two more with a module-level rule. The post-action verifier and the task
+    # graph each register an invariant and take nothing else from core.verify,
+    # so each names core.verify.invariants. Regenerating widens both to the
+    # whole of core.verify, the verifier that checks them included.
+    "capabilities", "planning",
+    # And one more. Steering and recurrent evaluation decode the public channel
+    # and take nothing else from core.brain; regenerating widens that to the
+    # cognition the evaluation scores.
+    "evaluation",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a

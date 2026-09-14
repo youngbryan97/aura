@@ -34,9 +34,14 @@ from __future__ import annotations
 import logging
 import math
 from collections.abc import Callable, Sequence
+from contextlib import AbstractContextManager, ExitStack
 from typing import Any
 
-from core.consciousness.fusion_certificate import FusionCertificate
+from core.consciousness.fusion_certificate import (
+    FUSION_MEASUREMENT_PROTOCOL,
+    FusionCertificate,
+    steering_basis_sha256,
+)
 
 logger = logging.getLogger("Aura.Consciousness.FusionProbe")
 
@@ -220,6 +225,37 @@ def measure_fusion(
     hooks: Sequence[Any],
     set_alpha: Callable[[float], None],
     *,
+    control_context: AbstractContextManager,
+    model_identity: str,
+    model_name: str = "",
+    alphas: Sequence[float] = (0.1, 0.2),
+    steps: int = 24,
+    seed: int = 20260908,
+    runner: str = "core/consciousness/fusion_probe.measure_fusion",
+    on_result: Callable[[FusionCertificate], None] | None = None,
+) -> list[FusionCertificate]:
+    """Measure under the caller's publication lock and restore every hook.
+
+    Live engines supply `controlled_measurement()`. Standalone tools with no
+    concurrent publishers explicitly supply `nullcontext()`. The caller also
+    owns generation; this context does not schedule or preempt model work.
+    """
+    with control_context, ExitStack() as stack:
+        for hook in sorted(hooks, key=lambda item: item._layer_idx):
+            stack.enter_context(hook.preserve_control_state())
+        return _measure_fusion(
+            model, tokenizer, hooks, set_alpha, model_identity=model_identity,
+            model_name=model_name, alphas=alphas, steps=steps, seed=seed,
+            runner=runner, on_result=on_result,
+        )
+
+
+def _measure_fusion(
+    model: Any,
+    tokenizer: Any,
+    hooks: Sequence[Any],
+    set_alpha: Callable[[float], None],
+    *,
     model_identity: str,
     model_name: str = "",
     alphas: Sequence[float] = (0.1, 0.2),
@@ -240,6 +276,8 @@ def measure_fusion(
     if not hooks:
         return []
 
+    basis = steering_basis_sha256(hooks)
+
     prompt_ids = [chat_ids(tokenizer, prompt) for prompt in PROBE_PROMPTS]
 
     def settle(moods: dict[str, float]) -> None:
@@ -247,9 +285,9 @@ def measure_fusion(
             for hook in hooks:
                 hook.update_substrate(moods)
 
-    def override(vector) -> None:
+    def override(vectors) -> None:
         for hook in hooks:
-            hook.override_composite_vector(vector)
+            hook.override_composite_vector(None if vectors is None else vectors[hook._layer_idx])
 
     def walk_all(paths) -> list:
         return [_walk(model, ids, path) for ids, path in zip(prompt_ids, paths, strict=True)]
@@ -267,6 +305,7 @@ def measure_fusion(
         settle(STATE_HIGH)
         set_alpha(alpha)
         her_high = walk_all(paths)
+        composites = {hook._layer_idx: hook.current_composite_vector() for hook in hooks}
         composite = hooks[0].current_composite_vector()
         if composite is None:
             logger.info("fusion probe: steering stood down at alpha %s", alpha)
@@ -290,9 +329,15 @@ def measure_fusion(
         control_accuracies: list[float] = []
         control_margins: list[float] = []
         for _ in range(CONTROL_DIRECTIONS):
-            noise = rng.normal(size=composite.shape).astype(np.float32)
-            noise *= float(np.linalg.norm(composite)) / float(np.linalg.norm(noise))
-            override(noise)
+            controls = {}
+            for layer, value in composites.items():
+                if value is None:
+                    controls[layer] = None
+                    continue
+                noise = rng.normal(size=value.shape).astype(np.float32)
+                noise *= float(np.linalg.norm(value)) / float(np.linalg.norm(noise))
+                controls[layer] = noise
+            override(controls)
             control = walk_all(paths)
             accuracy, margin = _forced_choice(model, tokenizer)
             control_shifts.append(
@@ -321,7 +366,9 @@ def measure_fusion(
         diverged = [index for index in divergences if index >= 0]
 
         certificate = FusionCertificate(
+            measurement_protocol=FUSION_MEASUREMENT_PROTOCOL,
             model_identity=model_identity,
+            basis_sha256=basis,
             model_name=model_name,
             alpha=alpha,
             distribution_shift=arrives,
@@ -346,6 +393,8 @@ def measure_fusion(
                 f"margin of {float(np.median(control_margins)):.3f}"
             ),
         )
+        if steering_basis_sha256(hooks) != basis:
+            raise ValueError("fusion_basis_changed_during_measurement")
         certificates.append(certificate)
         if on_result is not None:
             on_result(certificate)

@@ -45,12 +45,11 @@ from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 logger = logging.getLogger("Aura.ContentFetcher")
 
-CACHE_DIR = Path.home() / ".aura/content_cache"
-CACHE_INDEX = CACHE_DIR / "index.json"
 DEFAULT_PER_ATTEMPT_BYTES = 50 * 1024 * 1024
 DEFAULT_TOTAL_CACHE_BYTES = 5 * 1024 * 1024 * 1024
 #: External content goes stale. 24h is long enough that a research session
@@ -142,14 +141,14 @@ class FetchExecution:
 class ContentFetcher:
     def __init__(
         self,
-        cache_dir: Path = CACHE_DIR,
+        cache_dir: Path | None = None,
         per_attempt_bytes: int = DEFAULT_PER_ATTEMPT_BYTES,
         total_cache_bytes: int = DEFAULT_TOTAL_CACHE_BYTES,
         browser_executor: Any | None = None,
         whisper_transcriber: Any | None = None,
         cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
     ) -> None:
-        self._cache_dir = cache_dir
+        self._cache_dir = cache_dir if cache_dir is not None else state_root() / "content_cache"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._per_attempt_bytes = per_attempt_bytes
         self._total_cache_bytes = total_cache_bytes

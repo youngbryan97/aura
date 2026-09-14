@@ -19,6 +19,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.executors import submit_blocking_io
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.lockdep import checked_lock
+from core.runtime.state_ownership import state_root
 from .black_hole_vault_disposal import _LetsMemoriesGo
 
 try:
@@ -61,8 +62,8 @@ class BlackHoleVault(_LetsMemoriesGo):
     embedding_version = "black-hole-tfhash384-v1"
     single_principal_collection = True
 
-    def __init__(self, data_dir: str = "~/.aura/vault"):
-        self.data_dir = os.path.expanduser(data_dir)
+    def __init__(self, data_dir: str | None = None):
+        self.data_dir = os.path.expanduser(data_dir) if data_dir is not None else str(state_root() / "vault")
         os.makedirs(self.data_dir, exist_ok=True)
         self.memories_file = os.path.join(self.data_dir, "event_horizon.json")
         

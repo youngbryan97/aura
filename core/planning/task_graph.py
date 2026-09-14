@@ -18,12 +18,13 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.TaskGraph")
 
@@ -32,6 +33,7 @@ class TaskStatus(StrEnum):
     PENDING = "pending"
     READY = "ready"
     RUNNING = "running"
+    AWAITING_VERIFICATION = "awaiting_verification"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     SKIPPED = "skipped"
@@ -128,6 +130,10 @@ class TaskNode:
             completed_at=float(d.get("completed_at", 0.0)),
             artifacts=d.get("artifacts", []),
         )
+
+    def to_record(self) -> dict[str, Any]:
+        """Durable execution state; the public summary is deliberately smaller."""
+        return asdict(self)
 
 
 class TaskGraph:
@@ -294,6 +300,9 @@ class TaskGraph:
             "total_steps": total,
             "completed": completed,
             "failed": self.failed_steps,
+            "awaiting_verification": sum(
+                node.status == TaskStatus.AWAITING_VERIFICATION for node in self.nodes.values()
+            ),
             "progress_pct": round(completed / max(1, total) * 100, 1),
             "is_complete": self.is_complete,
             "is_successful": self.is_successful,
@@ -302,6 +311,9 @@ class TaskGraph:
         }
 
     def _current_step_description(self) -> str:
+        awaiting = [n for n in self.nodes.values() if n.status == TaskStatus.AWAITING_VERIFICATION]
+        if awaiting:
+            return f"Awaiting observation: {awaiting[0].description or awaiting[0].action}"
         running = [n for n in self.nodes.values() if n.status == TaskStatus.RUNNING]
         if running:
             return running[0].description or running[0].action
@@ -370,7 +382,9 @@ class TaskGraph:
         return graph
 
     def to_json(self) -> str:
-        return json.dumps(self.to_dict(), indent=2, default=str)
+        payload = self.to_dict()
+        payload["nodes"] = {tid: node.to_record() for tid, node in self.nodes.items()}
+        return json.dumps(payload, indent=2, default=str)
 
     @classmethod
     def from_json(cls, text: str) -> TaskGraph:
@@ -438,6 +452,23 @@ class TaskGraph:
             f"completed={self.completed_steps}, "
             f"failed={self.failed_steps})"
         )
+
+
+@invariant("planning.task_record_roundtrip", scope="planning",
+           owner="core/planning/task_graph.py", observational=False)
+def _task_record_roundtrip() -> tuple:
+    graph = TaskGraph("record-check", "resume an observation")
+    node = TaskNode("effect", "create_text_file", params={"content": "x" * 501},
+                    verification="file_has_content", verification_args={"contains": "x" * 501},
+                    rollback_params={"path": "exact"}, timeout_s=121,
+                    result={"success": True, "values": [1, 2]},
+                    status=TaskStatus.AWAITING_VERIFICATION)
+    graph.add_node(node)
+    restored = TaskGraph.from_json(graph.to_json())
+    assert restored.nodes[node.task_id] == node
+    assert not restored.is_complete
+    assert not restored.get_ready_nodes()
+    return ()
 
 
 __all__ = ["TaskGraph", "TaskNode", "TaskStatus"]

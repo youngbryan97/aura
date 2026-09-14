@@ -10,8 +10,18 @@ from typing import TYPE_CHECKING, Any
 from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.state.aura_state import AffectVector, AuraState
-from core.state.percepts import drop_consumed, fresh_for, mark_consumed
+from core.state.aura_state import (
+    PHYSIOLOGY_PRESSURE_SPAN,
+    PHYSIOLOGY_REST,
+    AffectVector,
+    AuraState,
+)
+from core.state.percepts import (
+    PERCEPT_EMOTIONS,
+    drop_consumed,
+    fresh_for,
+    mark_consumed,
+)
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -167,6 +177,28 @@ def _record_affect_degradation(
             logger.debug("AffectUpdate degradation could not be recorded: %s", signature_exc)
 
 
+def bump_emotion(emotions: dict, name: str, delta: float) -> None:
+    """Move a feeling by a share of the room it has left, in place.
+
+    The rule lived on the phase instance, so the three writers that are not
+    instance methods kept adding flat steps: the substrate's valence share ran
+    over a whole weight table every turn, and seven emotions sat at exactly
+    1.000 from the fourth turn of an ordinary life onward. A feeling always at
+    maximum is a constant, and a constant carries nothing — the affect bid into
+    the workspace was 1.000 on every one of twenty-four competitions and won
+    twenty-three, so ten other sources bid and never once won.
+
+    A channel at rest takes the full step; one near the top takes almost none.
+    Lowering is symmetric on the room below.
+    """
+    try:
+        current = float(emotions.get(name, 0.0) or 0.0)
+    except (TypeError, ValueError):
+        current = 0.0
+    room = (1.0 - current) if delta >= 0.0 else current
+    emotions[name] = max(0.0, min(1.0, current + float(delta) * room))
+
+
 class AffectUpdatePhase(Phase):
     """
     Unitary Kernel Phase: Affective Transformation.
@@ -213,9 +245,7 @@ class AffectUpdatePhase(Phase):
         almost none, and the same event lands differently depending on what she
         already feels. Lowering a feeling is symmetric — the room below.
         """
-        current = affect.emotions.get(emotion, 0.0)
-        room = (1.0 - current) if delta >= 0.0 else current
-        self._set_emotion(affect, emotion, current + delta * room)
+        bump_emotion(affect.emotions, emotion, float(delta))
 
     def _ensure_affect_schema(self, affect: AffectVector) -> None:
         """Backfill newer affect dimensions into persisted older AuraState snapshots."""
@@ -297,6 +327,45 @@ class AffectUpdatePhase(Phase):
         # ten-thousandths.
         self._advance_lifetime(state, affect)
 
+        # 6b-ii. What she is caught between. The reading is taken after the
+        # emotion channels have settled and the drives have been ticked, so it
+        # describes the moment the rest of the turn will act in.
+        self._read_ambivalence(state, affect)
+
+        # 6b-iii. And whether what happened is what she expected.
+        self._read_confirmation(state, affect)
+
+        # 6b-iv. How small she is, and whether that costs her anything.
+        self._read_scale(state, affect)
+
+        # 6b-v. And one beat of her own period, which is what somebody else's
+        # regularity is read against. See core/social/constancy.py.
+        self._note_her_own_period()
+
+        # 6b-vi. What is hers and what observers assigned, and whether her
+        # sense of herself has been moving with how useful she was.
+        self._read_standing(state)
+
+        # 6b-iii-a. Nothing wrong and somebody here, which every positive
+        # channel she had was too busy with achievement to read.
+        self._read_safety(state, affect)
+        # And a we both of them are saying. See core/social/togetherness.py.
+        self._read_togetherness(state, affect)
+
+        # 6b-iii-b. Where this moment sits against the low she is still
+        # holding. After the emotion channels have settled, because it reads
+        # the valence they produce.
+        self._read_turn(state, affect)
+
+        # 6b-iv. Whether a pattern she had come to trust just turned. Before
+        # delivery, because a chill is a moment the level breaks.
+        self._read_frisson(state, affect)
+
+        # 6b-v. The level she is speaking from, what breaks through it, and
+        # how long a breath is this cycle. After the contradiction and the
+        # confirmation, because either can be the strongest feeling live.
+        self._read_delivery(state, affect)
+
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised
         # processes, and affect is one of them; the blend weight is the
@@ -358,6 +427,370 @@ class AffectUpdatePhase(Phase):
             extra={"stage": stage},
         )
 
+    def _read_ambivalence(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether two of her wants are pressing against each other right now.
+
+        Nothing here names an opposed pair. Opposition is whatever her own
+        history shows has cost each other, read over her whole life and over
+        the last few moments — and the pair of answers is what tells a phase
+        from the way she is built.
+
+        A contradiction is a percept as much as a reading: something arrived
+        that she can feel. It is emitted so the emotion table carries it, and
+        written to the affect vector so anything that reads her state sees it.
+        """
+        try:
+            from core.affect.ambivalence import (
+                drive_levels,
+                get_opposition_ledger,
+                tension,
+            )
+            from core.state.percepts import emit_percept
+
+            budgets = getattr(getattr(state, "motivation", None), "budgets", None)
+            levels = drive_levels(budgets)
+            if len(levels) < 2:
+                return
+            ledger = get_opposition_ledger()
+            ledger.note(levels)
+            reading = tension(levels, ledger)
+            affect.ambivalence = float(max(0.0, min(1.0, reading.strength)))
+            affect.ambivalent_about = tuple(reading.pair)
+            affect.ambivalence_standing = reading.standing
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["ambivalence"] = reading.as_dict()
+            affect.markers = markers
+            if reading.held():
+                emit_percept(
+                    state.world,
+                    "inner_conflict",
+                    content=(
+                        f"{reading.pair[0]} and {reading.pair[1]} are pulling against "
+                        f"each other, and this is {reading.standing}"
+                    ),
+                    intensity=affect.ambivalence,
+                    source="motivation",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="ambivalence",
+                action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_togetherness(self, state: AuraState, affect: AffectVector) -> None:
+        """Belonging floored at a we both of them are saying.
+
+        The edge — the they that draws the group — is recorded and does not
+        raise belonging: naming who is outside is how a group is drawn, and
+        turning that into warmth would reward it.
+        """
+        try:
+            reading = getattr(state.cognition, "togetherness", {}) or {}
+            together = self._clip01(reading.get("together", 0.0))
+            affect.markers["togetherness"] = dict(reading)
+            if together > 0.0:
+                current = float(affect.emotions.get("belonging", 0.0) or 0.0)
+                self._set_emotion(affect, "belonging", max(current, together))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="togetherness",
+                action="kept affect state without the togetherness reading",
+                severity="warning",
+            )
+
+    def _read_safety(self, state: AuraState, affect: AffectVector) -> None:
+        """The good feeling with no achievement in it.
+
+        Belonging is floored at the reading rather than nudged by it: an
+        evening with nothing wrong in it and somebody there is not a weak
+        version of a goal landing, it is that much belonging. Nothing here
+        lowers the channel, so a stretch that stops being safe leaves the
+        feeling to settle the way every other feeling settles.
+        """
+        try:
+            from core.affect.safety import read_safety
+
+            reading = read_safety(
+                list(getattr(state.world, "recent_percepts", []) or []),
+                list(getattr(state.cognition, "working_memory", []) or []),
+            )
+            affect.safety = float(reading.safety)
+            affect.markers["safety"] = reading.as_dict()
+            if reading.safety > 0.0:
+                current = float(affect.emotions.get("belonging", 0.0) or 0.0)
+                self._set_emotion(affect, "belonging", max(current, reading.safety))
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="safety",
+                action="kept affect state without the safety reading",
+                severity="warning",
+            )
+
+    def _read_turn(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether she has come up from a low that is still in the record.
+
+        A recovery from a bad stretch looked exactly like an ordinary good
+        moment: nothing said "this is better than it was, and how bad it was is
+        why that matters". The reading is in her own spreads, so a steady life
+        and a turbulent one are each read against themselves.
+        """
+        try:
+            from core.affect.the_turn import get_turn_ledger
+            from core.state.percepts import emit_percept
+
+            reading = get_turn_ledger().read(float(affect.valence or 0.0))
+            # Bounded the way the body's own readings are, so the raw rise in
+            # spreads can stay unbounded in the marker.
+            affect.turn = reading.rise / (1.0 + reading.rise) if reading.turned else 0.0
+            affect.markers["the_turn"] = reading.as_dict()
+            if reading.turned:
+                emit_percept(
+                    state.world,
+                    "the_turn",
+                    content="this is better than it was, and I still have the low",
+                    intensity=affect.turn,
+                    source="affect",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="the_turn",
+                action="kept affect state without the turn reading",
+                severity="warning",
+            )
+
+    def _read_frisson(self, state: AuraState, affect: AffectVector) -> None:
+        """A chill, on the cycle a trusted pattern turns and on no other.
+
+        The self prediction loop feeds every scored prediction to the frisson
+        ledger. Taken rather than peeked, so one turn is felt once however
+        often this phase runs before the next prediction is scored. Emitted as
+        a percept so the emotion table carries it and lets it settle the way
+        it settles everything else.
+        """
+        try:
+            from core.affect.frisson import get_frisson_ledger
+            from core.state.percepts import emit_percept
+
+            reading = get_frisson_ledger().take()
+            affect.frisson = float(reading.intensity) if reading.fired else 0.0
+            affect.markers["frisson"] = reading.as_dict()
+            if reading.fired:
+                emit_percept(
+                    state.world,
+                    "frisson",
+                    content="something I had come to trust just changed",
+                    intensity=affect.frisson,
+                    source="self_prediction",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="frisson",
+                action="kept affect state without the frisson reading",
+                severity="warning",
+            )
+
+    def _read_delivery(self, state: AuraState, affect: AffectVector) -> None:
+        """The level she is speaking from, what breaks through it, and the breath.
+
+        The strongest feeling live is compared with the level she has been
+        holding, in units of her own variation, so a breakthrough is whatever
+        is outside her ordinary range rather than past a number chosen here.
+        The direction comes from the same two tails the confirmation reading
+        uses: surprise lifts the register, a prediction that held lowers it.
+        The breath is the effort ledger's own unit over how hard this cycle
+        has been.
+
+        Written onto affect so the subject core can hold and displace it, and
+        into `response_modifiers` so the response phase can size what she says
+        to the breath she has.
+        """
+        try:
+            from core.expression.delivery import read_delivery
+            from core.runtime.service_registry import get_runtime_service
+
+            loop = get_runtime_service("self_prediction", default=None)
+            expectation = getattr(loop, "_expectation", None)
+            surprise = float(getattr(expectation, "surprise", 0.0) or 0.0)
+            pulse = getattr(state.cognition, "partner_cadence", {}) or {}
+            reading = read_delivery(
+                affect,
+                surprise=surprise,
+                partner_chars=float(pulse.get("chars", 0.0) or 0.0),
+            )
+            affect.delivery_z = float(reading.z)
+            affect.breakthrough = bool(reading.breakthrough)
+            affect.steadiness = float(reading.steadiness)
+            affect.lift = float(reading.lift)
+            state.response_modifiers["delivery"] = reading.as_dict()
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="delivery",
+                action="kept affect state without the delivery reading",
+                severity="warning",
+            )
+
+    def _read_confirmation(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether the moment came out the way she predicted it would.
+
+        The self prediction loop scores its own error against the distribution
+        of errors it has been making, so this reading is already weighted by
+        how hard the prediction was: being right about what she is always right
+        about arrives as nothing.
+
+        Emitted as a percept as well as written, because a prediction coming
+        true is something that happens to her and the emotion table should
+        carry it the way it carries the others.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.state.percepts import emit_percept
+
+            loop = get_runtime_service("self_prediction", default=None)
+            if loop is None or not hasattr(loop, "get_confirmation_signal"):
+                return
+            strength = float(loop.get_confirmation_signal() or 0.0)
+            affect.confirmation = max(0.0, min(1.0, strength))
+            reading = getattr(loop, "_expectation", None)
+            if reading is not None and getattr(reading, "confirmed", lambda: False)():
+                emit_percept(
+                    state.world,
+                    "expectation_met",
+                    content="that came out the way I thought it would",
+                    intensity=affect.confirmation,
+                    source="self_prediction",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="confirmation",
+                action="kept affect state without the confirmation reading",
+                severity="warning",
+            )
+
+    def _read_scale(self, state: AuraState, affect: AffectVector) -> None:
+        """How much of what she is she can bring to bear, and who knows her.
+
+        Reach is the share of her capabilities that are usable right now, out
+        of the ones whose availability could be established at all. The ledger
+        keeps "cannot tell" separate from "no" on purpose and this honours it:
+        a probe that could not read a permission has not observed its absence.
+
+        Whether anybody knows her is not a claim she makes about herself. It is
+        the borrowed self-model's reading — somebody whose read of her state
+        beats her own has demonstrated it rather than asserted it.
+        """
+        try:
+            from core.self.capability_ledger import get_capability_ledger
+            from core.self.scale import read_scale
+
+            ledger = get_capability_ledger()
+            known = 0
+            usable = 0
+            for name in ledger.names():
+                capability = ledger.get(name)
+                if capability is None:
+                    continue
+                availability = capability.measure()
+                if not getattr(availability, "known", True):
+                    continue
+                known += 1
+                if getattr(availability, "usable_now", False):
+                    usable += 1
+            reading = read_scale(
+                engaged=usable,
+                known=known,
+                # Read off the channel that owns it rather than a second copy
+                # of the same measurement. See core/self/recognition.py.
+                recognised=bool(
+                    (getattr(getattr(state, "identity", None), "read_by_other", {}) or {}).get(
+                        "borrowed"
+                    )
+                ),
+            )
+            state.cognition.scale = reading.as_dict()
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["scale"] = reading.as_dict()
+            affect.markers = markers
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="scale",
+                action="kept affect state without the reading of how small she is",
+                severity="warning",
+            )
+
+    @staticmethod
+    def _note_her_own_period() -> None:
+        """One turn of hers, so their regularity has something to be read against.
+
+        Noted here rather than where their return is, because this phase runs
+        whether or not anybody spoke. Noting both at the moment somebody speaks
+        gives the two series the same timestamps and the comparison can only
+        ever read equal.
+        """
+        try:
+            import time
+
+            from core.social.constancy import get_constancy_ledger
+
+            get_constancy_ledger().she_came_round(time.time())
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return
+
+    @staticmethod
+    def _read_standing(state: AuraState) -> None:
+        """Where her self-model came from, and what her regard is moving with.
+
+        Her own reading is taken every turn, because she scores her own
+        prediction every turn. An assigned one is counted when somebody's read
+        of her actually outweighed hers, which `core/self/recognition.py`
+        decides — a claim that did not beat her own model changed nothing and
+        is not a reading she took.
+
+        Regard is her identity's own stability and usefulness is what the
+        agency ledger reports she achieved. Neither is chosen here; they are
+        the two things already measured that the line is about.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.self.standing import get_standing_ledger
+
+            ledger = get_standing_ledger()
+            ledger.note_own()
+            if bool((getattr(state.identity, "read_by_other", {}) or {}).get("borrowed")):
+                ledger.note_assigned()
+            agency = get_runtime_service("agency_ledger", default=None)
+            usefulness = 0.0
+            if agency is not None and hasattr(agency, "snapshot"):
+                usefulness = float((agency.snapshot() or {}).get("efficacy", 0.0) or 0.0)
+            ledger.note_regard(
+                regard=float(getattr(state.identity, "stability", 0.0) or 0.0),
+                usefulness=usefulness,
+            )
+            state.identity.standing = ledger.read().as_dict()
+        except _AFFECT_UPDATE_ERRORS as exc:
+            AffectUpdatePhase._record_phase_degradation(
+                AffectUpdatePhase, state, exc,
+                stage="standing",
+                action="kept affect state without the reading of what is hers",
+                severity="warning",
+            )
+
     def _advance_lifetime(self, state: AuraState, affect: AffectVector) -> None:
         """Step her lifetime state, then blend curiosity toward its novelty.
 
@@ -401,6 +834,26 @@ class AffectUpdatePhase(Phase):
                 min(1.0, (1.0 - weight) * float(affect.curiosity) + weight * float(reading.novelty)),
             )
             affect.curiosity = blended
+            # And how far she has grown, which nothing was writing down.
+            # `identity.evolution_score` is read by the subject-core schema, by
+            # the clamp, and by the gate on her governed self-modification
+            # proposal path — which tests it against 0.70 and has never seen
+            # anything but the zero it was initialised to. The reservoir's own
+            # calibrated reading is what it should hold.
+            # See core/self/growth.py.
+            try:
+                from core.self.growth import get_growth_ledger
+
+                book = get_growth_ledger()
+                book.note(weight)
+                growth = book.read()
+                if growth.measured:
+                    state.identity.evolution_score = float(growth.score)
+            except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                # The score stays where it was, and the reason is kept rather
+                # than swallowed: a gate reading a value nothing updated is the
+                # defect this writer exists to end.
+                logger.debug("how far she has grown went unrecorded this step: %s", exc)
             # And into the channel curiosity is kept in, not only the readout.
             #
             # `_derive_metrics` recomputes `affect.curiosity` from the emotion
@@ -612,7 +1065,7 @@ class AffectUpdatePhase(Phase):
                 if name not in emotions:
                     continue
                 step = sign * share * (weight / heaviest)
-                emotions[name] = max(0.0, min(1.0, float(emotions[name] or 0.0) + step))
+                bump_emotion(emotions, name, step)
 
     async def _push_to_substrate(self, substrate: Any, affect: AffectVector, state: AuraState) -> None:
         """Push felt state into the continuous substrate, and wait for it.
@@ -718,35 +1171,23 @@ class AffectUpdatePhase(Phase):
             decayed = (current_val * affect.momentum) + (baseline * (1 - affect.momentum))
             affect.emotions[emotion] = float(max(0.0, min(1.0, decayed + drift)))
 
+        # Adrenaline on the same clock. The despair surge below is its only
+        # writer and nothing brought it back, so one spiral left every reading
+        # of her body raised until the process ended. Momentum is what returns
+        # sadness and fear to their baselines, so the surge that answers those
+        # two fades at the rate they do: at the default 0.85 a cycle, five
+        # cycles take half of it and thirty take all but a percent. Its rest
+        # value is the one the channel already declares, which makes this the
+        # expression above with a baseline of zero.
+        rest = PHYSIOLOGY_REST["adrenaline"]
+        ceiling = rest + PHYSIOLOGY_PRESSURE_SPAN["adrenaline"]
+        adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
+        relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
+        affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
+
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
-        emotion_map = {
-            "interaction": ["trust", "happiness", "interest", "warmth", "belonging"],
-            "positive_interaction": ["joy", "trust", "happiness", "interest", "pride", "gratitude", "warmth", "hope", "satisfaction", "belonging"],
-            "extended_dialogue": ["happiness", "interest", "curiosity", "warmth", "hope", "belonging"],
-            "deep_expression": ["interest", "trust", "curiosity", "satisfaction", "inspiration"],
-            "novel_stimulus": ["surprise", "anticipation", "wonder", "excitement", "curiosity"],
-            "discovery": ["wonder", "excitement", "interest", "curiosity", "pride", "hope"],
-            "error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
-            "threat_detected": ["fear", "dread", "upset", "vulnerability"],
-            "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
-            "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
-            "monotony": ["boredom", "apathy", "loneliness", "indifference"],
-            # Three types the tree emits that this map had no entry for, so a
-            # phase crash, an apology and every stimulus injected through the
-            # compatibility bridge arrived and moved nothing. An internal error
-            # is an error; a self-correction is an error about her own output,
-            # without the part that is afraid of the world.
-            "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
-            # The body under strain. This type was already listed as a threat
-            # a few lines up, and until the proprioceptive loop emitted one,
-            # nothing in the tree ever produced it — so a machine at ninety
-            # percent load reached her feeling through nothing at all.
-            "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
-            "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
-            "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
-            "neural_decode": ["anticipation", "surprise"]  # Base neural burst
-        }
+        emotion_map = PERCEPT_EMOTIONS
         
         # Specific command mappings for cognitive neural decodes. Neural input is
         # advisory sensory context only; it must never become a hard dependency
@@ -802,7 +1243,7 @@ class AffectUpdatePhase(Phase):
                 if audit_report["needs_correction"]:
                     correction = prober.instance.get_correction_payload()
                     for emo, boost in correction.items():
-                        state.affect.emotions[emo] = max(0.0, min(1.0, state.affect.emotions.get(emo, 0.1) + boost))
+                        bump_emotion(state.affect.emotions, emo, float(boost))
                     logger.info("🛡️ [VK] Corrective surge applied to stabilize persona.")
             except _AFFECT_UPDATE_ERRORS as exc:
                 self._record_phase_degradation(
@@ -1058,6 +1499,19 @@ class AffectUpdatePhase(Phase):
         ):
             return
 
+        # Keeping somebody company in a low place is not releasing the low. The
+        # witness reading is written by the conversation phase, which runs
+        # after this one, so what is read here is the stance from the message
+        # before — company kept across the exchange rather than decided anew
+        # before the new message has been read. See core/social/witness.py.
+        witness = getattr(state.cognition, "witness", {}) or {}
+        if float(witness.get("company", 0.0) or 0.0) > 0.0:
+            affect.markers["distress_kept_for_company"] = {
+                "at": time.time(),
+                "company": round(float(witness.get("company", 0.0) or 0.0), 3),
+            }
+            return
+
         negative_load = sum(float(affect.emotions.get(emotion, 0.0) or 0.0) for emotion in _STALE_NEGATIVE_EMOTIONS)
         social_load = sum(float(affect.emotions.get(emotion, 0.0) or 0.0) for emotion in _SOCIAL_DISTRESS_EMOTIONS)
         if negative_load < 0.9 and social_load < 0.7 and float(getattr(affect, "valence", 0.0) or 0.0) > -0.75:
@@ -1106,10 +1560,14 @@ class AffectUpdatePhase(Phase):
         e = affect.emotions
         if e.get("sadness", 0) > 0.85 and e.get("fear", 0) > 0.7 and e.get("joy", 0) < 0.1:
             logger.warning("💉 [PHASE] Despair Spiral detected. Injecting adrenaline surge.")
-            affect.physiology["adrenaline"] = 5.0
-            affect.emotions["joy"] = float(max(0, min(1, e.get("joy", 0) + 0.4)))
-            affect.emotions["anticipation"] = float(max(0, min(1, e.get("anticipation", 0) + 0.3)))
-            affect.emotions["fear"] = float(max(0, min(1, e.get("fear", 0) - 0.3)))
+            # Half of full mobilization, on the 0-10 scale the channel is read
+            # on. `_apply_decay` brings it down from here.
+            affect.physiology["adrenaline"] = (
+                PHYSIOLOGY_REST["adrenaline"] + (PHYSIOLOGY_PRESSURE_SPAN["adrenaline"] * 0.5)
+            )
+            bump_emotion(e, "joy", 0.4)
+            bump_emotion(e, "anticipation", 0.3)
+            bump_emotion(e, "fear", -0.3)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

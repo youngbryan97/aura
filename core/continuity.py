@@ -332,9 +332,22 @@ class ContinuityEngine:
         self._boot_time = time.time()
         self._record: ContinuityRecord | None = None
         self._gap_seconds: float | None = None
+        #: Whether this engine has already gone to look. Consumers guard their
+        #: call with `if _record is None`, which is never satisfied on a
+        #: session with no prior record, so every one of them re-read the
+        #: directory and re-announced the first awakening. One campaign logged
+        #: it 7,886 times. A look that found nothing is an answer.
+        self._looked = False
 
-    def load(self) -> ContinuityRecord | None:
-        """Read previous session's record. Returns None on first ever boot."""
+    def load(self, *, force: bool = False) -> ContinuityRecord | None:
+        """Read previous session's record. Returns None on first ever boot.
+
+        The answer is remembered, including the absence of one. `force` re-reads
+        for the caller that has reason to think the file changed underneath it.
+        """
+        if self._looked and not force:
+            return self._record
+        self._looked = True
         path = _get_continuity_path()
         if not path.exists():
             logger.info("🌅 First awakening — no prior continuity record.")
@@ -609,6 +622,7 @@ class ContinuityEngine:
             path.parent.mkdir(parents=True, exist_ok=True)
             _persist_continuity_record(path, record, "continuity.shutdown_record")
             self._record = record
+            self._looked = True
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('continuity', e)
             logger.error("Continuity save failed: %s", e)

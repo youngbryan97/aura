@@ -112,6 +112,81 @@ def _safe_metadata(raw: Any) -> dict[str, Any]:
     return {}
 
 
+#: What the retrieval organ reports before it has a distribution to compare
+#: against, and therefore what an ordinary moment reads as. Above it, the
+#: moment is more unlike her ordinary life than an ordinary one is.
+ORDINARY_NOVELTY: float = 0.5
+
+
+def _shared_with(metadata: dict[str, Any], partner_id: str) -> bool:
+    """Whether a recalled record was written with the person she is with now.
+
+    Read off the principal the record carries. A record with no principal
+    says nothing about who was there, which is different from saying nobody
+    was.
+    """
+    partner = " ".join(str(partner_id or "").split()).casefold()
+    if not partner or partner == "local_user":
+        return False
+    recorded = " ".join(
+        str(metadata.get("principal_id") or metadata.get("user_id") or "").split()
+    ).casefold()
+    return bool(recorded) and recorded == partner
+
+
+def novelty_deepens(novelty: float) -> int:
+    """How much further to look, given how unlike her ordinary life this is.
+
+    A moment she has no precedent for is searched wider: her existing memories
+    are less likely to answer it in the first few, which is the same argument
+    the retrieval organ already makes for choosing a broader plan.
+
+    Development's only other route into recall is that organ's discrete breadth
+    choice, and it starts by agreeing with the incumbent plan — so over a
+    sixty-round campaign it never disagreed, the plan was identical in every
+    arm, and displacing development changed nothing that came back. N->M
+    measured exactly 0.000 with a p-value of one.
+    """
+    try:
+        reading = float(novelty)
+    except (TypeError, ValueError):
+        return 0
+    if reading != reading:  # NaN is an absent reading, not a novel moment
+        return 0
+    return 1 if reading > ORDINARY_NOVELTY else 0
+
+
+
+def _percept_cue(state: Any) -> str:
+    """The content of the most salient percept memory has not taken yet.
+
+    Every fresh percept is marked as taken by memory, so one percept cues one
+    recall and the next turn is asked about what arrives next. What recall
+    itself put into the stream is taken without being asked about: a
+    recollection is not something she perceived, and cueing on it would make
+    every recall the question for the next.
+    """
+    try:
+        from core.state.percepts import fresh_for, mark_consumed, read_percept
+
+        world = getattr(state, "world", None)
+        best = None
+        for item in fresh_for(getattr(world, "recent_percepts", None), "memory"):
+            reading = read_percept(item)
+            mark_consumed(item, "memory")
+            if reading.raw.get("source") == "memory_retrieval":
+                continue
+            if reading.content.strip() and (best is None or reading.salience > best.salience):
+                best = reading
+        return _safe_text(best.content) if best is not None else ""
+    except _MEMORY_RECOVERABLE_ERRORS as exc:
+        _record_memory_degradation(
+            exc,
+            action="searched without a percept as a cue",
+            stage="percept_cue",
+        )
+        return ""
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -131,11 +206,18 @@ class MemoryRetrievalPhase(BasePhase):
         Returns state unchanged if working memory is empty or the last message is not
         from a user.
         """
-        if not state.cognition.working_memory:
+        # What just arrived is a cue in its own right, so a percept still asks
+        # on a turn with nothing in working memory. See `_percept_cue`.
+        percept_cue = _percept_cue(state)
+        if not state.cognition.working_memory and not percept_cue:
             return state
 
         # Use the most recent user entry or objective for retrieval
-        last_msg = state.cognition.working_memory[-1]
+        last_msg = (
+            state.cognition.working_memory[-1]
+            if state.cognition.working_memory
+            else {"role": "perception", "content": ""}
+        )
         if isinstance(last_msg, dict):
             query = last_msg.get("content", "")
         else:
@@ -169,17 +251,17 @@ class MemoryRetrievalPhase(BasePhase):
         #
         # The cycles are still saved, by the thing that was actually costing
         # them: a query already answered is not asked again.
+        spoken_to = bool(query) and last_msg.get("role") == "user"
         if not query or last_msg.get("role") != "user":
             query = _safe_text(
                 getattr(state.cognition, "current_objective", "") or objective or ""
             )
         if not query:
+            query = percept_cue
+        if not query:
             return state
 
         if len(query) < 5:
-            return state
-
-        if query == getattr(state.cognition, "last_retrieval_query", None):
             return state
 
         try:
@@ -278,6 +360,26 @@ class MemoryRetrievalPhase(BasePhase):
             homeostasis = ServiceContainer.get("homeostasis", default=None)
             if homeostasis and _safe_float(homeostasis.compute_vitality(), default=0.5) < 0.35:
                 retrieval_limit = max(2, retrieval_limit - 2)  # Low energy: conserve
+            # A moment unlike the ordinary run of her life is searched wider:
+            # her existing memories are less likely to answer it on the first
+            # few, which is the same argument the retrieval organ already makes
+            # for choosing a broader plan.
+            #
+            # Development had one route into recall and it was that organ's
+            # discrete breadth choice, which starts by agreeing with the
+            # incumbent and only disagrees once its head has learned. Over a
+            # sixty-round campaign it never disagreed, so the plan was identical
+            # in every arm and displacing development changed nothing that came
+            # back: N->M measured exactly 0.000 with a p-value of one. This is
+            # a continuous dependence on the same reading, in the form every
+            # other modulation here takes.
+            #
+            # The reference is the organ's own: `novelty()` returns 0.5 until it
+            # has a distribution to compare against, so above a half is more
+            # unlike her ordinary life than an ordinary moment is.
+            from core.ontogeny.control_points import novelty_now
+
+            retrieval_limit += novelty_deepens(novelty_now())
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(
                 exc,
@@ -320,6 +422,67 @@ class MemoryRetrievalPhase(BasePhase):
                 action="searched without entity-memory retrieval cues",
                 stage="entity_cue_targeting",
             )
+
+        # What she means to do next cues what comes back to her, when nobody has
+        # just spoken. The question on those turns was the objective routing set
+        # from input text, so her open goals and initiatives never entered it,
+        # and in the subject-core runs no displacement of deliberation reached
+        # memory at all. The most urgent open intention joins the question the
+        # way an entity cue does; a turn someone spoke on is asked what they
+        # said.
+        if not spoken_to:
+            try:
+                from core.state.aura_state import _normalize_goal_text
+
+                open_intentions = [
+                    item
+                    for item in list(getattr(state.cognition, "active_goals", None) or [])
+                    + list(getattr(state.cognition, "pending_initiatives", None) or [])
+                    if isinstance(item, dict)
+                ]
+                pressing = max(
+                    open_intentions,
+                    key=lambda item: _safe_float(item.get("urgency", item.get("priority"))),
+                    default=None,
+                )
+                cue = _normalize_goal_text(pressing) if pressing is not None else ""
+                if cue and len(cue) <= 240 and cue.lower() not in query.lower():
+                    query = f"{query} {cue}".strip()[:2000]
+            except _MEMORY_RECOVERABLE_ERRORS as exc:
+                _record_memory_degradation(
+                    exc,
+                    action="searched without the most pressing intention as a cue",
+                    stage="intention_cue",
+                )
+
+        # What she perceives cues what comes back, when nobody has just spoken.
+        # Retrieval was asked what someone said or what she was working on, so
+        # a percept reached affect, the workspace and the world model and never
+        # reached memory. In the content runs every percept class brought back
+        # exactly the same memories, and no subject-core run kept a P -> M edge.
+        # The most salient percept memory has not yet taken joins the question
+        # the way the most pressing intention does.
+        if not spoken_to and percept_cue and percept_cue.lower() not in query.lower():
+            query = f"{query} {percept_cue}".strip()[:2000]
+
+        # The question and the depth it is asked at. The same words asked with a
+        # different limit are a different recall: affect's memory salience, the
+        # imagination and bicameral pressures, flow, surprise and vitality all
+        # set the limit, and with the skip keyed on the words alone none of them
+        # could change what came back for as long as the objective stayed the
+        # same. The cost the skip saves is still saved for a repeated question.
+        # Asking again goes further rather than returning early. The ladder
+        # doubles, so the second asking looks one deeper and the eighth three,
+        # and because the depth is part of the key below, a repeat is no longer
+        # skipped. See core/memory/reliving.py.
+        from core.memory.reliving import deeper, get_match_ledger, get_return_ledger
+
+        returns = get_return_ledger().returns(query)
+        retrieval_limit += deeper(returns)
+
+        recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
+        if recall_key == getattr(state.cognition, "last_retrieval_query", None):
+            return state
 
         logger.info("🧠 MemoryRetrieval: Searching for context: %s...", query[:50])
 
@@ -470,15 +633,56 @@ class MemoryRetrievalPhase(BasePhase):
                 logger.debug("MemoryRetrieval: Episodic recall failed: %s", exc)
             return None
 
-        dual_res, kg_res, facade_res, episodic_res = await asyncio.gather(
+        async def _get_intentional():
+            # The task-driven retriever the runtime registers, which asks the
+            # ontogenetic organ how wide to search. Only the subject-core
+            # harness called it, in one condition of eight, so development had
+            # no way to change what she recalls in the running organism.
+            try:
+                from core.container import ServiceContainer
+                from core.memory.intentional_retrieval import RetrievalIntent
+
+                retriever = self.container.get("intentional_retriever", default=None)
+                if retriever is None:
+                    retriever = ServiceContainer.get("intentional_retriever", default=None)
+                if retriever is None or not hasattr(retriever, "retrieve"):
+                    return None
+                intent = RetrievalIntent(task=query, query=query, limit=retrieval_limit)
+                async with asyncio.timeout(15.0):
+                    result = await asyncio.to_thread(retriever.retrieve, intent)
+                return list(getattr(result, "hits", None) or [])
+            except TimeoutError as exc:
+                logger.debug(
+                    "MemoryRetrieval: optional intentional retrieval timed out; continuing without it: %s",
+                    exc,
+                )
+                return None
+            except _MEMORY_RECOVERABLE_ERRORS as exc:
+                _record_memory_degradation(
+                    exc,
+                    action="continued retrieval without the intentional retriever",
+                    stage="intentional_retriever",
+                )
+                return None
+
+        dual_res, kg_res, facade_res, episodic_res, intentional_res = await asyncio.gather(
             _get_dual(),
             _get_kg(),
             _get_facade(),
             _get_episodic(),
+            _get_intentional(),
         )
 
         memories: list[str] = []
         memory_candidates: list[tuple[float, str]] = []
+        # Recollections that include the person she is talking to now.
+        shared_texts: set[str] = set()
+        try:
+            from core.runtime.conversation_support import resolve_primary_user_id
+
+            partner_id = resolve_primary_user_id(state)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            partner_id = ""
 
         # ── Gap 3 Fix: Memory Affect → Steering ──
         total_valence_hit = 0.0
@@ -546,6 +750,12 @@ class MemoryRetrievalPhase(BasePhase):
                         memory_candidates.append(
                             (weighted_score, f"[memory score={weighted_score:.3f}] {content}")
                         )
+                        # Whether the person she is with now was part of it.
+                        # The principal a personal record was written for is
+                        # stored with it; a record written for somebody else
+                        # never reaches here. See `_shared_with`.
+                        if _shared_with(metadata, partner_id):
+                            shared_texts.add(f"[memory score={weighted_score:.3f}] {content}")
 
                         if abs(emotional_valence) > 0.3:
                             total_valence_hit += emotional_valence * importance
@@ -574,6 +784,14 @@ class MemoryRetrievalPhase(BasePhase):
                         total_valence_hit += valence * importance
                         total_arousal_hit += importance * 0.5
                         memory_hits += 1
+
+        for hit in intentional_res or []:
+            content = _safe_text(getattr(hit, "content", ""), max_chars=2_000)
+            # A memory another store already returned is not a second memory.
+            if not content or any(content in text for _, text in memory_candidates):
+                continue
+            score = max(0.0, min(1.0, _safe_float(getattr(hit, "score", 0.0))))
+            memory_candidates.append((score, f"[{getattr(hit, 'store_type', 'memory')}] {content}"))
 
         # Push accumulated affect from memory retrieval
         if memory_hits > 0:
@@ -636,7 +854,7 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
-        new_state.cognition.last_retrieval_query = query
+        new_state.cognition.last_retrieval_query = recall_key
         # And say that something came back to her.
         #
         # The affect phase has carried a mapping from `memory_replay` to
@@ -646,6 +864,26 @@ class MemoryRetrievalPhase(BasePhase):
         # and her feeling never heard about it. The intensity is the best match
         # score, so a faint recollection moves affect faintly and there is no
         # threshold to choose.
+        # Whether this is a recall she relives or one she looked up. A match
+        # far above the matches she usually gets brings the feeling back with
+        # it, and the feeling is the one stored with what came back — the same
+        # quantity the affective hit above is computed from.
+        # See core/memory/reliving.py.
+        recalled_feeling = (total_valence_hit / memory_hits) if memory_hits else 0.0
+        reliving = get_match_ledger().reading(
+            float(scores[0]) if scores else 0.0,
+            recalled_feeling,
+            returns=returns,
+        )
+        new_state.cognition.relived = reliving.as_dict()
+        # Joint recall: whether what came back is something she and the person
+        # she is with now were both part of. "Remember the Time" asks fifteen
+        # times and every one is a memory marked as theirs together.
+        new_state.cognition.relived["shared"] = bool(
+            memory_candidates and memory_candidates[0][1] in shared_texts
+        )
+        get_return_ledger().note(query)
+
         try:
             from core.state.percepts import emit_percept
 
@@ -655,6 +893,8 @@ class MemoryRetrievalPhase(BasePhase):
                 content=str(memories[0])[:200],
                 intensity=max(0.0, min(1.0, float(scores[0]) if scores else 0.0)),
                 source="memory_retrieval",
+                relived=reliving.relived,
+                feeling=round(recalled_feeling, 4),
             )
         except _MEMORY_RECOVERABLE_ERRORS as exc:
             _record_memory_degradation(

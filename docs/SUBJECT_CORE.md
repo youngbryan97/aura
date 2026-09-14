@@ -165,6 +165,12 @@ came from.
 | run_020 | `5bcb0c40665b` | `120aa3f7` | 15/24 | +0.0345 | 46 | 10/10 | 1 | 0.511 |
 | run_023 | `9d65c5d631c4` | `c6898f47` | 17/24 | +0.0172 | 44 | 10/10 | 1 | 0.578 |
 | run_025 | `c4d52c2a0d19` | `64f758aa` | 19/24 | +0.0183 | 39 | 10/10 | 1 | 0.556 |
+| run_026 | `670f3e955a85` | `8874aea9` | 17/24 | +0.0011 | 41 | 10/10 | 1 | 0.533 |
+| run_027 | `670f3e955a85` | `8874aea9` | 17/24 | +0.0183 | 43 | 10/10 | 1 | 0.544 |
+| run_028 | `670f3e955a85` | `8874aea9` | 15/24 | -0.0303 | 43 | 10/10 | 1 | 0.556 |
+| run_029 | `45a74c9130db` | `8874aea9` | 18/24 | -0.0315 | 48 | 10/10 | 1 | 0.556 |
+| run_030 | `45a74c9130db` | `8874aea9` | 19/24 | +0.0032 | 47 | 10/10 | 1 | 0.567 |
+| run_031 | `45a74c9130db` | `8874aea9` | 18/24 | -0.0247 | 44 | 10/10 | 1 | 0.533 |
 
 <!-- end generated -->
 
@@ -255,31 +261,43 @@ perturbational spread and synergy together, which is §39 satisfied: the
 partition the search found is carrying something. Releasing it restores two of
 the three, so §40 is not.
 
+Measured again on the three frozen seeds at `670f3e955`, the lesion failed on
+all three, for two reasons in the instrument rather than the organism. The
+workspace re-scored a held winner against the running clock, so
+`G.winner_priority` moved under the clamp and the cut was refused as one that
+had not severed. And a lesion cycle had 39 transitions against the 40
+irreducibility and synergy need, so both read exactly 0.0 in every arm and the
+lesion was judged on spread alone. Both are fixed in `c798126bf` and have not
+yet been measured.
+
 ## The conjunction
 
-ISC(K) = 1 is an and, not an average. Read across three consecutive runs of the
-same code on the same organism, not from one: the single-run totals were 11, 13
-and 12, eleven criteria hold on all three, eleven fail on all three, and two sit
-in between. Each run is 960 turns, 31,680 frames, 164 state columns, 90 domain
-pairs and 1,440 paired arms. Runs are kept one directory each and never
-overwritten, so the report of a given run is in that run's directory — the
-latest with one is `artifacts/subject_core/run_009/subject_core_report.json`,
-and `artifacts/subject_core/README.md` says what else each directory holds.
+ISC(K) = 1 is an and, not an average. Read across the three-seed frozen
+campaign `8874aea9` at `670f3e955`, seeds 7, 11 and 13, not from one run: the
+single-run totals were 17, 17 and 15, fifteen criteria hold on all three, seven
+fail on all three, and two sit in between. Each run is 480 turns, 15,840 frames,
+210 state columns, 90 domain pairs and 1,440 paired arms. Runs are kept one
+directory each and never overwritten, so the report of a given run is in that
+run's directory — the latest with one is
+`artifacts/subject_core/run_028/subject_core_report.json`, and
+`artifacts/subject_core/README.md` says what else each directory holds. What
+24 of 24 requires of the organism, criterion by criterion, is derived in
+[SUBJECT_CORE_TARGET.md](SUBJECT_CORE_TARGET.md).
 
-The two that come and go are `global_access` (2 runs of 3) and `lesion_deficit`
-(1 of 3). A criterion that changes answer between identical runs is not
-evidence either way, and reporting the run that came out best would be picking
-the draw.
+The two that come and go are `intrinsic_persistence` (2 runs of 3) and
+`beats_every_null` (2 of 3). A criterion that changes answer between identical
+runs is not evidence either way, and reporting the run that came out best would
+be picking the draw.
 
-- [ ] **causal_closure_scc** (§14) — every domain reaches every other one
+- [x] **causal_closure_scc** (§14) — every domain reaches every other one
 - [ ] **robust_recurrence_kappa** (§17) — no single domain's removal disconnects the rest
-- [ ] **cycles_per_domain** (§15) — every domain on two or more cross-domain cycles
-- [ ] **reentry** (§16) — influence leaves a domain and returns through two others
+- [x] **cycles_per_domain** (§15) — every domain on two or more cross-domain cycles
+- [x] **reentry** (§16) — influence leaves a domain and returns through two others
 - [ ] **partition_irreducibility** (§11) — the cheapest cut still costs prediction
 - [ ] **partition_beats_nulls** (§18) — above every null architecture and surrogate
-- [ ] **differentiation** (§18) — `D_eff/D >= 0.4`
+- [x] **differentiation** (§18) — at least three effective dimensions, no component over half the variance, and the ratio under 0.4
 - [x] **differentiation_above_floor** (§18) — well above one dimension, no component over half the variance
-- [x] **intrinsic_persistence** (§19) — the last state predicts the next beyond the environment
+- [ ] **intrinsic_persistence** (§19) — the last state predicts the next beyond the environment (2 runs of 3)
 - [x] **causal_closure_of_the_core** (§3) — nothing outside K predicts K better than K
 - [ ] **perturbational_spread** (§24) — a local displacement reaches 60% of the core
 - [x] **perturbational_complexity** (§26) — structured, not local and not a broadcast
@@ -291,10 +309,10 @@ the draw.
 - [x] **ownership** (§34) — the same world state updates the self differently when she caused it
 - [x] **fast_to_slow** (§38) — fast cognition changes the developmental state
 - [x] **slow_to_fast** (§38) — the developmental state changes later cognition
-- [ ] **natural_runtime_replication** (§44) — strongly connected in at least three of the eight ordinary conditions, each condition's graph built from its own trials; v25 does not change this bar
-- [x] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
+- [x] **natural_runtime_replication** (§44) — strongly connected in at least three of the eight ordinary conditions, each condition's graph built from its own trials; v25 does not change this bar
+- [ ] **lesion_deficit** (§39) — cutting the cheapest partition degrades what it should
 - [ ] **rescue** (§40) — restoring it brings them back
-- [x] **beats_every_null** (§41) — no null passes, and the recurrent reference does
+- [ ] **beats_every_null** (§41) — no null passes, and the recurrent reference does (2 runs of 3)
 
 ## The nulls
 

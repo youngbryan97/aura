@@ -863,7 +863,12 @@ def test_desktop_shell_renders_tool_results_without_inline_html_handlers():
     assert "function safeDisplayUrl" in aura_js
     assert "function appendGeneratedImageMessage" in aura_js
     assert "const role = meta && meta.system ? 'system' : 'aura';" in aura_js
-    assert "appendMsg(role, msg, false, meta)" in aura_js
+    # The metadata still travels with the message, spread rather than passed
+    # whole since e378f2e18 added a transcript flag beside it. Pinning the old
+    # call text failed a test about the role being carried over a change that
+    # kept carrying it.
+    call = aura_js.index("appendMsg(role, msg, false,")
+    assert "...meta" in aura_js[call : call + 120]
     assert "if (role === 'aura') triggerVoiceOrb('speaking');" in aura_js
     assert "appendMsg('system', failureText, false, { system: true, diagnostic: true });" in aura_js
     assert "appendMsg('aura', data.response)" not in aura_js

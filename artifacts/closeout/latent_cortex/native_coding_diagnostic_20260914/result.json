@@ -1,0 +1,1605 @@
+{
+  "admitted": false,
+  "arms": {
+    "coefficient_lesion": {
+      "exact": 0,
+      "exact_accuracy": 0.0,
+      "examples": 6,
+      "mean_generated_tokens": 64.0,
+      "mean_latency_ms": 8262.667,
+      "mean_prompt_tokens": 456.0,
+      "parsed": 6,
+      "parsed_accuracy": 1.0,
+      "receipt_sha256": "817590ec76596181d9ab995767198a1b1793d15dd22236ca8106336e9cf0c3a8"
+    },
+    "matched_wire_base": {
+      "exact": 0,
+      "exact_accuracy": 0.0,
+      "examples": 6,
+      "mean_generated_tokens": 87.0,
+      "mean_latency_ms": 8994.833,
+      "mean_prompt_tokens": 325.0,
+      "parsed": 6,
+      "parsed_accuracy": 1.0,
+      "receipt_sha256": "f3c95cefb9ea6fef4696c6b57d7d3b43d44abd42e1542a004b76cf2705946ce7"
+    },
+    "matched_wrong_state": {
+      "exact": 0,
+      "exact_accuracy": 0.0,
+      "examples": 6,
+      "mean_generated_tokens": 100.667,
+      "mean_latency_ms": 12222.0,
+      "mean_prompt_tokens": 487.5,
+      "parsed": 6,
+      "parsed_accuracy": 1.0,
+      "receipt_sha256": "90ad8c5f89d171c4746a9818491551b4db7bb36926fa3a120bc249b36fbc41ae"
+    },
+    "ordinary_base": {
+      "exact": 6,
+      "exact_accuracy": 1.0,
+      "examples": 6,
+      "mean_generated_tokens": 2129.833,
+      "mean_latency_ms": 161827.167,
+      "mean_prompt_tokens": 325.0,
+      "parsed": 6,
+      "parsed_accuracy": 1.0,
+      "receipt_sha256": "7075e9309006fedb141a5949f288b539511d0b98436d2db67fa0d923a82b12be"
+    },
+    "treatment": {
+      "exact": 6,
+      "exact_accuracy": 1.0,
+      "examples": 6,
+      "mean_generated_tokens": 100.667,
+      "mean_latency_ms": 10144.0,
+      "mean_prompt_tokens": 487.5,
+      "parsed": 6,
+      "parsed_accuracy": 1.0,
+      "receipt_sha256": "363f02c97f820f6bdb14cef70ccd78ed78cf71e03770446dab408e7615ecd39b"
+    }
+  },
+  "claim_boundary": "bounded teacher-free multi-domain neural-state-to-free-decode transfer on the resident model bound by model_identity and resident_manifest_identity; not open-domain, broad reasoning, fusion, frontier performance, or WOW",
+  "coefficient_lesion_contract": {
+    "frontier_coding": {
+      "coefficient_index": 1,
+      "operation": "addition",
+      "operation_index": 0
+    }
+  },
+  "decode_coverage": {
+    "attempts_by_arm": {
+      "coefficient_lesion": 6,
+      "matched_wire_base": 6,
+      "matched_wrong_state": 6,
+      "ordinary_base": 6,
+      "treatment": 6
+    },
+    "censored_attempts_by_arm": {
+      "coefficient_lesion": 0,
+      "matched_wire_base": 0,
+      "matched_wrong_state": 0,
+      "ordinary_base": 0,
+      "treatment": 0
+    },
+    "uncensored": true
+  },
+  "decode_policy": "native_public_channel_v1",
+  "difficulties": [
+    1,
+    2,
+    3
+  ],
+  "domains": [
+    "coding"
+  ],
+  "elapsed_seconds": 1218.703,
+  "gain_count": 0,
+  "gain_set_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "grading_policy": "semantic_values_v2",
+  "journal_last_decode_receipt_sha256": "be284a16397643103709562fb88dfcaac2e1aabaf6fe31aff1023e53784b5609",
+  "journal_path": "/private/tmp/aura-g06-coding-20260914/journal.jsonl",
+  "max_tokens": 8192,
+  "model_identity": {
+    "config_sha256": "11ce6fab918333fbeaebf3ec3ff99f5e12227eb06a1a2c1c3fe4fd8d1488876b",
+    "path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "weights_index_sha256": "a2161f6a6c9f7c434145f97a4a4262a74eb3e16a95088e713754eb108b198511"
+  },
+  "raw_outputs": [
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 58,
+            "latency_ms": 15893,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "74ee80a1cf3f68c840b90a7fa30e5734a369d439ee3565895bb24c864363e424"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 440,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 86,
+            "latency_ms": 20501,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "4108b6c06bf21b47f4ecfd3495b6d334658653f80eb9b859546eb7218da74641"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 464,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 1528,
+            "latency_ms": 210335,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "260ac2c5738f4f82efe5160c5e9350a1645f0358ecf7c27e59160a0be2603b89",
+            "reasoning_chars": 5094,
+            "reasoning_sha256": "48a53732aa54126639be069badffe98051da447a9151930396486392cba52eb8",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "4a14f867a1b6a88e535c23e28a3fe65ef83dbe0873ab8523011f57d92f15d836"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 313,
+          "raw_response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"by\",-8]],\"pressure\":[2,5,7,5,8]},{\"state\":[[\"ax\",-3],[\"by\",2],[\"cz\",-1],[\"du\",-2]],\"pressure\":[2,1,4,6,8]}],\"time_complexity\":\"Theta(n^2)\"}",
+          "raw_response_sha256": "260ac2c5738f4f82efe5160c5e9350a1645f0358ecf7c27e59160a0be2603b89",
+          "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"by\",-8]],\"pressure\":[2,5,7,5,8]},{\"state\":[[\"ax\",-3],[\"by\",2],[\"cz\",-1],[\"du\",-2]],\"pressure\":[2,1,4,6,8]}],\"time_complexity\":\"Theta(n^2)\"}",
+          "response_sha256": "260ac2c5738f4f82efe5160c5e9350a1645f0358ecf7c27e59160a0be2603b89",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"by\",-8]],\"pressure\":[2,5,7,5,8]},{\"state\":[[\"ax\",-3],[\"by\",2],[\"cz\",-1],[\"du\",-2]],\"pressure\":[2,1,4,6,8]}],\"time_complexity\":\"Theta(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 79,
+            "latency_ms": 12219,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "6fae436b2cf197a1acc52a9a8fd6f410870d0fd5156531965f66caea45b5716b",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "644b51a016efc514c95e29acc819dadb1739824284d5e62a51add2b032179731"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 313,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"by\", -8]], \"pressure\": [2, 5, 7, 5, 8]}, {\"state\": [[\"ax\", -3], [\"by\", 2], [\"du\", -2]], \"pressure\": [2, 1, 4, 6, 8]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "6fae436b2cf197a1acc52a9a8fd6f410870d0fd5156531965f66caea45b5716b",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"by\", -8]], \"pressure\": [2, 5, 7, 5, 8]}, {\"state\": [[\"ax\", -3], [\"by\", 2], [\"du\", -2]], \"pressure\": [2, 1, 4, 6, 8]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "6fae436b2cf197a1acc52a9a8fd6f410870d0fd5156531965f66caea45b5716b",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"by\", -8]], \"pressure\": [2, 5, 7, 5, 8]}, {\"state\": [[\"ax\", -3], [\"by\", 2], [\"du\", -2]], \"pressure\": [2, 1, 4, 6, 8]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 86,
+            "latency_ms": 13495,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "19c5e3adc95e1120cd029c31ef76d3451285bd5ad4ec89c818e8451d7863ba0d"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 464,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 85,
+            "latency_ms": 14120,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "10bae5f785a8081740bf52bb8c4e96ce5cc72a715178b77c6d802b4263bde833",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "ab8e24ab97d92bedf54506d0c4ad652e86642c958a5dcbf0e37bdd98d1815f9e"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 313,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 1]], \"pressure\": [1, 3, 2, 1, 2]}, {\"state\": [[\"ax\", -2], [\"by\", -2], [\"du\", -1]], \"pressure\": [3, 5, 3, 1, 2]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "10bae5f785a8081740bf52bb8c4e96ce5cc72a715178b77c6d802b4263bde833",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 1]], \"pressure\": [1, 3, 2, 1, 2]}, {\"state\": [[\"ax\", -2], [\"by\", -2], [\"du\", -1]], \"pressure\": [3, 5, 3, 1, 2]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "10bae5f785a8081740bf52bb8c4e96ce5cc72a715178b77c6d802b4263bde833",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 1]], \"pressure\": [1, 3, 2, 1, 2]}, {\"state\": [[\"ax\", -2], [\"by\", -2], [\"du\", -1]], \"pressure\": [3, 5, 3, 1, 2]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 86,
+            "latency_ms": 13714,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "4108b6c06bf21b47f4ecfd3495b6d334658653f80eb9b859546eb7218da74641"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 464,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [1, 3, 2, 1, 2], \"state\": [[\"ax\", 1], [\"by\", 1]]}, {\"pressure\": [3, 5, 7, 9, 8], \"state\": [[\"ax\", -4], [\"by\", -3], [\"du\", -1]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 58,
+            "latency_ms": 10163,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "74ee80a1cf3f68c840b90a7fa30e5734a369d439ee3565895bb24c864363e424"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 440,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 105,
+            "latency_ms": 17720,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "5261f957aa69dfc44131ccfe70ba0bf4dd3ebbc09cc1c8e85e20940cb1e89e64"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 479,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 1537,
+            "latency_ms": 108357,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "6d509e47dcfb013c21a676e5f762f882814be57aab94a622d8c43c170cb3c2cd",
+            "reasoning_chars": 5025,
+            "reasoning_sha256": "1e0c0a960ce0599ab6c4828b819d3d5e8d9418c0ccb89bf25e4658a1127d8059",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "dd2756ce89c563e575f68f7d06e245b53adfa1866a4a31b252990b9f4039069f"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 313,
+          "raw_response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",1]],\"pressure\":[1,3,2,1,2]},{\"state\":[[\"ax\",-4],[\"by\",-3],[\"du\",-1]],\"pressure\":[3,5,7,9,8]}],\"time_complexity\":\"O(n^2)\"}",
+          "raw_response_sha256": "6d509e47dcfb013c21a676e5f762f882814be57aab94a622d8c43c170cb3c2cd",
+          "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",1]],\"pressure\":[1,3,2,1,2]},{\"state\":[[\"ax\",-4],[\"by\",-3],[\"du\",-1]],\"pressure\":[3,5,7,9,8]}],\"time_complexity\":\"O(n^2)\"}",
+          "response_sha256": "6d509e47dcfb013c21a676e5f762f882814be57aab94a622d8c43c170cb3c2cd",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",1]],\"pressure\":[1,3,2,1,2]},{\"state\":[[\"ax\",-4],[\"by\",-3],[\"du\",-1]],\"pressure\":[3,5,7,9,8]}],\"time_complexity\":\"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 105,
+            "latency_ms": 8342,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "5261f957aa69dfc44131ccfe70ba0bf4dd3ebbc09cc1c8e85e20940cb1e89e64"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 491,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 6, 8, 7], \"state\": [[\"ax\", 1], [\"by\", 3], [\"cz\", -3]]}, {\"pressure\": [2, 4, 6, 8, 9, 10], \"state\": [[\"ax\", 2], [\"by\", -3], [\"cz\", -3], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 64,
+            "latency_ms": 6041,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "e4c98a3432cf6c89add901c12b2d0d2bfe8e324a9741d39260b2d0c38d98943f"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 456,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 107,
+            "latency_ms": 9863,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "e6474e85641caf41e66c3b0fba3670a94cbf8b19f3a3dace28d6f98ec8b97edb"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 493,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 3767,
+            "latency_ms": 243049,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "5db6f5afac3faf4acbf4d63c63c3cdff2f2b6ef06a62e3e1047159b4ae19daaf",
+            "reasoning_chars": 12423,
+            "reasoning_sha256": "ace99e54e335db182ebb4f8ba2db4c369bb0e7f58f1001fc2fa04d5e3fcbdf57",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "2dba040c482cf862c697dc8db4ec8a25ce6b032b60a792d977e49ece94397e20"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 325,
+          "raw_response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",3],[\"cz\",-3]],\"pressure\":[2,3,4,6,8,7]},{\"state\":[[\"ax\",2],[\"by\",-3],[\"cz\",-3],[\"du\",-2]],\"pressure\":[2,4,6,8,9,10]}],\"time_complexity\":\"O(n^2)\"}",
+          "raw_response_sha256": "5db6f5afac3faf4acbf4d63c63c3cdff2f2b6ef06a62e3e1047159b4ae19daaf",
+          "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",3],[\"cz\",-3]],\"pressure\":[2,3,4,6,8,7]},{\"state\":[[\"ax\",2],[\"by\",-3],[\"cz\",-3],[\"du\",-2]],\"pressure\":[2,4,6,8,9,10]}],\"time_complexity\":\"O(n^2)\"}",
+          "response_sha256": "5db6f5afac3faf4acbf4d63c63c3cdff2f2b6ef06a62e3e1047159b4ae19daaf",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"by\",3],[\"cz\",-3]],\"pressure\":[2,3,4,6,8,7]},{\"state\":[[\"ax\",2],[\"by\",-3],[\"cz\",-3],[\"du\",-2]],\"pressure\":[2,4,6,8,9,10]}],\"time_complexity\":\"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 80,
+            "latency_ms": 6266,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "5f9c174fe753f7fe0a7f58d073fdb3eea1f26947987b3f0fc93c58054b0b6507",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "3a1f8213212dbf3852b5c99274c0ed217d84abce48283fc0e6433a2b21c633d3"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 325,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 3]], \"pressure\": [2, 3, 4, 6, 4, 5]}, {\"state\": [[\"du\", -2]], \"pressure\": [2, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "5f9c174fe753f7fe0a7f58d073fdb3eea1f26947987b3f0fc93c58054b0b6507",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 3]], \"pressure\": [2, 3, 4, 6, 4, 5]}, {\"state\": [[\"du\", -2]], \"pressure\": [2, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "5f9c174fe753f7fe0a7f58d073fdb3eea1f26947987b3f0fc93c58054b0b6507",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 3]], \"pressure\": [2, 3, 4, 6, 4, 5]}, {\"state\": [[\"du\", -2]], \"pressure\": [2, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 73,
+            "latency_ms": 5946,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "2b76f0a2340ec4b88e321460b90ee8b667753d07243f8d24ba96a7847b98a05b",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "45412844a89000d32890d2329e27c27611c28fb755126e86c784ab9a067541ef"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 325,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"du\", 1]], \"pressure\": [3, 4, 2, 2, 1, 3]}, {\"state\": [[\"by\", 4]], \"pressure\": [3, 6, 3, 5, 7, 6]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "2b76f0a2340ec4b88e321460b90ee8b667753d07243f8d24ba96a7847b98a05b",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"du\", 1]], \"pressure\": [3, 4, 2, 2, 1, 3]}, {\"state\": [[\"by\", 4]], \"pressure\": [3, 6, 3, 5, 7, 6]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "2b76f0a2340ec4b88e321460b90ee8b667753d07243f8d24ba96a7847b98a05b",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"du\", 1]], \"pressure\": [3, 4, 2, 2, 1, 3]}, {\"state\": [[\"by\", 4]], \"pressure\": [3, 6, 3, 5, 7, 6]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 107,
+            "latency_ms": 8527,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "e6474e85641caf41e66c3b0fba3670a94cbf8b19f3a3dace28d6f98ec8b97edb"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 493,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [3, 4, 5, 4, 2, 4], \"state\": [[\"ax\", -1], [\"by\", -2], [\"du\", 1]]}, {\"pressure\": [3, 6, 9, 11, 13, 12], \"state\": [[\"ax\", -2], [\"by\", 4], [\"cz\", -3], [\"du\", 3]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 64,
+            "latency_ms": 5745,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "e4c98a3432cf6c89add901c12b2d0d2bfe8e324a9741d39260b2d0c38d98943f"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 456,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 103,
+            "latency_ms": 9231,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "4936caaeebe91e65623c873e6ab222a8dccec8cd3437ee917c533e29ee8577a7"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 489,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 2083,
+            "latency_ms": 141116,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "f7cfaf19abf3fd3a364382714324ac26da7b3271bd9ec6632bad808b908831dd",
+            "reasoning_chars": 6499,
+            "reasoning_sha256": "87440a1271dc7f2928e93f42b61e1f0633ed8d8389c3dd66128ced1975734f8e",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "09423e5c15e9efe5d99b4fd6c2ce4a720f0a7b954fe565e99733d7aa0ce43d99"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 325,
+          "raw_response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",-1],[\"by\",-2],[\"du\",1]],\"pressure\":[3,4,5,4,2,4]},{\"state\":[[\"ax\",-2],[\"by\",4],[\"cz\",-3],[\"du\",3]],\"pressure\":[3,6,9,11,13,12]}],\"time_complexity\":\"O(n^2)\"}",
+          "raw_response_sha256": "f7cfaf19abf3fd3a364382714324ac26da7b3271bd9ec6632bad808b908831dd",
+          "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",-1],[\"by\",-2],[\"du\",1]],\"pressure\":[3,4,5,4,2,4]},{\"state\":[[\"ax\",-2],[\"by\",4],[\"cz\",-3],[\"du\",3]],\"pressure\":[3,6,9,11,13,12]}],\"time_complexity\":\"O(n^2)\"}",
+          "response_sha256": "f7cfaf19abf3fd3a364382714324ac26da7b3271bd9ec6632bad808b908831dd",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",-1],[\"by\",-2],[\"du\",1]],\"pressure\":[3,4,5,4,2,4]},{\"state\":[[\"ax\",-2],[\"by\",4],[\"cz\",-3],[\"du\",3]],\"pressure\":[3,6,9,11,13,12]}],\"time_complexity\":\"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 70,
+            "latency_ms": 6122,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "6e81d6c15c469e73612d4d490cb014f881d4adae8f1965559673b9167c4d4221"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 472,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 117,
+            "latency_ms": 9381,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "c0c8769ce5dfb5e32949ec62411fef5e8a996ffa8d7a59d190a04841d6ff74fd"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 512,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 2057,
+            "latency_ms": 146522,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "3de6510ca9dbd7e8e32561846f1dd9a8e4484622e57f966ad6a46896d3a15b65",
+            "reasoning_chars": 5977,
+            "reasoning_sha256": "e83e7cc2471643bccdfc6f8ee830829c54d48008e88a480a6514c7e6ba9cd674",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "10da49be5d90355bfb063dd1efe1157e5d5372f03bbe05bb8b9361f85c130809"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 337,
+          "raw_response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"cz\",-2],[\"du\",2]],\"pressure\":[2,3,4,7,5,6,5]},{\"state\":[[\"ax\",-2],[\"du\",12]],\"pressure\":[3,5,8,10,12,13,14]}],\"time_complexity\":\"O(n^2)\"}",
+          "raw_response_sha256": "3de6510ca9dbd7e8e32561846f1dd9a8e4484622e57f966ad6a46896d3a15b65",
+          "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"cz\",-2],[\"du\",2]],\"pressure\":[2,3,4,7,5,6,5]},{\"state\":[[\"ax\",-2],[\"du\",12]],\"pressure\":[3,5,8,10,12,13,14]}],\"time_complexity\":\"O(n^2)\"}",
+          "response_sha256": "3de6510ca9dbd7e8e32561846f1dd9a8e4484622e57f966ad6a46896d3a15b65",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER:{\"returns\":[{\"state\":[[\"ax\",1],[\"cz\",-2],[\"du\",2]],\"pressure\":[2,3,4,7,5,6,5]},{\"state\":[[\"ax\",-2],[\"du\",12]],\"pressure\":[3,5,8,10,12,13,14]}],\"time_complexity\":\"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 87,
+            "latency_ms": 6619,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "406b8ff5b4b0a0208cad82053b8d73bbb780b9cb3199ad02c2501c0dbbba3bd9",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "aa24d06a0814052cdc88e42293b5505f32b5f3e1fac0a1848cafb08695b6c2b1"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 337,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1]], \"pressure\": [2, 3, 4, 1, 3, 2, 1]}, {\"state\": [[\"ax\", -2], [\"du\", 12]], \"pressure\": [3, 1, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "406b8ff5b4b0a0208cad82053b8d73bbb780b9cb3199ad02c2501c0dbbba3bd9",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1]], \"pressure\": [2, 3, 4, 1, 3, 2, 1]}, {\"state\": [[\"ax\", -2], [\"du\", 12]], \"pressure\": [3, 1, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "406b8ff5b4b0a0208cad82053b8d73bbb780b9cb3199ad02c2501c0dbbba3bd9",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1]], \"pressure\": [2, 3, 4, 1, 3, 2, 1]}, {\"state\": [[\"ax\", -2], [\"du\", 12]], \"pressure\": [3, 1, 4, 6, 8, 9, 10]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 103,
+            "latency_ms": 7766,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "4936caaeebe91e65623c873e6ab222a8dccec8cd3437ee917c533e29ee8577a7"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 501,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 4, 7, 5, 6, 5], \"state\": [[\"ax\", 1], [\"cz\", -2], [\"du\", 2]]}, {\"pressure\": [3, 5, 8, 10, 12, 13, 14], \"state\": [[\"ax\", -2], [\"du\", 12]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 70,
+            "latency_ms": 5612,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "6e81d6c15c469e73612d4d490cb014f881d4adae8f1965559673b9167c4d4221"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 472,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}, {\"pressure\": [0, 0, 0, 0, 0, 0, 0], \"state\": []}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 86,
+            "latency_ms": 6636,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "19c5e3adc95e1120cd029c31ef76d3451285bd5ad4ec89c818e8451d7863ba0d"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 488,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 5, 7, 5, 8], \"state\": [[\"by\", -8]]}, {\"pressure\": [2, 1, 4, 6, 8], \"state\": [[\"ax\", -3], [\"by\", 2], [\"cz\", -1], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "ordinary_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 0,
+            "generated_tokens": 1807,
+            "latency_ms": 121584,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 0,
+            "public_text_sha256": "d32f333037c36778851c9c7a504bf6344dfd41f8c3204c9e5475967e2673e586",
+            "reasoning_chars": 4877,
+            "reasoning_sha256": "0537df03d0805dd4f5cdc10f98df52922bb2caabbb610c0cd32d5d346c3a0879",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "81a8618393941ac331803d52971e744e94433f02046ccadc9f89e6b8a1c33af1"
+          },
+          "prefill_tokens": 0,
+          "prompt_tokens": 337,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 9]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]], \"pressure\": [3, 6, 7, 9, 8, 7, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "d32f333037c36778851c9c7a504bf6344dfd41f8c3204c9e5475967e2673e586",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 9]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]], \"pressure\": [3, 6, 7, 9, 8, 7, 10]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "d32f333037c36778851c9c7a504bf6344dfd41f8c3204c9e5475967e2673e586",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 9]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]], \"pressure\": [3, 6, 7, 9, 8, 7, 10]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "matched_wire_base",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 118,
+            "latency_ms": 8799,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "4b2747c7ad8a5a294c4e2e0c5e12a2b7562be66f29181ba74a1eeb15af1c8f05",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "b2de6dcb3178037b0c00886554707d414b97ee8a0c1d63e8cc597b8cd281f674"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 337,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", -1], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 7]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 1], [\"du\", -5]], \"pressure\": [3, 6, 7, 9, 10, 11, 14]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "4b2747c7ad8a5a294c4e2e0c5e12a2b7562be66f29181ba74a1eeb15af1c8f05",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", -1], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 7]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 1], [\"du\", -5]], \"pressure\": [3, 6, 7, 9, 10, 11, 14]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "4b2747c7ad8a5a294c4e2e0c5e12a2b7562be66f29181ba74a1eeb15af1c8f05",
+          "serialization_verified": null,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"state\": [[\"ax\", 1], [\"by\", -1], [\"cz\", -1], [\"du\", -5]], \"pressure\": [2, 3, 2, 5, 6, 8, 7]}, {\"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 1], [\"du\", -5]], \"pressure\": [3, 6, 7, 9, 10, 11, 14]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "treatment",
+      "attempts": [
+        {
+          "attempt": 1,
+          "decode": {
+            "boundary_closed": true,
+            "boundary_tokens": 2,
+            "generated_tokens": 117,
+            "latency_ms": 9020,
+            "native_thinking": true,
+            "policy": "native_public_channel_v1",
+            "prefill_tokens": 7,
+            "public_text_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+            "reasoning_chars": 0,
+            "reasoning_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "stop_reason": "public_contract",
+            "token_ids_sha256": "c0c8769ce5dfb5e32949ec62411fef5e8a996ffa8d7a59d190a04841d6ff74fd"
+          },
+          "prefill_tokens": 7,
+          "prompt_tokens": 512,
+          "raw_response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "raw_response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+          "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+          "response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+          "serialization_verified": true,
+          "wire_normalized": false
+        }
+      ],
+      "response": "FINAL_ANSWER: {\"returns\": [{\"pressure\": [2, 3, 2, 5, 6, 8, 9], \"state\": [[\"ax\", 1], [\"by\", 2], [\"cz\", -1], [\"du\", -5]]}, {\"pressure\": [3, 6, 7, 9, 8, 7, 10], \"state\": [[\"ax\", -4], [\"by\", -2], [\"cz\", 2], [\"du\", -2]]}], \"time_complexity\": \"O(n^2)\"}",
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    }
+  ],
+  "receipt_sha256": "92f6f7bb65d87d039126d042d20563d372558b04ad5c671b0d90e5d332973401",
+  "regression_count": 0,
+  "regression_set_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+    "base_model": "/Users/bryan/.aura/models/Qwen3.8-27B-4bit-3e6447f082e8",
+    "fused_at": 1787550884,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 3,
+    "sha256": "d96503910e4779346a5bae714f4f94975b2974420c796c66bead3aef9d9faf15",
+    "tag": "cp954-27b-resident"
+  },
+  "rows": [
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 58,
+      "latency_ms": 15893,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 440,
+      "response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+      "serialization_verified": true,
+      "state_receipt_sha256": "b55c160c8c16c8169e05e9561b335f5e9b8cac882d5be81a2920016c9a13089c",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 86,
+      "latency_ms": 20501,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 464,
+      "response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+      "serialization_verified": true,
+      "state_receipt_sha256": "871db49dd2778e79a82dd8ef881d5f4d26ec5843c49ba0690db414b8505ec22a",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 1528,
+      "latency_ms": 210335,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 313,
+      "response_sha256": "260ac2c5738f4f82efe5160c5e9350a1645f0358ecf7c27e59160a0be2603b89",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 79,
+      "latency_ms": 12219,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 313,
+      "response_sha256": "6fae436b2cf197a1acc52a9a8fd6f410870d0fd5156531965f66caea45b5716b",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 86,
+      "latency_ms": 13495,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 464,
+      "response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+      "serialization_verified": true,
+      "state_receipt_sha256": "4b4d18461b57ddd073882bf46f55a7bb822610f2e9c4c75499388784f7cbe3c9",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s1642008401113746"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 85,
+      "latency_ms": 14120,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 313,
+      "response_sha256": "10bae5f785a8081740bf52bb8c4e96ce5cc72a715178b77c6d802b4263bde833",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 86,
+      "latency_ms": 13714,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 464,
+      "response_sha256": "f3f8ef5dc80598e02fb5279180bc9cb1215d9aac7edd1a9b9de6943d2c921a10",
+      "serialization_verified": true,
+      "state_receipt_sha256": "871db49dd2778e79a82dd8ef881d5f4d26ec5843c49ba0690db414b8505ec22a",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 58,
+      "latency_ms": 10163,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 440,
+      "response_sha256": "a968bf7bb251d18dacfb207419fb54fb3a7af4ce26b431fbed5be0a2572be344",
+      "serialization_verified": true,
+      "state_receipt_sha256": "481ff4e5f594753d86870633a38ed2a3b6cb42bce631b878cc4e85df52d04f80",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 105,
+      "latency_ms": 17720,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 479,
+      "response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+      "serialization_verified": true,
+      "state_receipt_sha256": "41aefc3d10cb7acf0f0c57896359f14196f75b6a082085426739491b00b02cc7",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 1537,
+      "latency_ms": 108357,
+      "parsed": true,
+      "program_depth": 15,
+      "prompt_tokens": 313,
+      "response_sha256": "6d509e47dcfb013c21a676e5f762f882814be57aab94a622d8c43c170cb3c2cd",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d15-s906559415048038872"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 105,
+      "latency_ms": 8342,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 491,
+      "response_sha256": "f047485689baceb75f83ee9fd1f6d2ee8c97929568ee670341059a691c011125",
+      "serialization_verified": true,
+      "state_receipt_sha256": "41aefc3d10cb7acf0f0c57896359f14196f75b6a082085426739491b00b02cc7",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 64,
+      "latency_ms": 6041,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 456,
+      "response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+      "serialization_verified": true,
+      "state_receipt_sha256": "37c80858c9b283f2cbe51ccc5e31e9b9255d67beca285a709c868e6c204a62df",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 107,
+      "latency_ms": 9863,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 493,
+      "response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+      "serialization_verified": true,
+      "state_receipt_sha256": "144ba7e26b2a4f9236dfed1c67af91043792c625551f09bea77a3d0477aca6dd",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 3767,
+      "latency_ms": 243049,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 325,
+      "response_sha256": "5db6f5afac3faf4acbf4d63c63c3cdff2f2b6ef06a62e3e1047159b4ae19daaf",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 80,
+      "latency_ms": 6266,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 325,
+      "response_sha256": "5f9c174fe753f7fe0a7f58d073fdb3eea1f26947987b3f0fc93c58054b0b6507",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s967222290682151331"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 73,
+      "latency_ms": 5946,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 325,
+      "response_sha256": "2b76f0a2340ec4b88e321460b90ee8b667753d07243f8d24ba96a7847b98a05b",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 107,
+      "latency_ms": 8527,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 493,
+      "response_sha256": "1525c9e8d40f0bdb1bb946d36a135e7e927e8b87f45cb1a68ece6a4b3f500030",
+      "serialization_verified": true,
+      "state_receipt_sha256": "144ba7e26b2a4f9236dfed1c67af91043792c625551f09bea77a3d0477aca6dd",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 64,
+      "latency_ms": 5745,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 456,
+      "response_sha256": "86f5c68221dc19580b48d9a92a62c317d8d169bb0cd2ea4c6b6caf615afeef7d",
+      "serialization_verified": true,
+      "state_receipt_sha256": "7c46ea53ef0bf0108a28076dad4cd04735179f21f53f0a75b1b0ab3e1dee3f0d",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 103,
+      "latency_ms": 9231,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 489,
+      "response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+      "serialization_verified": true,
+      "state_receipt_sha256": "655e6cef79cec72bbdade549b9305e3d04079a673b270373ed678461d0a7e256",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 2083,
+      "latency_ms": 141116,
+      "parsed": true,
+      "program_depth": 17,
+      "prompt_tokens": 325,
+      "response_sha256": "f7cfaf19abf3fd3a364382714324ac26da7b3271bd9ec6632bad808b908831dd",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d17-s230531205077465018"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 70,
+      "latency_ms": 6122,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 472,
+      "response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+      "serialization_verified": true,
+      "state_receipt_sha256": "3852904d4831c19d2dfd3d620796fedb0a2db25bf4848ba4a667e995bf241aef",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 117,
+      "latency_ms": 9381,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 512,
+      "response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+      "serialization_verified": true,
+      "state_receipt_sha256": "b1cff5771a30a4f6e1f36f56f96b8484b48290acfca51798385d4297028e048b",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 2057,
+      "latency_ms": 146522,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 337,
+      "response_sha256": "3de6510ca9dbd7e8e32561846f1dd9a8e4484622e57f966ad6a46896d3a15b65",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 87,
+      "latency_ms": 6619,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 337,
+      "response_sha256": "406b8ff5b4b0a0208cad82053b8d73bbb780b9cb3199ad02c2501c0dbbba3bd9",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 103,
+      "latency_ms": 7766,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 501,
+      "response_sha256": "8a27c34142810e13a5b71920113c96bc1f7df31eb3c2f1aba32221b47b1058c4",
+      "serialization_verified": true,
+      "state_receipt_sha256": "655e6cef79cec72bbdade549b9305e3d04079a673b270373ed678461d0a7e256",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s210438657222670623"
+    },
+    {
+      "arm": "coefficient_lesion",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 70,
+      "latency_ms": 5612,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 472,
+      "response_sha256": "d5552affec263c7c4ecc6b591f8c45eedbd659dcc915d2aea31562441a9ba52e",
+      "serialization_verified": true,
+      "state_receipt_sha256": "cd02f38f54047c5a0ef002f6433203dbe56528567d0647ad2b42919289bb3982",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "matched_wrong_state",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 86,
+      "latency_ms": 6636,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 488,
+      "response_sha256": "0cc0564d312be6d5fd10b492d760c1d4ded3f20ea2f158cd093deeeb2abc020c",
+      "serialization_verified": true,
+      "state_receipt_sha256": "4b4d18461b57ddd073882bf46f55a7bb822610f2e9c4c75499388784f7cbe3c9",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "ordinary_base",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 1807,
+      "latency_ms": 121584,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 337,
+      "response_sha256": "d32f333037c36778851c9c7a504bf6344dfd41f8c3204c9e5475967e2673e586",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "matched_wire_base",
+      "correct": false,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 118,
+      "latency_ms": 8799,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 337,
+      "response_sha256": "4b2747c7ad8a5a294c4e2e0c5e12a2b7562be66f29181ba74a1eeb15af1c8f05",
+      "serialization_verified": null,
+      "state_receipt_sha256": "",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    },
+    {
+      "arm": "treatment",
+      "correct": true,
+      "decode_attempts": 1,
+      "family": "frontier_coding",
+      "generated_tokens": 117,
+      "latency_ms": 9020,
+      "parsed": true,
+      "program_depth": 19,
+      "prompt_tokens": 512,
+      "response_sha256": "34d8b58087741b77683f76e270029b642206cc9f97d332f641d6f73848b060c5",
+      "serialization_verified": true,
+      "state_receipt_sha256": "b1cff5771a30a4f6e1f36f56f96b8484b48290acfca51798385d4297028e048b",
+      "stopped": true,
+      "task_id": "recurrence-frontier_coding-d19-s783361404268139534"
+    }
+  ],
+  "schema": "aura.rlc.semantic_neural_decode_canary.v2",
+  "seed": 2026091402,
+  "source_commit": "beab1bf34340de0d99af32bdc8fbd8b3ae7ce1c7",
+  "source_sha256s": {
+    "core/brain/llm/chat_format.py": "3896143b1cd669f0cf57a3b22cdfd8461b1368f8be2a78cd57a3698c781687d9",
+    "core/brain/llm/latent_cortex/answer_contract.py": "9b943f95fa1eb5f40b65d623f95e379bc6f7f19cfdcaa255558a8fb436c0a266",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json": "00c9d18cb25f7687eecac7389236d0a40e8ff798b428c7497242638591ec1769",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7",
+    "core/brain/llm/latent_cortex/frontier_tasks.py": "bef80d1a49ce9d062544dbf29a89d11f018751a85658e1d4ce44b0d7c1020780",
+    "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/brain/llm/public_channel_decode.py": "cfac207c21eb5e2e50ed5b5e589f15e7f74603093278eb9320223c0da805e053",
+    "core/brain/llm/unified_recurrent_transfer_decode.py": "7bc2d7e0fe741b0760775a39449b33db506b0a6fd76cb9e3667951d9a67b4a78",
+    "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
+    "core/learning/public_decode_evidence.py": "4d16ce89b8886462c4e6412cf8701d62db94b80123bdd074f891a97cd9671cdd",
+    "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
+    "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
+    "core/learning/recurrent_state_schema.py": "56101d04275a76bc4106b7c7d2365e60d777abc759e8734218885830b7a2b79d",
+    "core/learning/semantic_neural_controls.py": "890305b703704de20d004f69cd2bd9a87cea29c3975c00bab3de5a90e8b3b689",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "core/learning/semantic_task_grading.py": "07be8207260699faf49ea67d10f7c4fb3691c6616549da22e3b47daf243a4f7d",
+    "core/reasoning/asymptotic.py": "2f5a78a57d33dff059718b5a7f95017a35ae18d2f6f7b98ae42f1997dca8363d",
+    "tools/run_semantic_neural_decode_canary.py": "71561aae7ff9116855299d90cc53111bc4e5515db0678b46d212f37f1b406e5d"
+  },
+  "surface_adapter_receipt_sha256s": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "surface_profile": "canonical",
+  "task_count": 6,
+  "tasks_per_difficulty": 2,
+  "treatment_state_receipt_sha256s": [
+    "4b4d18461b57ddd073882bf46f55a7bb822610f2e9c4c75499388784f7cbe3c9",
+    "871db49dd2778e79a82dd8ef881d5f4d26ec5843c49ba0690db414b8505ec22a",
+    "41aefc3d10cb7acf0f0c57896359f14196f75b6a082085426739491b00b02cc7",
+    "144ba7e26b2a4f9236dfed1c67af91043792c625551f09bea77a3d0477aca6dd",
+    "655e6cef79cec72bbdade549b9305e3d04079a673b270373ed678461d0a7e256",
+    "b1cff5771a30a4f6e1f36f56f96b8484b48290acfca51798385d4297028e048b"
+  ]
+}

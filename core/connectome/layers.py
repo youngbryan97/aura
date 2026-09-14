@@ -434,6 +434,10 @@ class MultilayerConnectome:
     ipc: dict[tuple[str, str], int] = field(default_factory=dict)
     channels: dict[str, dict[str, set[str]]] = field(default_factory=dict)
     unresolved_channels: int = 0
+    #: Source files that could not be read or parsed. Every channel in them is
+    #: absent from every layer, which is a smaller connectome rather than an
+    #: empty file.
+    unreadable_files: int = 0
 
     def layer(self, layer: Layer) -> dict[tuple[str, str], int]:
         return {
@@ -510,10 +514,12 @@ def extract_layers(
 
     channels: dict[str, dict[str, set[str]]] = {}
     skipped = 0
+    unreadable = 0
     for path in _iter_files(root, roots):
         try:
             tree = ast.parse(path.read_bytes().decode("utf-8", "replace"), filename=str(path))
         except (SyntaxError, OSError):
+            unreadable += 1
             continue
         module = _module_name(path, root)
         for qualname, node in _iter_functions(tree):
@@ -592,6 +598,7 @@ def extract_layers(
         ipc=ipc,
         channels=channels,
         unresolved_channels=skipped,
+        unreadable_files=unreadable,
     )
 
 

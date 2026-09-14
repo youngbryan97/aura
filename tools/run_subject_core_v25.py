@@ -62,6 +62,12 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+# Before any core import, because the profile decides where state lives and a
+# module that resolved its home under the live root keeps that home. Without
+# this the run's default root is the live instance's, the source checkout sits
+# inside it, and every module constant looks like a leak into it.
+os.environ.setdefault("AURA_TESTING", "1")
+
 logger = logging.getLogger("subject_core_v25")
 
 #: Horizons the rate is measured at, in experiment frames. The ladder doubles
@@ -132,14 +138,28 @@ async def _dose_matched(
     same number, and every edge out of the second then looks stronger for a
     reason that is about units. The correction is proportional and repeated: a
     domain that moved half an SD gets twice the dose next round.
+
+    What is matched is the typical column the push reached, not the most
+    sensitive one. The largest movement over a domain's columns let one quiet
+    channel set the whole domain's dose. v25 run_003 put affect, the self and
+    deliberation at the 1e-4 clip: affect's quietest live column has a spread
+    of 4.7e-05, so the first push of 0.15 read as 3,195 of its SDs, and the dose
+    that brought that one channel to a single SD moved nothing else anywhere.
+    The graph came back with no edges. Each column now counts only above
+    SCALE_FLOOR, its movement is clipped at the battery's DIVERGENCE_CEILING,
+    and the median over the columns that moved is brought to one SD.
     """
+    from core.subject.causal import DIVERGENCE_CEILING, SCALE_FLOOR
     from core.subject.state import perturb, perturb_organs
 
     doses = {key: 0.15 for key in domains}
     for _ in range(max(1, rounds)):
         for domain in domains:
             block = slices[domain]
-            unit = np.where(scale[block] > 1e-9, scale[block], 1.0)
+            live = scale[block] > SCALE_FLOOR
+            if not live.any():
+                continue
+            unit = scale[block][live]
             moved: list[float] = []
             for trial in range(max(1, trials)):
                 condition = conditions[trial % len(conditions)]
@@ -155,7 +175,9 @@ async def _dose_matched(
                     await runtime.turn_once(condition, perturb_at=0, perturb=apply)
                 )[-1].vector()[block]
                 runtime.restore(snapshot)
-                moved.append(float(np.max(np.abs(after - before) / unit)))
+                shift = np.clip(np.abs(after - before)[live] / unit, 0.0, DIVERGENCE_CEILING)
+                reached_columns = shift[shift > 0.0]
+                moved.append(float(np.median(reached_columns)) if reached_columns.size else 0.0)
             reached = float(np.median(moved)) if moved else 0.0
             if reached > 1e-6:
                 # Proportional, and bounded. A domain the writer cannot move at
@@ -297,19 +319,25 @@ async def _spectrum(
     domains: Sequence[str] | None = None,
     screen: int = 0,
 ) -> tuple[dict[float, float], dict[str, Any]]:
-    """The weakest cut's rate at every horizon on the ladder."""
-    from core.subject.v25_cut import sweep_cuts
+    """The weakest cut's rate at every horizon on the ladder.
+
+    One set of rollouts per cut serves every horizon. Scoring each lag with its
+    own sweep ran every cut's clamped arms again for every lag, although a
+    rollout already holds all of them. See `sweep_cuts_over_lags`.
+    """
+    from core.subject.v25_cut import sweep_cuts_over_lags
 
     spectrum: dict[float, float] = {}
     detail: dict[str, Any] = {}
-    for lag in lags:
+    reports = await sweep_cuts_over_lags(
+        runtime, anchors, conditions,
+        lags=lags, frame_seconds=frame_seconds,
+        turns=turns, rounds=rounds, seed=seed, domains=domains,
+        screen=screen,
+    )
+    for lag in sorted(reports):
+        report = reports[lag]
         tau = float(lag) * float(frame_seconds)
-        report = await sweep_cuts(
-            runtime, anchors, conditions,
-            tau_frames=int(lag), tau_seconds=tau,
-            turns=turns, rounds=rounds, seed=seed + lag, domains=domains,
-            screen=screen,
-        )
         weakest = report.weakest
         spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
         detail[f"lag_{lag}"] = report.as_dict()
@@ -487,7 +515,7 @@ async def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
-    from core.subject.closure import closure_gain, read_periphery
+    from core.subject.closure import closure_gain, periphery_matrix, read_periphery
     from core.subject.closure import coverage as periphery_coverage
     from core.subject.driver import (
         CONDITIONS,
@@ -551,9 +579,16 @@ async def main() -> int:
         # ── the baseline, which every scale is read against ────────────
         _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
         frames = []
+        periphery_rows: list[dict[str, float]] = []
         for _ in range(args.rounds):
             for condition in conditions:
-                frames.extend(await runtime.turn_once(condition))
+                for reading in await runtime.turn_once(condition):
+                    frames.append(reading)
+                    # Read once per frame, beside the frame. Closure compares
+                    # what the machine was carrying against what K did next, so
+                    # a single reading taken at the end would be one row against
+                    # a whole recording.
+                    periphery_rows.append(read_periphery(runtime.kernel))
         recording = build_recording(frames)
         recording.save(run_dir)
         scale = _pooled_scale(recording)
@@ -676,7 +711,7 @@ async def main() -> int:
 
         # ── closure, which is a gate ───────────────────────────────────
         _log("closure against the measured periphery")
-        periphery, names = read_periphery(runtime)
+        periphery, names = periphery_matrix(periphery_rows)
         closed, leak = False, float("nan")
         if periphery.size:
             report = closure_gain(recording, periphery, names, seed=args.seed)

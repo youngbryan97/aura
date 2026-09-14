@@ -68,7 +68,7 @@ def main() -> int:
     from core.runtime.model_lane_control import standalone_model_lane
 
     checkpoint = (
-        Path(arguments.model_path) if arguments.model_path else _snapshot_dir(arguments.model)
+        Path(arguments.model_path).resolve() if arguments.model_path else _snapshot_dir(arguments.model)
     )
     # Held for the whole probe. This loads a second model on a machine whose
     # resident cortex already holds about twenty gigabytes, and the lane is
@@ -110,9 +110,10 @@ def _measure(
 ) -> int:
     from mlx_lm import load
 
-    print(f"loading {arguments.model}", flush=True)
-    model, tokenizer = load(arguments.model)
-    descriptor = build_model_artifact_descriptor(checkpoint, repository_id=arguments.model)
+    print(f"loading {checkpoint}", flush=True)
+    model, tokenizer = load(str(checkpoint))
+    repository_id = "" if arguments.model_path else arguments.model
+    descriptor = build_model_artifact_descriptor(checkpoint, repository_id=repository_id)
     digest = str(descriptor["descriptor_sha256"])
     print(f"checkpoint {checkpoint}\nidentity {digest[:16]}", flush=True)
 
@@ -144,8 +145,9 @@ def _measure(
         tokenizer,
         hooks,
         engine.set_alpha,
+        control_context=engine.controlled_measurement(),
         model_identity=digest,
-        model_name=arguments.model,
+        model_name=str(checkpoint),
         alphas=alphas,
         steps=arguments.steps,
         seed=arguments.seed,

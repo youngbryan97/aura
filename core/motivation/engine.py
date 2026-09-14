@@ -309,7 +309,7 @@ class MotivationEngine:
 
         try:
             from core.thought_stream import get_emitter
-            get_emitter().emit("Inner Drive 🧠", intention.goal, level="info", category="Motivation")
+            get_emitter().emit("Inner Drive 🧠", intention.goal, level="info", category="Motivation", source="drive_engine")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('engine', exc)
             logger.debug("ThoughtStream emit failed in motivation engine: %s", exc)

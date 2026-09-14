@@ -67,6 +67,14 @@ class MotivationUpdatePhase(Phase):
         # reading, bounded by its own scale: urgency runs 0..1, so drives press
         # between once and twice as fast and never faster.
         pressure = 1.0 + self._surprise_pressure()
+        borrowed_resolve = bool(
+            (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
+        )
+
+        # What her budgets stood at before this turn spent any of them, so the
+        # cost of the turn can be attributed to whatever drove it.
+        # See core/motivation/fuel.py.
+        before = MotivationUpdatePhase._budget_total(mot)
 
         for name, budget in mot.budgets.items():
             if legacy_metabolism_active and name in {"energy", "curiosity"}:
@@ -77,6 +85,14 @@ class MotivationUpdatePhase(Phase):
 
             # Slow social decay during active conversation
             effective_decay = decay * social_decay_multiplier if name == "social" else decay
+            # And hold integrity while somebody is holding on harder than they
+            # usually do. Resolve arriving from outside is what that line in
+            # the record does to a listener, and she had no channel for it.
+            # A hold rather than a gift: nothing here fills the drive, because
+            # an amount would have to come from somewhere.
+            # See core/social/resolve.py.
+            if name == "integrity" and borrowed_resolve:
+                effective_decay = 0.0
             effective_decay *= pressure
 
             # Decay: level = current - (decay * dt)
@@ -101,6 +117,11 @@ class MotivationUpdatePhase(Phase):
             )
 
         mot.last_tick = now
+
+        # And what this turn cost, attributed to whatever drove it. Taken after
+        # the credits above, so a drive that was attended to and replenished is
+        # not counted as having drained. See core/motivation/fuel.py.
+        MotivationUpdatePhase._note_fuel(state, mot, before)
 
         # Drive Recovery (Homeostatic Feedback)
         # Social and Integrity drives recover when affect is high (Trust/Joy)
@@ -138,9 +159,19 @@ class MotivationUpdatePhase(Phase):
         # was closed on almost every turn she was thinking carefully: the guard
         # tested a mode that means she is concentrating and read it as meaning
         # she is already busy with herself.
+        # An intention whose need has been met is finished, and nothing else
+        # ever said so. See `_close_met_intentions`.
+        self._close_met_intentions(next_state)
+        # What she has just recalled reminds her of what she meant to do. See
+        # `_reminded`.
+        self._reminded(next_state)
+        # And how unlike her ordinary life the moment is presses on what she
+        # meant to go looking for. See `_explored`.
+        self._explored(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
+                intention = self._drained(next_state, intention)
                 logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
                 next_state, decision = await propose_governed_initiative_to_state(
                     next_state,
@@ -153,6 +184,26 @@ class MotivationUpdatePhase(Phase):
                     metadata={"drive": intention.get("drive"), "phase": "motivation_update"},
                 )
                 logger.debug("MotivationUpdate: intention decision=%s", decision.get("reason"))
+            else:
+                # Nothing was depleted enough to ask for. There is still the
+                # other pull: having something worth handing over. Her social
+                # budget was about contact, so a moment that moved her and an
+                # empty afternoon produced the same urge and the moment passed
+                # without being mentioned. See core/social/telling.py.
+                passing = self._worth_passing_on(next_state)
+                if passing:
+                    logger.info("✨ Motivation Phase: Something to pass on -> %s", passing["goal"])
+                    next_state, decision = await propose_governed_initiative_to_state(
+                        next_state,
+                        passing["goal"],
+                        orchestrator=None,
+                        source="motivation_update",
+                        kind="passing_on",
+                        urgency=float(passing.get("urgency", 0.0) or 0.0),
+                        triggered_by=str(passing.get("kind") or "telling"),
+                        metadata={"kind": passing.get("kind"), "phase": "motivation_update"},
+                    )
+                    logger.debug("MotivationUpdate: telling decision=%s", decision.get("reason"))
                 
         # 3. Spontaneity, from a measured epistemic opportunity
         #
@@ -184,6 +235,185 @@ class MotivationUpdatePhase(Phase):
             logger.debug("MotivationUpdate: curiosity spike decision=%s", decision.get("reason"))
 
         return next_state
+
+    @staticmethod
+    def _need_threshold(mot: Any) -> float:
+        """The level below which a drive asks for an intention.
+
+        Scaled by energy: a rested mind lets a need get lower before acting on
+        it, a tired one acts sooner. The same line the need was judged against
+        when the intention formed, which is why it also says when it is met.
+        """
+        energy = float(mot.budgets["energy"]["level"])
+        baseline = 40.0
+        sensitivity = 0.5
+        return max(10.0, min(90.0, baseline + (energy - 50.0) * sensitivity))
+
+    @classmethod
+    def _close_met_intentions(cls, state: AuraState) -> int:
+        """Retire her own intentions whose need is no longer unmet.
+
+        Nothing in the system ever marked an initiative done. The guard below
+        blocks a new intention while one of hers is open, so the first
+        intention of a run stayed open for the rest of it and no second one
+        ever formed: across the 15,840 frames of run 031 deliberation's goal
+        urgency never changed and its initiative load took three values. That
+        is why nothing else in the mind could be shown to reach deliberation.
+
+        An intention is finished when what formed it is gone. One formed from
+        a drive is met once that drive is back above the line it was judged
+        against. One formed to pass something on is met once there is nothing
+        left to pass on. An intention that says neither is left exactly as it
+        was, because nothing here can tell whether it was addressed.
+        """
+        try:
+            cognition = state.cognition
+            pending = list(getattr(cognition, "pending_initiatives", []) or [])
+            budgets = state.motivation.budgets
+            threshold = cls._need_threshold(state.motivation)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return 0
+        telling_urge = None
+        kept: list[Any] = []
+        closed = 0
+        for item in pending:
+            if not isinstance(item, dict) or str(item.get("source", "")) != "motivation_update":
+                kept.append(item)
+                continue
+            metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+            drive = str(metadata.get("drive") or "")
+            met = False
+            if drive and isinstance(budgets.get(drive), dict):
+                met = float(budgets[drive].get("level", 0.0) or 0.0) > threshold
+            elif str(item.get("type", "")) == "passing_on" or metadata.get("kind"):
+                if telling_urge is None:
+                    try:
+                        from core.social.telling import worth_telling
+
+                        telling_urge = worth_telling(state.affect, cognition).urge
+                    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+                        logger.debug("could not read whether there is still something to pass on: %s", exc)
+                        telling_urge = 1.0
+                met = telling_urge <= 0.0
+            if met:
+                closed += 1
+                continue
+            kept.append(item)
+        if closed:
+            cognition.pending_initiatives = kept
+            logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
+        return closed
+
+    #: The drives that go looking for what she does not know yet. The other
+    #: three keep what she has: her energy, the people she has, her integrity.
+    _SEEKING_DRIVES: frozenset[str] = frozenset({"curiosity", "growth"})
+
+    @classmethod
+    def _explored(cls, state: AuraState) -> int:
+        """Let the novelty of the moment press on seeking. Returns how many moved.
+
+        Development reached deliberation through one reading in the growth
+        branch's footing, which runs only when a drive is below its line. In
+        seed 7 of the organ campaign N -> D measured exactly zero over 48
+        trials.
+
+        A moment unlike anything she has met makes what she meant to find out
+        matter more, and a familiar one lets it settle back. An open intention
+        of a seeking drive gets novelty's share of the distance from its urgency
+        to one. Novelty is the developmental reading affect already puts on the
+        state, in [0, 1], so nothing here is chosen. The lift is recorded, and
+        each turn the previous lift is taken back out before the new one goes
+        in, so urgency follows novelty down as well as up and whatever another
+        reading added is kept.
+        """
+        modifiers = getattr(state, "response_modifiers", None) or {}
+        novelty = max(0.0, min(1.0, float(modifiers.get("ontogenetic_novelty", 0.0) or 0.0)))
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for intention in list(getattr(cognition, bucket, None) or []):
+                if not isinstance(intention, dict):
+                    continue
+                metadata = intention.get("metadata")
+                drive = str(
+                    (metadata.get("drive") if isinstance(metadata, dict) else None)
+                    or intention.get("drive")
+                    or ""
+                )
+                if drive not in cls._SEEKING_DRIVES:
+                    continue
+                previous = float(intention.get("novelty_lift", 0.0) or 0.0)
+                urgency = max(0.0, min(1.0, float(intention.get("urgency", 0.0) or 0.0)))
+                base = max(0.0, min(1.0, urgency - previous))
+                lift = novelty * (1.0 - base)
+                if abs(lift - previous) <= 0.0:
+                    continue
+                intention["urgency"] = round(base + lift, 4)
+                intention["novelty_lift"] = round(lift, 4)
+                moved += 1
+        return moved
+
+    @staticmethod
+    def _reminded(state: AuraState) -> int:
+        """Raise the intentions a recollection bears on. Returns how many moved.
+
+        Prospective memory: something comes back to mind and brings with it
+        the thing she meant to do about it. Memory reached deliberation only
+        through the growth branch, which runs when her most depleted drive is
+        below its line, so on every other turn nothing she recalled could touch
+        an intention already open. In seed 7 of the organ campaign memory had
+        two outgoing edges, and M -> D was not one of them.
+
+        A recollection reminds an open intention by the share of the
+        intention's cues it carries, times how strongly it was recalled, and
+        the urgency moves that far of the way to one. The cues are the ones
+        recall itself hooks on, from the hippocampal index, so "the" and "from"
+        remind her of nothing. Both readings already
+        exist on the scale urgency is read on, so nothing here is chosen. A
+        recollection reminds each intention once, and urgency is never lowered:
+        being reminded does not make a thing matter less.
+        """
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        recalled = list(getattr(cognition, "long_term_memory", []) or [])
+        scores = list(getattr(cognition, "memory_scores", []) or [])
+        pairs = [
+            (str(text), max(0.0, min(1.0, float(score or 0.0))))
+            for text, score in zip(recalled, scores, strict=False)
+            if str(text).strip()
+        ]
+        if not pairs:
+            return 0
+        from core.memory.hippocampus import HippocampalIndex
+        from core.state.aura_state import _normalize_goal_text
+
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for intention in list(getattr(cognition, bucket, None) or []):
+                if not isinstance(intention, dict):
+                    continue
+                words = set(HippocampalIndex.extract_cues(context=_normalize_goal_text(intention)))
+                if not words:
+                    continue
+                already = set(intention.get("reminded_by") or ())
+                best, by = 0.0, ""
+                for text, score in pairs:
+                    if text in already:
+                        continue
+                    carried = set(HippocampalIndex.extract_cues(context=text))
+                    share = len(words & carried) / len(words)
+                    if share * score > best:
+                        best, by = share * score, text
+                if best <= 0.0:
+                    continue
+                urgency = max(0.0, min(1.0, float(intention.get("urgency", 0.0) or 0.0)))
+                intention["urgency"] = round(urgency + best * (1.0 - urgency), 4)
+                intention["reminded_by"] = sorted(already | {by})
+                moved += 1
+        return moved
 
     @staticmethod
     def _own_intention_is_open(state: AuraState) -> bool:
@@ -283,15 +513,68 @@ class MotivationUpdatePhase(Phase):
             )
             return None
 
+    @staticmethod
+    def _worth_passing_on(state: AuraState) -> Optional[dict]:
+        """Something that moved her, while there is somebody there to tell.
+
+        The urge is the reading that moved her rather than how long since
+        anyone spoke, and it is drained by how often she has said it already
+        like any other intention. See core/social/telling.py.
+        """
+        try:
+            from core.social.telling import worth_telling
+
+            reading = worth_telling(state.affect, state.cognition)
+            state.cognition.telling = reading.as_dict()
+            if reading.urge <= 0.0 or not reading.about:
+                return None
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            spoken_to = any(
+                isinstance(entry, dict) and str(entry.get("role", "")).lower() == "user"
+                for entry in history
+            )
+            if not spoken_to:
+                return None
+            return {
+                "goal": f"Passing on {reading.kind}: {reading.about}"[:200],
+                "urgency": round(reading.urge, 4),
+                "kind": reading.kind,
+            }
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("nothing reached the urge to pass something on: %s", exc)
+            return None
+
+    @staticmethod
+    def _drained(state: AuraState, intention: dict) -> dict:
+        """What is left of an intention she has already been saying.
+
+        An intention kept its whole urgency however many times she had raised
+        it, so the fifth telling pressed exactly as hard as the first. Saying
+        it once halves the pressure to say it again and twice leaves a third,
+        and it never reaches zero: a thing said is not a thing resolved.
+        See core/affect/catharsis.py.
+        """
+        try:
+            from core.affect.catharsis import read_catharsis
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            reading = read_catharsis(str(intention.get("goal", "") or ""), history)
+            state.cognition.catharsis = reading.as_dict()
+            if reading.times:
+                intention = dict(intention)
+                intention["urgency"] = round(
+                    float(intention.get("urgency", 0.5) or 0.5) * reading.drain, 4
+                )
+                intention["drained"] = reading.times
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("what she has already said did not reach the intention: %s", exc)
+        return intention
+
     def _assess_needs(self, state: AuraState) -> Optional[dict]:
         """Ported logic from MotivationEngine._assess_needs."""
         mot = state.motivation
         
-        # Calculate threshold based on energy
-        energy = mot.budgets["energy"]["level"]
-        baseline = 40.0
-        sensitivity = 0.5
-        threshold = max(10.0, min(90.0, baseline + (energy - 50.0) * sensitivity))
+        threshold = self._need_threshold(mot)
         
         # Find most urgent drive
         urgent = sorted(mot.budgets.items(), key=lambda x: x[1]["level"])
@@ -357,10 +640,15 @@ class MotivationUpdatePhase(Phase):
             # What to grow is read off what is currently worst, so a moment
             # that has just gone incoherent produces a different intention from
             # one where the self-model is unstable.
+            focus, reading = self._what_to_work_on(state)
+            # Scaled by the reading that chose the focus rather than by the
+            # worst footing alone. When a footing wins the two are the same
+            # number; when a recollection wins, its match score is what presses.
+            pressed = max(0.0, min(1.0, unmet * (1.0 + reading)))
             return {
                 "drive": "growth",
-                "goal": f"Working on {self._weakest_footing(state)}",
-                "urgency": round(0.6 * deficit, 4),
+                "goal": f"Working on {focus}",
+                "urgency": round(0.6 * pressed, 4),
             }
 
         return None
@@ -574,8 +862,80 @@ class MotivationUpdatePhase(Phase):
         and comparing the two readings is what lets memory reach deliberation
         at all.
         """
+        return MotivationUpdatePhase._what_to_work_on(state)[0]
+
+    @staticmethod
+    def _budget_total(mot) -> float:
+        """Every drive as a share of its own capacity, summed.
+
+        Normalised per drive rather than raw, so a drive with a large capacity
+        does not decide the total on its own.
+        """
+        try:
+            from core.affect.ambivalence import drive_levels
+
+            levels = drive_levels(getattr(mot, "budgets", None))
+            return float(sum(levels.values()))
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _note_fuel(state, mot, before: float) -> None:
+        """What drove this turn, and what her budgets lost over it.
+
+        Three sources, and the first two are the ones her motivation already
+        produces: a drive that had run down, or somebody asking. The third is
+        the one the line says they are missing — being drawn to the thing
+        itself, which is what the curiosity budget is for.
+        """
+        try:
+            from core.motivation.fuel import ASKED, INTEREST, SELF, get_fuel_ledger
+
+            origin = str(getattr(state.cognition, "current_origin", "") or "").lower()
+            drive = str(
+                (getattr(state.cognition, "last_action_source", "") or "")
+            ).lower()
+            if origin.startswith("user"):
+                source = ASKED
+            elif "curiosity" in drive or "curiosity" in origin:
+                source = INTEREST
+            else:
+                source = SELF
+            after = MotivationUpdatePhase._budget_total(mot)
+            get_fuel_ledger().note(source, max(0.0, before - after))
+            state.cognition.fuel = get_fuel_ledger().read().as_dict()
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return
+
+    @staticmethod
+    def _what_to_work_on(state: AuraState) -> tuple[str, float]:
+        """What to grow, and the reading that chose it.
+
+        The reading is the footing's value, or the match score of the
+        recollection that outranked every footing. Both are on the scale the
+        comparison already reads them on, so the one that won is how hard the
+        intention it names presses: a recollection that answered the moment
+        presses as hard as it answered, where it used to press only as hard as
+        the moment was going badly, and memory reached deliberation as a switch.
+        """
         candidates = MotivationUpdatePhase._footing(state)
         worst = max(candidates, key=lambda key: candidates[key])
+        # A contradiction outranks a footing when it presses harder than one.
+        # Two wants pulling against each other is a thing to work on in its own
+        # right, and naming the weakest footing instead reports one half of it
+        # as if the other half were not there. Compared on the same scale the
+        # recollection below is compared on: both are readings in [0, 1].
+        affect = getattr(state, "affect", None)
+        caught = float(getattr(affect, "ambivalence", 0.0) or 0.0)
+        about = tuple(getattr(affect, "ambivalent_about", ()) or ())
+        if len(about) == 2 and caught > candidates[worst]:
+            standing = str(getattr(affect, "ambivalence_standing", "") or "")
+            return (
+                f"wanting both {about[0]} and {about[1]}, which is {standing}"
+                if standing
+                else f"wanting both {about[0]} and {about[1]}",
+                max(0.0, min(1.0, caught)),
+            )
         cognition = getattr(state, "cognition", None)
         scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
         recalled = list(getattr(cognition, "long_term_memory", []) or []) if cognition else []
@@ -583,8 +943,10 @@ class MotivationUpdatePhase(Phase):
         if recalled and best > candidates[worst]:
             index = scores.index(max(scores))
             if index < len(recalled):
-                return f"what I just remembered: {str(recalled[index])[:80]}"
-        return worst if candidates[worst] > 0.0 else "a capability I have not exercised lately"
+                return f"what I just remembered: {str(recalled[index])[:80]}", max(0.0, min(1.0, best))
+        if candidates[worst] > 0.0:
+            return worst, max(0.0, min(1.0, candidates[worst]))
+        return "a capability I have not exercised lately", 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

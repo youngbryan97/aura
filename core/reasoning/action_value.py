@@ -143,6 +143,8 @@ class ActionValueModel:
         contextual: Mapping[str, Mapping[str, float]] | None = None,
     ) -> None:
         self._lock = checked_lock("core.reasoning.action_value")
+        self._refresh_lock = checked_lock("core.reasoning.action_value.refresh")
+        self._evidence_generation = 0
         self._stats: dict[str, dict[str, float]] = {}
         self._contextual: dict[str, dict[str, float]] = {}
         self._global_mean: float | None = None
@@ -165,10 +167,19 @@ class ActionValueModel:
         the ledger's resolve path off the hook for a database read.
         """
         with self._lock:
+            self._evidence_generation += 1
             self._stale = True
 
     def refresh(self, ledger: Any | None = None) -> int:
         """Pull measured outcome statistics. Returns the number of actions known."""
+        # Serialize reads/publication without blocking in-memory value lookups
+        # or evidence notifications on database work.
+        with self._refresh_lock:
+            return self._refresh_owned(ledger)
+
+    def _refresh_owned(self, ledger: Any | None) -> int:
+        with self._lock:
+            generation = self._evidence_generation
         try:
             if ledger is None:
                 from core.cognition.outcome_ledger import get_outcome_ledger
@@ -190,12 +201,13 @@ class ActionValueModel:
                 "fall back to caller scores or report themselves unevidenced",
             )
             with self._lock:
-                self._stale = False  # do not spin on a broken ledger
-            return len(self._stats)
+                # Retry only for evidence that arrived during this read.
+                self._stale = self._evidence_generation != generation
+                return len(self._stats)
         self._install(stats, contextual)
         with self._lock:
-            self._stale = False
-        return len(self._stats)
+            self._stale = self._evidence_generation != generation
+            return len(self._stats)
 
     def is_stale(self) -> bool:
         """Whether evidence arrived after the current in-memory snapshot."""

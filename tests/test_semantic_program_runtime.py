@@ -99,7 +99,21 @@ def test_runtime_representation_projection_ignores_session_only_identity():
     )
 
 
-def test_runtime_executes_learned_ir_on_the_universal_floor():
+def test_runtime_executes_learned_ir_on_the_universal_floor(monkeypatch):
+    import core.learning.semantic_program_runtime as runtime
+
+    calls = []
+    backend = runtime.semantic_procedure_backend
+
+    def traced_backend(procedure, state, context):
+        calls.append(procedure.procedure_id)
+        return backend(procedure, state, context)
+
+    def forbidden_bypass(*args, **kwargs):
+        raise AssertionError("registered runtime bypassed common procedure execution")
+
+    monkeypatch.setattr(runtime, "semantic_procedure_backend", traced_backend)
+    monkeypatch.setattr(runtime, "execute_semantic_floor_program", forbidden_bypass)
     basis = {"worker_model_path": "/model"}
     registry = reset_procedure_registry_for_test()
 
@@ -128,6 +142,20 @@ def test_runtime_executes_learned_ir_on_the_universal_floor():
     assert outcome.receipt["procedure_currency_receipt_sha256"] == (
         outcome.procedure.program.receipt()["receipt_sha256"]
     )
+    assert calls == [outcome.procedure.procedure_id]
+    assert outcome.procedure_execution.trace_complete
+    from core.cognition.cognitive_event import get_event_graph
+    event = get_event_graph().get(outcome.procedure_execution.steps[0].event_id)
+    assert event.outcome == "executed"
+    assert event.detail["correctness_measured"] is False
+    assert {read.key for read in event.reads} >= {
+        "procedure:state:semantic:argument:0", "procedure:state:semantic:argument:1",
+    }
+    assert outcome.receipt["procedure_execution"] == {
+        "completed": True, "backend_calls": 1,
+        "procedure_ids": calls, "correctness_measured": False,
+        "selection_basis": "learned_ir_procedure_identity", "requirements_met": True,
+    }
 
 
 def test_runtime_preserves_a_neural_decode_refusal_as_model_evidence():

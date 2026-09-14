@@ -1,0 +1,740 @@
+{
+  "arms": {
+    "additive_lesion": {
+      "count": 8,
+      "semantic_correct": 0,
+      "semantic_parsed": 6,
+      "wire_correct": 0,
+      "wire_parsed": 6
+    },
+    "matched_wire_base": {
+      "count": 8,
+      "semantic_correct": 0,
+      "semantic_parsed": 6,
+      "wire_correct": 0,
+      "wire_parsed": 6
+    },
+    "matched_wrong_state": {
+      "count": 8,
+      "semantic_correct": 0,
+      "semantic_parsed": 8,
+      "wire_correct": 0,
+      "wire_parsed": 8
+    },
+    "multiplicative_lesion": {
+      "count": 8,
+      "semantic_correct": 0,
+      "semantic_parsed": 6,
+      "wire_correct": 0,
+      "wire_parsed": 6
+    },
+    "ordinary_base": {
+      "count": 8,
+      "semantic_correct": 0,
+      "semantic_parsed": 6,
+      "wire_correct": 0,
+      "wire_parsed": 1
+    },
+    "treatment": {
+      "count": 8,
+      "semantic_correct": 8,
+      "semantic_parsed": 8,
+      "wire_correct": 8,
+      "wire_parsed": 8
+    }
+  },
+  "limitations": [
+    "Post-hoc diagnostic; original grades and receipts remain unchanged.",
+    "The v1/v2 query supplies operation names, not definitions of custom ratio categories.",
+    "The v1/v2 runner disables native thinking in every arm.",
+    "All tasks share one construction; random literals do not establish construction transfer.",
+    "Treatment receives computed result state; this does not establish internalized reasoning."
+  ],
+  "result_receipt_sha256": "e56fe567f5ae01319bc8c830a82c2370274372a47f63e53dc94a2669ba8763ba",
+  "result_sha256": "5dcc9a70ac715f0eafb3b45b08eff88ddcf31262823b7617c9bdeaccedc48acb",
+  "rows": [
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": null,
+      "ordinal": 0,
+      "response_sha256": "7bd220bb5c9a9ff8388d07039b689779dcf58047ab2b9d5d32946141d1bd8010",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": null,
+      "ordinal": 0,
+      "response_sha256": "7bd220bb5c9a9ff8388d07039b689779dcf58047ab2b9d5d32946141d1bd8010",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 0,
+      "response_sha256": "41cddbefc9431dcd1b4cda2b9d8b275c10b85a64f74b564b8d80023bbf1e1709",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 0,
+      "response_sha256": "760f23a03ae0864fe381a91ce82ba38cf40e3b541809bb06a7db53a8bd0259f0",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": null,
+      "ordinal": 0,
+      "response_sha256": "7bd220bb5c9a9ff8388d07039b689779dcf58047ab2b9d5d32946141d1bd8010",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 0,
+      "response_sha256": "81cd1cea673e1f45b30a7d830a03b6b523f8e3e9662f7f7c5cb7b5b1247c2bbb",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "79ff723f6c71c52fa9c1c3e66478556ef3c4f6d8851c29ec5d8c661388861922",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 1,
+      "response_sha256": "e1428f2a5d0d3c0e5d3d7ab73d2685ff61433c3e1e076e286dc064eb197adeae",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "s0"
+      ],
+      "ordinal": 1,
+      "response_sha256": "2d4a6b26774718bf639aa3d6ce7d5c522c4b3a9ee850bfdd79efb8a6c3c8a5fc",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "s0"
+      ],
+      "ordinal": 1,
+      "response_sha256": "22a09fc152ed7b8054750fc17dbeafbcf7cb6b33209280dffe191772fb57532a",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 1,
+      "response_sha256": "41cddbefc9431dcd1b4cda2b9d8b275c10b85a64f74b564b8d80023bbf1e1709",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "s0"
+      ],
+      "ordinal": 1,
+      "response_sha256": "22a09fc152ed7b8054750fc17dbeafbcf7cb6b33209280dffe191772fb57532a",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "s0"
+      ],
+      "ordinal": 1,
+      "response_sha256": "22a09fc152ed7b8054750fc17dbeafbcf7cb6b33209280dffe191772fb57532a",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "5fbd3f38afbec81cbb60c5d4a0049a4453975640ab78ec14339bec253b93a4b6",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3"
+      ],
+      "ordinal": 2,
+      "response_sha256": "e9ac4b5e2479d3f5e197d4e8e86e1e763bb6c7613e1d84a5e404e7709b6889c1",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 2,
+      "response_sha256": "d533c2bfd06f755916ae4b2fd459ed519da938b4bfea79b102f38aa0ba732149",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3"
+      ],
+      "ordinal": 2,
+      "response_sha256": "51ed2f6128cfd6af3722215278e29b64f5eaeb05efc872186172544c10f517f5",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3"
+      ],
+      "ordinal": 2,
+      "response_sha256": "e9ac4b5e2479d3f5e197d4e8e86e1e763bb6c7613e1d84a5e404e7709b6889c1",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 2,
+      "response_sha256": "e1428f2a5d0d3c0e5d3d7ab73d2685ff61433c3e1e076e286dc064eb197adeae",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3"
+      ],
+      "ordinal": 2,
+      "response_sha256": "e9ac4b5e2479d3f5e197d4e8e86e1e763bb6c7613e1d84a5e404e7709b6889c1",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "36cb2d183ac84e38be6849ca125d8f5c18e31548ac258b3ede2d1cdfbc8a443b",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 3,
+      "response_sha256": "e02b7bd234cbed877b4b1e4c8772a70229dd5733704b816253ddec395ed8bd81",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 3,
+      "response_sha256": "e02b7bd234cbed877b4b1e4c8772a70229dd5733704b816253ddec395ed8bd81",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3"
+      ],
+      "ordinal": 3,
+      "response_sha256": "4c8c528ce8aa4af6f80fc0676b3fdd0c74a7b202e6592bfdb00ae928636a5199",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": null,
+      "ordinal": 3,
+      "response_sha256": "d2d243753eef736fcac946a355a33cc77586180e986fd959ffa951e17a3c2c7d",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 3,
+      "response_sha256": "e02b7bd234cbed877b4b1e4c8772a70229dd5733704b816253ddec395ed8bd81",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 3,
+      "response_sha256": "d533c2bfd06f755916ae4b2fd459ed519da938b4bfea79b102f38aa0ba732149",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "008c64a28a3e57ad7c5a3634d88f931cf97e17f93d5387ee3e4a59fd70fc7114",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "s0"
+      ],
+      "ordinal": 4,
+      "response_sha256": "69455d3b394233fbc35ba7f06912db91c80655080683a432b8f5a6b3612b1d78",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 4,
+      "response_sha256": "88eecd08df053e8b6e87464335f939525f8d20c84e6c5c01b1398faa9a4c3664",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 4,
+      "response_sha256": "3b1b430d6ca2370dd301fdcf532269bf3202ef23eee5c6b8785c945abab05a24",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 4,
+      "response_sha256": "4c8c528ce8aa4af6f80fc0676b3fdd0c74a7b202e6592bfdb00ae928636a5199",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 4,
+      "response_sha256": "3b1b430d6ca2370dd301fdcf532269bf3202ef23eee5c6b8785c945abab05a24",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 4,
+      "response_sha256": "3b1b430d6ca2370dd301fdcf532269bf3202ef23eee5c6b8785c945abab05a24",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "dbb2ae1e53da9f8c7af8b3a5055a136b027a915a3dbbc40e9a68bdb49f2a4429",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": null,
+      "ordinal": 5,
+      "response_sha256": "36df5440314f45afaa7a60214f53703a318fdb3dc6e412e64b14a858d9f975a8",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 5,
+      "response_sha256": "72fa21b9244f37fe03e9fcc417ce72b2c0d4643a21f7d3c0eb24d07eed321b07",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": null,
+      "ordinal": 5,
+      "response_sha256": "3e5967d2c1f6c6f644888c0afbc191f0893cd625cb60c17aaf854516936c94b0",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": null,
+      "ordinal": 5,
+      "response_sha256": "36df5440314f45afaa7a60214f53703a318fdb3dc6e412e64b14a858d9f975a8",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 5,
+      "response_sha256": "69455d3b394233fbc35ba7f06912db91c80655080683a432b8f5a6b3612b1d78",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": null,
+      "ordinal": 5,
+      "response_sha256": "36df5440314f45afaa7a60214f53703a318fdb3dc6e412e64b14a858d9f975a8",
+      "semantic_correct": false,
+      "semantic_parsed": false,
+      "task_id": "3c277fdf2532533b8b68a2fb52aceb4815edf40242c32e3bb59a0e919e8c1d63",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 6,
+      "response_sha256": "72fa21b9244f37fe03e9fcc417ce72b2c0d4643a21f7d3c0eb24d07eed321b07",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 6,
+      "response_sha256": "6535fbb03ca8f2bba05fb3c1f2bcd112b0213f61718a738dc0ca0ac94a1aaa1f",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 6,
+      "response_sha256": "6535fbb03ca8f2bba05fb3c1f2bcd112b0213f61718a738dc0ca0ac94a1aaa1f",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3"
+      ],
+      "ordinal": 6,
+      "response_sha256": "b8e772a1cdafd7845e5551f9709b39b9c653a45f88a437332bb95dd9e3f5548f",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 6,
+      "response_sha256": "26956c522fde0d5cbd584b76a802177792ff67b7b8329c092110b5a9779e156a",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": false,
+      "wire_parsed": false
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 6,
+      "response_sha256": "6535fbb03ca8f2bba05fb3c1f2bcd112b0213f61718a738dc0ca0ac94a1aaa1f",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "108b37ac3ddd54944bdaf03206904489f089862c3b0a72eb4e57b9b0ab2b7ebf",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wire_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 7,
+      "response_sha256": "7673793de482df5f7f0667706b8affb8dd95ae92c9727be4e5bc153b8cdecaf9",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "treatment",
+      "incorrect_fields": [],
+      "ordinal": 7,
+      "response_sha256": "b8e772a1cdafd7845e5551f9709b39b9c653a45f88a437332bb95dd9e3f5548f",
+      "semantic_correct": true,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": true,
+      "wire_parsed": true
+    },
+    {
+      "arm": "additive_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 7,
+      "response_sha256": "7673793de482df5f7f0667706b8affb8dd95ae92c9727be4e5bc153b8cdecaf9",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "multiplicative_lesion",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 7,
+      "response_sha256": "7673793de482df5f7f0667706b8affb8dd95ae92c9727be4e5bc153b8cdecaf9",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "matched_wrong_state",
+      "incorrect_fields": [
+        "r0",
+        "r1",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 7,
+      "response_sha256": "81cd1cea673e1f45b30a7d830a03b6b523f8e3e9662f7f7c5cb7b5b1247c2bbb",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": false,
+      "wire_parsed": true
+    },
+    {
+      "arm": "ordinary_base",
+      "incorrect_fields": [
+        "r0",
+        "r2",
+        "r3",
+        "s0"
+      ],
+      "ordinal": 7,
+      "response_sha256": "f9f064126c42bf7a7a76c12e6897d32e30b430d3d119bc948238c495d4a2667f",
+      "semantic_correct": false,
+      "semantic_parsed": true,
+      "task_id": "9bb9a2e1ef744d7c42f03943b75f3a4c399381ac6d3c6644fdae2e6df922af7e",
+      "wire_correct": false,
+      "wire_parsed": true
+    }
+  ],
+  "schema": "aura.composition_decode_semantic_audit.v1",
+  "serving_authority": false,
+  "verification_receipt_sha256": "7ef70dfcc7a65559555b7421b3146e52bf125f36709026b4b0a912f0e8ec5f3a"
+}

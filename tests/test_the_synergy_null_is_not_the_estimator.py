@@ -37,6 +37,10 @@ from core.subject.synergy import _copula_normal, _gaussian_mi, _plugin_mi
 
 pytestmark = pytest.mark.unit
 
+#: An interaction gain that holds on every forward-chaining fold. A hand-built
+#: report meant to fail one bar carries this, so it fails for that bar alone.
+ESTABLISHED = {"interaction_gain_folds": (0.05, 0.05, 0.05, 0.05, 0.05), "interaction_gain_se": 0.0}
+
 
 def test_the_plugin_estimator_is_biased_upward_on_independent_blocks() -> None:
     """The defect, measured. This is what the null was reading."""
@@ -177,14 +181,14 @@ def test_a_triple_needs_the_interaction_gain_as_well() -> None:
     strong = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1000, null_spread=0.02,
     )
     assert strong.passes is True
     flat = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
-        interaction_gain=-0.01, rows=500, raw_null_q99=0.1,
+        interaction_gain=-0.01, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1000, null_spread=0.02,
     )
     assert flat.passes is False
@@ -197,7 +201,7 @@ def test_a_triple_needs_the_raw_value_above_its_own_null() -> None:
     thin = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.05, normalised=0.5, null_q99=0.1,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.3,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.3,
         null_draws=1000, null_spread=0.02,
     )
     assert thin.passes is False
@@ -215,7 +219,7 @@ def test_a_margin_narrower_than_the_bars_own_spread_does_not_pass() -> None:
     wide_bar = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.11, null_q99=0.10,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1000, null_spread=0.02,
     )
     assert wide_bar.normalised > wide_bar.null_q99
@@ -224,7 +228,7 @@ def test_a_margin_narrower_than_the_bars_own_spread_does_not_pass() -> None:
     tight_bar = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.11, null_q99=0.10,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1000, null_spread=0.005,
     )
     assert tight_bar.passes is True
@@ -241,7 +245,7 @@ def test_a_bar_with_no_draws_behind_it_cannot_be_cleared() -> None:
     unmeasured = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1, null_spread=0.0,
     )
     assert unmeasured.passes is False
@@ -249,7 +253,27 @@ def test_a_bar_with_no_draws_behind_it_cannot_be_cleared() -> None:
     measured = SynergyReport(
         sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
         redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
-        interaction_gain=0.05, rows=500, raw_null_q99=0.1,
+        interaction_gain=0.05, rows=500, **ESTABLISHED, raw_null_q99=0.1,
         null_draws=1000, null_spread=0.0,
     )
     assert measured.passes is True
+
+
+def test_a_gain_that_does_not_hold_across_the_folds_does_not_pass() -> None:
+    """One positive split is not an interaction.
+
+    An additive target passed 10 of 20 seeds on a single-split gain a few
+    millionths above zero, while its gain across the folds straddled zero.
+    """
+    from core.subject.synergy import SynergyReport
+
+    straddling = SynergyReport(
+        sources=("A", "S"), target="G", joint=1.0, unique_a=0.1, unique_b=0.1,
+        redundancy=0.2, synergy=0.5, normalised=0.5, null_q99=0.1,
+        interaction_gain=0.00001, rows=500, raw_null_q99=0.1,
+        null_draws=1000, null_spread=0.02,
+        interaction_gain_folds=(0.01, -0.01, 0.008, -0.009, 0.0), interaction_gain_se=0.004,
+    )
+    assert straddling.interaction_gain > 0.0
+    assert straddling.interaction_lower_bound <= 0.0
+    assert straddling.passes is False

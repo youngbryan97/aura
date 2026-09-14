@@ -694,18 +694,163 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and scores 47/48 exposed weave answers; both causal controls score 0/48.
   Exhaustive solver tests cover consistent definitions across repeated uses.
   The candidate is development-only; G03 remains open.
+  [Operation-view selection](evidence/G03_OPERATION_VIEWS_2026-09-13.md)
+  corrects chart calibration's source/execution order mismatch. Predicted-chart
+  view selection reaches 454/500 source answers with five regressions; adding
+  the pairwise argument ranker reaches 458/500 with eight regressions. Both
+  retain 47/48 exposed weave answers and lose the gain under both controls.
+  Arithmetic diagnostics locate the remaining reversals in register linking,
+  despite correctly selected argument phrases and slots. No promotion.
+  [Definition ownership development](evidence/G03_DEFINITION_ATTACHMENT_2026-09-13.md)
+  preserves three rejected candidates: source answers 456, 465 and 459 out of
+  500, with weave answers 28, 12 and 42 out of 48. The optimizer counts learned
+  attachment once per used definition, and conditional ownership avoids
+  treating every alternate name as a negative. Transfer regressions remain;
+  no candidate is promoted and G03 remains open.
+  [Literal retention and failure attribution](evidence/G03_LITERAL_RETENTION_2026-09-13.md)
+  preserve exact input spans after local mention pruning. Source answers rise
+  from 454/500 to 456/500 without new regressions; exposed weave remains 47/48.
+  Scored-chart diagnostics separate operation search, argument ranking and
+  candidate-overlap failures. Five frozen-parent regressions still prevent
+  closure; no runtime promotion.
+  [Operation feasibility](evidence/G03_OPERATION_FEASIBILITY_2026-09-13.md)
+  removes impossible edge counts before beam truncation. Source answers reach
+  464/500, eight gains and zero regressions against the immediate parent;
+  exposed weave remains 47/48. No serving authority or G03 closure.
+  [Argument ranking](evidence/G03_ARGUMENT_RANKING_2026-09-13.md) reaches
+  472/500 with two regressions; excluding coreferent negative labels reaches
+  470/500 with four regressions. Both retain 47/48 exposed weave and remain
+  unpromoted. The opt-in training correction preserves legacy replay.
+  [Arity-state search](evidence/G03_ARITY_STATE_SEARCH_2026-09-13.md) is a
+  measured null at 464/500 source and 47/48 weave answers. The
+  [joint-score trial](evidence/G03_JOINT_SCORE_TRIAL_2026-09-13.md) is incomplete
+  and not promoted after a split regression. Decode-local score reuse preserves
+  all 48 paired weave rows under the default policy. G03 remains open.
+  [Operation label alternatives](evidence/G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md)
+  scored 459/500 with five regressions and no gains against the 464/500 parent.
+  Both complete trials are retained; neither candidate is promoted.
+  [Ranked operation pointer](evidence/G03_RANKED_OPERATION_POINTER_2026-09-14.md)
+  reduced training loss but fell to 26/128 arithmetic and 6/48 cataphoric
+  answers. Evaluation stopped; the other 324 cases are unmeasured. No promotion.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
+  [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
+  found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
+  One real 27B development task now reaches a correct public result after
+  3,027 tokens; the old exact-wire grader rejects only its valid Theta
+  notation. Versioned channel/semantic measurement repairs preserve the
+  historical records. This is not fresh gain evidence or G05/G06 closure.
+  [Typed decoder state](evidence/G05_TYPED_DECODER_STATE_2026-09-14.md)
+  repairs prompt/output separation, speculative rewind, whole-token grammar
+  caches and Unicode escapes. Fifty-two tests pass, including installed MLX
+  generation and the real tokenizer; resident-model validation remains open.
+  [Resident shape canary](evidence/G05_RESIDENT_SHAPE_CANARY_2026-09-14.md)
+  now separates exact task answers from syntax, public completion and processor
+  continuity. Seventy focused tests passed; the model run follows this checkpoint.
+  The resident run exposed the MLX wrapper's missing len() interface.
+  [Runtime tokenizer contract](evidence/G05_RUNTIME_TOKENIZER_CONTRACT_2026-09-14.md)
+  repairs vocabulary and EOS discovery in the shared serving processor; 79
+  focused tests passed. No public model answer was produced by the failed run.
+  [Resident shape result](evidence/G05_RESIDENT_SHAPE_RESULT_2026-09-14.md)
+  passed 3/3 exact public task answers at EOS with zero processor refusals on
+  the repaired 27B path. This is component evidence, not RLC gain or desktop proof.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
+  independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
+  A separate semantic audit preserves that result but identifies missing public
+  operation definitions, disabled native thinking, and one repeated construction.
+  This is serialization evidence, not G06 closure.
+  [Native coding diagnostic](evidence/G06_NATIVE_CODING_DIAGNOSTIC_2026-09-14.md)
+  replays 30 uncensored decodes: ordinary native reasoning 6/6, treatment 6/6,
+  controls 0/6. No accuracy gain; decode latency differs. The negative result
+  is retained, with no admission or serving authority.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
+  repairs missing-setting confirmation, mutable plans, nonfinite measurements,
+  and unchecked arm inventories. Fifty-six focused tests pass; this does not
+  turn exposed development cases into fresh or powered replication.
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Task-plan feedback](evidence/G09_TASK_PLAN_FEEDBACK_2026-09-14.md) connects
+  whole-composition execution and external assessments to the shared value
+  learner, with stable identities across restarts. Candidate generation and
+  independent broad/live task assessment remain unproven.
+  [Evidence refresh](evidence/G09_EVIDENCE_REFRESH_2026-09-14.md) preserves
+  outcome notifications during snapshot reads and orders concurrent refreshes.
+  Thirty-six focused tests pass; this is learning integrity, not broad gain.
+  [End-to-end design](G03_SEMANTIC_CORRECTNESS_CONTRACT.md) maps existing
+  substrates and executable paths to cross-backend composition, knowledge and
+  planning feedback, and broad runtime evaluation. These work packages need
+  not wait for perfect arithmetic development scores. Design is not closure.
+  2026-09-13: [shared procedure execution](evidence/G09_SHARED_PROCEDURE_EXECUTION_2026-09-13.md)
+  runs common-currency compositions through the existing tool-plan executor.
+  Tool results feed real floor programs; the registered semantic runtime uses
+  this same dispatch. Task-grounded selection, broad measurements and live
+  qualification remain separate obligations; G09 is not closed.
+  [Goal-bound procedure composition](evidence/G09_GOAL_BOUND_PROCEDURES_2026-09-13.md)
+  adds typed dependency search and uses the learned computation identity on
+  the semantic runtime path. CPU tests compose real file reads, floor execution
+  and report formatting, with missing-procedure controls and exhaustive small
+  planning comparisons. Broad language interpretation and live gain are not
+  established; G09 remains open.
+  [Procedure dataflow](evidence/G09_PROCEDURE_DATAFLOW_2026-09-13.md) joins the
+  existing cognitive event graph through the common executor and semantic
+  runtime. Actual reads link to their latest writers; telemetry failure cannot
+  discard a computed answer. The 167-test CPU pass is not broad live evidence
+  or independent task-outcome learning. G09 remains open.
+  [Outcome learning evidence](evidence/G09_OUTCOME_LEARNING_EVIDENCE_2026-09-14.md)
+  repairs the production feed that taught unobserved expirations as failures.
+  Sixty-one focused tests pass; shared procedure assessment and broad gain remain open.
+  [Conclusive verification](evidence/G09_CONCLUSIVE_VERIFICATION_2026-09-14.md)
+  now agrees with the shared verdict when one checking engine fails. Candidate
+  ranking is unchanged; independent task assessment remains open.
+  [Computed-value plans](evidence/G09_COMPUTED_VALUE_PLANS_2026-09-14.md)
+  can propose reusable computations for exact goals and check real outputs.
+  129 focused tests passed; task-grounded semantic selection remains open.
+  [Mission observation recovery](evidence/G09_MISSION_OBSERVATION_RECOVERY_2026-09-14.md)
+  preserves executed effects across unavailable checks and SQLite reloads.
+  Full task contracts survive persistence; 111 focused tests passed. Broad
+  task-outcome learning and live gain remain unproved.
+  [Independent outcome counts](evidence/G09_INDEPENDENT_OUTCOME_COUNTS_2026-09-14.md)
+  prevents collapsed requests from becoming duplicate learning evidence and
+  aligns persisted statistics with measured-receipt validity. Fifty-three
+  focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  2026-09-13: the shared conversion comparison no longer counts matching
+  exceptions as successful agreement; 36 cross-substrate tests passed.
+  This repairs a qualification primitive, not a completed fusion.
+  [Steering basis and ownership](evidence/G10_STEERING_BASIS_AND_OWNERSHIP_2026-09-14.md)
+  repairs stale worker identity, binds certificates to actual vector/layer
+  bases, and separates campaign preparation from live deployment. Ninety
+  focused tests passed; current-model qualification remains open.
+  [Durable campaign progress](evidence/G10_CAMPAIGN_PROGRESS_2026-09-14.md)
+  preserves each completed sample and its steering continuation state; resume
+  checks the exact experiment identity. Thirty-three tests passed. Interrupted
+  progress is not relabeled as a finished campaign or serving qualification.
+  [Public steering measurement](evidence/G10_PUBLIC_STEERING_MEASUREMENT_2026-09-14.md)
+  separates private reasoning from scored answers and preserves termination
+  evidence per sample. The old campaign stopped with 68 diagnostic samples;
+  a fresh public-channel campaign is required. Calibration cannot qualify it.
+  [Fusion intervention ownership](evidence/G10_FUSION_INTERVENTION_OWNERSHIP_2026-09-14.md)
+  excludes live state updates from probes and restores intervention state on
+  every exit. Per-layer controls and protocol-bound certificate reuse are
+  tested; 153 focused tests passed. Model-active qualification remains open.
+  Lower-strength development calibration completed 12/12 public EOS answers.
+  Its warning stream exposed false reverse lock edges on owned recursion;
+  repaired in shared lockdep with positive and negative controls. Qualification
+  and serving proof remain open.
+  [Owned recursion and calibration](evidence/G10_OWNED_REENTRY_AND_CALIBRATION_2026-09-14.md)
+  [Probe checkpoint identity](evidence/G10_PROBE_CHECKPOINT_IDENTITY_2026-09-14.md)
+  aligns the fusion CLI's actual load and certificate identity. The full
+  public steering comparison is running; launch does not grant qualification.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
+  2026-09-13: the activation alarm detects a changed signed steering contract
+  with unchanged model path and zero drifted source files. G10/G11 must qualify
+  that configuration; the earlier evidence has not been relabeled.
 - [ ] G12 Evaluate frontier performance against named current baselines on
   independent broad tasks, with resource and tool access reported fairly.
 - [x] G13 Update public RLC documentation to precisely match measured claims.

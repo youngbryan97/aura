@@ -69,6 +69,236 @@ class ConversationalDynamicsPhase(Phase):
                 logger.warning("ConversationalDynamics: Engine init failed: %s", e)
         return self._engine
 
+    @staticmethod
+    def _read_register(state: AuraState, message: str) -> None:
+        """Measure the shape of what was just said, and carry the reading.
+
+        The two determinations are what change her behaviour. A register that
+        asks is a request. A first-person register that asks nothing and
+        carries the connectives of holding on is somebody testifying, and the
+        response to testimony is company rather than assistance.
+
+        Written to `response_modifiers` so the response phase sees it, and to
+        `world` because it is a fact about the person she is talking to rather
+        than about her.
+        """
+        try:
+            from core.expression.register import read
+
+            reading = read(message)
+            if not reading.measured:
+                # Nothing resets `response_modifiers` until the turn ends, so
+                # returning here left the last message's reading standing: a
+                # message too short to read would still be treated as testimony
+                # because the one before it was.
+                for key in ("register", "asks_to_be_witnessed", "asks_for_help"):
+                    state.response_modifiers.pop(key, None)
+                state.world.partner_register = {}
+                return
+            row = reading.as_dict()
+            # And whether this message is insistent for them, which is the
+            # thing their insistence can carry. See core/social/resolve.py.
+            from core.social.resolve import get_resolve_ledger
+
+            state.cognition.borrowed_resolve = (
+                get_resolve_ledger().read(reading.persistence).as_dict()
+            )
+            # And what they just said about how she is, scored against how she
+            # actually is. Their model of her is the third model in the room
+            # and the only one nothing was comparing. See core/self/borrowed.py.
+            ConversationalDynamicsPhase._score_their_read_of_her(state, message)
+            # And whether they show up reliably at all, which is what the
+            # attachment in that record moves toward. See core/social/constancy.py.
+            ConversationalDynamicsPhase._note_they_came_back(state)
+            state.response_modifiers["register"] = row
+            state.response_modifiers["asks_to_be_witnessed"] = reading.asks_to_be_witnessed()
+            state.response_modifiers["asks_for_help"] = reading.asks_for_help()
+            state.world.partner_register = row
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("register unread for this message: %s", exc)
+
+    @staticmethod
+    def _score_their_read_of_her(state: AuraState, message: str) -> None:
+        """Score what they said about her against her state and against her broadcast.
+
+        Whether their read beats her own is `core/self/recognition.py`. What is
+        scored here is the other question: the same claim against what she
+        actually felt and against what she last said she felt. Somebody
+        repeating the broadcast back is not reading her, and the difference
+        between those two errors is the only thing that separates them.
+        """
+        try:
+            from core.self.borrowed import claims_about_her, score_claim
+
+            claims = claims_about_her(message)
+            if not claims:
+                return
+            emotions = dict(getattr(getattr(state, "affect", None), "emotions", {}) or {})
+            # Whether their read of her beats her own is `core/self/recognition.py`,
+            # which owns that channel and reports it to `identity.read_by_other`.
+            # What is measured here is the other question: whether what they
+            # have learned is the broadcast. Somebody repeating back what she
+            # last said about herself is not reading her, and from the inside
+            # the two feel the same. See core/self/persona_gap.py.
+            from core.self.borrowed import feelings_she_named
+            from core.self.persona_gap import get_persona_ledger, read_gap
+
+            broadcast = feelings_she_named(
+                ConversationalDynamicsPhase._last_said_by_her(state)
+            )
+            persona = get_persona_ledger()
+            for claim in claims:
+                if broadcast:
+                    persona.note(
+                        for_the_person=score_claim(claim, emotions),
+                        for_the_performance=score_claim(claim, broadcast),
+                    )
+            if broadcast:
+                felt = max(emotions.values(), default=0.0) if emotions else 0.0
+                state.cognition.persona_gap = read_gap(
+                    presented=max(broadcast.values(), default=0.0),
+                    felt=felt,
+                    ledger=persona,
+                ).as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("their read of her went unscored: %s", exc)
+
+    @staticmethod
+    def _note_they_came_back(state: AuraState) -> None:
+        """One return, and one of her own cycles, so theirs has a reference.
+
+        Her period is what theirs is read against rather than a number chosen
+        here: something is unreliable when it is less regular than she is.
+        """
+        try:
+            import time
+
+            from core.social.constancy import get_constancy_ledger
+
+            ledger = get_constancy_ledger()
+            # Their return only. Her own period is noted once per turn by the
+            # affect phase, which runs whether or not anybody spoke — noting
+            # both here gave the two series identical timestamps by
+            # construction, so the comparison read exactly equal every time and
+            # could not have come out any other way.
+            ledger.they_came_back(time.time())
+            state.cognition.constancy = ledger.read().as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("their regularity went unread: %s", exc)
+
+    @staticmethod
+    def _last_said_by_her(state: AuraState) -> str:
+        """The last thing she put out, which is the broadcast they may be reading."""
+        history = list(getattr(getattr(state, "cognition", None), "working_memory", []) or [])
+        for item in reversed(history):
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("role", "")).lower() in ("assistant", "aura"):
+                return str(item.get("content", "") or "")[:2000]
+        return ""
+
+    @staticmethod
+    def _read_witness(state: AuraState) -> None:
+        """Whether she is being asked to keep somebody company rather than help.
+
+        Read off the register this phase just measured and the sentiment the
+        integration phase read earlier in the turn, and written to cognition
+        so routing, the reply and the affect phase all read one stance.
+        """
+        try:
+            from core.social.witness import read_witness
+
+            state.cognition.witness = read_witness(state.response_modifiers).as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            state.cognition.witness = {}
+            logger.debug("witness stance unread for this message: %s", exc)
+
+    @staticmethod
+    def _read_togetherness(state: AuraState) -> None:
+        """Whether both of them are saying we, and what draws its edge.
+
+        Her own register was never read, so an exchange where both had started
+        saying "we" looked the same as one where only one had.
+        See core/social/togetherness.py.
+        """
+        try:
+            from core.social.togetherness import read_togetherness
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            state.cognition.togetherness = read_togetherness(history).as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("no we read from this exchange: %s", exc)
+
+    @staticmethod
+    def _read_cadence(state: AuraState) -> None:
+        """The pulse the other person is keeping, and how far off it she sat.
+
+        Read off their recent turns. The placement is of her own last turn
+        against that pulse, and it is recorded rather than corrected: the
+        deviation is the expressive act, and driving it to zero would make her
+        the click track.
+        """
+        try:
+            from core.expression.entrainment import cadence, placement
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            theirs = cadence(history)
+            mine = ""
+            for entry in reversed(history):
+                if isinstance(entry, dict) and str(entry.get("role", "")).lower() in {
+                    "assistant",
+                    "aura",
+                }:
+                    mine = str(entry.get("content", "") or "")
+                    break
+            row = theirs.as_dict()
+            row["placement"] = round(placement(mine, theirs), 6)
+            state.cognition.partner_cadence = row
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("no pulse read from this exchange: %s", exc)
+
+    @staticmethod
+    def _read_recognition(state: AuraState, message: str) -> None:
+        """What somebody just said she is feeling, and whether it was warm.
+
+        The claim is paired with what she has already predicted she will feel,
+        and the next moment scores both against the same outcome. Being cared
+        about is warmth in a message that is about her rather than about
+        something else.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.self.recognition import (
+                cared_for,
+                claim_about_her,
+                get_recognition_ledger,
+            )
+            from core.state.percepts import emit_percept
+
+            ledger = get_recognition_ledger()
+            claimed = claim_about_her(message)
+            if claimed is not None:
+                loop = get_runtime_service("self_prediction", default=None)
+                prediction = loop.get_current_prediction() if loop is not None else None
+                ledger.claim(
+                    claimed,
+                    float(getattr(prediction, "predicted_affect_valence", 0.0) or 0.0),
+                )
+            warmth = cared_for(state.response_modifiers)
+            reading = ledger.reading().as_dict()
+            reading["cared_for"] = round(warmth, 6)
+            state.identity.read_by_other = reading
+            if warmth > 0.0:
+                emit_percept(
+                    state.world,
+                    "cared_for",
+                    content="that was about me, and it was warm",
+                    intensity=warmth,
+                    source="conversation",
+                )
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("how she was read went unrecorded for this message: %s", exc)
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -93,6 +323,17 @@ class ConversationalDynamicsPhase(Phase):
                 role="user",
                 working_memory=state.cognition.working_memory
             )
+
+            # The shape of what arrived, separately from what it said. Who it
+            # is about, whether it asks anything, and whether it holds on —
+            # which together tell somebody testifying from somebody asking.
+            # Assistance is the wrong response to testimony and nothing here
+            # could tell the difference before. See core/expression/register.py.
+            self._read_register(new_state, objective)
+            self._read_witness(new_state)
+            self._read_recognition(new_state, objective)
+            self._read_cadence(new_state)
+            self._read_togetherness(new_state)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from core.learning.semantic_program_ir import TokenSpan
     from core.learning.semantic_program_transducer_fitting import RegisterUseContract
@@ -37,6 +37,7 @@ def optimize_argument_chart(
     contract: RegisterUseContract,
     node_limit: int = 10000,
     definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
+    definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -95,12 +96,20 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
                     tokens[token].append(index)
 
     count = len(choices)
+    if definition_scores is not None and (
+        definition_options is None
+        or any(key not in definition_scores for key in definition_uses)
+        or any(not math.isfinite(value) for value in definition_scores.values())
+    ):
+        raise ValueError("definition attachment scores do not cover the chart")
     definition_offset = count
     sink_offset = count + len(definition_uses)
     order_offset = sink_offset + operation_count
     width = order_offset + operation_count
     objective = np.zeros(width)
     objective[:count] = [-choice[2] for choice in choices]
+    if definition_scores is not None:
+        objective[definition_offset:sink_offset] = [-definition_scores[key] for key in definition_uses]
     lower = np.zeros(width)
     upper = np.ones(width)
     upper[order_offset:] = operation_count - 1
@@ -127,6 +136,9 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         definitions_by_register[register].append(variable)
         for index in indices:
             constraint({index: 1.0, variable: -1.0}, -np.inf, 0.0)
+        # Attachment evidence is paid once, and only for a used definition.
+        if definition_scores is not None:
+            constraint({variable: 1.0, **dict.fromkeys(indices, -1.0)}, -np.inf, 0.0)
     for variables in definitions_by_register.values():
         constraint(dict.fromkeys(variables, 1.0), 0.0, 1.0)
     # A token can belong to only one selected argument mention, across the chart.
@@ -193,4 +205,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         tuple(sorted({register - n_inputs for register in values if register >= n_inputs}))
         for values in arguments
     )
+    if definition_scores is not None:
+        score += sum(definition_scores[key] for index, key in enumerate(definition_uses)
+                     if values[definition_offset + index] > 0.5)
     return score, tuple(arguments), tuple(spans), dependencies

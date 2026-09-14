@@ -119,7 +119,14 @@ async def collect_partition_samples(
 ) -> dict[int, dict[str, np.ndarray]]:
     """Collect matched context/intact/cut/sham arrays for one physical cut."""
     buckets: dict[int, dict[str, list[np.ndarray]]] = {
-        int(lag): {"context": [], "intact": [], "cut": [], "sham_a": [], "sham_b": []}
+        int(lag): {
+            "context": [], "intact": [], "cut": [], "sham_a": [], "sham_b": [],
+            # Whether every arm of this rollout actually recorded this many
+            # frames. `lag_vector` clamps a lag past the end to the last frame,
+            # so a lag longer than the rollout would otherwise be read as that
+            # frame and scored as though it were a different horizon.
+            "reached": [],
+        }
         for lag in lags
     }
     condition_names = [getattr(c, "name", str(i)) for i, c in enumerate(conditions)]
@@ -159,6 +166,8 @@ async def collect_partition_samples(
             slot["sham_a"].append(lag_vector(rows.intact_a, int(lag)))
             slot["sham_b"].append(lag_vector(rows.intact_b, int(lag)))
             slot["cut"].append(lag_vector(rows.cut, int(lag)))
+            shortest = min(len(rows.intact_a), len(rows.intact_b), len(rows.cut))
+            slot["reached"].append(np.asarray([1.0 if int(lag) <= shortest else 0.0]))
 
     return {
         lag: {key: np.vstack(values) for key, values in slot.items()}

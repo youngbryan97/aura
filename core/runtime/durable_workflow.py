@@ -351,6 +351,53 @@ class WorkflowStore:
         env = read_json_envelope(path)
         return self._hydrate(env.get("payload") or {})
 
+    def revisions_something_forked_from(self, workflow_id: str) -> set[int]:
+        """Revisions of this workflow that another workflow branched off."""
+        held: set[int] = set()
+        try:
+            paths = sorted(self.root.glob("*.json"))
+        except OSError:
+            return held
+        for path in paths:
+            try:
+                other = self._hydrate(read_json_envelope(path).get("payload") or {})
+            except (OSError, ValueError, TypeError, KeyError):
+                continue
+            if other.forked_from == workflow_id and other.forked_at_revision is not None:
+                held.add(int(other.forked_at_revision))
+        return held
+
+    def prune(self, workflow_id: str, *, keep: int) -> list[int]:
+        """Drop old history revisions, keeping the newest ``keep`` and every
+        revision a fork was taken from. Returns the revisions removed.
+
+        Every step writes a revision, so a long workflow's history grows for as
+        long as the workflow does. What makes pruning safe to offer is the
+        second rule: a branch names the revision it came from, and removing that
+        file leaves a fork whose parent cannot be read, which is the lineage
+        this history exists to keep. ``keep`` has no default. How much history
+        is worth holding is the caller's decision, not a number chosen here.
+        """
+        if keep < 1:
+            raise ValueError("keep must be at least one revision")
+        history = self.history(workflow_id)
+        numbers = sorted(one.revision for one in history)
+        protected = set(numbers[-keep:]) | self.revisions_something_forked_from(workflow_id)
+        removed: list[int] = []
+        from core.governance_context import local_internal_governed_scope
+
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope(
+            "runtime.durable_workflow.prune", domain="file_write"
+        ):
+            for number in numbers:
+                if number in protected:
+                    continue
+                path = self._history_dir(workflow_id) / f"{number:06d}.json"
+                if gateway.delete_file(path, source="runtime.durable_workflow.prune"):
+                    removed.append(number)
+        return removed
+
 
 class DurableWorkflowEngine:
     def __init__(self, *, store: WorkflowStore | None = None):

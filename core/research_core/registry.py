@@ -44,8 +44,16 @@ def register_research_core(
     if container is not None:
         try:
             container.register_instance(SelfImprovingResearchCore.SERVICE_NAME, core)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             # Container failures must not stop the core from running
-            # — callers that hold a direct reference still work.
-            pass
+            # — callers that hold a direct reference still work. Callers that
+            # ask the container do not, so the failure is recorded.
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "research_core",
+                exc,
+                severity="warning",
+                action="kept the research core running unregistered in the container",
+            )
     return core

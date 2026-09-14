@@ -6,11 +6,37 @@ reason. These say what reopens it and what keeps it shut.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import pytest
 
 from core.brain.llm import mlx_worker
 from core.consciousness import fusion_certificate
-from core.consciousness.fusion_certificate import FusionCertificate, write_certificate
+from core.consciousness.fusion_certificate import (
+    FUSION_MEASUREMENT_PROTOCOL,
+    FusionCertificate,
+    steering_basis_sha256,
+    write_certificate,
+)
+
+
+class BoundHook:
+    def fusion_basis(self):
+        return {"layer": 1, "vectors": [{"sha256": "a" * 64}]}
+
+
+class BoundEngine:
+    def __init__(self, identity):
+        self._model_info = {"model_descriptor_sha256": identity}
+
+    def active_hooks(self):
+        return [BoundHook()]
+
+    def controlled_measurement(self):
+        return nullcontext()
+
+    def set_alpha(self, alpha):
+        raise AssertionError("a measured basis must not be probed again")
 
 
 def _point_the_lookup_at(monkeypatch, root):
@@ -22,7 +48,9 @@ def _point_the_lookup_at(monkeypatch, root):
 def certified(tmp_path, monkeypatch):
     """A checkpoint that has earned steering, with the lookup pointed at tmp."""
     identity = "c" * 64
+    engine = BoundEngine(identity)
     certificate = FusionCertificate(
+        measurement_protocol=FUSION_MEASUREMENT_PROTOCOL,
         model_identity=identity,
         model_name="test-model",
         alpha=0.2,
@@ -38,12 +66,13 @@ def certified(tmp_path, monkeypatch):
         quality_scale="forced-choice accuracy over 10 items",
         prompts=8,
         steps=24,
+        basis_sha256=steering_basis_sha256(engine.active_hooks()),
     )
     _point_the_lookup_at(monkeypatch, tmp_path)
     write_certificate(certificate, root=tmp_path)
     monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", identity)
     monkeypatch.delenv("AURA_USER_SURFACE_STEERING_ALPHA", raising=False)
-    return certificate
+    return certificate, engine
 
 
 def test_an_uncertified_checkpoint_gets_no_steering(monkeypatch, tmp_path):
@@ -61,17 +90,20 @@ def test_a_worker_that_never_attached_gets_no_steering(monkeypatch, tmp_path):
 
 
 def test_a_certified_checkpoint_steers_at_the_measured_alpha(certified):
-    assert mlx_worker._surface_control_alpha({}, None) == pytest.approx(certified.alpha)
+    certificate, engine = certified
+    assert mlx_worker._surface_control_alpha({}, None, engine=engine) == pytest.approx(certificate.alpha)
 
 
 def test_the_job_may_still_ask_for_less(certified):
-    alpha = mlx_worker._surface_control_alpha({"clean_user_surface_steering_alpha": 0.05}, None)
+    _, engine = certified
+    alpha = mlx_worker._surface_control_alpha({"clean_user_surface_steering_alpha": 0.05}, None, engine=engine)
     assert alpha == pytest.approx(0.05)
 
 
 def test_the_governor_still_caps_it(certified):
     """The certificate says what is allowed, never what is required."""
-    assert mlx_worker._surface_control_alpha({}, 0.01) == pytest.approx(0.01)
+    _, engine = certified
+    assert mlx_worker._surface_control_alpha({}, 0.01, engine=engine) == pytest.approx(0.01)
 
 
 def test_a_failing_certificate_keeps_the_channel_shut(monkeypatch, tmp_path):
@@ -168,11 +200,57 @@ def test_a_missing_precondition_is_said_once(monkeypatch, caplog):
 
 
 def test_self_certification_skips_a_checkpoint_that_already_has_one(certified, monkeypatch):
-    class Engine:
-        def active_hooks(self):
-            return [object()]
+    _, engine = certified
+    assert mlx_worker._self_certify_fusion(object(), object(), engine) is False
 
-        def set_alpha(self, alpha):
-            raise AssertionError("must not probe a checkpoint that is already certified")
 
-    assert mlx_worker._self_certify_fusion(object(), object(), Engine()) is False
+def test_a_job_or_environment_cannot_raise_the_measured_alpha(certified, monkeypatch):
+    _, engine = certified
+    monkeypatch.setenv("AURA_USER_SURFACE_STEERING_ALPHA", "0.9")
+    assert mlx_worker._surface_control_alpha({}, None, engine=engine) == pytest.approx(0.2)
+    assert mlx_worker._surface_control_alpha({"clean_user_surface_steering_alpha": 0.8}, None,
+                                           engine=engine) == pytest.approx(0.2)
+
+
+def test_current_model_and_engine_identity_must_agree(certified, monkeypatch):
+    _, engine = certified
+    monkeypatch.setattr(mlx_worker, "_FUSION_MODEL_IDENTITY", "d" * 64)
+    assert mlx_worker._surface_control_alpha({}, None, engine=engine) == 0.0
+
+
+def test_different_vector_basis_cannot_reuse_the_certificate(certified):
+    _, engine = certified
+
+    class ChangedHook(BoundHook):
+        def fusion_basis(self):
+            return {"layer": 2, "vectors": [{"sha256": "a" * 64}]}
+
+    engine.active_hooks = lambda: [ChangedHook()]
+    assert mlx_worker._surface_control_alpha({}, None, engine=engine) == 0.0
+
+
+def test_new_basis_is_measured_without_deleting_previous_evidence(certified, monkeypatch):
+    from dataclasses import replace
+
+    from core.consciousness import fusion_probe
+
+    old, engine = certified
+
+    class ChangedHook(BoundHook):
+        def fusion_basis(self):
+            return {"layer": 2, "vectors": [{"sha256": "a" * 64}]}
+
+    engine.active_hooks = lambda: [ChangedHook()]
+    engine.set_alpha = lambda alpha: None
+    basis = steering_basis_sha256(engine.active_hooks())
+    calls = []
+
+    def measure(*args, **kwargs):
+        calls.append(kwargs["model_identity"])
+        return [replace(old, basis_sha256=basis)]
+
+    monkeypatch.setattr(fusion_probe, "measure_fusion", measure)
+    assert mlx_worker._self_certify_fusion(object(), object(), engine) is True
+    assert calls == [old.model_identity]
+    assert fusion_certificate.certificate_for(old.model_identity, basis_sha256=old.basis_sha256) == old
+    assert fusion_certificate.certificate_for(old.model_identity, basis_sha256=basis).holds

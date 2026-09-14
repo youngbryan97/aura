@@ -1,0 +1,20 @@
+[
+  {
+    "id": "ordered_integers",
+    "prompt": "Sort these integers from smallest to largest: 9, 2, 5.",
+    "shape": "array",
+    "expected": [2, 5, 9]
+  },
+  {
+    "id": "color_translation",
+    "prompt": "Map each English color name to its French translation: red, blue.",
+    "shape": "object",
+    "expected": {"red": "rouge", "blue": "bleu"}
+  },
+  {
+    "id": "elementwise_products",
+    "prompt": "Multiply each number in [2, 3, 5] by 7, keeping the same order.",
+    "shape": "array",
+    "expected": [14, 21, 35]
+  }
+]

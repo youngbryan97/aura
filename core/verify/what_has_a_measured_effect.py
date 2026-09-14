@@ -69,20 +69,57 @@ _THE_WAYS_TO_REGISTER: frozenset[str] = frozenset(
 )
 
 
+@functools.lru_cache(maxsize=1)
+def _what_each_constant_says() -> dict[str, str]:
+    """``LIVE_MIND_STEERING_ALPHA`` -> ``"live_mind.steering_alpha"``.
+
+    Read from the source of ``influence_channels``, which is string constants
+    and nothing else, so resolving a name to its id imports nothing and gives
+    the same answer in every process.
+    """
+    import ast
+
+    said: dict[str, str] = {}
+    source = Path(__file__).resolve().parent / "influence_channels.py"
+    try:
+        tree = ast.parse(source.read_text("utf-8", errors="ignore"))
+    except (OSError, SyntaxError, ValueError):
+        return said
+    for node in tree.body:
+        target = node.target if isinstance(node, ast.AnnAssign) else (
+            node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None
+        )
+        value = getattr(node, "value", None)
+        if (
+            isinstance(target, ast.Name)
+            and isinstance(value, ast.Constant)
+            and isinstance(value.value, str)
+        ):
+            said[target.id] = value.value
+    return said
+
+
 def _a_channel_name(node: Any, path: Path) -> str:
     """The channel a registration names, literal or through a constant.
 
-    ``influence_channels.LIVE_MIND_STEERING_ALPHA`` is the usual form. The
-    attribute's own name is what identifies it here; resolving it to the
-    string would mean importing the module, and importing to count is how the
-    count became import-order dependent in the first place.
+    ``influence_channels.LIVE_MIND_STEERING_ALPHA`` is the usual form, and it
+    used to count as the attribute's own name. The registry and every recorded
+    verdict use the id — ``live_mind.steering_alpha`` — so the report unioned
+    two spellings of one set: ten channels read as twenty lesionable and
+    twenty unmeasured, and a substrate verdict recorded against an id could
+    never mark a declared channel measured, because it was declared under a
+    different string.
+
+    Resolved statically through ``influence_channels``' own source, so the
+    reason for not importing — a count that depends on import order — still
+    holds.
     """
     import ast
 
     if isinstance(node, ast.Constant):
         return str(node.value)
     if isinstance(node, ast.Attribute):
-        return str(node.attr)
+        return _what_each_constant_says().get(node.attr, str(node.attr))
     # A bare name is a variable — a wrapper passing its own argument through.
     # Counting it added a channel called "channel" to the list.
     return ""

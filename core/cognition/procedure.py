@@ -50,8 +50,6 @@ possibly apply rather than with the number that exist.
 
 from __future__ import annotations
 
-from core.runtime.lockdep import checked_lock
-import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
@@ -59,6 +57,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.evidence.packet import EvidencePacket
+from core.runtime.lockdep import checked_lock
 
 __all__ = [
     "Backend",
@@ -123,7 +122,10 @@ def _kind_accepts_value(kind: str, value: Any) -> bool:
 def _kinds_compose(produced: str, required: str) -> bool:
     """Whether an effect of one structural kind can satisfy a later read."""
 
-    return produced == "any" or required == "any" or produced == required
+    return (
+        produced == "any" or required == "any" or produced == required
+        or (produced, required) in {("integer", "number"), ("integer_sequence", "sequence")}
+    )
 
 
 class Backend(StrEnum):
@@ -165,7 +167,7 @@ class Precondition:
         if self.key not in state:
             return False  # never observed is never a match
         value = state[self.key]
-        present = value is not None and value is not False
+        present = value is not None and (value is not False or self.kind == "boolean")
         if self.negated:
             return not present
         if not present:
@@ -622,6 +624,30 @@ class ProcedureRegistry:
         with self._lock:
             return self._procedures.get(procedure_id)
 
+    def execution_contract(self, procedure_id: str) -> tuple | None:
+        """Stable execution identity, without the registry's process-local IDs.
+
+        Legacy registrations without a backend contract remain unbound. A
+        composition is bound only if every executable leaf is bound.
+        """
+        with self._lock:
+            def visit(identity: str, active: frozenset[str]) -> tuple | None:
+                procedure = self._procedures.get(identity)
+                if procedure is None or procedure.retired or identity in active:
+                    return None
+                if procedure.origin is not None and procedure.origin.learner == "compose":
+                    if not procedure.parts or procedure.program != procedure.parts:
+                        return None
+                    parts = tuple(visit(part, active | {identity}) for part in procedure.parts)
+                    return None if None in parts else ("composition", parts)
+                key = self._intern_key_by_procedure.get(identity)
+                if key is None:
+                    return None
+                bound_id, digest = self._interned[key]
+                return ("leaf", key[0].value, key[1], digest) if bound_id == identity else None
+
+            return visit(procedure_id, frozenset())
+
     def _drop_interned_locked(self, procedure_id: str) -> None:
         key = self._intern_key_by_procedure.pop(procedure_id, None)
         if key is not None:
@@ -903,7 +929,9 @@ class ProcedureRegistry:
                 },
             }
 
-    def procedures(self) -> list[Procedure]:
+    def procedures(self, *, refresh: bool = False) -> list[Procedure]:
+        if refresh:
+            self._refresh_if_stale()
         with self._lock:
             return list(self._procedures.values())
 
@@ -914,6 +942,7 @@ def compose(
     *,
     name: str = "",
     backend: Backend = Backend.PLANNER,
+    intern: bool = False,
 ) -> Procedure:
     """Chain procedures into one, computing the combined signature.
 
@@ -965,7 +994,18 @@ def compose(
         ):
             reversibility = Reversibility.UNKNOWN
 
-    return registry.register(
+    register = registry.register
+    if intern:
+        import hashlib
+        import json
+        from functools import partial
+
+        identity = hashlib.sha256(json.dumps(
+            [backend.value, [part.procedure_id for part in parts]],
+            separators=(",", ":"),
+        ).encode()).hexdigest()
+        register = partial(registry.intern, "composition:" + identity, identity)
+    return register(
         name or " then ".join(p.name for p in parts),
         backend,
         Signature(preconditions=tuple(preconditions), effects=tuple(effects)),

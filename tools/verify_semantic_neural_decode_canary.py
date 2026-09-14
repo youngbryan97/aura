@@ -335,6 +335,9 @@ def _verify_journal(
         expected_start["difficulties"] = payload["difficulties"]
     if "surface_profile" in payload:
         expected_start["surface_profile"] = payload["surface_profile"]
+    for field in ("decode_policy", "grading_policy", "max_tokens"):
+        if field in payload:
+            expected_start[field] = payload[field]
     if any(started.get(key) != value for key, value in expected_start.items()):
         raise RuntimeError("semantic decode journal campaign identity mismatch")
 
@@ -352,6 +355,7 @@ def _verify_journal(
             or row.get("arm") != raw_output.get("arm")
             or row.get("response_sha256")
             != hashlib.sha256(str(raw_output.get("response", "")).encode()).hexdigest()
+            or ("rows" in payload and row != payload["rows"][index - 1])
         ):
             raise RuntimeError(f"semantic decode journal row {index} mismatch")
     last_decode_receipt = decode_events[-1]["receipt_sha256"]
@@ -378,24 +382,56 @@ def verify_canary(
     model_path: Path,
     journal_path: Path | None = None,
     resident_manifest_path: Path | None = None,
+    require_admission: bool = True,
 ) -> dict[str, Any]:
     artifact_path = artifact_path.expanduser().resolve(strict=True)
     model_path = model_path.expanduser().resolve(strict=True)
     raw_bytes = artifact_path.read_bytes()
     payload = json.loads(raw_bytes)
-    if not isinstance(payload, dict) or payload.get("schema") != CANARY_SCHEMA:
+    from core.brain.llm.public_channel_decode import PUBLIC_CHANNEL_DECODE_POLICY
+    from core.learning.public_decode_evidence import public_decode_coverage
+    from core.learning.semantic_task_grading import (
+        LEGACY_GRADING_POLICY,
+        SEMANTIC_GRADING_POLICY,
+        grade_semantic_task,
+    )
+
+    public_schema = "aura.rlc.semantic_neural_decode_canary.v2"
+    if not isinstance(payload, dict) or payload.get("schema") not in {CANARY_SCHEMA, public_schema}:
         raise RuntimeError("semantic decode canary schema mismatch")
+    public_decode = payload["schema"] == public_schema
+    grading_policy = SEMANTIC_GRADING_POLICY if public_decode else LEGACY_GRADING_POLICY
+    if public_decode and (
+        payload.get("decode_policy") != PUBLIC_CHANNEL_DECODE_POLICY
+        or payload.get("grading_policy") != grading_policy
+        or type(payload.get("max_tokens")) is not int
+        or not 32 <= payload["max_tokens"] <= 8192
+        or journal_path is None
+    ):
+        raise RuntimeError("public decode policy, budget or journal is missing")
     _verify_embedded_receipt(payload, "receipt_sha256")
     source_commit = payload.get("source_commit")
     source_sha256s = payload.get("source_sha256s")
     if not isinstance(source_commit, str) or not isinstance(source_sha256s, dict):
         raise RuntimeError("semantic decode source identity is incomplete")
     source_paths = tuple(source_sha256s)
-    if frozenset(source_paths) not in {
+    allowed_sources = {
         frozenset(LEGACY_SOURCE_PATHS),
         frozenset(SOURCE_PATHS),
         frozenset(SURFACE_SOURCE_PATHS),
-    }:
+    }
+    if public_decode:
+        channel_sources = {
+            "core/brain/llm/public_channel_decode.py", "core/brain/llm/chat_format.py",
+            "core/brain/llm/latent_cortex/answer_contract.py",
+            "core/learning/public_decode_evidence.py", "core/learning/semantic_task_grading.py",
+            "core/reasoning/asymptotic.py",
+        }
+        allowed_sources = {
+            frozenset((*SOURCE_PATHS, *channel_sources)),
+            frozenset((*SURFACE_SOURCE_PATHS, *channel_sources)),
+        }
+    if frozenset(source_paths) not in allowed_sources:
         raise RuntimeError("semantic decode source manifest mismatch")
     for path in source_paths:
         if source_sha256s[path] != _git_blob_sha(source_commit, path):
@@ -465,13 +501,42 @@ def verify_canary(
         if pair not in expected_pairs or pair in observed_pairs or not isinstance(response, str):
             raise RuntimeError("semantic decode raw output matrix is invalid")
         observed_pairs.add(pair)
-        verdict = task_by_id[task_id].grade(response)
+        verdict = grade_semantic_task(task_by_id[task_id], response, policy=grading_policy)
         if not isinstance(verdict, dict) or type(verdict.get("correct")) is not bool:
             raise RuntimeError("semantic decode independent grader returned invalid output")
         correctness[arm][task_id] = bool(verdict["correct"])
         parsed_counts[arm] += int(verdict.get("parsed") is not None)
     if observed_pairs != expected_pairs:
         raise RuntimeError("semantic decode raw output matrix is incomplete")
+
+    coverage = None
+    if public_decode:
+        coverage = public_decode_coverage(raw_outputs, max_tokens=payload["max_tokens"])
+        if payload.get("decode_coverage") != coverage:
+            raise RuntimeError("public decode coverage differs from attempts")
+        rows = payload.get("rows")
+        if not isinstance(rows, list) or len(rows) != len(raw_outputs):
+            raise RuntimeError("public decode resource rows are missing")
+        for row, output in zip(rows, raw_outputs, strict=True):
+            attempts = output["attempts"]
+            for ordinal, attempt in enumerate(attempts, 1):
+                if (attempt.get("attempt") != ordinal
+                        or type(attempt.get("prompt_tokens")) is not int
+                        or attempt["prompt_tokens"] < 1
+                        or attempt.get("prefill_tokens") != attempt["decode"]["prefill_tokens"]
+                        or attempt.get("raw_response_sha256") != hashlib.sha256(attempt["raw_response"].encode()).hexdigest()
+                        or attempt.get("response_sha256") != hashlib.sha256(attempt["response"].encode()).hexdigest()):
+                    raise RuntimeError("public decode attempt accounting differs")
+            final = attempts[-1]
+            if (not isinstance(row, dict) or row.get("task_id") != output["task_id"]
+                    or row.get("arm") != output["arm"] or output["response"] != final["response"]
+                    or row.get("decode_attempts") != len(attempts)
+                    or row.get("generated_tokens") != sum(a["decode"]["generated_tokens"] for a in attempts)
+                    or row.get("prompt_tokens") != sum(a["prompt_tokens"] for a in attempts)
+                    or row.get("latency_ms") != sum(a["decode"]["latency_ms"] for a in attempts)
+                    or row.get("stopped") is not (final["decode"]["stop_reason"] in {"eos", "public_contract"})
+                    or row.get("correct") is not correctness[output["arm"]][output["task_id"]]):
+                raise RuntimeError("public decode row accounting differs")
 
     summaries = payload.get("arms")
     if not isinstance(summaries, dict) or set(summaries) != set(ARMS):
@@ -521,6 +586,7 @@ def verify_canary(
 
     admitted = bool(
         exact_counts["treatment"] == len(tasks)
+        and (coverage is None or coverage["uncensored"])
         and gains
         and not regressions
         and all(
@@ -528,7 +594,9 @@ def verify_canary(
             for arm in ("matched_wire_base", "coefficient_lesion", "matched_wrong_state")
         )
     )
-    if payload.get("admitted") is not admitted or not admitted:
+    if payload.get("admitted") is not admitted:
+        raise RuntimeError("semantic decode claimed admission disagrees with independent replay")
+    if require_admission and not admitted:
         raise RuntimeError("semantic decode independently derived admission failed")
 
     journal_verification = (
@@ -548,7 +616,9 @@ def verify_canary(
 
     body = {
         "schema": VERIFICATION_SCHEMA,
-        "verified": True,
+        "verified": admitted,
+        "integrity_verified": True,
+        "admitted": admitted,
         "artifact_sha256": hashlib.sha256(raw_bytes).hexdigest(),
         "artifact_receipt_sha256": payload["receipt_sha256"],
         "source_commit": source_commit,
@@ -574,6 +644,9 @@ def verify_canary(
         "producer_claim_boundary": producer_claim_boundary,
         "producer_claim_boundary_legacy": (producer_claim_boundary != verified_claim_boundary),
         "verifier_source_sha256": _file_sha(Path(__file__)),
+        **({"decode_policy": payload["decode_policy"], "grading_policy": grading_policy,
+            "decode_coverage": coverage, "max_tokens": payload["max_tokens"]}
+           if public_decode else {}),
     }
     return {**body, "verification_receipt_sha256": _sha(body)}
 
@@ -585,12 +658,15 @@ def main() -> int:
     parser.add_argument("--journal", type=Path)
     parser.add_argument("--resident-manifest", type=Path)
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--allow-negative", action="store_true",
+                        help="Audit negative results without granting qualification.")
     args = parser.parse_args()
     report = verify_canary(
         args.artifact,
         model_path=args.model,
         journal_path=args.journal,
         resident_manifest_path=args.resident_manifest,
+        require_admission=not args.allow_negative,
     )
     encoded = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.report is not None:

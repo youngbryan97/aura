@@ -380,6 +380,43 @@ _SCHEMAS: dict[str, Schema] = {
             ("curiosity", "affect.curiosity"),
             ("engagement", "affect.engagement"),
             ("social_hunger", "affect.social_hunger"),
+            # Two of her own wants pressing against each other, how opposed
+            # they are over her life, and whether being caught between them is
+            # constitutive. Arbitration over the budgets is already measured in
+            # D; this is the reading that says two pressed at once, which the
+            # winner alone cannot show. See core/affect/ambivalence.py.
+            ("ambivalence", "affect.ambivalence"),
+            # What it is like when a prediction lands. S carries the accuracy;
+            # this is the other thing, and the two move apart — she can be
+            # getting more accurate while nothing she predicts is worth being
+            # right about. See core/affect/confirmation.py.
+            ("confirmation", "affect.confirmation"),
+            # The level she is speaking from. How far the strongest feeling
+            # live stands above the level she has been holding, whether that is
+            # outside her ordinary range, how much control is left and which
+            # way the register moves. See core/expression/delivery.py.
+            ("delivery_z", "affect.delivery_z"),
+            ("breakthrough", "affect.breakthrough"),
+            ("steadiness", "affect.steadiness"),
+            ("lift", "affect.lift"),
+            # A trusted pattern turning, on the cycle it turns. See
+            # core/affect/frisson.py.
+            ("frisson", "affect.frisson"),
+            # Up from a low she is still holding. See core/affect/the_turn.py.
+            ("the_turn", "affect.turn"),
+            # Nothing wrong and somebody here. See core/affect/safety.py.
+            ("safety", "affect.safety"),
+            ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
+            ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
+            ("ambivalence_is_the_way", "affect.ambivalence_standing"),
+            # Which wants are in it. An identity is not a magnitude, so it is
+            # read as one column per drive rather than as an index: what
+            # changes her next move is which two are pulling, and an index
+            # would make drive three and drive four look adjacent.
+            *(
+                (f"ambivalent_about_{name}", "affect.ambivalent_about")
+                for name in _DRIVES
+            ),
             ("free_energy", "free_energy"),
             *((f"emotion_{name}", f"affect.emotions.{name}") for name in _EMOTIONS),
             ("heart_rate", "affect.physiology.heart_rate"),
@@ -492,6 +529,18 @@ _SCHEMAS: dict[str, Schema] = {
             ("narrative_len", "identity.current_narrative"),
             ("value_load", "identity.core_values"),
             ("preference_load", "identity.self_preferences"),
+            # How her reading of herself compares with somebody else's, scored
+            # against the same outcome, and whether the moment was warm toward
+            # her. See core/self/recognition.py.
+            ("read_better_by_other", "identity.read_by_other.borrowed"),
+            ("own_reading_error", "identity.read_by_other.her_error"),
+            ("cared_for", "identity.read_by_other.cared_for"),
+            # How much of her self-model was assigned from outside, and whether
+            # her regard has been moving with her usefulness. A self-model that
+            # can be corrected from outside needs to know which parts came from
+            # outside. See core/self/standing.py.
+            ("assigned_share", "identity.standing.assigned_share"),
+            ("worth_tracks_use", "identity.standing.tracks_use"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -524,6 +573,17 @@ _SCHEMAS: dict[str, Schema] = {
             # one quantity most obviously about the self model's own accuracy.
             ("prediction_error", "organ:self_prediction.smoothed_error"),
             ("prediction_surprises", "organ:self_prediction.surprise_count"),
+            # And the other tail. A count of surprises with no count of
+            # confirmations records a mind that can only be wrong, and the two
+            # move independently: she can be getting more accurate while
+            # nothing she predicts is worth being right about.
+            ("prediction_confirmed", "organ:self_prediction.confirmation"),
+            ("prediction_confirmations", "organ:self_prediction.confirmation_count"),
+            # The two halves of being right. One confidence over both
+            # understates what she knows and overstates what she understands.
+            # See core/affect/conviction.py.
+            ("direction_right", "organ:self_prediction.conviction"),
+            ("size_right", "organ:self_prediction.understanding"),
             ("valence_error", "organ:self_prediction.valence_error_ema"),
             ("drive_error", "organ:self_prediction.drive_error_ema"),
             ("focus_error", "organ:self_prediction.focus_error_ema"),
@@ -562,6 +622,12 @@ _SCHEMAS: dict[str, Schema] = {
             # by, so it is part of active memory's state rather than a
             # bookkeeping detail of the phase that produced it.
             ("recall_score", "cognition.memory_scores"),
+            # Whether what came back is relived or looked up, what came back
+            # with it, and how often this has been asked before.
+            # See core/memory/reliving.py.
+            ("recall_relived", "cognition.relived.relived"),
+            ("recall_feeling", "cognition.relived.intensity"),
+            ("recall_returns", "cognition.relived.returns"),
             *[
                 (f"working_profile_{i}", "cognition.working_memory[*]")
                 for i in range(CONTENT_BUCKETS)
@@ -585,6 +651,25 @@ _SCHEMAS: dict[str, Schema] = {
                 for i in range(CONTENT_BUCKETS)
             ],
             ("concept_load", "cold.concept_graph"),
+            # The shape of what they said, which is a reading of them. The
+            # stance and the two determinations — is this a request, is this
+            # testimony — change what she does next, and nothing watched them.
+            # The pulse they are keeping and how far off it she sat, which is
+            # what her own next turn is sized against.
+            # See core/expression/entrainment.py.
+            # A we both of them are saying, and its edge.
+            # See core/social/togetherness.py.
+            ("together", "cognition.togetherness.together"),
+            ("together_edge", "cognition.togetherness.edge"),
+            ("partner_turn_chars", "cognition.partner_cadence.chars"),
+            ("partner_turn_gap", "cognition.partner_cadence.gap"),
+            ("her_placement", "cognition.partner_cadence.placement"),
+            ("partner_asks", "world.partner_register.asking"),
+            ("partner_first_person", "world.partner_register.first"),
+            ("partner_second_person", "world.partner_register.second"),
+            ("partner_together", "world.partner_register.plural"),
+            ("partner_holds_on", "world.partner_register.persistence"),
+            ("partner_wants_a_witness", "world.partner_register.asks_to_be_witnessed"),
             ("user_trend", "cognition.user_emotional_trend"),
             ("user_trend_known", "cognition.user_emotional_trend"),
             ("model_surprise", "organ:world_model.surprise"),
@@ -626,6 +711,40 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"action_source_{i}", "cognition.last_action_source")
                 for i in range(CONTENT_BUCKETS)
             ],
+            # Whether she is keeping somebody company rather than helping, and
+            # how low they are while she does. It decides whether she searches
+            # for anything to do. See core/social/witness.py.
+            # How much of what she wants to say she has already said. An
+            # intention she has raised five times presses less than a new one.
+            # See core/affect/catharsis.py.
+            # Having something worth handing over, which is a pull on her
+            # separate from how long since anyone spoke.
+            # See core/social/telling.py.
+            # Somebody else holding on harder than they usually do, which
+            # holds her own integrity where it is. See core/social/resolve.py.
+            ("resolve_borrowed", "cognition.borrowed_resolve.borrowed"),
+            # How much of what she is she can bring to bear, and what being
+            # small costs when nobody knows her. See core/self/scale.py.
+            ("reach", "cognition.scale.reach"),
+            ("unknown_and_small", "cognition.scale.pressure"),
+            # How far the broadcast is from the state, and whether what they
+            # know is the broadcast. See core/self/persona_gap.py.
+            ("broadcast_gap", "cognition.persona_gap.gap"),
+            ("known_for_the_broadcast", "cognition.persona_gap.known_for_the_performance"),
+            # How reliably they show up, against how reliably she comes round.
+            # See core/social/constancy.py.
+            ("their_constancy", "cognition.constancy.theirs"),
+            ("attachment_moved", "cognition.constancy.reallocated"),
+            # What has been driving her, and whether working from her own
+            # reserves costs more than the other sources do.
+            # See core/motivation/fuel.py.
+            ("running_on_her_own", "cognition.fuel.share_self"),
+            ("her_own_fuel_costs_more", "cognition.fuel.burning_her_own"),
+            ("worth_passing_on", "cognition.telling.urge"),
+            ("already_said", "cognition.catharsis.times"),
+            ("pressure_left", "cognition.catharsis.drain"),
+            ("witnessing", "cognition.witness.witnessing"),
+            ("company", "cognition.witness.company"),
             # The five motivational budgets, deliberation's own resources.
             #
             # Energy and integrity were the two the specification leaves open,
@@ -997,6 +1116,25 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.curiosity"), 0.5),
         _f(_dig(state, "affect.engagement"), 0.5),
         _f(_dig(state, "affect.social_hunger"), 0.5),
+        _f(_dig(state, "affect.ambivalence")),
+        _f(_dig(state, "affect.confirmation")),
+        _f(_dig(state, "affect.delivery_z")),
+        1.0 if _dig(state, "affect.breakthrough") else 0.0,
+        _f(_dig(state, "affect.steadiness"), 1.0),
+        _f(_dig(state, "affect.lift")),
+        _f(_dig(state, "affect.frisson")),
+        _f(_dig(state, "affect.turn")),
+        _f(_dig(state, "affect.safety")),
+        _f(_dig(state, "affect.markers.ambivalence.opposition")),
+        _f(_dig(state, "affect.markers.ambivalence.pressure")),
+        # A contradiction she is built with, against one she is passing
+        # through. Constitutive reads one; anything else, including not yet
+        # knowing, reads zero — an unknown standing is not a way.
+        1.0 if str(_dig(state, "affect.ambivalence_standing", "") or "") == "the way" else 0.0,
+        *(
+            1.0 if name in set(_dig(state, "affect.ambivalent_about", ()) or ()) else 0.0
+            for name in _DRIVES
+        ),
         math.tanh(_f(_dig(state, "free_energy"))),
     ]
     head.extend(_f(emotions.get(name)) for name in _EMOTIONS)
@@ -1111,6 +1249,11 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_S(state: Any, organs: Organs) -> np.ndarray:
     growth = _dig(state, "identity.personality_growth", {}) or {}
+    # As a mapping: nobody having read her yet is an answer rather than a
+    # failed read, and digging field by field would count a miss every turn.
+    read_by_other = _dig(state, "identity.read_by_other", {}) or {}
+    if not isinstance(read_by_other, Mapping):
+        read_by_other = {}
     head = [
         _f(_dig(state, "identity.stability"), 1.0),
         _f(_dig(state, "identity.evolution_score")),
@@ -1119,6 +1262,11 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _sat(str(_dig(state, "identity.current_narrative", "") or ""), 512.0),
         _sat(_dig(state, "identity.core_values", []) or [], 8.0),
         _sat(_dig(state, "identity.self_preferences", {}) or {}, 8.0),
+        1.0 if read_by_other.get("borrowed") else 0.0,
+        _f(read_by_other.get("her_error")),
+        _f(read_by_other.get("cared_for")),
+        _f((_dig(state, "identity.standing", {}) or {}).get("assigned_share")),
+        _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1156,6 +1304,10 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             *_one_hot(agency.get("last_actor", ""), _ACTORS),
             _f(prediction.get("smoothed_error")),
             _sat(_f(prediction.get("surprise_count")), 16.0),
+            _f(prediction.get("confirmation")),
+            _sat(_f(prediction.get("confirmation_count")), 16.0),
+            _f(prediction.get("conviction")),
+            _f(prediction.get("understanding")),
             _f(prediction.get("valence_error_ema")),
             _f(prediction.get("drive_error_ema")),
             _f(prediction.get("focus_error_ema")),
@@ -1172,6 +1324,10 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
 
 def _read_M(state: Any) -> np.ndarray:
     working = _dig(state, "cognition.working_memory", []) or []
+    # As a mapping: no recall yet is an answer rather than a failed read.
+    relived = _dig(state, "cognition.relived", {}) or {}
+    if not isinstance(relived, Mapping):
+        relived = {}
     retrieved = _dig(state, "cognition.long_term_memory", []) or []
     last = working[-1] if isinstance(working, list) and working else {}
     return np.array(
@@ -1185,6 +1341,9 @@ def _read_M(state: Any) -> np.ndarray:
             _sat(retrieved, 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(retrieved)[-4:])),
             max((_f(item) for item in _dig(state, "cognition.memory_scores", []) or []), default=0.0),
+            1.0 if relived.get("relived") else 0.0,
+            _f(relived.get("intensity")),
+            _sat(_f(relived.get("returns")), 8.0),
             *_content_buckets(" ".join(_content_of(item) for item in list(working)[-4:])),
             _sat(str(_dig(state, "cognition.rolling_summary", "") or ""), 512.0),
             _sat(_dig(state, "cognition.continuity_ledger", {}) or {}, 8.0),
@@ -1213,6 +1372,18 @@ def _surprise_ratio(current: Any, typical: Any) -> float:
 
 def _read_W(state: Any, organs: Organs) -> np.ndarray:
     facts = _dig(state, "world.facts", {}) or {}
+    # The partner's register is empty until a message has been read, and an
+    # empty register is a reading rather than a failed one, so it is taken as
+    # a mapping instead of dug into field by field.
+    _partner = _dig(state, "world.partner_register", {}) or {}
+    if not isinstance(_partner, Mapping):
+        _partner = {}
+    _pulse = _dig(state, "cognition.partner_cadence", {}) or {}
+    if not isinstance(_pulse, Mapping):
+        _pulse = {}
+    _we = _dig(state, "cognition.togetherness", {}) or {}
+    if not isinstance(_we, Mapping):
+        _we = {}
     status = _call(organs.world_model, "status", {}, source="organ:world_model.status") or {}
     facets = status.get("facets", {}) if isinstance(status, Mapping) else {}
     surprise = _call(organs.world_model, "surprise", None, source="organ:world_model.surprise")
@@ -1235,6 +1406,17 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
                 )
             ),
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
+            _f(_we.get("together")),
+            _f(_we.get("edge")),
+            _sat(_f(_pulse.get("chars")), 400.0),
+            _sat(_f(_pulse.get("gap")), 60.0),
+            _f(_pulse.get("placement")),
+            _f(_partner.get("asking")),
+            _f(_partner.get("first")),
+            _f(_partner.get("second")),
+            _f(_partner.get("plural")),
+            _sat(_f(_partner.get("persistence")), 10.0),
+            1.0 if _partner.get("asks_to_be_witnessed") else 0.0,
             *_ladder(_dig(state, "cognition.user_emotional_trend", "neutral"), _USER_TREND_LADDER),
             # How surprising this moment is relative to how surprising things
             # usually are, rather than the raw error squashed. Prediction error
@@ -1301,6 +1483,23 @@ def _read_D(state: Any) -> np.ndarray:
         *_content_buckets(" ".join(_content_of(goal, 320) for goal in goals[-3:])),
         1.0 if str(_dig(state, "cognition.current_origin", "")).startswith("user") else 0.0,
         *_content_buckets(_dig(state, "cognition.last_action_source", "")),
+        # Read as a mapping rather than dug field by field: an empty stance is
+        # a reading, "no stance taken", and digging into it would count a miss
+        # on every turn nobody testified.
+        1.0 if (_dig(state, "cognition.borrowed_resolve", {}) or {}).get("borrowed") else 0.0,
+        _f((_dig(state, "cognition.scale", {}) or {}).get("reach")),
+        _f((_dig(state, "cognition.scale", {}) or {}).get("pressure")),
+        _f((_dig(state, "cognition.persona_gap", {}) or {}).get("gap")),
+        1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
+        _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
+        1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
+        _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
+        1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
+        _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
+        _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
+        _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
+        1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
+        _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
     ]
     for name in _DRIVES:
         entry = budgets.get(name)

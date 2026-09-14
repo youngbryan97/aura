@@ -182,6 +182,20 @@ class CognitiveCandidate:
     gate_checked_at: float = field(default=0.0, repr=False)
     metadata: dict[str, Any] = field(default_factory=dict, compare=False)
 
+    #: Who is bidding, when that is not what the label says. Affect names its
+    #: bid after whichever emotion is on top, so one subsystem entered the
+    #: competition under forty-four different labels — and fatigue, which is
+    #: what gives another source a turn, is per label. Affect was therefore
+    #: never fatigued: the channel that had just won handed off to a fresh
+    #: sibling. Over twenty-four competitions affect took thirty-three wins and
+    #: ten sources bid and never once won. Empty means the label is the bidder.
+    bidder_id: str = ""
+
+    @property
+    def bidder(self) -> str:
+        """Who the refractory period applies to. The label, unless declared."""
+        return self.bidder_id or self.source
+
     @property
     def salience(self) -> float:
         """Alias for effective_priority for downstream compatibility."""
@@ -269,7 +283,15 @@ class CognitiveCandidate:
                 severity="debug",
             )
 
-        return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
+        # Affect lends urgency to content that is not itself affect. A bid whose
+        # content IS the feeling already carries it as its priority, so adding
+        # three tenths of the same reading on top counted it twice and the sum
+        # saturated: the affect bid's effective priority was 1.0 whatever it
+        # felt, a percept bidding 0.993 lost to it, and ten sources bid over
+        # twenty-four competitions and never once won. The weight is still
+        # carried, because the winner's affective charge is read off it.
+        lent = 0.0 if self.content_type is ContentType.AFFECTIVE else self.affect_weight * 0.3
+        return min(1.0, (self.priority + lent + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
 
 
 
@@ -462,6 +484,11 @@ class GlobalWorkspace:
         self._tick: int = 0
         self.attention_schema: Any = attention_schema
         self.last_winner: CognitiveCandidate | None = None
+        #: The priority the last winner won with, at the competition's own
+        #: instant. Reported instead of the winner's priority now: a bid ages,
+        #: so re-scoring the same winner against a later clock moved
+        #: `G.winner_priority` by 0.267 while the workspace was held still.
+        self.last_winner_priority: float = 0.0
         #: How often each source has bid and how often it has won, for the life
         #: of this workspace. A bid type that never wins is a channel into
         #: attention that cannot fire, and the winner alone cannot show it:
@@ -525,11 +552,11 @@ class GlobalWorkspace:
         if chosen is not None:
             return chosen
 
-        least = min(self._fatigue.get(c.source, 0.0) for c in contenders)
+        least = min(self._fatigue.get(c.bidder, 0.0) for c in contenders)
         # Float fatigue values are produced by repeated subtraction, so compare
         # against the noise they accumulate rather than for exact equality.
         freshest = [
-            c for c in contenders if self._fatigue.get(c.source, 0.0) - least <= 1e-9
+            c for c in contenders if self._fatigue.get(c.bidder, 0.0) - least <= 1e-9
         ]
         if len(freshest) == 1:
             return freshest[0]
@@ -605,7 +632,7 @@ class GlobalWorkspace:
         adaptation from a recent win, so a source that skips a single tick is
         not written out of the field.
         """
-        competitors = {c.source for c in self._candidates} | set(self._fatigue)
+        competitors = {c.bidder for c in self._candidates} | set(self._fatigue)
         return self._WINNER_FATIGUE / max(1, len(competitors))
 
     def _record_degradation(
@@ -1168,7 +1195,7 @@ class GlobalWorkspace:
 
             def _adjusted(candidate: CognitiveCandidate) -> float:
                 return candidate.priority_at(decided_at) - self._fatigue.get(
-                    candidate.source, 0.0
+                    candidate.bidder, 0.0
                 )
 
             # Frozen before sorting, and the sort reads the frozen value. A
@@ -1177,6 +1204,21 @@ class GlobalWorkspace:
             self._candidates.sort(key=lambda c: scores[id(c)], reverse=True)
             winner = self._candidates[0]
             losers = self._candidates[1:]
+
+            # What nearly won, kept rather than thrown away. The record below
+            # keeps the losers' source names and nothing about how close they
+            # came, so a source that came within a hair fifty times looked
+            # exactly like one that was never in it — and nothing could know
+            # she had been holding something.
+            # See core/affect/containment.py.
+            try:
+                from core.affect.containment import get_containment_ledger
+
+                get_containment_ledger().competition(
+                    winner.source, {c.source: scores[id(c)] for c in self._candidates}
+                )
+            except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+                pass  # no-op: a missing reader keeps no pressure
 
             # Soar's tie impasse: several candidates that nothing actually
             # discriminates. Taking [0] resolves it silently, and until now
@@ -1218,7 +1260,7 @@ class GlobalWorkspace:
                 # comparison and nothing else.
                 def _cognitive(candidate: CognitiveCandidate) -> float:
                     return candidate.cognitive_priority - self._fatigue.get(
-                        candidate.source, 0.0
+                        candidate.bidder, 0.0
                     )
 
                 cognitive = {id(c): _cognitive(c) for c in self._candidates}
@@ -1277,9 +1319,9 @@ class GlobalWorkspace:
             # uses for the same job. Near-equal sources rotate, a genuinely
             # urgent source still outbids a weak one through the penalty, and a
             # lone source keeps the workspace because nothing outbids it.
-            self._fatigue[winner.source] = min(
+            self._fatigue[winner.bidder] = min(
                 self._MAX_FATIGUE,
-                self._fatigue.get(winner.source, 0.0) + self._WINNER_FATIGUE,
+                self._fatigue.get(winner.bidder, 0.0) + self._WINNER_FATIGUE,
             )
 
             # Clear candidate pool
@@ -1296,6 +1338,7 @@ class GlobalWorkspace:
             self._history.append(record)
 
             self.last_winner = winner
+            self.last_winner_priority = winner.priority_at(decided_at)
             if winner is not None:
                 name = str(getattr(winner, "source", "") or "")
                 self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
@@ -1473,7 +1516,7 @@ class GlobalWorkspace:
             "tick": self._tick,
             "last_winner": last.source if last else None,
             "last_content": last.content[:80] if last else None,
-            "last_priority": round(last.effective_priority, 3) if last else 0.0,
+            "last_priority": round(self.last_winner_priority, 3) if last else 0.0,
             "pending_candidates": len(self._candidates),
             "inhibited_sources": list(self._inhibited.keys()),
             # Decisions that were settled by list order rather than by any

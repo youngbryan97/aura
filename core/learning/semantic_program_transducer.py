@@ -32,6 +32,12 @@ from core.learning.semantic_program_ir import (
     TokenSpan,
     normalize_semantic_value,
 )
+from core.learning.semantic_span_pointer import (  # noqa: F401 -- public compatibility imports
+    SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
+    LinearPointerHead,
+    LinearPointerSequenceScores,
+    _hidden_array,
+)
 
 LEGACY_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v1"
 SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v2"
@@ -49,7 +55,6 @@ MULTIVIEW_TYPED_SEMANTIC_TRANSDUCER_RECEIPT_SCHEMA: Final = (
 )
 SEMANTIC_TRANSDUCER_INPUTS: Final = 3
 SEMANTIC_TRANSDUCER_STEPS: Final = 2
-SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS: Final = 24
 
 _MAX_TRANSDUCER_INPUTS: Final = 8
 _MAX_TRANSDUCER_STEPS: Final = 16
@@ -154,18 +159,6 @@ def _is_sha256(value: Any) -> bool:
     )
 
 
-def _hidden_array(value: Any, *, expected_width: int | None = None) -> np.ndarray:
-    array = np.asarray(value, dtype=np.float32)
-    if array.ndim != 2 or array.shape[0] < 1 or array.shape[1] < 1:
-        raise ValueError("semantic transducer hidden states must be a non-empty matrix")
-    if expected_width is not None and array.shape[1] != expected_width:
-        raise ValueError("semantic transducer hidden width differs from its model")
-    if not np.all(np.isfinite(array)):
-        raise ValueError("semantic transducer hidden states must be finite")
-    norms = np.linalg.norm(array, axis=1)
-    if np.any(np.abs(norms - 1.0) > 1e-4):
-        raise ValueError("semantic transducer hidden states must be unit normalized")
-    return np.ascontiguousarray(array)
 
 
 def _resolve_prior_result_register(
@@ -270,114 +263,6 @@ class SemanticTransducerTrainingExample:
         object.__setattr__(self, "hidden_channel_widths", channel_widths)
 
 
-@dataclass(frozen=True, slots=True)
-class LinearPointerSequenceScores:
-    """Validated pointer logits for one hidden sequence."""
-
-    start: np.ndarray
-    end: np.ndarray
-
-    def __post_init__(self) -> None:
-        start = np.asarray(self.start, dtype=np.float32).reshape(-1)
-        end = np.asarray(self.end, dtype=np.float32).reshape(-1)
-        if (
-            start.shape != end.shape
-            or start.size < 1
-            or not np.all(np.isfinite(start))
-            or not np.all(np.isfinite(end))
-        ):
-            raise ValueError("semantic pointer sequence scores are invalid")
-        object.__setattr__(self, "start", start)
-        object.__setattr__(self, "end", end)
-
-    def score_span(self, span: TokenSpan) -> float:
-        span.validate_bound(self.start.size)
-        return float(self.start[span.start] + self.end[span.end - 1])
-
-    def decode_candidates(
-        self,
-        *,
-        limit: int,
-        max_span_tokens: int = SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
-    ) -> tuple[tuple[TokenSpan, float], ...]:
-        if type(limit) is not int or limit < 1:
-            raise ValueError("semantic pointer candidate limit is invalid")
-        if type(max_span_tokens) is not int or max_span_tokens < 1:
-            raise ValueError("semantic pointer span limit is invalid")
-        candidates: list[tuple[TokenSpan, float]] = []
-        for start in range(self.start.size):
-            stop = min(self.start.size, start + max_span_tokens)
-            for end in range(start, stop):
-                span = TokenSpan(start, end + 1)
-                candidates.append((span, self.score_span(span)))
-        candidates.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
-        return tuple(candidates[:limit])
-
-
-@dataclass(frozen=True, slots=True)
-class LinearPointerHead:
-    """Independent learned start/end scorers for one semantic role."""
-
-    start_weight: np.ndarray
-    start_bias: float
-    end_weight: np.ndarray
-    end_bias: float
-
-    def __post_init__(self) -> None:
-        start = np.asarray(self.start_weight, dtype=np.float32).reshape(-1)
-        end = np.asarray(self.end_weight, dtype=np.float32).reshape(-1)
-        if (
-            start.shape != end.shape
-            or start.size < 1
-            or not np.all(np.isfinite(start))
-            or not np.all(np.isfinite(end))
-            or not np.isfinite(self.start_bias)
-            or not np.isfinite(self.end_bias)
-        ):
-            raise ValueError("semantic pointer head parameters are invalid")
-        object.__setattr__(self, "start_weight", start)
-        object.__setattr__(self, "end_weight", end)
-
-    @property
-    def width(self) -> int:
-        return int(self.start_weight.size)
-
-    def decode_candidates(
-        self,
-        hidden: np.ndarray,
-        *,
-        limit: int,
-        max_span_tokens: int = SEMANTIC_TRANSDUCER_MAX_SPAN_TOKENS,
-    ) -> tuple[tuple[TokenSpan, float], ...]:
-        """Return the strongest distinct source spans in stable score order."""
-
-        return self.score_sequence(hidden).decode_candidates(
-            limit=limit,
-            max_span_tokens=max_span_tokens,
-        )
-
-    def score_sequence(self, hidden: np.ndarray) -> LinearPointerSequenceScores:
-        """Validate once and retain every endpoint score for repeated span queries."""
-
-        matrix = _hidden_array(hidden, expected_width=self.width)
-        return LinearPointerSequenceScores(
-            matrix @ self.start_weight + self.start_bias,
-            matrix @ self.end_weight + self.end_bias,
-        )
-
-    def score_span(self, hidden: np.ndarray, span: TokenSpan) -> float:
-        return self.score_sequence(hidden).score_span(span)
-
-    def decode(self, hidden: np.ndarray) -> tuple[TokenSpan, float]:
-        return self.decode_candidates(hidden, limit=1)[0]
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "start_weight": self.start_weight.tolist(),
-            "start_bias": float(self.start_bias),
-            "end_weight": self.end_weight.tolist(),
-            "end_bias": float(self.end_bias),
-        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -458,6 +343,12 @@ class MultiViewClassifierHead:
         return self.heads[0].labels
 
     def predict(self, features: Sequence[np.ndarray]) -> tuple[str, float]:
+        probabilities = self.predict_probabilities(features)
+        winner = int(np.argmax(probabilities))
+        return self.labels[winner], float(probabilities[winner])
+
+    def predict_probabilities(self, features: Sequence[np.ndarray]) -> np.ndarray:
+        """Preserve learned alternatives until the typed graph can compare them."""
         if len(features) != len(self.heads):
             raise ValueError("semantic multiview features differ from their head")
         probabilities = np.mean(
@@ -469,8 +360,7 @@ class MultiViewClassifierHead:
             ),
             axis=0,
         )
-        winner = int(np.argmax(probabilities))
-        return self.labels[winner], float(probabilities[winner])
+        return probabilities
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -1409,27 +1299,36 @@ def _fit_binary_head(
     sample_weight: np.ndarray | None = None,
     max_iter: int = 1000,
     tolerance: float = 1e-4,
+    solver: str = "liblinear",
 ) -> tuple[np.ndarray, float]:
     from sklearn.linear_model import LogisticRegression
 
     if set(np.unique(labels).tolist()) != {0, 1}:
         raise ValueError("semantic pointer supervision lacks a positive or negative class")
+    if solver not in {"liblinear", "lbfgs"}:
+        raise ValueError("unsupported semantic binary solver")
+    if solver == "lbfgs":
+        # liblinear regularizes its synthetic bias feature. Keep that objective
+        # when using dense BLAS instead of liblinear's sparse row traversal.
+        features = np.column_stack((features, np.ones(len(features), dtype=features.dtype)))
     classifier = LogisticRegression(
         C=10.0,
         class_weight="balanced",
         max_iter=max_iter,
         random_state=0,
-        solver="liblinear",
+        solver=solver,
+        fit_intercept=solver == "liblinear",
         tol=tolerance,
     )
     if sample_weight is None:
         classifier.fit(features, labels)
     else:
         classifier.fit(features, labels, sample_weight=sample_weight)
-    return (
-        np.asarray(classifier.coef_[0], dtype=np.float32),
-        float(classifier.intercept_[0]),
-    )
+    if solver == "lbfgs":
+        if int(classifier.n_iter_[0]) >= max_iter:
+            raise ValueError("semantic dense binary fit did not converge")
+        return np.asarray(classifier.coef_[0, :-1], dtype=np.float32), float(classifier.coef_[0, -1])
+    return np.asarray(classifier.coef_[0], dtype=np.float32), float(classifier.intercept_[0])
 
 
 def _fit_classifier(
@@ -1746,18 +1645,20 @@ def fit_semantic_program_transducer(
 
 
 def _pointer_head_from_dict(value: Any) -> LinearPointerHead:
-    if not isinstance(value, dict) or set(value) != {
+    fields = {
         "start_weight",
         "start_bias",
         "end_weight",
         "end_bias",
-    }:
+    }
+    if not isinstance(value, dict) or set(value) not in (fields, fields | {"pair_weight"}):
         raise ValueError("serialized semantic pointer head is invalid")
     return LinearPointerHead(
         start_weight=value["start_weight"],
         start_bias=value["start_bias"],
         end_weight=value["end_weight"],
         end_bias=value["end_bias"],
+        pair_weight=value.get("pair_weight"),
     )
 
 

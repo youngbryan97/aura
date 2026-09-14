@@ -725,8 +725,15 @@ class SourceBodyAwareness:
         return organs
 
     #: Recorded shutdown reasons that mean the runtime chose to stop.
+    #:
+    #: `checkpoint` is deliberately not one of them. A checkpoint is written
+    #: while the session is still running, so finding one means the session was
+    #: alive at that moment and says nothing about how it ended. Counting it as
+    #: a clean stop would tell her she chose to stop every time she crashed,
+    #: which is the same mistake in the other direction as the crash-file
+    #: inference below.
     _CLEAN_SHUTDOWN_REASONS = frozenset(
-        {"checkpoint", "clean", "requested", "graceful", "restart", "reboot", "user"}
+        {"clean", "requested", "graceful", "restart", "reboot", "user"}
     )
 
     def _recorded_clean_shutdown(self) -> bool:

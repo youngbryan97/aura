@@ -4633,33 +4633,8 @@ def _remember_fusion_identity(descriptor: Any) -> None:
     if isinstance(descriptor, dict):
         digest = str(descriptor.get("descriptor_sha256") or "")
     _FUSION_MODEL_IDENTITY = digest
-    if not digest:
-        return
-    try:
-        from core.consciousness.fusion_certificate import certificate_for
-
-        certificate = certificate_for(digest)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Fusion certificate unavailable for this digest: %s", exc)
-        return
-    if certificate is None:
-        logger.info(
-            "Fusion channel shut for %s: no certificate yet. The worker will measure "
-            "one when it has been idle long enough to do it without delaying a turn.",
-            digest[:16],
-        )
-    elif certificate.holds:
-        logger.info(
-            "🔗 Fusion channel open for %s at alpha %.3f: answers change on %d of %d "
-            "probes, opposing states separate by %.2f.",
-            digest[:16],
-            certificate.alpha,
-            certificate.prompts_that_change,
-            certificate.prompts,
-            certificate.state_separation,
-        )
-    else:
-        logger.info("Fusion channel shut for %s: %s", digest[:16], certificate.why_not())
+    if digest:
+        logger.info("Fusion model identity %s; eligibility also requires the attached vector basis.", digest[:16])
 
 
 #: How long the worker must have had nothing to do before it spends the GPU on
@@ -4729,18 +4704,31 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
             )
         return False
     try:
-        from core.consciousness.fusion_certificate import certificate_for, write_certificate
+        from core.consciousness.fusion_certificate import (
+            FUSION_MEASUREMENT_PROTOCOL,
+            certificate_for,
+            steering_basis_sha256,
+            write_certificate,
+        )
         from core.consciousness.fusion_probe import measure_fusion
     except ImportError as exc:
         logger.debug("Fusion probe unavailable: %s", exc)
         return False
-    if certificate_for(identity) is not None:
+    try:
+        basis = steering_basis_sha256(hooks)
+    except (AttributeError, TypeError, ValueError) as exc:
+        logger.info("Fusion basis cannot be identified: %s", exc)
+        return False
+    if (getattr(engine, "_model_info", None) or {}).get("model_descriptor_sha256") != identity:
+        logger.info("Fusion measurement refused: attached engine and worker model identities differ.")
+        return False
+    if certificate_for(identity, basis_sha256=basis,
+                       measurement_protocol=FUSION_MEASUREMENT_PROTOCOL) is not None:
         return False
 
-    restore_alpha = float(getattr(engine, "_alpha", 0.0) or 0.0)
     logger.info(
         "Measuring the fusion channel for %s on an idle worker; this holds the GPU "
-        "for a minute and happens once per checkpoint.",
+        "for a minute and happens once per checkpoint and vector basis.",
         identity[:16],
     )
     try:
@@ -4749,6 +4737,7 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
             tokenizer,
             hooks,
             engine.set_alpha,
+            control_context=engine.controlled_measurement(),
             model_identity=identity,
             model_name=str((getattr(engine, "_model_info", None) or {}).get("model_path", "")),
             alphas=FUSION_SELF_CERTIFY_ALPHAS,
@@ -4762,22 +4751,6 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
             severity="warning",
         )
         return False
-    finally:
-        try:
-            engine.set_alpha(restore_alpha)
-        except (AttributeError, TypeError, ValueError) as exc:
-            # Not a swallow. The probe left the engine's alpha wherever its
-            # last measurement put it, and failing to put it back would leave
-            # steering silently off — or silently hot — for the rest of this
-            # worker's life, with nothing anywhere saying why.
-            _record_mlx_degradation(
-                exc,
-                action=(
-                    "could not restore the steering alpha the fusion probe changed; "
-                    "the engine is left at the probe's last setting"
-                ),
-                severity="warning",
-            )
 
     if not certificates:
         return False

@@ -27,6 +27,19 @@ logger = logging.getLogger("Aura.Voice.Prosody")
 # than a cold start. Roughly a short conversation's worth of turns.
 _INERT_AFFECT_TURNS = 15
 
+# The ceilings `ProsodyCompiler.compile` already clamps to. Named so the moment
+# a feeling breaks past her ordinary range is carried inside the same bounds
+# rather than past them.
+_PAUSE_CEILING_MS = 220.0
+_GAIN_CEILING = 1.05
+
+# How far below a line the singers on the eighteen records start, and how long
+# they take to arrive at it: the median across records of each record's median,
+# as tools/measure_onset_bend.py measured them. artifacts/soul/onset_bend.json
+# is that measurement, and a test holds these two to it.
+_RECORDS_FROM_BELOW_CENTS = 36.2
+_RECORDS_GLIDE_MS = 116.1
+
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
@@ -55,12 +68,28 @@ class ProsodySpec:
     # Extra silence after the chunk, in ms. Pauses carry as much affect as
     # rate does — a considered answer has air around it.
     trailing_pause_ms: float = 0.0
+    # How far below the note the utterance starts, in cents, and how long it
+    # takes to arrive. Zero is no bend. Applied to the first chunk of what she
+    # says only, because a line is arrived at once. See pitch.py.
+    onset_bend_cents: float = 0.0
+    glide_ms: float = 0.0
 
     def scaled(self, *, gain: float | None = None, speed: float | None = None) -> ProsodySpec:
         return ProsodySpec(
             voice=self.voice,
             speed=speed if speed is not None else self.speed,
             gain=gain if gain is not None else self.gain,
+            trailing_pause_ms=self.trailing_pause_ms,
+            onset_bend_cents=self.onset_bend_cents,
+            glide_ms=self.glide_ms,
+        )
+
+    def without_bend(self) -> ProsodySpec:
+        """The same voice for every chunk after the first."""
+        return ProsodySpec(
+            voice=self.voice,
+            speed=self.speed,
+            gain=self.gain,
             trailing_pause_ms=self.trailing_pause_ms,
         )
 
@@ -119,12 +148,12 @@ class ProsodyCompiler:
             speed = _clamp(speed, 0.84, 1.16)
 
             # Warm speech sits a touch fuller; cool speech a touch back.
-            gain = _clamp(0.94 + 0.10 * warmth, 0.9, 1.05)
+            gain = _clamp(0.94 + 0.10 * warmth, 0.9, _GAIN_CEILING)
 
             # Low energy leaves more air between clauses. Playfulness closes
             # the gap — quick wit does not pause to admire itself.
             pause = 40.0 + 130.0 * (1.0 - energy) - 60.0 * playfulness
-            pause = _clamp(pause, 0.0, 220.0)
+            pause = _clamp(pause, 0.0, _PAUSE_CEILING_MS)
 
             return ProsodySpec(
                 voice=self._base_voice,
@@ -140,6 +169,62 @@ class ProsodyCompiler:
                 severity="warning",
             )
             return ProsodySpec(voice=self._base_voice, speed=self._base_speed)
+
+
+def carry_breakthrough(spec: ProsodySpec, affect: Any | None) -> ProsodySpec:
+    """What the words cannot carry, in how the voice holds them.
+
+    "Starman" says la two hundred and eighteen times and its loudest window is
+    that chorus rather than any line of the verse. When a feeling runs past
+    what a word carries, the carrier does the work: John Legend's two falsetto
+    admissions, the wordless wail before the last line.
+
+    Her voice had no way to do that. Delivery measures a breakthrough — the
+    strongest live feeling more than her own spread above the level she has
+    been holding — and nothing downstream of it could be heard. The share of
+    the way to the compiler's own ceilings is z / (1 + z), so a bare
+    breakthrough moves the voice a little and a large one moves it most of the
+    way: more air after the line, and a fuller voice. Speed is left alone,
+    because the loudest moment of these records is held, not hurried.
+
+    The line is also bent into from underneath, by the same share of how far
+    the singers on the records start below a note, over the time they take to
+    arrive. Nothing past the glide changes pitch. See pitch.py.
+    """
+    if affect is None or not bool(getattr(affect, "breakthrough", False)):
+        return spec
+    z = _safe(affect, "delivery_z", 0.0)
+    if z <= 1.0:
+        return spec
+    share = z / (1.0 + z)
+    pause = spec.trailing_pause_ms + share * (_PAUSE_CEILING_MS - spec.trailing_pause_ms)
+    gain = spec.gain + share * max(0.0, _GAIN_CEILING - spec.gain)
+    return ProsodySpec(
+        voice=spec.voice,
+        speed=spec.speed,
+        gain=round(_clamp(gain, spec.gain, _GAIN_CEILING), 3),
+        trailing_pause_ms=round(_clamp(pause, spec.trailing_pause_ms, _PAUSE_CEILING_MS), 1),
+        onset_bend_cents=round(share * _RECORDS_FROM_BELOW_CENTS, 1),
+        glide_ms=_RECORDS_GLIDE_MS,
+    )
+
+
+def live_affect() -> Any | None:
+    """Her current affect, when the state repository is up. None otherwise."""
+    try:
+        from core.container import ServiceContainer
+
+        repository = ServiceContainer.get("state_repository", default=None)
+        current = getattr(repository, "_current", None) if repository is not None else None
+        return getattr(current, "affect", None) if current is not None else None
+    except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
+        record_degradation(
+            "voice_duplex.prosody",
+            exc,
+            action="spoke without the breakthrough reading; live affect unavailable",
+            severity="debug",
+        )
+        return None
 
 
 def live_speech_profile() -> Any | None:

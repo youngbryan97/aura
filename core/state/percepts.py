@@ -26,6 +26,7 @@ from typing import Any
 
 __all__ = [
     "DEFAULT_INTENSITY",
+    "PERCEPT_EMOTIONS",
     "Percept",
     "drop_consumed",
     "emit_percept",
@@ -48,6 +49,57 @@ CONSUMED_KEY: str = "consumed_by"
 #: deletes the event on the way to every consumer that multiplies by it.
 DEFAULT_INTENSITY: float = 0.5
 
+
+#: What each kind of percept is allowed to move, and which emotions. It lived
+#: inside the affect phase that reads it, so the vocabulary percepts arrive in
+#: was invisible to everything else — including the content experiment, whose
+#: percept grid has to be built from the mechanism rather than from whoever
+#: wrote the experiment. It belongs beside the percept it describes.
+PERCEPT_EMOTIONS: dict[str, list[str]] = {
+    "interaction": ["trust", "happiness", "interest", "warmth", "belonging"],
+    "positive_interaction": ["joy", "trust", "happiness", "interest", "pride", "gratitude", "warmth", "hope", "satisfaction", "belonging"],
+    "extended_dialogue": ["happiness", "interest", "curiosity", "warmth", "hope", "belonging"],
+    "deep_expression": ["interest", "trust", "curiosity", "satisfaction", "inspiration"],
+    "novel_stimulus": ["surprise", "anticipation", "wonder", "excitement", "curiosity"],
+    "discovery": ["wonder", "excitement", "interest", "curiosity", "pride", "hope"],
+    "error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+    "threat_detected": ["fear", "dread", "upset", "vulnerability"],
+    "goal_achieved": ["joy", "anticipation", "happiness", "excitement", "pride", "satisfaction", "hope", "relief"],
+    "memory_replay": ["sadness", "joy", "trust", "nostalgia", "warmth", "belonging"],
+    "monotony": ["boredom", "apathy", "loneliness", "indifference"],
+    # Two of her own wants pressing against each other. Not distress: what
+    # Oddisee reports of it is that the contradictions got him feeling strange,
+    # which is disorientation about himself rather than fear of the world.
+    "inner_conflict": ["confused", "frustration", "anticipation"],
+    # What she expected is what happened. Not achievement and not relief: the
+    # feeling of a prediction landing, which is why trust in her own model is
+    # in it alongside the satisfaction.
+    "expectation_met": ["satisfaction", "trust", "pride", "interest"],
+    # A pattern she had come to trust, turned. Not the startle of a surprise
+    # with nothing under it: the chill a listener gets when the ninth return of
+    # a hook changes one thing, which is why it carries awe and joy.
+    "frisson": ["awe", "wonder", "surprise", "joy"],
+    # Up from a low that is still being held. Relief and hope, and the pride
+    # of having lasted, which is what the reversal in that record is made of.
+    "the_turn": ["relief", "hope", "pride", "gratitude", "satisfaction"],
+    # Somebody said something warm about her. Being cared about is a thing
+    # that happens to her, and she had no channel for either end of it.
+    "cared_for": ["warmth", "gratitude", "trust", "belonging", "hope"],
+    # Three types the tree emits that this map had no entry for, so a
+    # phase crash, an apology and every stimulus injected through the
+    # compatibility bridge arrived and moved nothing. An internal error
+    # is an error; a self-correction is an error about her own output,
+    # without the part that is afraid of the world.
+    "internal_error": ["fear", "sadness", "unhappiness", "dread", "upset", "frustration", "confused"],
+    # The body under strain. This type was already listed as a threat
+    # a few lines up, and until the proprioceptive loop emitted one,
+    # nothing in the tree ever produced it — so a machine at ninety
+    # percent load reached her feeling through nothing at all.
+    "resource_pressure": ["fear", "upset", "frustration", "vulnerability"],
+    "self_correction": ["sadness", "unhappiness", "upset", "frustration", "confused"],
+    "disconnection": ["unhappiness", "apathy", "loneliness", "longing"],
+    "neural_decode": ["anticipation", "surprise"]  # Base neural burst
+}
 
 def _number(value: Any, fallback: float) -> float:
     try:

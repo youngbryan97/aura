@@ -197,15 +197,18 @@ def measure_equivalence(
     agreements = 0
     disagreements: list[tuple[Any, Any, Any]] = []
     for case in cases:
+        completed = True
         try:
             left = source(case)
         except Exception as exc:  # noqa: BLE001 - a raising source is a disagreement
+            completed = False
             left = f"<raised {type(exc).__name__}>"
         try:
             right = target(case)
         except Exception as exc:  # noqa: BLE001
+            completed = False
             right = f"<raised {type(exc).__name__}>"
-        if same(left, right):
+        if completed and same(left, right):
             agreements += 1
         else:
             disagreements.append((case, left, right))

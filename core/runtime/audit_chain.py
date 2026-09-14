@@ -159,6 +159,19 @@ class AuditChain:
         with self._lock:
             self._refresh_head_from_disk_locked()
 
+    def refresh_from_disk(self) -> int:
+        """Re-read the head from the file and return the next sequence.
+
+        A writer whose in-memory head has drifted from the file — because a
+        durable append did not land, or because something else rewound the
+        chain underneath it — otherwise stays wrong forever: every later append
+        is assigned a sequence the file does not agree with. Re-reading is the
+        recovery path that was missing.
+        """
+        with self._lock:
+            self._refresh_head_from_disk_locked()
+            return int(self._next_seq)
+
     def _refresh_head_from_disk_locked(self) -> None:
         last_record = self._read_last_record()
         if last_record is not None:

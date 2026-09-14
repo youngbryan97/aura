@@ -69,7 +69,7 @@ class VerificationResult:
 
         This is what a gate wants. ``ok`` is what a ranking wants.
         """
-        return bool(self.checked and self.ok)
+        return self.verdict == "PASSED"
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -70,6 +70,31 @@ def test_source_refit_preserves_other_heads_and_excludes_test_labels():
     assert compositional_semantic_program_transducer_from_dict(candidate.to_dict()).receipt_sha256 == candidate.receipt_sha256
     without_test = tuple(x for x in examples if x.split != "test")
     assert refit_compositional_argument_rankings(parent, without_test).receipt_sha256 == candidate.receipt_sha256
+    identity_candidate = refit_compositional_argument_rankings(
+        parent, examples, preserve_coreferent_mentions=True,
+    )
+    assert identity_candidate.training_receipt["argument_ranking_refit"]["negative_source"].endswith("v2")
+    assert sum(fit["pairs"] for fit in identity_candidate.training_receipt["argument_ranking_refit"]["fits"]) < sum(fit["pairs"] for fit in receipt["fits"])
+    assert compositional_semantic_program_transducer_from_dict(identity_candidate.to_dict()).receipt_sha256 == identity_candidate.receipt_sha256
     with pytest.raises(ValueError, match="overlap"):
         refit_compositional_argument_rankings(parent,
             (replace(examples[0], split="train"), replace(examples[0], split="validation")))
+
+
+def test_source_aliases_are_identity_based_not_value_based():
+    from core.learning.semantic_program_transducer_fitting import _argument_identity_spans
+    from tests.test_semantic_program_shared_transducer import _examples
+
+    item = _examples()[0]
+    aliases = _argument_identity_spans(item, 0)
+    assert item.ir.input_spans[0] in aliases
+    assert item.ir.instructions[0].argument_spans[0] in aliases
+    assert item.ir.input_spans[1] not in aliases
+    assert item.ir.instructions[0].argument_spans[1] not in aliases
+    # Reusing a surface for conflicting labels must not erase a negative.
+    instruction = replace(item.ir.instructions[0], argument_spans=(
+        item.ir.input_spans[1], item.ir.instructions[0].argument_spans[1],
+    ))
+    ambiguous = replace(item, ir=replace(item.ir, instructions=(instruction, *item.ir.instructions[1:])))
+    assert item.ir.input_spans[1] not in _argument_identity_spans(ambiguous, 0)
+    assert item.ir.input_spans[1] not in _argument_identity_spans(ambiguous, 1)

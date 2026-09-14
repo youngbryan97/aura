@@ -132,14 +132,27 @@ class Checker:
         return bool(value), f"{check['expr']} -> {value!r}"
 
     def _check_scorecard(self, check: dict[str, Any]) -> tuple[bool, str]:
+        """A criterion's verdict across the runs, or an expression over the card.
+
+        The scorecard calls a criterion's standing its `verdict` (holds, fails,
+        unresolved), and this read `standing`, which no scorecard has, so every
+        criterion check failed. The two entries that use this kind ask
+        questions of the whole card instead, and raised on the missing key.
+        """
         if not self.card:
             return False, "no scorecard"
+        if "expr" in check:
+            try:
+                value = evaluate_report_expression(check["expr"], self.card, root="card")
+            except ExpressionRefused as exc:
+                return False, f"{check['expr']} could not be read: {exc}"
+            return bool(value), f"{check['expr']} -> {value!r}"
         rows = {row["criterion"]: row for row in self.card.get("criteria", [])}
         row = rows.get(check["criterion"])
         if row is None:
             return False, f"scorecard has no {check['criterion']}"
-        want = check.get("standing", "always")
-        return row.get("standing") == want, f"{check['criterion']} standing {row.get('standing')!r}"
+        want = check.get("verdict", "holds")
+        return row.get("verdict") == want, f"{check['criterion']} verdict {row.get('verdict')!r}"
 
     def _check_command(self, check: dict[str, Any]) -> tuple[bool, str]:
         # `{python}` is whatever interpreter is running this, because a

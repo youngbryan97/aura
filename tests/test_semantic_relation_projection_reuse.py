@@ -59,3 +59,27 @@ def test_projection_cache_is_not_reused_across_changed_inputs():
     references[span][0] = 7
     second = _definition_relation_score_banks(head, references, definitions, pointer)
     assert first != second
+
+
+def test_decode_local_pair_cache_reuses_overlapping_chart_work(monkeypatch):
+    head = DirectionalRelationHead(
+        np.ones(6, dtype=np.float32), 0.0, .2,
+        np.ones((2, 1), dtype=np.float32), np.ones((2, 1), dtype=np.float32),
+    )
+    a, b = TokenSpan(0, 1), TokenSpan(1, 2)
+    references = {a: np.array([1, 2], dtype=np.float32)}
+    definitions = (((b, np.array([2, 3], dtype=np.float32)),),)
+    pointer = LinearPointerSequenceScores(np.zeros(3), np.zeros(3))
+    expected = _definition_relation_score_banks(head, references, definitions, pointer)
+    original = DirectionalRelationHead.base_score
+    calls = []
+    def counted(self, reference, definition):
+        calls.append(1)
+        return original(self, reference, definition)
+    monkeypatch.setattr(DirectionalRelationHead, 'base_score', counted)
+    cache = {}
+    assert _definition_relation_score_banks(head, references, definitions, pointer, cache) == expected
+    assert _definition_relation_score_banks(head, references, definitions * 2, pointer, cache) == (
+        {a: expected[0][a] * 2}, {a: expected[1][a] * 2},
+    )
+    assert len(calls) == 1

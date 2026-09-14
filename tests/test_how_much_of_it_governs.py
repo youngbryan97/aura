@@ -25,7 +25,7 @@ def a_small_tree(tmp_path: pathlib.Path) -> str:
     (tmp_path / "core" / "lonely.py").write_text("y = 1\n")
     (tmp_path / "core" / "loaded_by_name.py").write_text("z = 1\n")
     (tmp_path / "core" / "loader.py").write_text(
-        'import importlib\n\nWHAT = "core.loaded_by_name"\n'
+        'import importlib\n\nWHAT = "core.loaded_by_name"\nREADER = "core.reader"\n'
     )
     (tmp_path / "core" / "for_a_tool.py").write_text("w = 1\n")
     (tmp_path / "tools" / "inspect_it.py").write_text("import core.for_a_tool\n")
@@ -94,3 +94,21 @@ def test_the_census_is_serialisable_and_names_its_totals(a_small_tree: str):
     read = how_much_of_it_governs(a_small_tree).as_dict()
     assert read["modules"] == sum(read["by_state"].values())
     assert read["proposals"] == read["by_state"].get("a proposal", 0)
+
+
+def test_governing_only_a_proposal_is_not_governing(tmp_path: pathlib.Path):
+    """A store nobody uses made the primitive under it read as governing."""
+    (tmp_path / "core").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "core" / "primitive.py").write_text("x = 1\n")
+    (tmp_path / "core" / "store.py").write_text("from core.primitive import x\n")
+    (tmp_path / "core" / "middle.py").write_text("from core.store import x\n")
+    (tmp_path / "core" / "live.py").write_text("x = 1\n")
+    (tmp_path / "core" / "caller.py").write_text("from core.live import x\n")
+
+    census = how_much_of_it_governs(str(tmp_path))
+    # middle and caller have no importer. store is imported only by middle,
+    # primitive only by store, live only by caller: all three decide nothing.
+    assert census.by_state.get("governing a proposal", 0) == 3
+    assert census.by_state.get("governing", 0) == 0
+    assert {"core.middle", "core.caller"} <= set(census.proposals)

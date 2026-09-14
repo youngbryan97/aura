@@ -884,6 +884,10 @@ class CognitiveHeartbeat:
                 CognitiveCandidate(
                     content=f"Drive alert: {dominant_drive} is depleted ({drive_urgency:.0%} urgency)",
                     source=f"drive_{dominant_drive}",
+                    # The motivation budget is one bidder whichever drive is
+                    # currently lowest; fatigue applies to it, not to the name
+                    # of this turn's dominant drive.
+                    bidder_id="drives",
                     priority=drive_urgency,
                     affect_weight=affect_weight,
                 )

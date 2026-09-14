@@ -1,0 +1,341 @@
+{
+  "cut": [
+    "A",
+    "G",
+    "C",
+    "S",
+    "M"
+  ],
+  "severed": {
+    "left": [
+      "A",
+      "G",
+      "C",
+      "S",
+      "M"
+    ],
+    "right": [
+      "P",
+      "I",
+      "W",
+      "D",
+      "N"
+    ]
+  },
+  "cycles": 3,
+  "rounds_per_cycle": 6,
+  "per_cycle": [
+    {
+      "cycle": 0,
+      "left_ran_first": true,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ],
+      "intact": {
+        "phi_do": 0.04264,
+        "spread": 0.48148,
+        "synergy": 0.17738
+      },
+      "drift_arm": {
+        "phi_do": -0.10253,
+        "spread": 0.48148,
+        "synergy": 0.19915
+      },
+      "lesioned": {
+        "phi_do": 0.01924,
+        "spread": 0.2963,
+        "synergy": 0.25127
+      },
+      "rescued": {
+        "phi_do": -0.02779,
+        "spread": 0.51852,
+        "synergy": 0.23141
+      },
+      "node_clamp": {
+        "phi_do": 0.0,
+        "spread": 0.11111,
+        "synergy": -0.03789
+      },
+      "deltas": {
+        "phi_do": -0.04919,
+        "spread": 0.18519,
+        "synergy": -0.063
+      },
+      "drift": {
+        "phi_do": 0.14517,
+        "spread": 0.0,
+        "synergy": 0.02177
+      },
+      "recovery": {
+        "phi_do": -0.04704,
+        "spread": 0.22222,
+        "synergy": -0.01986
+      }
+    },
+    {
+      "cycle": 1,
+      "left_ran_first": false,
+      "conditions": [
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use",
+        "conversation"
+      ],
+      "intact": {
+        "phi_do": -1.35746,
+        "spread": 0.40741,
+        "synergy": 0.18638
+      },
+      "drift_arm": {
+        "phi_do": -0.15741,
+        "spread": 0.44444,
+        "synergy": 0.19904
+      },
+      "lesioned": {
+        "phi_do": -0.00821,
+        "spread": 0.2963,
+        "synergy": 0.19987
+      },
+      "rescued": {
+        "phi_do": -0.05796,
+        "spread": 0.44444,
+        "synergy": 0.18094
+      },
+      "node_clamp": {
+        "phi_do": 0.0,
+        "spread": 0.07407,
+        "synergy": -0.08049
+      },
+      "deltas": {
+        "phi_do": -0.74923,
+        "spread": 0.12963,
+        "synergy": -0.00716
+      },
+      "drift": {
+        "phi_do": 1.20005,
+        "spread": 0.03704,
+        "synergy": 0.01265
+      },
+      "recovery": {
+        "phi_do": -0.04975,
+        "spread": 0.14815,
+        "synergy": -0.01893
+      }
+    },
+    {
+      "cycle": 2,
+      "left_ran_first": true,
+      "conditions": [
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use",
+        "conversation",
+        "problem_solving"
+      ],
+      "intact": {
+        "phi_do": -0.018,
+        "spread": 0.44444,
+        "synergy": 0.13405
+      },
+      "drift_arm": {
+        "phi_do": 0.02175,
+        "spread": 0.44444,
+        "synergy": 0.24752
+      },
+      "lesioned": {
+        "phi_do": -0.33346,
+        "spread": 0.33333,
+        "synergy": 0.12792
+      },
+      "rescued": {
+        "phi_do": 0.02903,
+        "spread": 0.44444,
+        "synergy": 0.24527
+      },
+      "node_clamp": {
+        "phi_do": 0.0,
+        "spread": 0.07407,
+        "synergy": -0.05906
+      },
+      "deltas": {
+        "phi_do": 0.33533,
+        "spread": 0.11111,
+        "synergy": 0.06286
+      },
+      "drift": {
+        "phi_do": 0.03975,
+        "spread": 0.0,
+        "synergy": 0.11347
+      },
+      "recovery": {
+        "phi_do": 0.36249,
+        "spread": 0.11111,
+        "synergy": 0.11734
+      }
+    }
+  ],
+  "node_clamp": {
+    "phi_do": 0.0,
+    "spread": 0.08642,
+    "synergy": -0.05915
+  },
+  "intact": {
+    "phi_do": -0.26183,
+    "spread": 0.45062,
+    "synergy": 0.19059
+  },
+  "lesioned": {
+    "phi_do": -0.10747,
+    "spread": 0.30864,
+    "synergy": 0.19302
+  },
+  "rescued": {
+    "phi_do": -0.01891,
+    "spread": 0.46914,
+    "synergy": 0.2192
+  },
+  "deltas": {
+    "phi_do": -0.15436,
+    "spread": 0.14198,
+    "synergy": -0.00243
+  },
+  "rescue": {
+    "phi_do": 0.08857,
+    "spread": 0.16049,
+    "synergy": 0.02618
+  },
+  "drift_between_uncut_arms": {
+    "phi_do": 0.46166,
+    "spread": 0.01235,
+    "synergy": 0.0493
+  },
+  "spread_across_cycles": {
+    "baseline": {
+      "phi_do": 0.4295,
+      "spread": 0.02829,
+      "synergy": 0.00223
+    },
+    "lesioned": {
+      "phi_do": 0.19619,
+      "spread": 0.02138,
+      "synergy": 0.06196
+    },
+    "rescued": {
+      "phi_do": 0.04417,
+      "spread": 0.04277,
+      "synergy": 0.03385
+    }
+  },
+  "power": {
+    "measured": true,
+    "cycles": 3,
+    "alpha": 0.05,
+    "power": 0.8,
+    "lesion": {
+      "phi_do": {
+        "observed": -0.154361,
+        "sigma": 0.549876,
+        "detectable": 0.889422,
+        "cycles_needed": 100,
+        "powered": false
+      },
+      "spread": {
+        "observed": 0.141975,
+        "sigma": 0.038549,
+        "detectable": 0.062353,
+        "cycles_needed": 1,
+        "powered": true
+      },
+      "synergy": {
+        "observed": -0.002433,
+        "sigma": 0.063062,
+        "detectable": 0.102002,
+        "cycles_needed": 5275,
+        "powered": false
+      }
+    },
+    "rescue": {
+      "phi_do": {
+        "observed": 0.088566,
+        "sigma": 0.237227,
+        "detectable": 0.383713,
+        "cycles_needed": 57,
+        "powered": false
+      },
+      "spread": {
+        "observed": 0.160494,
+        "sigma": 0.056575,
+        "detectable": 0.09151,
+        "cycles_needed": 1,
+        "powered": true
+      },
+      "synergy": {
+        "observed": 0.026185,
+        "sigma": 0.078946,
+        "detectable": 0.127695,
+        "cycles_needed": 72,
+        "powered": false
+      }
+    }
+  },
+  "held_across_cycles": {
+    "phi_do": {
+      "fell_when_cut": 1,
+      "returned_when_released": 1,
+      "of": 3
+    },
+    "spread": {
+      "fell_when_cut": 3,
+      "returned_when_released": 3,
+      "of": 3
+    },
+    "synergy": {
+      "fell_when_cut": 1,
+      "returned_when_released": 1,
+      "of": 3
+    }
+  },
+  "recovery_fraction": {
+    "phi_do": -0.5738,
+    "spread": 1.1304,
+    "synergy": -10.7737
+  },
+  "deficit_worth_rescuing": {
+    "phi_do": true,
+    "spread": true,
+    "synergy": false
+  },
+  "deficit_over_drift": {
+    "phi_do": false,
+    "spread": true,
+    "synergy": false
+  },
+  "judged_on": [
+    "spread"
+  ],
+  "unmeasured": {
+    "phi_do": 0,
+    "spread": 0,
+    "synergy": 0
+  },
+  "recovery_tolerance": 0.5,
+  "deficit_share": 0.1,
+  "severed_inactive": true,
+  "severed_moved": {},
+  "deficit": true,
+  "rescued_ok": true
+}

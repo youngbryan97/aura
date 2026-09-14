@@ -23,6 +23,7 @@ from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.network_gateway import get_network_gateway
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.WebAssetHandler")
 # ── Image admission limits ──────────────────────────────────────────────
@@ -210,7 +211,6 @@ class WebAssetHandler:
         validation = await handler.validate_image(path)
     """
 
-    DEFAULT_SAVE_DIR = "~/.aura/data/assets"
     MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
     def __init__(self) -> None:
@@ -333,7 +333,7 @@ class WebAssetHandler:
 
         Returns the local file path, or empty string on failure.
         """
-        save_root = save_dir or self.DEFAULT_SAVE_DIR
+        save_root = save_dir or str(state_root() / "data" / "assets")
 
         try:
             response = await get_network_gateway().request_async(

@@ -388,9 +388,21 @@ class UnifiedField(_PredictsTheNextField):
         )
 
     def _to_sparse(self, weights: np.ndarray) -> object:
+        """The sparse form of the weights, built from a private copy.
+
+        `csr_matrix` counts the non-zeros, allocates for that count, and then
+        copies. Plasticity writes the same array in place, so a write landing
+        between the count and the copy makes scipy raise "number of non-zero
+        array elements changed during function execution" — which is a
+        fail-closed subsystem, so the field died on the first turn of a
+        campaign and every later turn ran without it.
+
+        The copy is the insurance that holds whatever the callers do. The lock
+        around the plasticity write is the other half.
+        """
         if sp is None:
             return weights
-        return sp.csr_matrix(weights)
+        return sp.csr_matrix(np.array(weights, copy=True))
 
     # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -1044,7 +1056,16 @@ class UnifiedField(_PredictsTheNextField):
 
         Uses scaled rank-1 update instead of full outer product for efficiency.
         Syncs sparse representation after plasticity.
+
+        Under the lock the rest of this class already uses. This is the one
+        path that mutates the weight matrix in place — pruning below a
+        threshold, zeroing the diagonal, rescaling — and it was the one path
+        that did not take it.
         """
+        with self._lock:
+            self._apply_plasticity_locked()
+
+    def _apply_plasticity_locked(self):
         self.F = self._safe_reshape(
             self.F,
             self.cfg.dim,

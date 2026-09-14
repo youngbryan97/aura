@@ -1325,6 +1325,31 @@ def resource_observer(
         # test_ordinary_speech_is_not_withheld passed alone and failed in a
         # chunk, which is the order-dependence shape, not a flake.
         reset_route_delivery()
+        # The readings built from the fourteen records each keep a ledger of
+        # her own history — the level she has been holding, how often their
+        # read of her beat hers, how regularly somebody comes back. Those are
+        # process-global by design, so one test's history is the next test's
+        # baseline unless they are cleared, which is how order-dependence
+        # starts rather than how it is discovered.
+        for module in (
+            "core.affect.ambivalence",
+            "core.affect.confirmation",
+            "core.affect.conviction",
+            "core.expression.delivery",
+            "core.self.borrowed",
+            "core.self.persona_gap",
+            "core.social.constancy",
+            "core.social.resolve",
+            "core.self.revision",
+            "core.self.growth",
+            "core.self.standing",
+            "core.affect.containment",
+            "core.motivation.fuel",
+        ):
+            try:
+                __import__(module, fromlist=["reset_for_test"]).reset_for_test()
+            except (ImportError, AttributeError):
+                continue
 
     host_markers = ("host_observation", "live", "hardware", "longrun")
     host_backed = any(request.node.get_closest_marker(name) for name in host_markers)

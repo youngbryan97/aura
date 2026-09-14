@@ -256,6 +256,21 @@ def _self_delta(prev: SelfDigest, cur: SelfDigest) -> float:
 # The ledger
 # ─────────────────────────────────────────────────────────────────────────────
 
+class GhostAnchorUnavailable(RuntimeError):
+    """The frame before the one being appended could not be verified.
+
+    Carries what was actually seen, because the message alone could not tell a
+    missing body from a chain head that had drifted, and those have different
+    causes and different repairs.
+    """
+
+    def __init__(self, message: str, *, seq: int, head: int | None, body_present: bool) -> None:
+        super().__init__(message)
+        self.seq = seq
+        self.head = head
+        self.body_present = body_present
+
+
 class GhostLine:
     """Append-only, hash-linked continuity ledger for the self-pattern."""
 
@@ -418,14 +433,32 @@ class GhostLine:
                 frame_holder["frame"] = frame
                 return frame.body()
 
-            try:
-                entry, _body = self._chain.append_with_body(
+            def append() -> Any:
+                return self._chain.append_with_body(
                     receipt_id=frame_id,
                     kind=_FRAME_KIND,
                     timestamp=now,
                     body_factory=make_body,
                     body_writer=self._persist,
                 )
+
+            try:
+                try:
+                    entry, _body = append()
+                except GhostAnchorUnavailable as drift:
+                    # The in-memory head had drifted from the file. Re-reading
+                    # it is the recovery path: without one, every later advance
+                    # is assigned a sequence the chain does not agree with and
+                    # the line stops recording for the rest of the session.
+                    record_degradation(
+                        "ghost_line",
+                        drift,
+                        action="re-read the chain head and retried the append",
+                        severity="warning",
+                        enforce_failure_policy=False,
+                    )
+                    self._chain.refresh_from_disk()
+                    entry, _body = append()
             except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 record_degradation(
                     "ghost_line",
@@ -487,7 +520,17 @@ class GhostLine:
         body = self._read_frame_body(seq - 1)
         tail = self._chain.last_entry()
         if body is None or tail is None or tail.seq != seq - 1:
-            raise RuntimeError("previous retained ghost frame is unavailable")
+            # Say which of the three it was. "unavailable" was recorded 1,074
+            # times in one campaign and named none of them, so the state that
+            # produced it had to be reconstructed from the files afterwards.
+            raise GhostAnchorUnavailable(
+                f"previous retained ghost frame is unavailable: assigned seq {seq}, "
+                f"chain head {'none' if tail is None else tail.seq}, "
+                f"body {seq - 1} {'missing' if body is None else 'present'}",
+                seq=seq,
+                head=None if tail is None else int(tail.seq),
+                body_present=body is not None,
+            )
         if str(body.get("frame_id", "")) != tail.receipt_id:
             raise RuntimeError("previous ghost frame id does not match its receipt")
         if hash_receipt_body(body) != tail.content_hash:

@@ -413,3 +413,30 @@ async def test_quantum_lab_executes_through_canonical_capability_engine(monkeypa
     assert result["entropy_mode"] == "seeded_prng"
     assert set(result["counts"]) <= {"00", "11"}
     assert engine.instances["quantum_lab"].__class__.__name__ == "QuantumLabSkill"
+
+
+def test_a_failing_entropy_source_is_counted_rather_than_silently_replaced():
+    """A collapse meant to use real entropy that quietly became reproducible.
+
+    The seeded generator is the right fallback. What was missing is any way to
+    tell afterwards that it was used, so an experiment reported as
+    entropy-driven could have been deterministic from the first draw.
+    """
+    from core.quantum.statevector import Statevector as Simulator
+
+    def broken() -> float:
+        raise RuntimeError("the entropy bridge is down")
+
+    sim = Simulator(1, seed=3, entropy_source=broken)
+    assert sim.entropy_fell_back == 0
+    sim._random_unit()
+    sim._random_unit()
+    assert sim.entropy_fell_back == 2
+
+    out_of_range = Simulator(1, seed=3, entropy_source=lambda: 1.5)
+    out_of_range._random_unit()
+    assert out_of_range.entropy_fell_back == 1
+
+    healthy = Simulator(1, seed=3, entropy_source=lambda: 0.25)
+    assert healthy._random_unit() == 0.25
+    assert healthy.entropy_fell_back == 0

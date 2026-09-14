@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -27,6 +28,7 @@ from core.cognition.procedure import (
     get_procedure_registry,
 )
 from core.evidence.packet import EvidencePacket, observe
+from core.cognition.procedure_execution import BackendResult
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_program_floor import (
     DEFAULT_SEMANTIC_FLOOR_FUEL,
@@ -376,6 +378,7 @@ def execute_semantic_procedure(
         "procedure_id": procedure.procedure_id,
         "procedure_program_receipt_sha256": stored.receipt()["receipt_sha256"],
         "floor_program_receipt_sha256": floor_program.receipt["receipt_sha256"],
+        "floor_program_receipt": floor_program.receipt,
         "floor_execution_receipt_sha256": floor_execution.receipt["receipt_sha256"],
         "result_sha256": _sha(
             list(floor_execution.result)
@@ -395,6 +398,22 @@ def execute_semantic_procedure(
     )
 
 
+def semantic_procedure_backend(
+    procedure: Procedure,
+    state: Mapping[str, Any],
+    context: Mapping[str, Any],
+) -> BackendResult:
+    """Adapt the universal floor to shared, caller-owned procedure execution."""
+
+    execution = execute_semantic_procedure(
+        procedure, dict(state),
+        fuel=context.get("semantic_floor_fuel", DEFAULT_SEMANTIC_FLOOR_FUEL),
+    )
+    return BackendResult(
+        {procedure.program.output_key: execution.result}, evidence=execution,
+    )
+
+
 __all__ = [
     "SEMANTIC_PROCEDURE_EXECUTION_SCHEMA",
     "SEMANTIC_PROCEDURE_PROGRAM_SCHEMA",
@@ -402,4 +421,5 @@ __all__ = [
     "SemanticProcedureProgram",
     "execute_semantic_procedure",
     "from_semantic_program",
+    "semantic_procedure_backend",
 ]

@@ -90,6 +90,7 @@ def _harness(
     cycles: int = 3,
     drift: float = 0.0,
     held_moves: dict[str, float] | None = None,
+    degenerate: bool = False,
 ):
     """Everything ``_lesion`` is handed, with the arms answering by design."""
     runtime = _Runtime()
@@ -133,7 +134,7 @@ def _harness(
             value = base + drift
         elif held:
             value = base - cut_costs
-        return type("P", (), {"phi": value})()
+        return type("P", (), {"phi": value, "degenerate": degenerate})()
 
     def synergy_suite(recording: Any, seed: int = 0) -> list[Any]:
         return [type("S", (), {"normalised": phi_do(recording).phi})()]
@@ -313,3 +314,25 @@ def test_a_held_side_that_stayed_still_is_reported_as_severed() -> None:
     assert out["severed_inactive"] is True
     assert out["deficit"] is True
 
+
+def test_a_cycle_is_long_enough_for_the_measures_it_reads() -> None:
+    """Five rounds of eight conditions left thirty-nine transitions, one short
+    of the floor, and irreducibility and synergy read 0.0 in every arm."""
+    from core.subject.irreducibility import MIN_TRANSITIONS
+
+    out = _run(cut_costs=0.5, rescue_returns=0.4)
+    conditions = len(out["per_cycle"][0]["conditions"])
+    assert out["rounds_per_cycle"] * conditions - 1 >= MIN_TRANSITIONS
+
+
+def test_a_measure_no_arm_could_score_is_not_judged() -> None:
+    out = _run(cut_costs=0.5, rescue_returns=0.4, degenerate=True)
+    assert out["unmeasured"]["phi_do"] > 0
+    assert "phi_do" not in out["judged_on"]
+    assert out["unmeasured"]["spread"] == 0
+
+
+def test_the_floor_is_what_the_folds_need() -> None:
+    from core.subject.irreducibility import FOLDS, MIN_TRANSITIONS, _folds
+
+    assert len(_folds(MIN_TRANSITIONS)) == FOLDS

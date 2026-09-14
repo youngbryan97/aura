@@ -9,8 +9,13 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from core.brain.llm.latent_cortex.runtime_identity import worker_representation_basis
-from core.cognition.procedure import Procedure, ProcedureRegistry
-from core.learning.semantic_procedure_currency import from_semantic_program
+from core.cognition.procedure import Backend, Precondition, Procedure, ProcedureRegistry
+from core.cognition.procedure_execution import ProcedureExecution
+from core.cognition.procedure_planning import execute_procedure_plan, plan_procedure
+from core.learning.semantic_procedure_currency import (
+    from_semantic_program,
+    semantic_procedure_backend,
+)
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
 )
@@ -59,6 +64,7 @@ class CompositionalSemanticRuntimeOutcome:
     execution: SemanticFloorExecution
     receipt: dict[str, Any]
     procedure: Procedure | None = None
+    procedure_execution: ProcedureExecution | None = None
 
     def __post_init__(self) -> None:
         body = {key: value for key, value in self.receipt.items() if key != "receipt_sha256"}
@@ -131,21 +137,44 @@ def execute_compositional_semantic_observation(
             "compositional semantic decode did not use every public literal"
         )
 
+    procedure = None
+    procedure_execution = None
     try:
-        floor_program = compile_semantic_program_to_floor(
-            decoded.ir,
-            public_inputs.values,
-        )
-        execution = execute_semantic_floor_program(floor_program)
+        if procedure_registry is None:
+            floor_program = compile_semantic_program_to_floor(decoded.ir, public_inputs.values)
+            execution = execute_semantic_floor_program(floor_program)
+            floor_program_receipt = floor_program.receipt
+        else:
+            procedure = from_semantic_program(decoded.ir, registry=procedure_registry)
+            initial_state = {
+                f"semantic:argument:{index}": value
+                for index, value in enumerate(public_inputs.values)
+            }
+            plan = plan_procedure(
+                procedure_registry, initial_state,
+                (Precondition(procedure.program.output_key, procedure.program.output_type),),
+                # The learned IR supplies meaning. Equal input/output types do
+                # not make a different computation eligible for this request.
+                eligible=(procedure.procedure_id,), max_steps=1, max_expansions=1,
+            )
+            goal_execution = execute_procedure_plan(
+                procedure_registry, plan, initial_state,
+                backends={Backend.RLC: semantic_procedure_backend},
+            )
+            procedure_execution = goal_execution.execution
+            if procedure_execution is None:
+                raise ValueError(f"semantic procedure plan did not execute:{plan.reason}")
+            if not procedure_execution.completed:
+                raise ValueError(procedure_execution.execution.failed)
+            if not goal_execution.requirements_met:
+                raise ValueError("semantic procedure did not meet its typed result requirement")
+            backend_execution = procedure_execution.steps[0].evidence
+            execution = backend_execution.floor_execution
+            floor_program_receipt = backend_execution.receipt["floor_program_receipt"]
     except (RuntimeError, TypeError, ValueError) as exc:
         raise SemanticProgramDecodeRejectedError(
             "compositional semantic program was not executable"
         ) from exc
-    procedure = (
-        from_semantic_program(decoded.ir, registry=procedure_registry)
-        if procedure_registry is not None
-        else None
-    )
     body = {
         "schema": COMPOSITIONAL_SEMANTIC_RUNTIME_SCHEMA,
         "source_text_sha256": public_inputs.source_text_sha256,
@@ -163,7 +192,7 @@ def execute_compositional_semantic_observation(
             or inference_step_limit > model.max_steps
         ),
         "semantic_ir_receipt": decoded.ir.receipt(),
-        "floor_program_receipt": floor_program.receipt,
+        "floor_program_receipt": floor_program_receipt,
         "floor_execution_receipt": execution.receipt,
         "result_sha256": _sha(semantic_value_to_json(execution.result)),
         "input_register_order": "source_character_order",
@@ -179,6 +208,17 @@ def execute_compositional_semantic_observation(
             if procedure is not None
             else None
         ),
+        "procedure_execution": (
+            {
+                "completed": procedure_execution.completed,
+                "backend_calls": procedure_execution.execution.tool_calls,
+                "procedure_ids": [step.procedure_id for step in procedure_execution.steps],
+                "selection_basis": "learned_ir_procedure_identity",
+                "requirements_met": goal_execution.requirements_met,
+                "correctness_measured": False,
+            }
+            if procedure_execution is not None else None
+        ),
     }
     receipt = {**body, "receipt_sha256": _sha(body)}
     return CompositionalSemanticRuntimeOutcome(
@@ -187,6 +227,7 @@ def execute_compositional_semantic_observation(
         execution,
         receipt,
         procedure,
+        procedure_execution,
     )
 
 

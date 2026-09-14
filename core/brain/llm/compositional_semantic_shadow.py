@@ -468,6 +468,13 @@ async def execute_compositional_semantic_shadow(
         "result": semantic_value_to_json(outcome.execution.result),
         "text": text,
     }
+    execution = getattr(outcome, "procedure_execution", None)
+    # Event ids belong to this observation, not the semantic model identity.
+    body["procedure_trace"] = {
+        "event_ids": [step.event_id for step in execution.steps if step.event_id],
+        "complete": execution.trace_complete,
+        "errors": sorted({error for step in execution.steps for error in step.trace_errors}),
+    } if execution is not None else None
     return {**body, "receipt_sha256": _sha(body)}
 
 

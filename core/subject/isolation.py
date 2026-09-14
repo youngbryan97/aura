@@ -23,7 +23,7 @@ import sys
 from pathlib import Path, PurePath
 from typing import Any
 
-__all__ = ["STATE_DIR", "StateIsolationError", "isolate_state", "state_leaks"]
+__all__ = ["NOT_STATE", "STATE_DIR", "StateIsolationError", "isolate_state", "state_leaks"]
 
 #: Where a run's own state lives, under its run directory.
 STATE_DIR: str = "state"
@@ -32,6 +32,25 @@ STATE_DIR: str = "state"
 #: first time a run is isolated. Once the override is set there is no asking
 #: for it again.
 _DEFAULT_ROOT: str | None = None
+
+
+#: Globals that name assets rather than state, with the reason each one is
+#: here. A store is forked because a run writes to it; these are read only,
+#: byte-identical in every arm, and tens of gigabytes besides, so a fork would
+#: copy the model weights themselves. A run that refuses over one of these is
+#: refusing over where the model file lives.
+NOT_STATE: frozenset[str] = frozenset(
+    {
+        # The checkout the process runs from. Every model path is built from it.
+        "core.brain.llm.model_paths.BASE_DIR",
+        "core.brain.llm.model_registry.BASE_DIR",
+        # Weights and adapters. Read at load time and never written by a run.
+        "core.brain.llm.model_registry.ADAPTER_PATH",
+        "core.brain.llm.model_registry._CORTEX_PATH",
+        "core.brain.llm.model_registry._IMPORT_MODELS_DIR",
+        "core.brain.llm.model_registry._SOLVER_PATH",
+    }
+)
 
 
 class StateIsolationError(RuntimeError):
@@ -86,6 +105,8 @@ def state_leaks() -> list[str]:
 
     Only that root is watched. Under the test profile the live root is
     read-only by construction, and shared model assets live there legitimately.
+
+    `NOT_STATE` names the globals that are assets rather than stores.
     """
     if _DEFAULT_ROOT is None:
         return []
@@ -102,6 +123,8 @@ def state_leaks() -> list[str]:
             continue
         for attribute, value in attributes:
             if not isinstance(value, PurePath):
+                continue
+            if f"{name}.{attribute}" in NOT_STATE:
                 continue
             real = _real(value)
             if own and _inside(real, own):

@@ -170,6 +170,7 @@ def test_a_hung_step_fails_the_node_instead_of_stalling_the_mission():
 
     state = MissionState.__new__(MissionState)
     state._active_missions = {}
+    state._advancing = set()
     state._persist_mission = lambda mission: None
     state._complete_mission = _noop_async
     state._try_recovery = _fail_recovery
@@ -247,6 +248,7 @@ def test_the_orca_demo_mission_runs_end_to_end(tmp_path, monkeypatch):
     out = tmp_path / "Orca Demo"
     state = MissionState.__new__(MissionState)
     state._active_missions = {}
+    state._advancing = set()
     state._persist_mission = lambda mission: None
     state._complete_mission = _complete
     state._try_recovery = _fail_recovery

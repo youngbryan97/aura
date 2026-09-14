@@ -146,6 +146,17 @@ class UnifiedWorldModel:
             record_degradation("unified_world_model", exc, severity="debug")
             return None
 
+    def surprise_rank(self) -> Optional[float]:
+        """The latest surprise's rank among the model's recent surprises, in [0, 1]."""
+        m = self.learned
+        if m is None:
+            return None
+        try:
+            return float(m.surprise_rank())
+        except (AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
+            record_degradation("unified_world_model", exc, severity="debug")
+            return None
+
     def watched(self, before: Any, action: Any, after: Any) -> bool:
         """One of her own acts, and what it did — the only thing that teaches a rule."""
         m = self.rules

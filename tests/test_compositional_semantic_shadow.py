@@ -95,6 +95,9 @@ async def test_shadow_executes_on_the_existing_worker_without_answer_authority(m
     outcome = SimpleNamespace(
         execution=SimpleNamespace(result=7),
         receipt={"receipt_sha256": "e" * 64},
+        procedure_execution=SimpleNamespace(
+            steps=(SimpleNamespace(event_id=83, trace_errors=()),), trace_complete=True,
+        ),
     )
     monkeypatch.setattr(
         shadow,
@@ -114,6 +117,7 @@ async def test_shadow_executes_on_the_existing_worker_without_answer_authority(m
     assert result["text"] == "7"
     assert result["mode"] == "shadow"
     assert result["serving_authority"] is False
+    assert result["procedure_trace"] == {"event_ids": [83], "complete": True, "errors": []}
 
 
 @pytest.mark.asyncio

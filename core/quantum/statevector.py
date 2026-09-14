@@ -109,6 +109,11 @@ class Statevector:
         self._rng = np.random.default_rng(seed)
         self._entropy_source = entropy_source
         self._gate_count = 0
+        #: Draws that asked the entropy source and got the seeded generator
+        #: instead. A collapse that was meant to be driven by real entropy and
+        #: quietly became reproducible is a different experiment, so the count
+        #: is kept where a caller can read it.
+        self.entropy_fell_back = 0
 
     # ── randomness ─────────────────────────────────────────────
 
@@ -121,7 +126,10 @@ class Statevector:
                 if 0.0 <= value < 1.0:
                     return value
             except (TypeError, ValueError, RuntimeError, OSError):
-                pass  # fall through to the deterministic generator
+                pass  # counted below, with the out-of-range case
+            # Counted here rather than recorded: this module imports nothing
+            # from the runtime and stays that way.
+            self.entropy_fell_back += 1
         return float(self._rng.random())
 
     # ── gate primitives ────────────────────────────────────────
