@@ -12,15 +12,15 @@
     "spiking.sampling_bias": "inert"
   },
   "still_unmeasured": [
-    "AFFECT_CIRCUMPLEX_SAMPLING",
-    "AFFECT_GENERATION_CONTROLS",
-    "BICAMERAL_SAMPLING_BIAS",
-    "IMAGINATION_SAMPLING_BIAS",
-    "LIVE_MIND_CONTEXT_BLOCK",
-    "LIVE_MIND_GENERATION_CONTROLS",
-    "LIVE_MIND_RECURRENT_LOOPS",
-    "LIVE_MIND_STEERING_ALPHA",
-    "QUALIA_RICHNESS",
-    "SPIKING_SAMPLING_BIAS"
+    "affect.circumplex_sampling",
+    "affect.generation_controls",
+    "bicameral.sampling_bias",
+    "imagination.sampling_bias",
+    "live_mind.context_block",
+    "live_mind.generation_controls",
+    "live_mind.recurrent_loops",
+    "live_mind.steering_alpha",
+    "qualia.richness",
+    "spiking.sampling_bias"
   ]
 }
