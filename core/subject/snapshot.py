@@ -27,7 +27,7 @@ import sqlite3
 import sys
 import types
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1461,6 +1461,56 @@ def _module_state(
     return out
 
 
+def _empty_module_slots(keys: Iterable[str] | None = None) -> frozenset[str]:
+    """Private module globals holding None: a singleton that has not been made yet.
+
+    The fork carries what the organism keeps at module scope by what it holds,
+    and an empty slot holds nothing, so it was not carried. A ledger or engine
+    made on first use inside an arm was then still there when the next arm
+    began, with the first arm's history in it. The frisson ledger and the
+    scientific engine's cache did that whenever an earlier test had emptied
+    their slots. Recording the empty slots is what lets a restore empty them
+    again. Only names with one leading underscore are read, the convention
+    every such slot here follows, so a public name set to None is not taken
+    for one.
+
+    With `keys`, only those are checked, which is how a calibrated fork avoids
+    scanning every module on every snapshot.
+    """
+    if keys is not None:
+        return frozenset(key for key in keys if _held(key) is None)
+    out: set[str] = set()
+    for module_name, module in sorted(sys.modules.items()):
+        if module is None or not _in_packages(module_name, _ORGANISM_PACKAGES):
+            continue
+        if _in_packages(module_name, _MACHINERY_PACKAGES):
+            continue
+        for name, value in list(vars(module).items()):
+            if value is None and name.startswith("_") and not name.startswith("__"):
+                out.add(f"{module_name}:{name}")
+    return frozenset(out)
+
+
+def _empty_again(keys: Iterable[str]) -> list[str]:
+    """Put None back in each slot an arm filled with something the organism keeps.
+
+    A module imported into the slot, a function or a lock is wiring rather
+    than state, and it is left where it is. Returns the keys emptied.
+    """
+    emptied: list[str] = []
+    for key in keys:
+        module_name, _, name = key.partition(":")
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        current = vars(module).get(name, _ABSENT)
+        if current is _ABSENT or current is None or not _is_held_state(current):
+            continue
+        setattr(module, name, None)
+        emptied.append(key)
+    return emptied
+
+
 def _restore_module_state(saved: Mapping[str, tuple[Any, Any]] | None) -> None:
     if not saved:
         return
@@ -1665,6 +1715,9 @@ class Snapshot:
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
     intentions: dict[str, Any] | None = None
+    #: Private module slots that were empty when the snapshot was taken, so a
+    #: restore can empty again whatever an arm made in them.
+    empty_module_slots: frozenset[str] = frozenset()
     #: The harness's frame count. Which free-running layers step on a given
     #: frame is a function of this number, so two arms that do not start from
     #: the same one are not running the same organism.
