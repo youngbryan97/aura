@@ -72,6 +72,14 @@ _FENCE_RE = re.compile(r"```(?:python|py)?\s*\n(?P<code>.*?)```", re.IGNORECASE 
 _OPENING_FENCE_RE = re.compile(r"```(?:python|py)?[ \t]*\r?\n?", re.IGNORECASE)
 
 
+class GenerationDeferredError(RuntimeError):
+    """The request was not run, and the runtime said why.
+
+    A subclass so callers that treat every RuntimeError as a failure keep
+    working, and callers that can tell postponed from broken can.
+    """
+
+
 @dataclass(frozen=True)
 class GenerationRequest:
     """Normalized request sent to Aura's LLM runtime."""
@@ -324,9 +332,11 @@ class LLMCodeGenerator:
                 # never run at all. The reconstruction lane reported "0/14
                 # held-out positions reproduced" off the back of the second,
                 # blaming verification for a generation that never happened.
+                why = explain_empty_generation()
+                if why:
+                    raise GenerationDeferredError(f"LLM generation was not run; {why}")
                 raise RuntimeError(
-                    "LLM returned no Python source; "
-                    + (explain_empty_generation() or "the model returned nothing at all")
+                    "LLM returned no Python source; the model returned nothing at all"
                 )
 
             try:
@@ -387,6 +397,20 @@ class LLMCodeGenerator:
                 len(code),
             )
             return code
+        except GenerationDeferredError as exc:
+            # The runtime decided not to run this request — a background call
+            # refused while a person is waiting on the cortex, a lane with no
+            # room. That is backpressure the runtime chose, and the choice is
+            # already on the gate's receipt and the turn ledger. Recording it
+            # here as a degradation raised an emergency incident thirty-four
+            # times on one afternoon and drove the resilience layer to full
+            # depletion over jobs that were correctly postponed.
+            logger.info("LLM code generation deferred: %s", exc)
+            if self.fallback_to_stub:
+                fallback = self._validated_explicit_fallback(context)
+                if fallback:
+                    return fallback
+            raise
         except _CODE_GENERATOR_RECOVERABLE_ERRORS as exc:
             _record_code_generator_degradation(
                 "llm_code_generator",
@@ -475,4 +499,4 @@ class LLMCodeGenerator:
         raise RuntimeError(f"{type(router).__name__} exposes no supported generation method")
 
 
-__all__ = ["LLMCodeGenerator", "GenerationRequest", "extract_python_code"]
+__all__ = ["GenerationDeferredError", "GenerationRequest", "LLMCodeGenerator", "extract_python_code"]

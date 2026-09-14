@@ -4028,7 +4028,12 @@ from core.brain.llm.prompt_cache import (  # noqa: E402
 from core.brain.llm.prompt_cache import (  # noqa: E402
     capture_prompt_cache_one_token_rollback as _capture_prompt_cache_one_token_rollback,
 )
-from .mlx_worker_surface_quality import (
+
+# Here rather than at the top because the surface modules read this module's
+# own names while they load — moving either import up raises
+# "cannot import name '_CORRUPT_LANGUAGE_MARKERS' from partially initialized
+# module". The names above them are what they need to already exist.
+from .mlx_worker_surface_quality import (  # noqa: E402
     _BACKEND_SYMBOLIC_SURFACE_MARKERS,
     _apply_surface_generation_controls,
     _capability_inventory_minimum_grounding,
@@ -4060,7 +4065,7 @@ from .mlx_worker_surface_quality import (
     _surface_quality_gate_enabled,
     _surface_validation_prompt,
 )
-from .mlx_worker_surface_repair import (
+from .mlx_worker_surface_repair import (  # noqa: E402
     _DELIVERABLE_RESIDUAL_SURFACE_REASONS,  # noqa: F401
     _LIVE_STATUS_CONCRETE_SIGNAL_INSTRUCTION,  # noqa: F401
     _REQUIREMENT_SHORTFALL_LABELS,  # noqa: F401
@@ -5878,6 +5883,7 @@ def _mlx_worker_loop(
                         from core.brain.llm.chat_format import (
                             conversation_append_messages,
                             conversation_resume_context_digest,
+                            reasoning_effort_for_generation,
                             render_chat_append_template,
                             render_chat_continuation_template,
                             render_chat_template,
@@ -5890,15 +5896,27 @@ def _mlx_worker_loop(
                             final_user_surface=bool(job.get("clean_user_surface_contract", False)),
                             answer_is_derived_here=_answer_is_derived_here(job, model=model_path),
                         )
+                        # And how hard the channel should work, in the words
+                        # the template itself understands. Nothing drove this
+                        # before, so every thinking render carried the
+                        # template's default — "Reasoning effort is set to
+                        # xhigh. Please think carefully..." — including the
+                        # ones a fast mode had opened only because the answer
+                        # is made here.
+                        native_effort = reasoning_effort_for_generation(
+                            cognitive_mode=job.get("cognitive_mode"),
+                            thinking=native_thinking,
+                        )
                         # Which channel the search went down is the difference
                         # between an answer and a page of working, and nothing
                         # recorded it.
                         logger.info(
-                            "🎯 [WORKER] Native thinking %s (surface=%s floor=%s mode=%s).",
+                            "🎯 [WORKER] Native thinking %s (surface=%s floor=%s mode=%s effort=%s).",
                             native_thinking,
                             bool(job.get("clean_user_surface_contract", False)),
                             job.get("user_surface_completion_floor"),
                             job.get("cognitive_mode"),
+                            native_effort or "template default",
                         )
 
                         if _job_requires_exact_continuation_cache(job):
@@ -5920,6 +5938,7 @@ def _mlx_worker_loop(
                                     conversation_append_messages(messages),
                                     tools=tools,
                                     enable_thinking=native_thinking,
+                                    reasoning_effort=native_effort,
                                 )
                             except (
                                 TypeError,
@@ -5943,6 +5962,7 @@ def _mlx_worker_loop(
                                 messages,
                                 tools=tools,
                                 enable_thinking=native_thinking,
+                                reasoning_effort=native_effort,
                             )
                         else:
                             prompt = render_chat_template(
@@ -5951,6 +5971,7 @@ def _mlx_worker_loop(
                                 tools=tools,
                                 add_generation_prompt=True,
                                 enable_thinking=native_thinking,
+                                reasoning_effort=native_effort,
                             )
                             if tools:
                                 # A tool prompt that ends without an open
@@ -6294,6 +6315,40 @@ def _mlx_worker_loop(
                         logits_processors.append(_np_proc)
                 except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
                     logger.debug("Foreground non-parametric memory unavailable: %s", e)
+
+                # The shape of the answer, held by the decoder rather than
+                # asked for in the prompt. A caller that will parse JSON says
+                # so on the job, and the sampler cannot then produce prose,
+                # an unclosed string or an unbalanced brace. Ninety-four
+                # "Return ONLY JSON" strings were the request this replaces.
+                _shape = str(job.get("output_shape") or "").strip().lower()
+                if _shape in ("json", "json_object", "json_array"):
+                    try:
+                        from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+
+                        _closing = None
+                        if native_thinking is True:
+                            from core.brain.llm.a_bounded_private_channel import (
+                                _the_token_that_closes_it,
+                            )
+
+                            _closing = _the_token_that_closes_it(tokenizer)
+                        _held = enforce_json(
+                            tokenizer,
+                            after_token=_closing,
+                            require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
+                        )
+                        if _held is not None:
+                            logits_processors.append(_held)
+                            logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
+                        else:
+                            logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without the decoder holding the answer's shape",
+                            severity="warning",
+                        )
 
                 # The private channel, bounded by the decoder rather than by
                 # hope. Nothing had ended it, so what it COST could only be
@@ -9281,6 +9336,40 @@ def _mlx_worker_loop(
                         action="continued streamed generation without semantic terminal guard",
                         severity="warning",
                     )
+
+                # The shape of the answer, held by the decoder rather than
+                # asked for in the prompt. A caller that will parse JSON says
+                # so on the job, and the sampler cannot then produce prose,
+                # an unclosed string or an unbalanced brace. Ninety-four
+                # "Return ONLY JSON" strings were the request this replaces.
+                _shape = str(job.get("output_shape") or "").strip().lower()
+                if _shape in ("json", "json_object", "json_array"):
+                    try:
+                        from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+
+                        _closing = None
+                        if native_thinking is True:
+                            from core.brain.llm.a_bounded_private_channel import (
+                                _the_token_that_closes_it,
+                            )
+
+                            _closing = _the_token_that_closes_it(tokenizer)
+                        _held = enforce_json(
+                            tokenizer,
+                            after_token=_closing,
+                            require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
+                        )
+                        if _held is not None:
+                            logits_processors.append(_held)
+                            logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
+                        else:
+                            logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without the decoder holding the answer's shape",
+                            severity="warning",
+                        )
 
                 # The private channel, bounded by the decoder rather than by
                 # hope. Nothing had ended it, so what it COST could only be

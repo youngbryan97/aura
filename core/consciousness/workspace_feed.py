@@ -175,6 +175,10 @@ def build_candidates(state: Any) -> list[Any]:
                     CognitiveCandidate(
                         content=f"feeling {name}",
                         source=f"affect_{name}",
+                        # One bidder under many labels. Named here so the
+                        # refractory period applies to affect rather than to
+                        # whichever emotion happened to be on top.
+                        bidder_id="affect",
                         priority=intensity,
                         content_type=ContentType.AFFECTIVE,
                         affect_weight=charge,

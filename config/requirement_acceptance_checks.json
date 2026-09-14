@@ -1,5 +1,58 @@
 {
   "schema_version": 1,
   "note": "Requirement -> the thing a person can run whose failing would mean the requirement is not met. Hand-written only where nothing in the registry or the evidence ledger names one. A check listed here must resolve in the tree; one that does not is counted as no check at all.",
-  "checks": {}
+  "checks": {
+    "SECURITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_dns_rebinding_auth.py",
+        "why": "The requirement is that tokenless DNS rebinding is blocked before the local, public, internal and desktop exceptions, and that duplicate Host and Origin authorities are parsed strictly. This file is 38 tests over exactly that boundary; if it fails the requirement is not met."
+      }
+    ],
+    "RUNTIME-SETTINGS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_settings_control_plane.py",
+        "why": "The requirement names one typed version-2 schema with strict atomic compare-and-swap patch, reset and rollback, request idempotency and retained revision history. That is what the control-plane suite exercises."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_settings_no_dead_controls.py",
+        "why": "The other half: every schema key stays classified as wired, frontend-only or known-dead, so a setting cannot be added as a silent no-op and the known-dead set cannot grow unnoticed."
+      }
+    ],
+    "MATRIX-01": [
+      {
+        "kind": "make",
+        "name": "reqproof-gate",
+        "why": "The requirement IS the machine-readable requirement-to-proof control plane, and this gate is the thing that reads it: it fails on a prose token that is not a registry requirement, on stale evidence, and on an unproven closure."
+      }
+    ],
+    "ARCH-BASELINE-001": [
+      {
+        "kind": "make",
+        "name": "architecture-lint",
+        "why": "The requirement is that the architecture-quality baseline is reconciled without normalising accumulated debt. This gate is what refuses the debt, and the baseline it reads only shrinks."
+      }
+    ],
+    "DATA-LIFECYCLE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more \u2014 schema, quota, key rotation and the rest are still unlinked."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_versioned_store.py",
+        "why": "The requirement's downgrade policy and corruption detection: a major version this reader does not know is refused, a minor version ahead is readable, and a file that will not parse is moved aside rather than overwritten."
+      }
+    ],
+    "MEMORY-LEAK-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_large_holders_are_attributed.py",
+        "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it \u2014 0.6% of 4.2GB attributed on 2026-09-10 \u2014 so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
+      }
+    ]
+  }
 }

@@ -37,6 +37,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Literal
+
 from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.Errors")

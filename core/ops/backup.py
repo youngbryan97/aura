@@ -8,8 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import shutil
 import sqlite3
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -116,7 +116,10 @@ class BackupManager:
 
     def _list_backups_sync(self) -> list[Path]:
         backups: list[tuple[float, Path]] = []
-        for path in self.backup_dir.glob("aura_backup_*.zip"):
+        # The verified tool's ring. The raw-zip archives this listed before
+        # were never produced by a live runtime; the tool prunes its own ring
+        # past --keep, and rotation here is the second bound on the same set.
+        for path in self.backup_dir.glob("aura_state_*.tar.gz"):
             try:
                 if path.is_file():
                     backups.append((os.path.getmtime(path), path))
@@ -227,10 +230,9 @@ class BackupManager:
             logger.info("Skipping periodic backup during active runtime window: %s", reason)
             return None
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"aura_backup_{timestamp}"
-        backup_path = self.backup_dir / backup_name
+        backup_name = f"aura_state_{timestamp}"
 
-        logger.info("Creating backup: %s.zip", backup_name)
+        logger.info("Creating backup: %s", backup_name)
         self._backup_in_progress = True
         try:
             # Reclaim space before backup
@@ -238,26 +240,24 @@ class BackupManager:
             if not vacuum_ok:
                 logger.warning("Continuing backup after VACUUM failed or was deferred.")
 
-            # Use asyncio.to_thread for blocking IO
-            await asyncio.to_thread(
-                shutil.make_archive,
-                str(backup_path),
-                "zip",
-                str(self.data_dir),
-            )
-
-            final_path = self.backup_dir / f"{backup_name}.zip"
-            if final_path.exists():
-                logger.info("Backup created successfully: %s", final_path)
+            # The verified tool, not a raw zip of the data directory. A zip
+            # copies hot WAL stores byte-raw — the recipe for an unreadable
+            # snapshot — and would have carried the 46GB orphan store whole.
+            # The tool snapshots every store through the backup API, bounds
+            # each file, writes a manifest line, prunes its own ring, and
+            # `verify` re-hashes and quick_checks what it wrote.
+            final_path = await asyncio.to_thread(self._run_verified_backup)
+            if final_path is not None and final_path.exists():
+                logger.info("Backup created and verified: %s", final_path)
                 await self._enforce_rotation()
                 self._last_backup_at = time.time()
                 self._last_backup_path = final_path
                 return final_path
             _record_backup_degradation(
-                RuntimeError("archive creation completed without final zip"),
-                action="reported backup creation failure because final archive was missing",
+                RuntimeError("verified backup produced no archive"),
+                action="reported backup creation failure because no verified archive was produced",
                 severity="degraded",
-                extra={"backup_path": str(final_path)},
+                extra={"backup_dir": str(self.backup_dir)},
             )
             return None
         except (OSError, RuntimeError, ValueError) as e:
@@ -271,6 +271,78 @@ class BackupManager:
             return None
         finally:
             self._backup_in_progress = False
+
+    def _run_verified_backup(self) -> Path | None:
+        """`tools/state_backup.py create` then `verify`, through the gateway.
+
+        The tool is the one `make backup` runs; running it here means the
+        runtime and the operator produce the same archive with the same
+        manifest. Returns the archive `verify` accepted, or None.
+        """
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+        repo_root = Path(__file__).resolve().parents[2]
+        tool = repo_root / "tools" / "state_backup.py"
+        python = os.environ.get("AURA_PYTHON") or sys.executable
+        gateway = get_subprocess_gateway()
+        created = gateway.run(
+            [python, str(tool), "create", "--root", str(repo_root), "--out", str(self.backup_dir),
+             "--keep", str(self.max_backups)],
+            capture_output=True,
+            text=True,
+            timeout=3600.0,
+            source="ops.backup.create",
+            accelerator_capability="none",
+        )
+        if created.returncode != 0:
+            _record_backup_degradation(
+                RuntimeError(str(created.stderr or created.stdout or "backup tool failed")[-500:]),
+                action="reported backup creation failure from the verified backup tool",
+                severity="degraded",
+            )
+            return None
+        newest = sorted(
+            self.backup_dir.glob("aura_state_*.tar.gz"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        if not newest:
+            return None
+        verified = gateway.run(
+            [python, str(tool), "verify", "--out", str(self.backup_dir), "--archive", str(newest[0])],
+            capture_output=True,
+            text=True,
+            timeout=1800.0,
+            read_only=True,
+            source="ops.backup.verify",
+            accelerator_capability="none",
+        )
+        if verified.returncode != 0:
+            _record_backup_degradation(
+                RuntimeError(str(verified.stdout or verified.stderr)[-500:]),
+                action="kept the archive but reported that verification refused it",
+                severity="degraded",
+                extra={"archive": str(newest[0])},
+            )
+            return None
+        return newest[0]
+
+    def _newest_verified_archive_at(self) -> float:
+        """When the ring last got an archive, so a restart does not reset the clock.
+
+        The job registered with `last_run=now` at every boot: the first
+        backup was a day after boot, and the desktop restarts more often
+        than that. Seventy-seven boots in the log, and not one "Creating
+        backup" line.
+        """
+        try:
+            newest = max(
+                (item.stat().st_mtime for item in self.backup_dir.glob("aura_state_*.tar.gz")),
+                default=0.0,
+            )
+        except OSError:
+            return 0.0
+        return float(newest)
 
     async def _enforce_rotation(self):
         """Enforces the maximum number of retained backups."""
@@ -318,12 +390,19 @@ class BackupManager:
             )
         )
 
+        # Measured from the newest archive on disk, not from this boot. A
+        # ring with nothing in it is due after a short grace, under the
+        # maintenance policy that already defers during an active window.
+        newest_wall = self._newest_verified_archive_at()
+        age = (time.time() - newest_wall) if newest_wall > 0 else self.backup_interval_s
+        grace_s = 15 * 60.0
+        backup_last_run = now - max(0.0, min(self.backup_interval_s - grace_s, age))
         await scheduler.register(
             TaskSpec(
                 name="periodic_state_backup",
                 coro=self.create_backup,
                 tick_interval=self.backup_interval_s,
-                last_run=now,
+                last_run=backup_last_run,
             )
         )
         self._maintenance_registered = True

@@ -27,6 +27,7 @@ from typing import Any
 
 import numpy as np
 
+from core.subject.causal import SCALE_FLOOR
 from core.subject.driver import Condition, SubjectRuntime
 from core.subject.state import CoreState, perturb, perturb_organs
 
@@ -36,7 +37,11 @@ __all__ = ["AgencyReport", "run_agency"]
 def _gap(
     left: list[CoreState], right: list[CoreState], domain: str, scale: np.ndarray
 ) -> float:
-    live = scale > 0
+    # A column counts only where it varies by more than float noise. Any scale
+    # above zero counted, so a column that barely moved in the recording became
+    # the divisor and run_027 read ownership at 621,054,827,684 over a floor of
+    # 0.04. The interventions standardise against the same floor.
+    live = scale > SCALE_FLOOR
     if not live.any() or not left or not right:
         return 0.0
     span = min(len(left), len(right))

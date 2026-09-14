@@ -234,6 +234,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--chunks", type=int, default=6)
     parser.add_argument("--marker", default="not live")
     parser.add_argument("--chunk-timeout", type=float, default=2400.0)
+    parser.add_argument(
+        "--retry-timeout",
+        type=float,
+        default=900.0,
+        help="seconds one failed test may take when re-run alone",
+    )
     parser.add_argument("--tests-dir", type=Path, default=ROOT / "tests")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument(
@@ -333,6 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     all_failed_ids = sorted({fid for _, _, ids in results for fid in ids})
     order_dependent: list[str] = []
     real_failures: list[str] = []
+    timed_out_alone: list[str] = []
     if all_failed_ids:
         print(f"\n━━ isolated retry of {len(all_failed_ids)} failed test(s) ━━", flush=True)
         for fid in all_failed_ids:
@@ -341,13 +348,23 @@ def main(argv: list[str] | None = None) -> int:
                 retry_cmd.extend(["-m", args.marker])
             retry_cmd.extend(list(args.extra))
             print(f"  retry: {fid}", flush=True)
-            retry = subprocess.run(
-                retry_cmd,
-                cwd=ROOT,
-                timeout=600,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                retry = subprocess.run(
+                    retry_cmd,
+                    cwd=ROOT,
+                    timeout=args.retry_timeout,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.TimeoutExpired:
+                # One slow test must not take the whole register with it. On
+                # 2026-09-10 the pass reached its 120th retry, one boot-contract
+                # test ran past ten minutes, the exception propagated, and
+                # eight hours of chunk results ended in a traceback with no
+                # order-dependence verdict for any of the 137.
+                print(f"    timed out alone after {args.retry_timeout}s", flush=True)
+                timed_out_alone.append(fid)
+                continue
             if retry.returncode == 0:
                 order_dependent.append(fid)
             else:
@@ -362,6 +379,7 @@ def main(argv: list[str] | None = None) -> int:
                 "generated_at_unix": time.time(),
                 "order_dependent": order_dependent,
                 "real_failures": real_failures,
+                "timed_out_alone": timed_out_alone,
             }
             reg_path = Path(args.defect_register)
             reg_path.parent.mkdir(parents=True, exist_ok=True)
@@ -380,10 +398,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n⚠️  ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
         for fid in order_dependent:
             print(f"  ⚠️  {fid}")
+    if timed_out_alone:
+        print(f"\n⏱  timed out alone ({len(timed_out_alone)}) — no verdict either way:")
+        for fid in timed_out_alone:
+            print(f"  ⏱  {fid}")
     if real_failures:
         print(f"\n❌ real failures ({len(real_failures)}) — fail in-chunk AND alone:")
         for fid in real_failures:
             print(f"  ❌ {fid}")
+        return 1
+    if timed_out_alone:
+        print(f"\n❌ {len(timed_out_alone)} test(s) could not be judged alone")
         return 1
     if chunk_failures and not all_failed_ids:
         # Chunks died without parseable test ids (timeout/OOM): loud failure.

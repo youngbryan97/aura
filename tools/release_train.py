@@ -102,6 +102,44 @@ class ReleaseTrain:
                 return str(entry["from"])
         return ""
 
+    # ── the stash, addressed by what it is, never by where it sits ──────────
+    #
+    # This checkout is shared with other sessions, and each of them may push
+    # or pop the stash stack at any moment. `git stash pop` takes whatever is
+    # on top — which after a parallel session's push is that session's work —
+    # so an entry is found by its label, applied by its SHA, and dropped by
+    # re-finding the label. And a successful update restores the WIP it set
+    # aside: "autostashed" that stays stashed is uncommitted work made to
+    # disappear.
+
+    def _stash_sha(self, label: str) -> str:
+        listed = self._git("stash", "list", "--format=%H %gs")
+        for line in (listed.stdout or "").splitlines():
+            sha, _space, subject = line.partition(" ")
+            if label and label in subject:
+                return sha
+        return ""
+
+    def _stash_ref(self, label: str) -> str:
+        listed = self._git("stash", "list", "--format=%gd %gs")
+        for line in (listed.stdout or "").splitlines():
+            ref, _space, subject = line.partition(" ")
+            if label and label in subject:
+                return ref
+        return ""
+
+    def _restore_stash(self, label: str) -> bool:
+        sha = self._stash_sha(label)
+        if not sha:
+            return False
+        applied = self._git("stash", "apply", sha)
+        if not getattr(applied, "ok", False):
+            return False
+        ref = self._stash_ref(label)
+        if ref:
+            self._git("stash", "drop", ref)
+        return True
+
     # ── the boring paths ─────────────────────────────────────────────────────
 
     def update(self, *, smoke: bool = False) -> dict[str, Any]:
@@ -136,8 +174,7 @@ class ReleaseTrain:
                 "error": (pulled.stderr or pulled.stdout or "pull failed")[-400:],
             }
             if stash_label:
-                restored = self._git("stash", "pop")
-                outcome["stash_restored"] = bool(getattr(restored, "ok", False))
+                outcome["stash_restored"] = self._restore_stash(stash_label)
                 if not outcome["stash_restored"]:
                     outcome["stash_label"] = stash_label
             self._record({"action": "update", **outcome, "from": current, "to": target})
@@ -156,11 +193,15 @@ class ReleaseTrain:
             )
             smoke_ok = bool(getattr(smoke_result, "ok", False))
 
+        stash_restored: bool | None = None
+        if stash_label:
+            stash_restored = self._restore_stash(stash_label)
         outcome = {
             "ok": compile_ok and (smoke_ok is not False),
             "step": "complete", "from": current, "to": target,
             "compile_ok": compile_ok, "smoke_ok": smoke_ok,
-            "stash_label": stash_label,
+            "stash_label": stash_label if not stash_restored else "",
+            "stash_restored": stash_restored,
         }
         self._record({"action": "update", **outcome})
         return outcome

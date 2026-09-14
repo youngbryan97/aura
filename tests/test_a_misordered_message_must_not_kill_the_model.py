@@ -270,9 +270,7 @@ def test_the_trimmer_cannot_kill_the_worker_with_a_template_error():
     Failing to trim is recoverable — the caller keeps the untrimmed prompt
     and finds out it is too long. Having no model is not.
     """
-    import inspect
 
-    from core.brain.llm import mlx_worker
 
     source = worker_source()
     where = source.index("def _render(candidate_messages")

@@ -1,0 +1,190 @@
+{
+  "frozen": {
+    "thresholds": {
+      "component_share": 0.5,
+      "cycles_per_node": 2.0,
+      "d_eff_floor": 3.0,
+      "d_eff_normalised": 0.4,
+      "edge_effect": 0.3,
+      "edge_q": 0.01,
+      "edge_replication": 3.0,
+      "global_access_consumers": 3.0,
+      "phi_do": 0.05,
+      "reentry_domains": 3.0,
+      "spread": 0.6,
+      "synergy_fraction": 0.1,
+      "vertex_connectivity": 2.0
+    },
+    "edge_rules": {
+      "q_max": 0.01,
+      "effect_min": 0.3,
+      "replication_min": 3,
+      "sign_flip_draws": 200000
+    },
+    "intervention": {
+      "delta": 0.15,
+      "divergence_ceiling": 10.0,
+      "trials": 6,
+      "turns_per_arm": 2,
+      "sustained": [
+        "C"
+      ]
+    },
+    "seconds_per_turn": 1.0,
+    "layer_rates": {
+      "NeuralMesh": 10.0,
+      "Neurochemical": 2.0,
+      "EmbodiedInteroception": 1.0,
+      "OscillatoryBinding": 100.0,
+      "UnifiedField": 20.0,
+      "SubstrateEvolution": 0.0033333333333333335,
+      "ConsciousnessBridge": 10.0,
+      "ClosedCausalLoop": 0.4,
+      "StreamOfBeing": 0.4
+    },
+    "layer_body": {
+      "NeuralMesh": [
+        "_tick"
+      ],
+      "Neurochemical": [
+        "_metabolic_tick",
+        "_push_modulation"
+      ],
+      "EmbodiedInteroception": [
+        "_sample_hardware",
+        "_push_to_mesh",
+        "_trigger_neurochemical_events"
+      ],
+      "OscillatoryBinding": [
+        "_oscillator_step",
+        "_compute_synchronization/10",
+        "_emit_binding_moment/10"
+      ],
+      "UnifiedField": [
+        "_tick"
+      ],
+      "SubstrateEvolution": [
+        "_run_generation"
+      ],
+      "ConsciousnessBridge": [
+        "_integration_tick"
+      ],
+      "ClosedCausalLoop": [
+        "step"
+      ],
+      "StreamOfBeing": [
+        "step"
+      ]
+    },
+    "substrate_body": [
+      "_step_torch_math",
+      "_stabilize_psych_state",
+      "_recurrent_self_model/5",
+      "_apply_plasticity/100"
+    ],
+    "recording": {
+      "rounds": 60,
+      "conditions": [
+        "conversation",
+        "problem_solving",
+        "autonomy",
+        "idle",
+        "salience",
+        "stress",
+        "memory",
+        "tool_use"
+      ]
+    },
+    "lesion": {
+      "rounds": 16,
+      "cycles": 3,
+      "recovery_tolerance": 0.5,
+      "deficit_share": 0.1,
+      "sources_per_arm": 3,
+      "source_rule": "alternating across the cut, smaller side first, domain order within a side"
+    },
+    "estimator": {
+      "components_per_domain": 4,
+      "folds": 5
+    },
+    "nulls": {
+      "architectures": [
+        "recurrent",
+        "star",
+        "hub",
+        "hidden_broker",
+        "independent",
+        "one_way",
+        "prompt_only",
+        "frozen_slow",
+        "ring",
+        "common_driver",
+        "all_to_all",
+        "memory_only",
+        "fake_self",
+        "agency_without_ownership",
+        "ownership_label_without_action_causation",
+        "fast_only",
+        "slow_only",
+        "low_rank",
+        "high_dimensional_independent"
+      ]
+    },
+    "synergy_triples": [
+      [
+        "A",
+        "S",
+        "G"
+      ],
+      [
+        "P",
+        "M",
+        "W"
+      ],
+      [
+        "W",
+        "A",
+        "D"
+      ],
+      [
+        "S",
+        "D",
+        "C"
+      ]
+    ],
+    "synergy_estimator": {
+      "name": "gaussian_copula_bias_corrected",
+      "components": 3,
+      "null_draws": 1000
+    },
+    "domains": [
+      "P",
+      "I",
+      "A",
+      "G",
+      "C",
+      "S",
+      "M",
+      "W",
+      "D",
+      "N"
+    ],
+    "schema": {
+      "width": 210,
+      "hash": "342d57c73df0173e0fe84e9a20723c79"
+    },
+    "seed": 13,
+    "state_root": "per_run"
+  },
+  "fingerprint": "8874aea9613abbbb2953c25bbc19284e",
+  "run_fingerprint": "799a8a503f3fc084e4f64c929164dd70",
+  "commit": "670f3e955a85046be415df18f9252f85c8ca1ca2",
+  "commit_subject": "docs(isc): arm order is checked, and the runs the table lists are in the tree",
+  "tree_hash": "0266ba017d9522f18ee589991b115203",
+  "dirty": false,
+  "python": "3.12.13",
+  "platform": "macOS-26.4.1-arm64-arm-64bit",
+  "started_at": 1789322745.6276531,
+  "authoritative": true,
+  "authority_blockers": []
+}

@@ -357,10 +357,15 @@ class MotivationUpdatePhase(Phase):
             # What to grow is read off what is currently worst, so a moment
             # that has just gone incoherent produces a different intention from
             # one where the self-model is unstable.
+            focus, reading = self._what_to_work_on(state)
+            # Scaled by the reading that chose the focus rather than by the
+            # worst footing alone. When a footing wins the two are the same
+            # number; when a recollection wins, its match score is what presses.
+            pressed = max(0.0, min(1.0, unmet * (1.0 + reading)))
             return {
                 "drive": "growth",
-                "goal": f"Working on {self._weakest_footing(state)}",
-                "urgency": round(0.6 * deficit, 4),
+                "goal": f"Working on {focus}",
+                "urgency": round(0.6 * pressed, 4),
             }
 
         return None
@@ -574,6 +579,19 @@ class MotivationUpdatePhase(Phase):
         and comparing the two readings is what lets memory reach deliberation
         at all.
         """
+        return MotivationUpdatePhase._what_to_work_on(state)[0]
+
+    @staticmethod
+    def _what_to_work_on(state: AuraState) -> tuple[str, float]:
+        """What to grow, and the reading that chose it.
+
+        The reading is the footing's value, or the match score of the
+        recollection that outranked every footing. Both are on the scale the
+        comparison already reads them on, so the one that won is how hard the
+        intention it names presses: a recollection that answered the moment
+        presses as hard as it answered, where it used to press only as hard as
+        the moment was going badly, and memory reached deliberation as a switch.
+        """
         candidates = MotivationUpdatePhase._footing(state)
         worst = max(candidates, key=lambda key: candidates[key])
         cognition = getattr(state, "cognition", None)
@@ -583,8 +601,10 @@ class MotivationUpdatePhase(Phase):
         if recalled and best > candidates[worst]:
             index = scores.index(max(scores))
             if index < len(recalled):
-                return f"what I just remembered: {str(recalled[index])[:80]}"
-        return worst if candidates[worst] > 0.0 else "a capability I have not exercised lately"
+                return f"what I just remembered: {str(recalled[index])[:80]}", max(0.0, min(1.0, best))
+        if candidates[worst] > 0.0:
+            return worst, max(0.0, min(1.0, candidates[worst]))
+        return "a capability I have not exercised lately", 0.0
 
 
 # ─────────────────────────────────────────────────────────────────────────────

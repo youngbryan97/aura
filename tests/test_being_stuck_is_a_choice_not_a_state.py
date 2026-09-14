@@ -16,9 +16,8 @@ than things that happen to her.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.runtime.stuck_detector import Remedy
 from core.skills import screen_pursuit as sp

@@ -216,7 +216,14 @@ class ReimplementationLab:
 
         except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as e:
             elapsed = time.monotonic() - start
-            logger.error("Reimplementation Lab error: %s", e, exc_info=True)
+            from core.brain.llm.code_generator import GenerationDeferredError
+
+            if isinstance(e, GenerationDeferredError):
+                # Postponed by the runtime, not broken. The reason is on the
+                # gate's receipt; a stack trace here says nothing it does not.
+                logger.info("Reimplementation Lab deferred for %s: %s", module_path, e)
+            else:
+                logger.error("Reimplementation Lab error: %s", e, exc_info=True)
             return LabResult(
                 success=False,
                 module_path=module_path,

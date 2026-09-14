@@ -529,6 +529,86 @@ def install_runtime_providers() -> list[str]:
             detail={"estimated": True},
         )
 
+    def embedding_model(_level: DetailLevel) -> AllocatorDump:
+        """The encoder the serving process holds in its own memory, exactly.
+
+        LIVE, 2026-09-10: 4,213MB of RSS with 0.6% attributed. The serving
+        process loads Qwen3-Embedding-0.6B through sentence-transformers and
+        moves it to the GPU, which on Apple Silicon is the same memory, and no
+        provider had ever claimed it — so a growth diff could not name the one
+        component holding most of what there was to hold. The bytes are the
+        parameters' own count and element size, not an estimate.
+        """
+        from core.container import ServiceContainer
+
+        engine = ServiceContainer.get("vector_memory_engine", default=None)
+        model = getattr(engine, "_model", None)
+        if model is None or not callable(getattr(model, "parameters", None)):
+            return AllocatorDump(
+                name="memory.embedding_model",
+                size_bytes=0,
+                object_count=0,
+                detail={"loaded": False},
+            )
+        total = 0
+        tensors = 0
+        device = ""
+        for parameter in model.parameters():
+            total += int(parameter.numel()) * int(parameter.element_size())
+            tensors += 1
+            if not device:
+                device = str(getattr(parameter, "device", "") or "")
+        return AllocatorDump(
+            name="memory.embedding_model",
+            size_bytes=total,
+            object_count=tensors,
+            detail={
+                "loaded": True,
+                "model": str(getattr(engine, "PREFERRED_MODEL", "") or ""),
+                "device": device,
+            },
+        )
+
+    def torch_device_memory(_level: DetailLevel) -> AllocatorDump:
+        """What torch holds on the GPU beyond the parameters: activations,
+        the allocator's cache. Exact, from the allocator; zero when torch is
+        not loaded here, which is a fact and not a failure."""
+        try:
+            import torch
+        except ImportError:
+            return AllocatorDump(name="torch.device_memory", size_bytes=0, detail={"loaded": False})
+        mps = getattr(torch, "mps", None)
+        if mps is None or not torch.backends.mps.is_available():
+            return AllocatorDump(name="torch.device_memory", size_bytes=0, detail={"device": "none"})
+        allocated = int(mps.current_allocated_memory())
+        driver = int(getattr(mps, "driver_allocated_memory", lambda: 0)())
+        return AllocatorDump(
+            name="torch.device_memory",
+            size_bytes=max(allocated, driver),
+            detail={"device": "mps", "allocated": allocated, "driver": driver},
+        )
+
+    def mlx_device_memory(_level: DetailLevel) -> AllocatorDump:
+        """MLX arrays held in THIS process. The resident cortex lives in the
+        worker and is not here; anything that is — a reflex model, a probe —
+        is exact from MLX's own accounting."""
+        try:
+            import mlx.core as mx
+        except ImportError:
+            return AllocatorDump(name="mlx.device_memory", size_bytes=0, detail={"loaded": False})
+        active = int(mx.get_active_memory())
+        cache = int(mx.get_cache_memory())
+        return AllocatorDump(
+            name="mlx.device_memory",
+            size_bytes=active + cache,
+            detail={"active": active, "cache": cache, "peak": int(mx.get_peak_memory())},
+        )
+
+    register_provider(
+        "memory.embedding_model", embedding_model, owner="core/memory/vector_memory_engine.py"
+    )
+    register_provider("torch.device_memory", torch_device_memory, owner="core/runtime/memory_infra.py")
+    register_provider("mlx.device_memory", mlx_device_memory, owner="core/runtime/memory_infra.py")
     register_provider("observability.bus_ring", bus_ring, owner="core/observability/bus_recorder.py")
     register_provider("observability.trace_ring", trace_ring, owner="core/observability/trace_events.py")
     register_provider(

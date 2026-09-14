@@ -267,7 +267,19 @@ def _projected_model_footprint_gb(model_path: str) -> float:
         default = 20.0 if quantized else 35.0
         return _projected_footprint_from_artifact_gb(model_path, fallback_gb=default)
     if _model_matches_class(model_path, ("14b",)):
-        return _env_float("AURA_MLX_14B_PROJECTED_FOOTPRINT_GB", 10.0)
+        override = _env_projected_footprint_gb("AURA_MLX_14B_PROJECTED_FOOTPRINT_GB")
+        if override is not None:
+            return override
+        return _projected_footprint_from_artifact_gb(model_path, fallback_gb=10.0)
     if _model_matches_class(model_path, ("7b",)):
-        return _env_float("AURA_MLX_7B_PROJECTED_FOOTPRINT_GB", 5.0)
-    return _env_float("AURA_MLX_PROJECTED_FOOTPRINT_GB", 4.0)
+        override = _env_projected_footprint_gb("AURA_MLX_7B_PROJECTED_FOOTPRINT_GB")
+        if override is not None:
+            return override
+        return _projected_footprint_from_artifact_gb(model_path, fallback_gb=5.0)
+    # Everything else, from the checkpoint. The 9B brainstem matched none of
+    # the names above and was declared at a flat 4GB for a 5.5GB artifact —
+    # the number a class list gives a model it has not heard of.
+    override = _env_projected_footprint_gb("AURA_MLX_PROJECTED_FOOTPRINT_GB")
+    if override is not None:
+        return override
+    return _projected_footprint_from_artifact_gb(model_path, fallback_gb=4.0)

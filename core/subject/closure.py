@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
@@ -41,7 +42,8 @@ import numpy as np
 from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
 
-__all__ = ["ClosureReport", "closure_gain", "coverage", "read_periphery"]
+__all__ = [
+    "periphery_matrix","ClosureReport", "closure_gain", "coverage", "read_periphery"]
 
 #: What the last periphery walk saw, and what it could not reach. Read through
 #: `coverage()`; a closure result without it is a claim about everything
@@ -132,11 +134,33 @@ def _numbers(
     out: dict[str, float],
     depth: int = 0,
     skip: Any = frozenset(),
+    ceiling: int | None = None,
+    seen: set[int] | None = None,
 ) -> None:
-    if len(out) >= MAX_PERIPHERY or depth > MAX_DEPTH:
+    """Collect the numbers this object is carrying, up to `ceiling` entries.
+
+    The ceiling is per source rather than global. Attributes are walked in name
+    order, so a global cap is spent by whichever subtree sorts first: the
+    kernel alone filled all four hundred slots with configuration constants,
+    every one of them the same on every frame, and the closure test then
+    compared a core against a periphery of four hundred columns that never
+    moved. It read `closed` because nothing had been measured.
+    """
+    stop = MAX_PERIPHERY if ceiling is None else min(MAX_PERIPHERY, ceiling)
+    if len(out) >= stop or depth > MAX_DEPTH:
         return
+    # An object is walked once per call. Every phase holds a reference back to
+    # the kernel, so the walk re-entered the kernel through each of them and
+    # spent the whole budget re-reading the same configuration under a
+    # different prefix: four hundred columns, none of which moved, and closure
+    # then compared the core against nothing.
+    if seen is None:
+        seen = set()
+    if id(obj) in seen:
+        return
+    seen.add(id(obj))
     for name in sorted(vars(obj)) if hasattr(obj, "__dict__") else ():
-        if name.startswith("__") or len(out) >= MAX_PERIPHERY:
+        if name.startswith("__") or len(out) >= stop:
             continue
         # Not what the core's own schema already reads here. That number is
         # part of K, and K predicting K is not a leak.
@@ -160,7 +184,7 @@ def _numbers(
             # width, so a large array costs the same as a small one.
             _sketch(value, f"{prefix}.{name}", out)
         elif hasattr(value, "__dict__") and not callable(value) and depth < MAX_DEPTH:
-            _numbers(value, f"{prefix}.{name}", out, depth + 1)
+            _numbers(value, f"{prefix}.{name}", out, depth + 1, ceiling=stop, seen=seen)
 
 
 #: Name fragments that say a number is a stored instant rather than a quantity.
@@ -270,9 +294,10 @@ def read_periphery(kernel: Any) -> dict[str, float]:
     """
     out: dict[str, float] = {}
     core = _core_attributes()
-    _numbers(kernel, "kernel", out, depth=1)
+    seen: set[int] = set()
+    _numbers(kernel, "kernel", out, depth=1, seen=seen)
     for phase in getattr(kernel, "_phases", []):
-        _numbers(phase, phase.__class__.__name__, out)
+        _numbers(phase, phase.__class__.__name__, out, seen=seen)
     organs = getattr(kernel, "organs", None)
     if isinstance(organs, dict):
         for name, organ in organs.items():
@@ -282,6 +307,7 @@ def read_periphery(kernel: Any) -> dict[str, float]:
                 out,
                 depth=1,
                 skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
+                seen=seen,
             )
     # And every service the container has already built. That is where the
     # hidden state would be if there were any: a phase mostly holds references,
@@ -299,6 +325,7 @@ def read_periphery(kernel: Any) -> dict[str, float]:
                 out,
                 depth=1,
                 skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
+                seen=seen,
             )
     except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError) as exc:
         # An absent container is an absent periphery. Named rather than bare:
@@ -352,6 +379,18 @@ class ClosureReport:
     dropped_as_clocks: tuple[str, ...] = ()
 
     @property
+    def measured(self) -> bool:
+        """Whether anything outside the core was actually compared against it.
+
+        A walk that returned no usable column leaves `leak` at 0.0, and 0.0 is
+        also what a genuinely closed core reads. Both campaigns were reporting
+        `closed` on a periphery of width zero: four hundred numbers were read
+        and every one of them was the same on every frame, so the comparison
+        never happened and its absence looked exactly like a pass.
+        """
+        return self.periphery_width > 0
+
+    @property
     def closed(self) -> bool:
         """Closed when the periphery does not improve on K.
 
@@ -361,7 +400,12 @@ class ClosureReport:
         told us K is enough. A periphery that beats K by no more than its own
         shuffled copy has told us the gain was the extra columns, not what was
         in them.
+
+        Neither of them is available when nothing was compared. An unmeasured
+        closure is not a closed core.
         """
+        if not self.measured:
+            return False
         return self.leak <= 0.0 or self.leak <= max(self.shuffled_leak, self.floor_high)
 
     def as_dict(self) -> dict[str, Any]:
@@ -378,10 +422,32 @@ class ClosureReport:
             "differenced": list(self.differenced),
             "dropped_as_clocks": list(self.dropped_as_clocks),
             "closed": self.closed,
+            "measured": self.measured,
+            "why_not_measured": (
+                ""
+                if self.measured
+                else "no periphery column varied, so the core was never compared against anything"
+            ),
             "largest_leaks": [
                 {"variable": name, "gain": round(value, 5)} for name, value in self.top_leaks
             ],
         }
+
+
+def periphery_matrix(rows: Sequence[Mapping[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:
+    """One row per frame, one column per number the machine carried.
+
+    A key missing from a frame reads 0.0 rather than being dropped, because a
+    counter that only exists once the thing it counts has happened is a real
+    reading of zero before then.
+    """
+    names = tuple(sorted({key for row in rows for key in row}))
+    if not names:
+        return np.zeros((len(rows), 0)), ()
+    matrix = np.array(
+        [[float(row.get(name, 0.0)) for name in names] for row in rows], dtype=np.float64
+    )
+    return matrix, names
 
 
 def closure_gain(

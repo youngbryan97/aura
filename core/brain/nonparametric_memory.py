@@ -56,6 +56,7 @@ from core.brain.nonparametric_identity import (
     identity_from_mapping,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.NonParametricMemory")
 
@@ -214,8 +215,9 @@ class NonParametricMemory:
         # different vocabularies; sharing a store between them combined both
         # and reported successful reuse (CP126 ``aba3eb39``).
         self._identity = identity or StoreIdentity(dim=self._dim)
-        default_path = f"~/.aura/data/runtime/nonparametric_memory_{self._identity.slug()}"
-        self._path = Path(path or os.path.expanduser(default_path))
+        self._path = Path(
+            path or state_root() / "data" / "runtime" / f"nonparametric_memory_{self._identity.slug()}"
+        )
         self._max = max(64, int(max_entries))
         self._base_lambda = float(base_lambda)
         self._max_lambda = float(max_lambda)

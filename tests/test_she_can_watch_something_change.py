@@ -18,11 +18,10 @@ act, read again.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import asyncio
 
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.runtime.perception_demand import (
     perception_is_demanded,

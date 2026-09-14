@@ -207,9 +207,13 @@ async def reflection(
     """Node 3: Analyze results for knowledge gaps and decide if more research is needed."""
     state.loop_count += 1
 
-    # Build summaries
+    # Build summaries. Each result is fetched text and goes in behind a fence
+    # with a per-call id; a page cannot end its own block and continue as the
+    # reflection. Threat model #13.
+    from core.security.prompt_fencing import fence
+
     summaries = "\n\n---\n\n".join(
-        f"Query: {r.query}\nResult:\n{r.content[:3000]}"
+        f"Query: {r.query}\nResult:\n" + fence(r.content, label="search result", limit=3000)
         for r in state.search_results
     )
 

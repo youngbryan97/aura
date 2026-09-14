@@ -338,6 +338,42 @@ def _success_text(skill_name: str, result: dict[str, Any], tail: str) -> str:
 _FAILED_DISPATCHES: frozenset[str] = frozenset({"executed_failed", "dispatch_error"})
 
 
+def remember_last_action(world: Any, result: GroundingResult) -> dict[str, Any] | None:
+    """Tell the world model what she just did, in the shape it reads.
+
+    `observe_cycle` shows the world model an action read off
+    `world.facts["last_action"]`: whether there was one, whether it was
+    verified, and whether she was the one who did it. Only the subject-core
+    driver wrote that fact. In the running organism nothing did, so the world
+    model was shown that she never acted, and what she did could not change
+    what it predicted.
+
+    The newest dispatched action counts, succeeded or failed. A marker that was
+    never dispatched is an intention, not an action, and leaves the fact alone.
+    """
+    facts = getattr(world, "facts", None)
+    if not isinstance(facts, dict):
+        return None
+    dispatched = [
+        hit for hit in result.marker_hits
+        if hit.get("status") == "executed" or hit.get("status") in _FAILED_DISPATCHES
+    ]
+    if not dispatched:
+        return None
+    hit = dispatched[-1]
+    ok = hit.get("status") == "executed"
+    record = {
+        "intended": str(hit.get("skill") or ""),
+        "verified": ok,
+        "at": time.time(),
+        "actor": "self",
+        "kind": str(hit.get("skill") or ""),
+        "outcome": "succeeded" if ok else "failed",
+    }
+    facts["last_action"] = record
+    return record
+
+
 def perceive_failed_actions(world: Any, result: GroundingResult) -> int:
     """Put each skill that ran and failed into the percept stream as an error.
 

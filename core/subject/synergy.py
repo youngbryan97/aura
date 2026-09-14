@@ -46,6 +46,7 @@ from scipy.special import ndtri, psi
 from scipy.stats import rankdata
 
 from core.subject.estimate import fit_predict, split_rows
+from core.subject.irreducibility import LOWER_BOUND_Z, MIN_TRANSITIONS, _folds
 from core.subject.recording import Recording
 
 __all__ = ["SynergyReport", "synergy", "synergy_suite"]
@@ -181,6 +182,20 @@ class SynergyReport:
     #: numbers whose denominators can differ between the arms; this one does
     #: not have that problem and is the stricter of the two to clear.
     raw_null_q99: float = 0.0
+    #: The interaction gain on each forward-chaining fold, and the standard
+    #: error of their mean. The single-split gain passed noise around zero: an
+    #: additive target with no interaction at all passed 10 of 20 seeds at a
+    #: gain of a few millionths either side of zero.
+    interaction_gain_folds: tuple[float, ...] = ()
+    interaction_gain_se: float = 0.0
+
+    @property
+    def interaction_lower_bound(self) -> float:
+        """The folds' mean interaction gain less its bound, or 0.0 with no folds."""
+        if not self.interaction_gain_folds:
+            return 0.0
+        mean = float(np.mean(self.interaction_gain_folds))
+        return mean - LOWER_BOUND_Z * self.interaction_gain_se
 
     @property
     def passes(self) -> bool:
@@ -209,6 +224,9 @@ class SynergyReport:
             and self.normalised > self.null_q99
             and self.synergy > self.raw_null_q99
             and self.interaction_gain > 0.0
+            # And established, not just positive: the same lower bound the
+            # battery reads irreducibility by, on the same folds.
+            and self.interaction_lower_bound > 0.0
             and self.null_draws > 1
             and self.normalised - self.null_q99 >= self.null_spread
         )
@@ -224,6 +242,8 @@ class SynergyReport:
             "synergy_fraction": round(self.normalised, 4),
             "null_q99_fraction": round(self.null_q99, 4),
             "interaction_gain": round(self.interaction_gain, 4),
+            "interaction_gain_folds": [round(value, 5) for value in self.interaction_gain_folds],
+            "interaction_gain_lower_bound": round(self.interaction_lower_bound, 5),
             "rows": self.rows,
             "null_draws": self.null_draws,
             "null_median_fraction": round(self.null_median, 4),
@@ -257,6 +277,38 @@ def _interaction_gain(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> float:
     return float((plain.loss - crossed.loss) / plain.loss)
 
 
+def _interaction_gain_folds(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> tuple[tuple[float, ...], float]:
+    """The interaction gain on each forward-chaining fold, and the error of their mean.
+
+    The folds irreducibility is scored on: each fits on the past and tests on
+    the block after it, so a gain that holds is one that predicts forward.
+    """
+    rows = a.shape[0]
+    if rows < 80:
+        return (), 0.0
+    side_by_side = np.hstack([a, b])
+    products = np.einsum("ti,tj->tij", a, b).reshape(rows, -1)
+    widened = np.hstack([side_by_side, products])
+    gains: list[float] = []
+    for train, validate, test in _folds(rows):
+        plain = fit_predict(side_by_side, y, train=train, validate=validate, test=test)
+        crossed = fit_predict(
+            widened, y, train=train, validate=validate, test=test, own_width=side_by_side.shape[1]
+        )
+        if plain.loss > 1e-12:
+            gains.append(float((plain.loss - crossed.loss) / plain.loss))
+    if len(gains) < 2:
+        return tuple(gains), 0.0
+    return tuple(gains), float(np.std(gains, ddof=1) / np.sqrt(len(gains)))
+
+
+#: What a triple's information is about. ISC-v1 scores the target's next
+#: level; ISC-v2 scores its change, because a slow level shares information with
+#: a slid copy of any slow series and its shifted null rises with the drift
+#: (docs/ISC_V2_PREREGISTRATION.md). v1 stays the default and stays reported.
+TARGET_READINGS: tuple[str, ...] = ("level", "change")
+
+
 def synergy(
     recording: Recording,
     source_a: str,
@@ -264,13 +316,24 @@ def synergy(
     target: str,
     *,
     seed: int = 0,
+    of: str = "level",
 ) -> SynergyReport:
-    """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check."""
+    """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check.
+
+    ``of="change"`` scores Y_{t+1} - Y_t instead of Y_{t+1}. The null and the
+    interaction check read the same target, so the comparison stays one
+    comparison.
+    """
+    if of not in TARGET_READINGS:
+        raise ValueError(f"synergy is about a target's {' or '.join(TARGET_READINGS)}, not {of!r}")
     raw_a = _components(recording.domain(source_a)[:-1])
     raw_b = _components(recording.domain(source_b)[:-1])
-    raw_y = _components(recording.domain(target)[1:])
+    following = recording.domain(target)
+    raw_y = _components(following[1:] - following[:-1] if of == "change" else following[1:])
     rows = raw_a.shape[0]
-    if rows < 40 or min(raw_a.shape[1], raw_b.shape[1], raw_y.shape[1]) < 1:
+    # The floor a partition is scored on, so an arm too short for one measure
+    # is too short for both.
+    if rows < MIN_TRANSITIONS or min(raw_a.shape[1], raw_b.shape[1], raw_y.shape[1]) < 1:
         return SynergyReport((source_a, source_b), target, 0, 0, 0, 0, 0, 0, 1, 0, rows)
     # Ranks once, before the null. A circular shift keeps every marginal, so a
     # slid copy of these is already the copula of the slid series.
@@ -326,6 +389,7 @@ def synergy(
     # And the same comparison on the unnormalised quantity, because a ratio
     # whose denominator differs between the two arms is not one comparison.
     raw_q99 = float(np.quantile(raw_nulls, 0.99))
+    folds, fold_error = _interaction_gain_folds(raw_a, raw_b, raw_y)
 
     return SynergyReport(
         sources=(source_a, source_b),
@@ -341,6 +405,8 @@ def synergy(
         # fail differently from the information estimate, and giving it the
         # same input would take away half of that.
         interaction_gain=_interaction_gain(raw_a, raw_b, raw_y),
+        interaction_gain_folds=folds,
+        interaction_gain_se=fold_error,
         rows=rows,
         null_draws=int(nulls.size),
         null_median=null_median,
@@ -360,5 +426,5 @@ TRIPLES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def synergy_suite(recording: Recording, *, seed: int = 0) -> list[SynergyReport]:
-    return [synergy(recording, a, b, y, seed=seed) for a, b, y in TRIPLES]
+def synergy_suite(recording: Recording, *, seed: int = 0, of: str = "level") -> list[SynergyReport]:
+    return [synergy(recording, a, b, y, seed=seed, of=of) for a, b, y in TRIPLES]

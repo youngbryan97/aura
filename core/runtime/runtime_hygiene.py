@@ -33,6 +33,8 @@ from core.utils.task_tracker import (
     shutdown_resource_creation_allowed,
 )
 
+from .runtime_hygiene_patches import _WatchesWhatTheRuntimeCreates
+
 try:
     import psutil
 
@@ -289,7 +291,6 @@ class ShutdownResourceRecord:
     crossed_shutdown: bool = False
 
 
-from .runtime_hygiene_patches import _WatchesWhatTheRuntimeCreates
 
 
 class RuntimeHygieneManager(_WatchesWhatTheRuntimeCreates):

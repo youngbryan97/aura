@@ -11436,5 +11436,98 @@
     ],
     "note": "both orders of a pair are run from one snapshot: a conversation arm after a memory arm and a memory arm after a conversation arm, each against the same arm run first, and a memory arm after a tool-use arm against one after a conversation arm; order may add nothing above the floor two identical arms give (1e-6). It first failed at 0.133: stores the test suite moves beside the state root, the memory store among them, were outside the fork, which now follows every store variable and the configured home",
     "status": "done"
+  },
+  "P1.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "Makefile",
+        "pattern": "^subject-core-frozen:"
+      },
+      {
+        "kind": "grep",
+        "path": "artifacts/subject_core/run_026/campaign.json",
+        "pattern": "\"commit\": \"670f3e955a85046be415df18f9252f85c8ca1ca2\""
+      },
+      {
+        "kind": "grep",
+        "path": "artifacts/subject_core/run_027/campaign.json",
+        "pattern": "\"commit\": \"670f3e955a85046be415df18f9252f85c8ca1ca2\""
+      },
+      {
+        "kind": "grep",
+        "path": "artifacts/subject_core/run_028/campaign.json",
+        "pattern": "\"commit\": \"670f3e955a85046be415df18f9252f85c8ca1ca2\""
+      },
+      {
+        "kind": "scorecard",
+        "expr": "card.get('runs', 0) == 3 and len(card.get('campaigns', {})) == 1"
+      }
+    ],
+    "note": "make subject-core-frozen ran three seeds, 7, 11 and 13, at 670f3e955 in one campaign; runs 026, 027 and 028 scored 17, 17 and 15 of 24, with fifteen criteria holding on all three",
+    "status": "done"
+  },
+  "P1.2": {
+    "checks": [
+      {
+        "kind": "absent",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "totals were 11, 13"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/SUBJECT_CORE.md",
+        "pattern": "single-run totals were 17, 17 and 15"
+      }
+    ],
+    "note": "the document reads the three-seed frozen campaign as the current score and no longer cites 11, 13 and 12",
+    "status": "done"
+  },
+  "P10.12": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "^# ISC-v2, preregistered"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "^ISC-v1 is kept"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "^## 1\\. Irreducibility against the nulls"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "^## 2\\. Synergy's target"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "^## 3\\. The null suite's verdict across seeds"
+      }
+    ],
+    "note": "ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported",
+    "status": "done"
+  },
+  "P40.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "Written before any result from the campaign that started at 16:25"
+      },
+      {
+        "kind": "grep",
+        "path": "docs/ISC_V2_PREREGISTRATION.md",
+        "pattern": "ISC-v2 applies first to runs started after the commit that"
+      }
+    ],
+    "note": "the preregistration was committed while runs 029, 030 and 031 were still recording, names them as v1 results only, and applies v2 first to runs started after the commit that implements it",
+    "status": "done"
   }
 }

@@ -119,3 +119,31 @@ def test_runs_from_different_campaigns_are_recorded_as_different(  ) -> None:
     card = scorecard([_report(), other])
     assert len(card["campaigns"]) == 2
     assert card["independent_initialisations"] == 2
+
+
+def _with_conjunction(**verdicts):
+    return _report(nulls={"surrogate_floor": 0.01, "conjunction": dict(verdicts)})
+
+
+def test_nulls_that_fail_on_every_seed_under_a_steady_reference_all_fail() -> None:
+    reports = [_with_conjunction(recurrent=True, star=False, hub=False) for _ in range(3)]
+    verdict = scorecard(reports)["v2_null_verdict"]
+    assert verdict["seeds"] == 3
+    assert verdict["all_nulls_fail"] is True
+    assert verdict["instrument_failed"] is False
+
+
+def test_a_reference_that_fails_on_one_seed_is_the_instrument_failing() -> None:
+    reports = [
+        _with_conjunction(recurrent=True, low_rank=False),
+        _with_conjunction(recurrent=True, low_rank=False),
+        _with_conjunction(recurrent=False, low_rank=True),
+    ]
+    verdict = scorecard(reports)["v2_null_verdict"]
+    assert verdict["instrument_failed"] is True
+    assert verdict["nulls_passing"] == ["low_rank"]
+    assert verdict["all_nulls_fail"] is False
+
+
+def test_runs_that_recorded_no_conjunction_leave_the_verdict_unread() -> None:
+    assert scorecard([_report(), _report()])["v2_null_verdict"] is None

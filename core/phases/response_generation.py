@@ -49,6 +49,7 @@ from core.utils.completed_capability import (
 
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
+from .response_required_search import _RunsTheRequiredSearch
 
 #: Returned by an extracted block that did NOT return early. A unique
 #: object, so no value a block legitimately returns can be mistaken for it.
@@ -514,7 +515,6 @@ def _the_amplifier_stood_down(draft, reason: str):
     return draft
 
 
-from .response_required_search import _RunsTheRequiredSearch
 
 
 class ResponseGenerationPhase(_RunsTheRequiredSearch, BasePhase):

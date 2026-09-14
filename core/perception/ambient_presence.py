@@ -57,6 +57,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
 from core.security.screen_capture_policy import is_private_screen_context
 
+from .ambient_bubble import _CarriesTheBubble
+
 #: How many asked-for lines wait their turn. Deep enough that a run
 #: narrating steadily is never truncated mid-thought, shallow enough
 #: that nobody is read a backlog from several minutes ago.
@@ -218,7 +220,6 @@ class TickResult:
         }
 
 
-from .ambient_bubble import _CarriesTheBubble
 
 
 class AmbientPresence(_CarriesTheBubble):

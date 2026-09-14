@@ -31,6 +31,8 @@ from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.utils.exceptions import capture_and_log
 
+from .computer_use_documents import _MakesFilesToShow
+
 logger = logging.getLogger("Skills.ComputerUse")
 
 def _quartz_error_types() -> tuple[type[BaseException], ...]:
@@ -227,7 +229,6 @@ def _verify_the_effect_landed(
     return effect_verified, ok, verification
 
 
-from .computer_use_documents import _MakesFilesToShow
 
 
 class ComputerUseSkill(_MakesFilesToShow, BaseSkill):

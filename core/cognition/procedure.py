@@ -165,7 +165,7 @@ class Precondition:
         if self.key not in state:
             return False  # never observed is never a match
         value = state[self.key]
-        present = value is not None and value is not False
+        present = value is not None and (value is not False or self.kind == "boolean")
         if self.negated:
             return not present
         if not present:
@@ -903,7 +903,9 @@ class ProcedureRegistry:
                 },
             }
 
-    def procedures(self) -> list[Procedure]:
+    def procedures(self, *, refresh: bool = False) -> list[Procedure]:
+        if refresh:
+            self._refresh_if_stale()
         with self._lock:
             return list(self._procedures.values())
 
@@ -914,6 +916,7 @@ def compose(
     *,
     name: str = "",
     backend: Backend = Backend.PLANNER,
+    intern: bool = False,
 ) -> Procedure:
     """Chain procedures into one, computing the combined signature.
 
@@ -965,7 +968,18 @@ def compose(
         ):
             reversibility = Reversibility.UNKNOWN
 
-    return registry.register(
+    register = registry.register
+    if intern:
+        from functools import partial
+        import hashlib
+        import json
+
+        identity = hashlib.sha256(json.dumps(
+            [backend.value, [part.procedure_id for part in parts]],
+            separators=(",", ":"),
+        ).encode()).hexdigest()
+        register = partial(registry.intern, "composition:" + identity, identity)
+    return register(
         name or " then ".join(p.name for p in parts),
         backend,
         Signature(preconditions=tuple(preconditions), effects=tuple(effects)),

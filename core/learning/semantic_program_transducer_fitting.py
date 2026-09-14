@@ -15,11 +15,22 @@ import math
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Final, Literal
+from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from core.learning.semantic_definition_candidates import (
+    _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
+    _LOCAL_DEFINITION_CANDIDATE_STRATEGY as _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
+    _STABLE_REGISTER_TABLE_STRATEGY as _STABLE_REGISTER_TABLE_STRATEGY,
+    _LOCAL_DEFINITION_CANDIDATES as _LOCAL_DEFINITION_CANDIDATES,
+    _definition_span_candidates as _definition_span_candidates,
+    _register_definition_candidates as _register_definition_candidates,
+    _register_definition_spans as _register_definition_spans,
+)
+
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
+from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_program_ir import (
     SemanticValue,
     TokenSpan,
@@ -70,13 +81,10 @@ if TYPE_CHECKING:  # the model this module fits imports this module, so the
 COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA: Final = "aura.semantic_program_transducer.v16"
 
 
-_LEGACY_DEFINITION_CANDIDATE_STRATEGY: Final = "anchored_envelope_v1"
 
 
-_LOCAL_DEFINITION_CANDIDATE_STRATEGY: Final = "bounded_local_alias_v1"
 
 
-_STABLE_REGISTER_TABLE_STRATEGY: Final = "stable_register_table_v1"
 
 
 _OPERATION_MODE: Final = "contextual_mean"
@@ -97,7 +105,6 @@ _ARGUMENT_BEAM: Final = 128
 _ARGUMENT_MENTIONS_PER_DEFINITION: Final = 4
 
 
-_LOCAL_DEFINITION_CANDIDATES: Final = 16
 
 
 _POINTER_HARD_NEGATIVES: Final = 16
@@ -203,135 +210,6 @@ def _all_semantic_spans(
     )
 
 
-def _register_definition_spans(
-    item: SemanticTransducerTrainingExample,
-) -> tuple[TokenSpan, ...]:
-    definitions = item.register_definition_spans or (
-        *item.ir.input_spans,
-        *(instruction.operation_span for instruction in item.ir.instructions),
-    )
-    if len(definitions) != item.ir.n_inputs + len(item.ir.instructions):
-        raise ValueError("compositional register-definition geometry differs")
-    return definitions
-
-
-def _definition_span_candidates(
-    anchor: TokenSpan,
-    *,
-    token_count: int,
-    max_span_tokens: int,
-    direction: Literal["left", "right"] = "right",
-) -> tuple[TokenSpan, ...]:
-    """Enumerate register envelopes toward where its name can be introduced.
-
-    Public literals conventionally follow their names (``reserve 7``), while a
-    computed value's name follows the operation that defines it.  Keeping the
-    direction explicit makes runtime capable of representing the same spans
-    used by relation training without opening a quadratic all-span search.
-    """
-
-    if direction == "left":
-        start = min(anchor.start, max(0, anchor.end - max_span_tokens))
-        return tuple(TokenSpan(index, anchor.end) for index in range(start, anchor.start + 1))
-    if direction == "right":
-        stop = max(anchor.end, min(token_count, anchor.start + max_span_tokens))
-        return tuple(TokenSpan(anchor.start, end) for end in range(anchor.end, stop + 1))
-    raise ValueError("definition span direction is invalid")
-
-
-def _register_definition_candidates(
-    anchors: Sequence[TokenSpan],
-    *,
-    input_count: int,
-    token_count: int,
-    max_span_tokens: int,
-    pointer_scores: LinearPointerSequenceScores,
-    strategy: str,
-    source_ordered_boundaries: bool = False,
-) -> tuple[tuple[TokenSpan, ...], ...]:
-    """Localize each register inside its bounded defining clause.
-
-    The legacy decoder represented a computed value only with envelopes that
-    began at its operation verb. Natural language often names that value at
-    the other end of the clause, and a long literal can place an input's name
-    outside any value-ending envelope. Local strategies add learned subspans
-    inside the defining clause. The stable-table strategy resolves exactly one
-    identity span per register before any argument mention is scored, so later
-    uses cannot select contradictory definitions for the same register.
-    """
-
-    if not 0 <= input_count <= len(anchors):
-        raise ValueError("definition candidate input count is invalid")
-    if strategy not in {
-        _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
-        _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
-        _STABLE_REGISTER_TABLE_STRATEGY,
-    }:
-        raise ValueError("definition candidate strategy is invalid")
-    result: list[tuple[TokenSpan, ...]] = []
-    for index, anchor in enumerate(anchors):
-        direction: Literal["left", "right"] = "left" if index < input_count else "right"
-        envelopes = _definition_span_candidates(
-            anchor,
-            token_count=token_count,
-            max_span_tokens=max_span_tokens,
-            direction=direction,
-        )
-        if strategy == _LEGACY_DEFINITION_CANDIDATE_STRATEGY:
-            result.append(envelopes)
-            continue
-
-        if direction == "left":
-            clause_start = (
-                max((other.end for other in anchors if other.end <= anchor.start), default=0)
-                if source_ordered_boundaries
-                else anchors[index - 1].end if index else 0
-            )
-            boundary_start = max(clause_start, anchor.start - max_span_tokens)
-            local_bounds = (boundary_start, anchor.start)
-            bounded_envelopes = (
-                tuple(span for span in envelopes if span.start >= clause_start)
-                if source_ordered_boundaries else envelopes
-            )
-        else:
-            next_operation = (
-                min((other.start for other in anchors[input_count:]
-                     if other.start >= anchor.end), default=token_count)
-                if source_ordered_boundaries
-                else anchors[index + 1].start if index + 1 < len(anchors) else token_count
-            )
-            boundary = min(token_count, anchor.start + max_span_tokens, next_operation)
-            local_bounds = (anchor.end, boundary)
-            bounded_envelopes = tuple(span for span in envelopes if span.end <= boundary)
-        local: list[tuple[TokenSpan, float]] = []
-        for start in range(*local_bounds):
-            stop = min(local_bounds[1], start + max_span_tokens)
-            for end in range(start + 1, stop + 1):
-                span = TokenSpan(start, end)
-                local.append((span, pointer_scores.score_span(span)))
-        local.sort(key=lambda item: (-item[1], item[0].start, item[0].end))
-        candidates = tuple(
-            dict.fromkeys(
-                (
-                    *(bounded_envelopes or (anchor,)),
-                    *(span for span, _score in local[:_LOCAL_DEFINITION_CANDIDATES]),
-                )
-            )
-        )
-        if strategy == _STABLE_REGISTER_TABLE_STRATEGY:
-            candidates = (
-                max(
-                    candidates,
-                    key=lambda span: (
-                        pointer_scores.score_span(span),
-                        -(span.end - span.start),
-                        -span.start,
-                        -span.end,
-                    ),
-                ),
-            )
-        result.append(candidates)
-    return tuple(result)
 
 
 def _best_penalized_operation_chart(
@@ -621,14 +499,15 @@ def _operation_nodes(
         if any(_overlap(span, input_span) for input_span in input_spans):
             continue
         operation, confidence = classifier.predict(
-            (
+            tuple(
                 _operation_feature(
                     hidden,
                     span,
-                    mode=_OPERATION_MODE,
+                    mode=mode,
                     hidden_channels=hidden_channels,
                     hidden_channel_widths=hidden_channel_widths,
-                ),
+                )
+                for mode in classifier.modes
             )
         )
         score = float(pointer_score + math.log(max(confidence, 1e-12)))
@@ -690,12 +569,21 @@ def _best_nonoverlapping_node_charts(
     count: int,
     *,
     limit: int,
+    preserve_arity_states: bool = False,
 ) -> tuple[tuple[float, tuple[_OperationNode, ...]], ...]:
-    """Exact top-k cardinality-constrained weighted interval scheduling."""
+    """Top-k interval charts, optionally per sufficient arity state.
+
+The feasibility bounds depend only on cardinality, total edges and maximum
+arity. Keeping k prefixes per such state preserves the feasible top-k;
+discarding them across states before testing feasibility does not.
+"""
 
     if limit < 1:
         raise ValueError("compositional operation-chart limit must be positive")
-    ordered = tuple(sorted(nodes, key=lambda item: (item.span.end, item.span.start, -item.score)))
+    ordered = tuple(sorted(
+        (node for node in nodes if not preserve_arity_states or semantic_primitive_type_signature(node.operation) is not None),
+        key=lambda item: (item.span.end, item.span.start, -item.score),
+    ))
     previous: list[int] = []
     for index, node in enumerate(ordered):
         prior = index - 1
@@ -724,15 +612,25 @@ def _best_nonoverlapping_node_charts(
                 incumbent = unique.get(key)
                 if incumbent is None or candidate[0] > incumbent[0]:
                     unique[key] = candidate
-            table[index][size] = tuple(
-                sorted(
+            ranked = sorted(
                     unique.values(),
                     key=lambda item: (
                         -item[0],
                         tuple((node.span.start, node.span.end) for node in item[1]),
                     ),
-                )[:limit]
-            )
+                )
+            if preserve_arity_states:
+                buckets = Counter()
+                retained = []
+                for candidate in ranked:
+                    arities = [len(semantic_primitive_type_signature(n.operation)[0]) for n in candidate[1]]
+                    state = (sum(arities), max(arities, default=0))
+                    if buckets[state] < limit:
+                        retained.append(candidate)
+                        buckets[state] += 1
+                table[index][size] = tuple(retained)
+            else:
+                table[index][size] = tuple(ranked[:limit])
     return table[len(ordered)][count]
 
 
@@ -742,6 +640,8 @@ def _operation_chart_candidates(
     max_steps: int,
     length_penalty: float,
     limit: int = _OPERATION_CHART_BEAM,
+    feasible: Callable[[Sequence[_OperationNode]], bool] | None = None,
+    preserve_arity_states: bool = False,
 ) -> tuple[tuple[_OperationNode, ...], ...]:
     candidates = [
         (score - length_penalty * count, selected)
@@ -750,7 +650,9 @@ def _operation_chart_candidates(
             nodes,
             count,
             limit=limit,
+            preserve_arity_states=preserve_arity_states,
         )
+        if feasible is None or feasible(selected)
     ]
     return tuple(
         selected
@@ -762,6 +664,22 @@ def _operation_chart_candidates(
                 tuple((node.span.start, node.span.end) for node in item[1]),
             ),
         )[:limit]
+    )
+
+
+def _operation_chart_use_feasible(nodes, *, n_inputs, contract):
+    """Necessary edge-count bounds for a connected single-result graph."""
+    count = len(nodes)
+    if count < 1:
+        return False
+    signatures = [semantic_primitive_type_signature(node.operation) for node in nodes]
+    if any(signature is None for signature in signatures):
+        return False
+    arities = [len(signature[0]) for signature in signatures]
+    minimum = n_inputs * contract.input_min_uses + (count - 1) * max(1, contract.intermediate_min_uses)
+    maximum = n_inputs * contract.input_max_uses + (count - 1) * contract.intermediate_max_uses
+    return minimum <= sum(arities) <= maximum and (
+        not contract.distinct_arguments or max(arities) <= n_inputs + count - 1
     )
 
 
@@ -832,6 +750,17 @@ def _fit_argument_role_heads(
     return tuple(heads)
 
 
+def _argument_identity_spans(item, register):
+    """Unambiguous source-labeled mentions of one register, not equal values."""
+    owners = {}
+    for index, span in enumerate(item.ir.input_spans):
+        owners.setdefault(span, set()).add(index)
+    for instruction in item.ir.instructions:
+        for owner, span in zip(instruction.args, instruction.argument_spans, strict=True):
+            owners.setdefault(span, set()).add(owner)
+    return frozenset(span for span, identities in owners.items() if identities == {register})
+
+
 def _argument_proposal_rows(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
@@ -842,6 +771,7 @@ def _argument_proposal_rows(
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
     include_semantic_negatives: bool = False,
+    preserve_coreferent_mentions: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
     features: list[np.ndarray] = []
     labels: list[int] = []
@@ -884,6 +814,9 @@ def _argument_proposal_rows(
                       if span != positive
                       and span.end - span.start <= max_argument_span_tokens_by_type[required_type]),
                 )))
+            if preserve_coreferent_mentions:
+                aliases = _argument_identity_spans(item, instruction.args[position])
+                negatives = tuple(span for span in negatives if span not in aliases)
             spans = (positive, *negatives)
             operation = _relation_span_vector(
                 item.hidden_states,
@@ -1195,11 +1128,16 @@ def _definition_relation_score_banks(
     reference_vectors: Mapping[TokenSpan, np.ndarray],
     definition_vectors: Sequence[Sequence[tuple[TokenSpan, np.ndarray]]],
     pointer_scores: LinearPointerSequenceScores,
+    score_cache: dict | None = None,
 ) -> tuple[dict[TokenSpan, tuple[float, ...]], dict[TokenSpan, tuple[float, ...]]]:
-    """Reuse projections within one chart without changing scalar score arithmetic."""
+    """Reuse scalar scores within a decode over one fixed hidden sequence/head.
+
+    The caller owns the optional cache for that decode only. Span keys identify
+    the same vectors and pointer scores across its competing operation charts.
+    """
     definitions = tuple(
         tuple(
-            (definition, definition @ head.definition_projection,
+            (span, definition, definition @ head.definition_projection,
              head.pointer_scale * pointer_scores.score_span(span))
             for span, definition in candidates
         )
@@ -1214,16 +1152,31 @@ def _definition_relation_score_banks(
         for candidates in definitions:
             combined_candidates = []
             base_candidates = []
-            for definition, projected, pointer in candidates:
-                base_score = head.base_score(reference, definition)
-                tissue_score = float(query @ projected)
-                combined_candidates.append(base_score + tissue_score + pointer)
-                base_candidates.append(base_score + pointer)
+            for definition_span, definition, projected, pointer in candidates:
+                key = (span, definition_span)
+                cached = score_cache.get(key) if score_cache is not None else None
+                if cached is None:
+                    base_score = head.base_score(reference, definition)
+                    tissue_score = float(query @ projected)
+                    cached = (base_score + tissue_score + pointer, base_score + pointer)
+                    if score_cache is not None:
+                        score_cache[key] = cached
+                combined_candidates.append(cached[0])
+                base_candidates.append(cached[1])
             combined_registers.append(max(combined_candidates))
             base_registers.append(max(base_candidates))
         combined[span] = tuple(combined_registers)
         base[span] = tuple(base_registers)
     return combined, base
+
+
+def _retained_argument_mentions(candidates, *, literal_anchor=None):
+    """Preserve exact public identity alongside the learned mention shortlist."""
+    ranked = sorted(candidates, key=lambda item: (-item[0], item[1].start, item[1].end))
+    selected = ranked[:_ARGUMENT_MENTIONS_PER_DEFINITION]
+    if literal_anchor is not None and all(span != literal_anchor for _score, span in selected):
+        selected.extend(item for item in ranked if item[1] == literal_anchor)
+    return selected
 
 
 def _assign_typed_arguments(
@@ -1234,6 +1187,9 @@ def _assign_typed_arguments(
     input_spans: Sequence[TokenSpan],
     operation_nodes: Sequence[_OperationNode],
     argument_pointer_scores: LinearPointerSequenceScores,
+    chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
+    minimum_score: float | None = None,
+    relation_score_cache: dict | None = None,
 ) -> _TypedArgumentAssignment | None:
     if (
         len(operation_nodes) > 1
@@ -1272,11 +1228,16 @@ def _assign_typed_arguments(
             else model.definition_candidate_strategy
         ),
         source_ordered_boundaries=(
-            model.training_receipt.get("definition_boundary_policy") == "source_neighbors_v1"
+            model.training_receipt.get("definition_boundary_policy")
+            in {"source_neighbors_v1", "source_neighborhood_v2"}
+        ),
+        bidirectional_inputs=(
+            model.training_receipt.get("definition_boundary_policy") == "source_neighborhood_v2"
         ),
     )
     definition_registers = tuple(range(len(definitions)))
     definition_labels = ()
+    attachment_scores = None
     if joint_definitions:
         # The original anchor remains a hypothesis alongside the best learned
         # local spans. The graph chooses a shared identity across all uses.
@@ -1290,6 +1251,12 @@ def _assign_typed_arguments(
                 ))[:4],
             ))
         )
+        if model.definition_attachment_head is not None:
+            from core.learning.semantic_definition_attachment import attachment_hypotheses
+
+            hypotheses, attachment_scores = attachment_hypotheses(
+                model, hidden, definitions, definition_candidates,
+            )
         definition_registers = tuple(register for register, _span in hypotheses)
         definition_labels = tuple(span for _register, span in hypotheses)
         definition_candidates = tuple((span,) for span in definition_labels)
@@ -1323,6 +1290,7 @@ def _assign_typed_arguments(
         reference_vectors,
         definition_vectors,
         definition_pointer_scores,
+        **({"score_cache": relation_score_cache} if relation_score_cache is not None else {}),
     )
     states: list[
         tuple[
@@ -1427,10 +1395,16 @@ def _assign_typed_arguments(
                 (
                     (score, definition_registers[candidate_index], span, candidate_index)
                     for candidate_index, candidates in by_register.items()
-                    for score, span in sorted(
+                    for score, span in _retained_argument_mentions(
                         candidates,
-                        key=lambda item: (-item[0], item[1].start, item[1].end),
-                    )[:_ARGUMENT_MENTIONS_PER_DEFINITION]
+                        literal_anchor=(
+                            input_spans[definition_registers[candidate_index]]
+                            if model.training_receipt.get("argument_proposal_retention")
+                            == "ranked_with_literal_anchors_v2"
+                            and definition_registers[candidate_index] < len(inputs)
+                            else None
+                        ),
+                    )
                 ),
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
             )
@@ -1536,12 +1510,16 @@ def _assign_typed_arguments(
         if not states:
             return None
     if global_constraint:
-        from core.learning.semantic_argument_optimization import optimize_argument_chart
-
-        optimized = optimize_argument_chart(
+        chart = ScoredArgumentChart(
             chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
             definition_options=chart_definition_options if joint_definitions else None,
+            definition_scores=attachment_scores,
         )
+        if chart_observer is not None:
+            chart_observer(chart)
+        if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
+            return None
+        optimized = chart.solve()
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:
@@ -1671,7 +1649,6 @@ def _select_operation_length_penalty(
             tuple[tuple[float, tuple[_OperationNode, ...]], ...],
         ]
     ] = []
-    average_scores: list[float] = []
     for item in validation:
         nodes = _operation_nodes(
             pointer=pointer,
@@ -1685,12 +1662,18 @@ def _select_operation_length_penalty(
         by_count = tuple(
             _best_nonoverlapping_nodes(nodes, count) for count in range(1, max_steps + 1)
         )
-        average_scores.extend(
-            score / count
-            for count, (score, _selected) in enumerate(by_count, start=1)
-            if math.isfinite(score)
-        )
         cached.append((item, by_count))
+    return _calibrate_operation_charts(cached)
+
+
+def _calibrate_operation_charts(cached):
+    """Calibrate source-ordered charts independently of execution order."""
+    average_scores = [
+        score / count
+        for _item, by_count in cached
+        for count, (score, _selected) in enumerate(by_count, start=1)
+        if math.isfinite(score)
+    ]
     if not average_scores:
         raise ValueError("compositional operation chart has no validation candidates")
     penalties = np.linspace(
@@ -1706,10 +1689,11 @@ def _select_operation_length_penalty(
         graph_exact = 0
         for item, by_count in cached:
             selected = _best_penalized_operation_chart(by_count, penalty=penalty)
+            expected = sorted(item.ir.instructions, key=lambda instruction: (instruction.operation_span.start, instruction.operation_span.end))
             expected_spans = tuple(
-                instruction.operation_span for instruction in item.ir.instructions
+                instruction.operation_span for instruction in expected
             )
-            expected_operations = tuple(instruction.op for instruction in item.ir.instructions)
+            expected_operations = tuple(instruction.op for instruction in expected)
             observed_spans = tuple(node.span for node in selected)
             observed_operations = tuple(node.operation for node in selected)
             span_exact += int(observed_spans == expected_spans)
@@ -1723,7 +1707,7 @@ def _select_operation_length_penalty(
                 "graph_exact": graph_exact,
                 "span_exact": span_exact,
                 "operation_exact": operation_exact,
-                "validation_examples": len(validation),
+                "validation_examples": len(cached),
             }
         )
     winner = max(

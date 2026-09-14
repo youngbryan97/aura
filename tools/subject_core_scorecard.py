@@ -188,13 +188,29 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "max": round(max(values), 5),
         }
 
+    # ISC-v2: each null's conjunction read across the runs' seeds. A null fails
+    # only if it fails on every one, and the reference passes only if it passes
+    # on every one (docs/ISC_V2_PREREGISTRATION.md). Runs that recorded no
+    # conjunction cannot be read this way, and none at all leaves it unread.
+    conjunctions = [
+        conjunction
+        for conjunction in ((report.get("nulls") or {}).get("conjunction") for report in reports)
+        if isinstance(conjunction, dict) and conjunction
+    ]
+    if conjunctions:
+        from core.subject.null_verdicts import verdict_across_seeds
+
+        null_verdict: dict[str, Any] | None = verdict_across_seeds(conjunctions)
+    else:
+        null_verdict = None
+
     campaigns: dict[str, list[str]] = {}
     seeds: list[Any] = []
     for index, report in enumerate(reports):
         block = report.get("campaign") or {}
         mark = block.get("fingerprint", "unrecorded")
         campaigns.setdefault(mark, []).append(f"run {index + 1}")
-        seeds.append(((block.get("frozen") or {}).get("seed")))
+        seeds.append((block.get("frozen") or {}).get("seed"))
 
     return {
         "runs": runs,
@@ -213,6 +229,7 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "criteria": rows,
         "numbers": numbers,
         "synergy_triples": triples,
+        "v2_null_verdict": null_verdict,
         # Per domain, the weakest channel in and the weakest channel out, on
         # the newest run. A domain can sit inside the component hanging off one
         # thin edge, and the component alone does not say which one.

@@ -73,6 +73,10 @@ from core.utils.memory_monitor import get_memory_pressure_snapshot
 from core.utils.task_tracker import get_task_tracker
 
 from .chat_format import format_chatml_messages, format_chatml_prompt
+from .mlx_client_worker_identity import _KnowsWhichWorkerItIsTalkingTo
+from .mlx_latent_reasoning import _ReasonsInLatentSpace
+from .mlx_unified_recurrent import _RunsTheUnifiedRecurrentLane
+from .mlx_warmup_and_adapters import _WarmsUpAndSwapsAdapters
 from .mlx_worker import (
     _mlx_worker_loop,
 )
@@ -1713,26 +1717,57 @@ def _observed_model_lane_owners(exclude_client: Any = None) -> list[Any]:
     return owners
 
 
+#: A child of the runtime holding more than this is a model worker, whether
+#: or not a lane still knows it. No helper the runtime spawns — a gateway
+#: subprocess, a plist conversion, a sandbox — comes near it, and the smallest
+#: model lane declares more than twice it.
+_A_CHILD_THIS_LARGE_IS_A_MODEL_WORKER_GB = 2.0
+
+
 def _transient_runtime_footprint_gb(owners: list[Any]) -> float:
-    """Measure Aura process-tree memory not owned by model workers.
+    """What the base runtime holds: the main process and its small helpers.
 
     Lane arbitration historically counted checkpoint workers while spawn
     admission counted the complete Aura tree. During primary recovery that
     disagreement let an idle fallback look compatible, then made the physical
     spawn gate reject the 32B. This cost is reservation-only so Aura's base
     runtime is not permanently double-counted on committed model owners.
+
+    It was the whole tree minus the workers a lane still knew, and a worker a
+    lane had let go of — one being reaped during recovery — fell into the
+    remainder and was charged against every model load as "base runtime".
+    LIVE, 2026-09-10: "brainstem request 34.2GB" for a 6GB model, thirty-four
+    refusals, and every background code generation in the Reimplementation Lab
+    reported as the model returning nothing. The base runtime is the main
+    process plus what it spawns that is not a model; a child the size of a
+    model is a model, registered or not, and is the lanes' business.
     """
 
     try:
-        snapshot = get_memory_pressure_snapshot()
-        process_rss_gb = max(0.0, float(snapshot.process_rss_gb or 0.0))
-        observed_worker_gb = sum(
-            max(0.0, float(getattr(owner, "observed_gb", 0.0) or 0.0)) for owner in owners
-        )
+        observer = get_resource_observer()
+        root = os.getpid()
+        main = observer.process(root)
+        base_gb = float(main.rss_bytes) / float(1024**3) if main is not None else 0.0
+        known = {
+            int(getattr(getattr(owner, "process", None), "pid", 0) or 0) for owner in owners
+        }
+        for child in observer.process_tree(root).processes:
+            if child.pid == root or child.pid in known:
+                continue
+            child_gb = float(child.rss_bytes) / float(1024**3)
+            if child_gb >= _A_CHILD_THIS_LARGE_IS_A_MODEL_WORKER_GB:
+                logger.debug(
+                    "Child %s holds %.1fGB and is not a registered lane; counted as a "
+                    "model worker, not as base runtime.",
+                    child.pid,
+                    child_gb,
+                )
+                continue
+            base_gb += child_gb
     except (OSError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("Transient runtime footprint unreadable, reporting 0GB: %s", exc)
         return 0.0
-    return max(0.0, process_rss_gb - observed_worker_gb)
+    return max(0.0, base_gb)
 
 
 #: How long an eviction waits to fence a lane before giving up. Short on
@@ -4798,6 +4833,8 @@ def _build_the_generation_request(
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
+        # The shape the caller will parse, held by the decoder in the worker.
+        "output_shape": str(kwargs.get("output_shape") or "").strip().lower(),
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),
@@ -4920,16 +4957,12 @@ def _is_internal_inference(cognitive_context: Any) -> bool:
     return False
 
 
-from .mlx_unified_recurrent import _RunsTheUnifiedRecurrentLane
 
 
-from .mlx_latent_reasoning import _ReasonsInLatentSpace
 
 
-from .mlx_warmup_and_adapters import _WarmsUpAndSwapsAdapters
 
 
-from .mlx_client_worker_identity import _KnowsWhichWorkerItIsTalkingTo
 
 
 class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane):
@@ -5856,6 +5889,18 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                         exact_decode = measured_decode
                 except (TypeError, ValueError, OverflowError) as exc:
                     logger.debug("Prefill and decode seconds are not numbers, recording no sample: %s", exc)
+                # Onto the turn's receipt, from the worker's own clock, so a
+                # turn can be read back as where its time went and not only
+                # as a rate the next deadline is built from.
+                try:
+                    from core.verify.turn_receipt import record_latency
+
+                    if exact_prefill is not None:
+                        record_latency("prefill", exact_prefill)
+                    if exact_decode is not None:
+                        record_latency("decode", exact_decode)
+                except (ImportError, ValueError) as exc:
+                    logger.debug("Turn latency not recorded: %s", exc)
                 # The rate every deadline is built from. MLX timed this
                 # inside the worker; the estimate this side keeps times how
                 # often it was told, which is a different quantity and was

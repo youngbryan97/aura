@@ -1,0 +1,712 @@
+{
+  "runs": 3,
+  "campaigns": {
+    "8874aea9613abbbb2953c25bbc19284e": [
+      "run 1",
+      "run 2",
+      "run 3"
+    ]
+  },
+  "seeds": [
+    7,
+    11,
+    13
+  ],
+  "independent_initialisations": 3,
+  "holds": 15,
+  "unresolved": 2,
+  "fails": 7,
+  "totals_per_run": [
+    17,
+    17,
+    15
+  ],
+  "criteria": [
+    {
+      "criterion": "causal_closure_scc",
+      "section": "14",
+      "requires": "every domain reaches every other one through interventional edges",
+      "bar": "one component covering all domains",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "robust_recurrence_kappa",
+      "section": "17",
+      "requires": "no single domain's removal disconnects the rest",
+      "bar": ">= 2",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "cycles_per_domain",
+      "section": "15",
+      "requires": "every domain lies on at least two cross-domain directed cycles",
+      "bar": ">= 2 each",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "reentry",
+      "section": "16",
+      "requires": "influence leaves each domain and returns through at least two others",
+      "bar": "cycle length >= 3",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "partition_irreducibility",
+      "section": "11",
+      "requires": "the cheapest bipartition still costs held-out prediction, by a margin the estimator's own spread cannot account for",
+      "bar": "lower bound > 0.05",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "partition_beats_nulls",
+      "section": "18",
+      "requires": "irreducibility exceeds every null architecture and matched surrogate",
+      "bar": "above all nulls",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "differentiation",
+      "section": "18",
+      "requires": "the state is differentiated and still integrated: many effective dimensions, none dominant, and not a bag of independent variables",
+      "bar": "d_eff >= 3, top share < 0.5, ratio < 0.4",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "differentiation_above_floor",
+      "section": "18",
+      "requires": "effective dimension is far above the one-dimensional floor",
+      "bar": "d_eff >= 3 and no component above half the variance",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "intrinsic_persistence",
+      "section": "19",
+      "requires": "the previous internal state predicts the next beyond the environment",
+      "bar": "> 0, and above the shuffled-state control",
+      "held": 2,
+      "runs": 3,
+      "verdict": "unresolved"
+    },
+    {
+      "criterion": "causal_closure_of_the_core",
+      "section": "3",
+      "requires": "no variable outside K predicts K's future better than K does",
+      "bar": "no improvement on K beyond what a shuffled periphery gives",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "perturbational_spread",
+      "section": "24",
+      "requires": "a local displacement reaches most of the core",
+      "bar": ">= 0.6",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "perturbational_complexity",
+      "section": "26",
+      "requires": "the response is structured, not local and not a broadcast",
+      "bar": "a response that reached somewhere, above the 99th percentile of matched nulls",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "synergy",
+      "section": "27",
+      "requires": "domains carry information jointly that neither carries alone",
+      "bar": ">= 0.1 and above its shifted null",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "metastability",
+      "section": "29",
+      "requires": "the state settles into regimes and still moves between them",
+      "bar": "more than one regime, entropy strictly between zero and its ceiling",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "global_access",
+      "section": "30",
+      "requires": "workspace content reaches at least three heterogeneous consumers",
+      "bar": ">= 3",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "recurrent_global_access",
+      "section": "31",
+      "requires": "a consumer of the workspace later changes the workspace again",
+      "bar": "at least one G -> X -> G path",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "self_drives_action",
+      "section": "33",
+      "requires": "changing the self-model changes deliberation or behaviour",
+      "bar": "above the same-arm floor",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "ownership",
+      "section": "34",
+      "requires": "the same world state updates the self differently when she caused it",
+      "bar": "above the same-arm floor",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "fast_to_slow",
+      "section": "38",
+      "requires": "fast cognition changes the slow developmental state",
+      "bar": "at least one edge from a fast domain into a slow one",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "slow_to_fast",
+      "section": "38",
+      "requires": "the slow developmental state changes later fast cognition",
+      "bar": "at least one edge from a slow domain into a fast one",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "natural_runtime_replication",
+      "section": "44",
+      "requires": "the graph holds across ordinary conditions, not only one workload",
+      "bar": "strongly connected in at least three conditions",
+      "held": 3,
+      "runs": 3,
+      "verdict": "holds"
+    },
+    {
+      "criterion": "lesion_deficit",
+      "section": "39",
+      "requires": "cutting the cheapest partition degrades the measures it should",
+      "bar": "irreducibility, complexity and synergy all fall",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "rescue",
+      "section": "40",
+      "requires": "restoring the cut restores them",
+      "bar": "a deficit first, then the measures return towards the intact values",
+      "held": 0,
+      "runs": 3,
+      "verdict": "fails"
+    },
+    {
+      "criterion": "beats_every_null",
+      "section": "41",
+      "requires": "the whole battery separates the system from every matched null",
+      "bar": "no null passes the conjunction",
+      "held": 2,
+      "runs": 3,
+      "verdict": "unresolved"
+    }
+  ],
+  "numbers": {
+    "phi_do": {
+      "values": [
+        0.00107,
+        0.01831,
+        -0.03034
+      ],
+      "spread": 0.04865,
+      "median": 0.00107,
+      "mean": -0.00365,
+      "sd": 0.02467,
+      "min": -0.03034,
+      "max": 0.01831
+    },
+    "d_eff_normalised": {
+      "values": [
+        0.0843,
+        0.0851,
+        0.0911
+      ],
+      "spread": 0.0068,
+      "median": 0.0851,
+      "mean": 0.08683,
+      "sd": 0.00372,
+      "min": 0.0843,
+      "max": 0.0911
+    },
+    "intrinsic": {
+      "values": [
+        0.5153,
+        0.53353,
+        0.0012
+      ],
+      "spread": 0.53233,
+      "median": 0.5153,
+      "mean": 0.35001,
+      "sd": 0.30222,
+      "min": 0.0012,
+      "max": 0.53353
+    },
+    "spread": {
+      "values": [
+        0.53333,
+        0.54444,
+        0.55556
+      ],
+      "spread": 0.02222,
+      "median": 0.54444,
+      "mean": 0.54444,
+      "sd": 0.01111,
+      "min": 0.53333,
+      "max": 0.55556
+    },
+    "pci": {
+      "values": [
+        0.19718,
+        0.19601,
+        0.21461
+      ],
+      "spread": 0.0186,
+      "median": 0.19718,
+      "mean": 0.2026,
+      "sd": 0.01042,
+      "min": 0.19601,
+      "max": 0.21461
+    },
+    "surrogate_floor": {
+      "values": [
+        0.02037,
+        0.02069,
+        0.01149
+      ],
+      "spread": 0.0092,
+      "median": 0.02037,
+      "mean": 0.01752,
+      "sd": 0.00522,
+      "min": 0.01149,
+      "max": 0.02069
+    },
+    "phi_lower_bound": {
+      "values": [
+        -0.0274,
+        -0.01482,
+        -0.08321
+      ],
+      "spread": 0.06838,
+      "median": -0.0274,
+      "mean": -0.04181,
+      "sd": 0.0364,
+      "min": -0.08321,
+      "max": -0.01482
+    },
+    "phi_standard_error": {
+      "values": [
+        0.01452,
+        0.01691,
+        0.02697
+      ],
+      "spread": 0.01245,
+      "median": 0.01691,
+      "mean": 0.01947,
+      "sd": 0.00661,
+      "min": 0.01452,
+      "max": 0.02697
+    },
+    "d_eff": {
+      "values": [
+        12.0528,
+        11.7505,
+        13.2116
+      ],
+      "spread": 1.4611,
+      "median": 12.0528,
+      "mean": 12.3383,
+      "sd": 0.77126,
+      "min": 11.7505,
+      "max": 13.2116
+    },
+    "largest_component_share": {
+      "values": [
+        0.2495,
+        0.254,
+        0.2329
+      ],
+      "spread": 0.0211,
+      "median": 0.2495,
+      "mean": 0.24547,
+      "sd": 0.01111,
+      "min": 0.2329,
+      "max": 0.254
+    },
+    "vertex_connectivity": {
+      "values": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "spread": 0.0,
+      "median": 1.0,
+      "mean": 1.0,
+      "sd": 0.0,
+      "min": 1.0,
+      "max": 1.0
+    },
+    "edges_kept": {
+      "values": [
+        41.0,
+        43.0,
+        43.0
+      ],
+      "spread": 2.0,
+      "median": 43.0,
+      "mean": 42.33333,
+      "sd": 1.1547,
+      "min": 41.0,
+      "max": 43.0
+    },
+    "lesion_deficit_phi": {
+      "values": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0,
+      "median": 0.0,
+      "mean": 0.0,
+      "sd": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "lesion_deficit_spread": {
+      "values": [
+        0.26543,
+        0.19753,
+        0.33951
+      ],
+      "spread": 0.14198,
+      "median": 0.26543,
+      "mean": 0.26749,
+      "sd": 0.07101,
+      "min": 0.19753,
+      "max": 0.33951
+    },
+    "lesion_deficit_synergy": {
+      "values": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0,
+      "median": 0.0,
+      "mean": 0.0,
+      "sd": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "rescue_phi": {
+      "values": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0,
+      "median": 0.0,
+      "mean": 0.0,
+      "sd": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "ownership": {
+      "values": [
+        1.4161,
+        621054827684.2852,
+        1.3326
+      ],
+      "spread": 621054827682.9525,
+      "median": 1.4161,
+      "mean": 207018275895.67795,
+      "sd": 358566171944.2452,
+      "min": 1.3326,
+      "max": 621054827684.2852
+    },
+    "ownership_floor": {
+      "values": [
+        0.0066,
+        0.04065,
+        0.03255
+      ],
+      "spread": 0.03405,
+      "median": 0.03255,
+      "mean": 0.0266,
+      "sd": 0.01779,
+      "min": 0.0066,
+      "max": 0.04065
+    },
+    "self_to_action": {
+      "values": [
+        0.0916,
+        0.1255,
+        0.16825
+      ],
+      "spread": 0.07665,
+      "median": 0.1255,
+      "mean": 0.12845,
+      "sd": 0.03841,
+      "min": 0.0916,
+      "max": 0.16825
+    },
+    "global_access_consumers": {
+      "values": [
+        8.0,
+        8.0,
+        8.0
+      ],
+      "spread": 0.0,
+      "median": 8.0,
+      "mean": 8.0,
+      "sd": 0.0,
+      "min": 8.0,
+      "max": 8.0
+    },
+    "metastability_regimes": {
+      "values": [
+        2.0,
+        3.0,
+        6.0
+      ],
+      "spread": 4.0,
+      "median": 3.0,
+      "mean": 3.66667,
+      "sd": 2.08167,
+      "min": 2.0,
+      "max": 6.0
+    },
+    "closure_leak": {
+      "values": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "spread": 0.0,
+      "median": 0.0,
+      "mean": 0.0,
+      "sd": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    }
+  },
+  "synergy_triples": {
+    "A+S->G": {
+      "values": [
+        0.0763,
+        0.1201,
+        0.0813
+      ],
+      "mean": 0.09257,
+      "sd": 0.02398,
+      "min": 0.0763,
+      "max": 0.1201
+    },
+    "P+M->W": {
+      "values": [
+        0.2293,
+        0.2555,
+        0.4374
+      ],
+      "mean": 0.3074,
+      "sd": 0.11334,
+      "min": 0.2293,
+      "max": 0.4374
+    },
+    "S+D->C": {
+      "values": [
+        0.1487,
+        0.0783,
+        0.1152
+      ],
+      "mean": 0.11407,
+      "sd": 0.03521,
+      "min": 0.0783,
+      "max": 0.1487
+    },
+    "W+A->D": {
+      "values": [
+        0.2118,
+        0.214,
+        0.0642
+      ],
+      "mean": 0.16333,
+      "sd": 0.08586,
+      "min": 0.0642,
+      "max": 0.214
+    }
+  },
+  "v2_null_verdict": {
+    "seeds": 3,
+    "nulls_passing": [
+      "low_rank"
+    ],
+    "reference_passes": false,
+    "instrument_failed": true,
+    "all_nulls_fail": false
+  },
+  "couplings": {
+    "A": {
+      "outgoing": 4,
+      "incoming": 8,
+      "weakest_outgoing": {
+        "to": "C",
+        "effect": 0.6381
+      },
+      "weakest_incoming": {
+        "from": "D",
+        "effect": 0.3643
+      }
+    },
+    "C": {
+      "outgoing": 5,
+      "incoming": 7,
+      "weakest_outgoing": {
+        "to": "P",
+        "effect": 0.7268
+      },
+      "weakest_incoming": {
+        "from": "I",
+        "effect": 0.3955
+      }
+    },
+    "D": {
+      "outgoing": 2,
+      "incoming": 2,
+      "weakest_outgoing": {
+        "to": "A",
+        "effect": 0.3643
+      },
+      "weakest_incoming": {
+        "from": "I",
+        "effect": 0.5525
+      }
+    },
+    "G": {
+      "outgoing": 8,
+      "incoming": 4,
+      "weakest_outgoing": {
+        "to": "A",
+        "effect": 0.7626
+      },
+      "weakest_incoming": {
+        "from": "W",
+        "effect": 0.7389
+      }
+    },
+    "I": {
+      "outgoing": 5,
+      "incoming": 3,
+      "weakest_outgoing": {
+        "to": "C",
+        "effect": 0.3955
+      },
+      "weakest_incoming": {
+        "from": "S",
+        "effect": 0.342
+      }
+    },
+    "M": {
+      "outgoing": 2,
+      "incoming": 1,
+      "weakest_outgoing": {
+        "to": "S",
+        "effect": 0.3586
+      },
+      "weakest_incoming": {
+        "from": "G",
+        "effect": 1.1928
+      }
+    },
+    "N": {
+      "outgoing": 2,
+      "incoming": 6,
+      "weakest_outgoing": {
+        "to": "C",
+        "effect": 0.4306
+      },
+      "weakest_incoming": {
+        "from": "G",
+        "effect": 1.1514
+      }
+    },
+    "P": {
+      "outgoing": 4,
+      "incoming": 4,
+      "weakest_outgoing": {
+        "to": "S",
+        "effect": 0.3718
+      },
+      "weakest_incoming": {
+        "from": "S",
+        "effect": 0.6501
+      }
+    },
+    "S": {
+      "outgoing": 6,
+      "incoming": 6,
+      "weakest_outgoing": {
+        "to": "I",
+        "effect": 0.342
+      },
+      "weakest_incoming": {
+        "from": "M",
+        "effect": 0.3586
+      }
+    },
+    "W": {
+      "outgoing": 5,
+      "incoming": 2,
+      "weakest_outgoing": {
+        "to": "S",
+        "effect": 0.4055
+      },
+      "weakest_incoming": {
+        "from": "G",
+        "effect": 1.7993
+      }
+    }
+  },
+  "runs_read": [
+    "artifacts/subject_core/run_026",
+    "artifacts/subject_core/run_027",
+    "artifacts/subject_core/run_028"
+  ]
+}

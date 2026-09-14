@@ -433,6 +433,84 @@ def template_supports_thinking(tokenizer: object) -> bool:
     return supported
 
 
+_REASONING_EFFORT_SUPPORT: dict[str, bool] = {}
+
+#: What the resident template accepts. Read from the template's own guard:
+#: "Supported types are xhigh (default), medium, and low."
+REASONING_EFFORTS = ("low", "medium", "xhigh")
+
+
+def template_supports_reasoning_effort(tokenizer: object) -> bool:
+    """Whether ``reasoning_effort`` DEMONSTRABLY changes this template's output.
+
+    The same question as ``template_supports_thinking`` and the same method:
+    render one transcript at two settings and require the bytes to differ. The
+    Qwen3.8 template sets ``reasoning_effort`` to ``xhigh`` when nothing passes
+    it, and writes "Reasoning effort is set to xhigh. Please think carefully
+    through the task..." into the system block of every thinking render — the
+    model's own control surface, which nothing here had ever driven. A
+    template that accepts the kwarg and renders the same either way is inert
+    and reported as unsupported.
+    """
+    template = getattr(tokenizer, "chat_template", None)
+    apply = getattr(tokenizer, "apply_chat_template", None)
+    if not isinstance(template, str) or not template or not callable(apply):
+        return False
+
+    key = _hashlib.sha256(template.encode("utf-8", "replace")).hexdigest()
+    cached = _REASONING_EFFORT_SUPPORT.get(key)
+    if cached is not None:
+        return cached
+
+    def _render(effort: str) -> str | None:
+        try:
+            return str(
+                apply(
+                    _THINKING_PROBE,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                    enable_thinking=True,
+                    reasoning_effort=effort,
+                )
+            )
+        except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
+            return None
+
+    brief = _render("low")
+    careful = _render("xhigh")
+    supported = brief is not None and careful is not None and brief != careful
+    _REASONING_EFFORT_SUPPORT[key] = supported
+    return supported
+
+
+def reasoning_effort_for_generation(
+    *,
+    cognitive_mode: object = None,
+    thinking: bool | None = None,
+) -> str | None:
+    """How hard the private channel should work, in the template's own words.
+
+    None leaves the model's default alone. The one case decided here is the
+    channel that was opened on a fast lane because the answer is worked out in
+    this call: the mode said how deep to think and could not say where, so the
+    channel opens, and ``low`` — "keep your thinking brief and focused, moving
+    directly to the conclusion" — is the template's own way of carrying the
+    depth the mode asked for into the channel it did not close.
+
+    A thinking mode says ``xhigh`` outright, which is what the template would
+    have chosen anyway; saying it keeps the rendered prefix stable when a
+    later turn passes an effort and an earlier one did not.
+    """
+    if thinking is False:
+        return None
+    mode = str(cognitive_mode or "").strip().lower()
+    if thinking and mode in _NON_THINKING_COGNITIVE_MODES:
+        return "low"
+    if mode in _THINKING_COGNITIVE_MODES:
+        return "xhigh"
+    return None
+
+
 def _record_inert_thinking_flag(template: str) -> None:
     """A template ADVERTISED ``enable_thinking`` and then ignored it.
 
@@ -648,6 +726,22 @@ def system_first(messages: object) -> object:
     return [canonical, *rest[:insert_at], turn_state, *rest[insert_at:]]
 
 
+def _reasoning_effort_kwargs(tokenizer: object, effort: str | None) -> dict[str, str]:
+    """The kwarg to pass, or nothing: an effort the template cannot honour is
+    left out rather than raised on, and one it has never heard of is a caller
+    error worth a ValueError before the template raises its own."""
+    if effort is None:
+        return {}
+    chosen = str(effort).strip().lower()
+    if chosen not in REASONING_EFFORTS:
+        raise ValueError(
+            f"reasoning_effort {effort!r} is not one of {', '.join(REASONING_EFFORTS)}"
+        )
+    if not template_supports_reasoning_effort(tokenizer):
+        return {}
+    return {"reasoning_effort": chosen}
+
+
 def render_chat_template(
     tokenizer: object,
     messages: object,
@@ -655,12 +749,14 @@ def render_chat_template(
     tools: object = None,
     add_generation_prompt: bool = True,
     enable_thinking: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Render a chat template, applying reasoning control when supported.
 
-    ``enable_thinking=None`` leaves the model's own default alone. Raises
-    whatever the tokenizer raises — callers already distinguish a tool-schema
-    failure (which must not degrade to prose) from a plain one.
+    ``enable_thinking=None`` leaves the model's own default alone, and so does
+    ``reasoning_effort=None``. Raises whatever the tokenizer raises — callers
+    already distinguish a tool-schema failure (which must not degrade to
+    prose) from a plain one.
     """
     apply = tokenizer.apply_chat_template
     kwargs = {
@@ -670,6 +766,7 @@ def render_chat_template(
     }
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
+    kwargs.update(_reasoning_effort_kwargs(tokenizer, reasoning_effort))
     return str(
         apply(
             for_this_template(tokenizer, messages),
@@ -771,6 +868,7 @@ def render_chat_append_template(
     *,
     tools: object = None,
     enable_thinking: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Render the native close-and-append boundary for a completed chat cache.
 
@@ -804,6 +902,7 @@ def render_chat_append_template(
     shared_kwargs = {"tools": tools, "tokenize": False}
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         shared_kwargs["enable_thinking"] = bool(enable_thinking)
+    shared_kwargs.update(_reasoning_effort_kwargs(tokenizer, reasoning_effort))
 
     def _wire(value: object) -> object:
         return for_this_template(tokenizer, value)
@@ -855,6 +954,7 @@ def render_chat_continuation_template(
     *,
     tools: object = None,
     enable_thinking: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Render a transcript whose final assistant message is an open prefix.
 
@@ -884,6 +984,7 @@ def render_chat_continuation_template(
     }
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
+    kwargs.update(_reasoning_effort_kwargs(tokenizer, reasoning_effort))
     try:
         rendered = str(
             apply(
@@ -899,6 +1000,7 @@ def render_chat_continuation_template(
         }
         if enable_thinking is not None and template_supports_thinking(tokenizer):
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
+        fallback_kwargs.update(_reasoning_effort_kwargs(tokenizer, reasoning_effort))
         rendered = str(
             apply(
                 for_this_template(tokenizer, messages),

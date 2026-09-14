@@ -26,12 +26,12 @@ from core.autonomy.research_text_policy import (
     label_findings,
     narrative_admits,
 )
+from core.conversation.word_markers import names_any
 from core.runtime import background_policy
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.state_ownership import state_root
 from core.state.percepts import emit_percept
 from core.utils.task_tracker import get_task_tracker
-from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.ResearchCycle")
 

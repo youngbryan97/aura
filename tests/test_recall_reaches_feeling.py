@@ -15,11 +15,15 @@ from core.state.percepts import emit_percept
 
 
 def test_the_affect_phase_still_knows_what_a_replayed_memory_feels_like() -> None:
-    """The mapping the emitter is written against."""
-    import inspect
+    """The mapping the emitter is written against.
 
-    source = inspect.getsource(AffectUpdatePhase._process_percepts)
-    assert '"memory_replay"' in source, (
+    Read from the table rather than from the text of the method that consumes
+    it: the table moved next to the percept it describes, and a test that
+    scrapes one call site goes green the moment the call site is renamed.
+    """
+    from core.state.percepts import PERCEPT_EMOTIONS
+
+    assert PERCEPT_EMOTIONS.get("memory_replay"), (
         "the percept kind recall emits is no longer in the emotion map"
     )
 

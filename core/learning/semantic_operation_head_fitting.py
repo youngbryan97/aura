@@ -13,9 +13,19 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import combinations
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    # For the signature only. At run time the same names are imported inside
+    # the function, from the module this came out of, so the cycle never forms
+    # and a patch installed there is still the one this sees.
+    from core.learning.semantic_program_transducer import (
+        MultiViewClassifierHead,
+        SemanticTransducerTrainingExample,
+    )
+
 
 def _fit_multiview_operation_head(
     rows: Sequence[tuple[SemanticTransducerTrainingExample, int]],

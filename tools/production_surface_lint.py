@@ -605,7 +605,7 @@ class AstLinter(ast.NodeVisitor):
                 self._scratch_dirs.add(item.optional_vars.id)
         self.generic_visit(node)
 
-    visit_AsyncWith = visit_With  # type: ignore[assignment]
+    visit_AsyncWith = visit_With  # type: ignore[assignment]  # noqa: N815 — ast.NodeVisitor dispatches on this exact name
 
     def _writes_into_scratch(self, node: ast.Call) -> bool:
         """Is this write aimed at a path under a directory this scope made?"""

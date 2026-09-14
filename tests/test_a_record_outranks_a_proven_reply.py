@@ -16,9 +16,8 @@ import hashlib
 import json
 
 import pytest
-
 from chat_lane_support import patch_chat_lane
-from interface.routes import chat
+
 from interface.routes.chat import (
     _apply_recorded_answer,
     _recorded_answer_corrections,

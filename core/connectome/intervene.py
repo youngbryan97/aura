@@ -140,7 +140,7 @@ def silence(uid: str, *, returns: Any = None) -> Iterator[None]:
     consumer cannot survive a None may pass the type's empty value instead, and
     the difference between those two runs is itself a measurement.
 
-    An async cell is replaced by an async stub, because handing a coroutine's
+    An async cell is replaced by an async one, because handing a coroutine's
     caller a plain value raises where the lesion should have been silent, and a
     lesion that crashes the workload measures the crash.
     """
@@ -152,21 +152,21 @@ def silence(uid: str, *, returns: Any = None) -> Iterator[None]:
 
     if inspect.iscoroutinefunction(original):
 
-        async def stub(*_args: Any, **_kwargs: Any) -> Any:
+        async def silenced(*_args: Any, **_kwargs: Any) -> Any:
             _SUPPRESSED[uid] = _SUPPRESSED.get(uid, 0) + 1
             return returns
 
     else:
 
-        def stub(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc]
+        def silenced(*_args: Any, **_kwargs: Any) -> Any:  # type: ignore[misc]
             _SUPPRESSED[uid] = _SUPPRESSED.get(uid, 0) + 1
             return returns
 
-    stub.__name__ = getattr(original, "__name__", name)
-    stub.__qualname__ = getattr(original, "__qualname__", name)
-    stub.__doc__ = f"silenced by core.connectome.intervene for {uid}"
+    silenced.__name__ = getattr(original, "__name__", name)
+    silenced.__qualname__ = getattr(original, "__qualname__", name)
+    silenced.__doc__ = f"silenced by core.connectome.intervene for {uid}"
     try:
-        setattr(owner, name, stub)
+        setattr(owner, name, silenced)
     except (AttributeError, TypeError) as exc:
         raise LesionRefusedError(f"{uid} will not take a patch: {exc}") from exc
     try:

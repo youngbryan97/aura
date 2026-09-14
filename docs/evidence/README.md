@@ -34,6 +34,24 @@ starts mattering to how the system runs, it belongs somewhere else.
 | `R07_HEALTH_AUTHORITY_2026-09-08.md` | R07: one health authority across transports |
 | `R08_DEFERRED_WRITE_CUSTODY_2026-09-09.md` | R08: A retry must not duplicate its pending write |
 | `R08_WATCHDOG_LIFECYCLE_2026-09-09.md` | R08: Keep the observer alive while the observed loop recovers |
+| `Q01_MODEL_INVENTORY_2026-09-13.md` | Q01 model inventory, 2026-09-13 |
+| `Q02_DISK_RETENTION_2026-09-13.md` | Q02 disk retention, 2026-09-13 |
+| `Q05_PERSISTENCE_BACKUP_ROLLBACK_2026-09-13.md` | Q05 persistence, migration, corruption recovery, backups, rollback |
+| `G02_RLC_RECONCILIATION_2026-09-12.md` | G02: RLC evidence and activation reconciliation |
+| `G03_ARGUMENT_POINTER_DEVELOPMENT_2026-09-12.md` | G03 Argument Pointer Development |
+| `G03_CONDITIONAL_GRAPH_DEVELOPMENT_2026-09-12.md` | G03 conditional graph development |
+| `G03_CONDITIONAL_GRAPH_VERIFICATION_2026-09-12.md` | G03 conditional graph verification |
+| `G03_DEFINITION_SUPERVISION_2026-09-13.md` | G03 Definition Supervision |
+| `G03_FORK_DEFINITION_REFIT_2026-09-13.md` | G03 Fork Definition Refit |
+| `G03_FULL_SOURCE_NULL_2026-09-12.md` | G03 full-source proposal repair: null result |
+| `G03_GLOBAL_ARGUMENT_SEARCH_2026-09-12.md` | G03 global argument search development |
+| `G03_JOINT_DEFINITIONS_2026-09-13.md` | G03 joint definition selection |
+| `G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md` | G03 development: prefix-feasible argument search |
+| `G03_PROGRAM_SELECTION_2026-09-12.md` | G03 autonomous program-level development selection |
+| `G03_PROPOSAL_REFIT_2026-09-12.md` | G03 source-only proposal refit |
+| `G03_SHARED_POINTER_REPAIR_2026-09-12.md` | G03 shared pointer repair |
+| `G03_SOURCE_COVERAGE_2026-09-12.md` | G03 exact source recovery |
+| `R09_DELIVERY_REPLAY_2026-09-12.md` | R09 delivery replay, September 12 |
 | `R09_ACCEPTANCE_MATRIX_2026-09-10.md` | R09 acceptance matrix |
 | `R09_BOUND_LATENT_STOP_2026-09-09.md` | R09: Bound latent Stop and live prefill interruption |
 | `R09_CANCELLATION_SHELL_CUSTODY_2026-09-08.md` | R09 cancellation, shell identity, and answer custody |

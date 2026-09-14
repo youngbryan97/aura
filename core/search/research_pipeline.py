@@ -639,11 +639,12 @@ class ResearchSearchPipeline:
             return expansions
 
         llm_prompt = (
-            "Rewrite this web research query into 3 concise search variants.\n"
-            "Return ONLY a JSON array of strings.\n"
+            "Rewrite this web research query into 3 concise search variants, as a JSON array of strings.\n"
             f"Query: {query}"
         )
-        llm_output = await self._reason(llm_prompt, context=context, timeout_seconds=6.0)
+        llm_output = await self._reason(
+            llm_prompt, context=context, timeout_seconds=6.0, output_shape="json_array"
+        )
         if llm_output:
             try:
                 start = llm_output.find("[")
@@ -1361,7 +1362,7 @@ class ResearchSearchPipeline:
         prompt_lines = [
             "You are a research analyst. Synthesize a thorough, accurate answer using ONLY the evidence below.",
             "Cross-reference multiple sources. Note where sources agree and where they conflict.",
-            "Return ONLY JSON with keys: answer, facts, confidence.",
+            "The result is a JSON object with keys: answer, facts, confidence.",
             "- answer: A comprehensive, well-sourced response (2-4 paragraphs for complex topics, 1-2 for simple facts).",
             "- facts: An array of 3-8 concrete, verifiable statements extracted from the evidence.",
             "- confidence: Float 0.0-1.0 reflecting how well the evidence supports the answer.",
@@ -1375,9 +1376,16 @@ class ResearchSearchPipeline:
             )
         # Use much more content per source for M5/64GB — 8000 chars for deep, 4000 for standard
         chars_per_source = 8000 if len(top_chunks) <= 3 else 4000
+        # A fetched page is the whole of indirect prompt injection: it does
+        # not act, it persuades the instructions around it. Each source goes
+        # in behind a fence with a per-call id, so a page cannot end its own
+        # block and speak as the analyst. Threat model #13.
+        from core.security.prompt_fencing import fence
+
         for index, item in enumerate(top_chunks, start=1):
             prompt_lines.append(
-                f"[{index}] {item['title']} | {item['url']}\n{item['text'][:chars_per_source]}"
+                f"[{index}] {item['title']} | {item['url']}\n"
+                + fence(item["text"], label=f"fetched page {index}", limit=chars_per_source)
             )
 
         # Deep mode gets more synthesis time for thorough analysis
@@ -1388,6 +1396,7 @@ class ResearchSearchPipeline:
                 "\n\n".join(prompt_lines),
                 context=context,
                 timeout_seconds=synthesis_timeout,
+                output_shape="json_object",
             )
         if llm_output:
             parsed = self._parse_synthesis_json(llm_output)
@@ -1828,7 +1837,14 @@ class ResearchSearchPipeline:
         *,
         context: dict[str, Any],
         timeout_seconds: float,
+        output_shape: str = "",
     ) -> str:
+        """One model call. ``output_shape`` names what the caller will parse —
+        "json_object", "json_array" — and the decoder holds that shape
+        (core/brain/llm/a_shape_the_decoder_enforces.py), so the prompt no
+        longer has to ask for it and the parser no longer has to hunt for a
+        brace in prose."""
+        shape_kwargs = {"output_shape": output_shape} if output_shape else {}
         router = context.get("llm_router")
         if router is None:
             try:
@@ -1844,13 +1860,14 @@ class ResearchSearchPipeline:
                         prompt,
                         priority=0.25,
                         is_background=str(context.get("origin", "")).lower() not in {"user", "voice", "admin"},
+                        **shape_kwargs,
                     ),
                     timeout=timeout_seconds,
                 )
                 return _normalize_text(str(result or ""), limit=4000)
             except TypeError:
                 try:
-                    result = await asyncio.wait_for(router.think(prompt), timeout=timeout_seconds)
+                    result = await asyncio.wait_for(router.think(prompt, **shape_kwargs), timeout=timeout_seconds)
                     return _normalize_text(str(result or ""), limit=4000)
                 except (TimeoutError, RuntimeError, AttributeError, TypeError):
                     pass  # no-op: intentional

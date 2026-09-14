@@ -444,6 +444,7 @@ class BaseSkill(ABC):
             # engine's sizing and the executive constraints, none of which had
             # anything to do with it. The context manager knows which it was.
             own_budget = None
+            attempt_started = time.monotonic()
             try:
                 # Execute with timeout
                 async with asyncio.timeout(effective_timeout) as own_budget:
@@ -461,6 +462,16 @@ class BaseSkill(ABC):
                             result = await result
                 if hasattr(breaker, "record_success"):
                     breaker.record_success()
+                # Every tool a turn runs comes through here, so this is the one
+                # place its tool time can be written on the turn's receipt
+                # (R11). A tool that raised is not tool time that produced
+                # anything; the retry below runs it again and is measured then.
+                try:
+                    from core.verify.turn_receipt import record_latency
+
+                    record_latency("tool", time.monotonic() - attempt_started)
+                except (ImportError, ValueError) as latency_exc:
+                    logger.debug("Tool latency not recorded: %s", latency_exc)
                 break  # Success! Exit loop
 
             except asyncio.CancelledError:

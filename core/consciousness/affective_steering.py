@@ -113,12 +113,17 @@ from typing import Any
 import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
-from core.consciousness.mood_weight import NEUTRAL_MOOD as _NEUTRAL_MOOD
+from core.consciousness.mood_weight import (
+    NEUTRAL_MOOD as _NEUTRAL_MOOD,  # noqa: F401 — read from here by its test
+)
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import state_root
+
+from .steering_geometry import _FindsTheModelsGeometry
+from .steering_vector_cache import _ReadsACachedVector
 
 logger = logging.getLogger("Aura.AffectiveSteering")
 
@@ -454,7 +459,6 @@ class SteeringVector:
 
 # ── Steering Vector Library ────────────────────────────────────────────────────
 
-from .steering_vector_cache import _ReadsACachedVector
 
 class SteeringVectorLibrary(_ReadsACachedVector):
     """
@@ -1890,7 +1894,6 @@ class SteeringGovernor:
         return alpha
 
 
-from .steering_geometry import _FindsTheModelsGeometry
 
 
 class AffectiveSteeringEngine(_FindsTheModelsGeometry):

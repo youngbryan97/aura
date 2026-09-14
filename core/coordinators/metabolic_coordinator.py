@@ -40,6 +40,11 @@ _METABOLIC_BOUNDARY_ERRORS = (
 _BOOT_WARMUP_CYCLES = 5
 _BCI_EVENT_POLL_SECONDS = 1.0
 _AUTONOMOUS_REFLECTION_TIMEOUT_SECONDS = 120.0
+#: How often the continuity record is rewritten while the session runs.
+#: Five minutes, which is the interval `ContinuityEngine.save` has named
+#: in its own contract since it was written.
+_CONTINUITY_CHECKPOINT_SECONDS = 300.0
+
 _AUTONOMOUS_REFLECTION_INTERVAL_SECONDS = 1800.0
 _AUTONOMOUS_REFLECTION_FAILURE_BACKOFF_SECONDS = 300.0
 _AUTONOMOUS_REFLECTION_MIN_INTERVAL_SECONDS = (
@@ -458,6 +463,50 @@ class MetabolicCoordinator:
         except _METABOLIC_BOUNDARY_ERRORS:
             return False
 
+    async def _continuity_checkpoint(self) -> None:
+        """Write the continuity record periodically, so a crash is survivable.
+
+        The interval is the one the save method itself named. Writes go through
+        the same asynchronous lane the shutdown record uses, so nothing here
+        touches the loop with a synchronous fsync.
+        """
+        interval = getattr(self, "_continuity_checkpoint_s", None)
+        if interval is None:
+            from core.runtime.flags import FlagKind, declare
+
+            interval = max(
+                60.0,
+                float(
+                    declare(
+                        "AURA_CONTINUITY_CHECKPOINT_S",
+                        kind=FlagKind.FLOAT,
+                        default=_CONTINUITY_CHECKPOINT_SECONDS,
+                        description=(
+                            "Seconds between continuity-record checkpoints while a "
+                            "session runs, so a crash leaves a recent record"
+                        ),
+                        owner="core.coordinators.metabolic_coordinator",
+                    ).value()
+                ),
+            )
+            self._continuity_checkpoint_s = interval
+        now = time.monotonic()
+        last = getattr(self, "_last_continuity_checkpoint", None)
+        if last is not None and now - last < interval:
+            return
+        self._last_continuity_checkpoint = now
+        try:
+            from core.continuity import get_continuity
+
+            get_continuity().save(reason="checkpoint")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+            record_degradation(
+                "continuity",
+                exc,
+                severity="warning",
+                action="continuity checkpoint skipped for this cycle",
+            )
+
     async def _allostasis_pulse(self) -> None:
         """One allostatic sample per metabolic cycle (the 60 s pulse).
 
@@ -514,6 +563,16 @@ class MetabolicCoordinator:
         # keep being sampled while the system is under the pressure being
         # forecast, or the forecasts go stale exactly when they matter.
         await self._allostasis_pulse()
+        # And the continuity checkpoint, for the same reason and before the same
+        # early-returns. `ContinuityEngine.save` has said since it was written
+        # that it should be called on graceful shutdown AND periodically so a
+        # crash leaves a recent record; only the shutdown call was ever wired.
+        # So a session that died — or one that simply never stopped — left
+        # nothing behind, and the next boot woke with no prior record and no way
+        # to tell a crash from a clean stop. A session under pressure is the one
+        # most likely to die without a record, which is why this sits above the
+        # throttles rather than inside them.
+        await self._continuity_checkpoint()
         try:
             orch = self.orch
             if not orch:

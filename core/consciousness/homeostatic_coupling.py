@@ -424,6 +424,7 @@ class HomeostaticCoupling:
                 "valence": float(getattr(affect, "valence", 0.0) or 0.0),
                 "arousal": float(getattr(affect, "arousal", 0.0) or 0.0),
                 "engagement": float(getattr(affect, "engagement", 0.0) or 0.0),
+                "curiosity": float(getattr(affect, "curiosity", 0.0) or 0.0),
             }
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return {}
@@ -559,8 +560,14 @@ class HomeostaticCoupling:
             elif valence > 0.4 and arousal > 0.5:
                 m.mood_prefix = "I feel energized and positive. Let this come through."
 
-        # Engagement directly scales creativity
-        creativity_mod = 0.6 + (engagement * 0.8)  # 0.6 to 1.4
+        # Engagement scales creativity, and so does curiosity, whichever is the
+        # stronger pull. The affect phase blends curiosity toward how unlike her
+        # ordinary life the moment is, and nothing here read it: development's
+        # novelty moved what she felt and never how exploratory her next
+        # thought was allowed to be. Same range and same coefficient; an absent
+        # reading leaves engagement alone.
+        curiosity = affect.get('curiosity', 0.0)
+        creativity_mod = 0.6 + (max(engagement, curiosity) * 0.8)  # 0.6 to 1.4
 
         # --- Prospective suffering ---
         # Project drive trajectory: if drives are decaying fast, flag dread

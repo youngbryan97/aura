@@ -30,6 +30,8 @@ from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.payload_values import payload_path
 
+from .program_dna_inspection import _LooksAtWhatIsThere
+
 #: A generated directory name stays short enough to read at a glance.
 _SLUG_WORDS = 6
 _SLUG_CHARS = 48
@@ -257,7 +259,6 @@ def _decidably_broken(candidate_code: str) -> list[str]:
         return []
 
 
-from .program_dna_inspection import _LooksAtWhatIsThere
 
 
 class ProgramDNAReconstructionEngine(_LooksAtWhatIsThere):

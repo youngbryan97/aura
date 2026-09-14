@@ -36,9 +36,13 @@ def main() -> int:
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
+    from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
+    from core.learning.semantic_paired_pointer_refit import (
+        refit_compositional_paired_operation_pointer,
+    )
     from core.learning.semantic_program_basis import (
         bind_training_examples_to_shared_representation,
     )
@@ -90,6 +94,8 @@ def main() -> int:
         "operation_pointer": refit_compositional_operation_pointer,
         "argument_pointer": refit_compositional_argument_proposals,
         "definition_pointer": refit_compositional_definition_pointer,
+        "operation_views": refit_compositional_operation_views,
+        "paired_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
     candidate = refit(model, bound, **options)

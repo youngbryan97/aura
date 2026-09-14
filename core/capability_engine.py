@@ -24,6 +24,8 @@ from core.runtime.network_gateway import get_network_gateway
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
 
+from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
+
 logger = logging.getLogger("core.capability_engine")
 
 #: What a skill's own availability probe is allowed to raise. Anything
@@ -1574,7 +1576,6 @@ def _name_what_is_still_available(
     return told
 
 
-from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
 
 
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):

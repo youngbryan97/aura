@@ -14,11 +14,10 @@ finished, and the run ends on what actually happened rather than on ok.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import json
 
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_ALLOWED_ACTIONS,
@@ -62,7 +61,6 @@ async def test_a_pursuit_with_no_finishing_condition_runs_to_its_bounds(monkeypa
     correctly parsed goal, with the page to open and the keys to press, turned
     away in 417ms.
     """
-    import core.skills.screen_pursuit as sp
 
     asked: dict[str, object] = {}
 
@@ -98,7 +96,6 @@ async def test_a_pursuit_runs_the_loop_with_what_the_plan_asked_for(monkeypatch)
         seen.update(kwargs)
         return {"completed": True, "outcome": "goal_reached", "cycles": 9, "moves": [{"key": "up"}]}
 
-    import core.skills.screen_pursuit as sp
 
     patch_pursuit(monkeypatch, "pursue_on_screen", fake_pursue)
     skill = ComputerUseSkill()
@@ -127,7 +124,6 @@ async def test_a_pursuit_runs_the_loop_with_what_the_plan_asked_for(monkeypatch)
 @pytest.mark.asyncio
 async def test_a_pursuit_that_ended_blocked_says_what_blocked_it(monkeypatch):
     """"child action reported failure" tells the person nothing."""
-    import core.skills.screen_pursuit as sp
 
     async def blocked(**_kw):
         return {"completed": False, "outcome": "blocked_by_overlay", "blocked_by": "a cookie wall", "moves": []}
@@ -143,7 +139,6 @@ async def test_a_pursuit_that_ended_blocked_says_what_blocked_it(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_pursuit_that_could_not_decide_says_so(monkeypatch):
-    import core.skills.screen_pursuit as sp
 
     async def undecided(**_kw):
         return {
@@ -165,7 +160,6 @@ async def test_a_pursuit_that_could_not_decide_says_so(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_running_out_of_moves_is_named_in_words_not_as_a_status_code(monkeypatch):
-    import core.skills.screen_pursuit as sp
 
     async def spent(**_kw):
         return {"completed": False, "outcome": "out_of_cycles", "moves": [{"key": "up"}] * 40}
@@ -274,7 +268,6 @@ def test_the_pursuit_declares_its_own_limit_so_the_layers_can_read_it():
 @pytest.mark.asyncio
 async def test_a_pursuit_reports_what_it_did_in_words(monkeypatch):
     """A step count is bookkeeping. What she did is the answer."""
-    import core.skills.screen_pursuit as sp
 
     async def finished(**_kw):
         return {
@@ -300,7 +293,6 @@ async def test_a_pursuit_reports_what_it_did_in_words(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_an_unfinished_pursuit_says_how_far_it_got(monkeypatch):
-    import core.skills.screen_pursuit as sp
 
     async def gave_up(**_kw):
         return {

@@ -33,6 +33,7 @@ from core.runtime.pipeline_blueprint import (
 )
 from core.runtime.service_registry import get_runtime_service
 from core.runtime.structured_input import answer_surface_token_floor
+from core.runtime.task_ownership import create_owned_asyncio_task
 from core.runtime.turn_outcome import (
     TurnOutcome,
     UserVisibleState,
@@ -53,12 +54,14 @@ from core.verify.lesion_registry import (
 )
 from core.verify.turn_receipt import (
     TurnReceipt,
+    record_latency,
     record_phase,
     record_response_path,
     recording_turn,
 )
 
 from .autopoiesis import AutopoieticGraph
+from .cognitive_augmentors import _RunsItsAugmentors
 from .live_mind_contract import (
     REQUIRED_LIVE_MIND_GENERATION_CONTROL_KEYS,
     normalize_live_mind_surface_control_receipt,
@@ -67,7 +70,6 @@ from .llm.context_assembler import ContextAssembler
 from .reasoning_strategies import ReasoningStrategies, StrategyType
 from .request_contract import project_user_surface_resume_capability
 from .types import ThinkingMode, Thought
-from core.runtime.task_ownership import create_owned_asyncio_task
 
 logger = logging.getLogger(__name__)
 
@@ -1650,7 +1652,6 @@ def _note_the_quick_reply_contract(
 _DESKTOP_AUTHORITY_HEAD = "You are Aura speaking through the live desktop CognitiveEngine."
 
 
-from .cognitive_augmentors import _RunsItsAugmentors
 
 
 class CognitiveEngine(_RunsItsAugmentors):
@@ -2253,6 +2254,20 @@ class CognitiveEngine(_RunsItsAugmentors):
         # not, so stop() left the busiest path running. A stop that stops two
         # of three entries has not stopped anything a caller can rely on.
         self._refuse_if_stopped("think")
+
+        # `response_format=<a Pydantic model>` was accepted here and read by
+        # nothing: the planner passed PlanSchema and commented that the content
+        # was "guaranteed to adhere" to it, and the guarantee was a regex for
+        # the first brace. A format is a shape, and the decoder can hold one
+        # (core/brain/llm/a_shape_the_decoder_enforces.py); the request lands
+        # on the turn's context and the response phase forwards it.
+        requested_format = kwargs.pop("response_format", None)
+        if requested_format is not None:
+            context = dict(context or {})
+            context.setdefault(
+                "output_shape",
+                "json_array" if requested_format in ("json_array", list) else "json_object",
+            )
 
         # Restore the antecedent for a message that cannot stand alone. Live
         # on 2026-08-03: "Can you do it now?" after a refused screen read, and
@@ -3126,15 +3141,24 @@ class CognitiveEngine(_RunsItsAugmentors):
                                 error=_phase_error,
                                 objective=objective,
                             )
+                        phase_elapsed = time.perf_counter() - started_at
                         _record_legacy_pass(
                             phase_name,
                             ordinal,
-                            time.perf_counter() - started_at,
+                            phase_elapsed,
                             skipped=False,
                         )
                         # Marked after the phase returns, so a phase that timed
                         # out mid-execution is not recorded as having run.
                         record_phase(phase_name)
+                        # The retrieval phase is one of the five components a
+                        # turn's latency is split into (R11), and its duration
+                        # was only ever a "phase latency exceeded budget" line.
+                        if "retrieval" in str(phase_name).lower():
+                            try:
+                                record_latency("retrieval", phase_elapsed)
+                            except ValueError:
+                                pass
 
                     state = temp_state
                     record_response_path(

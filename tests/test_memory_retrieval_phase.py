@@ -499,3 +499,109 @@ async def test_memory_retrieval_retains_recent_episodes_score_and_metadata():
     # Because hot episode has score=0.85 and metadata set properly, it won't be pruned.
     assert any("Bryan works at Stanford" in item for item in new_state.cognition.long_term_memory)
     assert any("high scoring semantic fact" in item for item in new_state.cognition.long_term_memory)
+
+
+@pytest.mark.asyncio
+async def test_the_same_question_at_a_greater_depth_is_asked_again():
+    """The skip was keyed on the words alone, so pressure that deepened recall
+    changed nothing for as long as the question stayed the same."""
+    limits: list[int] = []
+
+    async def _search(query, limit=5):
+        limits.append(limit)
+        return [{"content": f"a remembered afternoon in the garden, number {index}"} for index in range(limit)]
+
+    async def _get_hot_memory(limit=3):
+        return {"recent_episodes": []}
+
+    memory_facade = SimpleNamespace(search=_search, get_hot_memory=_get_hot_memory)
+    container = SimpleNamespace(
+        get=lambda name, default=None: memory_facade if name == "memory_facade" else default
+    )
+    phase = MemoryRetrievalPhase(container)
+
+    state = AuraState.default()
+    state.cognition.working_memory.append(
+        {"role": "user", "content": "What did we decide about the garden?"}
+    )
+    first = await phase.execute(state)
+    assert first is not state
+
+    again = await phase.execute(first)
+    assert again is first, "the same question at the same depth is not asked twice"
+
+    first.response_modifiers["imagination_memory_pressure"] = 0.74
+    deeper = await phase.execute(first)
+    assert deeper is not first
+    assert limits[-1] > limits[0]
+    assert len(deeper.cognition.long_term_memory) > len(first.cognition.long_term_memory)
+
+
+def _facade_capturing(captured: dict) -> SimpleNamespace:
+    async def _search(query, limit=5):
+        captured.setdefault("queries", []).append(query)
+        return [{"content": f"a memory recalled for: {query}"}]
+
+    async def _get_hot_memory(limit=3):
+        return {"recent_episodes": []}
+
+    return SimpleNamespace(search=_search, get_hot_memory=_get_hot_memory)
+
+
+@pytest.mark.asyncio
+async def test_her_most_pressing_intention_cues_recall_when_nobody_has_spoken():
+    captured: dict = {}
+    facade = _facade_capturing(captured)
+    container = SimpleNamespace(get=lambda name, default=None: facade if name == "memory_facade" else default)
+    phase = MemoryRetrievalPhase(container)
+
+    def _state(first_urgency: float, second_urgency: float) -> AuraState:
+        state = AuraState.default()
+        state.cognition.working_memory.append({"role": "assistant", "content": "I will look into it."})
+        state.cognition.current_objective = "keep the workshop in order"
+        state.cognition.active_goals = [
+            {"goal": "finish the garden plan", "urgency": first_urgency},
+            {"goal": "answer the letter from the library", "urgency": second_urgency},
+        ]
+        return state
+
+    await phase.execute(_state(0.9, 0.2))
+    await phase.execute(_state(0.2, 0.9))
+    first, second = captured["queries"]
+    assert "finish the garden plan" in first and "answer the letter" not in first
+    assert "answer the letter from the library" in second and "garden plan" not in second
+
+
+@pytest.mark.asyncio
+async def test_what_someone_said_is_asked_without_her_intentions():
+    captured: dict = {}
+    facade = _facade_capturing(captured)
+    container = SimpleNamespace(get=lambda name, default=None: facade if name == "memory_facade" else default)
+    phase = MemoryRetrievalPhase(container)
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "What did we say about the concert?"})
+    state.cognition.active_goals = [{"goal": "finish the garden plan", "urgency": 0.9}]
+    await phase.execute(state)
+    assert captured["queries"] == ["What did we say about the concert?"]
+
+
+@pytest.mark.asyncio
+async def test_the_intentional_retriever_is_one_of_the_stores_recall_asks():
+    intents = []
+
+    class _Retriever:
+        def retrieve(self, intent):
+            intents.append(intent)
+            return SimpleNamespace(
+                hits=[SimpleNamespace(content="the day the greenhouse roof came down", score=0.8, store_type="episodic")]
+            )
+
+    retriever = _Retriever()
+    container = SimpleNamespace(get=lambda name, default=None: retriever if name == "intentional_retriever" else default)
+    phase = MemoryRetrievalPhase(container)
+    state = AuraState.default()
+    state.cognition.working_memory.append({"role": "user", "content": "Tell me about the greenhouse again."})
+    new_state = await phase.execute(state)
+    assert intents and intents[0].query == "Tell me about the greenhouse again."
+    assert intents[0].limit == new_state.response_modifiers["memory_retrieval_signature"]["retrieval_limit"]
+    assert any("greenhouse roof" in item for item in new_state.cognition.long_term_memory)

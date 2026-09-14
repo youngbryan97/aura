@@ -10,9 +10,8 @@ the page back rather than assumed from the click.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.agency.reach_place import host_of, named_url, reach
 from core.runtime.watched_goal import read_watched_goal

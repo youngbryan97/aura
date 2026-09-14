@@ -597,32 +597,27 @@ class StateRepository:
                 logger.error("⚠️ [STATE] Standalone fallback schema setup failed: %s", schema_err)
 
             try:
-                serialized_data = await asyncio.to_thread(self._serialize, new_state)
-                db = await self._ensure_db()
-                for attempt in range(3):
-                    try:
-                        async with db.execute("BEGIN IMMEDIATE"):
-                            await db.execute(
-                                """INSERT OR REPLACE INTO state_log 
-                                   (state_id, version, parent_state_id, transition_cause, state_json, timestamp)
-                                   VALUES (?, ?, ?, ?, ?, ?)""",
-                                (
-                                    new_state.state_id,
-                                    new_state.version,
-                                    new_state.parent_state_id,
-                                    new_state.transition_cause,
-                                    serialized_data,
-                                    new_state.updated_at,
-                                ),
-                            )
-                            await db.commit()
-                        logger.debug("💾 Standalone fallback: State v%s committed to local DB.", new_state.version)
-                        break
-                    except aiosqlite.OperationalError as e:
-                        if "database is locked" in str(e) and attempt < 2:
-                            await asyncio.sleep(0.1 * (attempt + 1))
-                            continue
-                        raise
+                # The same bounded commit the owner makes, not a second one.
+                # This path wrote the whole state every version with no
+                # payload cap and no pruning: `~/.aura/data/state/aura_state.db`
+                # reached 46GB over 707 rows in March-April 2026, single rows
+                # of 932MB, from standalone runs that booted the container
+                # without a vault. The owner's commit caps a row at
+                # DB_PAYLOAD_MAX_BYTES, falls back to the bounded snapshot,
+                # prunes every STATE_LOG_PRUNE_EVERY commits and vacuums every
+                # STATE_LOG_VACUUM_EVERY; the fallback now goes through it.
+                if self._should_use_bounded_db_snapshot(new_state, cause):
+                    serialized_data = await asyncio.to_thread(
+                        self._serialize_transport_snapshot, new_state
+                    )
+                else:
+                    serialized_data = await asyncio.to_thread(self._serialize, new_state)
+                    if len(serialized_data.encode("utf-8")) > self.DB_PAYLOAD_MAX_BYTES:
+                        serialized_data = await asyncio.to_thread(
+                            self._serialize_transport_snapshot, new_state
+                        )
+                await self._commit_to_db(new_state, serialized_data)
+                logger.debug("💾 Standalone fallback: State v%s committed to local DB.", new_state.version)
             except _STATE_BOUNDARY_ERRORS as db_err:
                 logger.error("🛑 [STATE] Standalone fallback direct database commit failed: %s", db_err)
 
@@ -1698,6 +1693,16 @@ class StateRepository:
             )
             world["spatial_context"] = self._bounded_transport_value(
                 world.get("spatial_context", {}), max_items=24
+            )
+            # Facts and preferences are open dictionaries anything may write
+            # into, and they were the one part of the world left as they came.
+            # A nine-megabyte fact rode through the "bounded" snapshot whole,
+            # so the cap this snapshot exists to honour was not a cap.
+            world["facts"] = self._bounded_transport_value(
+                world.get("facts", {}), max_items=self.TRANSPORT_SNAPSHOT_MAX_ITEMS
+            )
+            world["user_preferences"] = self._bounded_transport_value(
+                world.get("user_preferences", {}), max_items=self.TRANSPORT_SNAPSHOT_MAX_ITEMS
             )
 
         affect = snapshot.get("affect")

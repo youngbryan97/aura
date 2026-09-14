@@ -78,6 +78,46 @@ class TestEvidenceBlock:
         block = build_self_forensics_context()
         assert "do " in block and "not invent a cause" in block
 
+    @staticmethod
+    def _no_black_boxes(tmp_path, monkeypatch):
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "forensics"))
+        monkeypatch.chdir(tmp_path)
+        import core.introspection.self_forensics as sf
+
+        monkeypatch.setattr(sf, "_live_incidents", lambda: "")
+        monkeypatch.setattr(sf, "_recent_faults", lambda: "")
+
+    def test_an_empty_outcome_record_is_not_evidence(self, tmp_path, monkeypatch):
+        """Absence put into words is still absence.
+
+        The outcome record's reader answers an empty record with a sentence,
+        and from 2026-09-05 the block counted that sentence as evidence. A
+        machine with no black boxes then got the grounded instruction with one
+        line under it — "there is no record of anything having been tried" —
+        and lost the one that says the records are unavailable.
+        """
+        import core.self.what_has_ever_worked as record
+
+        self._no_black_boxes(tmp_path, monkeypatch)
+        monkeypatch.setattr(record, "what_has_ever_worked", lambda learner=None: {})
+        block = build_self_forensics_context()
+        assert "not invent a cause" in block
+        assert "WHAT HAS EVER WORKED" not in block
+
+    def test_an_outcome_record_with_rows_is_still_evidence(self, tmp_path, monkeypatch):
+        import core.self.what_has_ever_worked as record
+
+        self._no_black_boxes(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            record,
+            "what_has_ever_worked",
+            lambda learner=None: {"search": record.HowItHasGone("search", 4, 3)},
+        )
+        block = build_self_forensics_context()
+        assert "- WHAT HAS EVER WORKED: 1 worked" in block
+        assert "not invent a cause" not in block
+
     def test_instruction_forbids_invention(self):
         block = build_self_forensics_context()
         lowered = block.lower()

@@ -62,7 +62,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "ADDENDUM-21",
@@ -76,7 +76,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "ADDENDUM-22",
@@ -90,12 +90,12 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         },
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f982e23e0234ddff3a477559716afcba007dc8b2.json"
+          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "ADDENDUM-23",
@@ -179,7 +179,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         },
         {
           "from": "ledger",
@@ -527,7 +527,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json"
+          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-GATE-001",
@@ -541,7 +541,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/48a6aa9a8ffe7c0e24fab44c013eb292a9819cde.json"
+          "name": "artifacts/reqproof/evidence/cognitive-gate-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-GATE-002",
@@ -611,7 +611,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-LANE-001",
@@ -625,7 +625,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-LANE-002",
@@ -639,7 +639,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-LANE-003",
@@ -653,7 +653,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-LANE-004",
@@ -793,7 +793,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "CTX2-SHUTDOWN-001",
@@ -807,7 +807,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "CTX2-SHUTDOWN-002",
@@ -821,7 +821,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "CTX2-SHUTDOWN-003",
@@ -835,7 +835,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "CTX2-SKILL-001",
@@ -849,7 +849,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/f982e23e0234ddff3a477559716afcba007dc8b2.json"
+          "name": "artifacts/reqproof/evidence/skill-readiness-live-route-audit/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "CTX2-SKILL-002",
@@ -863,7 +863,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-TEST-001",
@@ -877,7 +877,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-TEST-002",
@@ -891,7 +891,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "CTX2-TEST-003",
@@ -1109,9 +1109,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_restore_drill_that_can_fail.py",
+          "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more \u2014 schema, quota, key rotation and the rest are still unlinked."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_versioned_store.py",
+          "why": "The requirement's downgrade policy and corruption detection: a major version this reader does not know is refused, a minor version ahead is readable, and a file that will not parse is moved aside rather than overwritten."
+        }
+      ],
       "id": "DATA-LIFECYCLE-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -1425,7 +1438,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "LANE-001",
@@ -1447,7 +1460,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/lifecycle-ownership-contract-tests/5b78e7e21ae11598fb8980c457092b21d9d501d5.json"
+          "name": "artifacts/reqproof/evidence/lifecycle-ownership-contract-tests/e90f63f3b7a43bacbede6a7a8dd107ac0563ed14.json"
         }
       ],
       "id": "LIFECYCLE-001",
@@ -1624,9 +1637,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_the_large_holders_are_attributed.py",
+          "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it \u2014 0.6% of 4.2GB attributed on 2026-09-10 \u2014 so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
+        }
+      ],
       "id": "MEMORY-LEAK-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -1876,7 +1896,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/14d4e24c664a4e3460ab1e5496e53f0126c50575.json"
+          "name": "artifacts/reqproof/evidence/model-lane-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "PASSF-03",
@@ -2075,7 +2095,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/f47cc672d6a1b0b912ec2b034f26922193685d04.json"
+          "name": "artifacts/reqproof/evidence/resource-observation-contract-tests/d316a8c1f393a9b4eeec7429ea72af51c6c359a2.json"
         }
       ],
       "id": "RESOURCE-001",
@@ -2469,7 +2489,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/6e1db1f48b56071a20a29947e0d0d646e4f2d834.json"
+          "name": "artifacts/reqproof/evidence/shutdown-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "SHUTDOWN-001",
@@ -2499,7 +2519,7 @@
         {
           "from": "ledger",
           "kind": "receipt",
-          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/e0b44467e7edb6a14ae3300951b1b8c4b0bd6777.json"
+          "name": "artifacts/reqproof/evidence/skill-certification-contract-tests/543eecfc4b18c6313c59789bf4d1fcec3c70eeb4.json"
         }
       ],
       "id": "SKILLS-001",
@@ -2772,16 +2792,16 @@
     "by_kind": {
       "make": 4,
       "receipt": 30,
-      "test": 4,
+      "test": 7,
       "tool": 5
     },
     "by_source": {
       "ledger": 30,
-      "map": 5,
+      "map": 8,
       "registry": 8
     },
     "complete": false,
-    "linked": 37,
+    "linked": 39,
     "requirements": 313,
     "unlinked": [
       "ACCESSIBILITY-I18N-001",
@@ -2879,7 +2899,6 @@
       "CTX3-VALUE-002",
       "CTX3-WORLD-001",
       "CTX3-WORLD-002",
-      "DATA-LIFECYCLE-001",
       "DESKTOP-001",
       "DESKTOP-ACCESS-001",
       "DISTRIBUTED-001",
@@ -2938,7 +2957,6 @@
       "MATRIX-17",
       "MATRIX-18",
       "MEMORY-001",
-      "MEMORY-LEAK-001",
       "MIND-001",
       "MORPHOGENETIC-ENGINEERING-001",
       "MQ-01",

@@ -7,11 +7,12 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.state_ownership import state_root
 
 
 class TraceLogger:
-    def __init__(self, path: str | Path = "~/.aura/traces/decisions.jsonl"):
-        self.path = Path(path).expanduser()
+    def __init__(self, path: str | Path | None = None):
+        self.path = Path(path).expanduser() if path is not None else state_root() / "traces" / "decisions.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, record: dict[str, Any]) -> None:

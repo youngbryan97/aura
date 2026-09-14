@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.action_executor import ActionExecutor  # noqa: F401
 from core.runtime.errors import record_degradation
 from core.runtime.proof_policy import proof_run_active
 from core.runtime.state_ownership import state_root
@@ -42,6 +43,8 @@ from core.security.execution_authority import (
     authorize_execution,
     release_execution,
 )
+
+from .host_automation_screen import _ReadsTheScreen
 
 logger = logging.getLogger("Aura.HostAutomation")
 
@@ -520,8 +523,6 @@ def resolve_application_name(app_name: str) -> AppNameResolution:
 # The screen half uses it, and tests patch ActionExecutor.execute through
 # this module's name for it. A class patch reaches every reference, but
 # only if there is a name here to reach.
-from core.runtime.action_executor import ActionExecutor  # noqa: F401
-from .host_automation_screen import _ReadsTheScreen
 
 
 class HostAutomationProvider(_ReadsTheScreen):

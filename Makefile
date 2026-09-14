@@ -891,26 +891,12 @@ backup-verify:
 restore:
 	@echo "📂 Restoring from backup..."
 	@if [ -z "$(BACKUP)" ]; then echo "❌ Usage: make restore BACKUP=<path>"; exit 1; fi
-	@if lsof -ti :8000 -sTCP:LISTEN >/dev/null 2>&1 && [ "$(FORCE)" != "1" ]; then \
-		echo "❌ Live Aura detected on :8000 — restoring state under a running instance corrupts it."; \
-		echo "   Stop the runtime first (python aura_main.py --stop) or re-run with FORCE=1."; \
-		exit 1; \
-	fi
-	@tar xzf $(BACKUP) 2>/dev/null
-	@echo "✅ Restored from $(BACKUP)"
+	@$(PYTHON) tools/state_backup.py restore --archive $(BACKUP) $(if $(filter 1,$(FORCE)),--force,)
 
 restore-test:
-	@echo "🧪 Running restore drill..."
-	@make backup
-	@echo "  Simulating state corruption..."
-	@echo "  Restoring..."
-	@LATEST=$$(ls -t ~/.aura/backups/*.tar.gz 2>/dev/null | head -1); \
-	if [ -n "$$LATEST" ]; then \
-		make restore BACKUP=$$LATEST; \
-		echo "✅ Restore drill passed"; \
-	else \
-		echo "❌ No backup found"; exit 1; \
-	fi
+	@echo "🧪 Running restore drill: back up, damage a scratch copy, restore it, prove the repair..."
+	@$(PYTHON) tools/state_backup.py create
+	@$(PYTHON) tools/state_backup.py drill
 
 memory-export:
 	@echo "📤 Exporting all memories..."

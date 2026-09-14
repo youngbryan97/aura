@@ -1365,7 +1365,13 @@ async def _activate_cognition(*, foreground_only: bool) -> ActivationResult:
         )
 
     validation_started = time.time()
-    outcome = run_validation()
+    # The boot's posture, which `run_validation` documents and this call did
+    # not use. The default runs every experiment as well as every instrument,
+    # and a proof boot spent over ten minutes in it — long enough that the
+    # suite runner's isolated retry of this exact activation timed out and took
+    # the whole order-dependence register with it. The experiments belong to
+    # the tests that own them.
+    outcome = run_validation(include_expensive=False)
     validation_finished = time.time()
     _set_cognition_validation_status(
         state="completed",

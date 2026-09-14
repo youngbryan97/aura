@@ -36,16 +36,62 @@ import sys
 import tarfile
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-from core.runtime.sqlite_support import connecting
+
+# `make backup` runs this file directly, with no PYTHONPATH. The import
+# below was added on 2026-08-05 and every `make backup` since raised
+# ModuleNotFoundError: the newest archive in the ring is from July 12.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.runtime.sqlite_support import connecting  # noqa: E402
 
 STATE_ROOTS = ("data", "storage", ".aura_runtime", ".aura_snapshots")
 EXCLUDE_RELATIVE = ("data/training", "data/error_logs", "data/bench")
 EXCLUDE_NAMES = {"__pycache__", ".pytest_cache"}
+
+#: Where the live runtime's data directory is staged inside the archive. The
+#: repository-relative roots above are what tools and campaigns write with
+#: the repository as their working directory; the desktop writes to
+#: `config.paths.data_dir`, which is `~/.aura/data`, and until 2026-09-13 no
+#: backup contained it — every archive held the repository's `data/` and
+#: called it the state.
+LIVE_DATA_ARCNAME = "aura_data"
+
+#: No single file above this goes into an archive. The orphaned
+#: `data/state/aura_state.db` is 46GB of rows nothing has read for five
+#: months; an archive that carried it would be a 46GB archive of nothing.
+#: Skipped files are named in the manifest, never dropped in silence.
+PER_FILE_BOUND_BYTES = 2 * 1024**3
+
+
+def live_data_dir() -> Path | None:
+    """The desktop's data directory, from the configuration that owns it."""
+    try:
+        from core.config import config
+
+        path = Path(str(config.paths.data_dir)).expanduser()
+        return path if path.is_dir() else None
+    except Exception as exc:  # noqa: BLE001 — a backup tool reports; it does not stop on config
+        print(f"ℹ️  live data directory not resolved ({exc}); backing up repository roots only")
+        return None
 SQLITE_MAGIC = b"SQLite format 3\x00"
 ARCHIVE_PREFIX = "aura_state_"
+
+
+def _is_quarantined(path: Path) -> bool:
+    """A store the runtime already set aside as damaged.
+
+    The memory layer moves a corrupt ledger to `memory/quarantine/` and
+    renames it `*.corrupt.<epoch>`; the drill's first run failed on one from
+    May 2026 that had been faithfully backed up and faithfully restored. A
+    file the runtime quarantined is expected to fail quick_check, and saying
+    so is different from ignoring it.
+    """
+    return "quarantine" in path.parts or ".corrupt." in path.name
 
 
 def _is_sqlite(path: Path) -> bool:
@@ -93,43 +139,58 @@ class StageStats:
     db_api_copies: int = 0
     db_raw_fallbacks: int = 0
     bytes: int = 0
+    live_data_root: str = ""
+    skipped_over_bound: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _stage_tree(root: Path, stage: Path) -> StageStats:
+def _stage_files(src_root: Path, rel_base: Path, stage_base: Path, stats: "StageStats") -> None:
+    """Stage one tree: SQLite through the backup API, the rest as files."""
+    for dirpath, dirnames, filenames in os.walk(src_root):
+        dpath = Path(dirpath)
+        rel_dir = rel_base / dpath.relative_to(src_root)
+        dirnames[:] = [d for d in dirnames if not _should_exclude(rel_dir / d)]
+        for fname in filenames:
+            src = dpath / fname
+            rel = rel_dir / fname
+            if _should_exclude(rel):
+                continue
+            # WAL/SHM siblings are folded into the backup-API copy of
+            # their main store; a standalone copy would be inconsistent.
+            if fname.endswith(("-wal", "-shm")):
+                continue
+            if src.is_symlink():
+                continue
+            try:
+                size = src.stat().st_size
+            except OSError:
+                continue
+            if size > PER_FILE_BOUND_BYTES:
+                stats.skipped_over_bound.append({"path": str(rel), "bytes": size})
+                continue
+            dest = stage_base / rel
+            if _is_sqlite(src):
+                how = _consistent_db_copy(src, dest)
+                if how == "sqlite-backup-api":
+                    stats.db_api_copies += 1
+                else:
+                    stats.db_raw_fallbacks += 1
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dest)
+            stats.files += 1
+            stats.bytes += dest.stat().st_size
+
+
+def _stage_tree(root: Path, stage: Path, live_data: Path | None = None) -> StageStats:
     stats = StageStats()
     for state_root in STATE_ROOTS:
         src_root = root / state_root
         if not src_root.is_dir():
             continue
-        for dirpath, dirnames, filenames in os.walk(src_root):
-            dpath = Path(dirpath)
-            rel_dir = dpath.relative_to(root)
-            dirnames[:] = [
-                d for d in dirnames if not _should_exclude(rel_dir / d)
-            ]
-            for fname in filenames:
-                src = dpath / fname
-                rel = src.relative_to(root)
-                if _should_exclude(rel):
-                    continue
-                # WAL/SHM siblings are folded into the backup-API copy of
-                # their main store; a standalone copy would be inconsistent.
-                if fname.endswith(("-wal", "-shm")):
-                    continue
-                if src.is_symlink():
-                    continue
-                dest = stage / rel
-                if _is_sqlite(src):
-                    how = _consistent_db_copy(src, dest)
-                    if how == "sqlite-backup-api":
-                        stats.db_api_copies += 1
-                    else:
-                        stats.db_raw_fallbacks += 1
-                else:
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(src, dest)
-                stats.files += 1
-                stats.bytes += dest.stat().st_size
+        _stage_files(src_root, Path(state_root), stage, stats)
+    if live_data is not None and live_data.is_dir():
+        _stage_files(live_data, Path(LIVE_DATA_ARCNAME), stage, stats)
+        stats.live_data_root = str(live_data)
     return stats
 
 
@@ -141,11 +202,15 @@ def _port_serving(port: int = 8000) -> bool:
         return False
 
 
-def create_backup(root: Path, out_dir: Path, keep: int = 7) -> Path:
+def create_backup(root: Path, out_dir: Path, keep: int = 7, live_data: Path | None = None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     if _port_serving():
         print("ℹ️  live instance detected on :8000 — SQLite stores are still "
               "snapshotted consistently via the backup API")
+    # `live_data=None` means none: the CLI passes the configured directory,
+    # and a caller that passes nothing gets the repository roots alone. The
+    # first version resolved the real ~/.aura/data here, and a unit test
+    # backing up a scratch root staged fifty gigabytes of the live runtime.
     name = f"{ARCHIVE_PREFIX}{time.strftime('%Y%m%d_%H%M%S')}-{os.getpid()}"
     archive = out_dir / f"{name}.tar.gz"
     serial = 0
@@ -154,7 +219,7 @@ def create_backup(root: Path, out_dir: Path, keep: int = 7) -> Path:
         archive = out_dir / f"{name}-{serial}.tar.gz"
     with tempfile.TemporaryDirectory(prefix="aura_backup_stage_") as tmp:
         stage = Path(tmp)
-        stats = _stage_tree(root, stage)
+        stats = _stage_tree(root, stage, live_data)
         if stats.files == 0:
             raise SystemExit(f"❌ nothing to back up under {root} "
                              f"(state roots: {', '.join(STATE_ROOTS)})")
@@ -170,6 +235,8 @@ def create_backup(root: Path, out_dir: Path, keep: int = 7) -> Path:
         "sqlite_api_copies": stats.db_api_copies,
         "sqlite_raw_fallbacks": stats.db_raw_fallbacks,
         "root": str(root),
+        "live_data_root": stats.live_data_root,
+        "skipped_over_bound": stats.skipped_over_bound,
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
     manifest = out_dir / "manifest.jsonl"
@@ -180,7 +247,11 @@ def create_backup(root: Path, out_dir: Path, keep: int = 7) -> Path:
           f"{stats.db_api_copies} consistent DB snapshots"
           + (f", {stats.db_raw_fallbacks} raw DB fallbacks" if stats.db_raw_fallbacks else "")
           + f", {archive.stat().st_size / 1e6:.0f}MB archive"
-          + (f"; pruned {pruned} old ring archives" if pruned else ""))
+          + (f"; pruned {pruned} old ring archives" if pruned else "")
+          + (f"; live data from {stats.live_data_root}" if stats.live_data_root else "; NO live data root"))
+    for skipped in stats.skipped_over_bound:
+        print(f"⚠️  skipped {skipped['path']} ({skipped['bytes'] / 1e9:.1f}GB, over the "
+              f"{PER_FILE_BOUND_BYTES / 1e9:.0f}GB per-file bound) — named in the manifest")
     legacy = [p for p in out_dir.glob("aura_backup_*") if p.is_file()]
     if legacy:
         legacy_gb = sum(p.stat().st_size for p in legacy) / 1e9
@@ -239,8 +310,12 @@ def verify_backup(out_dir: Path, archive: Path | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="aura_backup_verify_") as tmp:
         with tarfile.open(archive, "r:gz") as tar:
             tar.extractall(tmp, filter="data")
+        quarantined = 0
         for path in Path(tmp).rglob("*"):
             if not (path.is_file() and _is_sqlite(path)):
+                continue
+            if _is_quarantined(path):
+                quarantined += 1
                 continue
             checked += 1
             try:
@@ -252,12 +327,164 @@ def verify_backup(out_dir: Path, archive: Path | None = None) -> int:
                 failed += 1
                 rel = path.relative_to(tmp)
                 print(f"❌ quick_check failed for {rel}: {verdict}")
+        if quarantined:
+            print(f"ℹ️  {quarantined} store(s) under quarantine carried as-is; the runtime "
+                  "set them aside as damaged and they are not checked")
     if failed:
         print(f"❌ verify FAILED: {failed}/{checked} SQLite stores unhealthy "
               f"in {archive.name}")
         return 1
     print(f"✅ verify OK: {archive.name} — hash matches manifest, "
           f"{checked} SQLite stores pass quick_check")
+    return 0
+
+
+def restore_archive(archive: Path, root: Path, live_data: Path | None, *, force: bool = False) -> int:
+    """Put an archive back where it came from.
+
+    Repository-relative roots go under `root`; `aura_data/` goes to the live
+    data directory. `make restore` was a bare `tar xzf` in the repository,
+    which put a copy of the live data directory under the repository and
+    left the runtime reading the stores it had before.
+    """
+    if not force and _port_serving():
+        print("❌ live Aura on :8000 — restoring under a running instance corrupts it; "
+              "stop it (python aura_main.py --stop) or pass --force")
+        return 1
+    restored_live = 0
+    with tarfile.open(archive, "r:gz") as tar:
+        members = tar.getmembers()
+        def _is_live(member: tarfile.TarInfo) -> bool:
+            return member.name == LIVE_DATA_ARCNAME or member.name.startswith(LIVE_DATA_ARCNAME + "/")
+
+        repo_members = [m for m in members if not _is_live(m)]
+        live_members = [m for m in members if _is_live(m)]
+        tar.extractall(root, members=repo_members, filter="data")
+        if live_members:
+            if live_data is None:
+                print(f"❌ archive carries {len(live_members)} live-data entries and no live data "
+                      "directory is configured to receive them")
+                return 1
+            with tempfile.TemporaryDirectory(prefix="aura_restore_live_") as tmp:
+                tar.extractall(tmp, members=live_members, filter="data")
+                staged = Path(tmp) / LIVE_DATA_ARCNAME
+                for path in staged.rglob("*"):
+                    if path.is_file():
+                        dest = live_data / path.relative_to(staged)
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(path, dest)
+                        restored_live += 1
+    print(f"✅ restored {archive.name}: {len(repo_members)} repository entries under {root}"
+          + (f", {restored_live} live-data files into {live_data}" if restored_live else ""))
+    return 0
+
+
+def _hash_tree(root: Path) -> dict[str, str]:
+    return {
+        str(path.relative_to(root)): _sha256(path)
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def _corrupt(path: Path) -> str:
+    """Damage one file the way disks and crashes do, and say how."""
+    size = path.stat().st_size
+    if _is_sqlite(path) and size > 8192:
+        # Overwrite a page in the middle: the header stays valid, so the
+        # store opens and quick_check has something to find.
+        with path.open("r+b") as fh:
+            fh.seek(size // 2)
+            fh.write(b"\xff" * 4096)
+        return "sqlite page overwritten"
+    with path.open("r+b") as fh:
+        fh.truncate(max(0, size // 2))
+    return "truncated to half"
+
+
+def drill(out_dir: Path, archive: Path | None = None, *, corrupt: int = 3) -> int:
+    """Prove a restore repairs damage, without touching the live stores.
+
+    `make restore-test` used to print "Simulating state corruption..." and
+    simulate nothing: it restored an archive over a tree that was already
+    correct and called that a pass. A drill that cannot fail proves nothing.
+    This extracts the archive into a scratch root, damages the stores there
+    the way disks and crashes do, confirms the damage is visible, restores the
+    archive over the scratch root the way `make restore` does, and requires
+    every file to hash back to what it was and every store to pass
+    quick_check.
+    """
+    if archive is None:
+        ring = sorted(out_dir.glob(f"{ARCHIVE_PREFIX}*.tar.gz"),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+        if not ring:
+            print(f"❌ no {ARCHIVE_PREFIX}*.tar.gz archives in {out_dir}")
+            return 1
+        archive = ring[0]
+    with tempfile.TemporaryDirectory(prefix="aura_restore_drill_") as tmp:
+        scratch = Path(tmp) / "repo"
+        scratch_live = Path(tmp) / "live_data"
+        scratch.mkdir()
+        scratch_live.mkdir()
+        if restore_archive(archive, scratch, scratch_live, force=True) != 0:
+            return 1
+        before = _hash_tree(Path(tmp))
+        scratch = Path(tmp)
+        if not before:
+            print(f"❌ {archive.name} extracted to nothing")
+            return 1
+        stores = [
+            scratch / rel for rel in before
+            if _is_sqlite(scratch / rel) and not _is_quarantined(scratch / rel)
+        ]
+        others = [scratch / rel for rel in before if not _is_sqlite(scratch / rel)]
+        victims = (stores[:max(1, corrupt - 1)] + others[:1])[:corrupt]
+        damage: dict[str, str] = {}
+        for victim in victims:
+            damage[str(victim.relative_to(scratch))] = _corrupt(victim)
+        # The damage has to be visible, or the drill is checking nothing.
+        visible = 0
+        for rel in damage:
+            path = scratch / rel
+            if _sha256(path) != before[rel]:
+                visible += 1
+        if visible != len(damage):
+            print(f"❌ drill: damaged {len(damage)} files and only {visible} changed hash")
+            return 1
+        unhealthy = 0
+        for victim in victims:
+            if not _is_sqlite(victim):
+                continue
+            try:
+                with connecting(sqlite3.connect(f"file:{victim}?mode=ro", uri=True)) as conn:
+                    verdict = conn.execute("PRAGMA quick_check").fetchone()[0]
+            except sqlite3.Error:
+                verdict = "unreadable"
+            if verdict != "ok":
+                unhealthy += 1
+        # Restore exactly as `make restore` does, into the same scratch layout.
+        if restore_archive(archive, scratch / "repo", scratch / "live_data", force=True) != 0:
+            return 1
+        after = _hash_tree(scratch)
+        mismatched = [rel for rel, digest in before.items() if after.get(rel) != digest]
+        failed_check = 0
+        for store in stores:
+            with connecting(sqlite3.connect(f"file:{store}?mode=ro", uri=True)) as conn:
+                if conn.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                    failed_check += 1
+        print(
+            f"drill on {archive.name}: {len(before)} files, {len(stores)} SQLite stores; "
+            f"damaged {len(damage)} ({', '.join(f'{k}: {v}' for k, v in damage.items())}); "
+            f"{unhealthy} store(s) failed quick_check while damaged; restored: "
+            f"{len(before) - len(mismatched)}/{len(before)} files hash back, "
+            f"{len(stores) - failed_check}/{len(stores)} stores pass quick_check"
+        )
+        if mismatched or failed_check:
+            for rel in mismatched[:10]:
+                print(f"❌ not restored: {rel}")
+            print("❌ restore drill FAILED")
+            return 1
+    print("✅ restore drill passed: damage was visible and the restore repaired it")
     return 0
 
 
@@ -277,10 +504,23 @@ def main(argv: list[str] | None = None) -> int:
     p_verify.add_argument("--archive", type=Path, default=None,
                           help="defaults to the newest ring archive")
 
+    p_drill = sub.add_parser("drill", help="damage a scratch copy, restore it, prove the repair")
+    p_drill.add_argument("--out", type=Path, default=default_out)
+    p_drill.add_argument("--archive", type=Path, default=None)
+
+    p_restore = sub.add_parser("restore", help="put an archive back where it came from")
+    p_restore.add_argument("--archive", type=Path, required=True)
+    p_restore.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    p_restore.add_argument("--force", action="store_true", help="restore under a live instance")
+
     args = parser.parse_args(argv)
     if args.cmd == "create":
-        create_backup(args.root, args.out, keep=args.keep)
+        create_backup(args.root, args.out, keep=args.keep, live_data=live_data_dir())
         return 0
+    if args.cmd == "drill":
+        return drill(args.out, args.archive)
+    if args.cmd == "restore":
+        return restore_archive(args.archive, args.root, live_data_dir(), force=args.force)
     return verify_backup(args.out, args.archive)
 
 

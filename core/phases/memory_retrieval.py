@@ -169,6 +169,7 @@ class MemoryRetrievalPhase(BasePhase):
         #
         # The cycles are still saved, by the thing that was actually costing
         # them: a query already answered is not asked again.
+        spoken_to = bool(query) and last_msg.get("role") == "user"
         if not query or last_msg.get("role") != "user":
             query = _safe_text(
                 getattr(state.cognition, "current_objective", "") or objective or ""
@@ -177,9 +178,6 @@ class MemoryRetrievalPhase(BasePhase):
             return state
 
         if len(query) < 5:
-            return state
-
-        if query == getattr(state.cognition, "last_retrieval_query", None):
             return state
 
         try:
@@ -320,6 +318,48 @@ class MemoryRetrievalPhase(BasePhase):
                 action="searched without entity-memory retrieval cues",
                 stage="entity_cue_targeting",
             )
+
+        # What she means to do next cues what comes back to her, when nobody has
+        # just spoken. The question on those turns was the objective routing set
+        # from input text, so her open goals and initiatives never entered it,
+        # and in the subject-core runs no displacement of deliberation reached
+        # memory at all. The most urgent open intention joins the question the
+        # way an entity cue does; a turn someone spoke on is asked what they
+        # said.
+        if not spoken_to:
+            try:
+                from core.state.aura_state import _normalize_goal_text
+
+                open_intentions = [
+                    item
+                    for item in list(getattr(state.cognition, "active_goals", None) or [])
+                    + list(getattr(state.cognition, "pending_initiatives", None) or [])
+                    if isinstance(item, dict)
+                ]
+                pressing = max(
+                    open_intentions,
+                    key=lambda item: _safe_float(item.get("urgency", item.get("priority"))),
+                    default=None,
+                )
+                cue = _normalize_goal_text(pressing) if pressing is not None else ""
+                if cue and len(cue) <= 240 and cue.lower() not in query.lower():
+                    query = f"{query} {cue}".strip()[:2000]
+            except _MEMORY_RECOVERABLE_ERRORS as exc:
+                _record_memory_degradation(
+                    exc,
+                    action="searched without the most pressing intention as a cue",
+                    stage="intention_cue",
+                )
+
+        # The question and the depth it is asked at. The same words asked with a
+        # different limit are a different recall: affect's memory salience, the
+        # imagination and bicameral pressures, flow, surprise and vitality all
+        # set the limit, and with the skip keyed on the words alone none of them
+        # could change what came back for as long as the objective stayed the
+        # same. The cost the skip saves is still saved for a repeated question.
+        recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
+        if recall_key == getattr(state.cognition, "last_retrieval_query", None):
+            return state
 
         logger.info("🧠 MemoryRetrieval: Searching for context: %s...", query[:50])
 
@@ -470,11 +510,44 @@ class MemoryRetrievalPhase(BasePhase):
                 logger.debug("MemoryRetrieval: Episodic recall failed: %s", exc)
             return None
 
-        dual_res, kg_res, facade_res, episodic_res = await asyncio.gather(
+        async def _get_intentional():
+            # The task-driven retriever the runtime registers, which asks the
+            # ontogenetic organ how wide to search. Only the subject-core
+            # harness called it, in one condition of eight, so development had
+            # no way to change what she recalls in the running organism.
+            try:
+                from core.container import ServiceContainer
+                from core.memory.intentional_retrieval import RetrievalIntent
+
+                retriever = self.container.get("intentional_retriever", default=None)
+                if retriever is None:
+                    retriever = ServiceContainer.get("intentional_retriever", default=None)
+                if retriever is None or not hasattr(retriever, "retrieve"):
+                    return None
+                intent = RetrievalIntent(task=query, query=query, limit=retrieval_limit)
+                async with asyncio.timeout(15.0):
+                    result = await asyncio.to_thread(retriever.retrieve, intent)
+                return list(getattr(result, "hits", None) or [])
+            except TimeoutError as exc:
+                logger.debug(
+                    "MemoryRetrieval: optional intentional retrieval timed out; continuing without it: %s",
+                    exc,
+                )
+                return None
+            except _MEMORY_RECOVERABLE_ERRORS as exc:
+                _record_memory_degradation(
+                    exc,
+                    action="continued retrieval without the intentional retriever",
+                    stage="intentional_retriever",
+                )
+                return None
+
+        dual_res, kg_res, facade_res, episodic_res, intentional_res = await asyncio.gather(
             _get_dual(),
             _get_kg(),
             _get_facade(),
             _get_episodic(),
+            _get_intentional(),
         )
 
         memories: list[str] = []
@@ -575,6 +648,14 @@ class MemoryRetrievalPhase(BasePhase):
                         total_arousal_hit += importance * 0.5
                         memory_hits += 1
 
+        for hit in intentional_res or []:
+            content = _safe_text(getattr(hit, "content", ""), max_chars=2_000)
+            # A memory another store already returned is not a second memory.
+            if not content or any(content in text for _, text in memory_candidates):
+                continue
+            score = max(0.0, min(1.0, _safe_float(getattr(hit, "score", 0.0))))
+            memory_candidates.append((score, f"[{getattr(hit, 'store_type', 'memory')}] {content}"))
+
         # Push accumulated affect from memory retrieval
         if memory_hits > 0:
             try:
@@ -636,7 +717,7 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
-        new_state.cognition.last_retrieval_query = query
+        new_state.cognition.last_retrieval_query = recall_key
         # And say that something came back to her.
         #
         # The affect phase has carried a mapping from `memory_replay` to

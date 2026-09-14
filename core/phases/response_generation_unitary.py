@@ -69,6 +69,8 @@ from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.prompt_compression import compress_system_prompt
 from core.utils.task_tracker import get_task_tracker
 
+from .unitary_memory_recall import _AnswersFromWhatSheRemembers
+
 # Declared flags (migrated from raw os.environ reads so the knobs are
 # inventoried and reportable). STRING kind with the original literal
 # default keeps read semantics byte-identical to os.environ.get.
@@ -678,7 +680,6 @@ def _timeout_for_request(
     return max(allowance, resident_generation_seconds(messages, decode_max_tokens))
 
 
-from .unitary_memory_recall import _AnswersFromWhatSheRemembers
 
 
 class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
@@ -5825,6 +5826,12 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     or ""
                 ).strip().lower(),
             }
+            # The shape the caller will parse. `think(response_format=...)` and
+            # `think(context={"output_shape": ...})` both land here, and the
+            # decoder holds it in the worker.
+            requested_shape = str(runtime_context.get("output_shape") or "").strip().lower()
+            if requested_shape:
+                llm_kwargs["output_shape"] = requested_shape
             if is_user_facing:
                 llm_kwargs.update(
                     {
@@ -7149,7 +7156,11 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
             # [ACTION GROUNDING] Parse markers and dispatch real execution before committing
             try:
                 from core.container import ServiceContainer
-                from core.phases.action_grounding import ground_response, perceive_failed_actions
+                from core.phases.action_grounding import (
+                    ground_response,
+                    perceive_failed_actions,
+                    remember_last_action,
+                )
 
                 cap_engine = ServiceContainer.get("capability_engine", default=None)
                 if cap_engine:
@@ -7172,6 +7183,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                     if grounding_res.marker_hits:
                         new_state.response_modifiers["grounded_actions"] = grounding_res.as_dict()
                         perceive_failed_actions(new_state.world, grounding_res)
+                        remember_last_action(new_state.world, grounding_res)
                         for hit in grounding_res.marker_hits:
                             new_state.response_modifiers["last_skill_run"] = hit.get("skill")
                             new_state.response_modifiers["last_skill_ok"] = hit.get("ok", False)

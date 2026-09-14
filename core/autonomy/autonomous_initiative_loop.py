@@ -18,6 +18,8 @@ from core.runtime.service_access import (
 from core.runtime.tool_result_contracts import tool_result_is_deferred
 from core.utils.task_tracker import task_tracker
 
+from .social_initiative import _StartsSomethingSocial
+
 logger = logging.getLogger("Aura.Initiative")
 
 
@@ -141,7 +143,6 @@ _UNREADABLE_ENERGY = 0.35
 _UNREADABLE_PRESSURE = 0.6
 
 
-from .social_initiative import _StartsSomethingSocial
 
 
 class AutonomousInitiativeLoop(_StartsSomethingSocial):

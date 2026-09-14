@@ -65,7 +65,7 @@ spot is invisible. Read the coverage column as "this is checked", never as
 | 10 | Standing directive bypass | directives are deny-only and are evaluated at the one gate | `tests/test_standing_directives.py` | checked |
 | 11 | Secret leakage to a child | one classifier shared with the subprocess gateway | `tests/security/test_adversarial_surface.py` | checked |
 | 12 | Unsafe migration or recovery | checksum verified against source; two-phase ledger | `tests/test_migration_ledger_is_checked.py` | checked |
-| 13 | Malicious stored memory | untrusted text is fenced with a per-call tag | `tests/security/test_adversarial_surface.py` | partial — fencing is checked, the paths that must use it are not exhaustively enumerated |
+| 13 | Malicious stored memory, or a fetched page | untrusted text is fenced with a per-call tag | `tests/security/test_adversarial_surface.py` | partial — fencing is checked at the two synthesis sites that read fetched pages (the research pipeline's answer synthesis, deep research's reflection; both unfenced until 2026-09-13) and at refusal, reflection, identity and canary; other paths that quote outside text are not enumerated |
 | 14 | A compromised skill or plugin package | `core/security/plugin_allowlist.py`, plus an effect-scope declaration checked against the module's actual reach at registration | `tests/test_plugin_allowlist.py`, `tests/test_a_skill_cannot_reach_past_its_declaration.py` | partial — a skill that reaches past its declaration does not load, and one that loads still runs in-process with the interpreter's authority |
 
 ## What is not covered

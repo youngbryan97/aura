@@ -812,12 +812,8 @@ OUTPUT FORMAT (JSON):
   ]
 }}
 
-CRITICAL OUTPUT INSTRUCTIONS:
-You must output RAW, valid JSON. Do not wrap the parameters in a secondary "params" object. 
-CORRECT: {{"tool": "search", "params": {{"query": "test"}}}}
-INCORRECT: {{"tool": "search", "params": {{"params": {{"query": "test"}}}}}}
-
-Return ONLY the JSON object, no additional text."""
+Each step's parameters sit directly under "params":
+{{"tool": "search", "params": {{"query": "test"}}}}"""
 
     async def _parse_llm_response(self, response: str, goal_text: str) -> dict[str, Any]:
         """Parse LLM response into structured plan."""

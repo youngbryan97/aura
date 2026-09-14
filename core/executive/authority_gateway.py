@@ -35,6 +35,8 @@ from core.runtime.errors import record_degradation
 from core.runtime.organism_status import get_organism_status
 from core.runtime.service_access import optional_service
 
+from .authority_memory_writes import _AuthorisesAMemoryWrite
+
 logger = logging.getLogger("Aura.AuthorityGateway")
 
 #: How many unreconciled authority lifecycles are retained. Each one is a
@@ -145,7 +147,6 @@ def _normalized_memory_source(value: Any) -> str:
     return str(value or "").strip().lower().replace("-", "_")
 
 
-from .authority_memory_writes import _AuthorisesAMemoryWrite
 
 
 class AuthorityGateway(_AuthorisesAMemoryWrite):

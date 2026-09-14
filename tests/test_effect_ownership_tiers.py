@@ -61,7 +61,15 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #: output directory and opening a receipts file, so one place a soak writes
 #: carried six entries of debt. They share one helper now: 1902, with raw at
 #: 828. Ratcheted from the measured debt from here.
-TOTAL_CEILING = 1902
+#:
+#: 2026-09-13: 1913, raw still 828. Nine governed calls arrived with the week's
+#: merges, red against 1902 before this session touched it, and two more are
+#: here: the runtime's periodic backup now runs the verified tool through the
+#: subprocess gateway instead of `shutil.make_archive`, which the scanner
+#: never counted as a primitive, so a raw archive becoming a governed one
+#: reads as +2 governed and -0 raw. The raw tier is the safety claim and it
+#: did not move. The total follows the measurement.
+TOTAL_CEILING = 1913
 RAW_CEILING = 828
 
 

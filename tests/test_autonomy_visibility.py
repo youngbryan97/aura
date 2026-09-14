@@ -241,13 +241,13 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
 
     memory = SimpleNamespace(store=AsyncCallRecorder())
     cap = CapabilityEngine()
-    _services = (
-        lambda name, default=None: cap
-        if name == "capability_engine"
-        else memory
-        if name == "memory_manager"
-        else default
-    )
+    def _services(name, default=None):
+        if name == "capability_engine":
+            return cap
+        if name == "memory_manager":
+            return memory
+        return default
+
     monkeypatch.setattr(
         "core.autonomy.autonomous_initiative_loop.optional_service", _services
     )
@@ -305,13 +305,13 @@ async def test_reddit_initiative_checks_inbox_browses_reads_and_remembers(monkey
     memory = SimpleNamespace(store=AsyncCallRecorder())
     cap = CapabilityEngine()
     monkeypatch.setattr("random.choice", lambda _items: "technology")
-    _services = (
-        lambda name, default=None: cap
-        if name == "capability_engine"
-        else memory
-        if name == "memory_manager"
-        else default
-    )
+    def _services(name, default=None):
+        if name == "capability_engine":
+            return cap
+        if name == "memory_manager":
+            return memory
+        return default
+
     monkeypatch.setattr(
         "core.autonomy.autonomous_initiative_loop.optional_service", _services
     )

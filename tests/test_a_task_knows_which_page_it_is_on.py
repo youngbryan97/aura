@@ -24,11 +24,10 @@ The chain is anchor, verify, restore, refuse:
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit
-
 import asyncio
 
 import pytest
+from screen_pursuit_support import patch_pursuit
 
 from core.skills import screen_pursuit as sp
 

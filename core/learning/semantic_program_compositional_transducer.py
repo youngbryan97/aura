@@ -31,10 +31,12 @@ from typing import Any, Final
 
 import numpy as np
 
+from core.learning.semantic_definition_attachment import valid_attachment_contract
 from core.learning.semantic_input_grounding import (
     SemanticInputGroundingContract,
     semantic_input_grounding_contract_from_dict,
 )
+from core.learning.semantic_operation_view_refit import valid_operation_view_contract
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_ir import (
     SemanticIRInstruction,
@@ -108,6 +110,7 @@ from .semantic_program_transducer_fitting import (
     _log_sigmoid,  # noqa: F401
     _mention_invariant_relation_evidence,  # noqa: F401
     _operation_chart_candidates,
+    _operation_chart_use_feasible,
     _operation_nodes,
     _operation_order,  # noqa: F401
     _OperationNode,
@@ -402,6 +405,7 @@ class CompositionalSemanticProgramTransducer:
     allow_computed_dependencies: bool
     training_receipt: dict[str, Any]
     schema: str = COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA
+    definition_attachment_head: LinearArgumentRoleHead | None = None
 
     def __post_init__(self) -> None:
         receipt = json.loads(_canonical_bytes(self.training_receipt))
@@ -451,7 +455,9 @@ class CompositionalSemanticProgramTransducer:
             or self.operation_pointer.width != self.hidden_size
             or self.argument_pointer.width != self.hidden_size
             or self.definition_pointer.width != self.hidden_size
-            or self.operation_head.modes != (_OPERATION_MODE,)
+            or not valid_operation_view_contract(
+                self.operation_head, receipt, self.hidden_channels, self.hidden_channel_widths
+            )
             or not self.argument_role_heads
             or len(self.argument_proposal_heads) != len(self.argument_role_heads)
             or any(
@@ -459,6 +465,13 @@ class CompositionalSemanticProgramTransducer:
                 for head in (*self.argument_role_heads, *self.argument_proposal_heads)
             )
             or self.definition_relation_head.channel_width != relation_end - relation_start
+            or ((self.definition_attachment_head is None) != (receipt.get("definition_attachment_fit") is None))
+            or (self.definition_attachment_head is not None and (
+                self.definition_attachment_head.channel_width != relation_end - relation_start
+                or receipt.get("definition_selection_policy") != "joint_graph_v1"
+                or receipt.get("argument_search_strategy") != "global_constraint_v1"
+                or not valid_attachment_contract(receipt)
+            ))
             or type(self.max_steps) is not int
             or not 1 <= self.max_steps <= _MAX_STEPS
             or type(self.max_inputs) is not int
@@ -507,12 +520,18 @@ class CompositionalSemanticProgramTransducer:
             not in {"legacy_global_v1", "prefix_feasible_v1", "global_constraint_v1"}
             or receipt.get("argument_score_strategy", "independent_positive_v1")
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
+            or receipt.get("argument_proposal_retention", "ranked_v1")
+            not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
+            or receipt.get("operation_chart_feasibility", "unfiltered_v1")
+            not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
+            or receipt.get("operation_assignment_policy", "first_feasible_v1")
+            not in {"first_feasible_v1", "joint_factor_score_v2"}
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
             not in {"positive_relation_v1", "joint_graph_v1"}
             or receipt.get("definition_boundary_policy", "register_neighbors_v1")
-            not in {"register_neighbors_v1", "source_neighbors_v1"}
+            not in {"register_neighbors_v1", "source_neighbors_v1", "source_neighborhood_v2"}
             or receipt.get("definition_selection_policy", "pointer_first_v1")
             not in {"pointer_first_v1", "joint_graph_v1"}
             or (
@@ -616,6 +635,8 @@ class CompositionalSemanticProgramTransducer:
 
     def _coefficient_body(self) -> dict[str, Any]:
         return {
+            **({"definition_attachment_head": self.definition_attachment_head.to_dict()}
+               if self.definition_attachment_head is not None else {}),
             "operation_pointer": self.operation_pointer.to_dict(),
             "argument_pointer": self.argument_pointer.to_dict(),
             "definition_pointer": self.definition_pointer.to_dict(),
@@ -659,6 +680,7 @@ class CompositionalSemanticProgramTransducer:
 
     def _with_coefficients(self, **changes: Any) -> CompositionalSemanticProgramTransducer:
         values = {
+            "definition_attachment_head": changes.get("definition_attachment_head", self.definition_attachment_head),
             "operation_pointer": changes.get("operation_pointer", self.operation_pointer),
             "argument_pointer": changes.get("argument_pointer", self.argument_pointer),
             "definition_pointer": changes.get("definition_pointer", self.definition_pointer),
@@ -691,6 +713,8 @@ class CompositionalSemanticProgramTransducer:
             ),
         }
         coefficient = {
+            **({"definition_attachment_head": values["definition_attachment_head"].to_dict()}
+               if values["definition_attachment_head"] is not None else {}),
             "operation_pointer": values["operation_pointer"].to_dict(),
             "argument_pointer": values["argument_pointer"].to_dict(),
             "definition_pointer": values["definition_pointer"].to_dict(),
@@ -725,20 +749,25 @@ class CompositionalSemanticProgramTransducer:
             head.start_bias,
             np.zeros_like(head.end_weight),
             head.end_bias,
+            np.zeros_like(head.pair_weight) if head.pair_weight is not None else None,
         )
-        operation_component = self.operation_head.heads[0]
         return self._with_coefficients(
+            definition_attachment_head=(
+                LinearArgumentRoleHead(np.zeros_like(self.definition_attachment_head.weight), self.definition_attachment_head.bias)
+                if self.definition_attachment_head is not None else None
+            ),
             operation_pointer=zero_pointer(self.operation_pointer),
             argument_pointer=zero_pointer(self.argument_pointer),
             definition_pointer=zero_pointer(self.definition_pointer),
             operation_head=MultiViewClassifierHead(
                 self.operation_head.modes,
-                (
+                tuple(
                     LinearClassifierHead(
                         operation_component.labels,
                         np.zeros_like(operation_component.weight),
                         operation_component.bias,
-                    ),
+                    )
+                    for operation_component in self.operation_head.heads
                 ),
             ),
             argument_role_heads=tuple(
@@ -771,6 +800,7 @@ class CompositionalSemanticProgramTransducer:
             self.definition_pointer.start_bias,
             np.zeros_like(self.definition_pointer.end_weight),
             self.definition_pointer.end_bias,
+            np.zeros_like(self.definition_pointer.pair_weight) if self.definition_pointer.pair_weight is not None else None,
         )
         return self._with_coefficients(
             definition_pointer=zero_definition_pointer,
@@ -856,6 +886,28 @@ class CompositionalSemanticProgramTransducer:
         body["argument_score_strategy"] = "conditional_log_odds_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_literal_anchor_retention(self) -> CompositionalSemanticProgramTransducer:
+        """Keep exact input identities available after learned mention pruning."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_feasible_operation_charts(self, *, preserve_arity_states=False) -> CompositionalSemanticProgramTransducer:
+        """Spend chart capacity only on cardinalities permitted by the graph contract."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["operation_chart_feasibility"] = "arity_state_bounds_v3" if preserve_arity_states else "register_edge_bounds_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_joint_operation_argument_scores(self) -> CompositionalSemanticProgramTransducer:
+        """Compare complete graphs using the sum of their declared factor scores."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["operation_assignment_policy"] = "joint_factor_score_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         body = {
@@ -886,6 +938,16 @@ class CompositionalSemanticProgramTransducer:
         body = {
             key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
         }
+        body["argument_search_strategy"] = "global_constraint_v1"
+        body["definition_selection_policy"] = "joint_graph_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_bidirectional_input_definitions(self) -> CompositionalSemanticProgramTransducer:
+        """Admit input names on either side within source-neighbor boundaries."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["definition_boundary_policy"] = "source_neighborhood_v2"
         body["argument_search_strategy"] = "global_constraint_v1"
         body["definition_selection_policy"] = "joint_graph_v1"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
@@ -959,29 +1021,35 @@ class CompositionalSemanticProgramTransducer:
             max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
             limit=self.operation_chart_beam,
+            feasible=(
+                lambda selected: _operation_chart_use_feasible(
+                    selected, n_inputs=len(inputs), contract=self.register_use_contract,
+                )
+            ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
+            preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
         )
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
+        from core.learning.semantic_argument_chart import select_operation_argument_graph
+        relation_score_cache = {}
 
         try:
-            assigned = next(
-                (
-                    candidate
-                    for selected in charts
-                    for candidate in (
-                        _assign_typed_arguments(
-                            model=self,
-                            hidden=hidden,
-                            inputs=inputs,
-                            input_spans=input_spans,
-                            operation_nodes=selected,
-                            argument_pointer_scores=argument_pointer_scores,
-                        ),
-                    )
-                    if candidate is not None
+            assigned = select_operation_argument_graph(
+                charts,
+                lambda selected: _assign_typed_arguments(
+                    model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
+                    relation_score_cache=relation_score_cache,
                 ),
-                None,
+                length_penalty=self.operation_length_penalty,
+                joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
+                bounded_assign=lambda selected, minimum: _assign_typed_arguments(
+                    model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
+                    operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
+                    minimum_score=minimum,
+                    relation_score_cache=relation_score_cache,
+                ),
             )
         except ArgumentOptimizationIncompleteError as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {})
@@ -1557,6 +1625,8 @@ def refit_compositional_argument_proposals(
 def refit_compositional_argument_rankings(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],
+    *,
+    preserve_coreferent_mentions: bool = False,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
     from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
@@ -1593,6 +1663,7 @@ def refit_compositional_argument_rankings(
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths,
             include_semantic_negatives=True,
+            preserve_coreferent_mentions=preserve_coreferent_mentions,
         )
         weight, fit = fit_pairwise_argument_weight(
             features, labels, weights,
@@ -1612,7 +1683,11 @@ def refit_compositional_argument_rankings(
     body["argument_ranking_refit"] = {
         "schema": "aura.semantic_argument_ranking_refit.v1",
         "parent_transducer_receipt_sha256": model.receipt_sha256,
-        "negative_source": "runtime_pointer_shortlist_and_source_semantic_spans_v1",
+        "negative_source": (
+            "runtime_pointer_and_noncoreferent_source_spans_v2"
+            if preserve_coreferent_mentions
+            else "runtime_pointer_shortlist_and_source_semantic_spans_v1"
+        ),
         "coefficient_parameterization": "combined_ranker_as_role_residual_v1",
         "role_head_alone_is_calibrated_probability": False,
         "training_examples": len(training),
@@ -1787,6 +1862,7 @@ def _pointer_from_dict(value: Any) -> LinearPointerHead:
         float(value["start_bias"]),
         np.asarray(value["end_weight"], dtype=np.float32),
         float(value["end_bias"]),
+        value.get("pair_weight"),
     )
 
 
@@ -1801,20 +1877,20 @@ def compositional_semantic_program_transducer_from_dict(
     if (
         not isinstance(operation, Mapping)
         or operation.get("schema") != "aura.semantic_program_multiview_classifier.v1"
-        or operation.get("modes") != [_OPERATION_MODE]
+        or not isinstance(operation.get("modes"), list)
         or not isinstance(operation.get("heads"), list)
-        or len(operation["heads"]) != 1
+        or len(operation["heads"]) != len(operation["modes"])
     ):
         raise ValueError("compositional operation head payload is invalid")
-    raw_head = operation["heads"][0]
     operation_head = MultiViewClassifierHead(
-        (_OPERATION_MODE,),
-        (
+        tuple(operation["modes"]),
+        tuple(
             LinearClassifierHead(
                 tuple(raw_head["labels"]),
                 np.asarray(raw_head["weight"], dtype=np.float32),
                 np.asarray(raw_head["bias"], dtype=np.float32),
-            ),
+            )
+            for raw_head in operation["heads"]
         ),
     )
     relation = payload["definition_relation_head"]
@@ -1882,6 +1958,10 @@ def compositional_semantic_program_transducer_from_dict(
         allow_computed_dependencies=bool(payload["allow_computed_dependencies"]),
         training_receipt=dict(payload["training_receipt"]),
         schema=schema,
+        definition_attachment_head=(
+            LinearArgumentRoleHead(np.asarray(payload["definition_attachment_head"]["weight"], dtype=np.float32), float(payload["definition_attachment_head"]["bias"]))
+            if payload.get("definition_attachment_head") is not None else None
+        ),
     )
 
 
