@@ -526,6 +526,8 @@ class CompositionalSemanticProgramTransducer:
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
             not in {"first_feasible_v1", "joint_factor_score_v2"}
+            or type(receipt.get("operation_label_limit", 1)) is not int
+            or not 1 <= receipt.get("operation_label_limit", 1) <= len(self.operation_head.labels)
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
@@ -908,6 +910,12 @@ class CompositionalSemanticProgramTransducer:
         body["operation_assignment_policy"] = "joint_factor_score_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_operation_label_alternatives(self, limit: int) -> CompositionalSemanticProgramTransducer:
+        """Make ambiguity retention explicit in the candidate identity."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["operation_label_limit"] = limit
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         body = {
@@ -1015,6 +1023,7 @@ class CompositionalSemanticProgramTransducer:
             max_span_tokens=self.max_span_tokens,
             hidden_channels=self.hidden_channels,
             hidden_channel_widths=self.hidden_channel_widths,
+            label_limit=self.training_receipt.get("operation_label_limit", 1),
         )
         charts = _operation_chart_candidates(
             nodes,

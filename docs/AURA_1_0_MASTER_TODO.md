@@ -726,6 +726,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [joint-score trial](evidence/G03_JOINT_SCORE_TRIAL_2026-09-13.md) is incomplete
   and not promoted after a split regression. Decode-local score reuse preserves
   all 48 paired weave rows under the default policy. G03 remains open.
+  [Operation label alternatives](evidence/G03_OPERATION_LABEL_ALTERNATIVES_2026-09-14.md)
+  scored 459/500 with five regressions and no gains against the 464/500 parent.
+  Both complete trials are retained; neither candidate is promoted.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

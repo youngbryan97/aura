@@ -1,0 +1,29 @@
+{
+  "candidates": {
+    "top2": {
+      "candidate_path": "/Users/bryan/.aura/rlc-evidence/semantic-operation-labels-dev-20260914/candidate.json",
+      "candidate_receipt_sha256": "3dd9cdad60e0b1514c7bb7efae97d263123b30237130a6c39029af56e0956b82",
+      "candidate_sha256": "f7dc000d43b0daacb6e5d6a64a420ed7e058718c975bce23d99013d4ebc242fb",
+      "correct": 459,
+      "elapsed_seconds": 104.00569062493742,
+      "gains": 0,
+      "regressions": 5,
+      "report_sha256": "e4c0a9af11547fb962bbb9285df3679a4c5bbe319ba43ccc7fe76eb9b148ab6f",
+      "total": 500
+    },
+    "top2_arity_states": {
+      "candidate_path": "/Users/bryan/.aura/rlc-evidence/semantic-operation-labels-dev-20260914/arity-candidate.json",
+      "candidate_receipt_sha256": "a7ac17bbb6c0a2b3260a1f47ec133f48f0360335e43d4ea893e02973442a69ee",
+      "candidate_sha256": "4d20916a52b31b284095b4883dde6ad6fdda91e3a51002a9f7a615ff2bb6fc40",
+      "correct": 459,
+      "elapsed_seconds": 265.9544459581375,
+      "gains": 0,
+      "regressions": 5,
+      "report_sha256": "9522319ff034143ce2b21c2ef76cdc26b21b7f673995c22907922b587bf5d43a",
+      "total": 500
+    }
+  },
+  "g03_complete": false,
+  "scope": "exposed_development_only",
+  "serving_authority": false
+}
