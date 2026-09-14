@@ -45,6 +45,8 @@ def test_cases_must_be_unique_and_shape_consistent(tmp_path):
 
 @pytest.mark.parametrize("supported", [True, False])
 def test_runner_keeps_expectations_out_of_generation_and_never_claims_qualification(tmp_path, monkeypatch, supported):
+    monkeypatch.chdir(canary.REPO)
+    monkeypatch.setattr(canary, "__file__", "tools/run_public_shape_canary.py")
     case = {"id": "one", "prompt": "sort 2, 1", "shape": "array", "expected": [1, 2]}
     path = tmp_path / "cases.json"
     path.write_text(json.dumps([case]))

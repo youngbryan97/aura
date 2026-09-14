@@ -93,7 +93,7 @@ def main(argv=None):
     spec = get_active_cortex_spec(force_refresh=True)
     if spec is None:
         raise ValueError("no verified resident model")
-    sources = [Path(__file__), REPO / "core/brain/llm/public_channel_decode.py",
+    sources = [Path(__file__).resolve(), REPO / "core/brain/llm/public_channel_decode.py",
                REPO / "core/brain/llm/a_shape_the_decoder_enforces.py"]
     payload = {"schema": "aura.public_shape_canary.v1", "qualification": False,
                "model_path": str(spec.model_path), "descriptor_sha256": str(spec.descriptor_sha256),
