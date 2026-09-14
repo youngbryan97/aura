@@ -774,6 +774,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Evidence refresh](evidence/G09_EVIDENCE_REFRESH_2026-09-14.md) preserves
+  outcome notifications during snapshot reads and orders concurrent refreshes.
+  Thirty-six focused tests pass; this is learning integrity, not broad gain.
   [End-to-end design](G03_SEMANTIC_CORRECTNESS_CONTRACT.md) maps existing
   substrates and executable paths to cross-backend composition, knowledge and
   planning feedback, and broad runtime evaluation. These work packages need
