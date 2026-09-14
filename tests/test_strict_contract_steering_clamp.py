@@ -177,6 +177,8 @@ def test_live_mind_surface_controls_apply_restore_and_emit_receipt(monkeypatch):
     # about the APPLY/RESTORE/RECEIPT mechanism, so it opts in the documented
     # way rather than asserting a depth the live default refuses.
     monkeypatch.setenv("AURA_USER_SURFACE_RECURRENT_MAX_LOOPS", "2")
+    from core.brain.llm import mlx_worker_surface_quality
+    monkeypatch.setattr(mlx_worker_surface_quality, "_surface_alpha_from_certificate", lambda engine: 0.22)
 
     class FakeEngine:
         def __init__(self):

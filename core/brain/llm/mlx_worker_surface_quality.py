@@ -15,7 +15,6 @@ import re
 import time
 from typing import Any
 
-from core.conversation.word_markers import names_any
 from core.brain.live_mind_contract import (
     normalize_text_mutations,
     summarize_text_mutation_authorship,
@@ -27,13 +26,14 @@ from core.conversation.user_surface_contract import (
     UserSurfacePromptResolution,
     resolve_user_surface_prompt,
 )
+from core.conversation.word_markers import names_any
 from core.language.terminal_boundary import has_terminal_sentence_boundary
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
 
-logger = logging.getLogger("MLXWorker")
+from .mlx_worker import _CORRUPT_LANGUAGE_MARKERS
 
-from .mlx_worker import _CORRUPT_LANGUAGE_MARKERS, _FUSION_MODEL_IDENTITY
+logger = logging.getLogger("MLXWorker")
 
 
 def _record_mlx_degradation(
@@ -118,7 +118,7 @@ def _surface_generation_contract_enabled(job: dict[str, Any]) -> bool:
     return True
 
 
-def _surface_alpha_from_certificate() -> float:
+def _surface_alpha_from_certificate(engine: Any = None) -> float:
     """How much residual steering this checkpoint has earned on a person's turn.
 
     Zero until measured. For a long time this was zero unconditionally, and the
@@ -136,25 +136,31 @@ def _surface_alpha_from_certificate() -> float:
     failing certificates all return zero, so the failure direction is still
     shut.
     """
+    from .mlx_worker import _FUSION_MODEL_IDENTITY
+
     identity = _FUSION_MODEL_IDENTITY
-    if not identity:
+    if not identity or engine is None:
         return 0.0
     try:
-        from core.consciousness.fusion_certificate import certified_alpha
+        from core.consciousness.fusion_certificate import certified_alpha, steering_basis_sha256
 
-        return certified_alpha(identity)
-    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        if (getattr(engine, "_model_info", None) or {}).get("model_descriptor_sha256") != identity:
+            return 0.0
+        basis = steering_basis_sha256(engine.active_hooks())
+        return certified_alpha(identity, basis_sha256=basis)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError, AttributeError) as exc:
         logger.debug("Fusion certificate lookup unavailable: %s", exc)
         return 0.0
 
 
-def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
-    default_alpha = str(_surface_alpha_from_certificate())
+def _surface_control_alpha(job: dict[str, Any], current_alpha: Any, *, engine: Any = None) -> float:
+    ceiling = _surface_alpha_from_certificate(engine)
+    default_alpha = str(ceiling)
     configured = job.get(
         "clean_user_surface_steering_alpha",
         os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA", default_alpha),
     )
-    requested = max(0.0, min(_safe_float(configured, 0.0), 1.0))
+    requested = max(0.0, min(_safe_float(configured, 0.0), ceiling))
     try:
         current = float(current_alpha)
     except (TypeError, ValueError):
@@ -185,7 +191,7 @@ def _apply_surface_generation_controls(
         return {"enabled": False}
 
     state: dict[str, Any] = {"enabled": True, "apply_errors": []}
-    alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None))
+    alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None), engine=engine)
     state["surface_alpha_requested"] = alpha
 
     if engine is not None:

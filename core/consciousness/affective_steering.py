@@ -968,6 +968,25 @@ class AffectiveSteeringHook:
     The affect is not described. It is the math.
     """
 
+    def fusion_basis(self) -> dict[str, Any]:
+        """Identity of this hook's fixed basis, excluding its changing felt state."""
+        import hashlib
+
+        vectors = []
+        for name, vector in sorted(self._vectors.items()):
+            values = np.asarray(vector.v, dtype="<f4")
+            if values.shape != (vector.d_model,) or not np.isfinite(values).all():
+                raise ValueError("fusion_basis_vector_invalid")
+            vectors.append({
+                "name": name, "width": vector.d_model,
+                "substrate_idx": vector.substrate_idx, "substrate_fn": vector.substrate_fn,
+                "sha256": hashlib.sha256(values.tobytes()).hexdigest(),
+            })
+        if not vectors:
+            raise ValueError("fusion_basis_vectors_missing")
+        return {"layer": self._layer_idx, "vectors": vectors,
+                "block_kind": f"{type(self._block).__module__}.{type(self._block).__qualname__}"}
+
     def __init__(
         self,
         block,

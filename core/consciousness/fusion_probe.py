@@ -36,7 +36,7 @@ import math
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from core.consciousness.fusion_certificate import FusionCertificate
+from core.consciousness.fusion_certificate import FusionCertificate, steering_basis_sha256
 
 logger = logging.getLogger("Aura.Consciousness.FusionProbe")
 
@@ -240,6 +240,8 @@ def measure_fusion(
     if not hooks:
         return []
 
+    basis = steering_basis_sha256(hooks)
+
     prompt_ids = [chat_ids(tokenizer, prompt) for prompt in PROBE_PROMPTS]
 
     def settle(moods: dict[str, float]) -> None:
@@ -322,6 +324,7 @@ def measure_fusion(
 
         certificate = FusionCertificate(
             model_identity=model_identity,
+            basis_sha256=basis,
             model_name=model_name,
             alpha=alpha,
             distribution_shift=arrives,
@@ -346,6 +349,8 @@ def measure_fusion(
                 f"margin of {float(np.median(control_margins)):.3f}"
             ),
         )
+        if steering_basis_sha256(hooks) != basis:
+            raise ValueError("fusion_basis_changed_during_measurement")
         certificates.append(certificate)
         if on_result is not None:
             on_result(certificate)

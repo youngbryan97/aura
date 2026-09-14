@@ -798,6 +798,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   2026-09-13: the shared conversion comparison no longer counts matching
   exceptions as successful agreement; 36 cross-substrate tests passed.
   This repairs a qualification primitive, not a completed fusion.
+  [Steering basis and ownership](evidence/G10_STEERING_BASIS_AND_OWNERSHIP_2026-09-14.md)
+  repairs stale worker identity, binds certificates to actual vector/layer
+  bases, and separates campaign preparation from live deployment. Ninety
+  focused tests passed; current-model qualification remains open.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
