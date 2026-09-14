@@ -797,6 +797,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   preserves executed effects across unavailable checks and SQLite reloads.
   Full task contracts survive persistence; 111 focused tests passed. Broad
   task-outcome learning and live gain remain unproved.
+  [Independent outcome counts](evidence/G09_INDEPENDENT_OUTCOME_COUNTS_2026-09-14.md)
+  prevents collapsed requests from becoming duplicate learning evidence and
+  aligns persisted statistics with measured-receipt validity. Fifty-three
+  focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
   2026-09-13: the shared conversion comparison no longer counts matching

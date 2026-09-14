@@ -76,3 +76,53 @@ def test_mutated_or_unresolved_receipts_do_not_claim_measured_evidence(feeds):
     for changes in ({"observed": float("nan")}, {"status": "pending"},
                     {"observation": "unobserved"}, {"observed": 2.0}):
         assert not replace(receipt, **changes).is_evidence
+
+
+def test_collapsed_requests_are_one_observation_before_and_after_restart(feeds):
+    ledger, *_ = feeds
+    context = {"state": "one-context"}
+    receipt_id = ledger.open("retry", 0.5, context=context, now=1000)
+    for _ in range(100):
+        assert ledger.open("retry", 0.5, context=context, now=1000) == receipt_id
+    receipt = ledger.resolve(receipt_id, 1.0, now=1001)
+    assert receipt.repeat_count == 101
+    second = ledger.open("retry", 0.5, context=context, now=1002)
+    ledger.resolve(second, 0.0, now=1003)
+    restarted = OutcomeLedger(db_path=ledger._db_path)
+    for source in (ledger, restarted):
+        assert source.measured_action_stats()["retry"] == {"n": 2.0, "mean": 0.5, "m2": 0.5}
+        assert source.measured_action_stats(by_state=True)["one-context|retry"] == {
+            "n": 2.0, "mean": 0.5, "m2": 0.5,
+        }
+
+
+@pytest.mark.parametrize("changes", [
+    {"status": "pending"}, {"observation": "unobserved"},
+    {"observed": float("inf")}, {"observed": -0.1}, {"observed": 1.1}, {"observed": "invalid"},
+])
+def test_persisted_statistics_use_the_same_evidence_contract(feeds, changes):
+    ledger, *_ = feeds
+    receipt_id = ledger.open("invalid", 0.5, context={"state": "context"}, now=1000)
+    receipt = ledger.resolve(receipt_id, 1.0, now=1001)
+    ledger._persist(replace(receipt, **changes))
+    assert ledger.measured_action_stats() == {}
+    assert ledger.measured_action_stats(by_state=True) == {}
+
+
+def test_retries_cannot_bias_the_shared_action_value_model(feeds):
+    from core.reasoning.action_value import ActionValueModel
+
+    ledger, *_ = feeds
+    for label in ("once", "retried"):
+        receipt_id = ledger.open(label, 0.5, now=1000)
+        if label == "retried":
+            for _ in range(100):
+                assert ledger.open(label, 0.5, now=1000) == receipt_id
+        ledger.resolve(receipt_id, 1.0, now=1001)
+        receipt_id = ledger.open(label, 0.5, now=1002)
+        ledger.resolve(receipt_id, 0.0, now=1003)
+    model = ActionValueModel()
+    model.refresh(ledger)
+    once, retried = model.value_for("once"), model.value_for("retried")
+    assert once.value == retried.value
+    assert once.observations == retried.observations == 2

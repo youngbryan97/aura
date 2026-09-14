@@ -95,8 +95,8 @@ class OutcomeReceipt:
     #: statistics must exclude the latter; consumers doing credit assignment
     #: deliberately do not.
     observation: str = "measured"
-    #: How many identical opens folded into this receipt. One stuck reflex is
-    #: one fact with a weight, not a million rows.
+    #: How many identical opens folded into this receipt. This is request
+    #: frequency, not the number of independently measured outcomes.
     repeat_count: int = 1
 
     @property
@@ -661,13 +661,13 @@ class OutcomeLedger:
         convention, not an observation of the world, and folding those into a
         mean would teach that every unwatched action failed.
 
-        ``repeat_count`` is honoured as a weight so one stuck reflex counts as
-        one fact with a weight rather than as thousands of independent
-        successes — otherwise a loop would dominate the statistics of every
-        other action.
+        Each resolved receipt contributes one observation. ``repeat_count``
+        counts requests folded into the same pending observation, not separate
+        measurements. Weighting by it would let an unobserved retry loop
+        dominate the mean and inflate the learner's sample size.
 
-        Returns ``{action: {"n": weight, "mean": .., "m2": ..}}`` where ``m2``
-        is the weighted sum of squared deviations, so a caller can compute
+        Returns ``{action: {"n": count, "mean": .., "m2": ..}}`` where ``m2``
+        is the sum of squared deviations, so a caller can compute
         within-group variance without a second pass over the table.
 
         ``by_state=True`` keys on ``"<state>|<action>"`` instead, using the
@@ -679,12 +679,12 @@ class OutcomeLedger:
         than trusting a bucket of one.
         """
         out: Dict[str, Dict[str, float]] = {}
-        columns = "action, observed, repeat_count" + (", context_json" if by_state else "")
+        columns = "action, observed" + (", context_json" if by_state else "")
         try:
             with connecting(self._connect()) as conn:
                 rows = conn.execute(
                     f"SELECT {columns} FROM outcome_receipts "  # noqa: S608 - fixed literals
-                    "WHERE observation = 'measured' AND observed IS NOT NULL "
+                    "WHERE status = 'resolved' AND observation = 'measured' AND observed IS NOT NULL "
                     "ORDER BY resolved_at DESC LIMIT ?",
                     (int(limit),),
                 ).fetchall()
@@ -704,29 +704,29 @@ class OutcomeLedger:
             return out
 
         for row in rows:
-            action, observed, repeat = row[0], row[1], row[2]
-            if observed is None:
+            action, observed = row[0], row[1]
+            if not isinstance(observed, (int, float)) or not math.isfinite(observed) or not 0.0 <= observed <= 1.0:
                 continue
             key = str(action)
             if by_state:
                 state = ""
                 try:
-                    ctx = json.loads(row[3] or "{}")
+                    ctx = json.loads(row[2] or "{}")
+                    if not isinstance(ctx, dict):
+                        continue
                     state = str(ctx.get("state") or "")
                 except (ValueError, TypeError):
                     state = ""
                 if not state:
                     continue  # no state recorded: it belongs in the marginal table
                 key = f"{state}|{key}"
-            weight = max(1.0, float(repeat or 1))
             value = float(observed)
             bucket = out.setdefault(key, {"n": 0.0, "mean": 0.0, "m2": 0.0})
-            # Weighted Welford: stable in one pass, and the variance is needed
-            # by the shrinkage estimator that consumes this.
-            total = bucket["n"] + weight
+            # Welford keeps the variance stable for the shrinkage estimator.
+            total = bucket["n"] + 1.0
             delta = value - bucket["mean"]
-            bucket["mean"] += delta * (weight / total)
-            bucket["m2"] += weight * delta * (value - bucket["mean"])
+            bucket["mean"] += delta / total
+            bucket["m2"] += delta * (value - bucket["mean"])
             bucket["n"] = total
         return out
 
