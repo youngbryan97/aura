@@ -62,6 +62,7 @@ def read(result: dict) -> dict:
         "lesion_successes": replay["lesion_successes"],
         "no_regression": replay["no_regression"],
         "causal_effect_positive": replay["causal_effect_positive"],
+        "public_generation": replay["public_generation"],
         "passes_adversarial_control": replay["passes_adversarial_control"],
         "unmet_requirements": replay["unmet_requirements"],
         # A different question from whether steering beats the words, and

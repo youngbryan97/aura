@@ -1,6 +1,10 @@
 """Private mentions must not stop or grade an ordinary reasoning baseline."""
 
 import hashlib
+import importlib
+from types import SimpleNamespace
+
+import pytest
 
 from core.brain.llm import public_channel_decode as channel
 from core.brain.llm.latent_cortex.answer_contract import (
@@ -113,3 +117,56 @@ def test_model_exhaustion_is_not_misreported_as_completion(monkeypatch):
     tokenizer = Tokenizer()
     result = channel.decode_public_greedy(object(), tokenizer, tokenizer.encode("assistant:"), max_tokens=40)
     assert result.stop_reason == "generator_exhausted" and not result.stopped
+
+
+def test_sampled_decode_uses_the_same_channel_boundary_without_changing_prompt(monkeypatch):
+    seen = {}
+    def stream(model, tokenizer, **kwargs):
+        seen.update(kwargs)
+        yield SimpleNamespace(text="happy curious private", token=1, generation_tokens=1, finish_reason=None)
+        yield SimpleNamespace(text="</think>\n\nThe report is ready.", token=2,
+                              generation_tokens=2, finish_reason="stop")
+    monkeypatch.setattr(importlib.import_module("mlx_lm.generate"), "stream_generate", stream)
+    sampler = object()
+    result = channel.decode_public_sample(object(), Tokenizer(), "user text\n<think>\n",
+                                          max_tokens=256, sampler=sampler)
+    assert seen == {"prompt": "user text\n<think>\n", "max_tokens": 256, "sampler": sampler}
+    assert result.text == "The report is ready."
+    assert result.stopped and result.boundary_closed and result.generated_tokens == 2
+    assert result.receipt()["policy"] == channel.PUBLIC_CHANNEL_SAMPLE_POLICY
+    assert "happy" not in repr(result.receipt())
+
+
+@pytest.mark.parametrize("text, public, closed", [
+    ("happy private", "", False),
+    ("private</think>Partial", "Partial", True),
+])
+def test_sampled_truncation_cannot_be_reported_as_completion(monkeypatch, text, public, closed):
+    def stream(*args, **kwargs):
+        yield SimpleNamespace(text=text, token=1, generation_tokens=8, finish_reason="length")
+    monkeypatch.setattr(importlib.import_module("mlx_lm.generate"), "stream_generate", stream)
+    result = channel.decode_public_sample(object(), Tokenizer(), "<think>\n", max_tokens=8, sampler=object())
+    assert result.text == public and result.boundary_closed is closed
+    assert not result.stopped and result.stop_reason == "token_limit"
+
+
+def test_sampled_decode_observes_real_mlx_stream_terminal_metadata(monkeypatch):
+    import mlx.core as mx
+    import mlx.nn as nn
+    from tokenizers import Tokenizer as FastTokenizer
+    from tokenizers.models import WordLevel
+    from transformers import PreTrainedTokenizerFast
+
+    generator = importlib.import_module("mlx_lm.generate")
+    vocab = {"<unk>": 0, "<eos>": 1, "hello": 2}
+    tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=FastTokenizer(WordLevel(vocab=vocab, unk_token="<unk>")),
+        eos_token="<eos>", unk_token="<unk>",
+    )
+    def steps(*args, **kwargs):
+        yield 2, mx.array([0.0, 0.0, 0.0])
+        yield 1, mx.array([0.0, 0.0, 0.0])
+    monkeypatch.setattr(generator, "generate_step", steps)
+    result = channel.decode_public_sample(nn.Linear(2, 2), tokenizer, [2], max_tokens=10, sampler=object())
+    assert result.text == "hello" and result.generated_tokens == 2
+    assert result.stop_reason == "eos" and result.stopped

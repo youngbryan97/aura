@@ -12,6 +12,8 @@ description = "core.evaluation: may import only what it already imports; every n
 
 include_rules = [
     "+core.evaluation",
+    # Steering and recurrent evaluation share the runtime's channel contract.
+    "+core.brain.llm.public_channel_decode",
 
     # What this package reaches for today.
     "+core.config",

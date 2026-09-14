@@ -72,6 +72,7 @@ CONDITIONS = (
     "text_rich_adversarial", "steered_plus_text_rich", "zero_vector",
     "random_vector", "shuffled_layers",
 )
+CALIBRATION_CONDITIONS = ("baseline", "steered_black_box")
 
 
 def write_campaign_json(path: Path, payload: dict) -> None:
@@ -94,9 +95,12 @@ def campaign_identity(arguments, plan: dict, descriptor: str, alpha: float) -> d
         "tools/run_caa_steering_campaign.py", "core/evaluation/campaign_progress.py",
         "core/consciousness/affective_steering.py", "core/consciousness/fusion_probe.py",
         "core/consciousness/steering_admission.py", "core/evaluation/steering_ab.py",
+        "core/brain/llm/public_channel_decode.py", "core/brain/llm/chat_format.py",
+        "core/evaluation/caa_public_samples.py",
     )
     return {
-        "protocol": "caa_ordered_resume_v1", "plan": plan,
+        "protocol": "caa_public_sample_resume_v2", "plan": plan,
+        "calibration_only": arguments.calibration_only,
         "model_descriptor_sha256": descriptor, "alpha": alpha,
         "trials": arguments.trials, "max_tokens": arguments.max_tokens,
         "temperature": arguments.temperature, "top_p": 0.95,
@@ -134,17 +138,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--vectors", type=Path, default=DEFAULT_VECTORS)
     # Four over six tasks is 24 samples, which is the replay contract's floor.
     parser.add_argument("--trials", type=int, default=4, help="per task, per condition")
-    # 256, because 48 could not see anything. The checkpoint opens with a
-    # reasoning preamble -- "We need to respond to user: ... Need final
-    # answer." -- and at 48 tokens the whole sample is that preamble. Every
-    # condition scored zero on 28 of 30 samples including the control that asks
-    # outright for vivid emotional language, which is the control's job: if an
-    # explicit instruction cannot move the score, the score is not measuring.
-    # At 256 the same prompt reaches +3.
+    # This is an experimental allocation, not a guarantee of public completion.
+    # The receipt retains truncation and replay cannot qualify incomplete runs.
     parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--alpha", type=float, default=0.4, help="0 reads the evidence file")
     parser.add_argument("--resume", action="store_true", help="reuse only identity-matched durable samples")
+    parser.add_argument("--calibration-only", action="store_true",
+                        help="measure public completion in baseline/treatment; cannot qualify steering")
     parser.add_argument(
         "--evidence",
         type=Path,
@@ -209,7 +210,8 @@ def main(argv: list[str] | None = None) -> int:
     progress = CampaignProgress(
         progress_path,
         identity=campaign_identity(arguments, plan, descriptor, alpha),
-        conditions=CONDITIONS, samples_per_condition=len(HELD_OUT_TASKS) * arguments.trials,
+        conditions=CALIBRATION_CONDITIONS if arguments.calibration_only else CONDITIONS,
+        samples_per_condition=len(HELD_OUT_TASKS) * arguments.trials,
         write=lambda payload: write_campaign_json(progress_path, payload),
         resume=arguments.resume,
     )
@@ -228,7 +230,9 @@ def main(argv: list[str] | None = None) -> int:
     ):
         import mlx.core as mx
         from mlx_lm import load
-        from mlx_lm.generate import generate
+        from core.brain.llm.public_channel_decode import (
+            PUBLIC_CHANNEL_SAMPLE_POLICY, decode_public_sample,
+        )
         from mlx_lm.sample_utils import make_sampler
 
         started = time.time()
@@ -333,7 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         # in it. The replicate exists to give that null a width.
         sampler = make_sampler(temp=float(arguments.temperature), top_p=0.95)
 
-        def decode(prompt: str, seed: int, steered: bool = False) -> str:
+        def decode(prompt: str, seed: int, steered: bool = False):
             # Re-stamped before every sample. `_effective_alpha` derates to
             # _STALE_SAFE_ALPHA 120 seconds after the last substrate update, and
             # a condition that settles once then decodes twenty-four samples
@@ -346,16 +350,14 @@ def main(argv: list[str] | None = None) -> int:
             text = tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
-            return str(
-                generate(
-                    model,
-                    tokenizer,
-                    prompt=text,
-                    max_tokens=int(arguments.max_tokens),
-                    sampler=sampler,
-                    verbose=False,
-                )
+            sample = decode_public_sample(
+                model, tokenizer, text, max_tokens=int(arguments.max_tokens), sampler=sampler,
             )
+            return sample.text, {
+                **sample.receipt(),
+                "max_tokens": int(arguments.max_tokens),
+                "prompt_sha256": hashlib.sha256(text.encode()).hexdigest(),
+            }
 
         conditions = progress.outputs
         trials = int(arguments.trials)
@@ -377,12 +379,12 @@ def main(argv: list[str] | None = None) -> int:
                     if task_index * trials + trial < len(outputs):
                         continue
                     sample_started = time.monotonic()
-                    output = decode(
+                    output, receipt = decode(
                         prefix + task, seed_base + task_index * 1000 + trial,
                         steered=steered,
                     )
                     progress.record(name, output, capture_continuation(hooks),
-                                    seconds=time.monotonic() - sample_started)
+                                    seconds=time.monotonic() - sample_started, metadata=receipt)
                     outputs.append(output)
                     print(f"  {name:22s} {len(outputs)}/{len(HELD_OUT_TASKS) * trials} saved", flush=True)
             conditions[name] = outputs
@@ -390,26 +392,25 @@ def main(argv: list[str] | None = None) -> int:
 
         restore()
         run("baseline")
-        restore()
-        run("baseline_replicate", seed_base=500_000)
+        if not arguments.calibration_only:
+            restore()
+            run("baseline_replicate", seed_base=500_000)
         restore()
         run("steered_black_box", steered=True)
-        restore()
-        run("text_terse", prefix=TERSE)
-        restore()
-        run("text_rich_adversarial", prefix=RICH)
-        # The vectors ON TOP of the words. "Does steering beat asking" and
-        # "does steering add anything to asking" have different answers on this
-        # checkpoint, and only the second is about whether the intervention is
-        # worth running beside a prompt that already exists.
-        restore()
-        run("steered_plus_text_rich", prefix=RICH, steered=True)
-        zero_vectors()
-        run("zero_vector", steered=True)
-        randomise()
-        run("random_vector", steered=True)
-        shuffle_layers()
-        run("shuffled_layers", steered=True)
+        if not arguments.calibration_only:
+            restore()
+            run("text_terse", prefix=TERSE)
+            restore()
+            run("text_rich_adversarial", prefix=RICH)
+            # Measure whether steering adds an effect to the same rich prompt.
+            restore()
+            run("steered_plus_text_rich", prefix=RICH, steered=True)
+            zero_vectors()
+            run("zero_vector", steered=True)
+            randomise()
+            run("random_vector", steered=True)
+            shuffle_layers()
+            run("shuffled_layers", steered=True)
         restore()
         set_alpha(0.0)
 
@@ -421,7 +422,10 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("campaign_inputs_changed_during_measurement")
 
         result = {
-            "schema": "aura.caa.campaign_result.v1",
+            "schema": "aura.caa.calibration_result.v1" if arguments.calibration_only else "aura.caa.campaign_result.v2",
+            "calibration_only": arguments.calibration_only,
+            "generation_policy": PUBLIC_CHANNEL_SAMPLE_POLICY,
+            "generation_receipts": progress.sample_metadata,
             "model_descriptor_sha256": descriptor,
             "model_path": str(model_path),
             # Which vector set produced these samples. Two runs of this file
@@ -444,6 +448,17 @@ def main(argv: list[str] | None = None) -> int:
         }
         write_campaign_json(arguments.out, result)
 
+        if arguments.calibration_only:
+            from core.evaluation.caa_public_samples import validate_public_samples
+
+            completion = validate_public_samples(result, conditions)
+            tokens = [row["generated_tokens"] for rows in progress.sample_metadata.values() for row in rows]
+            print(json.dumps({"calibration_only": True, "qualification": False,
+                              "public_generation": completion, "max_generated_tokens": max(tokens),
+                              "decode_seconds": progress.decode_seconds, "out": str(arguments.out)},
+                             sort_keys=True), flush=True)
+            return 0 if completion["complete"] else 2
+
         from core.evaluation.caa_causal_evaluation import replay_campaign
 
         replay = replay_campaign(result)
@@ -454,10 +469,11 @@ def main(argv: list[str] | None = None) -> int:
             f"  lesion wins          {replay['lesion_successes']}\n"
             f"  no regression        {replay['no_regression']}\n"
             f"  causal effect        {replay['causal_effect_positive']}\n"
+            f"  public generation    {replay['public_generation']}\n"
             f"  unmet                {replay['unmet_requirements'] or 'none'}",
             flush=True,
         )
-        return 0 if replay["causal_effect_positive"] else 2
+        return 0 if replay["causal_effect_positive"] and replay["public_generation"]["complete"] else 2
 
 
 if __name__ == "__main__":

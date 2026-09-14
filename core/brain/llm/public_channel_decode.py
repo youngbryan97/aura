@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Any
 from core.brain.llm.chat_format import split_native_thinking_generation
 
 PUBLIC_CHANNEL_DECODE_POLICY = "native_public_channel_v1"
+PUBLIC_CHANNEL_SAMPLE_POLICY = "native_public_sample_v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +27,7 @@ class PublicChannelDecode:
     reasoning_chars: int
     reasoning_sha256: str
     token_ids_sha256: str
+    policy: str = PUBLIC_CHANNEL_DECODE_POLICY
 
     @property
     def stopped(self) -> bool:
@@ -32,7 +35,7 @@ class PublicChannelDecode:
 
     def receipt(self) -> dict[str, Any]:
         return {
-            "policy": PUBLIC_CHANNEL_DECODE_POLICY,
+            "policy": self.policy,
             "generated_tokens": self.generated_tokens,
             "prefill_tokens": self.prefill_tokens,
             "boundary_tokens": self.boundary_tokens,
@@ -45,6 +48,48 @@ class PublicChannelDecode:
             "token_ids_sha256": self.token_ids_sha256,
             "public_text_sha256": hashlib.sha256(self.text.encode()).hexdigest(),
         }
+
+
+def decode_public_sample(
+    model: Any, tokenizer: Any, prompt: str | Sequence[int], *,
+    max_tokens: int, sampler: Any, progress: Callable[[int], None] | None = None,
+) -> PublicChannelDecode:
+    """Sample through MLX's streaming API and retain only the public channel.
+
+    Sampling, token allocation, and template bytes are unchanged. A private
+    continuation that exhausts its allocation remains an unanswered sample.
+    """
+    from mlx_lm.generate import stream_generate
+
+    if type(max_tokens) is not int or max_tokens < 1:
+        raise ValueError("sample token allocation must be positive")
+    rendered = prompt if isinstance(prompt, str) else tokenizer.decode(
+        list(prompt), skip_special_tokens=False,
+    )
+    native = str(rendered).rstrip().endswith("<think>")
+    segments, tokens = [], []
+    last = None
+    started = time.monotonic()
+    for response in stream_generate(model, tokenizer, prompt=prompt,
+                                    max_tokens=max_tokens, sampler=sampler):
+        segments.append(response.text)
+        tokens.append(int(response.token))
+        last = response
+        if progress is not None:
+            progress(int(response.generation_tokens))
+    raw = "".join(segments)
+    native = native or raw.lstrip().startswith("<think>") or "</think>" in raw
+    channels = split_native_thinking_generation(raw, native_thinking=native)
+    finish = getattr(last, "finish_reason", None)
+    reason = "eos" if finish == "stop" else "token_limit" if finish == "length" else "generator_exhausted"
+    return PublicChannelDecode(
+        channels.surface, int(last.generation_tokens) if last is not None else 0,
+        0, 0, int((time.monotonic() - started) * 1000), reason,
+        native, channels.boundary_closed, len(channels.reasoning),
+        hashlib.sha256(channels.reasoning.encode()).hexdigest(),
+        hashlib.sha256(",".join(str(token) for token in tokens).encode("ascii")).hexdigest(),
+        policy=PUBLIC_CHANNEL_SAMPLE_POLICY,
+    )
 
 
 def decode_public_greedy(

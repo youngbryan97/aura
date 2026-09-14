@@ -19,9 +19,11 @@ def progress(path, **kwargs):
 def test_restart_preserves_exact_outputs_and_continuation(tmp_path):
     path = tmp_path / "progress.json"
     first = progress(path)
-    first.record("base", "one", {"composite": [0.25, -0.125]}, seconds=2)
+    first.record("base", "one", {"composite": [0.25, -0.125]}, seconds=2,
+                 metadata={"finish_reason": "eos", "tokens": 12})
     second = progress(path, resume=True)
     assert second.outputs["base"] == ["one"]
+    assert second.sample_metadata["base"] == [{"finish_reason": "eos", "tokens": 12}]
     assert second.state_for("base") == {"composite": [0.25, -0.125]}
     assert second.state_for("lesion") is None
     assert not second.complete
@@ -41,6 +43,7 @@ def test_failed_durable_write_does_not_advance_memory(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         run.record("base", "one", {}, seconds=1)
     assert run.outputs["base"] == [] and run.decode_seconds == 0
+    assert run.sample_metadata["base"] == []
 
 
 @pytest.mark.parametrize("change", ["identity", "conditions", "samples_per_condition"])
@@ -121,9 +124,13 @@ def test_input_identity_changes_with_vector_bytes_and_sampling(tmp_path, monkeyp
     (vectors / "metadata.json").write_text("{}")
     vector = vectors / "vector.npz"
     vector.write_bytes(b"one")
-    arguments = SimpleNamespace(vectors=vectors, trials=4, max_tokens=256, temperature=0.7)
+    arguments = SimpleNamespace(vectors=vectors, trials=4, max_tokens=256, temperature=0.7,
+                                calibration_only=False)
     first = campaign.campaign_identity(arguments, {"hidden_size": 64}, "checkpoint", 0.2)
     vector.write_bytes(b"two")
+    assert first != campaign.campaign_identity(arguments, {"hidden_size": 64}, "checkpoint", 0.2)
+    arguments.temperature = 0.7
+    arguments.calibration_only = True
     assert first != campaign.campaign_identity(arguments, {"hidden_size": 64}, "checkpoint", 0.2)
     vector.write_bytes(b"one")
     arguments.temperature = 0.8
@@ -178,7 +185,8 @@ def test_campaign_main_resume_matches_uninterrupted(tmp_path, monkeypatch):
     monkeypatch.setattr(affective_steering, "SteeringVectorLibrary", Library)
     monkeypatch.setattr(caa_causal_evaluation, "replay_campaign", lambda result: dict(
         treatment_successes=0, matched_control_successes=0, lesion_successes=0,
-        no_regression=True, causal_effect_positive=False, unmet_requirements=["test only"]))
+        no_regression=True, causal_effect_positive=False, unmet_requirements=["test only"],
+        public_generation={"complete": True}))
     active = []
     calls = []
     failure = [None]
@@ -187,9 +195,10 @@ def test_campaign_main_resume_matches_uninterrupted(tmp_path, monkeypatch):
             raise RuntimeError("injected interruption")
         calls.append(prompt)
         hook = active[0]
-        return json.dumps([prompt, hook._alpha, None if hook.state is None else hook.state.tolist(),
+        text = json.dumps([prompt, hook._alpha, None if hook.state is None else hook.state.tolist(),
                            float(mx.random.uniform())])
-    monkeypatch.setattr(importlib.import_module("mlx_lm.generate"), "generate", generate)
+        yield SimpleNamespace(text=text, token=1, generation_tokens=1, finish_reason="stop")
+    monkeypatch.setattr(importlib.import_module("mlx_lm.generate"), "stream_generate", generate)
     args = ["--plan", str(plan_path), "--vectors", str(tmp_path), "--trials", "1", "--alpha", "0.2"]
     full = tmp_path / "full.json"
     assert campaign.main([*args, "--out", str(full)]) == 2
@@ -203,3 +212,15 @@ def test_campaign_main_resume_matches_uninterrupted(tmp_path, monkeypatch):
     assert campaign.main([*args, "--out", str(interrupted), "--resume"]) == 2
     assert len(calls) == 54
     assert json.loads(full.read_text())["condition_outputs"] == json.loads(interrupted.read_text())["condition_outputs"]
+    for result in (full, interrupted):
+        payload = json.loads(result.read_text())
+        assert all(len(rows) == 6 for rows in payload["generation_receipts"].values())
+    calls.clear()
+    pilot = tmp_path / "calibration.json"
+    monkeypatch.setattr(caa_causal_evaluation, "replay_campaign", lambda result:
+                        (_ for _ in ()).throw(AssertionError("calibration is not qualification")))
+    assert campaign.main([*args, "--calibration-only", "--out", str(pilot)]) == 0
+    payload = json.loads(pilot.read_text())
+    assert payload["schema"] == "aura.caa.calibration_result.v1"
+    assert payload["calibration_only"] is True and len(calls) == 12
+    assert set(payload["condition_outputs"]) == set(campaign.CALIBRATION_CONDITIONS)

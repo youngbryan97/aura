@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Final
 
+from core.evaluation.caa_public_samples import validate_public_samples
 from core.evaluation.steering_ab import (
     COMBINED_CONDITION,
     REQUIRED_CONDITIONS,
@@ -17,7 +18,7 @@ from core.evaluation.steering_ab import (
 )
 from core.learning.cortex_migration_authority import CAA_EVALUATION_SCHEMA
 
-VERIFIER_SCHEMA: Final = "aura.caa.independent_replay.v1"
+VERIFIER_SCHEMA: Final = "aura.caa.independent_replay.v2"
 
 
 class CAACausalEvaluationError(ValueError):
@@ -141,10 +142,14 @@ def _condition_outputs(result: Mapping[str, Any]) -> dict[str, list[str]]:
             or isinstance(values, (str, bytes))
         ):
             raise CAACausalEvaluationError("caa_replay_outputs_invalid")
-        normalized = [str(value) for value in values]
+        if any(not isinstance(value, str) for value in values):
+            raise CAACausalEvaluationError("caa_replay_outputs_invalid")
+        normalized = list(values)
         if sample_count is None:
             sample_count = len(normalized)
-        if len(normalized) != sample_count or any(not value.strip() for value in normalized):
+        if len(normalized) != sample_count or (
+            result.get("generation_policy") is None and any(not value.strip() for value in normalized)
+        ):
             raise CAACausalEvaluationError("caa_replay_outputs_invalid")
         outputs[name] = normalized
     if sample_count is None or sample_count < 24:
@@ -156,6 +161,10 @@ def replay_campaign(result: Mapping[str, Any]) -> dict[str, Any]:
     """Recompute all target scores, effects, controls, and paired outcomes."""
 
     outputs = _condition_outputs(result)
+    try:
+        public_generation = validate_public_samples(result, outputs)
+    except ValueError as exc:
+        raise CAACausalEvaluationError(str(exc)) from exc
     scores = {
         name: [affect_target_score(text) for text in values]
         for name, values in outputs.items()
@@ -217,6 +226,7 @@ def replay_campaign(result: Mapping[str, Any]) -> dict[str, Any]:
         and all(value < treatment_successes for value in lesion_successes.values())
     )
     return {
+        "public_generation": public_generation,
         "sample_count": len(baseline),
         "treatment_successes": treatment_successes,
         "matched_control_successes": matched_control_successes,
@@ -247,8 +257,9 @@ def build_independent_verifier_evidence(
     replay = replay_campaign(result)
     body = {
         "schema": VERIFIER_SCHEMA,
-        "verifier": {"name": "aura-caa-independent-replay", "version": "1"},
+        "verifier": {"name": "aura-caa-independent-replay", "version": "2"},
         "result_sha256": result_sha256,
+        "result_payload_sha256": canonical_sha256(result),
         "metadata_sha256": metadata_sha256,
         **generation,
         "replay": replay,
@@ -256,6 +267,8 @@ def build_independent_verifier_evidence(
             replay["passes_adversarial_control"]
             and replay["causal_effect_positive"]
             and replay["no_regression"]
+            and replay["public_generation"]["verified"]
+            and replay["public_generation"]["complete"]
         ),
     }
     return {**body, "verification_sha256": canonical_sha256(body)}
@@ -273,6 +286,7 @@ def build_causal_evaluation(
     if (
         verifier_evidence.get("schema") != VERIFIER_SCHEMA
         or verifier_evidence.get("verified") is not True
+        or verifier_evidence.get("result_payload_sha256") != canonical_sha256(result)
         or verifier_evidence.get("verification_sha256")
         != canonical_sha256(
             {
@@ -291,6 +305,8 @@ def build_causal_evaluation(
     verifier = verifier_evidence.get("verifier")
     if not isinstance(replay, Mapping) or not isinstance(verifier, Mapping):
         raise CAACausalEvaluationError("caa_independent_verifier_invalid")
+    if replay != replay_campaign(result) or not replay["public_generation"]["complete"]:
+        raise CAACausalEvaluationError("caa_independent_replay_changed")
     body = {
         "schema": CAA_EVALUATION_SCHEMA,
         "model_descriptor_sha256": result["model_descriptor_sha256"],

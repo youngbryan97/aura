@@ -810,6 +810,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   preserves each completed sample and its steering continuation state; resume
   checks the exact experiment identity. Thirty-three tests passed. Interrupted
   progress is not relabeled as a finished campaign or serving qualification.
+  [Public steering measurement](evidence/G10_PUBLIC_STEERING_MEASUREMENT_2026-09-14.md)
+  separates private reasoning from scored answers and preserves termination
+  evidence per sample. The old campaign stopped with 68 diagnostic samples;
+  a fresh public-channel campaign is required. Calibration cannot qualify it.
 - [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
