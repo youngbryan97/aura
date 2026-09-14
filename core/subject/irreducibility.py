@@ -94,6 +94,11 @@ FOLDS: int = 5
 #: four rows each, which is what `_folds` needs to give every fold a block.
 MIN_TRANSITIONS: int = 8 * FOLDS
 
+#: How many standard errors below its mean a held-out estimate's lower bound
+#: sits: the two-sided 95% normal quantile. One number, so every bound the
+#: battery reports means the same thing.
+LOWER_BOUND_Z: float = 1.96
+
 
 def _folds(n: int, count: int = FOLDS) -> list[tuple[slice, slice, slice]]:
     """Forward-chaining splits: always fit on the past, always test on the future.
@@ -220,7 +225,7 @@ class PartitionReport:
             "degenerate": self.degenerate,
             "held_out": list(self.held_out),
             "standard_error": round(self.standard_error, 6),
-            "lower_bound": round(self.phi - 1.96 * self.standard_error, 6),
+            "lower_bound": round(self.phi - LOWER_BOUND_Z * self.standard_error, 6),
             "sides": {
                 name: {k: round(v, 6) for k, v in row.items()}
                 for name, row in self.sides.items()

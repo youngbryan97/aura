@@ -120,6 +120,24 @@ What remains thin is the rest of that action input: deliberation reaches it as a
 count of open goals, which one displaced goal moves by the same step whatever
 the displacement.
 
+Memory → deliberation was a switch. Recall reached deliberation only when a
+recollection's match score outranked every footing, and then only as the text
+of the growth intention, which still pressed as hard as the moment was going
+badly. A displacement of active memory changed nothing until it crossed that
+line. The reading that chose the focus now sets how hard the intention presses:
+the footing's value when a footing wins, which is the old number, and the
+recollection's score when a recollection does. Written and tested, not yet
+applied or measured.
+
+Development → attention had no route. How exploratory her next thought may be
+was set by engagement alone, and curiosity, which the affect phase pulls toward
+how unlike her ordinary life the moment is, was never read there. Creativity now
+follows whichever of engagement and curiosity is the stronger pull, with the
+same coefficient and range. Written and tested, not yet applied or measured.
+
+One of attention's columns is dead: in run_025's recording the focus modifier
+held at 1.0 across all 15,840 frames.
+
 ## Synergy on the four declared triples
 
 **The property.** For each of A+S→G, P+M→W, W+A→D and S+D→C: a synergy fraction
@@ -219,6 +237,11 @@ measured yet.
    built the same way before it counts.
 5. ISC-v2 preregistered before the next result: the comparison set for
    irreducibility, the shifted null for slow targets, and why the null suite
-   changed its answer on seed 13.
+   changed its answer on seed 13. Preregistered in `a4a1d21a0` while runs 029,
+   030 and 031 were recording, and amended the same evening when an additive
+   target passed synergy on noise. Synergy's three known answers now hold as
+   tests. Read across the three frozen seeds, the null verdict reports the
+   instrument failing, the preregistered answer for that seed. The
+   irreducibility comparison is written and not yet in the campaign tool.
 6. Recordings long enough to bring irreducibility's standard error under the
    margin it has to show.

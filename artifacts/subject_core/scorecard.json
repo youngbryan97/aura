@@ -573,6 +573,15 @@
       "max": 0.214
     }
   },
+  "v2_null_verdict": {
+    "seeds": 3,
+    "nulls_passing": [
+      "low_rank"
+    ],
+    "reference_passes": false,
+    "instrument_failed": true,
+    "all_nulls_fail": false
+  },
   "couplings": {
     "A": {
       "outgoing": 4,

@@ -85,6 +85,60 @@ is recorded as the instrument failing, not as a result about Aura.
 **Known answer.** The seed-13 tables of run_028 read under this rule report the
 instrument failing rather than a null passing.
 
+## Amendment, before any v2 result: the interaction check
+
+Recorded the same evening, before any ISC-v2 result exists and while runs 029,
+030 and 031 are still recording as v1 results.
+
+**The second known answer did not hold.** Scored on the change at the
+battery's 479 rows, an additive target under drift cleared every information
+bar on 20 of 20 seeds and passed synergy on 10 of 20. Its held-out interaction
+gain was a few millionths either side of zero, and `passes` asked only that one
+split's gain be above zero.
+
+**The interaction check now asks for an established gain.** The gain is also
+computed on each forward-chaining fold irreducibility is scored on, and its mean
+less `LOWER_BOUND_Z` (1.96, irreducibility's own bound) standard errors has to
+be above zero. The single-split bar stays, so this line can only be harder to
+pass than before. It applies to ISC-v1's synergy line as well, which shares
+`passes`, and a stricter bar is the one direction a criterion may change after
+its results have been seen.
+
+**Measured with it**, over 20 seeds at 479 and at 1,500 rows, scored on the
+change: a product under drift passes 20 of 20, with interaction lower bounds
+from 0.70 to 0.92; the additive target and drift alone pass 0 of 20. Scored on
+the level, all three pass 0 of 20. The three known answers are tests in
+`tests/test_synergy_known_answers_for_isc_v2.py`.
+
+## Second amendment, before any v2 result: what section 1's line can answer
+
+Recorded the same evening, before any ISC-v2 result exists.
+
+**Section 1's known answer was wrong.** It said the star, hub, hidden broker
+and replay nulls fail the new irreducibility line. Replay is a matched
+surrogate and sits in the comparison set, so it is not compared against it. And
+measured on the three frozen runs' recorded null tables, with each architecture
+compared against the set built without it, the line alone separates almost
+nothing:
+
+- on seeds 7 and 11 the comparison set is the two surrogates, replay at 0.020
+  and 0.021 and time-shuffle below zero, because no architecture passes the rest
+  of the conjunction, and the star, hub, hidden broker and eleven other nulls
+  all clear it;
+- on those two seeds the recurrent reference is the only architecture that
+  passes this line and the rest of the conjunction together;
+- on seed 13 `low_rank` passed the rest of the conjunction, joined the
+  comparison set at 0.451, and was the only architecture to pass both, while
+  the reference at 0.252 did not.
+
+**The known answer is therefore the conjunction's, not the line's.** On every
+seed, the reference is the only architecture that passes the irreducibility
+line and every other line together, and no null does. Seed 13 fails that as it
+stands, which is the instability section 3 exists for: read across the three
+seeds, `low_rank` fails, because it fails the rest of the conjunction on seeds 7
+and 11. The line's job is to be passable by the reference it is built around;
+separating the nulls is the other lines' job, as it already was in ISC-v1.
+
 ## What does not change
 
 Every other line of the conjunction, every threshold in `THRESHOLDS`, the edge
