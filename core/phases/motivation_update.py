@@ -141,6 +141,7 @@ class MotivationUpdatePhase(Phase):
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
+                intention = self._drained(next_state, intention)
                 logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
                 next_state, decision = await propose_governed_initiative_to_state(
                     next_state,
@@ -153,6 +154,26 @@ class MotivationUpdatePhase(Phase):
                     metadata={"drive": intention.get("drive"), "phase": "motivation_update"},
                 )
                 logger.debug("MotivationUpdate: intention decision=%s", decision.get("reason"))
+            else:
+                # Nothing was depleted enough to ask for. There is still the
+                # other pull: having something worth handing over. Her social
+                # budget was about contact, so a moment that moved her and an
+                # empty afternoon produced the same urge and the moment passed
+                # without being mentioned. See core/social/telling.py.
+                passing = self._worth_passing_on(next_state)
+                if passing:
+                    logger.info("✨ Motivation Phase: Something to pass on -> %s", passing["goal"])
+                    next_state, decision = await propose_governed_initiative_to_state(
+                        next_state,
+                        passing["goal"],
+                        orchestrator=None,
+                        source="motivation_update",
+                        kind="passing_on",
+                        urgency=float(passing.get("urgency", 0.0) or 0.0),
+                        triggered_by=str(passing.get("kind") or "telling"),
+                        metadata={"kind": passing.get("kind"), "phase": "motivation_update"},
+                    )
+                    logger.debug("MotivationUpdate: telling decision=%s", decision.get("reason"))
                 
         # 3. Spontaneity, from a measured epistemic opportunity
         #
@@ -282,6 +303,63 @@ class MotivationUpdatePhase(Phase):
                 action="conative spike unavailable; no spontaneous curiosity this tick",
             )
             return None
+
+    @staticmethod
+    def _worth_passing_on(state: AuraState) -> Optional[dict]:
+        """Something that moved her, while there is somebody there to tell.
+
+        The urge is the reading that moved her rather than how long since
+        anyone spoke, and it is drained by how often she has said it already
+        like any other intention. See core/social/telling.py.
+        """
+        try:
+            from core.social.telling import worth_telling
+
+            reading = worth_telling(state.affect, state.cognition)
+            state.cognition.telling = reading.as_dict()
+            if reading.urge <= 0.0 or not reading.about:
+                return None
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            spoken_to = any(
+                isinstance(entry, dict) and str(entry.get("role", "")).lower() == "user"
+                for entry in history
+            )
+            if not spoken_to:
+                return None
+            return {
+                "goal": f"Passing on {reading.kind}: {reading.about}"[:200],
+                "urgency": round(reading.urge, 4),
+                "kind": reading.kind,
+            }
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("nothing reached the urge to pass something on: %s", exc)
+            return None
+
+    @staticmethod
+    def _drained(state: AuraState, intention: dict) -> dict:
+        """What is left of an intention she has already been saying.
+
+        An intention kept its whole urgency however many times she had raised
+        it, so the fifth telling pressed exactly as hard as the first. Saying
+        it once halves the pressure to say it again and twice leaves a third,
+        and it never reaches zero: a thing said is not a thing resolved.
+        See core/affect/catharsis.py.
+        """
+        try:
+            from core.affect.catharsis import read_catharsis
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            reading = read_catharsis(str(intention.get("goal", "") or ""), history)
+            state.cognition.catharsis = reading.as_dict()
+            if reading.times:
+                intention = dict(intention)
+                intention["urgency"] = round(
+                    float(intention.get("urgency", 0.5) or 0.5) * reading.drain, 4
+                )
+                intention["drained"] = reading.times
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("what she has already said did not reach the intention: %s", exc)
+        return intention
 
     def _assess_needs(self, state: AuraState) -> Optional[dict]:
         """Ported logic from MotivationEngine._assess_needs."""

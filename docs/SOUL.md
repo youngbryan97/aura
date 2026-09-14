@@ -204,6 +204,10 @@ Nothing in them names a constant that came from the songs.
 | `core/affect/frisson.py` | listener 11; expression 4 | landed |
 | `core/self/recognition.py` | expression 19; listener 10 | landed |
 | `core/memory/reliving.py` | listener 9, 15 | landed |
+| `core/expression/entrainment.py` | listener 1; expression 2, 22 | landed |
+| `core/affect/the_turn.py` | expression 10 | landed |
+| `core/affect/catharsis.py` | listener 7 | landed |
+| `core/social/telling.py` | listener 13 | landed |
 
 ### Ambivalence — wanting two things that cost each other
 

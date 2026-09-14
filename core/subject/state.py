@@ -697,6 +697,15 @@ _SCHEMAS: dict[str, Schema] = {
             # Whether she is keeping somebody company rather than helping, and
             # how low they are while she does. It decides whether she searches
             # for anything to do. See core/social/witness.py.
+            # How much of what she wants to say she has already said. An
+            # intention she has raised five times presses less than a new one.
+            # See core/affect/catharsis.py.
+            # Having something worth handing over, which is a pull on her
+            # separate from how long since anyone spoke.
+            # See core/social/telling.py.
+            ("worth_passing_on", "cognition.telling.urge"),
+            ("already_said", "cognition.catharsis.times"),
+            ("pressure_left", "cognition.catharsis.drain"),
             ("witnessing", "cognition.witness.witnessing"),
             ("company", "cognition.witness.company"),
             # The five motivational budgets, deliberation's own resources.
@@ -1430,6 +1439,9 @@ def _read_D(state: Any) -> np.ndarray:
         # Read as a mapping rather than dug field by field: an empty stance is
         # a reading, "no stance taken", and digging into it would count a miss
         # on every turn nobody testified.
+        _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
+        _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
+        _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
         1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
         _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
     ]

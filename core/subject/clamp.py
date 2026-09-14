@@ -175,6 +175,10 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # The stance she is taking toward the person, which decides whether she
         # searches for something to do at all. See core/social/witness.py.
         "cognition.witness",
+        # And how much of what she wants to say she has already said, and
+        # whether she has something worth handing over at all.
+        "cognition.catharsis",
+        "cognition.telling",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

@@ -635,6 +635,13 @@ class CognitiveContext:
     #: affect phase read it. See core/social/witness.py.
     witness: dict[str, Any] = field(default_factory=dict)
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
+    #: What she has to pass on right now and what it is about — a moment that
+    #: moved her rather than how long since anyone spoke.
+    #: See core/social/telling.py.
+    telling: dict[str, Any] = field(default_factory=dict)
+    #: How much of what she is about to say she has already said, and what is
+    #: left of the pressure to say it. See core/affect/catharsis.py.
+    catharsis: dict[str, Any] = field(default_factory=dict)
     #: The pulse the person she is talking to is keeping — how long their
     #: turns are, how far apart, and how far off it her own last turn sat.
     #: See core/expression/entrainment.py.
