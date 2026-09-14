@@ -621,6 +621,7 @@ def _operation_chart_candidates(
     max_steps: int,
     length_penalty: float,
     limit: int = _OPERATION_CHART_BEAM,
+    feasible: Callable[[Sequence[_OperationNode]], bool] | None = None,
 ) -> tuple[tuple[_OperationNode, ...], ...]:
     candidates = [
         (score - length_penalty * count, selected)
@@ -630,6 +631,7 @@ def _operation_chart_candidates(
             count,
             limit=limit,
         )
+        if feasible is None or feasible(selected)
     ]
     return tuple(
         selected
@@ -641,6 +643,22 @@ def _operation_chart_candidates(
                 tuple((node.span.start, node.span.end) for node in item[1]),
             ),
         )[:limit]
+    )
+
+
+def _operation_chart_use_feasible(nodes, *, n_inputs, contract):
+    """Necessary edge-count bounds for a connected single-result graph."""
+    count = len(nodes)
+    if count < 1:
+        return False
+    signatures = [semantic_primitive_type_signature(node.operation) for node in nodes]
+    if any(signature is None for signature in signatures):
+        return False
+    arities = [len(signature[0]) for signature in signatures]
+    minimum = n_inputs * contract.input_min_uses + (count - 1) * max(1, contract.intermediate_min_uses)
+    maximum = n_inputs * contract.input_max_uses + (count - 1) * contract.intermediate_max_uses
+    return minimum <= sum(arities) <= maximum and (
+        not contract.distinct_arguments or max(arities) <= n_inputs + count - 1
     )
 
 

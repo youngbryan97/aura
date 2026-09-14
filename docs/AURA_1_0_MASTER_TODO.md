@@ -713,6 +713,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Scored-chart diagnostics separate operation search, argument ranking and
   candidate-overlap failures. Five frozen-parent regressions still prevent
   closure; no runtime promotion.
+  [Operation feasibility](evidence/G03_OPERATION_FEASIBILITY_2026-09-13.md)
+  removes impossible edge counts before beam truncation. Source answers reach
+  464/500, eight gains and zero regressions against the immediate parent;
+  exposed weave remains 47/48. No serving authority or G03 closure.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.

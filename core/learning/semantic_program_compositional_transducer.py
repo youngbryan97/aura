@@ -110,6 +110,7 @@ from .semantic_program_transducer_fitting import (
     _log_sigmoid,  # noqa: F401
     _mention_invariant_relation_evidence,  # noqa: F401
     _operation_chart_candidates,
+    _operation_chart_use_feasible,
     _operation_nodes,
     _operation_order,  # noqa: F401
     _OperationNode,
@@ -521,6 +522,8 @@ class CompositionalSemanticProgramTransducer:
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
             or receipt.get("argument_proposal_retention", "ranked_v1")
             not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
+            or receipt.get("operation_chart_feasibility", "unfiltered_v1")
+            not in {"unfiltered_v1", "register_edge_bounds_v2"}
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
             not in {"positive_label_margin_v1", "categorical_log_margin_v1"}
             or receipt.get("forward_reference_policy", "positive_relation_v1")
@@ -889,6 +892,14 @@ class CompositionalSemanticProgramTransducer:
         body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_feasible_operation_charts(self) -> CompositionalSemanticProgramTransducer:
+        """Spend chart capacity only on cardinalities permitted by the graph contract."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["operation_chart_feasibility"] = "register_edge_bounds_v2"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         body = {
@@ -1002,6 +1013,11 @@ class CompositionalSemanticProgramTransducer:
             max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
             limit=self.operation_chart_beam,
+            feasible=(
+                lambda selected: _operation_chart_use_feasible(
+                    selected, n_inputs=len(inputs), contract=self.register_use_contract,
+                )
+            ) if self.training_receipt.get("operation_chart_feasibility") == "register_edge_bounds_v2" else None,
         )
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
