@@ -71,6 +71,10 @@ PERCEPT_EMOTIONS: dict[str, list[str]] = {
     # Oddisee reports of it is that the contradictions got him feeling strange,
     # which is disorientation about himself rather than fear of the world.
     "inner_conflict": ["confused", "frustration", "anticipation"],
+    # What she expected is what happened. Not achievement and not relief: the
+    # feeling of a prediction landing, which is why trust in her own model is
+    # in it alongside the satisfaction.
+    "expectation_met": ["satisfaction", "trust", "pride", "interest"],
     # Three types the tree emits that this map had no entry for, so a
     # phase crash, an apology and every stimulus injected through the
     # compatibility bridge arrived and moved nothing. An internal error

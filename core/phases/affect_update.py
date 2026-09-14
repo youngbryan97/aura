@@ -327,6 +327,9 @@ class AffectUpdatePhase(Phase):
         # describes the moment the rest of the turn will act in.
         self._read_ambivalence(state, affect)
 
+        # 6b-iii. And whether what happened is what she expected.
+        self._read_confirmation(state, affect)
+
         # 6c. What won the workspace, as arousal. Global workspace theory's
         # claim is that ignition makes content available to the specialised
         # processes, and affect is one of them; the blend weight is the
@@ -438,6 +441,45 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="ambivalence",
                 action="kept affect state without the contradiction reading",
+                severity="warning",
+            )
+
+    def _read_confirmation(self, state: AuraState, affect: AffectVector) -> None:
+        """Whether the moment came out the way she predicted it would.
+
+        The self prediction loop scores its own error against the distribution
+        of errors it has been making, so this reading is already weighted by
+        how hard the prediction was: being right about what she is always right
+        about arrives as nothing.
+
+        Emitted as a percept as well as written, because a prediction coming
+        true is something that happens to her and the emotion table should
+        carry it the way it carries the others.
+        """
+        try:
+            from core.runtime.service_registry import get_runtime_service
+            from core.state.percepts import emit_percept
+
+            loop = get_runtime_service("self_prediction", default=None)
+            if loop is None or not hasattr(loop, "get_confirmation_signal"):
+                return
+            strength = float(loop.get_confirmation_signal() or 0.0)
+            affect.confirmation = max(0.0, min(1.0, strength))
+            reading = getattr(loop, "_expectation", None)
+            if reading is not None and getattr(reading, "confirmed", lambda: False)():
+                emit_percept(
+                    state.world,
+                    "expectation_met",
+                    content="that came out the way I thought it would",
+                    intensity=affect.confirmation,
+                    source="self_prediction",
+                )
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="confirmation",
+                action="kept affect state without the confirmation reading",
                 severity="warning",
             )
 

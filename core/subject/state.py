@@ -386,6 +386,16 @@ _SCHEMAS: dict[str, Schema] = {
             # D; this is the reading that says two pressed at once, which the
             # winner alone cannot show. See core/affect/ambivalence.py.
             ("ambivalence", "affect.ambivalence"),
+            # What it is like when a prediction lands. S carries the accuracy;
+            # this is the other thing, and the two move apart — she can be
+            # getting more accurate while nothing she predicts is worth being
+            # right about. See core/affect/confirmation.py.
+            ("confirmation", "affect.confirmation"),
+            # The felt side of a prediction landing, which is a different thing
+            # from the self-model's accuracy record in S: one is what it is
+            # like when the moment comes out as expected, the other is how
+            # often it does.
+            ("confirmation", "affect.confirmation"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -541,6 +551,12 @@ _SCHEMAS: dict[str, Schema] = {
             # one quantity most obviously about the self model's own accuracy.
             ("prediction_error", "organ:self_prediction.smoothed_error"),
             ("prediction_surprises", "organ:self_prediction.surprise_count"),
+            # And the other tail. A count of surprises with no count of
+            # confirmations records a mind that can only be wrong, and the two
+            # move independently: she can be getting more accurate while
+            # nothing she predicts is worth being right about.
+            ("prediction_confirmed", "organ:self_prediction.confirmation"),
+            ("prediction_confirmations", "organ:self_prediction.confirmation_count"),
             ("valence_error", "organ:self_prediction.valence_error_ema"),
             ("drive_error", "organ:self_prediction.drive_error_ema"),
             ("focus_error", "organ:self_prediction.focus_error_ema"),
@@ -1015,6 +1031,8 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.engagement"), 0.5),
         _f(_dig(state, "affect.social_hunger"), 0.5),
         _f(_dig(state, "affect.ambivalence")),
+        _f(_dig(state, "affect.confirmation")),
+        _f(_dig(state, "affect.confirmation")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing
@@ -1184,6 +1202,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             *_one_hot(agency.get("last_actor", ""), _ACTORS),
             _f(prediction.get("smoothed_error")),
             _sat(_f(prediction.get("surprise_count")), 16.0),
+            _f(prediction.get("confirmation")),
+            _sat(_f(prediction.get("confirmation_count")), 16.0),
             _f(prediction.get("valence_error_ema")),
             _f(prediction.get("drive_error_ema")),
             _f(prediction.get("focus_error_ema")),

@@ -315,6 +315,11 @@ class AffectVector:
     #: once, which is a different moment and feels like one.
     #: See core/affect/ambivalence.py.
     ambivalence: float = 0.0    # 0.0 (single-minded) to 1.0 (caught)
+    #: How strongly what just happened is what she expected, scaled by how
+    #: often she is right about that kind of thing. Every other measure in the
+    #: system fires when reality disagrees; this is the one that fires when it
+    #: agrees. See core/affect/confirmation.py.
+    confirmation: float = 0.0   # 0.0 (ordinary or unread) to 1.0 (exactly so)
     #: Which two wants, and whether being caught between them is how she is
     #: built or where she is now. Empty until her history can say.
     ambivalent_about: tuple[str, ...] = ()
