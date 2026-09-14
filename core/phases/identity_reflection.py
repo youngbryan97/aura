@@ -100,8 +100,19 @@ class IdentityReflectionPhase(BasePhase):
         # brainstem fallback responses, causing repetitive mantra loops when
         # the primary cortex died. Identity stability is maintained through
         # the identity guard checks above, not through string injection.
-        if state.version % 20 == 0:
-            decision = self._authorize_identity_mutation("periodic_narrative_version_increment")
+        # When enough has happened to justify it, which is what this phase has
+        # said it does since it was written. What it did was increment on
+        # `state.version % 20`: twenty turns of silence and twenty turns that
+        # changed everything got the same answer, and the declaration and the
+        # implementation had never agreed.
+        #
+        # What has happened is readable. Recall bringing back something the
+        # story has no room for is the condition, measured against how much it
+        # usually brings back. See core/self/revision.py.
+        revision = self._worth_revisiting(state)
+        state.response_modifiers["narrative_revision"] = revision.as_dict()
+        if revision.worth_revisiting:
+            decision = self._authorize_identity_mutation("recall_unaccounted_for_by_the_narrative")
             if not decision or not decision.is_approved():
                 return state
             try:
@@ -112,6 +123,24 @@ class IdentityReflectionPhase(BasePhase):
             state.identity.last_evolution_timestamp = time.time()
 
         return state
+
+    @staticmethod
+    def _worth_revisiting(state):
+        """Whether recall brought back something the story does not hold.
+
+        Returns an unmeasured reading rather than raising when the organ is not
+        available, so a missing reader leaves the narrative alone instead of
+        revising it on nothing.
+        """
+        from core.self.revision import Revision, get_revision_ledger
+
+        try:
+            recalled = list(getattr(state.cognition, "long_term_memory", []) or [])
+            narrative = str(getattr(state.identity, "current_narrative", "") or "")
+            return get_revision_ledger().read(recalled, narrative)
+        except (AttributeError, TypeError, ValueError):
+            return Revision()
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,6 +168,8 @@ register_contract(
             "identity.narrative_version",
             "identity.last_evolution_timestamp",
             "cognition.working_memory",
+            "cognition.long_term_memory",
+            "identity.current_narrative",
         ),
         writes=(
             "identity.last_evolution_timestamp",

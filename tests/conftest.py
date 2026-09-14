@@ -1340,6 +1340,7 @@ def resource_observer(
             "core.self.persona_gap",
             "core.social.constancy",
             "core.social.resolve",
+            "core.self.revision",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()

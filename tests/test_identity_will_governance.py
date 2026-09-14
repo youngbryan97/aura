@@ -16,6 +16,27 @@ class _Decision:
         return self._approved
 
 
+def _something_the_story_does_not_hold(state) -> None:
+    """Arrange the condition the phase now revises on.
+
+    The trigger used to be `state.version % 20`, a counter. It is now recall
+    bringing back something the narrative has no room for, measured against how
+    much it usually brings back — so the setup is a settled history and then
+    one recollection unlike it. What these tests are about is the Will gate,
+    which is the same either way.
+    """
+    from core.self.revision import get_revision_ledger, reset_for_test
+
+    reset_for_test()
+    state.identity.current_narrative = "She builds instruments and keeps records."
+    ledger = get_revision_ledger()
+    for _ in range(8):
+        ledger.read(["records of the instruments she builds"], state.identity.current_narrative)
+    state.cognition.long_term_memory = [
+        "a concert in Brooklyn changed how she hears saxophone phrasing entirely"
+    ]
+
+
 @pytest.mark.asyncio
 async def test_identity_reflection_blocks_identity_mutation_without_will_approval(monkeypatch):
     from core.phases.identity_reflection import IdentityReflectionPhase
@@ -23,8 +44,8 @@ async def test_identity_reflection_blocks_identity_mutation_without_will_approva
     import core.will as will_module
 
     state = AuraState.default()
-    state.version = 20
     state.identity.narrative_version = 3
+    _something_the_story_does_not_hold(state)
 
     monkeypatch.setattr(
         will_module,
@@ -44,8 +65,8 @@ async def test_identity_reflection_records_will_receipt_when_mutating(monkeypatc
     import core.will as will_module
 
     state = AuraState.default()
-    state.version = 20
     state.identity.narrative_version = 3
+    _something_the_story_does_not_hold(state)
 
     monkeypatch.setattr(
         will_module,
