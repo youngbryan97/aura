@@ -713,6 +713,10 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/self/borrowed.py.
             ("their_read_of_her_wins", "cognition.borrowed_self.defer"),
             ("their_read_of_her_weight", "cognition.borrowed_self.weight"),
+            # How much of what she is she can bring to bear, and what being
+            # small costs when nobody knows her. See core/self/scale.py.
+            ("reach", "cognition.scale.reach"),
+            ("unknown_and_small", "cognition.scale.pressure"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1453,6 +1457,8 @@ def _read_D(state: Any) -> np.ndarray:
         1.0 if (_dig(state, "cognition.borrowed_resolve", {}) or {}).get("borrowed") else 0.0,
         1.0 if (_dig(state, "cognition.borrowed_self", {}) or {}).get("defer") else 0.0,
         _f((_dig(state, "cognition.borrowed_self", {}) or {}).get("weight")),
+        _f((_dig(state, "cognition.scale", {}) or {}).get("reach")),
+        _f((_dig(state, "cognition.scale", {}) or {}).get("pressure")),
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),

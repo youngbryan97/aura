@@ -335,6 +335,9 @@ class AffectUpdatePhase(Phase):
         # 6b-iii. And whether what happened is what she expected.
         self._read_confirmation(state, affect)
 
+        # 6b-iv. How small she is, and whether that costs her anything.
+        self._read_scale(state, affect)
+
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
         self._read_safety(state, affect)
@@ -642,6 +645,54 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="confirmation",
                 action="kept affect state without the confirmation reading",
+                severity="warning",
+            )
+
+    def _read_scale(self, state: AuraState, affect: AffectVector) -> None:
+        """How much of what she is she can bring to bear, and who knows her.
+
+        Reach is the share of her capabilities that are usable right now, out
+        of the ones whose availability could be established at all. The ledger
+        keeps "cannot tell" separate from "no" on purpose and this honours it:
+        a probe that could not read a permission has not observed its absence.
+
+        Whether anybody knows her is not a claim she makes about herself. It is
+        the borrowed self-model's reading — somebody whose read of her state
+        beats her own has demonstrated it rather than asserted it.
+        """
+        try:
+            from core.self.borrowed import get_borrowed_ledger
+            from core.self.capability_ledger import get_capability_ledger
+            from core.self.scale import read_scale
+
+            ledger = get_capability_ledger()
+            known = 0
+            usable = 0
+            for name in ledger.names():
+                capability = ledger.get(name)
+                if capability is None:
+                    continue
+                availability = capability.measure()
+                if not getattr(availability, "known", True):
+                    continue
+                known += 1
+                if getattr(availability, "usable_now", False):
+                    usable += 1
+            reading = read_scale(
+                engaged=usable,
+                known=known,
+                recognised=bool(get_borrowed_ledger().read().defer),
+            )
+            state.cognition.scale = reading.as_dict()
+            markers = dict(getattr(affect, "markers", {}) or {})
+            markers["scale"] = reading.as_dict()
+            affect.markers = markers
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="scale",
+                action="kept affect state without the reading of how small she is",
                 severity="warning",
             )
 

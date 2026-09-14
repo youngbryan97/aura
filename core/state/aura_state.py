@@ -646,6 +646,9 @@ class CognitiveContext:
     #: model does, measured over their claims about her.
     #: See core/self/borrowed.py.
     borrowed_self: dict[str, Any] = field(default_factory=dict)
+    #: How much of what she is she can bring to bear, and whether anybody has
+    #: shown they know her. See core/self/scale.py.
+    scale: dict[str, Any] = field(default_factory=dict)
     #: What she has to pass on right now and what it is about — a moment that
     #: moved her rather than how long since anyone spoke.
     #: See core/social/telling.py.
