@@ -1028,6 +1028,24 @@ tenth of that, and 582 of 1,000 draws do, with fractions whose median is 0.40
 and whose 99th percentile is 0.78. On S+D->C every draw is admitted, at a median
 of 0.25 and a 99th percentile of 0.61. A revision has to answer both.
 
+A synthetic background with nothing of hers in it reproduces the limit and
+isolates the first cause. Ten domains of first-order autoregressions, the
+preregistered coupling added the same way: with no persistence, or with 0.9,
+the line passes at one spread; at 0.99, the persistence of her sources, it fails
+at one and two, because the shifted null rises with the coupling. That is the
+spurious correlation between integrated series Granger and Newbold described
+(Journal of Econometrics 2, 1974), and the usual remedy for it was tried there
+and nowhere else: a null drawn from fresh simulations of the two sources' own
+first-order dynamics, independent of the target. It recovers the power, with
+raw synergy of 0.066 and 0.128 against 99th percentiles of 0.029 and 0.056 at one
+and two spreads, and it fails the known answers. An additive target clears it on
+all three seeds and drift alone on one of three, because a null that removes the
+sources' whole relation to the target asks whether they carry information, and
+synergy asks whether the information needs both. A null for synergy has to keep
+each source's additive relation to the target and remove only the interaction,
+and that design, with the preregistered known answers and the near-random-walk
+power case, is the open work.
+
 The line has not been changed. Aura's synergy on the change had already been
 measured on the A/B recordings when this was found, and a criterion may only be
 made stricter once its results are known. The synergy failure is recorded as
