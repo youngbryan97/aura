@@ -707,6 +707,28 @@ _A_CONDITION_NOT_A_QUESTION_RE = re.compile(
 )
 
 
+#: A short label in front of the sentence proper: "Quick sanity check:",
+#: "Question:", "ok so:". Bounded so a colon inside the sentence is not one.
+_A_LEADING_LABEL_RE = re.compile(r"^\s*[^:?.!]{1,40}:\s*")
+
+#: The words a clause needs one of to be asking something: an interrogative,
+#: or an inverted auxiliary at its front.
+_ASKS_SOMETHING_RE = re.compile(
+    r"\b(?:what|why|how|when|where|who|whom|whose|which)\b"
+    r"|^\s*(?:do|does|did|is|are|was|were|can|could|would|should|will|shall|"
+    r"have|has|had|am|may|might|must)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_a_condition_not_a_question(piece: str) -> bool:
+    """Whether a leading piece of a coordinated question is its premise."""
+    body = _A_LEADING_LABEL_RE.sub("", str(piece or ""), count=1)
+    if _A_CONDITION_NOT_A_QUESTION_RE.match(body):
+        return True
+    return not _ASKS_SOMETHING_RE.search(body)
+
+
 def _coordinated_question_segments(text: str) -> tuple[str, ...]:
     """Split one sentence that asks several questions.
 
@@ -739,7 +761,16 @@ def _coordinated_question_segments(text: str) -> tuple[str, ...]:
     # sentence asks one thing. Dropping it here rather than never splitting
     # keeps "if you want, what would you change, and why?" splitting into the
     # two questions it really holds.
-    while kept and _A_CONDITION_NOT_A_QUESTION_RE.match(kept[0]):
+    #
+    # The condition may sit behind a short label — "Quick sanity check: if I
+    # run a script every night at 2am ..., and the clocks go forward that
+    # night, what actually happens on a Mac?" — and it may carry no
+    # subordinator at all when the comma-joined clauses are all premise. A
+    # piece with no interrogative in it asks nothing; it is the setup for the
+    # piece that does. LIVE 2026-09-15: the labelled premise became a
+    # "question segment", and a correct answer that never repeated the words
+    # "happens" or "Mac" was reported as leaving half the question alone.
+    while kept and _is_a_condition_not_a_question(kept[0]):
         kept = kept[1:]
     if len(kept) < 2:
         return ()

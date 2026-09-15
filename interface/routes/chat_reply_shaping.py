@@ -323,6 +323,18 @@ def _merge_turn_text_mutations(
     trace.update(summarize_text_mutation_authorship(merged))
 
 
+def _without_sentences(text: str, sentences: list[str]) -> str:
+    """The text with each named sentence removed, whitespace closed up."""
+    out = str(text or "")
+    for sentence in sentences:
+        needle = str(sentence or "").strip()
+        if not needle:
+            continue
+        out = out.replace(needle, "")
+    lines = [" ".join(line.split()) for line in out.splitlines()]
+    return "\n".join(line for line in lines if line or True).strip()
+
+
 def _enforce_final_requested_output_contract(
     trace: dict[str, Any],
     *,
@@ -404,6 +416,38 @@ def _enforce_final_requested_output_contract(
             return str(reply_text or "")
         repaired = repair_instruction_shape(user_message, reply_text)
         final_assessment = assess_user_facing_reply(user_message, repaired)
+        if "fabricated_shared_history" in final_assessment.reasons:
+            # The honest remedy for a sentence that puts words in his mouth
+            # is to drop the sentence and deliver the answer. This check runs
+            # after every late mutation with less context than the main gate
+            # had, so a sentence the main gate passed can fail here; failing
+            # the whole reply closed handed the turn to a smaller model. LIVE
+            # 2026-09-15: a correct 27B answer about daylight-saving time was
+            # replaced by a wrong 9B one under an apology, over "The 2 o'clock
+            # hour never exists that night."
+            from core.dialogue.shared_history import fabricated_shared_history
+
+            offending = fabricated_shared_history(repaired, user_message)
+            excised = _without_sentences(repaired, offending)
+            if offending and excised and excised != repaired:
+                _append_turn_text_mutation(
+                    trace,
+                    stage="chat.final_requested_output_contract",
+                    method="measured_sentence_excision",
+                    reasons=["fabricated_shared_history"],
+                    before=repaired,
+                    after=excised,
+                    deterministic=True,
+                    authorship_effect="preserved",
+                )
+                logger.info(
+                    "Dropped %d sentence(s) that put words in the person's mouth and "
+                    "kept the answer: %s",
+                    len(offending),
+                    "; ".join(item[:80] for item in offending),
+                )
+                repaired = excised
+                final_assessment = assess_user_facing_reply(user_message, repaired)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("chat.final_output_contract", exc)
         logger.error("Final requested-output contract enforcement failed: %s", exc)
