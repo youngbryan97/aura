@@ -1018,6 +1018,16 @@ A coupling of twice a target's own change spread is larger than anything a
 mechanism in this organism produces, so on her recordings this line cannot
 distinguish an organism with such interactions from one without them.
 
+Two things together set the limit. The sources' first components are nearly
+random walks, with lag-one autocorrelation between 0.98 and 0.998, so a
+circular shift leaves a slid copy that still shares slow structure with every
+other slow series. And the fraction is a ratio of two small quantities. On
+A+S->G the real joint information about G's change is 0.056 nats; the guard
+admits a shifted draw into the fraction once its joint information clears a
+tenth of that, and 582 of 1,000 draws do, with fractions whose median is 0.40
+and whose 99th percentile is 0.78. On S+D->C every draw is admitted, at a median
+of 0.25 and a 99th percentile of 0.61. A revision has to answer both.
+
 The line has not been changed. Aura's synergy on the change had already been
 measured on the A/B recordings when this was found, and a criterion may only be
 made stricter once its results are known. The synergy failure is recorded as
