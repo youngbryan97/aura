@@ -38,24 +38,28 @@ def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
-async def _record(runtime: Any, conditions: Any, rounds: int) -> tuple[list[Any], list[dict[str, float]]]:
-    from core.subject.closure import read_periphery
+async def _record(
+    runtime: Any, conditions: Any, rounds: int
+) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
+    """Live the rounds, keeping each frame's core state and periphery reading.
+
+    The periphery goes straight into an array. `read_periphery` returns a dict
+    of up to four hundred entries whose keys it formats fresh every call, so a
+    list of them costs 284 KB a frame against 2.5 KB for everything else here.
+    At three hundred rounds that was 21.5 GB, which took the campaign to
+    thirty-five gigabytes resident and the machine into swap at three hundred
+    seconds a turn. The array is the same numbers in 0.25 GB.
+    """
+    from core.subject.closure import PeripheryAccumulator, read_periphery
 
     frames: list[Any] = []
-    periphery: list[dict[str, float]] = []
+    periphery = PeripheryAccumulator()
     for _ in range(rounds):
         for condition in conditions:
             for reading in await runtime.turn_once(condition):
                 frames.append(reading)
-                periphery.append(read_periphery(runtime.kernel))
-    return frames, periphery
-
-
-def _periphery_matrix(rows: list[dict[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:
-    """One implementation, beside what consumes it. See `closure.periphery_matrix`."""
-    from core.subject.closure import periphery_matrix
-
-    return periphery_matrix(rows)
+                periphery.note(read_periphery(runtime.kernel))
+    return frames, periphery.matrix()
 
 
 def _scales(recording: Any) -> dict[str, np.ndarray]:
@@ -202,7 +206,7 @@ async def main() -> int:
         start_organism,
     )
     from core.subject.graph import analyse_graph
-    from core.subject.intrinsic import intrinsic_gain
+    from core.subject.intrinsic import intrinsic_gain, persistence
     from core.subject.irreducibility import phi_do
     from core.subject.metastability import regimes
     from core.subject.nulls import (
@@ -213,7 +217,7 @@ async def main() -> int:
         toy_edges,
         toy_recording,
     )
-    from core.subject.pci import perturbational_complexity
+    from core.subject.pci import perturbational_complexity, response_structure
     from core.subject.provenance import (
         campaign,
         environment,
@@ -292,7 +296,7 @@ async def main() -> int:
     )
 
     _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
-    frames, periphery_rows = await _record(runtime, CONDITIONS, args.rounds)
+    frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds)
     recording = build_recording(
         frames,
         notes={
@@ -321,9 +325,23 @@ async def main() -> int:
     evidence["phi"] = phi.as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
     evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
+    # ISC-v2's persistence line reads the next level, not the next change, and
+    # the same reading again with memory left out (P35.7). See
+    # docs/ISC_V2_PREREGISTRATION.md, third amendment.
+    evidence["persistence_v2"] = persistence(turns, seed=args.seed).as_dict()
+    evidence["persistence_v2"]["without_memory"] = persistence(
+        turns, seed=args.seed, exclude=("M",)
+    ).as_dict()
     evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
     evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
-    matrix, names = _periphery_matrix(periphery_rows)
+    # ISC-v2 scores each triple on the target's change, because a slow level
+    # shares information with a slid copy of any slow series and its shifted
+    # null rises with the drift (docs/ISC_V2_PREREGISTRATION.md). Recorded beside
+    # the v1 reading, which stays the v1 result.
+    evidence["synergy_v2"] = [
+        item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
+    ]
+    matrix, names = periphery_read
     turn_rows = recording.turn_rows()
     from core.subject.closure import coverage as periphery_coverage
 
@@ -480,6 +498,9 @@ async def main() -> int:
         "pci_by_source": {k: round(v, 3) for k, v in pcis.items()},
         "null_pci_by_source": {k: round(v, 3) for k, v in null_pcis.items()},
         "matrices": rows,
+        # Whether the response unfolds in time and differs between sources.
+        # See core/subject/pci.py `response_structure`.
+        **response_structure(rows),
     }
     evidence["notes"]["intervention_power"] = power_note(results)
     # Whether the two-turn horizon is binding. An effect that peaks at the last
@@ -512,11 +533,27 @@ async def main() -> int:
     }
     fast_to_slow = [f"{s}->{t}" for s, t in kept if s in FAST_DOMAINS and t in SLOW_DOMAINS]
     slow_to_fast = [f"{s}->{t}" for s, t in kept if s in SLOW_DOMAINS and t in FAST_DOMAINS]
+    # And whether a running total could be standing in for the coupling. A
+    # clock moves identically in both arms and cannot carry an effect, but a
+    # counter whose rate the displacement changed can.
+    from core.subject.causal import counter_carried_edges
+
+    monotone = recording.monotone_columns()
+    counters = {
+        (domain, int(index))
+        for domain, where in recording.slices.items()
+        for index in np.flatnonzero(monotone[where])
+    }
+    crossing = [(s, t) for s, t in kept if (s in FAST_DOMAINS) != (t in FAST_DOMAINS)]
+    carried_by_counters = counter_carried_edges(results, crossing, counters)
     evidence["timescale"] = {
         "fast_to_slow": bool(fast_to_slow),
         "fast_to_slow_edges": fast_to_slow,
         "slow_to_fast": bool(slow_to_fast),
         "slow_to_fast_edges": slow_to_fast,
+        "counter_carried_edges": carried_by_counters,
+        "fast_to_slow_not_counters": any(e not in carried_by_counters for e in fast_to_slow),
+        "slow_to_fast_not_counters": any(e not in carried_by_counters for e in slow_to_fast),
     }
 
     _log("agency and ownership")
@@ -1232,23 +1269,19 @@ def _nulls(
         # What separates them is that K's future depends on a variable no
         # reading of K contains, which is what this measures and what the
         # battery keeps causal closure for.
+        #
+        # Since the periphery walk stopped counting an empty periphery as closed,
+        # a null with no broker read as open, and that included the recurrent
+        # reference: the positive control failed closure on every run and
+        # `beats_every_null` could not pass for anything. A toy's state can be
+        # listed, so `toy_closure` reads "nothing outside K" off it.
         closed = True
         leak = 0.0
         try:
-            from core.subject.closure import closure_gain
-            from core.subject.nulls import toy_periphery
+            from core.subject.nulls import toy_closure
 
             system = architecture(name, seed=args.seed)
-            recording_for_closure = toy_recording(system, steps=2500, seed=args.seed)
-            outside = toy_periphery(system, steps=2500, seed=args.seed)
-            report = closure_gain(
-                recording_for_closure,
-                outside,
-                tuple(f"broker.{index}" for index in range(outside.shape[1])),
-                seed=args.seed,
-            )
-            closed = bool(report.closed)
-            leak = float(report.leak)
+            closed, leak = toy_closure(system, steps=2500, seed=args.seed)
         except (ImportError, ValueError, RuntimeError, AttributeError) as exc:
             _log(f"  closure unavailable for the {name} null: {exc}")
         # And the rest of the suite, on the same toy recording. A null suite
@@ -1279,6 +1312,11 @@ def _nulls(
             reports = synergy_suite(scored, seed=args.seed)
             extra["synergy"] = [round(float(r.normalised), 4) for r in reports]
             extra["synergy_passes"] = [bool(r.passes) for r in reports]
+            # And on the change, which is what the v2 conjunction judges a null
+            # by, with ISC-v3's line read off the same reports.
+            change = synergy_suite(scored, seed=args.seed, of="change")
+            extra["synergy_v2_passes"] = [bool(r.passes) for r in change]
+            extra["synergy_v3_passes"] = [bool(r.passes_v3) for r in change]
             extra["synergy_min"] = (
                 round(min(float(r.normalised) for r in reports), 4) if reports else 0.0
             )
@@ -1418,9 +1456,17 @@ def _nulls(
     # ISC-v2, beside v1 and changing none of it: the same lower bound against
     # the matched surrogates and the nulls that pass the rest of the
     # conjunction (docs/ISC_V2_PREREGISTRATION.md).
-    from core.subject.null_verdicts import beats_the_comparison_set
+    from core.subject.null_verdicts import (
+        beats_the_comparison_set,
+        beats_the_v3_comparison_set,
+        v2_conjunctions,
+        v3_conjunctions,
+    )
 
     v2_beats, v2_compared = beats_the_comparison_set(real_phi, table)
+    # And ISC-v3's, with every null judged by the v3 synergy line
+    # (docs/ISC_V3_PREREGISTRATION.md).
+    v3_beats, v3_compared = beats_the_v3_comparison_set(real_phi, table)
     return {
         "phi_table": {k: v["phi_do"] for k, v in table.items()},
         "detail": table,
@@ -1444,6 +1490,8 @@ def _nulls(
         "compared_on": "lower_bound",
         "v2_phi_beats_comparison_set": v2_beats,
         "v2_comparison_set": {name: round(value, 5) for name, value in v2_compared.items()},
+        "v3_phi_beats_comparison_set": v3_beats,
+        "v3_comparison_set": {name: round(value, 5) for name, value in v3_compared.items()},
         "real_lower_bound": round(real_phi, 5),
         "real_point_estimate": round(real_point, 5),
         "all_nulls_fail": bool(nulls_fail and reference_passes),
@@ -1453,6 +1501,10 @@ def _nulls(
         "conjunction": {
             name: _passes_the_conjunction(row) for name, row in table.items()
         },
+        # ISC-v2's own conjunction per system, which its null line is decided
+        # across seeds by. The line above is v1's.
+        "conjunction_v2": v2_conjunctions(table),
+        "conjunction_v3": v3_conjunctions(table),
         "summary": {
             "reference_recurrent": reference.get("phi_do"),
             "reference_passes_the_conjunction": reference_passes,

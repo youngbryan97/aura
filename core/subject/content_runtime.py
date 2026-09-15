@@ -27,13 +27,14 @@ share the percepts and share nothing else.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 
-from core.state.percepts import DEFAULT_INTENSITY, PERCEPT_EMOTIONS, emit_percept
+from core.state.percepts import PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
 from core.subject.intrinsic_v25 import crossfit_fisher_rao
 from core.subject.state import perturb, perturb_organs
@@ -49,6 +50,15 @@ __all__ = [
     "present",
     "sample_classes",
 ]
+
+#: How strongly every class is presented: the top of the scale. At the default
+#: half, no class was ever the most salient thing in front of her. The fork
+#: still held her own percepts from the turn before, the turn at 0.83 and the
+#: host's pressure near 0.78, and the most salient percept is the one recall is
+#: cued by, so every class recalled what the turn cued and the behavioural
+#: geometry was flat in every run. A stimulus the stream outranks has not been
+#: presented. See tests/test_a_percept_class_is_presented_not_merely_emitted.py.
+PRESENTED_INTENSITY: float = 1.0
 
 #: The kind that is capped and rewritten before it reaches the table, so it is
 #: not one percept class among others and is left out of the grid.
@@ -78,7 +88,7 @@ def grid() -> tuple[PerceptClass, ...]:
                 name=kind,
                 kind=kind,
                 source="world",
-                intensity=DEFAULT_INTENSITY,
+                intensity=PRESENTED_INTENSITY,
                 # The content is the kind's own name. A percept carries text and
                 # the text has to be something; making it the kind keeps the two
                 # from varying independently and keeps the class one thing.
@@ -132,10 +142,17 @@ class ClassSamples:
     retrieved_b: list[frozenset[str]] = field(default_factory=list)
 
 
+#: Recall writes each recollection with the score it was kept at, and that
+#: score moves with her mood while the memory stays the same one. The
+#: behavioural geometry is about which memories came back, so the score is taken
+#: off before two recalls are compared; the store's own label stays.
+_SCORE_MARK = re.compile(r"^\[memory score=[-0-9.]+\]\s*")
+
+
 def _retrieved(runtime: Any) -> frozenset[str]:
     cognition = getattr(getattr(runtime, "state", None), "cognition", None)
     items = list(getattr(cognition, "long_term_memory", []) or [])
-    return frozenset(str(item) for item in items)
+    return frozenset(_SCORE_MARK.sub("[memory] ", str(item)) for item in items)
 
 
 async def sample_classes(
@@ -172,7 +189,13 @@ async def sample_classes(
             rows.extend(await runtime.turn_once(shown))
         if not rows:
             return None
-        index = min(max(1, lag) - 1, len(rows) - 1)
+        # The end of the `lag`-th turn after the fork. A turn records a frame
+        # before its phases run and one after each, so reading frame `lag`
+        # read the open frame: the percept was in the stream and no phase had
+        # taken it in. Every class forked from one anchor had the same future
+        # there, and the internal geometry was one distance for every pair.
+        per_turn = max(1, len(rows) // max(1, turns))
+        index = min(max(1, lag) * per_turn - 1, len(rows) - 1)
         return np.asarray(rows[index].vector(), dtype=np.float64), _retrieved(runtime)
 
     for anchor in anchors:

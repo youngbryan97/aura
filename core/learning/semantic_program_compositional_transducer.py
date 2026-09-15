@@ -521,11 +521,23 @@ class CompositionalSemanticProgramTransducer:
             or receipt.get("argument_score_strategy", "independent_positive_v1")
             not in {"independent_positive_v1", "conditional_log_odds_v1"}
             or receipt.get("argument_proposal_retention", "ranked_v1")
-            not in {"ranked_v1", "ranked_with_literal_anchors_v2"}
+            not in {"ranked_v1", "ranked_with_literal_anchors_v2", "overlap_dominance_v3"}
+            or receipt.get("argument_literal_boundaries", "unrestricted_v1")
+            not in {"unrestricted_v1", "atomic_v1"}
             or receipt.get("operation_chart_feasibility", "unfiltered_v1")
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
             not in {"first_feasible_v1", "joint_factor_score_v2"}
+            or receipt.get("operation_search_policy", "ranked_beam_v1")
+            not in {"ranked_beam_v1", "complete_bounded_v1"}
+            or (
+                receipt.get("operation_search_policy") == "complete_bounded_v1"
+                and (receipt.get("operation_assignment_policy") != "joint_factor_score_v2"
+                     or receipt.get("operation_label_limit") != len(self.operation_head.labels))
+            )
+            or (receipt.get("operation_search_max_expansions") is not None
+                and (type(receipt["operation_search_max_expansions"]) is not int
+                     or receipt["operation_search_max_expansions"] < 1))
             or type(receipt.get("operation_label_limit", 1)) is not int
             or not 1 <= receipt.get("operation_label_limit", 1) <= len(self.operation_head.labels)
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
@@ -896,6 +908,20 @@ class CompositionalSemanticProgramTransducer:
         body["argument_proposal_retention"] = "ranked_with_literal_anchors_v2"
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_overlap_complete_mentions(self) -> CompositionalSemanticProgramTransducer:
+        """Retain every scored mention not dominated under overlap constraints."""
+        body = {
+            key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"
+        }
+        body["argument_proposal_retention"] = "overlap_dominance_v3"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_atomic_literal_arguments(self) -> CompositionalSemanticProgramTransducer:
+        """Preserve parser-owned literal boundaries in the learned reference chart."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body["argument_literal_boundaries"] = "atomic_v1"
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_feasible_operation_charts(self, *, preserve_arity_states=False) -> CompositionalSemanticProgramTransducer:
         """Spend chart capacity only on cardinalities permitted by the graph contract."""
         body = {
@@ -914,6 +940,15 @@ class CompositionalSemanticProgramTransducer:
         """Make ambiguity retention explicit in the candidate identity."""
         body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
         body["operation_label_limit"] = limit
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
+    def with_complete_operation_search(self, *, max_expansions=None) -> CompositionalSemanticProgramTransducer:
+        """Search all source spans and learned operation labels inside the declared bounds."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body.update(operation_search_policy="complete_bounded_v1",
+                    operation_assignment_policy="joint_factor_score_v2",
+                    operation_label_limit=len(self.operation_head.labels),
+                    operation_search_max_expansions=max_expansions)
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
@@ -1024,8 +1059,17 @@ class CompositionalSemanticProgramTransducer:
             hidden_channels=self.hidden_channels,
             hidden_channel_widths=self.hidden_channel_widths,
             label_limit=self.training_receipt.get("operation_label_limit", 1),
+            complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
         )
-        charts = _operation_chart_candidates(
+        from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
+
+        complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
+        charts = (OperationChartSearch(
+            nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
+            feasible=lambda selected: _operation_chart_use_feasible(
+                selected, n_inputs=len(inputs), contract=self.register_use_contract),
+            max_expansions=self.training_receipt.get("operation_search_max_expansions"),
+        ) if complete_search else _operation_chart_candidates(
             nodes,
             max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
@@ -1036,7 +1080,7 @@ class CompositionalSemanticProgramTransducer:
                 )
             ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
             preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
-        )
+        ))
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
@@ -1060,7 +1104,7 @@ class CompositionalSemanticProgramTransducer:
                     relation_score_cache=relation_score_cache,
                 ),
             )
-        except ArgumentOptimizationIncompleteError as exc:
+        except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {})
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
@@ -1636,6 +1680,9 @@ def refit_compositional_argument_rankings(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
     preserve_coreferent_mentions: bool = False,
+    use_runtime_operation_views: bool = False,
+    runtime_mention_margin: bool = False,
+    progress=None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
     from core.learning.semantic_argument_ranking import fit_pairwise_argument_weight
@@ -1661,24 +1708,43 @@ def refit_compositional_argument_rankings(
         or set(train_ids) & set(validation_ids)
     ):
         raise ValueError("argument ranking source splits duplicate or overlap")
+    if type(use_runtime_operation_views) is not bool:
+        raise ValueError("runtime operation views must be a boolean")
+    if type(runtime_mention_margin) is not bool:
+        raise ValueError("runtime mention margin must be a boolean")
+    fitting_examples = training
+    runtime_view_receipt = None
+    if use_runtime_operation_views:
+        from core.learning.semantic_runtime_argument_views import runtime_argument_training_views
+
+        fitting_examples, runtime_view_receipt = runtime_argument_training_views(
+            model, training, progress=progress,
+        )
     heads, fits = [], []
     for position, (role, proposal) in enumerate(zip(
         model.argument_role_heads, model.argument_proposal_heads, strict=True
     )):
+        fixed_scores = [] if runtime_mention_margin else None
         features, labels, weights, _, _ = _argument_proposal_rows(
-            training, argument_pointer=model.argument_pointer, position=position,
+            fitting_examples, argument_pointer=model.argument_pointer, position=position,
             max_span_tokens=model.max_span_tokens,
             max_argument_span_tokens_by_type=model.max_argument_span_tokens_by_type,
             hidden_channels=model.hidden_channels,
             hidden_channel_widths=model.hidden_channel_widths,
             include_semantic_negatives=True,
             preserve_coreferent_mentions=preserve_coreferent_mentions,
+            full_runtime_mentions=runtime_mention_margin,
+            fixed_pointer_scores=fixed_scores,
+            pointer_scale=model.argument_pointer_scale,
+            factorized_features=runtime_mention_margin,
         )
         weight, fit = fit_pairwise_argument_weight(
             features, labels, weights,
             initial_weight=model.argument_role_scale * role.weight
             + model.argument_proposal_scale * proposal.weight,
+            fixed_scores=None if fixed_scores is None else np.asarray(fixed_scores),
         )
+        del features
         # Keep the proposal module and its calibration fixed. The role module
         # carries the residual needed for their combined log odds to equal the ranker.
         heads.append(LinearArgumentRoleHead(
@@ -1708,6 +1774,13 @@ def refit_compositional_argument_rankings(
         "fits": fits,
         "serving_authority": False,
     }
+    if runtime_view_receipt is not None:
+        body["argument_ranking_refit"]["runtime_operation_views"] = runtime_view_receipt
+    if runtime_mention_margin:
+        body["argument_ranking_refit"]["mention_objective"] = "runtime_pointer_margin_v1"
+        body["argument_ranking_refit"]["negative_limit"] = None
+        body["argument_ranking_refit"]["fixed_pointer_scale"] = model.argument_pointer_scale
+        body["argument_ranking_refit"]["graph_relation_terms_fitted"] = False
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
 
 

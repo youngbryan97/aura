@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from pathlib import Path
 
 from core.brain.llm import semantic_neural_serving
 from core.brain.llm.semantic_neural_serving import (
@@ -138,7 +139,10 @@ def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):
     activation = _activation()
     model_path = activation["model_identity"]["path"]
     monkeypatch.setenv("AURA_SEMANTIC_NEURAL_SERVING", "0")
-    status = semantic_neural_serving_status(model_path)
+    status = semantic_neural_serving_status(
+        model_path,
+        authority_key_path=Path.home() / ".aura/private/cortex-upgrade/migration-authority.key",
+    )
     assert status == {
         "active": False,
         "reason": "semantic_neural_serving_disabled",
@@ -150,7 +154,11 @@ def test_active_serving_receipt_exposes_only_verified_qualification_evidence():
     activation = json.loads(activation_path.read_text(encoding="utf-8"))
     model_path = activation["model_identity"]["path"]
 
-    status = semantic_neural_serving_status(model_path)
+    # Installation evidence is outside pytest's isolated mutable-state root.
+    status = semantic_neural_serving_status(
+        model_path,
+        authority_key_path=Path.home() / ".aura/private/cortex-upgrade/migration-authority.key",
+    )
 
     assert status["active"] is True
     qualification = status["receipt"]["qualification"]
@@ -278,147 +286,3 @@ def test_qualification_candidate_cannot_escape_or_symlink_the_repository(
         assert "cannot be a symlink" in str(exc)
     else:
         raise AssertionError("qualification accepted a symlink activation")
-
-
-# ── the manifest's bytes are not the model basis ─────────────────────────────
-#
-# The resident manifest carries the migration contract: one signed authority
-# per component, rewritten whenever a component is re-measured. On 2026-09-13
-# a steering campaign re-issued the steering authority, the file's sha256
-# moved, and the semantic package — qualified on the 27B, bound to the bytes —
-# read as resident_manifest_drift on every boot afterwards, with nothing it
-# was qualified on having changed.
-
-
-def _manifest_identity(payload: dict, path: str) -> dict:
-    import hashlib as _hashlib
-
-    raw = json.dumps(payload, sort_keys=True).encode("utf-8")
-    return {
-        "path": path,
-        "sha256": _hashlib.sha256(raw).hexdigest(),
-        "active_model_path": payload["active_model_path"],
-        "schema_version": payload["schema_version"],
-        "base_model": payload["base_model"],
-        "tag": payload["tag"],
-        "fused_at": payload["fused_at"],
-    }
-
-
-def _a_manifest(descriptor: DescriptorIdentity, descriptor_sha256: str) -> dict:
-    return {
-        "active_model_path": descriptor.path,
-        "base_model": "/models/base",
-        "fused_at": 1787550884,
-        "schema_version": 3,
-        "tag": "cp954-27b-resident",
-        "artifact_descriptor": {
-            "descriptor_sha256": descriptor_sha256,
-            "artifact_profile": {
-                "path": descriptor.path,
-                "model_type": descriptor.model_type,
-                "num_hidden_layers": descriptor.num_hidden_layers,
-                "hidden_size": descriptor.hidden_size,
-                "vocab_size": descriptor.vocab_size,
-                "full_attention_layers": descriptor.full_attention_layers,
-                "linear_attention_layers": descriptor.linear_attention_layers,
-            },
-            "behavior_identity": {
-                "files": [
-                    {"path": "config.json", "sha256": descriptor.config_sha256},
-                    {
-                        "path": "model.safetensors.index.json",
-                        "sha256": descriptor.weights_index_sha256,
-                    },
-                    {"path": "tokenizer.json", "sha256": descriptor.tokenizer_sha256},
-                ]
-            },
-        },
-        "serving_profile": {"model_descriptor_sha256": descriptor_sha256},
-        "evaluation": {"candidate_descriptor_sha256": descriptor_sha256},
-        "migration_contract": {
-            "model_descriptor_sha256": descriptor_sha256,
-            "components": {"steering": {"authority_kind": "model_basis_quarantine"}},
-        },
-    }
-
-
-def _descriptor() -> DescriptorIdentity:
-    return DescriptorIdentity(
-        path="/models/resident",
-        config_sha256="1" * 64,
-        weights_index_sha256="2" * 64,
-        tokenizer_sha256="3" * 64,
-        model_type="qwen3_5_text",
-        num_hidden_layers=64,
-        hidden_size=5120,
-        vocab_size=248320,
-        full_attention_layers=16,
-        linear_attention_layers=48,
-    )
-
-
-def test_a_rewritten_component_authority_is_not_a_change_of_basis():
-    descriptor = _descriptor()
-    sealed = _a_manifest(descriptor, "d" * 64)
-    expected = _manifest_identity(sealed, "/fused/active.json")
-
-    rewritten = copy.deepcopy(sealed)
-    rewritten["migration_contract"]["components"]["steering"] = {
-        "authority_kind": "caa_model_bound",
-        "authority_sha256": "e" * 64,
-    }
-    rewritten["migration_contract"]["built_at"] = 1789311544.9
-    current = _manifest_identity(rewritten, "/fused/active.json")
-    assert current["sha256"] != expected["sha256"]
-
-    assert semantic_neural_serving._same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=current,
-        current_payload=rewritten,
-        descriptor_identity=descriptor,
-    )
-
-
-def test_a_manifest_naming_another_model_is_drift_whatever_its_contract_says():
-    descriptor = _descriptor()
-    sealed = _a_manifest(descriptor, "d" * 64)
-    expected = _manifest_identity(sealed, "/fused/active.json")
-
-    # The weights changed under the same path: the descriptor moves.
-    other = copy.deepcopy(sealed)
-    other["artifact_descriptor"]["behavior_identity"]["files"][0]["sha256"] = "9" * 64
-    assert not semantic_neural_serving._same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=_manifest_identity(other, "/fused/active.json"),
-        current_payload=other,
-        descriptor_identity=descriptor,
-    )
-
-    # A different base model with the same descriptor is a different basis.
-    other = copy.deepcopy(sealed)
-    other["base_model"] = "/models/another-base"
-    assert not semantic_neural_serving._same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=_manifest_identity(other, "/fused/active.json"),
-        current_payload=other,
-        descriptor_identity=descriptor,
-    )
-
-    # A serving profile bound to a descriptor the manifest does not carry.
-    other = copy.deepcopy(sealed)
-    other["serving_profile"]["model_descriptor_sha256"] = "f" * 64
-    assert not semantic_neural_serving._same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=_manifest_identity(other, "/fused/active.json"),
-        current_payload=other,
-        descriptor_identity=descriptor,
-    )
-
-    # A package that recorded no descriptor identity cannot use this path.
-    assert not semantic_neural_serving._same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=_manifest_identity(sealed, "/fused/active.json"),
-        current_payload=sealed,
-        descriptor_identity=None,
-    )

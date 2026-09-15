@@ -119,6 +119,11 @@ class Trial:
     #: exchange compressed summaries shows a large one.
     self_effect: float = 0.0
     injected_at: int = 0
+    #: target domain -> index, within that domain, of the column the effect was
+    #: read off. A clock moves the same in every arm and cannot carry an effect;
+    #: a counter whose rate the displacement changed can, and this is how the
+    #: two are told apart afterwards. See `counter_carried_edges`.
+    carried_by: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -332,8 +337,13 @@ def _paired_divergence(
     sham_a: Sequence[CoreState],
     sham_b: Sequence[CoreState],
     scale: dict[str, np.ndarray],
-) -> tuple[dict[str, float], dict[str, float], dict[str, list[float]], dict[str, list[float]]]:
+    *,
+    with_columns: bool = False,
+) -> tuple[Any, ...]:
     """The effect and the floor, read off the same column.
+
+    ``with_columns`` adds a fifth value: for each domain, the index of that
+    column within the domain.
 
     Both were a maximum over the domain's live columns, taken independently —
     the largest effect anywhere against the largest sham wobble anywhere. When
@@ -358,6 +368,7 @@ def _paired_divergence(
     floor: dict[str, float] = {}
     trace: dict[str, list[float]] = {}
     floor_trace: dict[str, list[float]] = {}
+    carried: dict[str, int] = {}
     span = min(len(pert), len(sham_a), len(sham_b))
     for domain in DOMAINS:
         unit = scale.get(domain)
@@ -384,7 +395,33 @@ def _paired_divergence(
         floor[domain] = float(column_floor[best])
         trace[domain] = [float(value) for value in moved[:, best]]
         floor_trace[domain] = [float(value) for value in wobble[:, best]]
+        carried[domain] = int(np.flatnonzero(live)[best])
+    if with_columns:
+        return effect, floor, trace, floor_trace, carried
     return effect, floor, trace, floor_trace
+
+
+def counter_carried_edges(
+    results: Any, edges: Sequence[tuple[str, str]], counters: set[tuple[str, int]]
+) -> list[str]:
+    """The edges whose effect was read, on every trial, off a column that only goes one way.
+
+    `counters` holds (domain, index within the domain) for every monotone
+    column of the recording. An edge carried by such a column on every trial
+    that recorded one is an edge a running total could be standing in for,
+    and it is named rather than counted as coupling of state. Trials recorded
+    before carrying columns were kept say nothing either way.
+    """
+    out: list[str] = []
+    for source, target in edges:
+        columns = {
+            trial.carried_by[target]
+            for trial in getattr(results, "trials", [])
+            if trial.source == source and target in getattr(trial, "carried_by", {})
+        }
+        if columns and all((target, column) in counters for column in columns):
+            out.append(f"{source}->{target}")
+    return out
 
 
 async def _arm(
@@ -509,8 +546,8 @@ async def run_interventions(
                     unwritable.add(source)
                     logger.debug("%s has no writer that bit in %s", source, condition.name)
                     continue
-                effect, floor, trace, floor_trace = _paired_divergence(
-                    runs["pert"], runs["sham_a"], runs["sham_b"], scale
+                effect, floor, trace, floor_trace, carried = _paired_divergence(
+                    runs["pert"], runs["sham_a"], runs["sham_b"], scale, with_columns=True
                 )
                 out.trials.append(
                     Trial(
@@ -524,6 +561,7 @@ async def run_interventions(
                         took=True,
                         self_effect=effect.get(source, 0.0) - floor.get(source, 0.0),
                         injected_at=where,
+                        carried_by=carried,
                     )
                 )
                 out.lags = max(out.lags, max((len(v) for v in trace.values()), default=0))

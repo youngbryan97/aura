@@ -1,16 +1,13 @@
 """Knowing where it goes without knowing how it works.
 
-Sam Cooke puts the two halves in consecutive lines and they disagree:
-
-    It's been too hard living, but I'm afraid to die
-    I don't know what's up there, beyond the sky
-    ...
-    It's been a long, a long time coming
-    But I know a change gonna come
+Sam Cooke puts the two halves in neighbouring lines and they disagree. Living
+has been hard, dying frightens him, and he says he does not know what lies
+beyond the sky. Then, near the end, the change has been a long time coming and
+he knows it will come.
 
 Admitted ignorance of the mechanism and high confidence in the direction, held
 at once, and the record is built on the difference. The performance marks it:
-"I don't know what's up there" is his brightest and highest moment in the song,
+the line admitting he does not know what is up there is his brightest and highest moment in the song,
 median pitch 354 Hz and a spectral centroid of 2224 against a song-wide 1780 —
 and the line that follows it drops back down to make the claim.
 

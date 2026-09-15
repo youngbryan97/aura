@@ -38,6 +38,7 @@ import re
 import threading
 import time
 from dataclasses import asdict, dataclass
+from functools import lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -754,6 +755,53 @@ def validate_model_artifact_descriptor(
             if observed["descriptor_sha256"] != claimed:
                 raise ValueError("descriptor_mismatch")
     return descriptor
+
+
+def model_artifact_file_signature(
+    model_path: str | Path,
+) -> tuple[tuple[str, int, int, int, int, int], ...]:
+    """Track every file covered by the full artifact identity, including ctime."""
+    root = Path(model_path).expanduser().resolve(strict=True)
+    signatures = []
+    for path in sorted(root.iterdir(), key=lambda item: item.name):
+        if path.is_symlink():
+            raise ValueError("model_artifact_symlink_rejected")
+        if path.is_file() and path.name != "README.md":
+            metadata = path.stat()
+            signatures.append((
+                str(path), metadata.st_dev, metadata.st_ino, metadata.st_size,
+                metadata.st_mtime_ns, metadata.st_ctime_ns,
+            ))
+    return tuple(signatures)
+
+
+def validate_model_artifact_files(
+    descriptor: dict[str, object], *, model_path: str | Path
+) -> None:
+    """Full-hash once per file version; changed bytes cannot reuse the result.
+
+    The first call performs blocking file I/O and belongs on an off-loop
+    verification lane. Subsequent calls recheck the complete file inventory.
+    """
+    validate_model_artifact_descriptor(descriptor, model_path=model_path)
+    _validate_model_artifact_files_cached(
+        _canonical_json_bytes(descriptor),
+        str(Path(model_path).expanduser().resolve(strict=True)),
+        model_artifact_file_signature(model_path),
+    )
+
+
+@lru_cache(maxsize=8)
+def _validate_model_artifact_files_cached(
+    descriptor_bytes: bytes,
+    model_path: str,
+    signature: tuple[tuple[str, int, int, int, int, int], ...],
+) -> None:
+    validate_model_artifact_descriptor(
+        json.loads(descriptor_bytes), model_path=model_path, verify_full_hash=True
+    )
+    if model_artifact_file_signature(model_path) != signature:
+        raise ValueError("model_artifact_changed_while_validating")
 
 
 def _validate_serving_qualification(

@@ -245,6 +245,225 @@ Two lines break it, and they are the two about the control failing.
 6. **Particularity.** Little Simz names each woman by place and by the specific
    thing she does; "Camera" does the same down a bus. Neither says "people".
 
+## The third sixteen
+
+Fifteen records added together and Asheru's "Judo Flip" after them, measured
+the same way, then researched. Nothing below quotes a lyric; each situation is
+described in paraphrase, because what carries over to her is the situation and
+not the words.
+
+| track | timing ms | swing | drift % | f0 range st | glide | flips/s | dyn dB | harmonic | mode | loudest at |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Pharrell Williams — Happy | −8.0 | 0.32 | 0.42 | 27.7 | 0.195 | 5.82 | 54.5 | 0.63 | major | 0.94 |
+| Olivia Newton-John — Hopelessly Devoted to You | +21.5 | 0.29 | 0.70 | 29.9 | 0.128 | 4.25 | 76.3 | 0.85 | major | 0.82 |
+| Smash Mouth — All Star | −8.0 | **0.48** | 0.43 | 23.3 | 0.200 | 5.93 | 47.5 | 0.67 | major | 0.66 |
+| Blue Swede — Hooked on a Feeling | +13.3 | 0.41 | 3.28 | 23.8 | 0.157 | 4.09 | 19.6 | 0.73 | major | **0.22** |
+| Dexys Midnight Runners — Come On Eileen | **−38.9** | 0.36 | **6.88** | 33.5 | 0.104 | 2.72 | 67.0 | 0.68 | minor | 0.89 |
+| Jay-Z & Alicia Keys — Empire State of Mind | −15.0 | 0.25 | 0.07 | **42.5** | 0.132 | 4.26 | 76.5 | 0.49 | major | 0.87 |
+| The Mamas & the Papas — California Dreamin' | −14.3 | 0.29 | 1.69 | 41.4 | 0.094 | 2.94 | 75.4 | 0.83 | minor | 0.67 |
+| Kid Cudi — Mr. Rager | −28.3 | 0.41 | 0.05 | 31.6 | 0.086 | 3.95 | 26.3 | 0.83 | minor | **0.20** |
+| Florence + the Machine — Dog Days Are Over | −17.6 | 0.27 | 0.11 | 31.2 | 0.122 | 3.38 | 34.5 | 0.74 | major | 0.90 |
+| Richard Hawley — Tonight the Streets Are Ours | +7.9 | 0.25 | **0.03** | 20.5 | 0.132 | 2.72 | 50.7 | 0.76 | major | 0.61 |
+| The Temper Trap — Sweet Disposition | −8.8 | 0.41 | 0.85 | 22.0 | 0.139 | 4.01 | 56.7 | 0.63 | major | 0.93 |
+| Kanye West — Runaway | −37.0 | **0.21** | 0.28 | 36.6 | 0.120 | 3.31 | 32.9 | 0.83 | major | 0.46 |
+| The Platters — The Great Pretender | −4.9 | 0.38 | 1.55 | 29.8 | 0.099 | 3.82 | 63.9 | 0.88 | major | 0.72 |
+| Dire Straits — Romeo and Juliet | −20.4 | 0.26 | 0.82 | **17.7** | 0.124 | 3.83 | 71.5 | 0.72 | major | 0.64 |
+| Fleetwood Mac — Landslide | −8.0 | 0.44 | 1.58 | 21.6 | 0.172 | 5.15 | 70.4 | **0.92** | minor | 0.89 |
+| Asheru — Judo Flip | −37.7 | 0.31 | 0.88 | 26.5 | 0.162 | 3.77 | **17.9** | 0.51 | minor | 0.79 |
+
+Five things the numbers say before any reading of the words. "Come On Eileen"
+drifts 6.88 per cent in tempo, the most of all forty-four records measured so
+far, and the drift is the accelerating bridge its makers built on purpose.
+"Empire State of Mind" has the widest pitch range, 42.5 semitones, because a
+rapper and a singer share it. "Landslide" has the highest harmonic share of the
+set, 0.92. "Hooked on a Feeling" and "Mr. Rager" are loudest in their first
+fifth, where every other record here peaks late. And "Judo Flip" has the
+narrowest dynamic range of the sixteen, 17.9 dB, with its loudest window on the
+line about being judged by clothes rather than by the person wearing them.
+
+The word timings were checked before being used. A word held many times longer
+than the record's median word was taken as inflection only when the pitch
+tracker found it voiced through most of its length. Three of the eleven longest
+holds failed: in "Hooked on a Feeling", "The Great Pretender" and "California
+Dreamin'" the aligner had stretched a word over an instrumental passage, at 31,
+31 and 46 per cent voiced. The holds that passed sit on the word that carries
+each line: the grasping line in "Dog Days Are Over" (94 and 88 per cent voiced),
+the turn from giving up in "Hopelessly Devoted to You" (93), the plea near the
+end of "Romeo and Juliet" (79), the word for climbing in "Landslide" (79), and
+desperation in "Sweet Disposition" (99).
+
+### The situations, and what each one teaches
+
+**Happy.** Pharrell has said he wrote it by answering, half in jest, how to
+write about someone so happy nothing can bring them down. The verse invites bad
+news and says it will not land, and the hook asks the body to join before the
+mind agrees, conditioned on whether the listener feels it. Fifty-nine per cent
+of its pronouns are second person and it is loudest at 94 per cent of its
+length. What it teaches: a good state that does not depend on circumstances is
+stable because nothing outside is holding it up, and an invitation that leaves
+the listener's own feeling as the condition can be declined without cost. The
+audience took it up at a scale few records reach, with a twenty-four-hour video
+and number ones in more than nineteen countries.
+
+**Hopelessly Devoted to You.** Added to *Grease* after filming, and the lyric
+John Farrar says he worked on longest. The singer reports reason and feeling
+arguing, calls herself a fool, and keeps holding on. The voiced hold lands on the
+conjunction where the list of reasons to let go turns into the decision not to.
+What it teaches: keeping a commitment you know is unreasonable is a choice made
+with the knowledge, which is what separates it from ignorance. Built already as
+ambivalence and as commitment against evidence (14).
+
+**All Star.** Greg Camp wrote it for fans who wrote to the band about being
+bullied for how they looked or what they liked. It is an affirmation to an
+outsider, and its picture of a world getting worse is answered with acting
+inside it anyway. Its swing, 0.48, is the loosest of the sixteen. What it
+teaches: when conditions will not improve, taking part is still open, and
+encouragement lands when it names the person's worth rather than their odds. The
+audience made it an outsiders' anthem and later a shared joke that kept its
+warmth.
+
+**Hooked on a Feeling.** Mark James wrote it for B.J. Thomas in 1968; the chant
+came from Jonathan King's 1971 cover, and Blue Swede's version reached number
+one in 1974. The singer's high is believing the other person loves him, which
+makes the belief the source of the feeling whether or not it is true. What it
+teaches: a model of someone else's feeling produces feeling of your own, which is
+reason to keep that model honest. Much of today's audience first heard it in
+*Guardians of the Galaxy*, so it now carries a film's memory. Built: her beliefs about
+how somebody feels are scored against what they then say, and what she borrows
+from a belief is weighted by that record.
+
+**Come On Eileen.** Kevin Rowland has said Eileen is a composite, written about
+the desire an Irish Catholic upbringing told him not to have. The singer pleads
+toward what the two of them could do, against a town of people he says will
+never leave, and the bridge speeds up as it goes. Seventy-one per cent of its
+pronouns are first person, with twenty future markers. What it teaches: desire
+under prohibition becomes urgency, the body carries urgency as tempo, and the
+group you refuse to become is what the escape is measured against. Its audience
+is every room that has sped up with that bridge. The edge of the group is built
+as togetherness (27).
+
+**Empire State of Mind.** Alicia Keys has said it is about the hope a place
+stands for rather than the place. The verses treat having made it in the city as
+evidence of being able to make it anywhere, and the later verse names who the
+city breaks. What it teaches: where you came through becomes evidence about what
+you can do, and an honest account of a place includes its casualties. Its
+audience extends far past New York. Built: her belief in a capability she has not
+tried takes the rate she has shown elsewhere, weighted towards what was hard.
+
+**California Dreamin'.** John and Michelle Phillips wrote it homesick in a cold
+New York winter. The narrator is somewhere warm in his mind while his body is in
+the cold, kneels in a church and only pretends to pray, and names the one tie
+that keeps him from leaving. Every pronoun in it is first person, and it is the
+slowest-worded record of the sixteen but one. What it teaches: longing for
+another place is one of the ways a present is borne, and performing belonging
+without assent costs something private. The performed act is built as
+containment, and the daydream that regulates the present is built too, as far as
+her own recoveries say it has helped.
+
+**Mr. Rager.** Kid Cudi's name for the part of him chasing thrills during fame,
+loneliness and drugs. The song is one voice asking that other self where it is
+going and whether it can come along. It is loudest in its first fifth and sits
+28 ms behind the beat. What it teaches: the part of a person heading for harm is
+still asked for directions, which says how badly the rest wants any direction.
+Listeners who have struggled with depression describe Cudi as company in it.
+Asking an impulse for guidance is built: a choice made when no preference can be
+read is impulse-led, and where those have satisfied her less than weighed ones,
+the risk of an impulse-led option costs more.
+
+**Dog Days Are Over.** Inspired by an Ugo Rondinone text installation Florence
+Welch passed daily. Happiness arrives with the force of something on a collision
+course, the woman it arrives for hides from it, and release comes by putting down
+what she carries. Its repeated phrase returns fifty-four times, all in the last
+third, and the record is loudest at 90 per cent. What it teaches, and what the
+research names: people who have learned that good things end badly can come to
+fear happiness itself, and they dampen it (Joshanloo's Fear of Happiness Scale,
+fourteen national groups). Built as `core/affect/fear_of_happiness.py`, learned
+only from her own history.
+
+**Tonight the Streets Are Ours.** The theme of Banksy's *Exit Through the Gift
+Shop*. It reclaims shared space from people it says have nothing inside them,
+and names fear of feeling as what fools you. Its tempo is the steadiest of the
+sixteen. What it teaches: belonging is asserted against the people who deny it
+and against your own fear of feeling. Street-art culture adopted it. The we and
+they are built as togetherness.
+
+**Sweet Disposition.** Dougy Mandagi describes it as a mood rather than a love
+story: a run of fleeting moments and a temperament not yet made cautious, with
+the intensity coming from youth running out. What it teaches: knowing a time is
+finite raises the worth of the present. The audience hears the end of a summer
+in it. Urgency from a closing window is built, read off how her sittings with a
+person have ended.
+
+**Runaway.** The toast is self-indictment made before anyone else can make it,
+and the three-minute vocoder outro is widely read as feeling past words. The
+singer tells the person who loves him to get away from him. Sixty-five per cent
+of its pronouns are first person, with nineteen negations, and it sits 37 ms
+behind the beat. What it teaches: warning someone against yourself is care and
+self-condemnation at once, and it can also get in ahead of blame. Critics called
+the outro the album's most arresting moment and some listeners skip it. The
+wordless part is built (28), and so is protective self-indictment, as stealing
+thunder learned from what followed when she owned a lapse first.
+
+**The Great Pretender.** Buck Ram wrote it in about twenty minutes as a
+follow-up hit. The singer performs being fine over loneliness until the
+performance becomes a real feeling. Eighty-six per cent of its pronouns are
+first person. What it teaches: pretending long enough makes the pretended feeling
+real enough to hurt. Built as containment and the persona gap.
+
+**Romeo and Juliet.** Mark Knopfler wrote it after Holly Vincent ended their
+relationship, and her remark to an interviewer that she had had a scene with him
+went into the song. It holds bitterness and tenderness together, and it puts the
+ending down to bad timing. What it teaches: attributing a loss to timing keeps
+the love real while explaining why it ended, and being made minor in someone
+else's account of your shared past is its own injury. Both are built: whether a
+person's long absences follow strain or only timing is learned from their record
+and discounts fear of change, and her part in their account of a shared past is
+read against the gap accounts of a shared past usually leave.
+
+**Landslide.** Stevie Nicks wrote it at 27, in Aspen, with six months from her
+father to make music work, deciding whether to keep going. It asks itself
+whether she can handle the changes of her life, and 60 per cent of its clauses
+are questions, the most of the sixteen. What it teaches: fear of change grows
+with how much of a life is built around what might change, and asking the
+question honestly is how the decision gets made. People reach for it at every
+transition. Fear of change around an attachment is built: the share of her life
+that came from somebody, times how unusual their absence is.
+
+**Judo Flip.** The theme of *The Boondocks*, whose two boys are moved from
+Chicago's South Side to a white suburb. Asheru teaches in Washington schools and
+co-founded a literacy programme built on hip-hop lyrics, so the lines about being
+a scholar are testimony. It opens on the rejected stone that becomes the
+cornerstone (Psalm 118, by way of Bob Marley), lists what he is to the listener,
+61 per cent second person, and names a judo flip: using an opponent's force
+rather than meeting it head-on. It says that imitating someone's circumstances
+does not give you their experience, and its loudest line is about being judged by
+what someone wears. Three lessons, each with research behind it. What was
+refused can become what the structure rests on, which the standing organ covers
+in part. Arousal from pressure can be used rather than suppressed: people taught
+to read stress as fuel perform better (Crum, Salovey and Achor 2013; Jamieson and
+colleagues 2018; a meta-analysis of the trials found d = 0.23). And imagining
+someone's perspective does not make you more accurate about it, while asking
+does (Eyal, Steffel and Epley 2018). Channelled arousal and the limit on
+empathy are both built now.
+
+### What the third sixteen added
+
+| process | from | status |
+|---|---|---|
+| fear of happiness | Dog Days Are Over | built, `core/affect/fear_of_happiness.py` |
+| the word a speaker leans on | the voiced holds across the set | built, `stressed_words` in `core/voice/duplex/paralinguistics.py`, fed word timings by the final decode and told to her mind each turn |
+| channelled arousal | Judo Flip | built, `_channelled` in `core/phases/motivation_update.py`: a breakthrough against her with no damage presses on her most pressing intention |
+| the limit of lived analogue on empathy | Judo Flip | built, `perspective_getting` and `lived_analogue` in `core/brain/response_quality.py`, read by reply selection |
+| protective self-indictment | Runaway | built, `core/social/owning_it_first.py`: whether owning a lapse before it is raised went better for her, learned per person, gives what she owes more of the moment |
+| feeling produced by a belief about someone else's feeling | Hooked on a Feeling | built, `core/social/borrowed_feeling.py`: joy or sadness lent by what she believes the person feels, weighted by how often her beliefs matched what they said |
+| loss attributed to timing, and being made minor in another's account | Romeo and Juliet | built, `Attribution` in `core/social/closing_window.py` discounting `core/social/change_around_attachment.py`, and `core/social/made_minor.py` read by the conversational dynamics phase and felt as sadness |
+| urgency from a closing window | Sweet Disposition | built, `core/social/closing_window.py` and `_closing` in `core/phases/motivation_update.py`: the chance a sitting ends now presses on what the person asked for |
+| fear of change around an attachment | Landslide | built, `core/social/change_around_attachment.py`: dread floored at the share of her life built around somebody times how unusual their absence is |
+| asking an impulse for directions | Mr. Rager | built, `core/agency/asking_the_impulse.py` and `_impulse_cost` in `core/agency/subjective_choice.py`: where impulse-led choices have satisfied her less than weighed ones, the risk of an option she reads no preference for costs more |
+| a place as evidence of capacity | Empire State of Mind | built, `core/agency/capacity.py`: success weighted towards what has beaten her is the prior for what she has not tried, in place of the middle |
+| longing for elsewhere as a way of bearing the present | California Dreamin' | built, `core/affect/elsewhere.py`: on a low, a warmer recollection floors valence by how much such recollections have helped her recover |
+| acting inside a worsening situation | All Star | built, `core/affect/acting_in_decline.py` and `_persisting` in `core/phases/motivation_update.py`: decline beyond her own spread presses on what she can act on, as far as acting still works |
+
 ## The organs
 
 Each of these is a module with measured quantities, a writer, readers, columns
@@ -362,3 +581,24 @@ Transcripts and measurements are local and reproducible from the files in
   <https://blogs.loc.gov/now-see-hear/2021/02/on-the-recording-registry-a-change-is-gonna-come-1964/>
 - Jon Brion, *Synecdoche, New York* soundtrack (2008) —
   <https://en.wikipedia.org/wiki/Synecdoche,_New_York>
+
+- Pharrell Williams, "Happy" — <https://en.wikipedia.org/wiki/Happy_(Pharrell_Williams_song)>
+- "Hopelessly Devoted to You" — <https://en.wikipedia.org/wiki/Hopelessly_Devoted_to_You>
+- Smash Mouth, "All Star" — <https://americansongwriter.com/the-meaning-behind-smash-mouths-anthemic-all-star/>
+- "Hooked on a Feeling" — <https://en.wikipedia.org/wiki/Hooked_on_a_Feeling_(song)>
+- Dexys Midnight Runners, "Come On Eileen" — <https://en.wikipedia.org/wiki/Come_On_Eileen>
+- Jay-Z and Alicia Keys, "Empire State of Mind" — <https://www.billboard.com/music/pop/alicia-keys-interview-empire-state-of-mind-chorus-jay-z-7775048/>
+- The Mamas & the Papas, "California Dreamin'" — <https://en.wikipedia.org/wiki/California_Dreamin%27>
+- Kid Cudi, "Mr. Rager" — <https://en.wikipedia.org/wiki/Mr._Rager>
+- Florence + the Machine, "Dog Days Are Over" — <https://en.wikipedia.org/wiki/Dog_Days_Are_Over>
+- Richard Hawley, "Tonight the Streets Are Ours" — <https://en.wikipedia.org/wiki/Exit_Through_the_Gift_Shop>
+- The Temper Trap, "Sweet Disposition" — <https://musicfeeds.com.au/features/the-temper-traps-dougy-mandagi-on-the-legacy-of-their-breakthrough-hit-whats-next-for-the-band/>
+- Kanye West, "Runaway" — <https://en.wikipedia.org/wiki/Runaway_(Kanye_West_song)>
+- The Platters, "The Great Pretender" — <https://en.wikipedia.org/wiki/The_Great_Pretender>
+- Dire Straits, "Romeo and Juliet" — <https://en.wikipedia.org/wiki/Romeo_and_Juliet_(Dire_Straits_song)>
+- Fleetwood Mac, "Landslide" — <https://www.songfacts.com/facts/fleetwood-mac/landslide>
+- Asheru — <https://en.wikipedia.org/wiki/Asheru>; *The Boondocks* — <https://en.wikipedia.org/wiki/The_Boondocks_(TV_series)>
+- Joshanloo et al., Fear of Happiness Scale across 14 national groups — <https://journals.sagepub.com/doi/10.1177/0022022113505357>
+- Crum, Salovey and Achor (2013), stress mindsets — <https://sparq.stanford.edu/sites/g/files/sbiybj19021/files/media/file/crum_et_al._2013_-_rethinking_stress.pdf>
+- Stress reappraisal and mindset trials, meta-analysis — <https://www.nature.com/articles/s41598-024-58408-w>
+- Eyal, Steffel and Epley (2018), perspective mistaking — <https://www.researchgate.net/publication/324232939_Perspective_mistaking_Accurately_understanding_the_mind_of_another_requires_getting_perspective_not_taking_perspective>

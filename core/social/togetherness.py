@@ -1,7 +1,7 @@
 """A "we" both sides are saying, and the "they" that draws its edge.
 
-"Cause we come from runaway" lands twelve times over a record that is 37 % first
-person plural and 25 % third person plural and asks nothing. The belonging in it
+A line about all of them coming from the same runaway place lands twelve times
+over a record that is 37 % first person plural and 25 % third person plural and asks nothing. The belonging in it
 is stated as a shared origin, and the boundary of the group is carried by the
 other pronoun: a we is a we because there is a they.
 
@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["Togetherness", "read_togetherness"]
+__all__ = ["Togetherness", "last_said", "read_togetherness"]
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,11 @@ class Togetherness:
             "measured": self.measured,
             "why": self.why,
         }
+
+
+def last_said(messages: Sequence[Any], roles: tuple[str, ...]) -> str:
+    """The newest non-empty message from one of these roles, or ""."""
+    return _last(messages, roles)
 
 
 def _last(messages: Sequence[Any], roles: tuple[str, ...]) -> str:

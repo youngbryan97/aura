@@ -139,6 +139,10 @@ class Organs:
     #: homeostasis reads, and an arm that displaces interoception has to
     #: displace that one too or the displacement stops at the state.
     soma: Any = None
+    #: The intention loop: what she has declared she means to do, kept on disk
+    #: between turns. Persistent planner state is deliberation's, so the action
+    #: domain reads it and a lesion that holds that domain holds the loop.
+    intentions: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -269,6 +273,17 @@ def _budget_names() -> tuple[str, ...]:
         return ("curiosity", "energy", "growth", "integrity", "social")
 
 
+#: The senses the proprioceptive loop reports on, in the order I reads them.
+#: Named here and there, because the body writes what it measured and the
+#: schema reads what the body wrote.
+_SENSE_CHANNELS: tuple[str, ...] = (
+    "user_presence",
+    "screen_changed",
+    "social",
+    "threat",
+    "novelty",
+)
+
 _DRIVES: tuple[str, ...] = _budget_names()
 
 #: Cognitive modes, one-hot into C.
@@ -369,6 +384,17 @@ _SCHEMAS: dict[str, Schema] = {
             # the host still without also holding still.
             ("exertion", "soma.exertion"),
             ("recall_effort", "soma.effort"),
+            # One column per sense rather than one number for all of them. The
+            # sum saturates: presence and threat sit near 0.8 on almost every
+            # frame, so the aggregate lives where x/(x+2) is flattest and a
+            # displacement that moved a channel by 0.05 moved the column by
+            # 0.005. Each channel is already bounded in [0, 1], so each is read
+            # as it is, and the load is their mean rather than a squashed sum.
+            ("sensor_presence", "soma.sensors.user_presence"),
+            ("sensor_screen", "soma.sensors.screen_changed"),
+            ("sensor_social", "soma.sensors.social"),
+            ("sensor_threat", "soma.sensors.threat"),
+            ("sensor_novelty", "soma.sensors.novelty"),
             ("sensor_load", "soma.sensors"),
         ),
     ),
@@ -406,6 +432,20 @@ _SCHEMAS: dict[str, Schema] = {
             ("the_turn", "affect.turn"),
             # Nothing wrong and somebody here. See core/affect/safety.py.
             ("safety", "affect.safety"),
+            # What her history has taught her follows being happy. See
+            # core/affect/fear_of_happiness.py.
+            ("happiness_fear", "affect.happiness_fear"),
+            # Fear of change around what her life is built around.
+            # See core/social/change_around_attachment.py.
+            ("change_fear", "affect.change_fear"),
+            # A feeling lent by her belief about theirs.
+            # See core/social/borrowed_feeling.py.
+            ("borrowed_feeling", "affect.borrowed_feeling"),
+            # How hard a worsening stretch presses her to keep acting.
+            # See core/affect/acting_in_decline.py.
+            ("decline_press", "affect.decline_press"),
+            # How far a warmer place in mind raised a low. See core/affect/elsewhere.py.
+            ("elsewhere_lift", "affect.elsewhere_lift"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -541,6 +581,12 @@ _SCHEMAS: dict[str, Schema] = {
             # outside. See core/self/standing.py.
             ("assigned_share", "identity.standing.assigned_share"),
             ("worth_tracks_use", "identity.standing.tracks_use"),
+            # Whether owning a lapse before it is raised has gone better for
+            # her than being told. See core/social/owning_it_first.py.
+            ("owning_first_lift", "identity.owning_first.lift"),
+            # What coming through hard things says about what she can do.
+            # See core/agency/capacity.py.
+            ("capacity", "identity.capacity.capacity"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -661,6 +707,9 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/togetherness.py.
             ("together", "cognition.togetherness.together"),
             ("together_edge", "cognition.togetherness.edge"),
+            # Being made minor in their account of a shared past.
+            # See core/social/made_minor.py.
+            ("made_minor", "cognition.made_minor.minor"),
             ("partner_turn_chars", "cognition.partner_cadence.chars"),
             ("partner_turn_gap", "cognition.partner_cadence.gap"),
             ("her_placement", "cognition.partner_cadence.placement"),
@@ -735,6 +784,12 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/constancy.py.
             ("their_constancy", "cognition.constancy.theirs"),
             ("attachment_moved", "cognition.constancy.reallocated"),
+            # How near the end of this sitting is, from how her sittings with
+            # them have ended. See core/social/closing_window.py.
+            ("closing_window", "cognition.closing_window.closing"),
+            # How far her impulse has led her worse than weighing.
+            # See core/agency/asking_the_impulse.py.
+            ("impulse_distrust", "cognition.impulse.distrust"),
             # What has been driving her, and whether working from her own
             # reserves costs more than the other sources do.
             # See core/motivation/fuel.py.
@@ -745,6 +800,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("pressure_left", "cognition.catharsis.drain"),
             ("witnessing", "cognition.witness.witnessing"),
             ("company", "cognition.witness.company"),
+            # Persistent planner state: the intentions she has declared and
+            # not yet finished, which the intention loop keeps on disk across
+            # turns. It was forked between arms and read by nothing, so a
+            # displacement of deliberation left her standing plans where they
+            # were and a lesion of it held none of them.
+            ("durable_intentions_open", "organ:intentions.open"),
             # The five motivational budgets, deliberation's own resources.
             #
             # Energy and integrity were the two the specification leaves open,
@@ -1101,7 +1162,22 @@ def _read_I(state: Any) -> np.ndarray:
             _f(_dig(state, "vitality"), 1.0),
             _f(_dig(state, "soma.exertion")),
             _sat(_f((_dig(state, "soma.effort", {}) or {}).get("recall")), 32.0),
-            _sat(_dig(state, "soma.sensors", {}) or {}, 4.0),
+            # How much is arriving on each of her senses. A channel that
+            # reported nothing is absent from the reading rather than written
+            # as zero, and reads zero here, which is the same answer for a
+            # column and a different fact for the loop that wrote it.
+            *(
+                _f((_dig(state, "soma.sensors", {}) or {}).get(channel))
+                for channel in _SENSE_CHANNELS
+            ),
+            # And their mean, over the senses she has rather than the ones that
+            # happened to report. Linear, so a channel moving by a tenth moves
+            # this by a fiftieth instead of by whatever the saturation left.
+            sum(
+                abs(_f((_dig(state, "soma.sensors", {}) or {}).get(channel)))
+                for channel in _SENSE_CHANNELS
+            )
+            / float(len(_SENSE_CHANNELS)),
         ],
         dtype=np.float64,
     )
@@ -1125,6 +1201,11 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.frisson")),
         _f(_dig(state, "affect.turn")),
         _f(_dig(state, "affect.safety")),
+        _f(_dig(state, "affect.happiness_fear")),
+        _f(_dig(state, "affect.change_fear")),
+        _f(_dig(state, "affect.borrowed_feeling")),
+        _f(_dig(state, "affect.decline_press")),
+        _f(_dig(state, "affect.elsewhere_lift")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing
@@ -1267,6 +1348,8 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _f(read_by_other.get("cared_for")),
         _f((_dig(state, "identity.standing", {}) or {}).get("assigned_share")),
         _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
+        _f((_dig(state, "identity.owning_first", {}) or {}).get("lift")),
+        _f((_dig(state, "identity.capacity", {}) or {}).get("capacity"), 0.5),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1408,6 +1491,7 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _f(_we.get("together")),
             _f(_we.get("edge")),
+            _f((_dig(state, "cognition.made_minor", {}) or {}).get("minor")),
             _sat(_f(_pulse.get("chars")), 400.0),
             _sat(_f(_pulse.get("gap")), 60.0),
             _f(_pulse.get("placement")),
@@ -1468,7 +1552,7 @@ def _urgency_of(items: Any) -> float:
     return max(0.0, min(1.0, best))
 
 
-def _read_D(state: Any) -> np.ndarray:
+def _read_D(state: Any, organs: Organs) -> np.ndarray:
     goals = _dig(state, "cognition.active_goals", []) or []
     budgets = _dig(state, "motivation.budgets", {}) or {}
     initiatives = _dig(state, "cognition.pending_initiatives", []) or []
@@ -1493,6 +1577,8 @@ def _read_D(state: Any) -> np.ndarray:
         1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
         _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
         1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
+        _f((_dig(state, "cognition.closing_window", {}) or {}).get("closing")),
+        _f((_dig(state, "cognition.impulse", {}) or {}).get("distrust")),
         _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
         1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
@@ -1500,6 +1586,10 @@ def _read_D(state: Any) -> np.ndarray:
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
         1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
         _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
+        _sat(
+            _call(organs.intentions, "get_open_intentions", [], source="organ:intentions.open") or [],
+            4.0,
+        ),
     ]
     for name in _DRIVES:
         entry = budgets.get(name)
@@ -1533,13 +1623,13 @@ _ORGAN_READERS: dict[str, Callable[[Any, Organs], np.ndarray]] = {
     "C": _read_C,
     "S": _read_S,
     "W": _read_W,
+    "D": _read_D,
 }
 
 #: Readers that only need the state object.
 _STATE_READERS: dict[str, Callable[[Any], np.ndarray]] = {
     "I": _read_I,
     "M": _read_M,
-    "D": _read_D,
 }
 
 

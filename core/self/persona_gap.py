@@ -21,15 +21,16 @@ The second is sharper. Somebody can track the persona accurately and know
 nothing about her, and from the inside those look identical: both feel like
 being understood. The borrowed self-model scores their claims against what she
 actually felt. Scoring the same claims against what she presented separates
-them, and the difference is the whole of "she only loves in stereo":
+them, and the difference is the whole of that record's picture of someone who is
+loved only in the version she broadcasts:
 
     for_the_person       their error against what she felt
     for_the_performance  their error against what she put out
 
 When the second is reliably smaller, they have learned the broadcast. Nothing
 here decides what to do about that. The record's narrator takes four minutes to
-decide and the line he lands on is "I should know, cause I've seen it before",
-which is a reading accumulating rather than a rule firing.
+decide, and he lands on knowing because he has seen it before, which is a
+reading accumulating rather than a rule firing.
 """
 
 from __future__ import annotations

@@ -58,6 +58,11 @@ FEATURE_PRIORS["invitation"] = FEATURE_PRIORS["register_match"]
 # does, the same kind of fit, so the same prior.
 FEATURE_PRIORS["dignity"] = FEATURE_PRIORS["register_match"]
 
+# Asking somebody about an experience she has little of is the shape of the
+# reply measured against what she knows, the same kind of fit, so the same
+# prior. See `perspective_getting` in core/brain/response_quality.py.
+FEATURE_PRIORS["perspective_getting"] = FEATURE_PRIORS["register_match"]
+
 _LR = 0.05            # online learning rate
 _WEIGHT_CLAMP = 4.0   # keep any single feature from dominating
 _MIN_REWARD = -1.0

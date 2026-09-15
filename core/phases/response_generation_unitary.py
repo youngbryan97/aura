@@ -2869,6 +2869,17 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
 
         budget = float(min(10.0, max(3.0, (request_timeout or 20.0) * 0.25)))
         n_candidates = 2 if budget < 8.0 else 3
+        # How much of what they said her own memory has anything like, from
+        # this turn's recall. Asking beats assuming where she has not lived it.
+        # See `lived_analogue` in core/brain/response_quality.py.
+        analogue = None
+        try:
+            from core.brain.response_quality import lived_analogue
+
+            analogue = lived_analogue(getattr(state, "cognition", None), objective)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            _record_response_degradation(exc, "UnitaryResponse: lived analogue unread: %s")
+            analogue = None
         try:
             result = await amplify_conversation(
                 draft,
@@ -2884,6 +2895,7 @@ class UnitaryResponsePhase(_AnswersFromWhatSheRemembers, Phase):
                 # core/social/witness.py.
                 revise=budget >= 6.0 and not is_witnessing(state.cognition),
                 conversation_id=_taste_conversation_id(state),
+                lived_analogue=analogue,
             )
         except _RESPONSE_RECOVERABLE_ERRORS as exc:
             _record_response_degradation(exc, "UnitaryResponse: conversational amplifier failed: %s")

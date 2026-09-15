@@ -27,7 +27,7 @@ from typing import Any, Awaitable, Callable, Sequence
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
-from core.skills.fluid_executor import Step
+from core.skills.fluid_executor import Step, StepActionResult
 
 logger = logging.getLogger("Aura.GoalPlanner")
 
@@ -159,14 +159,16 @@ class GoalPlanner:
         logger.info("🗺️ [Planner] %s goal → %s: %s", kind, goal[:40], (answer or "")[:60])
 
     def _compute_step(self, goal: str) -> Step:
-        async def _act() -> None:
+        async def _act() -> StepActionResult:
             try:
                 from core.brain.tool_augmented_reasoning import solve_exact
 
                 r = solve_exact(goal)
                 self._emit(goal, "computational", r.answer if r.ok else "")
+                return StepActionResult(bool(r.ok and r.answer.strip()), r.detail)
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_planner", exc)
+                return StepActionResult(False, str(exc))
         return Step(name="compute", action=_act, verify="always_true")
 
     async def _default_generate(self, prompt: str, temperature: float) -> str:
@@ -189,9 +191,10 @@ class GoalPlanner:
             return ""
 
     def _reason_step(self, goal: str) -> Step:
-        async def _act() -> None:
+        async def _act() -> StepActionResult:
             try:
-                from core.brain.reasoning_amplifier import DeliberationEngine
+                from core.brain.reasoning_amplifier import DeliberationEngine, VerifierOutcome
+                from core.capabilities.post_action_verifier import VerificationResult
 
                 gen = self._generate or self._default_generate
                 eng = DeliberationEngine(n_samples=self._deliberate_samples)
@@ -199,8 +202,19 @@ class GoalPlanner:
                     goal, gen, min_samples=self._deliberate_samples, max_samples=self._deliberate_samples + 2
                 )
                 self._emit(goal, "reasoning", result.answer)
+                if result.verified:
+                    assessment = VerificationResult("reasoning_answer", {}, True,
+                                                    evidence="reasoning amplifier verified the selected answer")
+                elif result.answer_verdict == VerifierOutcome.FAIL:
+                    assessment = VerificationResult("reasoning_answer", {}, False,
+                                                    evidence="reasoning amplifier rejected the selected answer")
+                else:
+                    assessment = VerificationResult.unavailable("reasoning_answer", {},
+                                                               "selected answer has no conclusive assessment")
+                return StepActionResult(bool(result.answer.strip()), assessment=assessment)
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_planner", exc)
+                return StepActionResult(False, str(exc))
         return Step(name="reason", action=_act, verify="always_true")
 
     def _reach_step(self, goal: str) -> Step:
@@ -210,15 +224,17 @@ class GoalPlanner:
         m = re.search(r"https?://\S+", goal)
         url = m.group(0) if m else ""
 
-        async def _act() -> None:
+        async def _act() -> StepActionResult:
             if not url or self._reach is None:
                 self._emit(goal, "reach", "")
-                return
+                return StepActionResult(False, "no governed reach target available")
             try:
                 result = await self._reach.get(url)
                 self._emit(goal, "reach", result.body_preview[:200] if result.ok else f"blocked/{result.reason}")
+                return StepActionResult(bool(result.ok), str(result.reason or ""))
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_planner", exc)
+                return StepActionResult(False, str(exc))
         return Step(name="reach", action=_act, verify="always_true")
 
 

@@ -535,10 +535,14 @@ def get_active_cortex_serving_limits(
     )
 
 
-def read_active_cortex_spec(manifest_path: str | Path) -> ActiveCortexSpec | None:
+def read_active_cortex_spec(
+    manifest_path: str | Path, *, authority_key_path: Path | None = None
+) -> ActiveCortexSpec | None:
     """Validate one explicit pointer without consulting process-global roots."""
 
-    return _read_active_cortex_spec(Path(manifest_path).expanduser())
+    return _read_active_cortex_spec(
+        Path(manifest_path).expanduser(), authority_key_path=authority_key_path
+    )
 
 
 PRIMARY_ENDPOINT = "Cortex"

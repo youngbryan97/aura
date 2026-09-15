@@ -188,6 +188,15 @@ class SynergyReport:
     #: gain of a few millionths either side of zero.
     interaction_gain_folds: tuple[float, ...] = ()
     interaction_gain_se: float = 0.0
+    #: ISC-v3's null (docs/ISC_V3_PREREGISTRATION.md): the raw synergy of sources
+    #: simulated from their own fitted autoregression, without the target. Its
+    #: 99th percentile, its spread, how many simulations it was read from, and
+    #: the fit's spectral radius. Computed on the change only; a level reading
+    #: carries no draws.
+    bootstrap_q99: float = 0.0
+    bootstrap_spread: float = 0.0
+    bootstrap_draws: int = 0
+    bootstrap_radius: float = 0.0
 
     @property
     def interaction_lower_bound(self) -> float:
@@ -231,6 +240,30 @@ class SynergyReport:
             and self.normalised - self.null_q99 >= self.null_spread
         )
 
+    @property
+    def passes_v3(self) -> bool:
+        """ISC-v3's line: `passes`, with the fraction's two null bars read on the raw value.
+
+        The fraction's null bars ask a ratio of two small quantities to clear a
+        null of the same ratio. Against sources near a random walk that null
+        stays wide whatever it is built from, and v2 could not register a
+        coupling of two spreads at a lag-one persistence of 0.99. v3 keeps the
+        absolute floor on the fraction, the raw bar against the shifted null and
+        both interaction bars. In place of the fraction's two null bars it asks
+        the raw synergy to clear the bootstrap null's 99th percentile by at
+        least that null's spread, which is the form the fraction bar already had.
+        """
+        return (
+            self.normalised >= 0.10
+            and self.synergy > self.raw_null_q99
+            and self.synergy > self.bootstrap_q99
+            and self.synergy - self.bootstrap_q99 >= self.bootstrap_spread
+            and self.interaction_gain > 0.0
+            and self.interaction_lower_bound > 0.0
+            and self.null_draws > 1
+            and self.bootstrap_draws > 1
+        )
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "sources": list(self.sources),
@@ -252,6 +285,12 @@ class SynergyReport:
             "raw_null_q99": round(self.raw_null_q99, 5),
             "raw_margin_over_null": round(self.synergy - self.raw_null_q99, 5),
             "passes": self.passes,
+            "bootstrap_q99": round(self.bootstrap_q99, 5),
+            "bootstrap_spread": round(self.bootstrap_spread, 5),
+            "bootstrap_draws": self.bootstrap_draws,
+            "bootstrap_radius": round(self.bootstrap_radius, 5),
+            "margin_over_bootstrap": round(self.synergy - self.bootstrap_q99, 5),
+            "passes_v3": self.passes_v3,
         }
 
 
@@ -300,6 +339,56 @@ def _interaction_gain_folds(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> tupl
     if len(gains) < 2:
         return tuple(gains), 0.0
     return tuple(gains), float(np.std(gains, ddof=1) / np.sqrt(len(gains)))
+
+
+#: How many simulations ISC-v3's bootstrap null is read from.
+BOOTSTRAP_DRAWS = 200
+
+
+def _bootstrap_raw_nulls(
+    raw_a: np.ndarray, raw_b: np.ndarray, y: np.ndarray, *, seed: int
+) -> tuple[np.ndarray, float]:
+    """Raw synergy about `y` from the two sources simulated without it.
+
+    Both sources' components are fitted together as one first-order vector
+    autoregression with an intercept. Each draw starts from the recording's
+    first row and runs the fit forward with Gaussian shocks of the residual
+    covariance, so it keeps each source's persistence and the relation between
+    the sources and carries nothing about the target. A slid copy keeps the
+    series itself, and against sources near a random walk a slid copy still
+    shares slow structure with the target's history.
+
+    The draws use a generator of their own, so the shifted null draws exactly
+    what v1 and v2 read. A fit at or above a spectral radius of one is kept and
+    its radius reported: its simulations wander further and widen the null,
+    which can only make the line harder to pass. A draw that overflows is
+    dropped, and the line needs at least two.
+    """
+    both = np.hstack([raw_a, raw_b])
+    rows, width = both.shape
+    split = raw_a.shape[1]
+    design = np.hstack([both[:-1], np.ones((rows - 1, 1))])
+    coefficients, *_ = np.linalg.lstsq(design, both[1:], rcond=None)
+    residual = both[1:] - design @ coefficients
+    covariance = np.atleast_2d(np.cov(residual, rowvar=False)) + 1e-9 * np.eye(width)
+    shocks_shape = np.linalg.cholesky(covariance)
+    transition, intercept = coefficients[:width], coefficients[width]
+    radius = float(np.max(np.abs(np.linalg.eigvals(transition))))
+    rng = np.random.default_rng([int(seed), 27])
+    paths = np.empty((BOOTSTRAP_DRAWS, rows, width))
+    paths[:, 0] = both[0]
+    shocks = rng.normal(size=paths.shape) @ shocks_shape.T
+    with np.errstate(over="ignore", invalid="ignore"):
+        for row in range(1, rows):
+            paths[:, row] = paths[:, row - 1] @ transition + intercept + shocks[:, row]
+    values = []
+    for path in paths:
+        if not np.all(np.isfinite(path)):
+            continue
+        a, b = _copula_normal(path[:, :split]), _copula_normal(path[:, split:])
+        mi_a, mi_b = _gaussian_mi(a, y), _gaussian_mi(b, y)
+        values.append(_gaussian_mi(np.hstack([a, b]), y) - mi_a - mi_b + min(mi_a, mi_b))
+    return np.asarray(values, dtype=np.float64), radius
 
 
 #: What a triple's information is about. ISC-v1 scores the target's next
@@ -390,6 +479,11 @@ def synergy(
     # whose denominator differs between the two arms is not one comparison.
     raw_q99 = float(np.quantile(raw_nulls, 0.99))
     folds, fold_error = _interaction_gain_folds(raw_a, raw_b, raw_y)
+    # ISC-v3 reads the change against sources simulated without the target.
+    if of == "change":
+        bootstrap, radius = _bootstrap_raw_nulls(raw_a, raw_b, y, seed=seed)
+    else:
+        bootstrap, radius = np.empty(0), 0.0
 
     return SynergyReport(
         sources=(source_a, source_b),
@@ -412,6 +506,10 @@ def synergy(
         null_median=null_median,
         null_spread=null_spread,
         raw_null_q99=raw_q99,
+        bootstrap_q99=float(np.quantile(bootstrap, 0.99)) if bootstrap.size else 0.0,
+        bootstrap_spread=float(np.std(bootstrap, ddof=1)) if bootstrap.size > 1 else 0.0,
+        bootstrap_draws=int(bootstrap.size),
+        bootstrap_radius=radius,
     )
 
 

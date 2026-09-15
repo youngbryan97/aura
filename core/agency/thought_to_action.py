@@ -17,6 +17,7 @@ nothing more.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -37,6 +38,10 @@ class ThoughtRouter:
     def __init__(self, router: Any = None) -> None:
         self._router = router
         self._task: asyncio.Task | None = None
+        #: Advanced by every start and stop. A loop runs only while the value it
+        #: started with is current, so a stopped or replaced listener leaves on
+        #: its next wake even if its cancellation never lands.
+        self._generation = 0
         self.routed = 0
         self.ignored = 0
         self.failed = 0
@@ -74,24 +79,42 @@ class ThoughtRouter:
         self.routed += 1
         return True
 
-    async def _run(self) -> None:
+    async def _run(self, generation: int | None = None) -> None:
         from core.event_bus import get_event_bus
+        from core.runtime.reconcile import IDLE_POLL_S
 
-        queue = await get_event_bus().subscribe(TOPIC)
-        while True:
-            item = await queue.get()
-            # The bus queues (priority, sequence, {"topic": ..., "data": message}),
-            # so the thought is two layers in.
-            event = item[-1] if isinstance(item, tuple) and item else item
-            message = event.get("data") if isinstance(event, Mapping) and "data" in event else event
-            await self.handle(message)
+        mine = self._generation if generation is None else generation
+        bus = get_event_bus()
+        queue = await bus.subscribe(TOPIC)
+        try:
+            while mine == self._generation:
+                # Bounded, the way every consumer loop on the bus is: a quiet
+                # topic otherwise holds this listener past the router it belongs
+                # to, and a queue get is cancel-safe, so an idle timeout drops no
+                # thought.
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=IDLE_POLL_S)
+                except TimeoutError:
+                    continue
+                # The bus queues (priority, sequence, {"topic": ..., "data": message}),
+                # so the thought is two layers in.
+                event = item[-1] if isinstance(item, tuple) and item else item
+                message = event.get("data") if isinstance(event, Mapping) and "data" in event else event
+                await self.handle(message)
+        finally:
+            # It subscribed, so it leaves. The queue was never released before,
+            # and every restart added another subscriber nobody drained.
+            with contextlib.suppress(Exception):
+                await bus.unsubscribe(TOPIC, queue)
 
     async def start(self) -> None:
         if self._task is not None and not self._task.done():
             return
-        self._task = get_task_tracker().create_task(self._run(), name="agency.thought_to_action")
+        self._generation += 1
+        self._task = get_task_tracker().create_task(self._run(self._generation), name="agency.thought_to_action")
 
     async def stop(self) -> None:
+        self._generation += 1
         task, self._task = self._task, None
         if task is None:
             return

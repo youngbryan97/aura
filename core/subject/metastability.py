@@ -26,7 +26,7 @@ import numpy as np
 
 from core.subject.recording import Recording
 
-__all__ = ["MetastabilityReport", "regimes"]
+__all__ = ["MetastabilityReport", "condition_alignment", "regimes"]
 
 CANDIDATE_K: tuple[int, ...] = (2, 3, 4, 5, 6, 8)
 
@@ -73,6 +73,43 @@ def _silhouette(x: np.ndarray, labels: np.ndarray, *, sample: int = 600, seed: i
     return float(np.mean(scores)) if scores else -1.0
 
 
+def condition_alignment(labels: Any, conditions: Any) -> dict[str, float]:
+    """How much of the regime sequence the condition labels already account for.
+
+    A clustering of a life run under eight named conditions can find exactly
+    those eight and call them regimes. What separates a regime from a relabelled
+    condition is whether the regime says anything the condition does not: the
+    entropy left in the regime once the condition is known. Zero means the
+    regimes are a function of the conditions. The normalised mutual information
+    says how far towards that the two are, and one is the rediscovery.
+    """
+    pairs = [(int(label), str(condition)) for label, condition in zip(labels, conditions, strict=False)]
+    n = len(pairs)
+    if n == 0:
+        return {"condition_nmi": 0.0, "regime_given_condition_bits": 0.0, "conditions_spanning_regimes": 0.0}
+    from collections import Counter
+
+    regime_counts = Counter(label for label, _ in pairs)
+    condition_counts = Counter(condition for _, condition in pairs)
+    joint_counts = Counter(pairs)
+
+    def entropy(counts: Counter) -> float:
+        return float(-sum((c / n) * math.log2(c / n) for c in counts.values() if c))
+
+    h_regime, h_condition, h_joint = entropy(regime_counts), entropy(condition_counts), entropy(joint_counts)
+    mutual = h_regime + h_condition - h_joint
+    nmi = mutual / math.sqrt(h_regime * h_condition) if h_regime > 0 and h_condition > 0 else 0.0
+    spanning = sum(
+        1 for condition in condition_counts
+        if len({label for label, other in pairs if other == condition}) > 1
+    )
+    return {
+        "condition_nmi": round(float(nmi), 4),
+        "regime_given_condition_bits": round(float(h_joint - h_condition), 4),
+        "conditions_spanning_regimes": float(spanning),
+    }
+
+
 @dataclass
 class MetastabilityReport:
     regimes: int
@@ -82,6 +119,18 @@ class MetastabilityReport:
     entropy_ceiling: float
     top_share: float
     labels: tuple[int, ...]
+    #: See `condition_alignment`. Empty when the recording carried no conditions.
+    alignment: dict[str, float] | None = None
+
+    @property
+    def not_the_conditions(self) -> bool | None:
+        """The regimes say something the condition labels do not. None when unmeasured."""
+        if not self.alignment:
+            return None
+        return (
+            self.alignment["regime_given_condition_bits"] > 0.0
+            and self.alignment["condition_nmi"] < 1.0
+        )
 
     @property
     def passes(self) -> bool:
@@ -101,6 +150,8 @@ class MetastabilityReport:
             "entropy_ceiling": round(self.entropy_ceiling, 4),
             "largest_regime_share": round(self.top_share, 4),
             "passes": self.passes,
+            **(self.alignment or {}),
+            "not_the_conditions": self.not_the_conditions,
         }
 
 
@@ -160,4 +211,9 @@ def regimes(recording: Recording, *, seed: int = 0) -> MetastabilityReport:
         entropy_ceiling=math.log2(best_k) if best_k > 1 else 0.0,
         top_share=float(share.max()),
         labels=tuple(int(v) for v in labels),
+        alignment=(
+            condition_alignment(labels, recording.conditions)
+            if len(getattr(recording, "conditions", ()) or ()) == labels.size
+            else None
+        ),
     )

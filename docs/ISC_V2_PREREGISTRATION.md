@@ -8,10 +8,10 @@ implements it, and to no run before.
 
 ISC-v1 is kept. Every threshold in `THRESHOLDS` stays as it is, every v1 line is
 computed and reported on every run, and a v1 failure stays a failure (P10.11,
-P10.14, P40.8). ISC-v2 changes three lines of the conjunction. Each change below
-says what v1 asks, why a test built around a positive reference cannot keep
-asking it, what v2 asks instead, and the known-answer check that has to pass
-before v2 reads Aura.
+P10.14, P40.8). ISC-v2 changes three lines of the conjunction, and a fourth by
+the third amendment below. Each change below says what v1 asks, why a test
+built around a positive reference cannot keep asking it, what v2 asks instead,
+and the known-answer check that has to pass before v2 reads Aura.
 
 ## 1. Irreducibility against the nulls
 
@@ -138,6 +138,84 @@ stands, which is the instability section 3 exists for: read across the three
 seeds, `low_rank` fails, because it fails the rest of the conjunction on seeds 7
 and 11. The line's job is to be passable by the reference it is built around;
 separating the nulls is the other lines' job, as it already was in ISC-v1.
+
+## Third amendment, before any v2 result: persistence
+
+Recorded on 15 September 2026, before any ISC-v2 result exists. The three
+declared seeds were recording at `1a9ebe561` and none had written a report; no
+checkout on the host held a report carrying `v2_criteria`.
+
+**v1 asks** whether the state predicts each domain's next change beyond the
+environment, and whether that survives shuffling the state's rows
+(`intrinsic_persistence`, §19).
+
+**Why that cannot stand.** A change is predictable from the present level
+exactly when the level has no memory. For independent noise the next change is
+minus the present value plus noise, so the state "explains" about half of it,
+and the shuffle, which breaks that pairing, loses it. On synthetic recordings of
+the battery's shape, 800 rows and ten domains of three columns, the v1 reading
+scored memoryless noise at a gain of +0.47 and passed, a first-order
+autoregression at 0.95 at −0.02 and failed, and a random walk at −0.08 and
+failed. The line rewarded reverting to the mean, which is the opposite of
+carrying history, and a pass on it says nothing about persistence.
+
+**v2 asks** whether the state predicts each domain's next level beyond the
+environment and elapsed time, `core.subject.intrinsic.persistence`:
+
+- the same four principal components per domain, fitted on the first training
+  window, on both ends of each transition;
+- the baseline model reads the environment and elapsed time, so a trend is
+  available to it and explains nothing the state is credited with;
+- the state model reads the same plus the present level, with the nested
+  penalties irreducibility uses, so it can always fall back to the baseline;
+- read over the forward-chaining folds irreducibility uses, and passed only
+  when the lower bound of the gain over the baseline and the lower bound of the
+  gain over the row-shuffled state are both above zero, at `LOWER_BOUND_Z`.
+
+The v1 line is computed and reported on every run as before, and a v1 failure
+stays a failure. In the v2 verdict this line replaces it, as synergy's does.
+
+**Known answers, measured before the measure was run on any of Aura's
+recordings** (`tests/test_persistence_is_memory_not_reversion_to_the_mean.py`,
+19 of 19): on three seeds each, memoryless noise fails, a trend with noise fails,
+and a state that is only a function of an input recorded in the environment
+fails; a 0.95 autoregression passes, a random walk passes, and a rotating
+oscillator passes. The v1 reading passes memoryless noise on all three seeds,
+and that is pinned beside them.
+
+**Which runs it reads.** A run that records `persistence_v2` is read from its
+report. A v2 run recorded before this amendment was implemented is read by
+rescoring its own saved recording with the measure as committed here, and the
+rescored field says it was added after the run. That rescoring uses nothing
+the run's result could have chosen: the measure, its bound and its known
+answers are fixed in this commit, before any v2 result exists.
+
+## Fourth amendment, before any v2 result: the nulls are judged by v2's lines
+
+Recorded on 15 September 2026. The declared seeds were recording at
+`1a9ebe561`, seed 7 was on the first of its six intervention trials, and no
+checkout on the host held a report carrying `v2_criteria`.
+
+**What the code did.** Sections 1 and 3 judge each null architecture by the v2
+conjunction: irreducibility against the comparison set, and every other line,
+with synergy read on the change. Two places read v1's lines instead. The runner
+recorded one conjunction per seed, v1's, and the scorecard decided section 3's
+null line across seeds from it, as the battery did for one seed. And the
+comparison set took in the architectures that passed the rest of v1's
+conjunction, which reads synergy on the level. `passes_the_v2_conjunction`,
+which reads v2's lines, was called only by the second amendment's tests.
+
+**What it does now.** The comparison set takes in the architectures that pass
+the rest of the conjunction under v2's lines, reading synergy on the change
+where a row recorded it and on the level where it did not, as
+`passes_the_v2_conjunction` already did. The runner records `conjunction_v2`
+beside v1's `conjunction`. The battery and the scorecard read `conjunction_v2`,
+and a run recorded without it is read off its own recorded null table. The
+rules are pure functions of that table, so nothing is measured again. The
+tables of runs 026, 027 and 028 predate synergy on the change, and the second
+amendment's answers on them come out as before.
+
+No threshold and no v1 line changes.
 
 ## What does not change
 

@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.agency.asking_the_impulse import impulse_led, impulse_record
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 
@@ -391,12 +392,13 @@ class SubjectiveChoiceEngine:
         preference_scores: dict[str, float] = {}
         final_scores: dict[str, float] = {}
         option_features: dict[str, dict[str, float]] = {}
+        impulse = impulse_record(self.history())
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
             ))
             option_features[option.id] = features
-            risk_penalty = 0.35 * _clamp(option.risk)
+            risk_penalty = 0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse)
             drive = _clamp(option.drive_score)
             item_bonus = self._item_preference_bonus(option, context=context)
             pref = _clamp(self.score_features(features) + item_bonus)
@@ -475,10 +477,28 @@ class SubjectiveChoiceEngine:
             self._record(receipt)
         return receipt
 
+    def history(self) -> list[SubjectiveChoiceReceipt]:
+        """Her choice receipts, oldest first, as a copy."""
+        with self._lock:
+            return list(self._history)
+
+    @staticmethod
+    def _impulse_cost(features: dict[str, float], impulse: Any) -> float:
+        """How much more risk costs on an option she can read no preference for.
+
+        Choosing it would be taking directions from her impulse, and where her
+        own appraised choices say the impulse has led her worse than weighing,
+        its risk costs that much more. See core/agency/asking_the_impulse.py.
+        """
+        if not impulse_led(features):
+            return 1.0
+        return 1.0 + float(getattr(impulse, "distrust", 0.0) or 0.0)
+
     def rank_options(self, options: Iterable[ChoiceOption], *, context: str) -> list[dict[str, Any]]:
         """Return the same deterministic scores ``choose`` would use, without recording."""
         option_list = list(options)
         ranked: list[dict[str, Any]] = []
+        impulse = impulse_record(self.history())
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
@@ -490,7 +510,7 @@ class SubjectiveChoiceEngine:
                 ((1.0 - self.preference_latitude) * drive)
                 + (self.preference_latitude * pref)
                 + (0.30 * item_bonus)
-                - (0.35 * _clamp(option.risk))
+                - (0.35 * _clamp(option.risk) * self._impulse_cost(features, impulse))
             )
             ranked.append({
                 "id": option.id,

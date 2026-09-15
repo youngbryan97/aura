@@ -644,6 +644,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Joint refinement workplan](G_SEMANTIC_REFINEMENT_WORKPLAN.md) tracks capacity
+  proofs, complete bounded search, semantic counterexamples and learned refits.
+  [Capacity and search evidence](evidence/G03_CAPACITY_AND_SEARCH_2026-09-15.md)
+  closes those two implementation tasks, not G03 or a new accuracy claim.
+  [Graph-factor calibration](evidence/G03_GRAPH_FACTOR_RESULT_2026-09-15.md)
+  completes 500 paired rows: 435 exact / 454 equivalent versus 436 / 456.
+  The candidate regresses and is not promoted; G03 remains open.
+  [Runtime argument views](evidence/G03_RUNTIME_ARGUMENT_VIEWS_2026-09-14.md)
+  leave all 500 paired program outcomes unchanged: 436 exact, 456 equivalent.
+  The refit is not promoted. G03 remains open.
+  [Full-mention margin result](evidence/G03_RUNTIME_MARGIN_RESULT_2026-09-14.md)
+  fits runtime negatives and the fixed pointer margin from source training.
+  Complete validation regresses from 436 to 435 exact programs, with no gains.
+  The incumbent remains selected; no serving change or G03 closure.
   2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
   A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
   four and regresses one on 28 exposed cases; no promotion. Existing relation
@@ -732,6 +746,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Ranked operation pointer](evidence/G03_RANKED_OPERATION_POINTER_2026-09-14.md)
   reduced training loss but fell to 26/128 arithmetic and 6/48 cataphoric
   answers. Evaluation stopped; the other 324 cases are unmeasured. No promotion.
+  [Overlap-complete argument development](evidence/G03_OVERLAP_DOMINANCE_2026-09-14.md)
+  recovers four role-binding cases but regresses two cataphoric cases: 474/500,
+  weave 47/48, both controls 0/48. The search repair preserves the chart optimum;
+  136 focused tests pass. No candidate promotion or G03 closure.
+  [Atomic literal arguments](evidence/G03_ATOMIC_LITERAL_ARGUMENTS_2026-09-14.md)
+  repairs the reproduced fragment-binding regression without changing learned
+  coefficients. 150 focused tests pass; full comparison remains pending.
+  [Completed atomic-literal comparison](evidence/G03_ATOMIC_LITERAL_RESULT_2026-09-14.md)
+  is 473/500: four gains and five regressions against the 474/500 parent.
+  Candidate not promoted; learned role assignment remains unresolved.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
@@ -767,6 +791,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   controls 0/6. No accuracy gain; decode latency differs. The negative result
   is retained, with no admission or serving authority.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  [Prospective task power](evidence/G07_PROSPECTIVE_TASK_POWER_2026-09-15.md)
+  adds exact task-count sizing, frozen task/arm order and immutable publication
+  through the existing plan store. 92 focused tests pass. No candidate-specific
+  prospective plan or fresh run is claimed yet.
   [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
   repairs missing-setting confirmation, mutable plans, nonfinite measurements,
   and unchecked arm inventories. Fifty-six focused tests pass; this does not
@@ -774,6 +802,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Action completion evidence](evidence/G09_ACTION_COMPLETION_EVIDENCE_2026-09-14.md)
+  carries actual planner results and selected-answer verdicts through execution.
+  Missing observations retry without repeating effects; repairs preserve required
+  steps. Seventy focused tests pass. Broad gain and live qualification remain open.
+  [Alternative plan search](evidence/G09_PLAN_ALTERNATIVES_2026-09-14.md) retains
+  distinct dependency paths and ranks them from independently measured task
+  outcomes across restart. 100 procedure tests pass; broad gain remains open.
   [Task-plan feedback](evidence/G09_TASK_PLAN_FEEDBACK_2026-09-14.md) connects
   whole-composition execution and external assessments to the shared value
   learner, with stable identities across restarts. Candidate generation and
@@ -820,6 +855,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  [Current-generation channel](evidence/G10_CURRENT_CHANNEL_2026-09-14.md)
+  passes the owned-layer probe at alpha 0.1: 7/8 changed answers and 10/10
+  forced-choice accuracy retained. Exact model/basis certificate archived;
+  no new-generation promotion, broad-gain claim, or live serving closure.
   2026-09-13: the shared conversion comparison no longer counts matching
   exceptions as successful agreement; 36 cross-substrate tests passed.
   This repairs a qualification primitive, not a completed fusion.
@@ -847,7 +886,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Probe checkpoint identity](evidence/G10_PROBE_CHECKPOINT_IDENTITY_2026-09-14.md)
   aligns the fusion CLI's actual load and certificate identity. The full
   public steering comparison is running; launch does not grant qualification.
-- [ ] G11 Prove the qualified mechanism actually serves eligible live requests.
+  [Complete public steering result](evidence/G10_PUBLIC_STEERING_RESULT_2026-09-14.md)
+  retains all 216 completed decodes and an independently replayed negative:
+  one treatment target-score win versus four matched no-op wins, with task
+  regressions. The new gradient-trained generation is not qualified or published.
+- [x] G11 Prove the qualified mechanism actually serves eligible live requests.
+  Closed 2026-09-14: [desktop serving](evidence/G11_DESKTOP_SERVING_2026-09-14.md).
+  Four fresh desktop requests across all four qualified families delivered
+  exact answers with source/model identity and durable terminal proof.
+  Fifteen evidence tests passed. Runtime health and broad gain are separate.
+  [Manifest continuity repair](evidence/G11_MANIFEST_CONTINUITY_2026-09-14.md)
+  restores installed qualification after a steering-only authority change
+  without rewriting historical evidence. Foreground/service replay passes
+  120/120 with 120 lesion disruptions; source-matched desktop proof remains.
   2026-09-13: the activation alarm detects a changed signed steering contract
   with unchanged model path and zero drifted source files. G10/G11 must qualify
   that configuration; the earlier evidence has not been relabeled.

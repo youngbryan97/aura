@@ -135,7 +135,7 @@ async def test_stall_detection_aborts():
 
 
 @pytest.mark.asyncio
-async def test_no_verifier_trusts_clean_dispatch():
+async def test_no_verifier_retains_dispatch_without_claiming_verification():
     ex = FluidExecutor(verifier=None, sleep=lambda _s: _async_none())
     # force the "verifier unavailable" path by stubbing the lazy getter
     ex._verifier = None
@@ -145,4 +145,5 @@ async def test_no_verifier_trusts_clean_dispatch():
 
     ex._get_verifier = _get_none  # type: ignore
     r = await ex.run_step(Step("act", _noop, verify="file_exists"))
-    assert r.ok and r.verified
+    assert not r.ok and not r.verified
+    assert r.action_completed and r.awaiting_verification and r.attempts == 1

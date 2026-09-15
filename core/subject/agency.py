@@ -52,6 +52,21 @@ def _gap(
     return best
 
 
+def _same_percept(left: list[CoreState], right: list[CoreState]) -> bool | None:
+    """Whether two arms began their turn perceiving the same thing. None when unreadable.
+
+    The open frame is read after the condition has put the world in front of
+    her and before any phase has run, so its perception domain is what arrived
+    and nothing she did about it.
+    """
+    if not left or not right:
+        return None
+    try:
+        return bool(np.array_equal(left[0].domain("P"), right[0].domain("P")))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
 @dataclass
 class AgencyReport:
     self_to_action: float
@@ -78,6 +93,10 @@ class AgencyReport:
     #: never checked is an assumption.
     worlds_matched: int = 0
     worlds_compared: int = 0
+    #: And whether they began perceiving the same thing. P37.4 asks for the same
+    #: percept in both arms, and like the world it is checked rather than assumed.
+    percepts_matched: int = 0
+    percepts_compared: int = 0
     note: str = ""
 
     @property
@@ -110,6 +129,9 @@ class AgencyReport:
             "worlds_matched": self.worlds_matched,
             "worlds_compared": self.worlds_compared,
             "worlds_identical": self.worlds_identical,
+            "percepts_matched": self.percepts_matched,
+            "percepts_compared": self.percepts_compared,
+            "percepts_identical": self.percepts_identical,
             "ownership_generalises": self.ownership_generalises,
             "note": self.note,
         }
@@ -128,6 +150,11 @@ class AgencyReport:
         the authorship, and the experiment measured two things at once.
         """
         return self.worlds_compared > 0 and self.worlds_matched == self.worlds_compared
+
+    @property
+    def percepts_identical(self) -> bool:
+        """Whether every compared pair of arms began the turn perceiving the same thing."""
+        return self.percepts_compared > 0 and self.percepts_matched == self.percepts_compared
 
     @property
     def ownership_generalises(self) -> bool:
@@ -173,6 +200,8 @@ async def run_agency(
     floor_by_shape: dict[str, list[float]] = {}
     worlds_matched = 0
     worlds_compared = 0
+    percepts_matched = 0
+    percepts_compared = 0
 
     action_scale = scale.get("D", np.ones(1))
     self_scale = scale.get("S", np.ones(1))
@@ -255,6 +284,10 @@ async def run_agency(
         if outside_digest or plain_digest:
             worlds_compared += 1
             worlds_matched += int(outside_digest == plain_digest)
+        same = _same_percept(outside, plain)
+        if same is not None:
+            percepts_compared += 1
+            percepts_matched += int(same)
         if moved_action.get("intended") != plain_action.get("intended"):
             text_changed = True
         del again_action
@@ -284,6 +317,8 @@ async def run_agency(
         ownership_floor_by_shape=_averaged(floor_by_shape),
         worlds_matched=worlds_matched,
         worlds_compared=worlds_compared,
+        percepts_matched=percepts_matched,
+        percepts_compared=percepts_compared,
         note=note,
     )
 

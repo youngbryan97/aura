@@ -44,11 +44,13 @@ class PursuitOutcome:
     attempts: int = 0
     reason: str = ""
     receipts: list[Any] = field(default_factory=list)
+    verified: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "goal": self.goal,
             "completed": self.completed,
+            "verified": self.verified,
             "deferred": self.deferred,
             "attempts": self.attempts,
             "reason": self.reason,
@@ -125,8 +127,16 @@ class GoalPursuitEngine:
             outcome.receipts.append(receipt)
             if completed:
                 outcome.completed = True
+                checked = receipt.tasks if isinstance(receipt, SwarmReceipt) else [receipt]
+                outcome.verified = bool(checked) and all(item.verification_complete for item in checked)
                 outcome.reason = "goal completed"
                 logger.info("✅ [Pursuit] '%s' completed in %d attempt(s).", goal, attempt)
+                return outcome
+
+            pending = receipt.tasks if isinstance(receipt, SwarmReceipt) else [receipt]
+            if any(item.outcome == "awaiting_verification" for item in pending):
+                outcome.deferred = True
+                outcome.reason = "action completed; effect observation unavailable"
                 return outcome
 
             if replan is not None and attempt <= self.max_replans:

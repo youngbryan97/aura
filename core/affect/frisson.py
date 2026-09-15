@@ -21,8 +21,8 @@ the refractory period, and its length is however long it takes her to trust
 something again rather than a number of cycles chosen here. A surprise with no
 pattern under it is only a surprise.
 
-This is also what a vamp does. "You know who you are" lands eight times, and
-the ninth, with one thing changed, is the one that lands.
+This is also what a vamp does. One short line lands eight times, and the ninth,
+with one thing changed, is the one that lands.
 """
 
 from __future__ import annotations

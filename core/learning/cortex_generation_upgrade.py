@@ -909,14 +909,41 @@ def _read_pointer(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _governed_write(path: Path, payload: bytes, *, source: str) -> None:
+def _governed_write(
+    path: Path, payload: bytes, *, source: str, exclusive: bool = False
+) -> None:
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     gateway = get_file_write_gateway()
+    if path.name == "active.json":
+        if path.exists():
+            retain_cortex_manifest_snapshot(path, path.read_bytes())
+        retain_cortex_manifest_snapshot(path, payload)
     with local_internal_governed_scope("cortex_generation_upgrade"):
         gateway.ensure_directory(path.parent, source=source)
-        gateway.write_bytes(path, payload, source=source)
+        if exclusive:
+            gateway.write_bytes_if_absent(path, payload, mode=0o400, source=source)
+        else:
+            gateway.write_bytes(path, payload, source=source)
+
+
+def retain_cortex_manifest_snapshot(manifest: Path, raw: bytes) -> Path:
+    """Retain exact pointer bytes without changing model or component authority."""
+    from core.brain.llm.cortex_manifest_continuity import (
+        MAX_MANIFEST_BYTES,
+        manifest_snapshot_path,
+        read_manifest_bytes,
+    )
+    if not 1 < len(raw) <= MAX_MANIFEST_BYTES or not isinstance(json.loads(raw), dict):
+        raise ValueError("manifest_snapshot_object_invalid")
+    target = manifest_snapshot_path(manifest, hashlib.sha256(raw).hexdigest())
+    if target.parent.is_symlink():
+        raise ValueError("manifest_snapshot_directory_invalid")
+    _governed_write(target, raw, source="cortex_upgrade.manifest_history", exclusive=True)
+    if read_manifest_bytes(target) != raw:
+        raise ValueError("manifest_snapshot_existing_bytes_mismatch")
+    return target
 
 
 def record_upgrade_candidate(

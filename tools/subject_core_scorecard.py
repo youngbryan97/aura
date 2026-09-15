@@ -49,7 +49,13 @@ TRACKED: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("lesion_deficit_phi", ("lesion", "deltas", "phi_do")),
     ("lesion_deficit_spread", ("lesion", "deltas", "spread")),
     ("lesion_deficit_synergy", ("lesion", "deltas", "synergy")),
+    # The rescue beside every deficit it answers. Only irreducibility's was
+    # tracked, so a rescue that restored the partition and left spread and
+    # synergy where the cut put them read the same across runs as a full one.
     ("rescue_phi", ("lesion", "rescue", "phi_do")),
+    ("rescue_spread", ("lesion", "rescue", "spread")),
+    ("rescue_synergy", ("lesion", "rescue", "synergy")),
+    ("rescue_recovery_fraction", ("lesion", "recovery_fraction")),
     ("ownership", ("agency", "ownership_divergence")),
     ("ownership_floor", ("agency", "ownership_floor")),
     ("self_to_action", ("agency", "self_to_action")),
@@ -113,11 +119,129 @@ def _dig(blob: Any, path: tuple[str, ...]) -> Any:
     return node
 
 
+def _v2_conjunction(report: dict[str, Any]) -> dict[str, bool]:
+    """One seed's ISC-v2 conjunction per system, as recorded or read off the recorded table.
+
+    Never v1's `conjunction`, which judges the nulls by v1's lines
+    (docs/ISC_V2_PREREGISTRATION.md, fourth amendment). Empty when the run kept
+    neither.
+    """
+    nulls = report.get("nulls") or {}
+    recorded = nulls.get("conjunction_v2")
+    if isinstance(recorded, dict) and recorded:
+        return recorded
+    table = nulls.get("detail")
+    if isinstance(table, dict) and table:
+        from core.subject.null_verdicts import v2_conjunctions
+
+        return v2_conjunctions(table)
+    return {}
+
+
+def _v3_conjunction(report: dict[str, Any]) -> dict[str, bool]:
+    """One seed's ISC-v3 conjunction per system, as recorded or read off the recorded table."""
+    nulls = report.get("nulls") or {}
+    recorded = nulls.get("conjunction_v3")
+    if isinstance(recorded, dict) and recorded:
+        return recorded
+    table = nulls.get("detail")
+    if isinstance(table, dict) and table:
+        from core.subject.null_verdicts import v3_conjunctions
+
+        return v3_conjunctions(table)
+    return {}
+
+
+def _isc_v3(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
+    """ISC-v3 across the runs: every v3 line held on every run, the null line across seeds.
+
+    Only runs that recorded v3 lines are v3 runs (docs/ISC_V3_PREREGISTRATION.md).
+    None when no run was.
+    """
+    v3_runs = [r for r in reports if (r.get("verdict") or {}).get("v3_criteria")]
+    if not v3_runs:
+        return None
+    lines: dict[str, list[bool]] = {}
+    for report in v3_runs:
+        verdict = report.get("verdict") or {}
+        read = {}
+        for block in ("criteria", "v2_criteria", "v3_criteria"):
+            read.update({row["criterion"]: bool(row.get("passed")) for row in verdict.get(block, [])})
+        for name, passed in read.items():
+            if name != "beats_every_null":
+                lines.setdefault(name, []).append(passed)
+    across = bool(null_verdict and null_verdict.get("all_nulls_fail"))
+    lines["beats_every_null"] = [across] * len(v3_runs)
+    holds = sorted(name for name, results in lines.items() if all(results))
+    return {
+        "runs": len(v3_runs),
+        "lines": len(lines),
+        "holds_on_every_run": len(holds),
+        "failing": sorted(name for name in lines if name not in holds),
+        "isc_v3": len(holds) == len(lines) and len(lines) > 0,
+        "null_line_read_across": null_verdict,
+    }
+
+
+def _isc_v2(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
+    """ISC-v2 across the runs: every v2 line held on every run, the null line across seeds.
+
+    Only runs that recorded v2 lines are v2 runs. Their per-seed null reading is
+    replaced by the verdict across all of them, which is how the
+    preregistration decides that line. None when no run was a v2 run.
+    """
+    v2_runs = [r for r in reports if (r.get("verdict") or {}).get("v2_criteria")]
+    if not v2_runs:
+        return None
+    lines: dict[str, list[bool]] = {}
+    for report in v2_runs:
+        verdict = report.get("verdict") or {}
+        replaced = {row["criterion"] for row in verdict.get("v2_criteria", [])}
+        for row in verdict.get("criteria", []):
+            if row["criterion"] not in replaced:
+                lines.setdefault(row["criterion"], []).append(bool(row.get("passed")))
+        for row in verdict.get("v2_criteria", []):
+            if row["criterion"] != "beats_every_null":
+                lines.setdefault(row["criterion"], []).append(bool(row.get("passed")))
+    across = bool(null_verdict and null_verdict.get("all_nulls_fail"))
+    lines["beats_every_null"] = [across] * len(v2_runs)
+    holds = sorted(name for name, results in lines.items() if all(results))
+    return {
+        "runs": len(v2_runs),
+        "lines": len(lines),
+        "holds_on_every_run": len(holds),
+        "failing": sorted(name for name in lines if name not in holds),
+        "isc_v2": len(holds) == len(lines) and len(lines) > 0,
+        "null_line_read_across": null_verdict,
+    }
+
+
 def load(directory: Path) -> dict[str, Any]:
+    """A run's report, with its ISC-v2 and ISC-v3 lines rescored where the preregistration says so.
+
+    `tools/subject_core_rescore_synergy_v3.py` writes a sidecar for the one
+    campaign recorded before v3. Its v2 and v3 lines and its null table stand in
+    for the report's; the v1 verdict stays the one the run recorded. A sidecar
+    that could not reproduce the run's own v2 reading is not read.
+    """
     report = directory / "subject_core_report.json"
     if not report.exists():
         raise SystemExit(f"no report in {directory}")
-    return json.loads(report.read_text())
+    loaded = json.loads(report.read_text())
+    sidecar = directory / "isc_v3_rescored.json"
+    if not sidecar.exists():
+        return loaded
+    rescored = json.loads(sidecar.read_text())
+    if "refused" in rescored or rescored.get("reproduced") is False:
+        return loaded
+    verdict = dict(loaded.get("verdict") or {})
+    verdict["v2_criteria"] = rescored.get("v2_criteria") or verdict.get("v2_criteria", [])
+    verdict["v3_criteria"] = rescored.get("v3_criteria") or []
+    verdict["rescored_after_the_run"] = True
+    loaded["verdict"] = verdict
+    if rescored.get("nulls_detail"):
+        loaded["nulls"] = {**(loaded.get("nulls") or {}), "detail": rescored["nulls_detail"]}
+    return loaded
 
 
 def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
@@ -192,17 +316,23 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
     # only if it fails on every one, and the reference passes only if it passes
     # on every one (docs/ISC_V2_PREREGISTRATION.md). Runs that recorded no
     # conjunction cannot be read this way, and none at all leaves it unread.
-    conjunctions = [
-        conjunction
-        for conjunction in ((report.get("nulls") or {}).get("conjunction") for report in reports)
-        if isinstance(conjunction, dict) and conjunction
-    ]
+    conjunctions = [conjunction for conjunction in map(_v2_conjunction, reports) if conjunction]
     if conjunctions:
         from core.subject.null_verdicts import verdict_across_seeds
 
         null_verdict: dict[str, Any] | None = verdict_across_seeds(conjunctions)
     else:
         null_verdict = None
+    isc_v2 = _isc_v2(reports, null_verdict)
+    # ISC-v3 the same way, with every null judged by the v3 synergy line.
+    conjunctions_v3 = [conjunction for conjunction in map(_v3_conjunction, reports) if conjunction]
+    if conjunctions_v3:
+        from core.subject.null_verdicts import verdict_across_seeds
+
+        null_verdict_v3: dict[str, Any] | None = verdict_across_seeds(conjunctions_v3)
+    else:
+        null_verdict_v3 = None
+    isc_v3 = _isc_v3(reports, null_verdict_v3)
 
     campaigns: dict[str, list[str]] = {}
     seeds: list[Any] = []
@@ -230,6 +360,9 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "numbers": numbers,
         "synergy_triples": triples,
         "v2_null_verdict": null_verdict,
+        "isc_v2": isc_v2,
+        "v3_null_verdict": null_verdict_v3,
+        "isc_v3": isc_v3,
         # Per domain, the weakest channel in and the weakest channel out, on
         # the newest run. A domain can sit inside the component hanging off one
         # thin edge, and the component alone does not say which one.

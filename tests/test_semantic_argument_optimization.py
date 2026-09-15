@@ -61,7 +61,8 @@ def brute(options, contract, n_inputs=3, definition_options=None, definition_sco
 
 
 @pytest.mark.parametrize("seed", range(6))
-def test_definition_attachment_objective_matches_exhaustive_graph_search(seed):
+@pytest.mark.parametrize("screen", [False, True])
+def test_definition_attachment_objective_matches_exhaustive_graph_search(seed, screen):
     rng = np.random.default_rng(seed)
     names = (TokenSpan(10, 11), TokenSpan(12, 13))
     options = tuple(tuple(tuple(
@@ -74,7 +75,8 @@ def test_definition_attachment_objective_matches_exhaustive_graph_search(seed):
     contract = RegisterUseContract(1, 1, 1, 1, True)
     expected = brute(options, contract, definition_options=labels, definition_scores=scores)
     observed = optimize_argument_chart(options, n_inputs=3, contract=contract,
-                                       definition_options=labels, definition_scores=scores)
+                                       definition_options=labels, definition_scores=scores,
+                                       prune_dominated=screen)
     assert observed is not None
     assert observed[0] == pytest.approx(expected, abs=1e-8)
 
@@ -96,7 +98,8 @@ def test_optimum_matches_exhaustive_search(seed):
 @pytest.mark.parametrize("arities", [(1,), (2,), (1, 2), (2, 1, 2)])
 @pytest.mark.parametrize("distinct", [False, True])
 @pytest.mark.parametrize("seed", [31, 73])
-def test_varying_arity_use_bounds_and_overlap_match_exhaustive_search(arities, distinct, seed):
+@pytest.mark.parametrize("screen", [False, True])
+def test_varying_arity_use_bounds_and_overlap_match_exhaustive_search(arities, distinct, seed, screen):
     rng = np.random.default_rng(seed)
     options = tuple(tuple(tuple(
         (float(rng.normal()), register, TokenSpan(start, start + 2))
@@ -105,7 +108,7 @@ def test_varying_arity_use_bounds_and_overlap_match_exhaustive_search(arities, d
     ) for _slot in range(arity)) for node, arity in enumerate(arities))
     contract = RegisterUseContract(0, 2, 0, 3, distinct)
     expected = brute(options, contract, n_inputs=2)
-    result = optimize_argument_chart(options, n_inputs=2, contract=contract)
+    result = optimize_argument_chart(options, n_inputs=2, contract=contract, prune_dominated=screen)
     if expected is None:
         assert result is None
     else:

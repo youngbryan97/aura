@@ -1779,12 +1779,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "ledger\\.note\\(kind, step\\)"
       },
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "derives that from the ledger at the top of every turn"
       },
       {
@@ -2306,7 +2306,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "the workspace prices its memory bid from it"
       },
       {
@@ -4610,8 +4610,13 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "def _perturb_D"
+      },
+      {
+        "command": "{python} -m pytest tests/test_her_standing_plans_belong_to_deliberation.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
       }
     ],
     "note": "persistent planner state lives in the same domain and is displaced with it",
@@ -5723,7 +5728,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "await organs\\.self_model\\.update_belief"
       },
       {
@@ -7764,7 +7769,7 @@
       },
       {
         "kind": "path",
-        "path": "artifacts/subject_core/run_017/manifest.json"
+        "path": "artifacts/subject_core/run_031/manifest.json"
       }
     ],
     "note": "and a SHA-256 for every file the run wrote",
@@ -11528,6 +11533,374 @@
       }
     ],
     "note": "the preregistration was committed while runs 029, 030 and 031 were still recording, names them as v1 results only, and applies v2 first to runs started after the commit that implements it",
+    "status": "done"
+  },
+  "P49.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"rescue_synergy\", \\(\"lesion\", \"rescue\", \"synergy\"\\)\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_tracks_the_rescue_beside_every_deficit.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the rescue is tracked across runs beside every deficit it answers, with the recovery fraction",
+    "status": "done"
+  },
+  "P12.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/workspace_feed.py",
+        "pattern": "level = gained\\(level, arousal, usual=0\\.5\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_a_surprise_about_herself_claims_more_when_she_is_aroused tests/test_what_she_reads_is_combined_not_added.py::test_being_easier_to_predict_than_usual_claims_less_when_she_is_aroused -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a surprise about herself claims attention through arousal's gain, so what wins attention depends on the feeling and the self-model together",
+    "status": "done"
+  },
+  "P12.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/world_model/observe_cycle.py",
+        "pattern": "\\*_recalled\\(cognition\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_deliberation_can_reach_attention.py::test_the_world_model_is_shown_what_arrived_not_only_how_much -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the world model's observation carries what arrived and what recall brought back, in one vector the learned dynamics read together",
+    "status": "done"
+  },
+  "P12.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/motivation_update.py",
+        "pattern": "return gained\\(world, arousal, usual=0\\.5\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_a_world_worse_than_its_model_expects_presses_harder_on_an_aroused_organism tests/test_what_she_reads_is_combined_not_added.py::test_a_world_better_than_expected_presses_less_on_an_aroused_organism tests/test_deliberation_can_reach_attention.py::test_the_world_and_the_feelings_reach_what_she_decides -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the drives are pressed by the world model's surprise with arousal as its gain, and what she decides to work on reads the world's surprise and what hurts",
+    "status": "done"
+  },
+  "P12.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "def _obstruction\\(state: Any\\) -> float:"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_obstruction_is_how_hard_it_presses_times_how_far_it_is_beyond_her tests/test_what_she_reads_is_combined_not_added.py::test_an_obstructed_intention_raises_the_substrate_s_frustration_towards_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "an intention obstructed by her demonstrated capacity raises the continuous substrate's frustration: urgency times how far it is beyond her",
+    "status": "done"
+  },
+  "P12.11": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_neither_reading_decides_the_effect_of_the_other -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "arousal's effect changes sign with the level it gains, which a sum cannot do, and obstruction is a product",
+    "status": "done"
+  },
+  "P12.12": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "core/affect/arousal_gain.py"
+      },
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "an intention is obstructed"
+      }
+    ],
+    "note": "conflict between an intention and her capacity is computed and reaches recurrent cognition; the 300-round A/B showed these first mechanisms did not move the synergy criterion",
+    "status": "done"
+  },
+  "P12.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/state/percepts.py",
+        "pattern": "def prime_stream\\(world: Any, recalled: Any\\) -> int:"
+      },
+      {
+        "command": "{python} -m pytest tests/test_memory_and_perception_read_each_other.py::test_a_recollection_primes_the_percept_it_bears_on tests/test_memory_and_perception_read_each_other.py::test_what_she_recalls_primes_what_she_perceives_within_the_turn -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "what was just recalled primes the percepts it bears on, in proportion to how strongly it was recalled, so memory decides which of several arrivals is taken as meant",
+    "status": "done"
+  },
+  "P12.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/memory_retrieval.py",
+        "pattern": "word_overlap\\(percept_cue, text\\) \\* percept_salience"
+      },
+      {
+        "command": "{python} -m pytest tests/test_memory_and_perception_read_each_other.py::test_a_percept_raises_the_recollections_that_carry_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now",
+    "status": "done"
+  },
+  "P8.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\",\\s*type=int,\\s*default=64,"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "for draw in range\\(args\\.surrogate_draws\\)"
+      }
+    ],
+    "note": "the replay surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile",
+    "status": "done"
+  },
+  "P8.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\",\\s*type=int,\\s*default=64,"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "for draw in range\\(args\\.surrogate_draws\\)"
+      }
+    ],
+    "note": "the time-shuffle surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile",
+    "status": "done"
+  },
+  "P39.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/metastability.py",
+        "pattern": "def condition_alignment\\(labels: Any, conditions: Any\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_regimes_are_not_the_condition_labels_rediscovered.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['metastability'].get('not_the_conditions') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the regimes leave entropy once the condition is known and are not the conditions relabelled; read on the next battery run, and on run_032 offline every condition spanned more than one regime (seed 7 NMI 0.00, seed 17 0.67)",
+    "status": "done"
+  },
+  "P37.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "def _same_percept\\(left: list\\[CoreState\\], right: list\\[CoreState\\]\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_ownership_arms_perceive_the_same_thing.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['agency'].get('percepts_identical') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the two ownership arms are compared on the perception domain of the frame read before any phase ran, so the same percept is checked rather than assumed; read on the next battery run",
+    "status": "done"
+  },
+  "P34.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/pci.py",
+        "pattern": "def response_structure\\(matrices: dict\\[str, Any\\]\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_response_unfolds_in_time_and_differs_by_source.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "bool([m for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])]) and all(any(('0' in r and '1' in r) for r in m['rows']) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows']))",
+        "kind": "report"
+      }
+    ],
+    "note": "every source that reached anything reached some target at some lags and not others; all ten sources on run_031 and both run_032s",
+    "status": "done"
+  },
+  "P34.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_response_unfolds_in_time_and_differs_by_source.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "len({tuple(sorted(m['reached'])) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])}) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "the sources that reached anything reached different sets: ten distinct reach patterns out of ten sources on run_031 and both run_032s",
+    "status": "done"
+  },
+  "P34.7": {
+    "checks": [
+      {
+        "expr": "bool(report['perturbation'].get('beats_null')) and all(any(('0' in r and '1' in r) for r in m['rows']) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])) and len({tuple(sorted(m['reached'])) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])}) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "complexity clears its sham null while every response stays structured in time and the sources reach different sets, so the spread was not bought by lighting everything up",
+    "status": "done"
+  },
+  "P25.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "gateway\\.write_text\\(\\s*path, prior \\+ intended \\+ \"\\\\n\", source=\"subject_core\\.action_probe\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the action arm writes to a scratch room inside the run directory through the governed file gateway, and every kind of action is a real filesystem operation",
+    "status": "done"
+  },
+  "P25.12": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the room changes: a room made on one turn is a directory on disk, and the count of rooms grows turn by turn",
+    "status": "done"
+  },
+  "P25.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"filesystem\",\\s*observed or"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the outcome is read back off the filesystem and arrives as a percept from the filesystem, carrying what the room now holds",
+    "status": "done"
+  },
+  "P25.14": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'P' and e['target'] in ('W', 'A', 'M') and e.get('kept') for e in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "perception reaches the world model, affect or memory through edges kept against their shams: P->A and P->W on run_031, P->A and P->M on both run_032s",
+    "status": "done"
+  },
+  "P25.15": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_what_an_earlier_action_left_behind_decides_a_later_one -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "any((('P', a) in K and (a, 'D') in K) or (('P', a) in K and (a, b) in K and (b, 'D') in K) for K in [{(e['source'], e['target']) for e in report['edges'] if e.get('kept')}] for a in 'PIAGCSMWDN' for b in 'PIAGCSMWDN')",
+        "kind": "report"
+      }
+    ],
+    "note": "a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)",
+    "status": "done"
+  },
+  "P38.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "def counter_carried_edges\\("
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"fast_to_slow_not_counters\": any\\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_timescale_coupling_is_not_carried_by_counters.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['timescale'].get('fast_to_slow_not_counters') is True and report['timescale'].get('slow_to_fast_not_counters') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "every trial records the column its effect was read off; a fast-slow edge carried only by columns that go one way is named, and the line holds when each direction keeps an edge carried by state. Read on the next battery run",
+    "status": "done"
+  },
+  "P35.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "turns, seed=args\\.seed, exclude=\\(\"M\",\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_persistence_is_memory_not_reversion_to_the_mean.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['persistence_v2']['without_memory']['passes'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "persistence on the next level holds with memory left out: lower bounds +0.525 and +0.511 on the two run_032 seeds and +0.380 and +0.287 on the 300-round recordings, computed after the third amendment was committed. Runs record it from e6685d206 on",
     "status": "done"
   }
 }

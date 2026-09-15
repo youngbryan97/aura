@@ -473,6 +473,34 @@ def toy_periphery(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> np.
     return np.vstack(rows)
 
 
+def toy_closure(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> tuple[bool, float]:
+    """Whether K's future needs anything outside K, for a toy whose whole state can be listed.
+
+    The organism's periphery is found by walking the machine, and a walk that
+    found nothing that varied has not shown the core is closed; `closure_gain`
+    says so. A toy is different: its state is a dict, and every key in it is
+    either one of the ten domains or something outside them. When there is no
+    key outside them, K is the whole state, and that is read off the state
+    rather than assumed. A toy with state outside K is measured the way the
+    organism is.
+
+    Returns (closed, leak).
+    """
+    outside_keys = set(system.start(np.random.default_rng(seed))) - set(DOMAINS)
+    if not outside_keys:
+        return True, 0.0
+    from core.subject.closure import closure_gain
+
+    outside = toy_periphery(system, steps=steps, seed=seed)
+    report = closure_gain(
+        toy_recording(system, steps=steps, seed=seed),
+        outside,
+        tuple(f"broker.{index}" for index in range(outside.shape[1])),
+        seed=seed,
+    )
+    return bool(report.closed), float(report.leak)
+
+
 def toy_recording(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> Recording:
     """Run one architecture and shape the result like a real recording."""
     rng = np.random.default_rng(seed)

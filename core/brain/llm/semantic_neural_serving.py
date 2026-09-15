@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -13,7 +14,6 @@ from typing import Any, Final
 
 from core.learning.recovery_package_identity import (
     DescriptorIdentity,
-    RecoveryPackageError,
     descriptor_from_manifest,
     evidence_namespace_errors,
 )
@@ -240,36 +240,24 @@ def active_semantic_neural_activation_path() -> Path:
     return ACTIVE_ACTIVATION_PATH if ACTIVE_ACTIVATION_PATH.exists() else DEFAULT_ACTIVATION_PATH
 
 
-#: The fields of a manifest identity that name the model basis. `sha256` is
-#: the rest of the identity: the bytes of the whole file.
-_MANIFEST_BASIS_FIELDS: Final[tuple[str, ...]] = (
-    "path",
-    "active_model_path",
-    "schema_version",
-    "base_model",
-    "tag",
-    "fused_at",
-)
-
-
 def _manifest_identity_matches_activation(
     *,
     expected: dict[str, Any],
     current: dict[str, Any],
     selected_model: Path,
-    current_payload: dict[str, Any] | None = None,
-    descriptor_identity: DescriptorIdentity | None = None,
+    authority_key_path: Path | None = None,
 ) -> bool:
-    """Accept an exact manifest, a verified identity-only normalization, or the
-    same basis under a rewritten migration contract."""
+    """Accept exact identity or prove continuity for this CPU-only consumer."""
 
     if current == expected:
         return True
     try:
         from core.brain.llm.model_registry import read_active_cortex_spec
 
-        spec = read_active_cortex_spec(str(expected["path"]))
-        if bool(
+        spec = read_active_cortex_spec(
+            str(expected["path"]), authority_key_path=authority_key_path
+        )
+        normalized = bool(
             spec is not None
             and spec.identity_transition_verified
             and spec.predecessor_pointer_sha256 == expected.get("sha256")
@@ -277,65 +265,46 @@ def _manifest_identity_matches_activation(
             and spec.pointer_sha256 == current.get("sha256")
             and spec.model_path == selected_model
             and current.get("active_model_path") == expected.get("active_model_path")
-        ):
-            return True
+        )
+        return normalized or _independent_manifest_continuity(
+            expected=expected,
+            current=current,
+            selected_model=selected_model,
+            authority_key_path=authority_key_path,
+        ) is not None
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
-    return _same_basis_under_a_rewritten_contract(
-        expected=expected,
-        current=current,
-        current_payload=current_payload,
-        descriptor_identity=descriptor_identity,
-    )
 
 
-def _same_basis_under_a_rewritten_contract(
+def _independent_manifest_continuity(
     *,
     expected: dict[str, Any],
     current: dict[str, Any],
-    current_payload: dict[str, Any] | None,
-    descriptor_identity: DescriptorIdentity | None,
-) -> bool:
-    """The manifest bytes moved and the model basis did not.
-
-    The manifest carries the migration contract — one signed authority per
-    component, rewritten whenever a component is re-measured. A steering
-    campaign that re-issued its own authority changed the file's sha256 and
-    nothing this package was qualified on, and binding the package to the
-    bytes read that as resident_manifest_drift on every boot afterwards.
-
-    The basis is what the package was qualified on, and it is verified here
-    from the manifest itself rather than from the bytes: every identity field
-    but the sha256, the descriptor the package recorded against the
-    descriptor the manifest now carries, and every section of the manifest
-    naming the one descriptor the artifact_descriptor names. A package that
-    recorded no descriptor identity is not eligible.
-    """
-
-    if current_payload is None or descriptor_identity is None:
-        return False
-    if any(current.get(field) != expected.get(field) for field in _MANIFEST_BASIS_FIELDS):
-        return False
-    try:
-        if descriptor_from_manifest(current_payload).fingerprint() != descriptor_identity.fingerprint():
-            return False
-    except (RecoveryPackageError, TypeError, ValueError):
-        return False
-    descriptor = current_payload.get("artifact_descriptor")
-    descriptor_sha256 = (
-        str(descriptor.get("descriptor_sha256") or "") if isinstance(descriptor, dict) else ""
+    selected_model: Path,
+    authority_key_path: Path | None = None,
+) -> dict[str, Any] | None:
+    from core.brain.llm.cortex_manifest_continuity import (
+        verify_manifest_component_continuity,
     )
-    if not descriptor_sha256:
-        return False
-    for section, key in (
-        ("serving_profile", "model_descriptor_sha256"),
-        ("evaluation", "candidate_descriptor_sha256"),
-        ("migration_contract", "model_descriptor_sha256"),
-    ):
-        body = current_payload.get(section)
-        if isinstance(body, dict) and str(body.get(key) or "") != descriptor_sha256:
-            return False
-    return True
+
+    try:
+        if current.get("path") != expected.get("path"):
+            return None
+        # execute_qualified_recurrent_admission runs this exact semantic
+        # machine on CPU and serializes its authenticated state. It neither
+        # constructs a model client nor consumes steering hooks. This exception
+        # does not apply to decoder-backed or arbitrary recurrence consumers.
+        proof = verify_manifest_component_continuity(
+            manifest=Path(expected["path"]),
+            predecessor_sha256=expected["sha256"],
+            current_sha256=current["sha256"],
+            model_path=selected_model,
+            independent_components=frozenset({"steering"}),
+            authority_key_path=authority_key_path,
+        )
+        return {**proof, "consumer": SEMANTIC_NEURAL_SERVING_MODE}
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+        return None
 
 
 def _relative_evidence_path(repo_root: Path, path: Path) -> str:
@@ -613,6 +582,7 @@ def semantic_neural_activation_errors(
     model_path: Path | None = None,
     verify_live_identity: bool = True,
     require_runtime_qualification: bool = True,
+    authority_key_path: Path | None = None,
 ) -> list[str]:
     """Recompute every mutable dependency of a serving activation."""
 
@@ -816,8 +786,7 @@ def semantic_neural_activation_errors(
                 expected=manifest_identity,
                 current=current_manifest,
                 selected_model=selected_model,
-                current_payload=current_manifest_payload,
-                descriptor_identity=recovery_descriptor,
+                authority_key_path=authority_key_path,
             ):
                 errors.append("resident_manifest_drift")
             if _identity_for_model(selected_model) != expected_model:
@@ -835,7 +804,9 @@ def semantic_neural_activation_errors(
     return sorted(set(errors))
 
 
-def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
+def semantic_neural_serving_status(
+    model_path: str | Path, *, authority_key_path: Path | None = None
+) -> dict[str, Any]:
     """Return active only while code, evidence, manifest, and model still agree."""
 
     if str(os.getenv("AURA_SEMANTIC_NEURAL_SERVING", "1")).strip().lower() in _FALSE_VALUES:
@@ -859,6 +830,26 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
             maximum_bytes=64 * 1024,
         )
         resident_dependencies = [resident_manifest]
+        optional_dependencies: list[Path] = []
+        if hashlib.sha256(_resident_raw).hexdigest() != resident_identity.get("sha256"):
+            from core.brain.llm.cortex_manifest_continuity import manifest_snapshot_path
+            from core.learning.cortex_migration_authority import default_authority_key_path
+
+            optional_dependencies.append(manifest_snapshot_path(
+                resident_manifest, resident_identity["sha256"]
+            ))
+            optional_dependencies.append(authority_key_path or default_authority_key_path())
+            contract = resident_pointer.get("migration_contract")
+            components = contract.get("components") if isinstance(contract, dict) else None
+            if isinstance(components, dict):
+                for component in components.values():
+                    if isinstance(component, dict):
+                        references = component.get("evidence")
+                        if not isinstance(references, dict):
+                            continue
+                        for reference in references.values():
+                            if isinstance(reference, dict) and reference.get("path"):
+                                optional_dependencies.append(Path(reference["path"]))
         if isinstance(resident_pointer.get("identity_transition"), dict):
             resident_dependencies.append(
                 resident_manifest.with_name("active.json.identity-backup")
@@ -882,6 +873,21 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
             selected_model / "model.safetensors.index.json",
         )
         signature_items: list[tuple[str, int, int, int, int]] = []
+        from core.brain.llm.model_artifact_profile import model_artifact_file_signature
+
+        for name, _device, inode, size, mtime, ctime in model_artifact_file_signature(
+            selected_model
+        ):
+            signature_items.append((name, inode, size, mtime, ctime))
+        for path in optional_dependencies:
+            try:
+                metadata = path.lstat()
+                signature_items.append((
+                    str(path), metadata.st_ino, metadata.st_size,
+                    metadata.st_mtime_ns, metadata.st_ctime_ns,
+                ))
+            except FileNotFoundError:
+                signature_items.append((str(path), 0, 0, 0, 0))
         for path in dependencies:
             resolved = path.expanduser().resolve(strict=True)
             metadata = resolved.stat()
@@ -899,6 +905,7 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
                 str(selected_model),
                 str(activation_path.expanduser().resolve(strict=True)),
                 tuple(signature_items),
+                str(authority_key_path) if authority_key_path is not None else None,
             )
         )
     except (KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -941,6 +948,10 @@ def semantic_neural_default_serving_status(
             raise RuntimeError("active cortex exact identity is unavailable")
         proven_model = Path(model_path).expanduser().resolve(strict=True)
         if active.model_path == proven_model:
+            if authority_key_path is not None:
+                return semantic_neural_serving_status(
+                    proven_model, authority_key_path=authority_key_path
+                )
             return semantic_neural_serving_status(proven_model)
 
         # A quarantine is authoritative only while the historical activation
@@ -1001,11 +1012,17 @@ def semantic_neural_default_serving_status(
         }
 
 
+async def prepare_semantic_neural_serving() -> dict[str, Any]:
+    """Warm evidence and artifact verification without blocking the boot loop."""
+    return await asyncio.to_thread(semantic_neural_default_serving_status)
+
+
 @lru_cache(maxsize=8)
 def _cached_semantic_neural_serving_status(
     model_path: str,
     activation_path: str,
     _dependency_signature: tuple[tuple[str, int, int, int, int], ...],
+    authority_key_path: str | None = None,
 ) -> dict[str, Any]:
     activation, _raw = _read_bounded_json(
         Path(activation_path),
@@ -1014,6 +1031,7 @@ def _cached_semantic_neural_serving_status(
     errors = semantic_neural_activation_errors(
         activation,
         model_path=Path(model_path),
+        authority_key_path=Path(authority_key_path) if authority_key_path else None,
         require_runtime_qualification=(
             str(os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "0")).strip().lower()
             not in {"1", "true", "yes", "on"}
@@ -1059,6 +1077,17 @@ def _cached_semantic_neural_serving_status(
             }
         )
     public_receipt["qualification"] = qualification
+    expected = activation["resident_manifest_identity"]
+    current = _identity_for_manifest(Path(expected["path"]))
+    if current != expected:
+        continuity = _independent_manifest_continuity(
+            expected=expected,
+            current=current,
+            selected_model=Path(model_path),
+            authority_key_path=Path(authority_key_path) if authority_key_path else None,
+        )
+        if continuity is not None:
+            public_receipt["manifest_continuity"] = continuity
     return {
         "active": True,
         "reason": "semantic_neural_serving_active",

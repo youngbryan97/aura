@@ -15,6 +15,11 @@ And the initiative that survives governance is written to
 `cognition.pending_initiatives`, while the workspace's bid for deliberation read
 `cognition.active_goals`. The one thing deliberation produces within a turn
 never reached attention.
+
+Curiosity only asks while background work is allowed, and that policy reads the
+host's live memory pressure. A test that leaves it unpinned is a reading of the
+machine: it failed whenever something else on the host held more than four
+fifths of memory, which looked like an order dependence. The tests pin it.
 """
 
 from __future__ import annotations
@@ -41,8 +46,15 @@ def test_the_drive_that_is_always_most_depleted_has_an_arm() -> None:
     assert intention["drive"] == "growth"
 
 
-def test_every_drive_the_state_carries_can_produce_an_intention() -> None:
+def _background_work(monkeypatch: pytest.MonkeyPatch, allowed: bool) -> None:
+    import core.phases.motivation_update as motivation
+
+    monkeypatch.setattr(motivation, "_background_curiosity_allowed", lambda: allowed)
+
+
+def test_every_drive_the_state_carries_can_produce_an_intention(monkeypatch: pytest.MonkeyPatch) -> None:
     """A drive with no branch is a need that can never be acted on."""
+    _background_work(monkeypatch, True)
     phase = _phase()
     for name in AuraState.default().motivation.budgets:
         state = AuraState.default()
@@ -55,6 +67,15 @@ def test_every_drive_the_state_carries_can_produce_an_intention() -> None:
             continue
         assert intention is not None, f"{name} is depleted and asks for nothing"
         assert intention["drive"] == name
+
+
+def test_curiosity_waits_while_background_work_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The gate is real: a host under pressure defers curiosity rather than dropping the drive."""
+    _background_work(monkeypatch, False)
+    state = AuraState.default()
+    for other, budget in state.motivation.budgets.items():
+        budget["level"] = 5.0 if other == "curiosity" else 95.0
+    assert _phase()._assess_needs(state) is None
 
 
 def test_urgency_rises_with_how_badly_the_moment_is_going() -> None:

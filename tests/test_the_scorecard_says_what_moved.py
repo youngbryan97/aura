@@ -122,7 +122,7 @@ def test_runs_from_different_campaigns_are_recorded_as_different(  ) -> None:
 
 
 def _with_conjunction(**verdicts):
-    return _report(nulls={"surrogate_floor": 0.01, "conjunction": dict(verdicts)})
+    return _report(nulls={"surrogate_floor": 0.01, "conjunction_v2": dict(verdicts)})
 
 
 def test_nulls_that_fail_on_every_seed_under_a_steady_reference_all_fail() -> None:
@@ -147,3 +147,23 @@ def test_a_reference_that_fails_on_one_seed_is_the_instrument_failing() -> None:
 
 def test_runs_that_recorded_no_conjunction_leave_the_verdict_unread() -> None:
     assert scorecard([_report(), _report()])["v2_null_verdict"] is None
+
+
+def test_v1s_conjunction_is_never_read_as_v2s() -> None:
+    """v1 judges the nulls by synergy on the level; v2's null line needs v2's conjunction."""
+    reports = [_report(nulls={"conjunction": {"recurrent": True, "star": False}}) for _ in range(3)]
+    assert scorecard(reports)["v2_null_verdict"] is None
+
+
+def test_a_run_without_a_recorded_v2_conjunction_is_read_off_its_null_table() -> None:
+    table = {
+        "recurrent": {"kind": "architecture", "phi_do": 0.3, "one_component": True, "vertex_connectivity": 2,
+                      "reentry": True, "closed": True, "synergy_passes": [False], "synergy_v2_passes": [True]},
+        "hub": {"kind": "architecture", "phi_do": 0.5, "one_component": True, "vertex_connectivity": 2,
+                "reentry": True, "closed": True, "synergy_passes": [True], "synergy_v2_passes": [False]},
+        "replay": {"kind": "surrogate", "phi_do": 0.02},
+    }
+    reports = [_report(nulls={"conjunction": {"recurrent": False, "hub": True}, "detail": table}) for _ in range(3)]
+    verdict = scorecard(reports)["v2_null_verdict"]
+    assert verdict["all_nulls_fail"] is True
+    assert verdict["reference_passes"] is True

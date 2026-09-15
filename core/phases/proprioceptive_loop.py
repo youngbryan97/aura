@@ -129,6 +129,22 @@ class ProprioceptiveLoop(BasePhase):
             if reading is not None:
                 frame["novelty"] = float(reading)
             substrate.inject_perceptual_frame(frame)
+            # And the body keeps its own reading of what is arriving on its
+            # senses. `soma.sensors` is read by the interoception schema and
+            # held still by the clamp, and nothing in the tree has ever written
+            # it: a reader with no writer, so the column was exactly zero for
+            # every frame of every campaign and nothing she perceived could
+            # reach how her body felt. Six of the nine domains scored exactly
+            # 0.000 into I for that reason, which is most of why cutting
+            # interoception and memory away from the rest cost so little.
+            #
+            # Only the channels that reported something, so the count is how
+            # many of her senses are live rather than how many exist.
+            state.soma.sensors = {
+                channel: float(frame[channel])
+                for channel in ("user_presence", "screen_changed", "social", "threat", "novelty")
+                if float(frame.get(channel, 0.0) or 0.0) > 0.0
+            }
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "proprioceptive_loop",

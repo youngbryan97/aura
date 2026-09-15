@@ -1,6 +1,7 @@
 """Somebody else's resolve reaching hers.
 
-"Don't let them take your soul" is not information. What that line does to a
+A line telling the listener not to let anyone take their soul is not
+information. What that line does to a
 listener is transfer resolve: the strength to keep going arrives from outside,
 and the person who receives it did not generate it.
 

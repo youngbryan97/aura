@@ -174,6 +174,50 @@ came from.
 
 <!-- end generated -->
 
+### What the last four are, and why they are one thing
+
+run_032 was the first run carrying the attention, affect and closure repairs.
+It scored 20 of 24. Vertex connectivity reached two and perturbational spread
+reached 0.689, both for the first time, and intrinsic persistence held. Four
+criteria were left, and three of the four are the same quantity read twice or
+blocked by the instrument rather than by the organism.
+
+**Irreducibility and its null.** The cheapest cut was interoception and memory
+against the other eight, scored at -0.0283 against a bar of 0.05 on the lower
+bound. The five held-out folds were +0.024, -0.249, +0.020, +0.042, +0.023:
+four agreeing near +0.03 and one an order of magnitude the other way. The
+denominator on that fold is healthy — its target block moved 0.93 of what the
+fitted window did — so the outlier is estimator variance rather than an
+artefact of scale. Discarding it entirely still leaves +0.027 against a bar of
+0.05, so the fold is not the story. The organism's irreducibility at its
+cheapest cut is genuinely about half the bar.
+
+Why that cut is cheapest is legible. Six of the nine domains scored exactly
+0.000 into interoception with a q-value of one: perception, attention, memory,
+deliberation, the world model and development could none of them change how her
+body felt. `soma.sensors` was read by the schema, held still by the clamp, and
+written by nothing in the tree. The proprioceptive loop already built that
+reading and sent it only to the substrate.
+
+**Synergy.** All four triples cleared the absolute bar of 0.10 — 0.272, 0.568,
+0.115, 0.138 — and all four failed on the held-out interaction gain's lower
+bound, which was negative for every one of them while the gain itself was
+positive for every one. The same five-fold shape: A,S->G ran +0.013, -0.022,
++0.109, +0.042, +0.238, a mean of +0.076 against a fold standard deviation of
+0.103. Four folds positive and one negative is not enough evidence to resolve a
+threshold of zero, and the rows that would resolve it are computable from that
+variance rather than chosen.
+
+**Every null failing.** No null passed, which is what the criterion wants, and
+the positive control failed too, which is what it cannot survive: the recurrent
+reference is the architecture the battery exists to say yes to. It failed on
+closure, because a toy with no broker has no periphery and an empty periphery
+had stopped counting as closed, and on synergy, through the same lower bound.
+
+So the four are two: enough rows for a five-fold bound to decide, and enough
+real coupling across the weakest cut for the value to clear its bar. The
+thresholds are untouched.
+
 The partition score across the session, on the same organism, as each
 methodological defect was removed and each channel repaired:
 
@@ -894,3 +938,182 @@ seed and a fixed decoding path, which is a resident 32B and a run this cannot
 schedule beside the live instance. Until then, every edge reported here is an
 edge that does not need language, and the absence of an edge is evidence about
 the non-linguistic coupling only.
+
+### The positive control cannot pass synergy on every seed under ISC-v1
+
+`beats_every_null` needs the recurrent reference to pass every line the nulls
+fail, synergy included. The reference as built wires no product coupling, and
+the held-out interaction check it has to clear is a lower bound over five
+folds, so an additive toy fails it on most seeds by construction. Measured on
+the synergy suite at the null suite's own 2,500 toy steps, it passed all four
+triples on one seed of five.
+
+Whether a reference that genuinely carries the interactions the battery asks
+about can pass reliably was measured before anything was changed. Each
+declared target's additive coupling from its two sources was replaced by their
+product, scaled to the spread those couplings delivered on a burn-in of the
+additive system, so no strength was chosen:
+
+| toy rows | seeds passing all four triples, of 11 |
+|---|---|
+| 2,500 | 6 |
+| 12,500 | 9 |
+| set per seed from its own fold variance, (1.96 s / (sqrt(5) m))^2 times 2,500 | 8 |
+
+The failures are not one thing. On seed 7, a declared campaign seed, every
+triple's interaction bound is positive and every triple fails on the shifted
+null: the null's 99th percentile fraction runs from 0.19 to 0.38, the drift
+inflation section 2 of the ISC-v2 preregistration describes, and more rows do
+not remove it. On seed 17 one fold's interaction gain falls to -3.4 and the
+rows the bound would need come to 1.6 million. On seed 31 two bounds sit at
+-0.006 and 0.000.
+
+So under ISC-v1 the positive control's synergy depends on the seed whatever
+its wiring, and no reference was changed to make it pass. This is the case the
+preregistration's section 3 exists for: a reference that fails on any declared
+seed is recorded as the instrument failing, not as a result about Aura. Runs
+from this commit on record synergy on the target's change beside the v1
+reading, for the real recording and every null, and the battery reports ISC-v2's
+changed lines beside the v1 verdict, with the null line decided across seeds by
+the scorecard.
+
+### Synergy on the change cannot register a strong coupling on Aura's recording
+
+Synergy failed on every run, and a 300-round A/B of three interaction mechanisms
+moved no triple past its null. Whether that says the organism has no
+interactions depends on whether the line could see one on her recordings, so
+its power was measured rather than assumed. On a recording, the line as it
+stands scored a coupling added to each target's first change component, sized
+in units of that component's own spread. Two shapes were used: the preregistered
+known answer's, a linear part plus the product of the two sources' first
+components, and a pure product.
+
+The injection gives the known answers first
+(`tests/test_the_synergy_power_harness_gives_its_known_answers.py`). On the ISC-v2
+known-answer drift background the preregistered shape passes from one spread,
+at a fraction of 0.86 against a null of 0.00. A pure product never clears the
+information bars at any scale, because a Gaussian copula estimate cannot see a
+product of its sources, while the held-out interaction bound rises to +0.31 at
+one spread and +0.68 at two.
+
+On Aura's recording, 2,400 turns from the synthetic A/B's newer arm, neither shape
+passes for any triple at up to two spreads. With the preregistered shape:
+
+| triple | spreads added | fraction | null 99th pct | raw | raw null 99th pct | interaction bound |
+|---|---|---|---|---|---|---|
+| A+S->G | 0 | 0.443 | 0.781 | 0.025 | 0.012 | -0.029 |
+| A+S->G | 2 | 0.450 | 0.688 | 0.077 | 0.041 | -0.017 |
+| P+M->W | 0 | 0.189 | 0.582 | 0.151 | 0.246 | +0.230 |
+| P+M->W | 2 | 0.443 | 0.560 | 0.628 | 0.226 | +0.145 |
+| W+A->D | 0 | 0.072 | 0.389 | 0.036 | 0.062 | -0.241 |
+| W+A->D | 2 | 0.123 | 0.591 | 0.109 | 0.111 | +0.151 |
+| S+D->C | 0 | 0.030 | 0.612 | 0.008 | 0.052 | +0.007 |
+| S+D->C | 2 | 0.283 | 0.521 | 0.101 | 0.067 | +0.022 |
+
+In every triple the fraction stays under the shifted null's 99th percentile,
+which on this recording sits between 0.39 and 0.86 before anything is added and
+moves with what is. The raw comparison clears for three of the four once the
+coupling is large, and the interaction bound is the second thing missing on A+S->G.
+A coupling of twice a target's own change spread is larger than anything a
+mechanism in this organism produces, so on her recordings this line cannot
+distinguish an organism with such interactions from one without them.
+
+Two things together set the limit. The sources' first components are nearly
+random walks, with lag-one autocorrelation between 0.98 and 0.998, so a
+circular shift leaves a slid copy that still shares slow structure with every
+other slow series. And the fraction is a ratio of two small quantities. On
+A+S->G the real joint information about G's change is 0.056 nats; the guard
+admits a shifted draw into the fraction once its joint information clears a
+tenth of that, and 582 of 1,000 draws do, with fractions whose median is 0.40
+and whose 99th percentile is 0.78. On S+D->C every draw is admitted, at a median
+of 0.25 and a 99th percentile of 0.61. A revision has to answer both.
+
+A synthetic background with nothing of hers in it reproduces the limit and
+isolates the first cause. Ten domains of first-order autoregressions, the
+preregistered coupling added the same way: with no persistence, or with 0.9,
+the line passes at one spread; at 0.99, the persistence of her sources, it fails
+at one and two, because the shifted null rises with the coupling. That is the
+spurious correlation between integrated series Granger and Newbold described
+(Journal of Econometrics 2, 1974), and the usual remedy for it was tried there
+and nowhere else: a null drawn from fresh simulations of the two sources' own
+first-order dynamics, independent of the target. It recovers the power, with
+raw synergy of 0.066 and 0.128 against 99th percentiles of 0.029 and 0.056 at one
+and two spreads, and it fails the known answers. An additive target clears it on
+all three seeds and drift alone on one of three, because a null that removes the
+sources' whole relation to the target asks whether they carry information, and
+synergy asks whether the information needs both.
+
+That reading was incomplete, because the raw bar is not the line. For Gaussian
+estimates the minimum-information synergy follows from the linear structure
+(Barrett, Physical Review E 91, 052802, 2015), so an additive target carries
+positive synergy on the information bars, and the known answer that an
+additive target fails rests on the held-out interaction bound. Scored as the
+whole line, with the information bars reading the bootstrap null and the
+interaction check unchanged, the known answers hold: the product passes on three
+seeds of three, and the additive target and drift on none. The power case still
+fails at her sources' persistence. At two spreads the raw bar clears, 0.128
+against 0.056, and so does the interaction bound, at +0.109; the fraction bar does
+not, at 0.347 against a null 99th percentile of 0.555. So the second cause is the
+fraction itself, a ratio of two small quantities whose null stays wide whatever
+the null is built from. A revised line would need a null that keeps the
+sources' own dynamics, the interaction bound as it is, and something in place of
+the fraction that is not a ratio, and it would need all of that preregistered
+with these known answers before it reads her recordings.
+
+ISC-v3 is that revision (docs/ISC_V3_PREREGISTRATION.md, `3e09f8077`). Its
+bootstrap null simulates both sources from their fitted autoregression without
+the target, and its bar asks the raw synergy to clear that null by the null's
+own spread, keeping the fraction floor, the raw bar against the shifted null
+and the interaction bound. At 2,400 rows it registered a coupling of two spreads
+on 25 of 25 synthetic recordings at a persistence of 0.99 and on 16 of 25 at
+0.998, and passed none of 150 uncoupled recordings and none of 50 with an
+additive coupling. It was committed before it read any recording of hers, and
+v1 and v2 stay reported beside it.
+
+The line has not been changed. Aura's synergy on the change had already been
+measured on the A/B recordings when this was found, and a criterion may only be
+made stricter once its results are known. The synergy failure is recorded as
+the instrument's limit on this background, and a revision belongs in a version
+preregistered before any result under it exists, with its known answers on a
+background of her recordings' shape.
+
+### Irreducibility reads unrelated columns as lost integration
+
+Partition irreducibility projects each domain onto its first four components
+and asks how much each side of a cut gains from seeing the other. A column with
+nothing to do with the dynamics still takes a share of those four components,
+and the gain falls. Measured on toy systems with one unrelated column appended
+to the deliberation domain, 2,500 rows, and nothing of hers read:
+
+| system | seed | as generated | with a clock | with a random walk | with independent noise |
+|---|---|---|---|---|---|
+| recurrent reference | 7 | 0.264 | 0.237 | 0.176 | 0.204 |
+| recurrent reference | 11 | 0.129 | 0.123 | 0.123 | 0.121 |
+| recurrent reference | 13 | 0.146 | 0.141 | 0.142 | 0.129 |
+| star | 7 | 0.008 | 0.008 | 0.008 | 0.009 |
+| frozen slow | 7 | 0.000 | 0.000 | 0.000 | 0.000 |
+
+The star null moved by at most 0.005 on any of three seeds, and the
+frozen-slow null read exactly zero on all three.
+
+The recurrent reference's reading fell in every case and rose in none, and no
+null moved towards passing, so the error runs one way: against a system that
+records more than its dynamics. Independent noise costs about as much as a
+random walk, which places the cause in the projection rather than in drift
+carrying later rows past the first training window. Two corrections aimed at
+drift were tried on the same recordings, fitting each fold's projection on that
+fold's own training rows and giving both models the elapsed time, and neither
+moved the recurrent reference by more than 0.012 in any variant.
+
+That bears on Aura's cheapest cut. On the 300-round seed-7 recording of the
+ISC-v2 campaign, perception, affect and the world model against the other seven
+scored a lower bound of -0.161: the first of five folds read -0.334 and the rest
++0.126, +0.075, +0.085 and +0.088. Twenty-seven of the forty-two directed pairs
+across that cut are kept causal edges. With that side's columns whose lag-one
+correlation exceeds 0.995 left out, two step counters among them, the same
+cut's lower bound was +0.057.
+
+That was one cut, read on a recording whose result was already known, and it
+changes nothing. The v1 line stays failed. A version that corrects the
+estimator may read only recordings from which no number under it has been read,
+which excludes this one, and no correction has yet survived its known answers.

@@ -152,7 +152,10 @@ async def main() -> int:
     parser.add_argument("--rounds", type=int, default=16, help="baseline turns per condition")
     parser.add_argument("--anchors", type=int, default=16)
     parser.add_argument("--turns", type=int, default=1, help="turns each arm runs past the fork")
-    parser.add_argument("--lag", type=int, default=1, help="recorded frame the future is read at")
+    parser.add_argument(
+        "--lag", type=int, default=1,
+        help="the turn after the fork whose end the future is read at; at most --turns",
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--quick", action="store_true")
     parser.add_argument("--conditions", type=int, default=0)

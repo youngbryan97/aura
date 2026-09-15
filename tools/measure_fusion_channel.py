@@ -32,7 +32,6 @@ REPO = Path(__file__).resolve().parent.parent
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-os.environ.setdefault("AURA_TESTING", "1")
 os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_fusion_probe_logs")
 
 
@@ -58,6 +57,8 @@ def main() -> int:
     )
     parser.add_argument("--steps", type=int, default=24, help="decode steps per probe")
     parser.add_argument("--no-write", action="store_true")
+    parser.add_argument("--require-active-cortex", action="store_true",
+                        help="require the signed resident identity before loading or attaching")
     parser.add_argument("--seed", type=int, default=20260908)
     arguments = parser.parse_args()
 
@@ -110,10 +111,9 @@ def _measure(
 ) -> int:
     from mlx_lm import load
 
+    descriptor = _probe_descriptor(arguments, checkpoint, build_model_artifact_descriptor)
     print(f"loading {checkpoint}", flush=True)
     model, tokenizer = load(str(checkpoint))
-    repository_id = "" if arguments.model_path else arguments.model
-    descriptor = build_model_artifact_descriptor(checkpoint, repository_id=repository_id)
     digest = str(descriptor["descriptor_sha256"])
     print(f"checkpoint {checkpoint}\nidentity {digest[:16]}", flush=True)
 
@@ -167,6 +167,25 @@ def _measure(
     if not arguments.no_write:
         print(f"wrote {write_certificate(smallest, root=REPO)}", flush=True)
     return 0
+
+
+def _probe_descriptor(arguments, checkpoint: Path, build_descriptor) -> dict:
+    """Rehash the registered identity, including its repository and revision."""
+    from core.brain.llm.model_registry import resolve_cortex_bound_artifact
+
+    resolution = resolve_cortex_bound_artifact(checkpoint)
+    if resolution.matched:
+        registered = resolution.descriptor
+        observed = build_descriptor(checkpoint,
+            repository_id=str(registered.get("repository_id") or ""),
+            revision=str(registered.get("revision") or ""))
+        if observed["descriptor_sha256"] != registered["descriptor_sha256"]:
+            raise ValueError("fusion_probe_active_checkpoint_drift")
+        return observed
+    if getattr(arguments, "require_active_cortex", False):
+        raise ValueError(f"fusion_probe_active_identity_required:{resolution.reason}")
+    return build_descriptor(checkpoint,
+        repository_id="" if arguments.model_path else arguments.model)
 
 
 if __name__ == "__main__":

@@ -148,3 +148,12 @@ def test_a_changed_view_is_anchored_to_the_real_original():
 
 def test_no_history_grounds_nothing():
     assert build_own_statement_recall_context(RECALL_QUESTION, history=[]) is None
+
+
+def test_earlier_says_when_and_the_rest_of_the_question_says_which():
+    """Asked with "earlier", about a topic: the topic picks the turn, not the clock."""
+    history = _live_history()
+    turn = resolve_own_prior_turn(
+        "earlier in this conversation you told me which of your senses you would give up", history=history
+    )
+    assert turn is not None and "the screen" in turn

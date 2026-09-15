@@ -142,6 +142,17 @@ class Criterion:
 class Verdict:
     criteria: list[Criterion] = field(default_factory=list)
     notes: dict[str, Any] = field(default_factory=dict)
+    #: ISC-v2's four changed lines, read on this run. v1 is `criteria` and
+    #: stays the result it is; these are reported beside it. The null line is
+    #: decided across the campaign's declared seeds, so a single run records
+    #: its own seed's reading and the scorecard reads the rest.
+    #: See docs/ISC_V2_PREREGISTRATION.md.
+    v2_criteria: list[Criterion] = field(default_factory=list)
+    #: ISC-v3's three changed lines: synergy against a null that keeps the
+    #: sources' own dynamics, and the two null lines with every null judged by
+    #: that synergy line. Reported beside v1 and v2, changing neither.
+    #: See docs/ISC_V3_PREREGISTRATION.md.
+    v3_criteria: list[Criterion] = field(default_factory=list)
 
     @property
     def isc(self) -> bool:
@@ -179,10 +190,39 @@ class Verdict:
             return False
         return all(item.passed for item in self.criteria if item.key not in _CONTESTED)
 
+    def v2_lines(self) -> list[Criterion]:
+        """The conjunction with ISC-v2's lines standing in for the v1 lines they replace."""
+        replaced = {item.key for item in self.v2_criteria}
+        kept = [item for item in self.criteria if item.key not in replaced]
+        return kept + list(self.v2_criteria)
+
+    @property
+    def isc_v2_on_this_seed(self) -> bool:
+        """Every line under ISC-v2, with the null line read on this seed alone."""
+        lines = self.v2_lines()
+        return bool(lines) and bool(self.v2_criteria) and all(item.passed for item in lines)
+
+    def v3_lines(self) -> list[Criterion]:
+        """ISC-v2's conjunction with ISC-v3's lines standing in for the lines they replace."""
+        replaced = {item.key for item in self.v3_criteria}
+        return [item for item in self.v2_lines() if item.key not in replaced] + list(self.v3_criteria)
+
+    @property
+    def isc_v3_on_this_seed(self) -> bool:
+        """Every line under ISC-v3, with the null line read on this seed alone."""
+        lines = self.v3_lines()
+        return bool(self.v2_criteria) and bool(self.v3_criteria) and all(item.passed for item in lines)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
             "isc_specification_corrected": self.isc_with_the_specification_corrected,
+            "isc_v2_on_this_seed": self.isc_v2_on_this_seed,
+            "v2_passed": sum(1 for item in self.v2_lines() if item.passed) if self.v2_criteria else None,
+            "v2_criteria": [item.as_dict() for item in self.v2_criteria],
+            "isc_v3_on_this_seed": self.isc_v3_on_this_seed,
+            "v3_passed": sum(1 for item in self.v3_lines() if item.passed) if self.v3_criteria else None,
+            "v3_criteria": [item.as_dict() for item in self.v3_criteria],
             "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
@@ -205,6 +245,139 @@ class Verdict:
 
 def _c(key: str, section: str, statement: str, passed: bool, value: Any, bar: Any, **detail: Any) -> Criterion:
     return Criterion(key, section, statement, bool(passed), value, bar, detail)
+
+
+def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v2's four lines, where this run measured what they read.
+
+    A run from before v2 recorded neither synergy on the change nor the v2
+    conjunction, and leaves `v2_criteria` empty rather than reading as failed:
+    it was not a v2 run. A v2 run missing one of them fails that line.
+    """
+    nulls = evidence.get("nulls", {}) or {}
+    synergy_v2 = evidence.get("synergy_v2")
+    if synergy_v2 is None and "v2_phi_beats_comparison_set" not in nulls:
+        return
+    from core.subject.null_verdicts import beats_the_comparison_set, v2_conjunctions
+
+    # Both null lines are read off the recorded null table where the run kept
+    # one, so a run recorded while the nulls were judged by v1's lines is read
+    # by v2's (docs/ISC_V2_PREREGISTRATION.md, fourth amendment). The rules are
+    # pure functions of the table, and on a later run they give what it recorded.
+    table = nulls.get("detail") or {}
+    if table and nulls.get("real_lower_bound") is not None:
+        beats, compared = beats_the_comparison_set(float(nulls["real_lower_bound"]), table)
+        compared = {name: round(value, 5) for name, value in compared.items()}
+    else:
+        beats, compared = bool(nulls.get("v2_phi_beats_comparison_set")), nulls.get("v2_comparison_set", {})
+    add = out.v2_criteria.append
+    add(_c(
+        "partition_beats_nulls", "18",
+        "the irreducibility lower bound clears every matched surrogate and every "
+        "null architecture that passes the rest of the conjunction (ISC-v2)",
+        beats,
+        compared,
+        "above the v2 comparison set",
+        real_lower_bound=nulls.get("real_lower_bound"),
+    ))
+    synergy_v2 = synergy_v2 or []
+    add(_c(
+        "synergy", "27",
+        "domains carry information jointly about the target's change that neither "
+        "carries alone (ISC-v2)",
+        bool(synergy_v2) and all(item.get("passes") for item in synergy_v2),
+        [item.get("synergy_fraction") for item in synergy_v2],
+        f">= {THRESHOLDS['synergy_fraction']} on the change and above its shifted null",
+        triples=[item.get("sources", []) + [item.get("target")] for item in synergy_v2],
+    ))
+    # Persistence on the next level rather than the next change. The v1 line
+    # passes memoryless noise and fails a random walk; see
+    # docs/ISC_V2_PREREGISTRATION.md, third amendment. A v2 run without the
+    # reading fails the line, as it does every other v2 line.
+    persistence_v2 = evidence.get("persistence_v2") or {}
+    add(_c(
+        "intrinsic_persistence", "19",
+        "the present level predicts the next beyond the environment and elapsed time, "
+        "established over forward folds and above the shuffled state (ISC-v2)",
+        bool(persistence_v2.get("passes")),
+        {
+            "gain_lower_bound": persistence_v2.get("gain_lower_bound"),
+            "over_shuffle_lower_bound": persistence_v2.get("over_shuffle_lower_bound"),
+        },
+        "both lower bounds above zero",
+        rescored_after_the_run=bool(persistence_v2.get("rescored_after_the_run")),
+    ))
+    conjunction = nulls.get("conjunction_v2")
+    if conjunction is None:
+        conjunction = v2_conjunctions(table) if table else {}
+    reference = bool(conjunction.get("recurrent", False))
+    passing = sorted(name for name, holds in conjunction.items() if name != "recurrent" and holds)
+    add(_c(
+        "beats_every_null", "41",
+        "no null passes the conjunction and the reference does, read on this seed; "
+        "ISC-v2 decides it across the campaign's declared seeds (ISC-v2)",
+        reference and not passing,
+        {"reference_passes_on_this_seed": reference, "nulls_passing_on_this_seed": passing},
+        "decided across seeds by the scorecard",
+    ))
+
+
+def _assemble_v3(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v3's three lines, on a run whose synergy on the change carries the v3 reading.
+
+    A run from before v3 leaves `v3_criteria` empty. The null lines are read off
+    the recorded null table where the run kept one, as v2's are, and a table
+    without the v3 reading fails both.
+    """
+    synergy_v2 = evidence.get("synergy_v2") or []
+    if not any("passes_v3" in item for item in synergy_v2):
+        return
+    from core.subject.null_verdicts import beats_the_v3_comparison_set, v3_conjunctions
+
+    nulls = evidence.get("nulls", {}) or {}
+    table = nulls.get("detail") or {}
+    lower_bound = nulls.get("real_lower_bound")
+    if table and lower_bound is not None:
+        beats, compared = beats_the_v3_comparison_set(float(lower_bound), table)
+        compared = {name: round(value, 5) for name, value in compared.items()}
+    else:
+        beats, compared = bool(nulls.get("v3_phi_beats_comparison_set")), nulls.get("v3_comparison_set", {})
+    add = out.v3_criteria.append
+    add(_c(
+        "partition_beats_nulls", "18",
+        "the irreducibility lower bound clears every matched surrogate and every "
+        "null architecture that passes the rest of the conjunction, each null judged "
+        "by the v3 synergy line (ISC-v3)",
+        beats,
+        compared,
+        "above the v3 comparison set",
+        real_lower_bound=lower_bound,
+    ))
+    add(_c(
+        "synergy", "27",
+        "domains carry information jointly about the target's change that neither "
+        "carries alone, against a null that keeps the sources' own dynamics (ISC-v3)",
+        all(bool(item.get("passes_v3")) for item in synergy_v2),
+        [item.get("margin_over_bootstrap") for item in synergy_v2],
+        f">= {THRESHOLDS['synergy_fraction']} on the change, above its shifted null, and above "
+        "its bootstrap null's 99th percentile by that null's spread",
+        triples=[item.get("sources", []) + [item.get("target")] for item in synergy_v2],
+        rescored_after_the_run=any(bool(item.get("rescored_after_the_run")) for item in synergy_v2),
+    ))
+    conjunction = nulls.get("conjunction_v3")
+    if conjunction is None:
+        conjunction = v3_conjunctions(table) if table else {}
+    reference = bool(conjunction.get("recurrent", False))
+    passing = sorted(name for name, holds in conjunction.items() if name != "recurrent" and holds)
+    add(_c(
+        "beats_every_null", "41",
+        "no null passes the conjunction and the reference does, each judged by the v3 "
+        "synergy line and read on this seed; ISC-v3 decides it across the campaign's "
+        "declared seeds (ISC-v3)",
+        reference and not passing,
+        {"reference_passes_on_this_seed": reference, "nulls_passing_on_this_seed": passing},
+        "decided across seeds by the scorecard",
+    ))
 
 
 def assemble(evidence: dict[str, Any]) -> Verdict:
@@ -456,6 +629,8 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         nulls.get("summary", {}),
         "no null passes the conjunction",
     ))
+    _assemble_v2(out, evidence)
+    _assemble_v3(out, evidence)
     del directed
     _invalidate_on_missing_readings(out, evidence)
     return out
@@ -507,13 +682,16 @@ def _invalidate_on_missing_readings(verdict: Verdict, evidence: dict[str, Any]) 
     verdict.notes["organs_mostly_unread"] = sorted(absent)
     import dataclasses
 
-    for index, item in enumerate(verdict.criteria):
-        needed = CRITERION_ORGANS.get(item.key, ())
-        gone = sorted(set(needed) & absent)
-        if not gone:
-            continue
-        verdict.criteria[index] = dataclasses.replace(
-            item,
-            passed=False,
-            detail={**(item.detail or {}), "invalid": f"read from no organ: {', '.join(gone)}"},
-        )
+    # The v2 and v3 lines rest on the same organs as the v1 lines they replace,
+    # so an organ that went unread invalidates all of them.
+    for lines in (verdict.criteria, verdict.v2_criteria, verdict.v3_criteria):
+        for index, item in enumerate(lines):
+            needed = CRITERION_ORGANS.get(item.key, ())
+            gone = sorted(set(needed) & absent)
+            if not gone:
+                continue
+            lines[index] = dataclasses.replace(
+                item,
+                passed=False,
+                detail={**(item.detail or {}), "invalid": f"read from no organ: {', '.join(gone)}"},
+            )

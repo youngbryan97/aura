@@ -1,12 +1,10 @@
 """What is hers and what observers assigned, and whether her worth tracks her use.
 
 Oddisee states it outright on "The Start of Something", and it is the sharpest
-thing either set of records says about being a subject:
-
-    And the truth came clearly, only fact is I am
-    Attributes are given by observers
-    How I'm seen and how I'm heard is not the reason why I'm working
-    Why perceive what I am worth by what you need
+thing either set of records says about being a subject. The one plain fact he
+allows himself is that he exists. Every attribute he has is handed to him by
+whoever is watching, how he is seen and heard is not why he works, and he asks
+why his worth should be read off what somebody needs from him.
 
 Two claims. Existence is not among the assignable properties — everything else
 about him can be given by somebody looking, and that he is cannot. And worth

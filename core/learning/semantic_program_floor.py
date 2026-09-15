@@ -147,6 +147,45 @@ def semantic_programs_structurally_equivalent(left: Program, right: Program) -> 
     return key is not None and key == semantic_program_structural_key(right)
 
 
+def semantic_program_polynomial_key(program: Program, *, max_terms: int = 4096) -> tuple | None:
+    """Normalize total integer ring programs, without inferring from samples.
+
+    This proves output equality, not equal execution cost or source attribution.
+    Partial primitives are excluded even when their output would cancel later.
+    Expansion limits return unsupported; they never establish equivalence.
+    """
+    if type(max_terms) is not int or max_terms < 1:
+        raise ValueError("polynomial term allowance must be positive")
+    if (semantic_program_structural_key(program) is None
+            or program.n_inputs > 64 or len(program.instructions) > 128
+            or any(i.op not in {"add", "sub", "mul", "neg"} for i in program.instructions)):
+        return None
+    import sympy as sp
+
+    symbols = sp.symbols(f"x0:{program.n_inputs}")
+    values = [sp.Poly(symbol, *symbols, domain=sp.ZZ) for symbol in symbols]
+    for instruction in program.instructions:
+        args = [values[index] for index in instruction.args]
+        sizes = [len(value.terms()) for value in args]
+        # Bound expansion before allocating a product, including transient terms.
+        if instruction.op == "mul" and sizes[0] * sizes[1] > max_terms:
+            return None
+        if instruction.op in {"add", "sub"} and sum(sizes) > max_terms:
+            return None
+        if instruction.op == "add":
+            value = args[0] + args[1]
+        elif instruction.op == "sub":
+            value = args[0] - args[1]
+        elif instruction.op == "mul":
+            value = args[0] * args[1]
+        else:
+            value = -args[0]
+        if any(abs(int(coefficient)).bit_length() > 4096 for coefficient in value.coeffs()):
+            return None
+        values.append(value)
+    return program.n_inputs, tuple((powers, int(coefficient)) for powers, coefficient in values[-1].terms())
+
+
 def _sha(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(

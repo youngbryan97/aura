@@ -771,9 +771,14 @@ class CognitiveHeartbeat:
             # logger.debug("Affect gather failed: %s", e)
             state.setdefault("affect_valence", 0.0)
 
-        # Drives
+        # Drives, from the budgets the motivation phase settles, for the reason
+        # affect is read from the state above. The self-prediction loop grades
+        # its drive guess against this reading, and the drive engine is a
+        # separate store with its own budgets and decay that no phase writes:
+        # the fix that moved affect onto the state left this half on the engine.
+        # The engine stays the fallback where no state is registered.
         try:
-            drive_engine = getattr(self.orch, "drive_engine", None)
+            drive_engine = None if self._drives_from_the_state(state) else getattr(self.orch, "drive_engine", None)
             if drive_engine and hasattr(drive_engine, "get_status"):
                 drives = await drive_engine.get_status()
                 state["drives"] = drives
@@ -1268,6 +1273,38 @@ class CognitiveHeartbeat:
             state["affect_arousal"] = float(getattr(affect, "arousal", 0.0) or 0.0)
             state["affect_engagement"] = float(getattr(affect, "engagement", 0.0) or 0.0)
             state["affect_emotion"] = str(getattr(affect, "dominant_emotion", "neutral"))
+            return True
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return False
+
+    @staticmethod
+    def _drives_from_the_state(state: dict) -> bool:
+        """The drives the motivation phase settled, ranked as the engine's were. False when there are none."""
+        try:
+            from core.container import ServiceContainer
+
+            repo = ServiceContainer.get("state_repository", default=None)
+            current = getattr(repo, "_current", None) if repo is not None else None
+            budgets = getattr(getattr(current, "motivation", None), "budgets", None)
+            if not isinstance(budgets, dict):
+                return False
+            drives = {}
+            for name, budget in budgets.items():
+                if not isinstance(budget, dict):
+                    continue
+                capacity = float(budget.get("capacity", 100.0) or 100.0)
+                level = max(0.0, min(capacity, float(budget.get("level", 0.0) or 0.0)))
+                drives[str(name)] = {
+                    "level": level,
+                    "capacity": capacity,
+                    "percent": (level / capacity) * 100.0 if capacity > 0 else 0.0,
+                }
+            if not drives:
+                return False
+            name, lowest = min(drives.items(), key=lambda item: item[1]["percent"])
+            state["drives"] = drives
+            state["dominant_drive"] = name
+            state["drive_urgency"] = max(0.0, 1.0 - lowest["percent"] / 100.0)
             return True
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return False

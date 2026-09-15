@@ -287,8 +287,12 @@ from core.subject.snapshot import (  # noqa: E402
     SUBSTRATE_BODY,
     Snapshot,
     _built_services,
+    _DeclaredHost,
     _differs,
     _effort_state,
+    _empty_again,
+    _empty_module_slots,
+    _held,
     _HeldObserver,
     _intentions_state,
     _lifetime_last,
@@ -367,6 +371,10 @@ class SubjectRuntime:
     forked_services: set[str] | None = None
     forked_phases: set[str] | None = None
     forked_modules: set[str] | None = None
+    #: Private module slots still empty when the fork was calibrated. A
+    #: singleton made in one after that is carried once it exists, and emptied
+    #: again by a restore to a snapshot from before it existed.
+    empty_at_calibration: frozenset[str] | None = None
     #: Called after every phase when a lesion is in force. See core.subject.clamp.
     after_phase: Any = None
     #: Host readings held constant for the duration of a paired trial. The body
@@ -480,6 +488,7 @@ class SubjectRuntime:
         self.forked_services = moved(before_services, after_services)
         self.forked_phases = moved(before_phases, after_phases)
         self.forked_modules = moved(before_modules, after_modules)
+        self.empty_at_calibration = _empty_module_slots()
         return {
             "services_carried": sorted(self.forked_services),
             "services_seen": len(before_services | after_services.keys()),
@@ -627,6 +636,8 @@ class SubjectRuntime:
             return
         if self._held_observer is not None:
             return
+        # Over the run's declared host when one is installed, so an arm's held
+        # answers are the declared reading rather than the machine's.
         held = _HeldObserver(get_resource_observer())
         self._previous_observer = set_resource_observer_for_test(held)
         self._held_observer = held
@@ -666,7 +677,8 @@ class SubjectRuntime:
             lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
             singletons=_singleton_state(),
-            module_state=_module_state(self.forked_modules, self._fork_skip()),
+            module_state=_module_state(self._module_keys(), self._fork_skip()),
+            empty_module_slots=self._empty_slots(),
             services=_service_state(self.forked_services),
             effort=_effort_state(),
             taken_at=time.time(),
@@ -679,6 +691,18 @@ class SubjectRuntime:
             stores=_store_state(),
             intentions=_intentions_state(self._intentions),
         )
+
+    def _module_keys(self) -> set[str] | None:
+        """The module globals calibration saw move, and any singleton made since."""
+        if self.forked_modules is None:
+            return None
+        late = {key for key in (self.empty_at_calibration or ()) if _held(key) is not None}
+        return set(self.forked_modules) | late
+
+    def _empty_slots(self) -> frozenset[str]:
+        if self.empty_at_calibration is None:
+            return _empty_module_slots()
+        return _empty_module_slots(self.empty_at_calibration)
 
     def restore(self, snapshot: Snapshot) -> None:
         self._outcomes_by_kind = dict(snapshot.outcomes_by_kind)
@@ -709,6 +733,7 @@ class SubjectRuntime:
         self._restore_phases(snapshot.phases)
         _restore_singletons(snapshot.singletons)
         _restore_module_state(snapshot.module_state)
+        _empty_again(snapshot.empty_module_slots)
         _restore_services(snapshot.services)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
@@ -766,6 +791,9 @@ class SubjectRuntime:
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
+        declared = getattr(self, "declared_host", None)
+        if declared is not None:
+            declared.declare(dict(getattr(self.state.soma, "hardware", {}) or {}))
         # The body senses the world the condition prepared, and nothing else.
         # Arms held the host still and the recorded rounds did not, so between
         # phases the proprioceptive loop read the real machine through the live
@@ -1648,6 +1676,7 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         from core.agency.intention_loop import IntentionLoop
 
         runtime._intentions = IntentionLoop(db_path=str(workdir / "intentions.db"))
+        runtime.organs = replace(runtime.organs, intentions=runtime._intentions)
     except Exception as exc:  # noqa: BLE001
         logger.warning("intention loop unavailable: %s", exc)
     return runtime
@@ -1674,6 +1703,37 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
 SECONDS_PER_TURN: float = 1.0
 
 
+def install_declared_host(runtime: Any) -> Any:
+    """Install one declared host for the run over the real observer. Returns it, or None."""
+    try:
+        from core.runtime.resource_observation import (
+            get_resource_observer,
+            set_resource_observer_for_test,
+        )
+    except (ImportError, AttributeError):
+        return None
+    if getattr(runtime, "declared_host", None) is not None:
+        return runtime.declared_host
+    hardware = dict(getattr(getattr(runtime.state, "soma", None), "hardware", {}) or {})
+    declared = _DeclaredHost(get_resource_observer(), hardware)
+    runtime.previous_observer = set_resource_observer_for_test(declared)
+    runtime.declared_host = declared
+    return declared
+
+
+def release_declared_host(runtime: Any) -> None:
+    """Put back the observer that was installed before the run's declared host."""
+    if getattr(runtime, "declared_host", None) is None:
+        return
+    try:
+        from core.runtime.resource_observation import set_resource_observer_for_test
+    except (ImportError, AttributeError):
+        return
+    set_resource_observer_for_test(getattr(runtime, "previous_observer", None))
+    runtime.declared_host = None
+    runtime.previous_observer = None
+
+
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
@@ -1697,6 +1757,10 @@ async def calibrate_clock(
     clock = ExperimentClock(step)
     clock.install()
     runtime.clock = clock
+    # And a host of its own, for the same reason and in the same place: every
+    # reader of the machine's load, in any thread and between turns, reads the
+    # host the conditions declare rather than whatever else the machine is running.
+    install_declared_host(runtime)
     reading = {
         "seconds_per_turn": SECONDS_PER_TURN,
         "frames_per_turn": per_turn,
@@ -1779,6 +1843,7 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
         live,
         substrate=organism.substrate or live.substrate,
         ontogeny=runtime.ontogeny,
+        intentions=getattr(runtime, "_intentions", None),
     )
     runtime.organism = organism
     summary = organism.summary()

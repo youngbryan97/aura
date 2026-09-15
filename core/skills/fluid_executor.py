@@ -29,12 +29,33 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from core.capabilities.post_action_verifier import VerificationOutcome, VerificationResult
 from core.runtime.errors import record_degradation
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.FluidExecutor")
 
 ActionFn = Callable[[], Awaitable[Any]]
 RecoveryFn = Callable[["StepResult"], Awaitable[Any]]
+
+
+@dataclass(frozen=True)
+class StepActionResult:
+    """Action completion, optionally carrying an assessment already performed.
+
+    Completion alone does not establish correctness. Existing actions returning
+    None retain their dispatch contract; explicit failures cannot pass it.
+    """
+
+    completed: bool
+    detail: str = ""
+    assessment: VerificationResult | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.completed) is not bool:
+            raise TypeError("action completion must be boolean")
+        if self.assessment is not None and not isinstance(self.assessment, VerificationResult):
+            raise TypeError("action assessment must be a VerificationResult")
 
 
 @dataclass
@@ -58,6 +79,9 @@ class Step:
     #: planner's own.
     approach: str = ""
 
+    # The effect observation is retried without repeating the completed action.
+    verification_retries: int = 2
+
 
 @dataclass
 class StepResult:
@@ -77,6 +101,15 @@ class StepResult:
     #: Copied from the Step, so a receipt can say which APPROACH failed rather
     #: than only which step did.
     approach: str = ""
+    action_completed: bool = False
+    verification_outcome: str = ""
+
+    @property
+    def awaiting_verification(self) -> bool:
+        return (
+            self.action_completed and not self.ok
+            and self.verification_outcome == VerificationOutcome.UNAVAILABLE
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +122,9 @@ class StepResult:
             "blocked": self.blocked,
             "seconds": round(self.seconds, 3),
             "detail": self.detail,
+            "action_completed": self.action_completed,
+            "verification_outcome": self.verification_outcome,
+            "awaiting_verification": self.awaiting_verification,
         }
 
 
@@ -106,6 +142,13 @@ class ExecutionReceipt:
     #: Iterations of the perceive-decide-act cycle, which is not the same as
     #: len(steps): a cycle can decide to do nothing and still be a cycle.
     cycles: int = 0
+
+    @property
+    def verification_complete(self) -> bool:
+        return self.completed and (
+            self.outcome == "goal_reached"
+            or (bool(self.steps) and all(step.ok and step.verified for step in self.steps))
+        )
 
     @property
     def seconds_in_steps(self) -> float:
@@ -131,6 +174,7 @@ class ExecutionReceipt:
             "goal": self.goal,
             "completed": self.completed,
             "verified_progress": self.verified_progress,
+            "verification_complete": self.verification_complete,
             "stalled": self.stalled,
             "elapsed_s": round(self.elapsed_s, 3),
             "outcome": self.outcome,
@@ -158,6 +202,22 @@ def _read_decision(decision: Any) -> tuple[bool, str]:
     if allowed_attr is not None:
         return bool(allowed_attr), str(getattr(decision, "reason", "") or "")
     return bool(decision), str(getattr(decision, "reason", "") or "")
+
+
+@invariant("agency.action_completion_is_not_verification", scope="agency",
+           owner="core/skills/fluid_executor.py", observational=False)
+def _action_evidence_invariant() -> tuple:
+    unchecked = StepResult("answer", ok=True, action_completed=True,
+                           verification_outcome=VerificationOutcome.NOT_REQUESTED.value)
+    receipt = ExecutionReceipt("answer", completed=True, steps=[unchecked])
+    assert not receipt.verification_complete
+    pending = StepResult("effect", ok=False, action_completed=True,
+                         verification_outcome=VerificationOutcome.UNAVAILABLE.value)
+    assert pending.awaiting_verification
+    checked = StepResult("effect", ok=True, verified=True, action_completed=True,
+                         verification_outcome=VerificationOutcome.MATCH.value)
+    assert ExecutionReceipt("effect", completed=True, steps=[checked]).verification_complete
+    return ()
 
 
 class FluidExecutor:
@@ -189,21 +249,26 @@ class FluidExecutor:
             record_degradation("fluid_executor", exc)
             return None
 
-    async def _verify(self, predicate: str, args: dict[str, Any]) -> tuple[bool, str]:
+    async def _verify(self, predicate: str, args: dict[str, Any]) -> VerificationResult:
         if predicate in ("always_true", "", None):
-            return True, "no verification required"
+            return VerificationResult.not_requested(predicate or "", args)
         verifier = await self._get_verifier()
         if verifier is None:
-            # No verifier available → trust a clean action dispatch rather than
-            # blocking the loop (matches the desktop effect-verified convention).
-            return True, "verifier unavailable; trusting clean dispatch"
+            return VerificationResult.unavailable(predicate, args, "verifier unavailable")
         try:
             result = await verifier.verify(predicate, args)
-            ok = bool(getattr(result, "success", False))
-            return ok, str(getattr(result, "detail", "") or getattr(result, "reason", ""))
+            if isinstance(result, VerificationResult):
+                return result
+            # Older injected verifiers expose a boolean; malformed return values
+            # have not observed either a match or a mismatch.
+            success = getattr(result, "success", None)
+            detail = str(getattr(result, "detail", "") or getattr(result, "reason", ""))
+            if type(success) is not bool:
+                return VerificationResult.unavailable(predicate, args, "invalid verifier result")
+            return VerificationResult(predicate, args, success, evidence=detail)
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("fluid_executor", exc)
-            return False, f"verification error: {exc}"
+            return VerificationResult.unavailable(predicate, args, f"verification error: {exc}")
 
     async def _resolve_gateway(self) -> Any | None:
         """The injected gateway, or the canonical one, or None.
@@ -259,6 +324,8 @@ class FluidExecutor:
 
         recovered = False
         last_detail = ""
+        action_completed = False
+        verification_outcome = ""
         for attempt in range(1, step.max_retries + 2):
             if attempt > 1 and step.recovery is not None:
                 try:
@@ -267,19 +334,48 @@ class FluidExecutor:
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     record_degradation("fluid_executor", exc)
             try:
-                await step.action()
+                action_completed = False
+                verification_outcome = ""
+                action_result = await step.action()
+                if isinstance(action_result, StepActionResult) and not action_result.completed:
+                    last_detail = action_result.detail or "action did not complete"
+                    await self._sleep(step.backoff_base_s * attempt)
+                    continue
+                action_completed = True
             except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
                 record_degradation("fluid_executor", exc)
                 last_detail = f"action error: {exc}"
                 await self._sleep(step.backoff_base_s * attempt)
                 continue
 
-            verified, detail = await self._verify(step.verify, step.verify_args)
-            last_detail = detail
-            if verified:
+            carried = action_result.assessment if isinstance(action_result, StepActionResult) else None
+            if step.verify in ("always_true", "", None) and carried is not None:
+                assessment = carried
+                # An answer may be produced without a conclusive correctness
+                # assessment. Keep it; do not invent verification or rerun it.
+                accepted = assessment.outcome != VerificationOutcome.MISMATCH
+            else:
+                assessment = await self._verify(step.verify, step.verify_args)
+                for observation in range(max(0, step.verification_retries)):
+                    if not assessment.infrastructure_failed:
+                        break
+                    await self._sleep(step.backoff_base_s * (observation + 1))
+                    assessment = await self._verify(step.verify, step.verify_args)
+                accepted = assessment.success
+            last_detail = assessment.evidence
+            verification_outcome = assessment.outcome.value
+            if accepted:
                 return StepResult(
-                    step.name, ok=True, attempts=attempt, verified=True,
-                    recovered=recovered, detail=detail, approach=step.approach,
+                    step.name, ok=True, attempts=attempt, verified=assessment.conclusive_success,
+                    recovered=recovered, detail=last_detail, approach=step.approach,
+                    action_completed=True, verification_outcome=verification_outcome,
+                    seconds=time.monotonic() - began,
+                )
+            if assessment.infrastructure_failed:
+                return StepResult(
+                    step.name, ok=False, attempts=attempt, recovered=recovered,
+                    detail=last_detail, approach=step.approach, action_completed=True,
+                    verification_outcome=verification_outcome,
                     seconds=time.monotonic() - began,
                 )
             await self._sleep(step.backoff_base_s * attempt)
@@ -289,6 +385,7 @@ class FluidExecutor:
         return StepResult(
             step.name, ok=False, attempts=step.max_retries + 1, verified=False,
             recovered=recovered, detail=last_detail, approach=step.approach,
+            action_completed=action_completed, verification_outcome=verification_outcome,
             seconds=time.monotonic() - began,
         )
 
@@ -384,9 +481,12 @@ class FluidExecutor:
                 result = await self.run_step(step)
                 receipt.steps.append(result)
                 if result.ok:
-                    receipt.verified_progress += 1
+                    receipt.verified_progress += int(result.verified)
                     consecutive_no_progress = 0
                     continue
+                if result.awaiting_verification:
+                    receipt.outcome = "awaiting_verification"
+                    break
                 if result.blocked:
                     receipt.outcome = "blocked_by_governance"
                     logger.info(
@@ -423,9 +523,13 @@ class FluidExecutor:
             result = await self.run_step(step)
             receipt.steps.append(result)
             if result.ok:
-                receipt.verified_progress += 1
+                receipt.verified_progress += int(result.verified)
                 consecutive_no_progress = 0
                 continue
+            if result.awaiting_verification:
+                receipt.outcome = "awaiting_verification"
+                receipt.elapsed_s = time.monotonic() - started
+                return receipt
             if step.optional:
                 consecutive_no_progress = 0
                 continue

@@ -2064,13 +2064,22 @@ async def test_state_repository_prefers_bounded_hot_snapshot_before_marker():
             writes.append(payload)
 
     repo = StateRepository(is_vault_owner=True)
-    repo._shm = _FakeShm()
     state = AuraState()
     state.state_id = "st_hot"
     state.version = 12
     state.cold.long_term_memory = ["x" * 4096 for _ in range(12)]
+    # The buffer is sized from this state: it holds the hot snapshot exactly and
+    # cannot hold the full state. A fixed 4,096 bytes stopped admitting the hot
+    # snapshot once the default state's own fields grew past it, and the test
+    # then took the marker path it exists to contrast. Production buffers are
+    # megabytes; see get_state_shm_size_bytes.
+    serialized = repo._serialize(state)
+    hot_bytes = len(repo._serialize_transport_snapshot(state).encode("utf-8"))
+    assert len(serialized.encode("utf-8")) > hot_bytes
+    repo._shm = _FakeShm()
+    repo._shm.payload_capacity = hot_bytes
 
-    mode = await repo._sync_to_shm(state, repo._serialize(state))
+    mode = await repo._sync_to_shm(state, serialized)
 
     assert mode == "hot"
     assert len(writes) == 1

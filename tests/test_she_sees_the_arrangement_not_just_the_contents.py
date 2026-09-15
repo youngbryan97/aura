@@ -86,7 +86,7 @@ def test_a_gap_holds_its_place_so_columns_mean_the_same_thing_in_every_row():
     LIVE 2026-08-26, read off the real board: "2 32 16 64 / 4 2 / 2 4 16 / 2"
     — four rows, and no way to say which column anything was in.
     """
-    from core.perception.where_it_responds import EMPTY_CELL
+    from core.perception.what_is_there import EMPTY_CELL
 
     sparse = {
         "ok": True,

@@ -794,13 +794,10 @@ async def test_router_defers_background_local_runtime_during_foreground_quiet_wi
 def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkeypatch):
     from types import SimpleNamespace
 
-    import core.brain.llm_health_router as router_module
-
-    monkeypatch.setattr(
-        router_module,
-        "desktop_resource_guard_enabled",
-        lambda env=None: True,
-    )
+    # The deferral policy has read the guard from its own module since fedd3636b
+    # moved it out of the router, so the pin goes on both names.
+    for owner in ("core.brain.llm_health_router", "core.brain.llm_background_deferral"):
+        monkeypatch.setattr(f"{owner}.desktop_resource_guard_enabled", lambda env=None: True)
     # Genuine pre-spike headroom: high pressure AND low available. The old values
     # here (58% / 26.5GB) were actually the desktop STEADY STATE with the 32B
     # resident — deferring there meant background cognition could never run, so
@@ -874,9 +871,10 @@ def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkey
 def test_desktop_background_headroom_allows_reflex_with_moderate_headroom(monkeypatch):
     from types import SimpleNamespace
 
-    import core.brain.llm_health_router as router_module
-
-    monkeypatch.setattr(router_module, "desktop_resource_guard_enabled", lambda env=None: True)
+    # The deferral policy has read the guard from its own module since fedd3636b
+    # moved it out of the router, so the pin goes on both names.
+    for owner in ("core.brain.llm_health_router", "core.brain.llm_background_deferral"):
+        monkeypatch.setattr(f"{owner}.desktop_resource_guard_enabled", lambda env=None: True)
     monkeypatch.setattr(
         "core.utils.memory_monitor.get_memory_pressure_snapshot",
         lambda: SimpleNamespace(
@@ -902,7 +900,10 @@ def test_shared_background_admission_reports_every_closed_lane(monkeypatch):
 
     import core.brain.llm_health_router as router_module
 
-    monkeypatch.setattr(router_module, "desktop_resource_guard_enabled", lambda env=None: True)
+    # The deferral policy has read the guard from its own module since fedd3636b
+    # moved it out of the router, so the pin goes on both names.
+    for owner in ("core.brain.llm_health_router", "core.brain.llm_background_deferral"):
+        monkeypatch.setattr(f"{owner}.desktop_resource_guard_enabled", lambda env=None: True)
     monkeypatch.setattr(
         "core.utils.memory_monitor.get_memory_pressure_snapshot",
         lambda: SimpleNamespace(
@@ -965,10 +966,10 @@ async def test_router_defers_background_local_runtime_during_safe_boot_guard(mon
         client=client,
     )
 
-    monkeypatch.setattr(
-        "core.brain.llm_health_router.desktop_resource_guard_enabled",
-        lambda: True,
-    )
+    # The deferral policy has read the guard from its own module since fedd3636b
+    # moved it out of the router, so the pin goes on both names.
+    for owner in ("core.brain.llm_health_router", "core.brain.llm_background_deferral"):
+        monkeypatch.setattr(f"{owner}.desktop_resource_guard_enabled", lambda env=None: True)
     monkeypatch.setenv("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180")
 
     result = await router.think(

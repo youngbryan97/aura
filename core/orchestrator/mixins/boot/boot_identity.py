@@ -77,6 +77,9 @@ class BootIdentityMixin:
                 self.derived_engines = existing_derived
                 logger.info("🎬 Derived engines already registered; reusing instances.")
             else:
+                from core.brain.llm.semantic_neural_serving import prepare_semantic_neural_serving
+
+                await prepare_semantic_neural_serving()
                 self.derived_engines = register_derived_engines(orchestrator=self)
 
             from core.agency.latent_distiller import LatentSpaceDistiller

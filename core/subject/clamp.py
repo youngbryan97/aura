@@ -95,6 +95,11 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.frisson",
         "affect.turn",
         "affect.safety",
+        "affect.happiness_fear",
+        "affect.change_fear",
+        "affect.borrowed_feeling",
+        "affect.decline_press",
+        "affect.elsewhere_lift",
     ),
     "G": (
         "cognition.attention_focus",
@@ -134,6 +139,15 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # How somebody else read her, which changes how much she trusts her own
         # reading. See core/self/recognition.py.
         "identity.read_by_other",
+        # What is hers and what observers assigned, and whether her worth has
+        # been tracking her use. Two self columns read it and nothing held it.
+        # See core/self/standing.py.
+        "identity.standing",
+        # Whether owning a lapse first has gone better for her. See
+        # core/social/owning_it_first.py.
+        "identity.owning_first",
+        # What coming through hard things says. See core/agency/capacity.py.
+        "identity.capacity",
     ),
     "M": (
         "cognition.working_memory",
@@ -168,6 +182,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.partner_cadence",
         # A we both of them are saying. See core/social/togetherness.py.
         "cognition.togetherness",
+        # Being made minor in an account of a shared past.
+        # See core/social/made_minor.py.
+        "cognition.made_minor",
     ),
     "D": (
         "cognition.active_goals",
@@ -186,6 +203,10 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.scale",
         "cognition.persona_gap",
         "cognition.constancy",
+        # How near the end of this sitting is. See core/social/closing_window.py.
+        "cognition.closing_window",
+        # What her impulse has been worth. See core/agency/asking_the_impulse.py.
+        "cognition.impulse",
         "cognition.fuel",
     ),
     # The reservoir is clamped through the runtime rather than the state; see

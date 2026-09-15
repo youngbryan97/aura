@@ -192,6 +192,33 @@ def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     emotions[name] = max(0.0, min(1.0, current + float(delta) * room))
 
 
+
+def _obstruction(state: Any) -> float:
+    """How obstructed her most pressing intention is, in [0, 1].
+
+    The urgency is the one the action domain reads: the hardest any pending
+    initiative or open goal presses. Capacity is her own rate on what she has
+    attempted (core/agency/capacity.py), one half before she has attempted
+    anything. An intention she has shown she can carry out is not obstructed,
+    and neither is an intention that presses on nothing.
+    """
+    cognition = getattr(state, "cognition", None)
+    pressing = 0.0
+    for items in (getattr(cognition, "pending_initiatives", None), getattr(cognition, "active_goals", None)):
+        for item in items if isinstance(items, list) else ():
+            if not isinstance(item, dict) or item.get("urgency") is None:
+                continue
+            try:
+                pressing = max(pressing, min(1.0, max(0.0, float(item["urgency"]))))
+            except (TypeError, ValueError):
+                continue
+    standing = getattr(getattr(state, "identity", None), "capacity", None)
+    try:
+        capacity = float(standing.get("capacity", 0.5)) if isinstance(standing, dict) else 0.5
+    except (TypeError, ValueError):
+        capacity = 0.5
+    return pressing * (1.0 - min(1.0, max(0.0, capacity)))
+
 class AffectUpdatePhase(Phase):
     """
     Unitary Kernel Phase: Affective Transformation.
@@ -293,6 +320,7 @@ class AffectUpdatePhase(Phase):
         self._process_percepts(affect, recent_percepts)
         for item in recent_percepts:
             mark_consumed(item, "affect")
+        self._record_what_others_did(recent_percepts)
         state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
@@ -341,6 +369,9 @@ class AffectUpdatePhase(Phase):
         # 6b-vi. What is hers and what observers assigned, and whether her
         # sense of herself has been moving with how useful she was.
         self.readings.standing(state)
+        # And whether owning a lapse before it is raised has gone better for
+        # her. See core/social/owning_it_first.py.
+        self.readings.owning_first(state)
 
         # 6b-iii-a. Nothing wrong and somebody here, which every positive
         # channel she had was too busy with achievement to read.
@@ -352,6 +383,29 @@ class AffectUpdatePhase(Phase):
         # holding. After the emotion channels have settled, because it reads
         # the valence they produce.
         self.readings.turn(state, affect)
+
+        # 6b-iii-c. And whether being happy is something she has learned to be
+        # wary of. After the turn, because it reads the joy the channels settled
+        # on. See core/affect/fear_of_happiness.py.
+        self.readings.happiness_fear(state, affect)
+        # And fear of change around what her life is built around.
+        # See core/social/change_around_attachment.py.
+        self.readings.change_fear(state, affect)
+        # And what she feels from what she believes the person here feels.
+        # See core/social/borrowed_feeling.py.
+        self.readings.borrowed_feeling(state, affect)
+        # And whether things are getting worse while what she does still
+        # works. See core/affect/acting_in_decline.py.
+        self.readings.acting_in_decline(state, affect)
+        # And a warmer place in mind, let into a low as far as that has helped
+        # her before. See core/affect/elsewhere.py.
+        self.readings.elsewhere(state, affect)
+        # And what taking directions from impulse has been worth to her.
+        # See core/agency/asking_the_impulse.py.
+        self.readings.impulse(state)
+        # And being made minor in somebody's account of a shared past.
+        # See core/social/made_minor.py.
+        self.readings.made_minor(state, affect)
 
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.
@@ -736,10 +790,25 @@ class AffectUpdatePhase(Phase):
                 step = float(affect.curiosity) - float(reading.get("curiosity", 0.0) or 0.0)
             except _AFFECT_UPDATE_ERRORS:
                 step = 0.0
+            # And frustration, which nothing here pushed. Frustration is what an
+            # obstructed goal does to the one pursuing it (Berkowitz,
+            # Psychological Bulletin 106, 1989), and an intention is obstructed
+            # when what it asks is beyond what she has shown she can do. Raised
+            # towards that and never lowered here, so frustration some other
+            # writer put in the substrate still decays on the substrate's own
+            # time. See `_obstruction`.
+            raised = 0.0
+            try:
+                current = substrate.current() if callable(getattr(substrate, "current", None)) else None
+                if current is not None:
+                    raised = max(0.0, _obstruction(state) - float(current.frustration))
+            except _AFFECT_UPDATE_ERRORS:
+                raised = 0.0
             result = update(
                 valence=affect.valence,
                 arousal=affect.arousal,
                 delta_curiosity=max(-1.0, min(1.0, step)),
+                delta_frustration=min(1.0, raised),
             )
             if inspect.isawaitable(result):
                 await result
@@ -816,6 +885,42 @@ class AffectUpdatePhase(Phase):
         adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
         relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
         affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
+
+    @staticmethod
+    def _record_what_others_did(percepts: list[Any]) -> int:
+        """Tell the agency ledger what somebody else did, from the percepts that name them.
+
+        The intention loop records what she did and says outcomes she only
+        watched arrive through perception, and nothing on the perception path
+        recorded them: in the runtime and in every battery recording the ledger
+        saw her own actions alone, so the share of what happened that she did
+        read 1.0 for the whole of every life and the last actor was always her.
+        This phase feels each percept once, so each is recorded once. What she
+        watched never reaches her capability beliefs.
+        """
+        recorded = 0
+        try:
+            from core.agency.authorship import Event, actor_of_percept, get_agency_ledger
+
+            ledger = get_agency_ledger()
+            for item in percepts:
+                if not isinstance(item, dict):
+                    continue
+                actor = actor_of_percept(item)
+                if actor is None:
+                    continue
+                ledger.observe(
+                    Event(
+                        what=str(item.get("type") or "percept"),
+                        actor=actor,
+                        verified=True,
+                        detail={"source": str(item.get("source") or "")},
+                    )
+                )
+                recorded += 1
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("what others did went unrecorded this turn: %s", exc)
+        return recorded
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""

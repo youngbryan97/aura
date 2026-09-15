@@ -30,6 +30,64 @@ class ArgumentOptimizationIncompleteError(RuntimeError):
     """A search limit or solver error is not a proof of graph infeasibility."""
 
 
+def _shortlist_mentions(options, definition_options, limit=4):
+    rows, labels = [], []
+    for node, arguments in enumerate(options):
+        row, names = [], []
+        for position, candidates in enumerate(arguments):
+            groups = defaultdict(list)
+            for index, (_score, register, _span) in enumerate(candidates):
+                definition = definition_options[node][position][index] if definition_options is not None else None
+                groups[register, definition].append(index)
+            indices = sorted(index for group in groups.values()
+                             for index in sorted(group, key=lambda i: -candidates[i][0])[:limit])
+            row.append(tuple(candidates[index] for index in indices))
+            if definition_options is not None:
+                names.append(tuple(definition_options[node][position][index] for index in indices))
+        rows.append(tuple(row))
+        labels.append(tuple(names))
+    return tuple(rows), tuple(labels) if definition_options is not None else None
+
+
+def _dual_bound_screen(objective, matrix, lows, highs, upper, incumbent_cost, *, binary_count):
+    """Fix only binary choices whose dual lower bound exceeds a feasible cost."""
+    from scipy.optimize import linprog
+    from scipy.sparse import vstack
+
+    lows, highs = np.asarray(lows), np.asarray(highs)
+    equal = lows == highs
+    finite_high = np.isfinite(highs) & ~equal
+    finite_low = np.isfinite(lows) & ~equal
+    inequalities = vstack((matrix[finite_high], -matrix[finite_low])).tocsc()
+    limits = np.concatenate((highs[finite_high], -lows[finite_low]))
+    equations = matrix[equal]
+    right = highs[equal]
+    # Redundant binary upper bounds can absorb all reduced cost into their
+    # duals. Relax them for pricing; the certified bound below still uses the
+    # original finite domain, including the continuous ordering variables.
+    pricing_upper = upper.copy()
+    pricing_upper[:binary_count] = np.inf
+    relaxation = linprog(objective, A_ub=inequalities, b_ub=limits,
+        A_eq=equations, b_eq=right, bounds=np.column_stack((np.zeros(len(upper)), pricing_upper)),
+        method="highs-ds")
+    if not relaxation.success:
+        return upper
+    # Clipping signs and pricing the remaining stationarity residual against
+    # the bounds gives a valid dual bound without trusting solver optimality.
+    y = np.minimum(np.asarray(relaxation.ineqlin.marginals), 0.)
+    z = np.asarray(relaxation.eqlin.marginals)
+    residual = objective - inequalities.T @ y - equations.T @ z
+    terms = np.concatenate((limits * y, right * z, np.minimum(residual, 0.) * upper))
+    if not np.all(np.isfinite(terms)) or not np.all(np.isfinite(residual)):
+        return upper
+    bound = math.fsum(terms)
+    tolerance = 1e-7 * (1. + abs(incumbent_cost) + float(np.sum(np.abs(terms))))
+    fixed = upper.copy()
+    binary = np.arange(len(upper)) < binary_count
+    fixed[binary & (upper == 1.) & (bound + np.maximum(residual, 0.) > incumbent_cost + tolerance)] = 0.
+    return fixed
+
+
 def optimize_argument_chart(
     options: Sequence[Sequence[Sequence[tuple[float, int, TokenSpan]]]],
     *,
@@ -38,6 +96,11 @@ def optimize_argument_chart(
     node_limit: int = 10000,
     definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
+    prune_dominated: bool = False,
+    excluded_arguments: Sequence[Sequence[int]] | None = None,
+    excluded_graphs: Sequence[Sequence[Sequence[int]]] = (),
+    time_limit_s: float | None = None,
+    selection_observer=None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -53,8 +116,20 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         operation_count < 1
         or type(n_inputs) is not int or n_inputs < 1
         or type(node_limit) is not int or node_limit < 1
+        or (time_limit_s is not None and (not math.isfinite(time_limit_s) or time_limit_s <= 0))
     ):
         raise ValueError("argument optimization dimensions must be positive")
+    excluded = tuple(excluded_graphs) + (() if excluded_arguments is None else (excluded_arguments,))
+    if any(
+        len(graph) != operation_count
+        or any(len(target) != len(node)
+               for target, node in zip(graph, options, strict=True))
+        or any(type(register) is not int or not 0 <= register < n_inputs + operation_count
+               for node in graph for register in node)
+        for graph in excluded
+    ):
+        raise ValueError("excluded argument graph differs from chart")
+    excluded = tuple(dict.fromkeys(tuple(tuple(node) for node in graph) for graph in excluded))
     choices = []
     slots = defaultdict(list)
     uses = defaultdict(list)
@@ -71,6 +146,15 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         )
     ):
         raise ValueError("definition options differ from argument chart")
+    incumbent = None
+    if prune_dominated:
+        short, names = _shortlist_mentions(options, definition_options)
+        try:
+            incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
+                node_limit=node_limit, definition_options=names, definition_scores=definition_scores,
+                excluded_graphs=excluded, time_limit_s=time_limit_s)
+        except ArgumentOptimizationIncompleteError:
+            incumbent = None
     for node, arguments in enumerate(options):
         if not arguments:
             return None
@@ -130,6 +214,11 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
 
     for indices in slots.values():
         constraint(dict.fromkeys(indices, 1.0), 1.0, 1.0)
+    for graph in excluded:
+        # One no-good covers every mention/definition realization of this graph.
+        matching = {index: 1.0 for index, (node, position, _score, register, _span)
+                    in enumerate(choices) if register == graph[node][position]}
+        constraint(matching, -np.inf, len(slots) - 1)
     definitions_by_register = defaultdict(list)
     for label_index, ((register, _definition), indices) in enumerate(definition_uses.items()):
         variable = definition_offset + label_index
@@ -166,10 +255,14 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         (np.asarray(coefficients, dtype=float), (row_indices, column_indices)),
         shape=(len(lows), width),
     ).tocsc()
+    if incumbent is not None:
+        upper = _dual_bound_screen(objective, matrix, lows, highs, upper, -incumbent[0],
+                                  binary_count=order_offset)
     result = milp(
         objective, integrality=integrality, bounds=Bounds(lower, upper),
         constraints=LinearConstraint(matrix, lows, highs),
-        options={"node_limit": node_limit, "mip_rel_gap": 0.0},
+        options={"node_limit": node_limit, "mip_rel_gap": 0.0,
+                 **({"time_limit": time_limit_s} if time_limit_s is not None else {})},
     )
     if result.status == 2:
         return None
@@ -187,10 +280,10 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         or np.any(matrix @ values > np.asarray(highs) + 1e-6)
     ):
         raise ValueError("argument optimizer returned an invalid solution")
-    arguments, spans = [], []
+    arguments, spans, selected_indices = [], [], []
     score = 0.0
     for node, positions in enumerate(options):
-        node_arguments, node_spans = [], []
+        node_arguments, node_spans, node_indices = [], [], []
         for position in range(len(positions)):
             selected = [i for i in slots[node, position] if values[i] > 0.5]
             if len(selected) != 1:
@@ -199,8 +292,10 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
             score += contribution
             node_arguments.append(register)
             node_spans.append(span)
+            node_indices.append(slots[node, position].index(selected[0]))
         arguments.append(tuple(node_arguments))
         spans.append(tuple(node_spans))
+        selected_indices.append(tuple(node_indices))
     dependencies = tuple(
         tuple(sorted({register - n_inputs for register in values if register >= n_inputs}))
         for values in arguments
@@ -208,4 +303,6 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     if definition_scores is not None:
         score += sum(definition_scores[key] for index, key in enumerate(definition_uses)
                      if values[definition_offset + index] > 0.5)
+    if selection_observer is not None:
+        selection_observer(tuple(selected_indices))
     return score, tuple(arguments), tuple(spans), dependencies

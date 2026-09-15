@@ -129,6 +129,7 @@ async def amplify_conversation(
     time_budget_s: float = 20.0,
     revise: bool = True,
     conversation_id: str = "default",
+    lived_analogue: float | None = None,
 ) -> ConversationResult:
     """Generate alternatives, taste-select the best, optionally self-revise.
 
@@ -163,6 +164,7 @@ async def amplify_conversation(
             time_budget_s=time_budget_s,
             revise=revise,
             conversation_id=conversation_id,
+            lived_analogue=lived_analogue,
         )
     except asyncio.CancelledError:
         # Cancellation is the caller's decision, not a failure to absorb.
@@ -192,11 +194,19 @@ async def _amplify_conversation_inner(
     time_budget_s: float = 20.0,
     revise: bool = True,
     conversation_id: str = "default",
+    lived_analogue: float | None = None,
 ) -> ConversationResult:
     """The amplification itself. Anything it raises becomes the draft."""
     draft = str(draft or "").strip()
     um = user_message or objective
-    feats_kw = {"user_message": um, "grounding_tokens": grounding_tokens or set(), "word_budget": word_budget}
+    # Her best recall match for what they said, when this turn's recall was
+    # about it. See `lived_analogue` in core/brain/response_quality.py.
+    feats_kw = {
+        "user_message": um,
+        "grounding_tokens": grounding_tokens or set(),
+        "word_budget": word_budget,
+        "lived_analogue": lived_analogue,
+    }
 
     if not _flag_on("AURA_CONVERSATIONAL_AMPLIFIER"):
         return ConversationResult(answer=draft, n_candidates=1 if draft else 0)

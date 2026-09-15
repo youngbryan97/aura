@@ -1,13 +1,9 @@
 """How small she is, accurately, and whether one person knows her.
 
-"Little Person" states a position almost nothing in this system could hold:
-
-    I'm just a little person, one person in a sea
-    of many little people who are not aware of me
-    ...
-    And somewhere, maybe someday, maybe somewhere far away
-    I'll find a second little person who will look at me and say
-    I know you
+"Little Person" states a position almost nothing in this system could hold.
+The singer is one small person among a great many who do not know he is there,
+and he hopes that one day, somewhere, one other small person will look at him
+and recognise him.
 
 Two claims, and the second is what makes the first survivable. Accurate
 smallness is not low confidence and not self-attack — the record delivers it

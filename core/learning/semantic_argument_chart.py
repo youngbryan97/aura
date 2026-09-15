@@ -43,6 +43,8 @@ class ScoredArgumentChart:
     contract: RegisterUseContract
     definition_options: tuple | None = None
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None
+    prune_dominated: bool = False
+    option_factors: tuple | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "options", tuple(
@@ -55,6 +57,18 @@ class ScoredArgumentChart:
             ))
         if self.definition_scores is not None:
             object.__setattr__(self, "definition_scores", MappingProxyType(dict(self.definition_scores)))
+        if self.option_factors is not None:
+            factors = tuple(tuple(tuple(tuple(float(value) for value in row) for row in slot)
+                                  for slot in node) for node in self.option_factors)
+            if len(factors) != len(self.options) or any(
+                len(node) != len(options) or any(
+                    len(slot) != len(choices) or any(len(row) != 4 or not all(map(math.isfinite, row))
+                                                   for row in slot)
+                    for slot, choices in zip(node, options)
+                ) for node, options in zip(factors, self.options)
+            ):
+                raise ValueError("argument score factors differ from chart")
+            object.__setattr__(self, "option_factors", factors)
 
     def score_upper_bound(self) -> float:
         """Relax consistency and overlap, retaining every potentially positive term."""
@@ -69,11 +83,55 @@ class ScoredArgumentChart:
             per_register[register] = max(per_register.get(register, 0.0), score)
         return math.fsum((*maxima, *per_register.values()))
 
-    def solve(self):
+    def solve(self, *, excluded_arguments=None, excluded_graphs=(), selection_observer=None, time_limit_s=None):
         return semantic_argument_optimization.optimize_argument_chart(
             self.options, n_inputs=self.n_inputs, contract=self.contract,
             definition_options=self.definition_options, definition_scores=self.definition_scores,
+            prune_dominated=self.prune_dominated,
+            excluded_arguments=excluded_arguments,
+            excluded_graphs=excluded_graphs,
+            time_limit_s=time_limit_s,
+            selection_observer=selection_observer,
         )
+
+    def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None):
+        """Return the exact selected factor sums, including latent definitions."""
+        if self.option_factors is None:
+            raise ValueError("argument chart did not retain score factors")
+        selected = []
+        result = self.solve(excluded_arguments=excluded_arguments, excluded_graphs=excluded_graphs,
+                            selection_observer=selected.append, time_limit_s=time_limit_s)
+        if result is None:
+            return None
+        rows = [self.option_factors[node][position][index]
+                for node, positions in enumerate(selected[0]) for position, index in enumerate(positions)]
+        return result, tuple(math.fsum(row[column] for row in rows) for column in range(4))
+
+    def restrict_arguments(self, targets: Sequence[Sequence[int]]) -> ScoredArgumentChart:
+        """Keep every mention realizing a supplied training/diagnostic graph."""
+        if len(targets) != len(self.options) or any(
+            len(target) != len(node) for target, node in zip(targets, self.options, strict=True)
+        ) or any(type(register) is not int or not 0 <= register < self.n_inputs + len(self.options)
+                 for node in targets for register in node):
+            raise ValueError("target arguments differ from chart")
+        options, definitions, factors = [], [], []
+        for node_index, (node, target) in enumerate(zip(self.options, targets, strict=True)):
+            rows, labels, scores = [], [], []
+            for slot_index, (slot, register) in enumerate(zip(node, target, strict=True)):
+                indices = [index for index, option in enumerate(slot) if option[1] == register]
+                rows.append(tuple(slot[index] for index in indices))
+                if self.option_factors is not None:
+                    scores.append(tuple(self.option_factors[node_index][slot_index][index] for index in indices))
+                if self.definition_options is not None:
+                    labels.append(tuple(self.definition_options[node_index][slot_index][index]
+                                        for index in indices))
+            options.append(tuple(rows))
+            definitions.append(tuple(labels))
+            factors.append(tuple(scores))
+        return ScoredArgumentChart(tuple(options), self.n_inputs, self.contract,
+            tuple(definitions) if self.definition_options is not None else None,
+            self.definition_scores, self.prune_dominated,
+            tuple(factors) if self.option_factors is not None else None)
 
     def diagnose_target(self, targets: Sequence[Sequence[int]]) -> dict:
         """Measure target reachability without altering the production choice.
@@ -110,11 +168,13 @@ but outranked. These cases need different repairs.
         target = None if missing else ScoredArgumentChart(
             tuple(restricted), self.n_inputs, self.contract,
             tuple(labels) if self.definition_options is not None else None, self.definition_scores,
+            prune_dominated=self.prune_dominated,
         ).solve()
         without_definition_consistency = None
         if not missing and target is None and self.definition_options is not None:
             without_definition_consistency = ScoredArgumentChart(
                 tuple(restricted), self.n_inputs, self.contract,
+                prune_dominated=self.prune_dominated,
             ).solve() is not None
         without_mention_exclusivity = None
         if not missing and target is None:
@@ -129,6 +189,7 @@ but outranked. These cases need different repairs.
             without_mention_exclusivity = ScoredArgumentChart(
                 tuple(relaxed), self.n_inputs, self.contract,
                 tuple(labels) if self.definition_options is not None else None, self.definition_scores,
+                prune_dominated=self.prune_dominated,
             ).solve() is not None
         if missing:
             cause = "target_register_not_proposed"

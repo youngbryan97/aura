@@ -281,6 +281,76 @@ class SpeakerBaseline:
         return self._z(self._rate, sig.speaking_rate_wps, self._REL_RATE)
 
 
+def stressed_words(
+    signal: np.ndarray,
+    sample_rate: int,
+    words: list[tuple[str, float, float]] | tuple[tuple[str, float, float], ...],
+) -> tuple[str, ...]:
+    """The words this utterance leaned on, measured against its own other words.
+
+    Stress is how a speaker marks the word that carries the point: "I did not
+    say that" and "I did not say that" are different sentences. A word is
+    leaned on when its pitch peak, its loudness and its length per letter stand
+    out from the rest of the same utterance, so the comparison is with this
+    speaker at this moment rather than with anyone's norm. Each measure is a
+    z-score across the utterance's words, a word's prominence is the mean of
+    the scores it has, and the words past the module's own notability line are
+    returned in the order they were said. Fewer than three words give nothing to
+    compare against, and an utterance said evenly stresses nothing.
+
+    `words` are (text, start, end) in seconds from the start of `signal`.
+    """
+    spans = [
+        (str(text).strip(), float(start), float(end))
+        for text, start, end in words
+        if str(text).strip() and float(end) > float(start)
+    ]
+    if len(spans) < 3 or signal.size == 0 or sample_rate <= 0:
+        return ()
+
+    f0 = estimate_f0(signal, sample_rate)
+    frame_len = int(sample_rate * _FRAME_MS / 1000.0)
+    hop = max(1, int(sample_rate * _HOP_MS / 1000.0))
+    centres = (np.arange(f0.size) * hop + frame_len / 2.0) / float(sample_rate)
+    voiced = f0[~np.isnan(f0)]
+    median_f0 = float(np.median(voiced)) if voiced.size else 0.0
+
+    lengths: list[float] = []
+    energies: list[float] = []
+    peaks: list[float] = []
+    for text, start, end in spans:
+        letters = max(1, sum(ch.isalnum() for ch in text))
+        lengths.append((end - start) / letters)
+        a = max(0, int(start * sample_rate))
+        b = min(signal.size, int(end * sample_rate))
+        chunk = signal[a:b].astype(np.float64)
+        energies.append(float(np.sqrt(np.mean(np.square(chunk)))) if chunk.size else 0.0)
+        inside = f0[(centres >= start) & (centres <= end)] if f0.size else np.zeros(0)
+        inside = inside[~np.isnan(inside)]
+        if inside.size and median_f0 > 0:
+            peaks.append(float(12.0 * np.log2(float(np.max(inside)) / median_f0)))
+        else:
+            peaks.append(float("nan"))
+
+    def zscores(values: list[float]) -> np.ndarray:
+        arr = np.asarray(values, dtype=np.float64)
+        good = ~np.isnan(arr)
+        out = np.full(arr.shape, np.nan)
+        if good.sum() < 3:
+            return out
+        spread = float(np.std(arr[good]))
+        if spread <= 0.0:
+            out[good] = 0.0
+            return out
+        out[good] = (arr[good] - float(np.mean(arr[good]))) / spread
+        return out
+
+    scores = np.vstack([zscores(lengths), zscores(energies), zscores(peaks)])
+    counted = (~np.isnan(scores)).sum(axis=0)
+    prominence = np.where(counted > 0, np.nansum(scores, axis=0) / np.maximum(counted, 1), 0.0)
+    return tuple(text for (text, _, _), value in zip(spans, prominence, strict=True) if value >= _NOTABLE_Z)
+
+
 @dataclass(slots=True)
 class DeliveryReading:
     """Interpreted delivery — what she is told, and what shapes her voice."""
@@ -292,16 +362,21 @@ class DeliveryReading:
     pitch_z: float = 0.0
     rising_final: bool = False
     hesitant: bool = False
+    #: The words they leaned on, from `stressed_words`, in the order said.
+    stressed: tuple[str, ...] = ()
 
     @property
     def notable(self) -> bool:
-        return bool(self.descriptors)
+        return bool(self.descriptors or self.stressed)
 
     def as_context(self) -> str:
         """A short observation for her mind, or "" when nothing stands out."""
-        if not self.descriptors:
-            return ""
-        return f"[you can hear that the user sounds {', '.join(self.descriptors)}]"
+        parts: list[str] = []
+        if self.descriptors:
+            parts.append(f"[you can hear that the user sounds {', '.join(self.descriptors)}]")
+        if self.stressed:
+            parts.append(f"[you can hear them lean on: {', '.join(self.stressed)}]")
+        return " ".join(parts)
 
 
 # Deviation past this many standard deviations is worth mentioning. Lower

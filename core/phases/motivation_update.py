@@ -60,13 +60,12 @@ class MotivationUpdatePhase(Phase):
         social_decay_multiplier = max(0.1, 1.0 - conv_energy) if conv_energy > 0.5 else 1.0
         legacy_metabolism_active = has_runtime_service("will_engine")
 
-        # A surprising world should press harder. The free-energy engine already
-        # computes an action urgency from prediction error and nothing consulted
-        # it here, so the drives ticked at the same rate whether the world was
-        # behaving as modelled or not. The multiplier is the engine's own
-        # reading, bounded by its own scale: urgency runs 0..1, so drives press
-        # between once and twice as fast and never faster.
-        pressure = 1.0 + self._surprise_pressure()
+        # A surprising world should press harder, and harder on an aroused
+        # organism than on a calm one. The drives used to tick at the same rate
+        # whether the world was behaving as modelled or not. The reading runs
+        # 0..1, so drives press between once and twice as fast and never
+        # faster. See `_surprise_pressure`.
+        pressure = 1.0 + self._surprise_pressure(state)
         borrowed_resolve = bool(
             (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
         )
@@ -168,6 +167,16 @@ class MotivationUpdatePhase(Phase):
         # And how unlike her ordinary life the moment is presses on what she
         # meant to go looking for. See `_explored`.
         self._explored(next_state)
+        # And what she meant to do with the person who is here presses harder
+        # as the sitting nears its end. Before `_channelled`, which lifts from
+        # what this leaves. See `_closing`.
+        self._closing(next_state)
+        # And while things get worse and what she does still works, what she
+        # can act on presses harder. See `_persisting`.
+        self._persisting(next_state)
+        # And the force of a pressure she is under goes into what she is doing,
+        # when nothing is actually damaged. See `_channelled`.
+        self._channelled(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -303,6 +312,164 @@ class MotivationUpdatePhase(Phase):
             cognition.pending_initiatives = kept
             logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
         return closed
+
+    @staticmethod
+    def _channelled(state: AuraState) -> int:
+        """Use the force of a pressure rather than only softening it.
+
+        "Judo Flip" names the move: take an opponent's momentum and turn it,
+        instead of meeting it head-on. The research behind it is about stress.
+        People who read the arousal of pressure as a resource perform better
+        under it (Crum, Salovey and Achor 2013; Jamieson and colleagues 2018; a
+        meta-analysis of the trials found d = 0.23). Emotional regulation here
+        could hold, dampen or reappraise a feeling that damage did not back,
+        and every one of those makes it smaller. Nothing used it.
+
+        The force is measured. It is a delivery breakthrough, a feeling more
+        than her own spread above the level she has been holding, whose valence
+        is against her, while nociception reads what damage there is. The share
+        that moves is z / (1 + z), the share the voice already carries a
+        breakthrough by, times how undamaged she is. That share of the distance
+        to one goes onto her most pressing open intention. It is recorded and
+        taken back out on the next turn, so it follows the pressure down, and
+        where damage cannot be read nothing is channelled, because using a
+        feeling as fuel on the assumption that nothing is hurt is exactly the
+        mistake regulation refuses to make. Returns how many intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        affect = getattr(state, "affect", None)
+        if cognition is None or affect is None:
+            return 0
+        share = 0.0
+        z = float(getattr(affect, "delivery_z", 0.0) or 0.0)
+        against = float(getattr(affect, "valence", 0.0) or 0.0) < 0.0
+        if bool(getattr(affect, "breakthrough", False)) and z > 1.0 and against:
+            try:
+                from core.affect.nociception import get_nociception_engine
+
+                damage = max(0.0, min(1.0, float(get_nociception_engine().nociceptive_pressure())))
+                share = (z / (1.0 + z)) * (1.0 - damage)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("no damage reading, so the pressure is not channelled: %s", exc)
+                share = 0.0
+
+        intentions = [
+            item
+            for bucket in ("pending_initiatives", "active_goals")
+            for item in list(getattr(cognition, bucket, None) or [])
+            if isinstance(item, dict)
+        ]
+
+        def base(item: dict) -> float:
+            # Not clamped before the subtraction: `_closing` runs first and can
+            # leave urgency briefly above one until this lift is taken back.
+            urgency = float(item.get("urgency", 0.0) or 0.0)
+            return max(0.0, min(1.0, urgency - float(item.get("pressure_lift", 0.0) or 0.0)))
+
+        pressing = max(intentions, key=base, default=None) if share > 0.0 else None
+        moved = 0
+        for item in intentions:
+            previous = float(item.get("pressure_lift", 0.0) or 0.0)
+            if item is pressing:
+                floor = base(item)
+                lift = share * (1.0 - floor)
+                item["urgency"] = round(floor + lift, 4)
+                item["pressure_lift"] = round(lift, 4)
+                moved += 1
+            elif previous:
+                item["urgency"] = round(base(item), 4)
+                item.pop("pressure_lift", None)
+                moved += 1
+        return moved
+
+    #: Lifts that are recorded on an intention and taken back the next turn,
+    #: in the order they are applied. Each is computed from the urgency with
+    #: every lift taken out and the earlier ones this turn put back, so they
+    #: compose without any of them climbing. `_channelled` applies the last.
+    _LIFTS: tuple[str, ...] = ("window_lift", "decline_lift", "pressure_lift")
+
+    @classmethod
+    def _lift(cls, item: dict, name: str, share: float, applies: bool) -> bool:
+        """Put this turn's lift `name` on an intention, replacing last turn's. True if it moved."""
+        recorded = {lift: float(item.get(lift, 0.0) or 0.0) for lift in cls._LIFTS}
+        urgency = float(item.get("urgency", 0.0) or 0.0)
+        floor = max(0.0, min(1.0, urgency - sum(recorded.values())))
+        earlier = cls._LIFTS[: cls._LIFTS.index(name)]
+        base = floor + sum(recorded[lift] for lift in earlier)
+        previous = recorded[name]
+        lift = share * (1.0 - base) if applies and share > 0.0 else 0.0
+        if lift > 0.0:
+            item[name] = round(lift, 4)
+        else:
+            item.pop(name, None)
+        recorded[name] = lift
+        item["urgency"] = round(floor + sum(recorded.values()), 4)
+        return bool(lift > 0.0 or previous)
+
+    @classmethod
+    def _closing(cls, state: AuraState) -> int:
+        """Press on what she meant to do with the person here, as the sitting nears its end.
+
+        "Sweet Disposition" draws its intensity from time running out, and
+        people who see a stretch of time as nearly over spend more of it on what
+        they value (Kurtz 2008). Her intentions ran at the same urgency whether
+        the person they were for was about to leave or had just arrived.
+
+        The share is the closing window, the chance this sitting ends with the
+        message just sent, read off how her sittings with them have ended (see
+        core/social/closing_window.py). It moves each intention anchored to a
+        user's request that share of the way to one, and nothing else. The lift
+        is recorded and taken back on the next turn. Returns how many
+        intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        if cognition is None:
+            return 0
+        reading = getattr(cognition, "closing_window", None) or {}
+        share = 0.0
+        if isinstance(reading, dict) and reading.get("measured"):
+            try:
+                share = max(0.0, min(1.0, float(reading.get("closing", 0.0) or 0.0)))
+            except (TypeError, ValueError):
+                share = 0.0
+        from core.state.aura_state import _origin_is_user_anchored
+
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for item in list(getattr(cognition, bucket, None) or []):
+                if isinstance(item, dict) and cls._lift(
+                    item, "window_lift", share, _origin_is_user_anchored(item.get("origin"))
+                ):
+                    moved += 1
+        return moved
+
+    @classmethod
+    def _persisting(cls, state: AuraState) -> int:
+        """Keep acting on what is in her hands while things get worse, if acting still works.
+
+        "All Star" answers a world getting worse with getting on with it, and
+        fifty years of learned helplessness say what makes that possible: an
+        animal keeps acting while it detects that its actions have effect
+        (Maier and Seligman 2016). The share is the decline press, decline
+        beyond her own spread times the share of what she tries that works (see
+        core/affect/acting_in_decline.py). Every open intention is hers to act
+        on, so each moves that share of the way to one, recorded and taken back
+        on the next turn. Returns how many intentions moved.
+        """
+        cognition = getattr(state, "cognition", None)
+        affect = getattr(state, "affect", None)
+        if cognition is None:
+            return 0
+        try:
+            share = max(0.0, min(1.0, float(getattr(affect, "decline_press", 0.0) or 0.0)))
+        except (TypeError, ValueError):
+            share = 0.0
+        moved = 0
+        for bucket in ("pending_initiatives", "active_goals"):
+            for item in list(getattr(cognition, bucket, None) or []):
+                if isinstance(item, dict) and cls._lift(item, "decline_lift", share, True):
+                    moved += 1
+        return moved
 
     #: The drives that go looking for what she does not know yet. The other
     #: three keep what she has: her energy, the people she has, her integrity.
@@ -455,13 +622,29 @@ class MotivationUpdatePhase(Phase):
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
             return
 
-    def _surprise_pressure(self) -> float:
+    def _surprise_pressure(self, state: Any = None) -> float:
         """How urgently the world is asking to be acted on. 0.0 when unknown.
 
-        Zero is the honest default: an engine that is not there has not told us
-        the world is calm, so the drives keep their ordinary rate rather than
-        being told to hurry by an absence.
+        The world model's surprise against how surprising its moments usually
+        are, with arousal as the gain (core/affect/arousal_gain.py): a world
+        going worse than its model expects presses harder on an aroused
+        organism, and one going better than expected presses less. What the
+        world model saw and how she feels meet here rather than being added
+        somewhere downstream.
+
+        Without a world model the free-energy engine's action urgency stands
+        in, ungained, as it did before. Zero is the honest default when neither
+        is there: an engine that is not there has not told us the world is
+        calm, so the drives keep their ordinary rate rather than being told to
+        hurry by an absence.
         """
+        world = self._world_surprise_ratio()
+        if world is not None:
+            from core.affect.arousal_gain import gained
+
+            affect = getattr(state, "affect", None)
+            arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
+            return gained(world, arousal, usual=0.5)
         try:
             # Through the registry: this is an observer reading a rate, and
             # `peek` is exactly right for it — a reading must not boot the
@@ -472,6 +655,25 @@ class MotivationUpdatePhase(Phase):
             return max(0.0, min(1.0, float(engine.get_action_urgency())))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _world_surprise_ratio() -> float | None:
+        """The world model's surprise as a share of it plus its usual surprise, or None.
+
+        None rather than zero when there is no reading, so the caller can tell
+        a world behaving exactly as modelled from a world model that is not
+        there. Read through the observer seam, like `_world_surprise`.
+        """
+        try:
+            from core.consciousness.workspace_feed import surprise_ratio
+
+            model = get_runtime_service("unified_world_model", default=None)
+            surprise = model.surprise() if model is not None else None
+            if surprise is None:
+                return None
+            return surprise_ratio(model, surprise)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return None
 
     def _conative_spike(self) -> Optional[dict]:
         """A spontaneous goal only when something is actually interesting.

@@ -1,0 +1,35 @@
+loading /Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15
+checkpoint /Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15
+identity 52d313c2c435d343
+attached 16 hook(s) at layers [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51, 55, 59, 63]
+2026-09-14 14:05:07,167 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+alpha 0.05: shift 0.03903 control 0.03374 separation 1.750 changed 6/8 margin +0.0406 noise-margin +0.0531 -> her direction costs 0.0406 nats of the model's preference for the right answer where a random direction of the same size costs 0.0531; an arbitrary displacement is the cheaper place to move
+alpha 0.1: shift 0.09596 control 0.06553 separation 2.084 changed 7/8 margin +0.0281 noise-margin -0.0875 -> holds
+{
+  "model_identity": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+  "model_name": "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15",
+  "alpha": 0.1,
+  "distribution_shift": 0.09596194350241305,
+  "control_shift": 0.06552591131489174,
+  "state_separation": 2.084127541208044,
+  "prompts_that_change": 7,
+  "median_step_of_change": 15,
+  "quality_delta": 0.0,
+  "control_quality_delta": 0.0,
+  "margin_delta": 0.02812502921383686,
+  "control_margin_delta": -0.08749998841174911,
+  "quality_scale": "forced-choice accuracy over 10 items",
+  "prompts": 8,
+  "steps": 24,
+  "measured_at": 1789420179.3451872,
+  "runner": "tools/measure_fusion_channel.py",
+  "note": "unsteered accuracy 1.000 at margin 6.516, steered 1.000 at 6.544; opposing states move the distribution 0.27028 nats apart while each moves it 0.12969 from silence, their composites at cosine -1.000; 3 random directions of the same length score a median margin of 6.428",
+  "basis_sha256": "8ff000d797006b8f2e401fe2a39941c56462423da1a52fa331b1dec8c6d9b4d7",
+  "measurement_protocol": "owned_layer_matched_v1",
+  "arrives": true,
+  "beats_noise": true,
+  "carries_content": true,
+  "costs_nothing": true,
+  "holds": true,
+  "why_not": ""
+}

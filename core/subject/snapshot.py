@@ -27,8 +27,8 @@ import sqlite3
 import sys
 import types
 from collections import deque
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -237,7 +237,10 @@ _ABSENT = object()
 
 
 def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
-    if organ is None or _guards_its_own_writes(organ):
+    if organ is None:
+        return
+    if _guards_its_own_writes(organ):
+        _restore_guarded(organ, saved)
         return
     seen: set[int] = set()
     for name, value in saved.items():
@@ -245,6 +248,40 @@ def _restore_organ(organ: Any, saved: Mapping[str, Any]) -> None:
             _restore_organ(getattr(organ, name, None), value[1])
             continue
         _put_back(organ, name, value, seen)
+
+
+def _restore_guarded(organ: Any, saved: Mapping[str, Any]) -> None:
+    """Rewind an object that polices its own writes, without asking it to rebind what it protects.
+
+    The mycelial network refuses to have `pathways`, `hyphae` or
+    `_pathway_order` replaced and declares exactly those. Routing learns their
+    contents every turn by design, so they are rewound in place, under the lock
+    its readers take, and what it does not protect is written back the usual
+    way. Left out of the fork entirely, its topology revision went from 33 to 37
+    across one arm and the next arm routed on what the first had learned.
+
+    An object that guards its writes without declaring what it protects is left
+    alone, as before: there is no way to rewind it that respects its guard.
+    """
+    protected = getattr(type(organ), "_AEGIS_PROTECTED_ATTRS", None)
+    if not protected:
+        return
+    lock = getattr(type(organ), "_lock", None)
+    with lock if hasattr(lock, "__enter__") else contextlib.nullcontext():
+        seen: set[int] = set()
+        for name, value in saved.items():
+            if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
+                _restore_organ(getattr(organ, name, None), value[1])
+                continue
+            if name not in protected:
+                _put_back(organ, name, value, seen)
+                continue
+            if not _restore_into(getattr(organ, name, _ABSENT), value, seen):
+                record_degradation(
+                    "subject_snapshot",
+                    RuntimeError(f"{type(organ).__name__}.{name} could not be rewound in place"),
+                    action="left it holding what the arm learned, rather than rebinding a protected container",
+                )
 
 
 def _put_back(owner: Any, name: str, saved: Any, seen: set[int]) -> None:
@@ -1075,11 +1112,11 @@ _UNFORKED_SERVICES: frozenset[str] = frozenset(
         "vault",
         "service_container",
         "file_write_gateway",
-        # The mycelial topology is guarded against rebinding on purpose and is
-        # not per-arm state: it is the wiring the arms both run on. Writing to
-        # it raises, and the guard logs a critical before it does.
-        "mycelium",
-        "mycelial_network",
+        # The mycelial network is not listed. It was, on the reading that its
+        # topology is the wiring both arms run on, but routing learns during a
+        # turn and the fork check found its revision moving between arms. It is
+        # rewound in place by `_restore_guarded`, which never rebinds what its
+        # guard protects.
     }
 )
 
@@ -1148,8 +1185,51 @@ def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
     built = _built_services()
     for name, fields in saved.items():
         instance = built.get(name)
-        if instance is not None:
+        if instance is None:
+            continue
+        if _is_published_value(instance):
+            _republish(name, instance, fields)
+        else:
             _restore_organ(instance, fields)
+
+
+def _is_published_value(instance: Any) -> bool:
+    """A frozen dataclass the container holds: a value published each tick, not an organ.
+
+    `mind_moment`, `aura_now`, `ghost_snapshot` and `continuous_experience_frame`
+    are replaced every tick rather than changed, and a frozen dataclass refuses
+    field writes. The in-place restore skips anything that guards its own
+    writes, so all four came back from a restore holding whatever the arm had
+    published last, and the fork check found them there.
+    """
+    params = getattr(type(instance), "__dataclass_params__", None)
+    return bool(is_dataclass(instance) and params is not None and params.frozen)
+
+
+def _republish(name: str, current: Any, saved: Mapping[str, Any]) -> None:
+    """Publish the saved value under its name again, as a new object.
+
+    The object the arm published is left alone: anything else holding it holds
+    a value, and a value is rewound by replacing it, not by writing into it.
+    """
+    rebuilt = copy.copy(current)
+    for field_name, value in saved.items():
+        if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
+            _restore_organ(getattr(rebuilt, field_name, None), value[1])
+            continue
+        # A new object nothing else holds yet, so its frozen guard has no one
+        # to protect.
+        object.__setattr__(rebuilt, field_name, _place(value))
+    try:
+        from core.container import ServiceContainer
+
+        ServiceContainer.set(name, rebuilt, required=False)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "subject_snapshot",
+            exc,
+            action=f"left {name} holding the value the arm published",
+        )
 
 
 def _effort_state() -> dict[str, float] | None:
@@ -1381,6 +1461,56 @@ def _module_state(
     return out
 
 
+def _empty_module_slots(keys: Iterable[str] | None = None) -> frozenset[str]:
+    """Private module globals holding None: a singleton that has not been made yet.
+
+    The fork carries what the organism keeps at module scope by what it holds,
+    and an empty slot holds nothing, so it was not carried. A ledger or engine
+    made on first use inside an arm was then still there when the next arm
+    began, with the first arm's history in it. The frisson ledger and the
+    scientific engine's cache did that whenever an earlier test had emptied
+    their slots. Recording the empty slots is what lets a restore empty them
+    again. Only names with one leading underscore are read, the convention
+    every such slot here follows, so a public name set to None is not taken
+    for one.
+
+    With `keys`, only those are checked, which is how a calibrated fork avoids
+    scanning every module on every snapshot.
+    """
+    if keys is not None:
+        return frozenset(key for key in keys if _held(key) is None)
+    out: set[str] = set()
+    for module_name, module in sorted(sys.modules.items()):
+        if module is None or not _in_packages(module_name, _ORGANISM_PACKAGES):
+            continue
+        if _in_packages(module_name, _MACHINERY_PACKAGES):
+            continue
+        for name, value in list(vars(module).items()):
+            if value is None and name.startswith("_") and not name.startswith("__"):
+                out.add(f"{module_name}:{name}")
+    return frozenset(out)
+
+
+def _empty_again(keys: Iterable[str]) -> list[str]:
+    """Put None back in each slot an arm filled with something the organism keeps.
+
+    A module imported into the slot, a function or a lock is wiring rather
+    than state, and it is left where it is. Returns the keys emptied.
+    """
+    emptied: list[str] = []
+    for key in keys:
+        module_name, _, name = key.partition(":")
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        current = vars(module).get(name, _ABSENT)
+        if current is _ABSENT or current is None or not _is_held_state(current):
+            continue
+        setattr(module, name, None)
+        emptied.append(key)
+    return emptied
+
+
 def _restore_module_state(saved: Mapping[str, tuple[Any, Any]] | None) -> None:
     if not saved:
         return
@@ -1560,6 +1690,104 @@ def _delegate_to_the_real_observer() -> None:
 _delegate_to_the_real_observer()
 
 
+#: The thermal module's own thresholds for calling a temperature serious and
+#: critical (core/runtime/thermal.py), so a declared temperature reads as the
+#: level a host at that temperature would report.
+_SERIOUS_C = 78.0
+_CRITICAL_C = 90.0
+
+
+class _DeclaredHost(_HeldObserver):
+    """The host a run declares, standing in for the machine for the whole run.
+
+    Each turn's condition prepares a host reading and the recorded body keeps
+    it. The organs that guard against load did not read the body: they asked
+    the process-wide observer, which answered from the real machine. When
+    another campaign loaded the machine during the seed-7 run, proprioception's
+    reflex dropped metabolic load and inhibited world decay on 241 turns,
+    homeostasis throttled cognitive depth on 280, and the defensive resource
+    monitor, sampling from its own thread between turns, pushed the emergency
+    protocol into minimal mode. The recorded body read the prepared host
+    throughout, so none of it could be explained from the recording.
+
+    Installed once for the run and told each turn's prepared reading, this
+    answers compute, memory and thermal from that reading to every reader, in
+    any thread and between turns. Every other question, processes,
+    connections, open files, disk and power, goes to the real observer,
+    because those are the harness's bookkeeping and nothing she feels.
+    """
+
+    def __init__(self, inner: Any, host: dict[str, float]) -> None:
+        super().__init__(inner)
+        import threading
+
+        self._declared_lock = threading.Lock()
+        self.declare(host)
+
+    def declare(self, host: dict[str, float]) -> None:
+        """Make this reading the host until the next one."""
+        inner = self._inner
+        from core.runtime.resource_observation import (
+            ComputeObservation,
+            MemoryObservation,
+            ObservationProvenance,
+            ObservationSource,
+            ThermalObservation,
+        )
+
+        provenance = ObservationProvenance(
+            source=ObservationSource.SIMULATED,
+            scenario_id="subject-core-declared-host",
+            observer="core.subject.snapshot._DeclaredHost",
+        )
+        real_compute = inner.compute()
+        real_memory = inner.memory(include_process_tree=False)
+        cpu = max(0.0, min(100.0, float(host.get("cpu_usage", 0.0) or 0.0)))
+        cores = max(1, int(getattr(real_compute, "cpu_count", 1) or 1))
+        load = cpu / 100.0 * cores
+        compute = ComputeObservation(
+            provenance=provenance,
+            cpu_percent=cpu,
+            cpu_count=cores,
+            load_1m=load,
+            load_5m=load,
+            load_15m=load,
+            boot_time=float(getattr(real_compute, "boot_time", 0.0) or 0.0),
+        )
+        percent = float(host.get("ram_usage") or host.get("vram_usage") or 0.0)
+        percent = max(0.0, min(100.0, percent))
+        total = int(getattr(real_memory, "total_bytes", 0) or 0)
+        available = int(total * (1.0 - percent / 100.0))
+        memory = MemoryObservation(
+            provenance=provenance,
+            total_bytes=total,
+            available_bytes=available,
+            used_bytes=total - available,
+            free_bytes=available,
+            active_bytes=total - available,
+            percent=percent,
+            process_rss_bytes=int(getattr(real_memory, "process_rss_bytes", 0) or 0),
+            process_tree_rss_bytes=int(getattr(real_memory, "process_tree_rss_bytes", 0) or 0),
+        )
+        temperature = float(host.get("temperature", 0.0) or 0.0)
+        level = 3 if temperature >= _CRITICAL_C else 2 if temperature >= _SERIOUS_C else 0
+        thermal = ThermalObservation(provenance=provenance, level=level, provider="declared")
+        with self._declared_lock:
+            self._compute, self._memory, self._thermal = compute, memory, thermal
+
+    def compute(self) -> Any:
+        with self._declared_lock:
+            return self._compute
+
+    def memory(self, *args: Any, **kwargs: Any) -> Any:
+        with self._declared_lock:
+            return self._memory
+
+    def thermal(self, *args: Any, **kwargs: Any) -> Any:
+        with self._declared_lock:
+            return self._thermal
+
+
 @dataclass
 class Snapshot:
     """Everything a fork has to carry for two arms to start from one place."""
@@ -1585,6 +1813,9 @@ class Snapshot:
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
     intentions: dict[str, Any] | None = None
+    #: Private module slots that were empty when the snapshot was taken, so a
+    #: restore can empty again whatever an arm made in them.
+    empty_module_slots: frozenset[str] = frozenset()
     #: The harness's frame count. Which free-running layers step on a given
     #: frame is a function of this number, so two arms that do not start from
     #: the same one are not running the same organism.

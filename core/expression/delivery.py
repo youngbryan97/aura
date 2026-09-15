@@ -14,10 +14,10 @@ Maze": pitch locked at 80 Hz and level locked at -9.0 dB for four straight
 minutes while he lists the things he wants that cancel each other, then one
 line an octave up and 16 dB quieter at the end. The flatness is the maze.
 
-Phony Ppl put the direction on it. In "Why iii Love the Moon" the grievance —
-"unlike these human beings who lie about what it seems to be" — is sung at
-322 Hz, and the attachment — "every night I block my window, and that's why I
-love the moon" — at 93 Hz. Same singer, same song, one minute apart. The
+Phony Ppl put the direction on it. In "Why iii Love the Moon" the grievance,
+a line about people lying about how things are, is sung at 322 Hz, and the
+attachment, a line about shutting the window at night and loving the moon for
+it, at 93 Hz. Same singer, same song, one minute apart. The
 register is not carrying how strong the feeling is. It is carrying what the
 feeling is about.
 

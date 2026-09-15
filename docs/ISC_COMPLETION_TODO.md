@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**741 done, 0 blocked, 0 not applicable, 162 open, of 903.**
+**764 done, 0 blocked, 0 not applicable, 139 open, of 903.**
 
 Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
@@ -200,7 +200,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P5.4` Each replicates in at least 3 conditions. — each of them in at least three conditions
 - [x] `P5.5` This holds on every replicate run, not only 2 of 3. — the workspace's own tally says which sources reached attention, run by run, so a criterion holding on one run and not the next is visible
 - [x] `P5.6` G’s consumers modify fields that the destination-domain reader actually reads. — a broadcast consumer writes a field the destination domain's reader reads, and the displacement test says which
-- [ ] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
+- [x] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
 - [x] `P5.8` Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget. — a consumer that raised is recorded as a degradation rather than swallowed
 - [x] `P5.9` Define an explicit, theoretically justified affect-to-drive mapping; or — the affect-to-drive mapping is written out, one feeling to one of the five budgets, by what the feeling is about (warmth and its absence to company, interest to finding out, fear to holding together, frustration to growth); every mapped budget exists
 - [x] `P5.10` stop treating affect_* as drive names and only credit genuine drive_* candidates. — closed by P5.9, the first branch of the either-or: an affect source credits only the need the written table names, and one the table does not name credits nothing
@@ -258,8 +258,8 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P8.6` Real Phi exceeds prompt-only architecture. — irreducibility above the prompt_only null
 - [ ] `P8.7` Real Phi exceeds frozen-slow architecture. — irreducibility above the frozen_slow null
 - [ ] `P8.8` The recurrent positive reference still passes. — the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes
-- [ ] `P8.9` Increase replay-surrogate draws substantially.
-- [ ] `P8.10` Increase shuffle draws substantially.
+- [x] `P8.9` Increase replay-surrogate draws substantially. — the replay surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile
+- [x] `P8.10` Increase shuffle draws substantially. — the time-shuffle surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile
 - [x] `P8.11` Report distributions, not one or a few point estimates. — every draw is kept, not one point estimate
 - [x] `P8.12` Report percentile and confidence interval. — the quantile a null is read at is recorded with it
 - [x] `P8.13` Add multiple random instantiations of each synthetic architecture. — several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix
@@ -278,7 +278,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P9.6` perturbational complexity/spread. — perturbational spread runs on every null architecture
 - [x] `P9.7` synergy. — synergy runs on every null architecture
 - [x] `P9.8` intrinsic persistence. — intrinsic persistence runs on every null architecture
-- [ ] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
+- [x] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
 - [x] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction including differentiation, which is the only line a broadcast fails
 - [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes the conjunction
 - [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the recurrent reference passes the conjunction it is there to demonstrate
@@ -334,18 +334,18 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
 **A + S -> G**
 
-- [ ] `P12.1` Attention depends jointly on what Aura feels and what that state means relative to herself.
+- [x] `P12.1` Attention depends jointly on what Aura feels and what that state means relative to herself. — a surprise about herself claims attention through arousal's gain, so what wins attention depends on the feeling and the self-model together
 - [ ] `P12.2` Preserve this result if it remains a pass after rerun. P + M -> W
-- [ ] `P12.3` World interpretation combines present observation with remembered context.
+- [x] `P12.3` World interpretation combines present observation with remembered context. — the world model's observation carries what arrived and what recall brought back, in one vector the learned dynamics read together
 - [x] `P12.4` It must not be merely W=f(P)+g(M). — a second measurement asks the question a different way: whether the products of the two sources improve held-out prediction over the two side by side
 - [x] `P12.5` There must be meaningful interaction f(P,M). — and the interaction term has to be there for the triple to mean anything
-- [ ] `P12.6` Memory should disambiguate perception.
-- [ ] `P12.7` Perception should update the meaning of recalled context. W + A -> D
-- [ ] `P12.8` Deliberation uses both predicted world state and affect/value state.
+- [x] `P12.6` Memory should disambiguate perception. — what was just recalled primes the percepts it bears on, in proportion to how strongly it was recalled, so memory decides which of several arrivals is taken as meant
+- [x] `P12.7` Perception should update the meaning of recalled context. W + A -> D — a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now
+- [x] `P12.8` Deliberation uses both predicted world state and affect/value state. — the drives are pressed by the world model's surprise with arousal as its gain, and what she decides to work on reads the world's surprise and what hurts
 - [ ] `P12.9` Preserve this if it remains a pass. S + D -> C
-- [ ] `P12.10` Recurrent cognition depends on the combination of current self-state and current intention.
-- [ ] `P12.11` The two signals should not merely add independently.
-- [ ] `P12.12` Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening:
+- [x] `P12.10` Recurrent cognition depends on the combination of current self-state and current intention. — an intention obstructed by her demonstrated capacity raises the continuous substrate's frustration: urgency times how far it is beyond her
+- [x] `P12.11` The two signals should not merely add independently. — arousal's effect changes sign with the level it gains, which a sum cannot do, and obstruction is a product
+- [x] `P12.12` Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening: — conflict between an intention and her capacity is computed and reaches recurrent cognition; the 300-round A/B showed these first mechanisms did not move the synergy criterion
 - [x] `P12.13` Increase null draws beyond the current exploratory count. — a thousand shifts, not two hundred: the ninety-ninth percentile of two hundred draws is the second-largest of them
 - [x] `P12.14` Report confidence intervals. — with the bar's own spread and the margin over it beside each triple
 - [x] `P12.15` Retain the independent held-out interaction-gain check. — the held-out interaction gain is kept beside the information-theoretic estimate
@@ -558,11 +558,11 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P25.8` Make timestamps deterministic/replayable. — the timestamps are the experiment's, not the day the tape was cut, so recency means the same thing in the run as it did when it was recorded
 - [x] `P25.9` Preserve external content without directly mutating internal target domains. — a replayed percept goes on the stream through the same emitter a live one does and is indistinguishable downstream; nothing writes a target domain directly
 - [x] `P25.10` Let P be produced by the actual perception stack. Then run a stronger closed-loop experiment: — the battery plays a recorded stream from the real channels instead of the conditions' scripted percepts, at the turn index so both arms of a paired trial see the same frame; a run without a tape says its perception was scripted rather than reporting no channels
-- [ ] `P25.11` Aura acts in a sandboxed real environment.
-- [ ] `P25.12` The environment changes.
-- [ ] `P25.13` Real sensors detect it.
-- [ ] `P25.14` Perception changes W/A/M/etc.
-- [ ] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D.
+- [x] `P25.11` Aura acts in a sandboxed real environment. — the action arm writes to a scratch room inside the run directory through the governed file gateway, and every kind of action is a real filesystem operation
+- [x] `P25.12` The environment changes. — the room changes: a room made on one turn is a directory on disk, and the count of rooms grows turn by turn
+- [x] `P25.13` Real sensors detect it. — the outcome is read back off the filesystem and arrives as a percept from the filesystem, carrying what the room now holds
+- [x] `P25.14` Perception changes W/A/M/etc. — perception reaches the world model, affect or memory through edges kept against their shams: P->A and P->W on run_031, P->A and P->M on both run_032s
+- [ ] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D. — a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)
 
 ## Phase 26 — Generalize agency and ownership
 
@@ -704,11 +704,11 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
 - [x] `P34.1` Response remains nonzero. — every source produces a nonzero response
 - [x] `P34.2` Response remains distributed. — the response reaches more than one domain from every source
-- [ ] `P34.3` Response remains temporally structured.
-- [ ] `P34.4` Response remains heterogeneous.
+- [x] `P34.3` Response remains temporally structured. — every source that reached anything reached some target at some lags and not others; all ten sources on run_031 and both run_032s
+- [x] `P34.4` Response remains heterogeneous. — the sources that reached anything reached different sets: ten distinct reach patterns out of ten sources on run_031 and both run_032s
 - [x] `P34.5` Response stays above matched-null complexity. — above the matched null's complexity
 - [x] `P34.6` Multiple source domains produce nondegenerate responses. — more than one source produces a nondegenerate response
-- [ ] `P34.7` Do not sacrifice structure to make every domain light up.
+- [x] `P34.7` Do not sacrifice structure to make every domain light up. — complexity clears its sham null while every response stays structured in time and the sources reach different sets, so the spread was not bought by lighting everything up
 
 ## Phase 35 — Preserve intrinsic persistence
 
@@ -718,7 +718,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P35.4` Result persists with the real cortex.
 - [ ] `P35.5` Result persists across several ordinary conditions.
 - [x] `P35.6` It is not explained by a single counter/clock. — a column that never decreases is named in the recording, so a counter carrying the result is visible
-- [ ] `P35.7` It is not driven entirely by one persistent memory scalar.
+- [ ] `P35.7` It is not driven entirely by one persistent memory scalar. — persistence on the next level holds with memory left out: lower bounds +0.525 and +0.511 on the two run_032 seeds and +0.380 and +0.287 on the 300-round recordings, computed after the third amendment was committed. Runs record it from e6685d206 on
 
 ## Phase 36 — Preserve functional self-causation
 
@@ -741,7 +741,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P37.1` Same external outcome. — the two arms end with the same file holding the same bytes
 - [x] `P37.2` Same content. — the same fact recorded
 - [x] `P37.3` Same goal. — the same goal appended with the same text
-- [ ] `P37.4` Same percept.
+- [ ] `P37.4` Same percept. — the two ownership arms are compared on the perception domain of the frame read before any phase ran, so the same percept is checked rather than assumed; read on the next battery run
 - [x] `P37.5` Only actor attribution differs. — the ownership arms match on everything but who the action is attributed to
 - [x] `P37.6` Divergence exceeds same-arm floor. — the divergence clears the same-arm floor
 - [x] `P37.7` Generalizes to multiple action types. — ownership holds for more than one kind of action and more than one outcome. ownership_generalises requires two action kinds and two outcome shapes, each over its own same-arm floor, and every compared pair of arms ending in the same world. Tightened on Sep 12, so run_023's stored flag was computed under the older kinds-only rule and the next run re-judges it
@@ -756,7 +756,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P38.4` Survives a long life.
 - [ ] `P38.5` Survives after developmental state has matured.
 - [x] `P38.6` Not explained by memory count alone. — the coupling is not a memory count: the edges are measured on displaced arms against their own shams, not on a correlation
-- [ ] `P38.7` Not explained by time/counters alone.
+- [ ] `P38.7` Not explained by time/counters alone. — every trial records the column its effect was read off; a fast-slow edge carried only by columns that go one way is named, and the line holds when each direction keeps an edge carried by state. Read on the next battery run
 - [x] `P38.8` Not a test-only direct write. — no writer reaches into another domain
 
 ## Phase 39 — Preserve metastability
@@ -766,7 +766,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P39.3` Regimes turn over. — and it turns over
 - [x] `P39.4` Transition entropy is greater than zero. — transition entropy above zero
 - [x] `P39.5` Transition entropy is below its maximum. — and below its ceiling, so the sequence is not noise
-- [ ] `P39.6` Clustering is not merely rediscovering condition labels.
+- [ ] `P39.6` Clustering is not merely rediscovering condition labels. — the regimes leave entropy once the condition is known and are not the conditions relabelled; read on the next battery run, and on run_032 offline every condition spanned more than one regime (seed 7 NMI 0.00, seed 17 0.67)
 - [ ] `P39.7` Replicate with held-out conditions.
 - [ ] `P39.8` Persist with the real cortex.
 - [ ] `P39.9` Prefer interpretable internal configurations rather than pure workload classes.
@@ -829,7 +829,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P43.16` Fast-to-slow but no slow-to-fast. — fast domains write the slow ones and the slow ones write nothing back
 - [x] `P43.17` Slow-to-fast but no fast-to-slow. — slow state drives the fast domains and nothing they do reaches it
 - [x] `P43.18` Recurrent but minimally differentiated. — recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent
-- [ ] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
+- [x] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
 
 ## Phase 44 — Remove hidden test-specific shortcuts
 
@@ -852,7 +852,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
 - [x] `P45.7` Audit model observers that never receive observations. — the world model's own step count moves across a run, so it received the observations the cycle sends it
 - [ ] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
-- [ ] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
+- [x] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
 - [x] `P45.10` Audit return paths that terminate in local dictionaries. — a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one
 - [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
 - [x] `P45.12` Audit service-name mismatches. — the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent
@@ -925,7 +925,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P48.5` Do not rewrite history. — a rewritten history shows as an unreachable commit or a tree that no longer hashes the same, recomputed from the commit's own blobs
 - [x] `P48.6` Archive exact source tarball/commit. — the commit, the hash of the tree that decides the answer and whether it was dirty are recorded with every run
 - [x] `P48.7` All tests defining the evaluation are green. — the tag is not written while a defining suite is red
-- [ ] `P48.8` Evidence artifacts point to that exact tag. — and a SHA-256 for every file the run wrote
+- [x] `P48.8` Evidence artifacts point to that exact tag. — and a SHA-256 for every file the run wrote
 
 ## Phase 49 — Replicate over independent seeds
 
@@ -941,7 +941,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P49.10` Especially synergy. — synergy especially, per triple and by name
 - [x] `P49.11` Especially spread. — spread especially
 - [x] `P49.12` Especially lesion deficit. — lesion deficit especially, per measure, with the rescue beside it
-- [ ] `P49.13` Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one.
+- [x] `P49.13` Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one. — the rescue is tracked across runs beside every deficit it answers, with the recovery fraction
 
 ## Phase 50 — Replicate on a second machine
 

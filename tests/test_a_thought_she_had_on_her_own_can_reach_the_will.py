@@ -113,6 +113,68 @@ def test_a_thought_arriving_in_the_bus_envelope_reaches_the_router(monkeypatch) 
     assert router.calls == [("volition_engine", "Goal: search tide tables")]
 
 
+class _QuietBus:
+    """A bus with nothing on the topic, recording who leaves it."""
+
+    def __init__(self) -> None:
+        self.subscribed: list[asyncio.Queue] = []
+        self.unsubscribed: list[asyncio.Queue] = []
+
+    async def subscribe(self, topic: str) -> asyncio.Queue:
+        queue: asyncio.Queue = asyncio.Queue()
+        self.subscribed.append(queue)
+        return queue
+
+    async def unsubscribe(self, topic: str, queue: asyncio.Queue) -> None:
+        self.unsubscribed.append(queue)
+
+
+def test_a_stopped_listener_leaves_the_bus(monkeypatch) -> None:
+    """Every start subscribed a queue and nothing ever released one."""
+    import core.event_bus as event_bus
+
+    bus = _QuietBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: bus)
+
+    async def run() -> None:
+        listener = ThoughtRouter(router=_Router())
+        await listener.start()
+        for _ in range(200):
+            if bus.subscribed:
+                break
+            await asyncio.sleep(0)
+        await listener.stop()
+
+    asyncio.run(run())
+    assert bus.subscribed and bus.unsubscribed == bus.subscribed
+
+
+def test_a_listener_whose_cancellation_never_lands_still_leaves_on_its_next_wake(monkeypatch) -> None:
+    """The wait is bounded, so a stopped loop notices on the idle poll rather than never."""
+    import core.event_bus as event_bus
+    from core.runtime.reconcile import IDLE_POLL_S
+
+    bus = _QuietBus()
+    monkeypatch.setattr(event_bus, "get_event_bus", lambda: bus)
+
+    async def run() -> None:
+        listener = ThoughtRouter(router=_Router())
+        await listener.start()
+        task = listener._task
+        assert task is not None
+        for _ in range(200):
+            if bus.subscribed:
+                break
+            await asyncio.sleep(0)
+        # What stop does, less the cancel.
+        listener._generation += 1
+        await asyncio.wait_for(task, timeout=IDLE_POLL_S * 3)
+        assert task.done() and not task.cancelled()
+
+    asyncio.run(run())
+    assert bus.unsubscribed == bus.subscribed
+
+
 def test_the_activator_does_not_start_a_foreground_only_runtime() -> None:
     from core.agency.thought_to_action import activate_thought_router
 

@@ -204,10 +204,9 @@ class FusionCertificate:
             )
         if not self.beats_noise:
             return (
-                f"her direction costs {abs(self.margin_delta):.4f} nats of the model's "
-                f"preference for the right answer where a random direction of the same "
-                f"size costs {abs(self.control_margin_delta):.4f}; an arbitrary "
-                "displacement is the cheaper place to move"
+                f"her direction changes the right-answer margin by {self.margin_delta:+.4f} "
+                f"nats versus {self.control_margin_delta:+.4f} for a same-size random "
+                "direction; the arbitrary displacement has the better measured margin"
             )
         if not self.carries_content:
             return (

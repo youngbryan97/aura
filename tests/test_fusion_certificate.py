@@ -88,6 +88,15 @@ def test_a_direction_worse_than_an_arbitrary_one_refuses_it():
     assert "arbitrary displacement" in certificate.why_not()
 
 
+@pytest.mark.parametrize("treatment,control", [(-0.05, -0.01), (0.0406, 0.0531), (-0.01, 0.02)])
+def test_margin_diagnostic_preserves_improvement_and_regression_signs(treatment, control):
+    certificate = _certificate(margin_delta=treatment, control_margin_delta=control)
+    assert not certificate.beats_noise and not certificate.holds
+    assert f"{treatment:+.4f}" in certificate.why_not()
+    assert f"{control:+.4f}" in certificate.why_not()
+    assert "costs" not in certificate.why_not()
+
+
 def test_a_channel_that_carries_no_state_refuses_it():
     """A constant offset moves the model. It does not carry what she feels."""
     certificate = _certificate(state_separation=MIN_STATE_SEPARATION / 2)

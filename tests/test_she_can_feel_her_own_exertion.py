@@ -12,8 +12,8 @@ from __future__ import annotations
 import pytest
 
 from core.soma.effort import (
-    EffortLedger,
     UNIT_COST,
+    EffortLedger,
     get_effort_ledger,
     note_effort,
     reset_effort_for_test,
@@ -43,9 +43,16 @@ def test_lifetime_keeps_what_the_drain_took() -> None:
 
 
 def test_exertion_adds_ratios_not_counts() -> None:
-    """A hundred characters and a hundred steps are not the same work."""
+    """A hundred characters and a hundred steps are not the same work.
+
+    One unit of every kind is an unremarkable turn, and an unremarkable turn
+    reads half, so the reading can move either way from it. This asserted the
+    old ceiling of 1.0 after `exertion` stopped pinning an ordinary turn there.
+    """
     one_unit_each = {kind: cost for kind, cost in UNIT_COST.items()}
-    assert EffortLedger.exertion(one_unit_each) == pytest.approx(1.0)
+    assert EffortLedger.exertion(one_unit_each) == pytest.approx(0.5)
+    twice = {kind: 2 * cost for kind, cost in UNIT_COST.items()}
+    assert EffortLedger.exertion(twice) > EffortLedger.exertion(one_unit_each)
     assert EffortLedger.exertion({}) == 0.0
     assert 0.0 < EffortLedger.exertion({"recall": UNIT_COST["recall"]}) < 1.0
 

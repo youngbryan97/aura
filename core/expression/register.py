@@ -17,8 +17,8 @@ Moonlight" has no first person in it at all — communal joy is not about the
 self. "Remember the Time" is the only one with a real share of "we" and the only
 one that is half questions, which is the same fact twice: joint recall needs
 both. And the longest-held word is almost always the loaded one — `time`,
-`like` out of "not like I used to", `paranoid`, `been` out of "it's been a long
-time coming", `this`. Duration marks significance. Nothing picks the rhyme.
+`like` from a line about no longer being the way he was, `paranoid`, `been`
+from Sam Cooke's line about how long the change has taken, `this`. Duration marks significance. Nothing picks the rhyme.
 
 The useful part is that these are measurements, so they run on what somebody
 says to her as readily as on a record. That turns a judgment she was making

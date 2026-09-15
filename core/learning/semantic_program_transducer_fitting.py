@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from core.verify.invariants import invariant
+
 from core.learning.semantic_definition_candidates import (
     _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
     _LOCAL_DEFINITION_CANDIDATE_STRATEGY as _LOCAL_DEFINITION_CANDIDATE_STRATEGY,
@@ -490,13 +492,14 @@ def _operation_nodes(
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
     label_limit: int = 1,
+    complete_inventory: bool = False,
 ) -> tuple[_OperationNode, ...]:
     if type(label_limit) is not int or not 1 <= label_limit <= len(classifier.labels):
         raise ValueError("operation label limit is outside the learned vocabulary")
     nodes: list[_OperationNode] = []
     for span, pointer_score in pointer.decode_candidates(
         hidden,
-        limit=_OPERATION_CANDIDATES,
+        limit=max(1, hidden.shape[0] * max_span_tokens) if complete_inventory else _OPERATION_CANDIDATES,
         max_span_tokens=max_span_tokens,
     ):
         if any(_overlap(span, input_span) for input_span in input_spans):
@@ -780,14 +783,22 @@ def _argument_proposal_rows(
     hidden_channel_widths: Sequence[int],
     include_semantic_negatives: bool = False,
     preserve_coreferent_mentions: bool = False,
+    full_runtime_mentions: bool = False,
+    fixed_pointer_scores: list[float] | None = None,
+    pointer_scale: float = 0.0,
+    factorized_features: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    from core.learning.semantic_relation_tissue import DirectionalFeatureRows
+
     features: list[np.ndarray] = []
+    factorized = DirectionalFeatureRows() if factorized_features else None
     labels: list[int] = []
     weights: list[float] = []
     geometry_counts = Counter(_geometry(item) for item in examples)
     positive_rows = 0
     negative_rows = 0
     for item in examples:
+        reference_vectors = {}
         pointer_scores = argument_pointer.score_sequence(item.hidden_states)
         nodes = tuple(
             _OperationNode(instruction.operation_span, instruction.op, 0.0, 0.0, 1.0)
@@ -814,7 +825,9 @@ def _argument_proposal_rows(
                 for span, _score in candidates
                 if span != positive
                 and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
-            )[:_POINTER_HARD_NEGATIVES]
+            )
+            if not full_runtime_mentions:
+                negatives = negatives[:_POINTER_HARD_NEGATIVES]
             if include_semantic_negatives:
                 negatives = tuple(dict.fromkeys((
                     *negatives,
@@ -826,33 +839,41 @@ def _argument_proposal_rows(
                 aliases = _argument_identity_spans(item, instruction.args[position])
                 negatives = tuple(span for span in negatives if span not in aliases)
             spans = (positive, *negatives)
+            if fixed_pointer_scores is not None:
+                fixed_pointer_scores.extend(
+                    pointer_scale * _log_sigmoid(pointer_scores.score_span(span))
+                    for span in spans
+                )
             operation = _relation_span_vector(
                 item.hidden_states,
                 instruction.operation_span,
                 hidden_channels=hidden_channels,
                 hidden_channel_widths=hidden_channel_widths,
             )
-            features.extend(
-                _directional_relation_feature(
-                    _relation_span_vector(
+            for span in spans:
+                reference = reference_vectors.get(span) if factorized is not None else None
+                if reference is None:
+                    reference = _relation_span_vector(
                         item.hidden_states,
                         span,
                         hidden_channels=hidden_channels,
                         hidden_channel_widths=hidden_channel_widths,
-                    ),
-                    operation,
-                )
-                for span in spans
-            )
+                    )
+                    if factorized is not None:
+                        reference_vectors[span] = reference
+                if factorized is not None:
+                    factorized.append(reference, operation)
+                else:
+                    features.append(_directional_relation_feature(reference, operation))
             labels.extend((1, *(0 for _ in negatives)))
             decision_weight = 1.0 / geometry_counts[_geometry(item)] / len(spans)
             weights.extend([decision_weight] * len(spans))
             positive_rows += 1
             negative_rows += len(negatives)
-    if not features:
+    if not features and (factorized is None or factorized.shape[0] == 0):
         raise ValueError(f"compositional argument proposal slot has no support: {position}")
     return (
-        np.stack(features),
+        factorized if factorized is not None else np.stack(features),
         np.asarray(labels, dtype=np.int8),
         _normalized_weights(weights),
         positive_rows,
@@ -1178,13 +1199,64 @@ def _definition_relation_score_banks(
     return combined, base
 
 
-def _retained_argument_mentions(candidates, *, literal_anchor=None):
-    """Preserve exact public identity alongside the learned mention shortlist."""
+def _retained_argument_mentions(candidates, *, literal_anchor=None, overlap_complete=False):
+    """Prune within one slot/register/definition, preserving declared semantics."""
+    if overlap_complete:
+        # A better subset occupies fewer tokens with the same binding. Any
+        # assignment using the dominated span can substitute that subset.
+        ranked = sorted(candidates, key=lambda item: (
+            -item[0], item[1].end - item[1].start, item[1].start, item[1].end,
+        ))
+        selected = []
+        for score, span in ranked:
+            if not math.isfinite(score):
+                raise ValueError("nonfinite argument mention score")
+            if any(other_score >= score and span.start <= other.start and other.end <= span.end
+                   for other_score, other in selected):
+                continue
+            selected.append((score, span))
+        return selected
     ranked = sorted(candidates, key=lambda item: (-item[0], item[1].start, item[1].end))
     selected = ranked[:_ARGUMENT_MENTIONS_PER_DEFINITION]
     if literal_anchor is not None and all(span != literal_anchor for _score, span in selected):
         selected.extend(item for item in ranked if item[1] == literal_anchor)
     return selected
+
+
+@invariant(
+    "semantic.mention_pruning_preserves_feasible_replacement", scope="semantic_program",
+    owner="core/learning/semantic_program_transducer_fitting.py", observational=False,
+)
+def _mention_pruning_preserves_feasible_replacement() -> tuple:
+    candidates = [(8., TokenSpan(0, 4)), (8., TokenSpan(1, 2)),
+                  (9., TokenSpan(0, 5)), (1., TokenSpan(6, 7))]
+    selected = _retained_argument_mentions(candidates, overlap_complete=True)
+    for score, span in candidates:
+        assert any(value >= score and span.start <= other.start and other.end <= span.end
+                   for value, other in selected)
+    assert candidates[-1] in selected
+    return ("Every discarded mention has a no-worse subset with the same binding.",)
+
+
+def _argument_span_respects_literals(span: TokenSpan, literals: Sequence[TokenSpan]) -> bool:
+    """A reference may contain a literal, but cannot split its parsed atom."""
+    return all(
+        not _overlap(span, literal)
+        or (span.start <= literal.start and span.end >= literal.end)
+        for literal in literals
+    )
+
+
+@invariant("semantic.argument_literal_boundaries", scope="semantic_program",
+           owner="core/learning/semantic_program_transducer_fitting.py", observational=False)
+def _argument_literal_boundaries() -> tuple:
+    literal = TokenSpan(2, 5)
+    for start in range(7):
+        for end in range(start + 1, 8):
+            span = TokenSpan(start, end)
+            if _argument_span_respects_literals(span, (literal,)):
+                assert end <= 2 or start >= 5 or (start <= 2 and end >= 5)
+    return ("Argument references do not split parsed literal atoms.",)
 
 
 def _assign_typed_arguments(
@@ -1198,7 +1270,11 @@ def _assign_typed_arguments(
     chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
     minimum_score: float | None = None,
     relation_score_cache: dict | None = None,
+    retain_score_factors: bool = False,
+    build_only: bool = False,
 ) -> _TypedArgumentAssignment | None:
+    if build_only and (chart_observer is None or model.training_receipt.get("argument_search_strategy") != "global_constraint_v1"):
+        raise ValueError("chart construction needs a global chart observer")
     if (
         len(operation_nodes) > 1
         and not model.allow_computed_dependencies
@@ -1212,6 +1288,12 @@ def _assign_typed_arguments(
         max_span_tokens=model.max_span_tokens,
         clause_local=model.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
     )
+    if model.training_receipt.get("argument_literal_boundaries") == "atomic_v1":
+        proposals_by_operation = tuple(
+            tuple((span, score) for span, score in proposals
+                  if _argument_span_respects_literals(span, input_spans))
+            for proposals in proposals_by_operation
+        )
     operation_types: list[tuple[tuple[str, ...], str]] = []
     for node in operation_nodes:
         signature = semantic_primitive_type_signature(node.operation)
@@ -1316,6 +1398,7 @@ def _assign_typed_arguments(
     global_constraint = strategy == "global_constraint_v1"
     chart_options = []
     chart_definition_options = []
+    chart_factors = []
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1329,10 +1412,12 @@ def _assign_typed_arguments(
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
         options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         definitions_by_position = []
+        factors_by_position = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
             by_register: dict[int, list[tuple[float, TokenSpan]]] = {}
+            factor_lookup = {} if retain_score_factors else None
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
@@ -1397,6 +1482,12 @@ def _assign_typed_arguments(
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(candidate_index, []).append((score, span))
+                    if factor_lookup is not None:
+                        factor_lookup[candidate_index, span] = (
+                            role_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(role_score),
+                            proposal_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(proposal_score),
+                            candidate_relation_evidence, _log_sigmoid(pointer_score),
+                        )
             if not by_register:
                 return None
             ranked_options = sorted(
@@ -1405,6 +1496,10 @@ def _assign_typed_arguments(
                     for candidate_index, candidates in by_register.items()
                     for score, span in _retained_argument_mentions(
                         candidates,
+                        overlap_complete=(
+                            model.training_receipt.get("argument_proposal_retention")
+                            == "overlap_dominance_v3"
+                        ),
                         literal_anchor=(
                             input_spans[definition_registers[candidate_index]]
                             if model.training_receipt.get("argument_proposal_retention")
@@ -1417,6 +1512,9 @@ def _assign_typed_arguments(
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
             )
             options = [(score, register, span) for score, register, span, _index in ranked_options]
+            if factor_lookup is not None:
+                factors_by_position.append(tuple(factor_lookup[index, span]
+                    for _score, _register, span, index in ranked_options))
             if joint_definitions:
                 definitions_by_position.append(tuple(
                     definition_labels[index] for _score, _register, _span, index in ranked_options
@@ -1450,6 +1548,7 @@ def _assign_typed_arguments(
         if global_constraint:
             chart_options.append(options_by_position)
             chart_definition_options.append(definitions_by_position)
+            chart_factors.append(factors_by_position)
             continue
         candidates: list[
             tuple[
@@ -1522,9 +1621,15 @@ def _assign_typed_arguments(
             chart_options, n_inputs=len(inputs), contract=model.register_use_contract,
             definition_options=chart_definition_options if joint_definitions else None,
             definition_scores=attachment_scores,
+            prune_dominated=(
+                model.training_receipt.get("argument_proposal_retention") == "overlap_dominance_v3"
+            ),
+            option_factors=chart_factors if retain_score_factors else None,
         )
         if chart_observer is not None:
             chart_observer(chart)
+        if build_only:
+            return None
         if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
             return None
         optimized = chart.solve()

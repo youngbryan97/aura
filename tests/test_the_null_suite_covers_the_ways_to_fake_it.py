@@ -119,17 +119,27 @@ def test_a_broker_outside_the_core_leaves_the_core_open(name: str) -> None:
 
 
 def test_the_reference_core_is_closed() -> None:
-    """It has no broker, so there is nothing outside it to leak from."""
+    """It has no broker, so there is nothing outside it to leak from.
+
+    Read off the toy's state, because `closure_gain` rightly refuses to call an
+    empty periphery closed: for the organism that means the walk saw nothing.
+    """
     from core.subject.closure import closure_gain
-    from core.subject.nulls import toy_periphery
+    from core.subject.nulls import toy_closure, toy_periphery
 
     system = architecture("recurrent", seed=5)
     outside = toy_periphery(system, steps=2000, seed=5)
     assert outside.shape[1] == 0
-    report = closure_gain(
-        toy_recording(system, steps=2000, seed=5), outside, (), seed=5
-    )
-    assert report.closed
+    assert not closure_gain(toy_recording(system, steps=2000, seed=5), outside, (), seed=5).closed
+    assert toy_closure(system, steps=2000, seed=5) == (True, 0.0)
+
+
+def test_a_toy_with_state_outside_k_is_measured_rather_than_assumed() -> None:
+    from core.subject.nulls import toy_closure
+
+    closed, leak = toy_closure(architecture("hidden_broker", seed=5), steps=2000, seed=5)
+    assert not closed
+    assert leak > 0.0
 
 
 def test_the_conjunction_asks_whether_the_null_core_is_closed() -> None:

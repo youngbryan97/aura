@@ -1,7 +1,7 @@
 """Saying it drains the pressure to say it.
 
-"If you love me, won't you say something" lands eight times at the end of that
-record, and the eighth is not new information. What repetition does to a
+The plea for someone who loves him to say something lands eight times at the
+end of that record, and the eighth is not new information. What repetition does to a
 listener is discharge the feeling: the thing is less unbearable once it has
 been said enough times, which is why the last minute of the song is one line.
 

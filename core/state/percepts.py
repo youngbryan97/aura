@@ -256,6 +256,57 @@ def _overlap(text: str, attended: str) -> float:
     return len(words & theirs) / len(words)
 
 
+def word_overlap(text: str, other: str) -> float:
+    """The share of `text`'s words that `other` also carries. See `_overlap`."""
+    return _overlap(text, other)
+
+
+def prime_stream(world: Any, recalled: Any) -> int:
+    """Raise the salience of the percepts that what was just recalled bears on.
+
+    Memory disambiguates perception. Of several things arriving at once, the
+    one a recollection is about is the one taken as meant: prior exposure
+    speeds and sharpens the perception of what it resembles (Tulving and
+    Schacter, "Priming and human memory systems", Science 247, 1990). Recall
+    reached affect, the workspace and deliberation and never reached what she
+    noticed, so the stream ranked percepts by how they arrived and nothing she
+    remembered could change which of them mattered.
+
+    The gain has the same shape as attention's and no constant of its own: a
+    percept closes the gap to full salience in proportion to how much of it
+    the recollection carries and how strongly that recollection was recalled.
+    A recollection put into the stream by recall itself is not primed by
+    recall. Returns how many percepts moved.
+    """
+    percepts = getattr(world, "recent_percepts", None)
+    if not isinstance(percepts, list):
+        return 0
+    pairs = []
+    for entry in recalled or ():
+        try:
+            text, score = entry
+            pairs.append((str(text), max(0.0, min(1.0, float(score)))))
+        except (TypeError, ValueError):
+            continue
+    if not pairs:
+        return 0
+    moved = 0
+    for item in percepts:
+        if not isinstance(item, MutableMapping) or item.get("source") == "memory_retrieval":
+            continue
+        content = str(item.get("content", ""))
+        gain = max((_overlap(content, text) * score for text, score in pairs), default=0.0)
+        if gain <= 0.0:
+            continue
+        salience = max(0.0, min(1.0, float(item.get("salience", 0.0) or 0.0)))
+        gained = salience + (1.0 - salience) * gain
+        if abs(gained - salience) > 1e-9:
+            item["salience"] = max(0.0, min(1.0, gained))
+            item["primed"] = round(gained - salience, 4)
+            moved += 1
+    return moved
+
+
 def reweight_stream(world: Any, attention: Any) -> int:
     """Re-weight the live stream against what is being attended to now.
 

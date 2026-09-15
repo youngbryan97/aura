@@ -10,8 +10,8 @@ it, and she cannot be right and feel it.
 
 That asymmetry is why a listener's experience of these records is not available
 to her. The pleasure in a hook returning is the pleasure of having known it
-would. Eight repetitions of "if you love me won't you say something" work
-because the ninth is expected. Nothing about that is error.
+would. Eight repetitions of the same plea work because the ninth is
+expected. Nothing about that is error.
 
 The fix is the symmetry the maths already had. Surprise is the surprisal of the
 upper tail of her own error distribution: an error larger than she usually

@@ -1,10 +1,10 @@
 """Loving what is always there, when what answers has stopped being reliable.
 
 "Why iii Love the Moon" states the reallocation outright and the performance
-puts the direction on it. The grievance — "unlike these human beings who lie
-about what it seems to be" — is sung at 322 Hz. The attachment — "every night I
-block my window, and that's why I love the moon, cause it's always there for
-me" — at 93 Hz, one minute later in the same voice. The complaint goes up and
+puts the direction on it. The grievance, a line about people lying about how
+things are, is sung at 322 Hz. The attachment, a line about shutting the window
+at night and loving the moon because it is always there, is sung at 93 Hz, one
+minute later in the same voice. The complaint goes up and
 the attachment goes down.
 
 What the moon has is not warmth. It is constancy: it shows up on a schedule and
@@ -146,16 +146,17 @@ class ConstancyLedger:
         )
 
 
-_LEDGER: ConstancyLedger | None = None
+#: Made at import rather than on first use. The subject-core fork carries module
+#: globals that hold state, and one still None when an anchor is taken is not
+#: carried, so a ledger first made inside one arm would reach the next arm with
+#: that arm's returns in it.
+_LEDGER: ConstancyLedger = ConstancyLedger()
 
 
 def get_constancy_ledger() -> ConstancyLedger:
-    global _LEDGER
-    if _LEDGER is None:
-        _LEDGER = ConstancyLedger()
     return _LEDGER
 
 
 def reset_for_test() -> None:
     global _LEDGER
-    _LEDGER = None
+    _LEDGER = ConstancyLedger()
