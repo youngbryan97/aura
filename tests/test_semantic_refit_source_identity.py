@@ -45,3 +45,14 @@ def test_changed_validation_is_rejected():
             [example("train", "a"), example("train", "b"), example("validation", "x")],
             receipt(),
         )
+def test_standalone_refit_isolates_state_before_loading_core(tmp_path, monkeypatch):
+    import os
+    from tools.refit_semantic_argument_proposals import configure_refit_environment
+
+    monkeypatch.delenv('AURA_LOG_DIR', raising=False)
+    monkeypatch.delenv('AURA_STATE_ROOT', raising=False)
+    configure_refit_environment(tmp_path / 'candidate.json')
+    assert os.environ['AURA_LOG_DIR'] == str(tmp_path / 'logs')
+    assert os.environ['AURA_STATE_ROOT'] == str(tmp_path / 'state')
+    configure_refit_environment(tmp_path / 'another' / 'candidate.json')
+    assert os.environ['AURA_STATE_ROOT'] == str(tmp_path / 'state')

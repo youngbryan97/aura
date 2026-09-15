@@ -45,6 +45,7 @@ class ScoredArgumentChart:
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None
     prune_dominated: bool = False
     option_factors: tuple | None = None
+    option_relation_evidence: tuple | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "options", tuple(
@@ -69,6 +70,15 @@ class ScoredArgumentChart:
             ):
                 raise ValueError("argument score factors differ from chart")
             object.__setattr__(self, "option_factors", factors)
+        if self.option_relation_evidence is not None:
+            evidence = tuple(tuple(tuple(slot) for slot in node) for node in self.option_relation_evidence)
+            if len(evidence) != len(self.options) or any(
+                len(node) != len(options) or any(len(slot) != len(choices)
+                    for slot, choices in zip(node, options))
+                for node, options in zip(evidence, self.options)
+            ):
+                raise ValueError("relation evidence differs from chart")
+            object.__setattr__(self, "option_relation_evidence", evidence)
 
     def score_upper_bound(self) -> float:
         """Relax consistency and overlap, retaining every potentially positive term."""
@@ -94,7 +104,8 @@ class ScoredArgumentChart:
             selection_observer=selection_observer,
         )
 
-    def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None):
+    def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None,
+                           relation_observer=None):
         """Return the exact selected factor sums, including latent definitions."""
         if self.option_factors is None:
             raise ValueError("argument chart did not retain score factors")
@@ -105,6 +116,11 @@ class ScoredArgumentChart:
             return None
         rows = [self.option_factors[node][position][index]
                 for node, positions in enumerate(selected[0]) for position, index in enumerate(positions)]
+        if relation_observer is not None:
+            if self.option_relation_evidence is None:
+                raise ValueError("chart did not retain relation evidence")
+            relation_observer(tuple(self.option_relation_evidence[node][position][index]
+                for node, positions in enumerate(selected[0]) for position, index in enumerate(positions)))
         return result, tuple(math.fsum(row[column] for row in rows) for column in range(4))
 
     def restrict_arguments(self, targets: Sequence[Sequence[int]]) -> ScoredArgumentChart:
@@ -114,24 +130,29 @@ class ScoredArgumentChart:
         ) or any(type(register) is not int or not 0 <= register < self.n_inputs + len(self.options)
                  for node in targets for register in node):
             raise ValueError("target arguments differ from chart")
-        options, definitions, factors = [], [], []
+        options, definitions, factors, evidence = [], [], [], []
         for node_index, (node, target) in enumerate(zip(self.options, targets, strict=True)):
-            rows, labels, scores = [], [], []
+            rows, labels, scores, evidence_rows = [], [], [], []
             for slot_index, (slot, register) in enumerate(zip(node, target, strict=True)):
                 indices = [index for index, option in enumerate(slot) if option[1] == register]
                 rows.append(tuple(slot[index] for index in indices))
                 if self.option_factors is not None:
                     scores.append(tuple(self.option_factors[node_index][slot_index][index] for index in indices))
+                if self.option_relation_evidence is not None:
+                    evidence_rows.append(tuple(self.option_relation_evidence[node_index][slot_index][index]
+                                               for index in indices))
                 if self.definition_options is not None:
                     labels.append(tuple(self.definition_options[node_index][slot_index][index]
                                         for index in indices))
             options.append(tuple(rows))
             definitions.append(tuple(labels))
             factors.append(tuple(scores))
+            evidence.append(tuple(evidence_rows))
         return ScoredArgumentChart(tuple(options), self.n_inputs, self.contract,
             tuple(definitions) if self.definition_options is not None else None,
             self.definition_scores, self.prune_dominated,
-            tuple(factors) if self.option_factors is not None else None)
+            tuple(factors) if self.option_factors is not None else None,
+            tuple(evidence) if self.option_relation_evidence is not None else None)
 
     def diagnose_target(self, targets: Sequence[Sequence[int]]) -> dict:
         """Measure target reachability without altering the production choice.

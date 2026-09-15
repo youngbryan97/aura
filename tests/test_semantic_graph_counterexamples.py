@@ -10,6 +10,7 @@ from core.learning.semantic_graph_counterexamples import (
     argument_graph_program,
     compare_program_meanings,
     find_graph_counterexample,
+    uniform_reduction_equivalence,
 )
 from core.learning.semantic_program_ir import TokenSpan
 from core.learning.semantic_program_transducer_fitting import RegisterUseContract, _OperationNode
@@ -162,3 +163,26 @@ def test_incomplete_solver_is_retained_without_false_negative_label(monkeypatch)
     result = find_graph_counterexample(chart(), nodes(), ((0, 1),), solve_time_limit_s=1.)
     assert result.negative is None and result.receipt["status"] == "positive_search_incomplete"
     assert not result.receipt["search_complete"]
+
+
+@pytest.mark.parametrize('op', ['add', 'mul'])
+def test_uniform_linear_reduction_proves_whole_class_without_negative_search(op, monkeypatch):
+    options = tuple(tuple(tuple((float(register), register, TokenSpan(2 * (2 * node + position),
+                                2 * (2 * node + position) + 1))
+                                for register in range(5) if register != 3 + node)
+                          for position in range(2)) for node in range(2))
+    factors = tuple(tuple(tuple((choice[0], 0., 0., 0.) for choice in slot) for slot in row) for row in options)
+    value = ScoredArgumentChart(options, 3, RegisterUseContract(1, 1, 1, 1, True), option_factors=factors)
+    operations = (nodes(op)[0], replace(nodes(op)[0], span=TokenSpan(12, 13)))
+    original = ScoredArgumentChart.solve_with_factors
+    def solve(self, **kwargs):
+        assert not kwargs.get('excluded_graphs'), 'equivalent class must not launch negative search'
+        return original(self, **kwargs)
+    monkeypatch.setattr(ScoredArgumentChart, 'solve_with_factors', solve)
+    result = find_graph_counterexample(value, operations, ((0, 1), (3, 2)), max_graphs=1)
+    assert result.negative is None and result.receipt['search_complete']
+    assert result.receipt['equivalence_class_proof']['method'] == 'linear_use_integer_monoid_v1'
+    assert not result.receipt['examined']
+    assert uniform_reduction_equivalence(replace(value, contract=RegisterUseContract(0, 2, 1, 1, True)), operations) is None
+    assert uniform_reduction_equivalence(value, (nodes('sub')[0], operations[1])) is None
+    assert uniform_reduction_equivalence(value, (nodes('sub')[0], nodes('sub')[0])) is None

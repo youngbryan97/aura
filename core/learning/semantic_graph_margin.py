@@ -55,13 +55,8 @@ def fit_graph_score_scales(differences, offsets, weights, initial, *, regulariza
     }
 
 
-def refit_compositional_graph_scales(model, examples, *, progress=None):
-    """Fit source graph contrasts, with explicit coverage and unchanged heads."""
-    from core.learning.semantic_program_campaign import _sha
-    from core.learning.semantic_program_shared_transducer import _geometry
-    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
-    from core.learning.semantic_graph_counterexamples import counterfactual_inputs, find_graph_counterexample
-
+def graph_refit_source_splits(model, examples):
+    """Validate the source geometry shared by graph calibration and tissue fits."""
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
     selected = (*training, *validation)
@@ -76,6 +71,17 @@ def refit_compositional_graph_scales(model, examples, *, progress=None):
     ids = [item.ir.source_text_sha256 for item in selected]
     if len(set(ids)) != len(ids):
         raise ValueError("graph refit source splits duplicate or overlap")
+    return training, validation
+
+
+def refit_compositional_graph_scales(model, examples, *, progress=None):
+    """Fit source graph contrasts, with explicit coverage and unchanged heads."""
+    from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_program_shared_transducer import _geometry
+    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
+    from core.learning.semantic_graph_counterexamples import counterfactual_inputs, find_graph_counterexample
+
+    training, validation = graph_refit_source_splits(model, examples)
     scales = np.array([model.argument_role_scale, model.definition_relation_scale, model.argument_pointer_scale])
     all_scales = np.array([scales[0], model.argument_proposal_scale, scales[1], scales[2]])
     geometry_counts = Counter(_geometry(item) for item in training)
