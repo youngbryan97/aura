@@ -57,7 +57,7 @@ class Repair:
 def failed_step(receipt: Any) -> str:
     """The step a run got stuck on, by name."""
     for result in getattr(receipt, "steps", ()) or ():
-        if getattr(result, "ok", True) is False or getattr(result, "verified", True) is False:
+        if getattr(result, "ok", True) is False:
             return str(getattr(result, "name", "") or "")
     return ""
 
@@ -87,21 +87,12 @@ def _repairs(plan: Sequence[Any], stuck: str) -> list[ActionOption]:
         ),
     ]
     where = names.index(stuck) if stuck in names else -1
-    if where >= 0 and where < len(names) - 1:
+    if where >= 0 and where < len(names) - 1 and getattr(plan[where], "optional", False):
         options.append(
             ActionOption(
                 name=DROP,
                 params={"step": stuck},
                 detail=f"leave {stuck!r} out and carry on with what follows it",
-                expectation=further,
-            )
-        )
-    if where >= 0 and getattr(plan[where], "optional", False) is False:
-        options.append(
-            ActionOption(
-                name=GO_AROUND,
-                params={"step": stuck},
-                detail=f"mark {stuck!r} as one the run may finish without",
                 expectation=further,
             )
         )
@@ -115,16 +106,10 @@ def apply_repair(kind: str, plan: Sequence[Any], stuck: str) -> list[Any]:
     if kind in (RETRY, START_OVER) or stuck not in names:
         return steps
     where = names.index(stuck)
-    if kind == DROP:
+    if kind == DROP and getattr(steps[where], "optional", False) and where < len(steps) - 1:
         return steps[:where] + steps[where + 1 :]
-    if kind == GO_AROUND:
-        from dataclasses import replace  # noqa: PLC0415
-
-        try:
-            steps[where] = replace(steps[where], optional=True)
-        except (TypeError, ValueError):
-            return steps
-        return steps
+    # Retained legacy repair names cannot weaken the task's original obligation.
+    # An alternate implementation must still satisfy the required step.
     return steps
 
 

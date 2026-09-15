@@ -75,7 +75,9 @@ def test_a_goal_is_reached_by_looking_between_moves():
     assert receipt.completed is True
     assert receipt.outcome == "goal_reached"
     assert world["n"] == 5
-    assert receipt.verified_progress == 5
+    # The observer established the goal, not each unchecked increment.
+    assert receipt.verified_progress == 0
+    assert receipt.verification_complete
 
 
 def test_the_predicate_ends_the_run_not_the_length_of_a_list():

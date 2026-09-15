@@ -146,6 +146,9 @@ class AmplifiedResult:
     # the confidence below is unlifted. Without this a caller cannot tell
     # "nothing was wrong" from "nothing was checked".
     verifier_checked: bool = True
+    # Whether the selected answer passed, failed, or could not be checked.
+    # Aggregate verifier activity does not identify the selected answer.
+    answer_verdict: VerifierOutcome = VerifierOutcome.UNKNOWN
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -156,6 +159,7 @@ class AmplifiedResult:
             "agreement": round(self.agreement, 3),
             "verified": self.verified,
             "verifier_checked": self.verifier_checked,
+            "answer_verdict": self.answer_verdict.value,
         }
 
 
@@ -245,6 +249,8 @@ async def amplify(
         valid_n=len(valid),
         agreement=round(agreement, 4),
         verified=verified_winner,
+        answer_verdict=(VerifierOutcome.PASS if verified_winner else
+                        VerifierOutcome.FAIL if all_rejected else VerifierOutcome.UNKNOWN),
         verifier_checked=verifier_checked,
         issues=all_issues[:10],
     )
@@ -299,9 +305,11 @@ class DeliberationEngine:
         if verdict.corrected and verdict.answer:
             result.answer = verdict.answer
             result.verified = True
+            result.answer_verdict = VerifierOutcome.PASS
             result.confidence = round(min(0.99, max(result.confidence, 0.9)), 4)
         elif verdict.ok and "verified by strong tier" in verdict.critique:
             result.verified = True
+            result.answer_verdict = VerifierOutcome.PASS
             result.confidence = round(min(0.99, result.confidence + 0.1), 4)
         elif not verdict.ok:
             # strong tier flagged doubt → lower confidence, keep the answer
@@ -396,7 +404,8 @@ class DeliberationEngine:
             n=len(subqs),
             valid_n=len(subqs) if ok else 0,
             agreement=round(sub_conf, 4),
-            verified=ok,
+            verified=ok and bool(final),
+            answer_verdict=outcome if final else VerifierOutcome.UNKNOWN,
             issues=issues,
             verifier_checked=outcome is not VerifierOutcome.UNKNOWN,
         )

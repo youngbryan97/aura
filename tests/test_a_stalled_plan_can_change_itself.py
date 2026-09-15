@@ -95,9 +95,11 @@ def test_the_step_a_run_got_stuck_on_is_read_from_the_receipt():
 
 @pytest.mark.asyncio
 async def test_a_repair_names_a_step_that_really_failed():
+    plan = _plan()
+    plan[1].optional = True
     repair = await replan(
         "book the appointment",
-        _plan(),
+        plan,
         _stalled(),
         think=_thinks("drop it and carry on"),
         lived=False,
@@ -171,15 +173,31 @@ async def test_dropping_the_last_step_is_not_offered():
 
 def test_a_repair_never_edits_the_plan_it_was_given():
     plan = _plan()
+    plan[1].optional = True
     repaired = apply_repair(DROP, plan, "fill the form")
     assert [s.name for s in plan] == ["open the page", "fill the form", "submit"]
     assert [s.name for s in repaired] == ["open the page", "submit"]
 
 
-def test_going_around_a_step_makes_it_one_the_run_may_finish_without():
-    repaired = apply_repair(GO_AROUND, _plan(), "fill the form")
-    assert repaired[1].optional is True
-    assert repaired[0].optional is False
+@pytest.mark.parametrize("kind", [DROP, GO_AROUND])
+def test_repair_cannot_make_a_required_step_optional_or_remove_it(kind):
+    plan = _plan()
+    repaired = apply_repair(kind, plan, "fill the form")
+    assert repaired == plan
+    assert repaired[1].optional is False
+
+
+@pytest.mark.asyncio
+async def test_omitting_a_required_step_is_not_offered_as_recovery():
+    think = _thinks("drop it and carry on")
+    repair = await replan(
+        "book the appointment", _plan(), _stalled(), think=think,
+        lived=False, spine=_Store(), graph=_Store(),
+    )
+    offered = [line for line in think.seen if line.startswith("Available move")]
+    assert not any(line.startswith(f"Available move — {kind}")
+                   for kind in (DROP, GO_AROUND) for line in offered)
+    assert repair is None or repair.plan == _plan()
 
 
 def test_retrying_and_starting_over_keep_the_plan_whole():

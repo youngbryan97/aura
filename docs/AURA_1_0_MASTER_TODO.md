@@ -791,6 +791,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Action completion evidence](evidence/G09_ACTION_COMPLETION_EVIDENCE_2026-09-14.md)
+  carries actual planner results and selected-answer verdicts through execution.
+  Missing observations retry without repeating effects; repairs preserve required
+  steps. Seventy focused tests pass. Broad gain and live qualification remain open.
   [Alternative plan search](evidence/G09_PLAN_ALTERNATIVES_2026-09-14.md) retains
   distinct dependency paths and ranks them from independently measured task
   outcomes across restart. 100 procedure tests pass; broad gain remains open.
