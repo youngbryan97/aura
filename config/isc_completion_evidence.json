@@ -11779,5 +11779,15 @@
     ],
     "note": "the sources that reached anything reached different sets: ten distinct reach patterns out of ten sources on run_031 and both run_032s",
     "status": "done"
+  },
+  "P34.7": {
+    "checks": [
+      {
+        "expr": "bool(report['perturbation'].get('beats_null')) and all(any(('0' in r and '1' in r) for r in m['rows']) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])) and len({tuple(sorted(m['reached'])) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])}) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "complexity clears its sham null while every response stays structured in time and the sources reach different sets, so the spread was not bought by lighting everything up",
+    "status": "done"
   }
 }
