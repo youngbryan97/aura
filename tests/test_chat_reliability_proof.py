@@ -1051,7 +1051,9 @@ def test_output_contract_uses_later_actionable_brevity_after_negation():
     )
 
     assert contract.kind == "brevity"
-    assert contract.hard_token_ceiling == 112
+    # A request that names no quantity sets a target, not a truncation point.
+    assert contract.semantic_token_cap == 64
+    assert contract.hard_token_ceiling is None
 
 
 def test_negation_scope_ends_before_later_constraint_clause():

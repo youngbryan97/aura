@@ -2861,12 +2861,21 @@ def requested_output_contract(user_message: Any) -> RequestedOutputContract:
         hard_candidates.append(max(32, hard_per_sentence * sentence_count))
         kinds.append("sentence_count")
     if explicit_brevity and not semantic_candidates:
+        # "Keep it short" names no quantity, so it sets a planning target
+        # and no truncation point. It used to set hard=112: measured live
+        # 2026-09-15, a correct technical answer needed more, the decoder
+        # was cut mid-sentence at 112 (spent_budget=True), and the turn ran
+        # a continuation and a repair — three generations, five minutes —
+        # before a smaller model's wrong answer was served in its place.
+        # Short is the model's to keep once the request says so; a hard
+        # ceiling only decides where the sentence breaks.
         semantic_candidates.append(64)
-        hard_candidates.append(112)
         kinds.append("brevity")
 
     semantic_cap = min(8192, max(semantic_candidates))
-    hard_ceiling = min(8192, max(semantic_cap, max(hard_candidates)))
+    hard_ceiling = (
+        min(8192, max(semantic_cap, max(hard_candidates))) if hard_candidates else None
+    )
     return RequestedOutputContract(
         kind="+".join(kinds),
         word_min=word_range[0] if word_range else None,
