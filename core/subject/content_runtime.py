@@ -28,7 +28,6 @@ share the percepts and share nothing else.
 from __future__ import annotations
 
 import re
-
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
