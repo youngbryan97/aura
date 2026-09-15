@@ -11640,5 +11640,37 @@
     ],
     "note": "conflict between an intention and her capacity is computed and reaches recurrent cognition; the 300-round A/B showed these first mechanisms did not move the synergy criterion",
     "status": "done"
+  },
+  "P12.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/state/percepts.py",
+        "pattern": "def prime_stream\\(world: Any, recalled: Any\\) -> int:"
+      },
+      {
+        "command": "{python} -m pytest tests/test_memory_and_perception_read_each_other.py::test_a_recollection_primes_the_percept_it_bears_on tests/test_memory_and_perception_read_each_other.py::test_what_she_recalls_primes_what_she_perceives_within_the_turn -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "what was just recalled primes the percepts it bears on, in proportion to how strongly it was recalled, so memory decides which of several arrivals is taken as meant",
+    "status": "done"
+  },
+  "P12.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/memory_retrieval.py",
+        "pattern": "word_overlap\\(percept_cue, text\\) \\* percept_salience"
+      },
+      {
+        "command": "{python} -m pytest tests/test_memory_and_perception_read_each_other.py::test_a_percept_raises_the_recollections_that_carry_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now",
+    "status": "done"
   }
 }

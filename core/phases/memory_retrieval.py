@@ -158,7 +158,12 @@ def novelty_deepens(novelty: float) -> int:
 
 
 def _percept_cue(state: Any) -> str:
-    """The content of the most salient percept memory has not taken yet.
+    """The content of the most salient percept memory has not taken yet. See `_percept_reading`."""
+    return _percept_reading(state)[0]
+
+
+def _percept_reading(state: Any) -> tuple[str, float]:
+    """The content and salience of the most salient percept memory has not taken yet.
 
     Every fresh percept is marked as taken by memory, so one percept cues one
     recall and the next turn is asked about what arrives next. What recall
@@ -178,14 +183,16 @@ def _percept_cue(state: Any) -> str:
                 continue
             if reading.content.strip() and (best is None or reading.salience > best.salience):
                 best = reading
-        return _safe_text(best.content) if best is not None else ""
+        if best is None:
+            return "", 0.0
+        return _safe_text(best.content), max(0.0, min(1.0, float(best.salience)))
     except _MEMORY_RECOVERABLE_ERRORS as exc:
         _record_memory_degradation(
             exc,
             action="searched without a percept as a cue",
             stage="percept_cue",
         )
-        return ""
+        return "", 0.0
 
 class MemoryRetrievalPhase(BasePhase):
     """
@@ -208,7 +215,7 @@ class MemoryRetrievalPhase(BasePhase):
         """
         # What just arrived is a cue in its own right, so a percept still asks
         # on a turn with nothing in working memory. See `_percept_cue`.
-        percept_cue = _percept_cue(state)
+        percept_cue, percept_salience = _percept_reading(state)
         if not state.cognition.working_memory and not percept_cue:
             return state
 
@@ -847,6 +854,25 @@ class MemoryRetrievalPhase(BasePhase):
         # this was constant for the whole of every recording.
         note_effort("recall", max(1, len(memory_candidates)))
 
+        # What she perceives changes what a recollection is worth now. The same
+        # memory bears on a moment differently depending on what is in front of
+        # her, and retrieval ranked recollections by how well they matched the
+        # question and how they felt, never by the percept that arrived with it.
+        # A recollection closes the gap to full relevance in proportion to how
+        # much of the percept it carries and how salient the percept was, which
+        # is attention's gain with the roles the other way round.
+        if percept_cue and percept_salience > 0.0:
+            from core.state.percepts import word_overlap
+
+            reread: list[tuple[float, str]] = []
+            for score, text in memory_candidates:
+                bounded = max(0.0, min(1.0, float(score)))
+                updated = bounded + (1.0 - bounded) * word_overlap(percept_cue, text) * percept_salience
+                if updated != bounded and text.startswith("[memory score="):
+                    text = f"[memory score={updated:.3f}]" + text.split("]", 1)[1]
+                reread.append((updated, text))
+            memory_candidates = reread
+
         scores: list[float] = []
         if memory_candidates:
             memory_candidates.sort(key=lambda item: item[0], reverse=True)
@@ -865,6 +891,18 @@ class MemoryRetrievalPhase(BasePhase):
         new_state = state.derive("memory_retrieval")
         new_state.cognition.long_term_memory = memories
         new_state.cognition.memory_scores = scores
+        # And what she recalled changes which percepts she takes as meant. See
+        # core/state/percepts.py `prime_stream`.
+        try:
+            from core.state.percepts import prime_stream
+
+            prime_stream(getattr(new_state, "world", None), list(zip(memories, scores, strict=True)))
+        except _MEMORY_RECOVERABLE_ERRORS as exc:
+            _record_memory_degradation(
+                exc,
+                action="kept the recollections without priming the percept stream",
+                stage="percept_priming",
+            )
         new_state.cognition.last_retrieval_query = recall_key
         # And say that something came back to her.
         #
