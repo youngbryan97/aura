@@ -33,7 +33,7 @@ from typing import Any
 
 import numpy as np
 
-from core.state.percepts import DEFAULT_INTENSITY, PERCEPT_EMOTIONS, emit_percept
+from core.state.percepts import PERCEPT_EMOTIONS, emit_percept
 from core.subject.content import PerceptClass
 from core.subject.intrinsic_v25 import crossfit_fisher_rao
 from core.subject.state import perturb, perturb_organs
@@ -49,6 +49,15 @@ __all__ = [
     "present",
     "sample_classes",
 ]
+
+#: How strongly every class is presented: the top of the scale. At the default
+#: half, no class was ever the most salient thing in front of her. The fork
+#: still held her own percepts from the turn before, the turn at 0.83 and the
+#: host's pressure near 0.78, and the most salient percept is the one recall is
+#: cued by, so every class recalled what the turn cued and the behavioural
+#: geometry was flat in every run. A stimulus the stream outranks has not been
+#: presented. See tests/test_a_percept_class_is_presented_not_merely_emitted.py.
+PRESENTED_INTENSITY: float = 1.0
 
 #: The kind that is capped and rewritten before it reaches the table, so it is
 #: not one percept class among others and is left out of the grid.
@@ -78,7 +87,7 @@ def grid() -> tuple[PerceptClass, ...]:
                 name=kind,
                 kind=kind,
                 source="world",
-                intensity=DEFAULT_INTENSITY,
+                intensity=PRESENTED_INTENSITY,
                 # The content is the kind's own name. A percept carries text and
                 # the text has to be something; making it the kind keeps the two
                 # from varying independently and keeps the class one thing.
