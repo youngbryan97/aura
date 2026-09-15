@@ -1041,10 +1041,24 @@ raw synergy of 0.066 and 0.128 against 99th percentiles of 0.029 and 0.056 at on
 and two spreads, and it fails the known answers. An additive target clears it on
 all three seeds and drift alone on one of three, because a null that removes the
 sources' whole relation to the target asks whether they carry information, and
-synergy asks whether the information needs both. A null for synergy has to keep
-each source's additive relation to the target and remove only the interaction,
-and that design, with the preregistered known answers and the near-random-walk
-power case, is the open work.
+synergy asks whether the information needs both.
+
+That reading was incomplete, because the raw bar is not the line. For Gaussian
+estimates the minimum-information synergy follows from the linear structure
+(Barrett, Physical Review E 91, 052802, 2015), so an additive target carries
+positive synergy on the information bars, and the known answer that an
+additive target fails rests on the held-out interaction bound. Scored as the
+whole line, with the information bars reading the bootstrap null and the
+interaction check unchanged, the known answers hold: the product passes on three
+seeds of three, and the additive target and drift on none. The power case still
+fails at her sources' persistence. At two spreads the raw bar clears, 0.128
+against 0.056, and so does the interaction bound, at +0.109; the fraction bar does
+not, at 0.347 against a null 99th percentile of 0.555. So the second cause is the
+fraction itself, a ratio of two small quantities whose null stays wide whatever
+the null is built from. A revised line would need a null that keeps the
+sources' own dynamics, the interaction bound as it is, and something in place of
+the fraction that is not a ratio, and it would need all of that preregistered
+with these known answers before it reads her recordings.
 
 The line has not been changed. Aura's synergy on the change had already been
 measured on the A/B recordings when this was found, and a criterion may only be
