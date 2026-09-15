@@ -11789,5 +11789,73 @@
     ],
     "note": "complexity clears its sham null while every response stays structured in time and the sources reach different sets, so the spread was not bought by lighting everything up",
     "status": "done"
+  },
+  "P25.11": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "gateway\\.write_text\\(\\s*path, prior \\+ intended \\+ \"\\\\n\", source=\"subject_core\\.action_probe\""
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the action arm writes to a scratch room inside the run directory through the governed file gateway, and every kind of action is a real filesystem operation",
+    "status": "done"
+  },
+  "P25.12": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the room changes: a room made on one turn is a directory on disk, and the count of rooms grows turn by turn",
+    "status": "done"
+  },
+  "P25.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/driver.py",
+        "pattern": "\"filesystem\",\\s*observed or"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_acting_changes_the_room_and_she_perceives_what_it_now_holds -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the outcome is read back off the filesystem and arrives as a percept from the filesystem, carrying what the room now holds",
+    "status": "done"
+  },
+  "P25.14": {
+    "checks": [
+      {
+        "expr": "any(e['source'] == 'P' and e['target'] in ('W', 'A', 'M') and e.get('kept') for e in report['edges'])",
+        "kind": "report"
+      }
+    ],
+    "note": "perception reaches the world model, affect or memory through edges kept against their shams: P->A and P->W on run_031, P->A and P->M on both run_032s",
+    "status": "done"
+  },
+  "P25.15": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_loop_closes_through_a_real_environment.py::test_what_an_earlier_action_left_behind_decides_a_later_one -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "(lambda K: any((('P', a) in K and (a, 'D') in K) or (('P', a) in K and (a, b) in K and (b, 'D') in K) for a in 'PIAGCSMWDN' for b in 'PIAGCSMWDN'))({(e['source'], e['target']) for e in report['edges'] if e.get('kept')})",
+        "kind": "report"
+      }
+    ],
+    "note": "a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)",
+    "status": "done"
   }
 }
