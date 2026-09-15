@@ -490,25 +490,26 @@ def reasoning_effort_for_generation(
 ) -> str | None:
     """How hard the private channel should work, in the template's own words.
 
-    None leaves the model's default alone. The one case decided here is the
-    channel that was opened on a fast lane because the answer is worked out in
-    this call: the mode said how deep to think and could not say where, so the
-    channel opens, and ``low`` — "keep your thinking brief and focused, moving
-    directly to the conclusion" — is the template's own way of carrying the
-    depth the mode asked for into the channel it did not close.
+    The template renders ``low`` and ``xhigh`` as a sentence at the HEAD of
+    the system message, and a turn with the channel closed renders nothing
+    there. The head is the start of the prompt cache's prefix, and the
+    resident cache can only reuse a strict prefix. Measured live 2026-09-15:
+    turn one, channel closed, retained 10,730 tokens; turn two, a fast mode
+    with the channel open and ``low`` rendered, matched 0 of them and
+    re-read 10,620 tokens — 271 seconds on that host — because the first
+    sentence differed. ``medium`` renders no sentence, so a turn with the
+    channel open shares its head with one that had it closed. The mode's
+    depth reaches the model through whether the channel is open; the effort
+    sentence stays out of the prefix until it is measured to be worth what
+    it costs.
 
-    A thinking mode says ``xhigh`` outright, which is what the template would
-    have chosen anyway; saying it keeps the rendered prefix stable when a
-    later turn passes an effort and an earlier one did not.
+    None leaves the model's default alone, which for an open channel is
+    ``xhigh`` and a sentence — the reason a value is always returned here.
     """
+    del cognitive_mode
     if thinking is False:
         return None
-    mode = str(cognitive_mode or "").strip().lower()
-    if thinking and mode in _NON_THINKING_COGNITIVE_MODES:
-        return "low"
-    if mode in _THINKING_COGNITIVE_MODES:
-        return "xhigh"
-    return None
+    return "medium"
 
 
 def _record_inert_thinking_flag(template: str) -> None:

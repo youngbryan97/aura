@@ -628,6 +628,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fixes and not the reuse. The measurement needs turns that each force a
   resident generation, and that is what remains here.
 
+  MEASURED 2026-09-15, two consecutive resident turns in the window, and the
+  reuse failed at token zero. Turn one, channel closed: miss, prefilled all
+  10,462 tokens, retained 10,730. Turn two, a fast mode with the channel
+  open: "matched 0 (0.0%) before diverging; divergent text begins:
+  '<|im_start|>system\nReasoning effort is set to low. Keep your thinking
+  brief...'" — re-read 10,620 tokens, which the answer clock priced at 271
+  seconds on that host; the turn took eight minutes. The template renders
+  the effort sentence at the HEAD of the system message, so a turn whose
+  channel is open and a turn whose channel is closed cannot share a prefix
+  unless the effort renders nothing, and only `medium` renders nothing. The
+  effort is `medium` for every open channel now, verified on the real
+  template: closed and open renders share their whole head, the closed one
+  differing only by an empty think block after it. The low/xhigh sentences
+  stay out of the prefix until their value is measured against what they
+  cost. The reuse itself is still to be measured on the next pair of turns.
+  Also measured: the per-token cost under three other campaigns on the host
+  — decode at 3.5 tok/s and prefill at 40 tok/s — is the host, not the
+  runtime; the answer clock priced it correctly and the deadline held.
+
 ## 2. General RLC reasoning: the scientific critical path
 
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.

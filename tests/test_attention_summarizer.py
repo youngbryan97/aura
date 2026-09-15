@@ -55,9 +55,15 @@ class TestAttentionSummarizer(unittest.IsolatedAsyncioTestCase):
         
         self.assertEqual(len(self.workspace.history), 10)
         
-        # 2. Scripted brain response
-        response = SimpleNamespace(content="Summary: User had coffee and discussed Phase 16.")
-        self.brain.think = AsyncCallRecorder(result=response)
+        # 2. Scripted router response. The summarizer asks the language organ
+        # through the router with the items as its whole input; a cognitive
+        # turn wrapped fifty items in 96,998 characters of context (live,
+        # 2026-09-15) and the brainstem dropped the middle.
+        router = SimpleNamespace(
+            think=AsyncCallRecorder(result="Summary: User had coffee and discussed Phase 16.")
+        )
+        ServiceContainer.register_instance("llm_router", router)
+        self.router = router
         
         # 3. Start summarizer and let it run
         print("\nStarting summarizer...")
@@ -80,6 +86,10 @@ class TestAttentionSummarizer(unittest.IsolatedAsyncioTestCase):
         
         self.assertIn("Summary: User had coffee and discussed Phase 16.", seed_targets)
         self.assertLess(len(self.workspace.history), 10)
+        call = self.router.think.calls[0]
+        self.assertEqual(call.kwargs["origin"], "attention_summarizer")
+        self.assertIn("event-0", call.kwargs["prompt"])
+        self.assertLess(len(call.kwargs["prompt"]), 2000)
 
 if __name__ == '__main__':
     unittest.main()

@@ -69,24 +69,42 @@ class AttentionSummarizer:
                 logger.error("AttentionSummarizer cycle error: %s", e)
 
     async def _generate_seed_thought(self, items: List[Any]) -> Optional[str]:
-        """Use the brain to synthesize a narrative seed."""
-        brain = self.orchestrator.cognitive_engine
-        if not brain: return None
-        
-        narrative = "\n".join([f"- [{i.winner.source}] {i.winner.content[:200]}" for i in items])
-        prompt = (
-            "Summarize the following sequence of internal system events and user interactions into a single, "
-            "high-density 'Latent Seed Thought' that captures the core essence, goals, and outcomes. "
-            "This will be used for long-term memory retrieval. Be extremely concise.\n\n"
-            f"NARRATIVE LOG:\n{narrative}"
+        """Ask the language organ for one sentence that stands for these items.
+
+        Through the router, not the cognitive engine: a full cognitive turn
+        assembles the whole conversational context around whatever it is
+        handed, and for fifty workspace items that came to 96,998 characters —
+        double the brainstem's prefill ceiling, so the middle was dropped
+        before the model saw it (live, 2026-09-15). The items are the whole
+        input here, fenced as data.
+        """
+        from core.container import ServiceContainer
+        from core.security.prompt_fencing import fence
+
+        router = ServiceContainer.get("llm_router", default=None)
+        if router is None:
+            return None
+
+        narrative = "\n".join(
+            f"- [{i.winner.source}] {str(i.winner.content)[:200]}" for i in items
         )
-        
+        prompt = (
+            "One sentence that stands for this sequence of events, for finding "
+            "it again later.\n\n"
+            + fence(narrative, label="events")
+        )
         try:
-            # Use FAST mode for background summarization
-            from core.brain.cognitive_engine import ThinkingMode
-            res = await brain.think(prompt, mode=ThinkingMode.FAST)
-            return res.content.strip()
-        except (ImportError, AttributeError, RuntimeError) as e:
+            text = await router.think(
+                prompt=prompt,
+                prefer_tier="local_fast",
+                max_tokens=120,
+                temperature=0.3,
+                purpose="attention_summary",
+                origin="attention_summarizer",
+                allow_cloud_fallback=False,
+            )
+            return str(text or "").strip() or None
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('attention', e)
             logger.error("Failed to generate seed thought: %s", e)
             return None

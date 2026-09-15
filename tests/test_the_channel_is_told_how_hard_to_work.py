@@ -35,20 +35,39 @@ class _Template:
         return head + "".join(str(m.get("content", "")) for m in messages)
 
 
-def test_a_fast_mode_that_opened_the_channel_asks_for_brief_thinking() -> None:
-    assert reasoning_effort_for_generation(cognitive_mode="fast", thinking=True) == "low"
+# The per-turn choice measured its own cost before it measured its value.
+# LIVE 2026-09-15: a turn with the channel closed retained 10,730 tokens; the
+# next, a fast mode with the channel open and ``low`` rendered at the head of
+# the system message, matched 0 of them and re-read 10,620 — 271 seconds on
+# that host — because the first sentence differed. The head of the prompt is
+# the cache's prefix. ``medium`` renders no sentence, so every turn on a lane
+# shares its head whether its channel is open or closed.
 
 
-def test_a_thinking_mode_asks_for_careful_thinking() -> None:
-    assert reasoning_effort_for_generation(cognitive_mode="deep", thinking=True) == "xhigh"
+@pytest.mark.parametrize("mode", ["fast", "deep", "reactive", "deliberate", None])
+def test_an_open_channel_renders_the_same_head_whatever_the_mode(mode) -> None:
+    assert reasoning_effort_for_generation(cognitive_mode=mode, thinking=True) == "medium"
 
 
 def test_a_closed_channel_is_not_told_how_to_think() -> None:
     assert reasoning_effort_for_generation(cognitive_mode="deep", thinking=False) is None
 
 
-def test_no_mode_leaves_the_model_its_default() -> None:
-    assert reasoning_effort_for_generation(cognitive_mode=None, thinking=True) is None
+def test_open_and_closed_channels_share_a_prompt_head() -> None:
+    tokenizer = _Template(honours=True)
+    messages = [{"role": "system", "content": "S"}, {"role": "user", "content": "q"}]
+    closed = render_chat_template(tokenizer, messages, enable_thinking=False)
+    opened = render_chat_template(
+        tokenizer,
+        messages,
+        enable_thinking=True,
+        reasoning_effort=reasoning_effort_for_generation(cognitive_mode="fast", thinking=True),
+    )
+    # The stand-in renders "[effort=medium]" for any honoured value; the real
+    # template renders nothing for medium. What this pins is that the head is
+    # decided by the effort alone, and the effort no longer varies by mode.
+    assert opened.startswith("[effort=medium]")
+    assert closed == "Sq"
 
 
 def test_the_effort_reaches_a_template_that_honours_it() -> None:
