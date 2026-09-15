@@ -484,4 +484,24 @@ async def perturb_organs(
             hit = True
         except Exception:  # noqa: BLE001
             hit = False
+    elif domain == "D" and organs.intentions is not None:
+        # Her standing plans, through the loop's own declare and abandon, so
+        # the efference copy and the ledger see the change the way they see
+        # any intention. A displacement towards deliberation declares one more
+        # intention; one away from it abandons the newest she holds.
+        try:
+            if delta > 0:
+                organs.intentions.intend(
+                    f"subject core probe {delta:+.4f}",
+                    drive="subject_core_probe",
+                    expected_outcome="nothing: a displacement probe",
+                )
+                hit = True
+            elif delta < 0:
+                held = sorted(organs.intentions.get_open_intentions(), key=lambda rec: rec.intended_at)
+                if held:
+                    organs.intentions.abandon(held[-1].id, reason="subject core displacement probe")
+                    hit = True
+        except Exception:  # noqa: BLE001 - an intention loop that refuses is not displaced
+            hit = False
     return hit

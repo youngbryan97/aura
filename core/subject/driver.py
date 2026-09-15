@@ -1670,6 +1670,7 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
         from core.agency.intention_loop import IntentionLoop
 
         runtime._intentions = IntentionLoop(db_path=str(workdir / "intentions.db"))
+        runtime.organs = replace(runtime.organs, intentions=runtime._intentions)
     except Exception as exc:  # noqa: BLE001
         logger.warning("intention loop unavailable: %s", exc)
     return runtime
@@ -1801,6 +1802,7 @@ async def start_organism(runtime: SubjectRuntime, *, quiet: bool = False) -> dic
         live,
         substrate=organism.substrate or live.substrate,
         ontogeny=runtime.ontogeny,
+        intentions=getattr(runtime, "_intentions", None),
     )
     runtime.organism = organism
     summary = organism.summary()

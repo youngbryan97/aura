@@ -139,6 +139,10 @@ class Organs:
     #: homeostasis reads, and an arm that displaces interoception has to
     #: displace that one too or the displacement stops at the state.
     soma: Any = None
+    #: The intention loop: what she has declared she means to do, kept on disk
+    #: between turns. Persistent planner state is deliberation's, so the action
+    #: domain reads it and a lesion that holds that domain holds the loop.
+    intentions: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -796,6 +800,12 @@ _SCHEMAS: dict[str, Schema] = {
             ("pressure_left", "cognition.catharsis.drain"),
             ("witnessing", "cognition.witness.witnessing"),
             ("company", "cognition.witness.company"),
+            # Persistent planner state: the intentions she has declared and
+            # not yet finished, which the intention loop keeps on disk across
+            # turns. It was forked between arms and read by nothing, so a
+            # displacement of deliberation left her standing plans where they
+            # were and a lesion of it held none of them.
+            ("durable_intentions_open", "organ:intentions.open"),
             # The five motivational budgets, deliberation's own resources.
             #
             # Energy and integrity were the two the specification leaves open,
@@ -1542,7 +1552,7 @@ def _urgency_of(items: Any) -> float:
     return max(0.0, min(1.0, best))
 
 
-def _read_D(state: Any) -> np.ndarray:
+def _read_D(state: Any, organs: Organs) -> np.ndarray:
     goals = _dig(state, "cognition.active_goals", []) or []
     budgets = _dig(state, "motivation.budgets", {}) or {}
     initiatives = _dig(state, "cognition.pending_initiatives", []) or []
@@ -1576,6 +1586,10 @@ def _read_D(state: Any) -> np.ndarray:
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),
         1.0 if (_dig(state, "cognition.witness", {}) or {}).get("witnessing") else 0.0,
         _f((_dig(state, "cognition.witness", {}) or {}).get("company")),
+        _sat(
+            _call(organs.intentions, "get_open_intentions", [], source="organ:intentions.open") or [],
+            4.0,
+        ),
     ]
     for name in _DRIVES:
         entry = budgets.get(name)
@@ -1609,13 +1623,13 @@ _ORGAN_READERS: dict[str, Callable[[Any, Organs], np.ndarray]] = {
     "C": _read_C,
     "S": _read_S,
     "W": _read_W,
+    "D": _read_D,
 }
 
 #: Readers that only need the state object.
 _STATE_READERS: dict[str, Callable[[Any], np.ndarray]] = {
     "I": _read_I,
     "M": _read_M,
-    "D": _read_D,
 }
 
 
