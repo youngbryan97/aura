@@ -264,6 +264,11 @@ class MemoryRetrievalPhase(BasePhase):
         if len(query) < 5:
             return state
 
+        #: The question before any cue is appended to it. What repeats across a
+        #: life is the thing being asked, not the decorations this turn put on
+        #: it, and the return ledger has to key on the part that comes back.
+        asked_about = query[:240]
+
         try:
             from core.runtime.proof_policy import is_strict_proof_answer_prompt
 
@@ -477,7 +482,13 @@ class MemoryRetrievalPhase(BasePhase):
         # skipped. See core/memory/reliving.py.
         from core.memory.reliving import deeper, get_match_ledger, get_return_ledger
 
-        returns = get_return_ledger().returns(query)
+        # Keyed on what actually repeats. By this point the query carries the
+        # entity cues and the most pressing intention, and both move every
+        # turn, so the same question asked again was never the same string and
+        # the return count sat at zero for the whole of a campaign — the ladder
+        # that makes a repeat go deeper could not start. The objective is the
+        # part that comes back.
+        returns = get_return_ledger().returns(asked_about)
         retrieval_limit += deeper(returns)
 
         recall_key = f"{query}\x1f{retrieval_limit}\x1f{hot_limit}"
@@ -882,7 +893,7 @@ class MemoryRetrievalPhase(BasePhase):
         new_state.cognition.relived["shared"] = bool(
             memory_candidates and memory_candidates[0][1] in shared_texts
         )
-        get_return_ledger().note(query)
+        get_return_ledger().note(asked_about)
 
         try:
             from core.state.percepts import emit_percept

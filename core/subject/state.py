@@ -1119,7 +1119,19 @@ def _read_I(state: Any) -> np.ndarray:
             _f(_dig(state, "vitality"), 1.0),
             _f(_dig(state, "soma.exertion")),
             _sat(_f((_dig(state, "soma.effort", {}) or {}).get("recall")), 32.0),
-            _sat(_dig(state, "soma.sensors", {}) or {}, 4.0),
+            # How much is arriving on her senses, not how many of them exist.
+            # Counting the live channels reads four on almost every frame —
+            # presence, social, threat and novelty are rarely all quiet — so
+            # the count was constant while the magnitudes moved between 0.2 and
+            # 0.83. Load is how much.
+            _sat(
+                sum(
+                    abs(float(value))
+                    for value in (_dig(state, "soma.sensors", {}) or {}).values()
+                    if isinstance(value, (int, float))
+                ),
+                2.0,
+            ),
         ],
         dtype=np.float64,
     )

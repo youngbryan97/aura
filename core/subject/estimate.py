@@ -43,6 +43,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import math
+
 import numpy as np
 
 __all__ = ["Fit", "fit_predict", "held_out_loss", "split_rows"]
@@ -111,8 +113,22 @@ def _standardise(block: np.ndarray, reference: np.ndarray) -> tuple[np.ndarray, 
 
 
 def _ridge(x: np.ndarray, y: np.ndarray, alpha: float | np.ndarray) -> np.ndarray:
+    """Ridge weights, where an infinite penalty means the column is switched off.
+
+    Infinity is how the grid says "fit without these columns at all". Put
+    through the arithmetic it makes the Gram matrix non-finite and the solve
+    returns nothing usable, so those columns are dropped from the fit and their
+    weights are returned as exact zeros — which is what an infinite penalty
+    means and what the caller needs to fall back to the narrower model.
+    """
     n_features = x.shape[1]
-    penalty = np.full(n_features, float(alpha)) if np.isscalar(alpha) else np.asarray(alpha)
+    penalty = np.full(n_features, float(alpha)) if np.isscalar(alpha) else np.asarray(alpha, dtype=np.float64)
+    live = np.isfinite(penalty)
+    if not live.all():
+        weights = np.zeros((n_features, y.shape[1]) if y.ndim > 1 else (n_features,))
+        if live.any():
+            weights[live] = _ridge(x[:, live], y, penalty[live])
+        return weights
     gram = x.T @ x + np.diag(penalty)
     try:
         return np.linalg.solve(gram, x.T @ y)
@@ -124,17 +140,29 @@ def _penalties(width: int, own_width: int | None) -> list[tuple[float, float, np
     """Every penalty vector to try, with the two strengths that made it.
 
     The nested grid is a path rather than a product: each own-strength is
-    paired first with the largest extra-strength — which is the narrow model,
-    the addition shrunk to nothing — and then the extra-strengths are swept
-    once against the whole set of own-strengths. That is a hundred candidates
-    reduced to twenty with the same two ends: the narrow model is always
-    reachable, and so is every degree of leaning on the addition.
+    paired first with the addition switched off — which is the narrow model
+    exactly — and then the extra-strengths are swept once against the whole set
+    of own-strengths. That is a hundred candidates reduced to twenty with the
+    same two ends: the narrow model is always reachable, and so is every degree
+    of leaning on the addition.
+
+    Switched off means off. The pairing used to be the largest finite strength
+    in the grid, which shrinks the addition toward zero and never to it, so the
+    wide model could not actually fall back to the narrow one — and on a fold
+    whose validation rows did not represent its test rows it lost to the model
+    it contains. One fold in five of run_032 scored the whole core at -0.249
+    that way against four folds agreeing near +0.03, which dragged the mean
+    below zero and inflated the standard error enough to sink the criterion.
+    A model offered more information cannot do worse than one offered less;
+    that is a fact about nested hypothesis classes, and the grid was the only
+    reason it did not hold here.
     """
     if own_width is None or own_width >= width:
         return [(alpha, alpha, np.full(width, alpha)) for alpha in ALPHAS]
     out: list[tuple[float, float, np.ndarray]] = []
-    largest = ALPHAS[-1]
-    pairs = [(own, largest) for own in ALPHAS] + [(own, extra) for own, extra in zip(ALPHAS, ALPHAS, strict=True)]
+    pairs = [(own, math.inf) for own in ALPHAS] + [
+        (own, extra) for own, extra in zip(ALPHAS, ALPHAS, strict=True)
+    ]
     for own, extra in pairs:
         vector = np.empty(width)
         vector[:own_width] = own
