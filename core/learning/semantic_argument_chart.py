@@ -83,21 +83,24 @@ class ScoredArgumentChart:
             per_register[register] = max(per_register.get(register, 0.0), score)
         return math.fsum((*maxima, *per_register.values()))
 
-    def solve(self, *, excluded_arguments=None, selection_observer=None):
+    def solve(self, *, excluded_arguments=None, excluded_graphs=(), selection_observer=None, time_limit_s=None):
         return semantic_argument_optimization.optimize_argument_chart(
             self.options, n_inputs=self.n_inputs, contract=self.contract,
             definition_options=self.definition_options, definition_scores=self.definition_scores,
             prune_dominated=self.prune_dominated,
             excluded_arguments=excluded_arguments,
+            excluded_graphs=excluded_graphs,
+            time_limit_s=time_limit_s,
             selection_observer=selection_observer,
         )
 
-    def solve_with_factors(self, *, excluded_arguments=None):
+    def solve_with_factors(self, *, excluded_arguments=None, excluded_graphs=(), time_limit_s=None):
         """Return the exact selected factor sums, including latent definitions."""
         if self.option_factors is None:
             raise ValueError("argument chart did not retain score factors")
         selected = []
-        result = self.solve(excluded_arguments=excluded_arguments, selection_observer=selected.append)
+        result = self.solve(excluded_arguments=excluded_arguments, excluded_graphs=excluded_graphs,
+                            selection_observer=selected.append, time_limit_s=time_limit_s)
         if result is None:
             return None
         rows = [self.option_factors[node][position][index]

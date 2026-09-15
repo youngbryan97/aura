@@ -60,6 +60,7 @@ def refit_compositional_graph_scales(model, examples, *, progress=None):
     from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_program_shared_transducer import _geometry
     from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
+    from core.learning.semantic_graph_counterexamples import counterfactual_inputs, find_graph_counterexample
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -82,26 +83,27 @@ def refit_compositional_graph_scales(model, examples, *, progress=None):
     coverage = Counter()
     for item in training:
         captured = []
+        nodes = tuple(_OperationNode(instruction.operation_span, instruction.op, 0., 0., 1.)
+                      for instruction in item.ir.instructions)
         _assign_typed_arguments(
             model=model, hidden=item.hidden_states, inputs=item.public_inputs, input_spans=item.ir.input_spans,
-            operation_nodes=tuple(_OperationNode(instruction.operation_span, instruction.op, 0., 0., 1.)
-                                  for instruction in item.ir.instructions),
+            operation_nodes=nodes,
             argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
-            chart_observer=captured.append, retain_score_factors=True,
+            chart_observer=captured.append, retain_score_factors=True, build_only=True,
         )
         target = tuple(instruction.args for instruction in item.ir.instructions)
         positive = negative = None
+        semantic_search = None
         if not captured:
             status = "chart_unavailable"
         else:
-            chart = captured[0]
-            positive = chart.restrict_arguments(target).solve_with_factors()
-            if positive is None:
-                status = "target_not_reachable"
-            else:
-                negative = chart.solve_with_factors(excluded_arguments=target)
-                status = "contrast" if negative is not None else "no_alternative_graph"
+            result = find_graph_counterexample(captured[0], nodes, target,
+                probes=counterfactual_inputs(item.public_inputs), max_graphs=128)
+            positive, negative, semantic_search = result.positive, result.negative, result.receipt
+            status = "contrast" if negative is not None else semantic_search["status"]
         record = {"source_text_sha256": item.ir.source_text_sha256, "status": status}
+        if semantic_search is not None:
+            record["semantic_search"] = semantic_search
         if positive is not None and negative is not None:
             factor_difference = np.asarray(positive[1]) - np.asarray(negative[1])
             margin = positive[0][0] - negative[0][0]
@@ -116,12 +118,16 @@ def refit_compositional_graph_scales(model, examples, *, progress=None):
         if progress is not None:
             progress({"stage": "source_graph_contrasts", "completed": len(records),
                       "total": len(training), "coverage": dict(coverage), "row": record})
-    fitted, fit = fit_graph_score_scales(differences, offsets, weights, scales)
+    if differences:
+        fitted, fit = fit_graph_score_scales(differences, offsets, weights, scales)
+    else:
+        fitted, fit = scales, {"pairs": 0, "status": "no_witnessed_training_errors", "converged": False}
     candidate = model._with_coefficients(argument_role_scale=float(fitted[0]),
         definition_relation_scale=float(fitted[1]), argument_pointer_scale=float(fitted[2]))
     body = {key: value for key, value in candidate.training_receipt.items() if key != "receipt_sha256"}
     body["argument_graph_factor_refit"] = {
-        "schema": "aura.semantic_graph_factor_refit.v1",
+        "schema": "aura.semantic_graph_factor_refit.v2",
+        "negative_admission": "universal_floor_distinguishing_execution",
         "parent_transducer_receipt_sha256": model.receipt_sha256,
         "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in training)),
         "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in validation)),

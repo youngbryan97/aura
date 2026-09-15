@@ -1271,7 +1271,10 @@ def _assign_typed_arguments(
     minimum_score: float | None = None,
     relation_score_cache: dict | None = None,
     retain_score_factors: bool = False,
+    build_only: bool = False,
 ) -> _TypedArgumentAssignment | None:
+    if build_only and (chart_observer is None or model.training_receipt.get("argument_search_strategy") != "global_constraint_v1"):
+        raise ValueError("chart construction needs a global chart observer")
     if (
         len(operation_nodes) > 1
         and not model.allow_computed_dependencies
@@ -1625,6 +1628,8 @@ def _assign_typed_arguments(
         )
         if chart_observer is not None:
             chart_observer(chart)
+        if build_only:
+            return None
         if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
             return None
         optimized = chart.solve()

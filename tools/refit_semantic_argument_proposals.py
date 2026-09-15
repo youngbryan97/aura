@@ -29,6 +29,30 @@ def verify_source_splits(examples, receipt):
             raise ValueError(f"{split} source cohort differs from frozen parent")
 
 
+def load_source_examples(model, report, bundles):
+    """Share the exact parent-bound source admission across refits and diagnostics."""
+    from core.learning.semantic_program_basis import bind_training_examples_to_shared_representation
+    from core.learning.semantic_program_campaign import training_examples_from_feature_bundle
+    from core.learning.semantic_program_feature_materialization import load_standard_semantic_feature_bundle
+
+    compatibility = report["representation_compatibility"]
+    expected = compatibility["source_feature_manifest_sha256s"]
+    examples = {}
+    for value in bundles:
+        name, separator, path = value.partition("=")
+        if not separator or name not in expected or name in examples:
+            raise ValueError("source bundles must uniquely name every source family")
+        bundle = load_standard_semantic_feature_bundle(Path(path).expanduser())
+        if bundle.manifest["manifest_sha256"] != expected[name]:
+            raise ValueError(f"source manifest differs: {name}")
+        examples[name] = training_examples_from_feature_bundle(bundle)
+    if set(examples) != set(expected):
+        raise ValueError("source bundles must include every source family")
+    bound = bind_training_examples_to_shared_representation(examples, compatibility=compatibility)
+    verify_source_splits(bound, model.training_receipt)
+    return bound
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transducer", type=Path, required=True)
@@ -62,10 +86,6 @@ def main() -> int:
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
-    from core.learning.semantic_program_basis import (
-        bind_training_examples_to_shared_representation,
-    )
-    from core.learning.semantic_program_campaign import training_examples_from_feature_bundle
     from core.learning.semantic_program_compositional_campaign import (
         select_compositional_program_candidate,
     )
@@ -75,9 +95,6 @@ def main() -> int:
         refit_compositional_argument_rankings,
         refit_compositional_definition_pointer,
         refit_compositional_operation_pointer,
-    )
-    from core.learning.semantic_program_feature_materialization import (
-        load_standard_semantic_feature_bundle,
     )
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 
@@ -92,21 +109,7 @@ def main() -> int:
         json.loads(args.transducer.read_text("ascii"))
     )
     report = json.loads(args.source_report.read_text("ascii"))
-    compatibility = report["representation_compatibility"]
-    expected = compatibility["source_feature_manifest_sha256s"]
-    examples = {}
-    for value in args.bundle:
-        name, separator, path = value.partition("=")
-        if not separator or name not in expected or name in examples:
-            raise ValueError("source bundles must uniquely name every source family")
-        bundle = load_standard_semantic_feature_bundle(Path(path).expanduser())
-        if bundle.manifest["manifest_sha256"] != expected[name]:
-            raise ValueError(f"source manifest differs: {name}")
-        examples[name] = training_examples_from_feature_bundle(bundle)
-    bound = bind_training_examples_to_shared_representation(
-        examples, compatibility=compatibility
-    )
-    verify_source_splits(bound, model.training_receipt)
+    bound = load_source_examples(model, report, args.bundle)
     refit = {
         "binary_proposals": refit_compositional_argument_proposals,
         "pairwise_arguments": refit_compositional_argument_rankings,

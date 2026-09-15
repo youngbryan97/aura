@@ -21,6 +21,8 @@ It does not replace or close the master G03-G12 obligations.
   dependency decisions against complete incorrect interpretations. Preserve
   equivalent correct programs and use the same candidate construction at
   training and inference. A three-scalar calibration is not this task.
+  [Witnessed graph negatives and algebraic positives](evidence/G03_SEMANTIC_COUNTEREXAMPLES_2026-09-15.md)
+  are implemented; joint neural-head learning remains open.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request

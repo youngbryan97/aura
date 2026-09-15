@@ -98,6 +98,8 @@ def optimize_argument_chart(
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
     prune_dominated: bool = False,
     excluded_arguments: Sequence[Sequence[int]] | None = None,
+    excluded_graphs: Sequence[Sequence[Sequence[int]]] = (),
+    time_limit_s: float | None = None,
     selection_observer=None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
@@ -114,16 +116,20 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         operation_count < 1
         or type(n_inputs) is not int or n_inputs < 1
         or type(node_limit) is not int or node_limit < 1
+        or (time_limit_s is not None and (not math.isfinite(time_limit_s) or time_limit_s <= 0))
     ):
         raise ValueError("argument optimization dimensions must be positive")
-    if excluded_arguments is not None and (
-        len(excluded_arguments) != operation_count
+    excluded = tuple(excluded_graphs) + (() if excluded_arguments is None else (excluded_arguments,))
+    if any(
+        len(graph) != operation_count
         or any(len(target) != len(node)
-               for target, node in zip(excluded_arguments, options, strict=True))
+               for target, node in zip(graph, options, strict=True))
         or any(type(register) is not int or not 0 <= register < n_inputs + operation_count
-               for node in excluded_arguments for register in node)
+               for node in graph for register in node)
+        for graph in excluded
     ):
         raise ValueError("excluded argument graph differs from chart")
+    excluded = tuple(dict.fromkeys(tuple(tuple(node) for node in graph) for graph in excluded))
     choices = []
     slots = defaultdict(list)
     uses = defaultdict(list)
@@ -146,7 +152,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         try:
             incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
                 node_limit=node_limit, definition_options=names, definition_scores=definition_scores,
-                excluded_arguments=excluded_arguments)
+                excluded_graphs=excluded, time_limit_s=time_limit_s)
         except ArgumentOptimizationIncompleteError:
             incumbent = None
     for node, arguments in enumerate(options):
@@ -208,10 +214,10 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
 
     for indices in slots.values():
         constraint(dict.fromkeys(indices, 1.0), 1.0, 1.0)
-    if excluded_arguments is not None:
-        # Exclude a meaning, including every mention/definition realization of it.
+    for graph in excluded:
+        # One no-good covers every mention/definition realization of this graph.
         matching = {index: 1.0 for index, (node, position, _score, register, _span)
-                    in enumerate(choices) if register == excluded_arguments[node][position]}
+                    in enumerate(choices) if register == graph[node][position]}
         constraint(matching, -np.inf, len(slots) - 1)
     definitions_by_register = defaultdict(list)
     for label_index, ((register, _definition), indices) in enumerate(definition_uses.items()):
@@ -255,7 +261,8 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     result = milp(
         objective, integrality=integrality, bounds=Bounds(lower, upper),
         constraints=LinearConstraint(matrix, lows, highs),
-        options={"node_limit": node_limit, "mip_rel_gap": 0.0},
+        options={"node_limit": node_limit, "mip_rel_gap": 0.0,
+                 **({"time_limit": time_limit_s} if time_limit_s is not None else {})},
     )
     if result.status == 2:
         return None
