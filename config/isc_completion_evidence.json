@@ -1779,12 +1779,12 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "ledger\\.note\\(kind, step\\)"
       },
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "derives that from the ledger at the top of every turn"
       },
       {
@@ -2306,7 +2306,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "the workspace prices its memory bid from it"
       },
       {
@@ -4610,8 +4610,13 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "def _perturb_D"
+      },
+      {
+        "command": "{python} -m pytest tests/test_her_standing_plans_belong_to_deliberation.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
       }
     ],
     "note": "persistent planner state lives in the same domain and is displaced with it",
@@ -5723,7 +5728,7 @@
     "checks": [
       {
         "kind": "grep",
-        "path": "core/subject/state.py",
+        "path": "core/subject/perturbation.py",
         "pattern": "await organs\\.self_model\\.update_belief"
       },
       {
@@ -7764,7 +7769,7 @@
       },
       {
         "kind": "path",
-        "path": "artifacts/subject_core/run_017/manifest.json"
+        "path": "artifacts/subject_core/run_031/manifest.json"
       }
     ],
     "note": "and a SHA-256 for every file the run wrote",
