@@ -297,9 +297,21 @@ class _StartsSomethingSocial:
                     {"mode": "read", "uid": uid}, cap_engine=cap_engine
                 )
                 if not read_result.get("ok"):
+                    # The capability engine refuses, defers and rate-limits
+                    # with `reason`, `status` and `message` rather than
+                    # `error`; every one of those read "unknown error" in the
+                    # feed (live, 2026-09-15, four cards in one tick).
+                    why = next(
+                        (
+                            str(read_result.get(key))
+                            for key in ("error", "message", "reason", "status")
+                            if read_result.get(key)
+                        ),
+                        "no reason given",
+                    )
                     self._emit_feed(
                         "Email Triage",
-                        f"Could not read UID {uid}: {read_result.get('error', 'unknown error')}",
+                        f"Could not read UID {uid}: {why}",
                         category="Social",
                     )
                     continue
