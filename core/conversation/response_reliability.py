@@ -77,6 +77,14 @@ from core.runtime.turn_outcome import note_candidate, note_suppression
 
 logger = logging.getLogger("Aura.Conversation.ResponseReliability")
 
+
+def shared_history_violations(reply_text: str, user_message: str) -> list[str]:
+    """Expose the reliability check's sentence evidence to delivery repair."""
+    from core.dialogue.shared_history import fabricated_shared_history
+
+    return fabricated_shared_history(reply_text, user_message)
+
+
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
 _TURN_OR_CONTROL_ARTIFACT_RE = re.compile(
     r"(?im)"

@@ -425,9 +425,9 @@ def _enforce_final_requested_output_contract(
             # 2026-09-15: a correct 27B answer about daylight-saving time was
             # replaced by a wrong 9B one under an apology, over "The 2 o'clock
             # hour never exists that night."
-            from core.dialogue.shared_history import fabricated_shared_history
+            from core.conversation.response_reliability import shared_history_violations
 
-            offending = fabricated_shared_history(repaired, user_message)
+            offending = shared_history_violations(repaired, user_message)
             excised = _without_sentences(repaired, offending)
             if offending and excised and excised != repaired:
                 _append_turn_text_mutation(

@@ -61,6 +61,12 @@ def test_without_sentences_closes_the_gap():
     assert chat_reply_shaping._without_sentences("Only this.", ["Only this."]) == ""
 
 
+def test_delivery_gets_shared_history_evidence_from_conversation_reliability(monkeypatch):
+    monkeypatch.setattr(shared_history, "fabricated_shared_history",
+                        lambda reply, user: [reply + user])
+    assert response_reliability.shared_history_violations("reply", "question") == ["replyquestion"]
+
+
 def test_a_labelled_premise_is_not_a_question_of_its_own():
     """The same turn: "Quick sanity check: if I run a script ..., and the clocks
     go forward that night, what actually happens on a Mac?" is one question.
