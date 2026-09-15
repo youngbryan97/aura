@@ -676,6 +676,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Graph relation learning](evidence/G03_GRAPH_RELATION_RESULT_2026-09-15.md)
+  completes all 500 paired rows: 465 exact / 471 equivalent versus 436 / 456.
+  Thirty exact gains and one regression; the incumbent remains selected.
   [Joint refinement workplan](G_SEMANTIC_REFINEMENT_WORKPLAN.md) tracks capacity
   proofs, complete bounded search, semantic counterexamples and learned refits.
   [Capacity and search evidence](evidence/G03_CAPACITY_AND_SEARCH_2026-09-15.md)

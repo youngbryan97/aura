@@ -33,6 +33,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.runtime.subprocess_gateway import get_subprocess_gateway
+
 __all__ = [
     "DECODING_KEYS",
     "ArmIdentity",
@@ -126,13 +128,16 @@ def _file_digests(root: Path) -> dict[str, str]:
 
 def _commit() -> str:
     try:
-        result = subprocess.run(
+        result = get_subprocess_gateway().run(
             ["git", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             timeout=10,
             cwd=Path(__file__).resolve().parents[2],
             check=False,
+            read_only=True,
+            source="subject.arm_identity.commit",
+            accelerator_capability="none",
         )
     except (OSError, subprocess.SubprocessError):
         return ""

@@ -26,6 +26,12 @@ It does not replace or close the master G03-G12 obligations.
   [Graph-supervised relation tissue](evidence/G03_GRAPH_RELATION_CANARY_2026-09-15.md)
   repairs the measured relation conflict and selects equivalent programs on
   four training canaries. Full-cohort measurement and operation learning remain.
+  [Completed full-cohort comparison](evidence/G03_GRAPH_RELATION_RESULT_2026-09-15.md)
+  improves exact programs from 436 to 465 and equivalent programs from 456 to
+  471 out of 500, but one regression prevents promotion.
+  [Joint operation/relation trainer](evidence/G03_JOINT_GRAPH_TRAINER_2026-09-15.md)
+  now consumes witnessed runtime-selected errors and differentiates both
+  shipped heads under one graph objective. Its full-cohort result is pending.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request

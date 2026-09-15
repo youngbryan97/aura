@@ -19,6 +19,23 @@ from dataclasses import replace
 from core.subject.arm_identity import ArmIdentity, differences, pin_arm_identity
 
 
+def test_arm_commit_probe_uses_the_process_owner(monkeypatch):
+    from pathlib import Path
+    from types import SimpleNamespace
+    from core.subject import arm_identity
+
+    calls = []
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0, stdout='a' * 40 + '\n')
+    monkeypatch.setattr(arm_identity, 'get_subprocess_gateway', lambda: SimpleNamespace(run=run))
+    assert arm_identity._commit() == 'a' * 40
+    assert calls[0][0] == ['git', 'rev-parse', 'HEAD']
+    assert calls[0][1]['read_only'] is True
+    assert calls[0][1]['accelerator_capability'] == 'none'
+    assert calls[0][1]['cwd'] == Path(arm_identity.__file__).resolve().parents[2]
+
+
 def test_a_pin_is_stable_when_nothing_has_happened() -> None:
     assert differences(pin_arm_identity(), pin_arm_identity()) == []
 

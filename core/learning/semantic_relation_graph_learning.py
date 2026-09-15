@@ -43,6 +43,8 @@ class RelationGraphContrast:
     negative: tuple
     fixed_margin: float
     weight: float = 1.
+    positive_operations: tuple = ()
+    negative_operations: tuple = ()
 
 
 def contrast_from_search(result, head, *, scale, weight=1.):
@@ -58,7 +60,8 @@ def contrast_from_search(result, head, *, scale, weight=1.):
                                  margin - scale * relation_margin, weight)
 
 
-def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization):
+def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,
+                        operation_parameters=()):
     """Pairwise logistic loss on graph margins, with latent choices held fixed."""
     from scipy.special import expit
 
@@ -68,57 +71,88 @@ def relation_graph_loss(query, definition, contrasts, *, scale, initial, regular
             or any(not np.isfinite(row.fixed_margin) or not np.isfinite(row.weight)
                    or row.weight <= 0 for row in contrasts)):
         raise ValueError("invalid relation graph contrasts")
-    loss, dq, dd = 0., np.zeros_like(query), np.zeros_like(definition)
+    parameters = (query, definition, *operation_parameters)
+    if len(initial) != len(parameters):
+        raise ValueError("graph optimizer anchor geometry differs")
+    loss, gradients = 0., [np.zeros_like(value) for value in parameters]
     for row in contrasts:
         margin, gq, gd = row.fixed_margin, np.zeros_like(query), np.zeros_like(definition)
+        operation_gradients = [np.zeros_like(value) for value in operation_parameters]
         for sign, choices in ((1., row.positive), (-1., row.negative)):
             for bank, index in choices:
                 value, qgrad, dgrad = bank.score_gradient(index, query, definition)
                 margin += sign * scale * value
                 gq += sign * scale * qgrad
                 gd += sign * scale * dgrad
+        for sign, choices in ((1., row.positive_operations), (-1., row.negative_operations)):
+            for bank, index in choices:
+                value, derivatives = bank.score_gradient(index, operation_parameters)
+                margin += sign * value
+                for gradient, derivative in zip(operation_gradients, derivatives, strict=True):
+                    gradient += sign * derivative
         weight = row.weight / total
         loss += weight * np.logaddexp(0., -margin)
-        dq -= weight * expit(-margin) * gq
-        dd -= weight * expit(-margin) * gd
-    for value, start, gradient in zip((query, definition), initial, (dq, dd), strict=True):
+        for gradient, derivative in zip(gradients, (gq, gd, *operation_gradients), strict=True):
+            gradient -= weight * expit(-margin) * derivative
+    for value, start, gradient in zip(parameters, initial, gradients, strict=True):
         delta = value - start
         loss += .5 * regularization * np.sum(delta * delta)
         gradient += regularization * delta
-    return float(loss), (dq, dd)
+    return float(loss), tuple(gradients)
 
 
 def fit_relation_graph_contrasts(head, contrasts, *, scale=1., steps=100, learning_rate=.001,
                                 regularization=.001):
     """Refit the shipped low-rank projections; base evidence stays unchanged."""
+    candidate, _, receipt = fit_joint_graph_contrasts(head, None, contrasts, scale=scale,
+        steps=steps, learning_rate=learning_rate, regularization=regularization)
+    return candidate, receipt
+
+
+def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., steps=100,
+                             learning_rate=.001, regularization=.001):
+    """Update existing relation and optional operation heads under one graph loss."""
     if type(steps) is not int or steps < 1 or not np.isfinite(learning_rate) or learning_rate <= 0:
         raise ValueError("invalid relation graph optimizer settings")
+    operation_parameters = tuple(v for component in operation_head.heads
+                                 for v in (component.weight, component.bias)) if operation_head is not None else ()
     initial = tuple(np.asarray(v, dtype=np.float64).copy() for v in
-                    (head.query_projection, head.definition_projection))
+                    (head.query_projection, head.definition_projection, *operation_parameters))
     values = [v.copy() for v in initial]
     moments, squares = ([np.zeros_like(v) for v in values] for _ in range(2))
     kwargs = dict(scale=scale, initial=initial, regularization=regularization)
-    initial_loss = relation_graph_loss(*values, contrasts, **kwargs)[0]
+    def objective(parameters):
+        return relation_graph_loss(*parameters[:2], contrasts, operation_parameters=parameters[2:], **kwargs)
+
+    initial_loss = objective(values)[0]
     best_loss, best = initial_loss, [v.copy() for v in values]
     for step in range(1, steps + 1):
-        _, gradients = relation_graph_loss(*values, contrasts, **kwargs)
+        _, gradients = objective(values)
         for index, gradient in enumerate(gradients):
             moments[index] = .9 * moments[index] + .1 * gradient
             squares[index] = .999 * squares[index] + .001 * gradient * gradient
             values[index] -= learning_rate * (moments[index] / (1 - .9 ** step)) / (
                 np.sqrt(squares[index] / (1 - .999 ** step)) + 1e-8)
-        loss = relation_graph_loss(*values, contrasts, **kwargs)[0]
+        loss = objective(values)[0]
         if not np.isfinite(loss):
             raise ValueError("nonfinite relation graph update")
         if loss < best_loss:
             best_loss, best = loss, [v.copy() for v in values]
     candidate = replace(head, query_projection=best[0], definition_projection=best[1])
-    stored_loss = relation_graph_loss(candidate.query_projection.astype(np.float64),
-        candidate.definition_projection.astype(np.float64), contrasts, **kwargs)[0]
+    operations = (replace(operation_head, heads=tuple(replace(component, weight=best[2 + 2 * index],
+        bias=best[3 + 2 * index]) for index, component in enumerate(operation_head.heads)))
+        if operation_head is not None else None)
+    stored = (candidate.query_projection, candidate.definition_projection,
+              *(v for component in operations.heads for v in (component.weight, component.bias))) if operations else (
+                  candidate.query_projection, candidate.definition_projection)
+    stored_loss = objective(tuple(value.astype(np.float64) for value in stored))[0]
     if stored_loss > initial_loss:
-        candidate, stored_loss = head, initial_loss
-    return candidate, {"objective": "witnessed_complete_graph_relation_margin_v1", "pairs": len(contrasts),
+        candidate, operations, stored_loss = head, operation_head, initial_loss
+    return candidate, operations, {"objective": ("witnessed_complete_joint_graph_margin_v1" if operation_head is not None
+        else "witnessed_complete_graph_relation_margin_v1"), "pairs": len(contrasts),
         "steps": steps, "initial_loss": initial_loss, "stored_loss": stored_loss,
+        "learning_rate": learning_rate, "regularization": regularization, "relation_scale": scale,
+        "operation_head_updated": operation_head is not None,
         "base_head_changed": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False}
 
