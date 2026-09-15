@@ -265,6 +265,41 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   claim exists. OOM diagnostic rows now score and display one shared footprint
   observation. Focused gates pass; deployment and latency replay remain. See
   [catalog and diagnostic snapshot](evidence/R06_REPLY_CATALOG_AND_DIAGNOSTIC_SNAPSHOT_2026-09-09.md).
+  UPDATE 2026-09-15. Seven stalls, each read from its own dump in
+  `data/error_logs/stalls/` — the loop thread's frame at the moment the
+  watchdog fired — and each fixed where the frame pointed (2b043139a,
+  9970dc210):
+  - 5.2s `wake_word._get_latest_transcript` inside `Path.resolve()`: a
+    realpath walk five times a second on the loop. Resolved once at import;
+    the poll reads from a thread.
+  - 5.6s `liquid_substrate.encode_text_to_stimulus`: the 512x260 random
+    projection redrawn on every broadcast winner. One constant per size.
+  - 5.4s `earned_metric.recurrence_verdict`: 1,300 small NumPy calls per
+    verdict, each a GIL round trip against the embedding and BLAS threads.
+    Vectorised to about twenty; the null is bit-identical (test).
+  - 7.3s `resource_observation._children_rss_bytes` from the lane
+    reconciler asking for the host total: psutil walked every pid on the
+    host. Lane admission reads only the total; on the loop the walk serves
+    its last reading and refreshes from a thread.
+  - 5.5s `outcome_ledger._persist` from initiative arbiter -> preference
+    learner -> `open`: a sqlite INSERT on the loop. Rows opened on the loop
+    go to a writer thread; readers flush first; off-loop writes are inline.
+  - 5.7s `intentional_retrieval.wire_default_stores` -> `document_count()`:
+    a full COUNT(*) of the corpus as an existence guard. `has_documents()`.
+  - 5.5s `mlx_client._response_listener_loop` -> `pulse_neural_root`
+    waiting on the mycelium class lock while the vault worker copied every
+    mapped module under it. One shared copy per published map, detached
+    outside the lock; the pulse runs from a thread.
+  Also from the feed: the hypervisor and the loop monitor both warned about
+  one 3.3s stall because the stall aged the monitor's sample past the
+  freshness window; the stall's own length counts toward it now. And the
+  per-turn trace writers (`thought_tracer.log_cycle` x34,
+  `cognitive_trace.save` x14 per boot) were sync gateway writes from
+  coroutines; they await the async lane (77e59bf05).
+  Still open: `degradation_habituation` lock held 186ms on the loop; the
+  health snapshot refresh exceeding 8s; the streak of 1.5–11s lags between
+  22:49 and 22:51Z that produced no dump because each was under the 5s
+  watchdog line. Resident replay on this build follows.
 - [x] R07 Reconcile health probe expiry, false readiness, and actual failures.
   CLOSED 2026-09-08: [transport and live reconciliation](evidence/R07_HEALTH_AUTHORITY_2026-09-08.md).
   HTTP health, readiness and heartbeat now use the same versioned snapshot;
