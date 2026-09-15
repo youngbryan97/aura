@@ -268,8 +268,14 @@ def phi_do(
     condition: str | None = None,
     domains: tuple[str, ...] | None = None,
     at: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
+    components: int = COMPONENTS,
+    folds: int = FOLDS,
 ) -> PartitionReport:
     """The minimum over bipartitions of the loss the cut costs.
+
+    ``components`` and ``folds`` are the two settings the estimator chose; they
+    default to the battery's and exist so core/subject/alternates.py can ask
+    whether a verdict survives other choices.
 
     ``at`` scores one named bipartition instead of searching for the weakest.
     A lesion needs that: the intact arm and the cut arm each searched for their
@@ -300,7 +306,7 @@ def phi_do(
             note="not enough moving domains or transitions to cut anything",
         )
 
-    folds = _folds(now.shape[0])
+    folds = _folds(now.shape[0], folds)
     train, validate, test = folds[0]
 
     # Reduce first, then fit. Both sides of every comparison see the same
@@ -310,7 +316,7 @@ def phi_do(
     target_of: dict[str, np.ndarray] = {}
     for key in live:
         columns = _block_columns(recording, (key,))
-        basis = _basis(now[:, columns], train, COMPONENTS)
+        basis = _basis(now[:, columns], train, components)
         source[key] = basis(now[:, columns])
         # The same basis applied to both ends, so the target is the movement of
         # the domain in its own coordinates rather than the difference between
