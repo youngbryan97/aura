@@ -335,8 +335,16 @@ subject-core:
 
 subject-core-frozen:
 	@echo "🧪 Three runs of the battery on three declared seeds, so a criterion that changes answer says so..."
+	@# 300 rounds, not 60. Synergy and irreducibility are both read as a lower
+	@# bound over five held-out folds, and run_032 failed both on the bound
+	@# rather than on the value: its worst triple averaged +0.0484 across folds
+	@# with a fold standard deviation of 0.1232, so the bound sat at -0.0595.
+	@# The rows needed to resolve a threshold of zero are (1.96 s / (sqrt(5) m))^2
+	@# = 4.97 times as many, which is 300 rounds. The threshold is unchanged;
+	@# this is the evidence needed to decide it. The recording is 6m22s of a
+	@# 4.4 hour run, so five times the rows costs about half an hour.
 	@for seed in 7 11 13; do \
-		$(PYTHON) tools/run_subject_core.py --rounds 60 --trials 6 --lesion-rounds 16 \
+		$(PYTHON) tools/run_subject_core.py --rounds 300 --trials 6 --lesion-rounds 16 \
 			--seed $$seed --out artifacts/subject_core || exit 1; \
 	done
 	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
