@@ -331,7 +331,7 @@ class ResponseProcessingMixin:
 
         # Trace
         trace.record_step("end", {"response": (response or "")[:100]})
-        trace.save()
+        await trace.save_async()
         self._last_thought_time = time.time()
 
         if getattr(self, "drives", None):

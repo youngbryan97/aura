@@ -2298,7 +2298,7 @@ async def test_finalize_response_empty_response(orchestrator):
     orchestrator.cerebellum = mock_llm
 
     result = await orchestrator._finalize_response(
-        message="Hello", response="...", origin="user", trace=_CallRecorder(), successful_tools=[]
+        message="Hello", response="...", origin="user", trace=_CallRecorder(save_async=_AsyncCallRecorder()), successful_tools=[]
     )
     assert result == "Fallback response"
     assert orchestrator._generate_fallback.called
@@ -2318,7 +2318,7 @@ async def test_finalize_response_valid_response(orchestrator):
             message="Hello",
             response="Valid response",
             origin="user",
-            trace=_CallRecorder(),
+            trace=_CallRecorder(save_async=_AsyncCallRecorder()),
             successful_tools=[],
         )
     assert "Valid" in result
@@ -2344,7 +2344,7 @@ async def test_finalize_response_with_meta_learning(orchestrator):
         message="Do something",
         response="Done!",
         origin="user",
-        trace=_CallRecorder(),
+        trace=_CallRecorder(save_async=_AsyncCallRecorder()),
         successful_tools=["web_search"],
     )
     assert result is not None
@@ -2365,7 +2365,7 @@ async def test_finalize_response_history_cap(orchestrator):
             message="Hello",
             response="Capped!",
             origin="user",
-            trace=_CallRecorder(),
+            trace=_CallRecorder(save_async=_AsyncCallRecorder()),
             successful_tools=[],
         )
         await asyncio.sleep(0.6)

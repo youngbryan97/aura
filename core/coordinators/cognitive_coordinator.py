@@ -179,7 +179,7 @@ class CognitiveCoordinator:
                 logger.error("Failed to record interaction in cognitive layer: %s", e)
         try:
             trace.record_step("end", {"response": (response or "")[:100]})
-            trace.save()
+            await trace.save_async()
         except _COGNITIVE_BOUNDARY_ERRORS as exc:
             _record_cognitive_degradation(exc, action="cognitive trace finalization skipped")
         orch._last_thought_time = time.time()

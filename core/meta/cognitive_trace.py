@@ -28,10 +28,19 @@ class CognitiveTrace:
             "timestamp": time.time() - self.start_time
         })
 
+    def _path(self) -> str:
+        return os.path.join(self.log_dir, f"trace_{self.trace_id}.json")
+
+    def _payload(self) -> str:
+        return json.dumps({
+            "id": self.trace_id,
+            "duration": time.time() - self.start_time,
+            "steps": self.steps
+        }, indent=2)
+
     def save(self):
-        """Save the trace to disk."""
-        filename = f"trace_{self.trace_id}.json"
-        path = os.path.join(self.log_dir, filename)
+        """Save the trace to disk (sync; for bare-thread callers)."""
+        path = self._path()
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -46,11 +55,28 @@ class CognitiveTrace:
             ):
                 get_file_write_gateway().write_text(
                     path,
-                    json.dumps({
-                        "id": self.trace_id,
-                        "duration": time.time() - self.start_time,
-                        "steps": self.steps
-                    }, indent=2),
+                    self._payload(),
+                    source="cognitive_trace.save",
+                )
+            logger.info("Cognitive Trace saved: %s", path)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('cognitive_trace', e)
+            logger.error("Failed to save trace: %s", e)
+
+    async def save_async(self):
+        """Save the trace to disk from a coroutine, off the loop thread."""
+        path = self._path()
+        try:
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            with local_internal_governed_scope(
+                "cognitive_trace.save",
+                receipt_prefix="cognitive-trace-save",
+            ):
+                await get_file_write_gateway().write_text_async(
+                    path,
+                    self._payload(),
                     source="cognitive_trace.save",
                 )
             logger.info("Cognitive Trace saved: %s", path)

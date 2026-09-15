@@ -30,6 +30,61 @@ class ThoughtTracer:
     ) -> None:
         """Log a complete cognitive cycle.
         """
+        line = self._cycle_line(objective, context, thought, outcome)
+        if line is None:
+            return
+        try:
+            with local_internal_governed_scope(
+                "thought_tracer.log_cycle",
+                domain="file_write",
+            ):
+                get_file_write_gateway().append_text(
+                    self.current_trace_file,
+                    line,
+                    encoding="utf-8",
+                    source="thought_tracer.log_cycle",
+                )
+        except (TypeError, ValueError) as e:
+            record_degradation('thought_tracer', e)
+            self.logger.error("Failed to write trace: %s", e)
+
+    async def log_cycle_async(
+        self,
+        objective: str,
+        context: dict[str, Any],
+        thought: dict[str, Any],
+        outcome: str | None = None,
+    ) -> None:
+        """The same entry as ``log_cycle``, appended off the event loop.
+
+        The kernel tick is a coroutine; a sync append there is an fsync on
+        the loop thread.
+        """
+        line = self._cycle_line(objective, context, thought, outcome)
+        if line is None:
+            return
+        try:
+            with local_internal_governed_scope(
+                "thought_tracer.log_cycle",
+                domain="file_write",
+            ):
+                await get_file_write_gateway().append_text_async(
+                    self.current_trace_file,
+                    line,
+                    encoding="utf-8",
+                    source="thought_tracer.log_cycle",
+                )
+        except (TypeError, ValueError) as e:
+            record_degradation('thought_tracer', e)
+            self.logger.error("Failed to write trace: %s", e)
+
+    def _cycle_line(
+        self,
+        objective: str,
+        context: dict[str, Any],
+        thought: dict[str, Any],
+        outcome: str | None,
+    ) -> str | None:
         entry = {
             "timestamp": time.time(),
             "iso_time": datetime.now().isoformat(),
@@ -38,21 +93,12 @@ class ThoughtTracer:
             "thought": thought,
             "outcome": outcome
         }
-
         try:
-            with local_internal_governed_scope(
-                "thought_tracer.log_cycle",
-                domain="file_write",
-            ):
-                get_file_write_gateway().append_text(
-                    self.current_trace_file,
-                    json.dumps(entry) + "\n",
-                    encoding="utf-8",
-                    source="thought_tracer.log_cycle",
-                )
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            return json.dumps(entry) + "\n"
+        except (TypeError, ValueError) as e:
             record_degradation('thought_tracer', e)
-            self.logger.error("Failed to write trace: %s", e)
+            self.logger.error("Failed to encode trace entry: %s", e)
+            return None
 
     def log_event(self, event_type: str, details: dict[str, Any]) -> None:
         """Log a discrete event (e.g., tool usage, state change)."""

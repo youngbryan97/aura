@@ -1638,7 +1638,7 @@ class AuraKernel:
                 except (ImportError, AttributeError, RuntimeError):
                     pass  # no-op: intentional
 
-                tracer.log_cycle(
+                await tracer.log_cycle_async(
                     objective=objective,
                     context=getattr(self.state, "cognition", {}).__dict__ if self.state else {},
                     thought={"last_response": trace_response, **trace_meta},
