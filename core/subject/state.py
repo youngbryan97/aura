@@ -269,6 +269,17 @@ def _budget_names() -> tuple[str, ...]:
         return ("curiosity", "energy", "growth", "integrity", "social")
 
 
+#: The senses the proprioceptive loop reports on, in the order I reads them.
+#: Named here and there, because the body writes what it measured and the
+#: schema reads what the body wrote.
+_SENSE_CHANNELS: tuple[str, ...] = (
+    "user_presence",
+    "screen_changed",
+    "social",
+    "threat",
+    "novelty",
+)
+
 _DRIVES: tuple[str, ...] = _budget_names()
 
 #: Cognitive modes, one-hot into C.
@@ -369,6 +380,17 @@ _SCHEMAS: dict[str, Schema] = {
             # the host still without also holding still.
             ("exertion", "soma.exertion"),
             ("recall_effort", "soma.effort"),
+            # One column per sense rather than one number for all of them. The
+            # sum saturates: presence and threat sit near 0.8 on almost every
+            # frame, so the aggregate lives where x/(x+2) is flattest and a
+            # displacement that moved a channel by 0.05 moved the column by
+            # 0.005. Each channel is already bounded in [0, 1], so each is read
+            # as it is, and the load is their mean rather than a squashed sum.
+            ("sensor_presence", "soma.sensors.user_presence"),
+            ("sensor_screen", "soma.sensors.screen_changed"),
+            ("sensor_social", "soma.sensors.social"),
+            ("sensor_threat", "soma.sensors.threat"),
+            ("sensor_novelty", "soma.sensors.novelty"),
             ("sensor_load", "soma.sensors"),
         ),
     ),
@@ -1119,19 +1141,22 @@ def _read_I(state: Any) -> np.ndarray:
             _f(_dig(state, "vitality"), 1.0),
             _f(_dig(state, "soma.exertion")),
             _sat(_f((_dig(state, "soma.effort", {}) or {}).get("recall")), 32.0),
-            # How much is arriving on her senses, not how many of them exist.
-            # Counting the live channels reads four on almost every frame —
-            # presence, social, threat and novelty are rarely all quiet — so
-            # the count was constant while the magnitudes moved between 0.2 and
-            # 0.83. Load is how much.
-            _sat(
-                sum(
-                    abs(float(value))
-                    for value in (_dig(state, "soma.sensors", {}) or {}).values()
-                    if isinstance(value, (int, float))
-                ),
-                2.0,
+            # How much is arriving on each of her senses. A channel that
+            # reported nothing is absent from the reading rather than written
+            # as zero, and reads zero here, which is the same answer for a
+            # column and a different fact for the loop that wrote it.
+            *(
+                _f((_dig(state, "soma.sensors", {}) or {}).get(channel))
+                for channel in _SENSE_CHANNELS
             ),
+            # And their mean, over the senses she has rather than the ones that
+            # happened to report. Linear, so a channel moving by a tenth moves
+            # this by a fiftieth instead of by whatever the saturation left.
+            sum(
+                abs(_f((_dig(state, "soma.sensors", {}) or {}).get(channel)))
+                for channel in _SENSE_CHANNELS
+            )
+            / float(len(_SENSE_CHANNELS)),
         ],
         dtype=np.float64,
     )

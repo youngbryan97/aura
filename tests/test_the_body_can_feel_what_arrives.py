@@ -112,3 +112,38 @@ def test_asking_the_same_thing_again_counts_as_a_return() -> None:
     ledger.note("what did we decide")
     assert ledger.returns("what did we decide") == 2
     assert ledger.returns("something else") == 0
+
+
+def test_each_sense_is_its_own_reading() -> None:
+    """One column per sense, because a sum of them saturates.
+
+    Presence and threat sit near 0.8 on almost every frame, so the aggregate
+    lives where x/(x+2) is flattest: a displacement that moved a channel by
+    0.05 moved the old single column by 0.005, and six domains each moved
+    exactly one column of interoception. Read separately they move three to
+    five.
+    """
+    state = AuraState.default()
+    state.soma.sensors = {"user_presence": 0.8, "social": 0.2, "threat": 0.8, "novelty": 0.5}
+    assert _column(state, "I", "sensor_presence") == pytest.approx(0.8)
+    assert _column(state, "I", "sensor_social") == pytest.approx(0.2)
+    assert _column(state, "I", "sensor_threat") == pytest.approx(0.8)
+    assert _column(state, "I", "sensor_novelty") == pytest.approx(0.5)
+    assert _column(state, "I", "sensor_screen") == 0.0
+
+
+def test_the_load_is_a_mean_so_a_channel_moves_it_linearly() -> None:
+    quiet, loud = AuraState.default(), AuraState.default()
+    quiet.soma.sensors = {"social": 0.2}
+    loud.soma.sensors = {"social": 0.4}
+    moved = _column(loud, "I", "sensor_load") - _column(quiet, "I", "sensor_load")
+    # Five senses, so a tenth on one of them is a fiftieth on the mean, and it
+    # does not depend on where the other four happen to sit.
+    assert moved == pytest.approx(0.2 / 5.0)
+
+
+def test_a_sense_that_reported_nothing_reads_zero() -> None:
+    state = AuraState.default()
+    state.soma.sensors = {"social": 0.4}
+    assert _column(state, "I", "sensor_threat") == 0.0
+    assert _column(state, "I", "sensor_load") == pytest.approx(0.4 / 5.0)
