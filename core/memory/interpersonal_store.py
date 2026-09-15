@@ -410,6 +410,33 @@ class InterpersonalStore:
             saved += int(await self.save(person))
         return saved
 
+    def preferences_for_prompt(self, person: str, *, limit: int = 12) -> dict[str, str]:
+        """What he has said he likes and values, as the prompt block reads it.
+
+        `world.user_preferences` is described in `core/being/individual_preferences.py`
+        as "durable, persisted, and injected into every prompt: learned from
+        conversation". Nothing wrote it. The context assembler has read it since
+        it was added and found nothing there every time, and the column reading
+        it stayed flat through a six-hour recording.
+
+        Keys are his own words, because the record's whole discipline is that
+        person-knowledge is never reworded. Values say how she knows it.
+        """
+        key = _person_key(person)
+        if not key or key not in self._models:
+            return {}
+        rows: list[tuple[float, str, str]] = []
+        for observation in self._models[key]:
+            if str(observation.facet) not in {"preference", "value"}:
+                continue
+            claim = str(observation.claim or "").strip()
+            if not claim:
+                continue
+            last = observation.last_seen() or 0.0
+            rows.append((float(last), claim, observation.evidence_phrase or "she saw it"))
+        rows.sort(key=lambda row: -row[0])
+        return {claim: phrase for _, claim, phrase in rows[: max(0, int(limit))]}
+
     def models(self) -> dict[str, PersonModel]:
         """Every person model resident, keyed the way the store keys them.
 

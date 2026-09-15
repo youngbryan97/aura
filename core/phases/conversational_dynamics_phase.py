@@ -196,14 +196,20 @@ class ConversationalDynamicsPhase(Phase):
             from core.memory.interpersonal_store import get_interpersonal_store
             from core.social.particular import read_particularity
 
-            state.cognition.particular = read_particularity(
-                get_interpersonal_store().models()
-            ).as_dict()
+            store = get_interpersonal_store()
+            state.cognition.particular = read_particularity(store.models()).as_dict()
+            partner = str(getattr(state.cognition, "current_partner", "") or "")
+            # And what he has told her he likes, where the prompt looks for it.
+            # `world.user_preferences` is described as durable and injected into
+            # every prompt, and nothing wrote it: the context assembler found it
+            # empty every time and the column reading it never moved.
+            mirrored = store.preferences_for_prompt(partner)
+            if mirrored:
+                state.world.user_preferences = mirrored
             # And where this sitting with them stands against how their
             # sittings have ended. See core/social/closing_window.py.
             from core.social.closing_window import get_sitting_ledger
 
-            partner = str(getattr(state.cognition, "current_partner", "") or "")
             sittings = get_sitting_ledger()
             # With how strained things were around this message, so what their
             # long absences follow can be learned. See `Attribution` there.

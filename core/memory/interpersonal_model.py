@@ -332,6 +332,20 @@ class Observation:
             resolved_by=Occurrence.from_dict(resolved) if resolved else None,  # type: ignore[arg-type]
         )
 
+    @property
+    def evidence_phrase(self) -> str:
+        """How she knows it, in the words the record uses everywhere.
+
+        An inference rendered as fact is how she ends up confidently wrong
+        about someone, so it is said out loud. Observed needs no clause: she
+        saw it.
+        """
+        if self.authority is Provenance.STATED:
+            return "he told me this"
+        if self.authority is Provenance.INFERRED:
+            return "my inference, not something I was told or saw"
+        return ""
+
     def render(self, *, now: float | None = None) -> str:
         """As context text, stating kind, evidence and how she knows it."""
         now = time.time() if now is None else now
@@ -340,12 +354,8 @@ class Observation:
             parts.append(f"({self.conditions.strip()})")
 
         evidence: list[str] = []
-        if self.authority is Provenance.STATED:
-            evidence.append("he told me this")
-        elif self.authority is Provenance.INFERRED:
-            # Said out loud, because an inference rendered as fact is how she
-            # ends up confidently wrong about someone.
-            evidence.append("my inference, not something I was told or saw")
+        if self.evidence_phrase:
+            evidence.append(self.evidence_phrase)
 
         if self.accumulates:
             evidence.append(f"noticed {_times(self.support)}")
