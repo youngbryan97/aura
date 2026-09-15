@@ -27,6 +27,8 @@ share the percepts and share nothing else.
 
 from __future__ import annotations
 
+import re
+
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -141,10 +143,17 @@ class ClassSamples:
     retrieved_b: list[frozenset[str]] = field(default_factory=list)
 
 
+#: Recall writes each recollection with the score it was kept at, and that
+#: score moves with her mood while the memory stays the same one. The
+#: behavioural geometry is about which memories came back, so the score is taken
+#: off before two recalls are compared; the store's own label stays.
+_SCORE_MARK = re.compile(r"^\[memory score=[-0-9.]+\]\s*")
+
+
 def _retrieved(runtime: Any) -> frozenset[str]:
     cognition = getattr(getattr(runtime, "state", None), "cognition", None)
     items = list(getattr(cognition, "long_term_memory", []) or [])
-    return frozenset(str(item) for item in items)
+    return frozenset(_SCORE_MARK.sub("[memory] ", str(item)) for item in items)
 
 
 async def sample_classes(
