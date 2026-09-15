@@ -16,7 +16,7 @@ from tools.verify_semantic_neural_composition_decode_canary import _sha, verify
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_ROOT = (
     REPO_ROOT
-    / "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260831"
+    / "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260915"
 )
 RESULT = ARTIFACT_ROOT / "result.json"
 JOURNAL = ARTIFACT_ROOT / "result.json.journal.jsonl"

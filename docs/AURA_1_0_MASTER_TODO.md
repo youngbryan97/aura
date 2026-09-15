@@ -647,6 +647,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   — decode at 3.5 tok/s and prefill at 40 tok/s — is the host, not the
   runtime; the answer clock priced it correctly and the deadline held.
 
+  2026-09-15, the two resident decode canaries the registry had carried as
+  NOT_MEASURED since chat_format.py changed, re-run on the 27B while the
+  live instance was down for it: induced-procedure decode
+  (`artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260915`)
+  reproduced the sealed counts exactly — treatment 8/8, ordinary 1,
+  matched-wire 1, coefficient-lesion 1, wrong-input 0, wrong-state 0, gain
+  7, p=0.0078 — in 107s; typed-composition decode
+  (`typed_composition_decode_canary_20260915`), under the public-channel
+  policy the runner now defaults to (v2: the answer is what she said on her
+  public channel, and a cut-short decode is counted, not read), treatment
+  8/8 and 0 on all five controls, gain 8, p=0.0039, 0 censored, in 380s.
+  Both independently verified; both claims bound to the fresh runs.
+
 ## 2. General RLC reasoning: the scientific critical path
 
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.

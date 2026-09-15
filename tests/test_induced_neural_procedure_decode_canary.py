@@ -29,7 +29,7 @@ BASIS = (
 DECODE_ARTIFACT = (
     REPO_ROOT
     / "artifacts/closeout/latent_cortex/"
-    "induced_neural_procedure_decode_canary_20260831"
+    "induced_neural_procedure_decode_canary_20260915"
 )
 RESULT = DECODE_ARTIFACT / "result.json"
 JOURNAL = DECODE_ARTIFACT / "journal.jsonl"

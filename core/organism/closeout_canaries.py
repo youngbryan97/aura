@@ -72,7 +72,7 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     import json
 
     bundle = _canary_artifact_bundle(
-        "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260831",
+        "artifacts/closeout/latent_cortex/typed_composition_decode_canary_20260915",
         "tools/verify_semantic_neural_composition_decode_canary.py",
     )
     if bundle is None:
@@ -102,9 +102,16 @@ def _resident_semantic_neural_composition_decode_certificate_holds() -> bool:
     }
     arms = result.get("arms")
     journal = verification.get("journal_identity")
+    # v2 is the public-channel decode policy (2026-09-14): the answer is what
+    # the model said on its public channel after thinking, and a decode the
+    # channel cut short is counted rather than read as an answer. The 0831
+    # canary was v1, raw text; the 0915 re-run on the same model and basis
+    # reproduced 8/8 treatment and 0 on every control under v2.
     return bool(
         result.get("schema")
-        == "aura.rlc.semantic_neural_composition_decode_canary.v1"
+        == "aura.rlc.semantic_neural_composition_decode_canary.v2"
+        and result.get("decode_policy") == "native_public_channel_v1"
+        and result.get("censored_decodes") == 0
         and result.get("admitted") is True
         and result.get("task_count") == 8
         and result.get("decode_calls_per_arm_per_task") == 1
@@ -196,7 +203,7 @@ def _induced_neural_procedure_decode_certificate_holds() -> bool:
     import json
 
     bundle = _canary_artifact_bundle(
-        "artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260831",
+        "artifacts/closeout/latent_cortex/induced_neural_procedure_decode_canary_20260915",
         "tools/verify_induced_neural_procedure_decode_canary.py",
     )
     if bundle is None:
