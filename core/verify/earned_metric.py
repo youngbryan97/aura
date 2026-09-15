@@ -352,6 +352,29 @@ def _lag_profile_from_gram(gram: np.ndarray) -> np.ndarray:
     )
 
 
+def _null_maxima(gram: np.ndarray, orders: np.ndarray) -> np.ndarray:
+    """The lag-profile maximum of every surrogate, in a dozen array calls.
+
+    The loop version made ten diagonal reads per surrogate — 1,300 small
+    NumPy calls for 128 surrogates, each one a GIL round trip. That is under
+    a millisecond on an idle host; with an embedding thread and BLAS holding
+    the GIL it starved the loop thread for 5.4s (stall dump, 2026-09-15).
+    Reordering every surrogate's Gram in one indexing call and reading each
+    lag's diagonal across all of them at once keeps the count near twenty.
+    """
+
+    permuted = gram[orders[:, :, None], orders[:, None, :]]
+    n = gram.shape[0]
+    profiles = np.stack(
+        [
+            np.diagonal(permuted, offset=-k, axis1=1, axis2=2).mean(axis=1)
+            for k in range(1, n // 2 + 1)
+        ],
+        axis=1,
+    )
+    return profiles.max(axis=1)
+
+
 def recurrence_verdict(
     history: Sequence[Sequence[float]],
     *,
@@ -412,10 +435,8 @@ def recurrence_verdict(
     dominant_lag = int(np.argmax(observed_profile)) + 1
 
     rng = np.random.default_rng(seed)
-    null = np.empty(surrogates, dtype=float)
-    for index in range(surrogates):
-        order = rng.permutation(gram.shape[0])
-        null[index] = float(np.max(_lag_profile_from_gram(gram[np.ix_(order, order)])))
+    orders = np.stack([rng.permutation(gram.shape[0]) for _ in range(surrogates)])
+    null = _null_maxima(gram, orders)
     threshold = float(np.percentile(null, percentile))
 
     return RecurrenceVerdict(

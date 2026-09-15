@@ -79,6 +79,25 @@ _SUBSTRATE_LOOP_ERRORS = (
 )
 
 
+_TEXT_PROJECTIONS: dict[int, np.ndarray] = {}
+
+
+def _text_projection(neuron_count: int) -> np.ndarray:
+    """The fixed random projection from the 260 text features to the neurons.
+
+    Seeded by the neuron count, so it is one constant matrix per substrate
+    size. It was drawn afresh on every call — a million normals per
+    broadcast winner, on the loop thread. A stall dump on 2026-09-15 (5.6s)
+    caught the workspace consumer inside that draw.
+    """
+    proj = _TEXT_PROJECTIONS.get(neuron_count)
+    if proj is None:
+        rng = np.random.RandomState(neuron_count)
+        proj = rng.randn(neuron_count, 260).astype(np.float32) * (1.0 / np.sqrt(260))
+        _TEXT_PROJECTIONS[neuron_count] = proj
+    return proj
+
+
 def _default_substrate_dim() -> int:
     raw = os.environ.get("AURA_SUBSTRATE_DIM", "512")
     try:
@@ -845,10 +864,7 @@ class LiquidSubstrate(_KeepsItsStateOnDisk):
         )
 
         raw = np.concatenate([hist, features])
-
-        rng = np.random.RandomState(neuron_count)
-        proj = rng.randn(neuron_count, 260).astype(np.float32) * (1.0 / np.sqrt(260))
-        stimulus = np.tanh(proj @ raw)
+        stimulus = np.tanh(_text_projection(neuron_count) @ raw)
         return stimulus
 
     def get_substrate_affect(self) -> dict[str, float]:

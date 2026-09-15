@@ -47,6 +47,20 @@ def test_a_stale_sample_hands_the_reading_back_to_the_hypervisor():
     assert announced is False
 
 
+def test_the_stall_itself_does_not_age_the_monitor_out_of_the_reading():
+    # Live, 2026-09-15 22:33:03: a 3.3s stall woke the hypervisor's sleep
+    # first. The monitor's last sample was 1s + 3.3s old — older than the 2s
+    # window — so the hypervisor warned, and the monitor warned one second
+    # later. One stall, two lines, again.
+    monitor = EventLoopMonitor(interval=1.0)
+    monitor._capture_lag_sample(0.05, sampled_monotonic=time.perf_counter() - 4.3)
+    ServiceContainer.register_instance("event_loop_monitor", monitor, required=False)
+
+    lag, announced = Hypervisor()._lag_reading(3.3)
+    assert lag == pytest.approx(3.3)
+    assert announced is True
+
+
 def test_no_monitor_means_the_hypervisor_measures_and_announces():
     lag, announced = Hypervisor()._lag_reading(1.9)
     assert lag == pytest.approx(1.9)

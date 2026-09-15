@@ -233,9 +233,12 @@ class Hypervisor:
             return max(0.0, measured), False
         lag, age_s = sample
         interval = float(getattr(monitor, "interval", 1.0) or 1.0)
-        if age_s > 2.0 * interval:
+        # The stall that delayed this loop delayed the monitor's sleep by the
+        # same amount, so its last sample is older by exactly the lag being
+        # read. A sample is stale only past that, or the monitor is dead.
+        if age_s > 2.0 * interval + max(0.0, measured):
             return max(0.0, measured), False
-        return max(0.0, float(lag)), True
+        return max(0.0, float(lag), measured), True
 
     async def _watchdog_loop(self):
         while self._running:

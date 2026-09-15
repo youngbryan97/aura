@@ -22,10 +22,17 @@ import time
 from enum import StrEnum
 from typing import Any
 
+from pathlib import Path
+
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.voice.audio_provenance import attribute_wake_audio
 from core.runtime.task_ownership import create_tracked_task
+
+# The demo-injection sidecar. Resolved once: a live stall dump (2026-09-15,
+# 5.2s) caught the poll in ``Path(__file__).resolve()`` — a realpath walk
+# on the loop thread, five times a second, on a host with the disk busy.
+_AUDIO_SIDECAR = Path(__file__).resolve().parent.parent.parent / "sensory_audio.json"
 
 logger = logging.getLogger("Aura.WakeWord")
 
@@ -150,7 +157,7 @@ class WakeWordDetector:
                     healer = ServiceContainer.get("self_healing", default=None)
                     if healer is not None:
                         healer.heartbeat("wake_word")
-                    transcript = self._get_latest_transcript()
+                    transcript = await asyncio.to_thread(self._get_latest_transcript)
 
                     if self.state == WakeState.IDLE:
                         await self._check_wake_word(transcript)
@@ -185,10 +192,7 @@ class WakeWordDetector:
 
         # Try audio service directly
         try:
-            import json
-            from pathlib import Path
-
-            audio_path = Path(__file__).resolve().parent.parent.parent / "sensory_audio.json"
+            audio_path = _AUDIO_SIDECAR
             if audio_path.exists() and (time.time() - audio_path.stat().st_mtime) < 10:
                 data = json.loads(audio_path.read_text(encoding="utf-8"))
                 transcript = str(data.get("transcript") or data.get("text") or "")
