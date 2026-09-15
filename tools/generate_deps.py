@@ -81,6 +81,12 @@ HANDWRITTEN = {
     # and take nothing else from core.brain; regenerating widens that to the
     # cognition the evaluation scores.
     "evaluation",
+    # The other direction of that same edge. Frontier certification takes
+    # the exact paired test from core.evaluation and nothing else there, so
+    # core/brain names core.evaluation.paired_power. Regenerating widens it to
+    # the whole of core.evaluation — the scorers of the cognition this package
+    # is — with the gate still green.
+    "brain",
     # The judge must not be able to reach the defendant. core/phenomenology
     # decides whether evidence supports a claim about this system, so its rule
     # is "imports nothing from core" rather than "what it imports today" — a
