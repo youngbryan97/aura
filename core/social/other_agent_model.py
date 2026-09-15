@@ -21,6 +21,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
+from core.social.borrowed_feeling import get_calibration_ledger
+from core.social.owning_it_first import get_owning_ledger
 from core.social.relational_memory import (
     RelationalMemoryAuthority,
     get_relational_memory_authority,
@@ -879,7 +881,6 @@ class OtherAgentStateEstimator:
         """
         try:
             from core.container import ServiceContainer
-            from core.social.owning_it_first import get_owning_ledger
 
             unity = ServiceContainer.get("unity_state", default=None)
             owed = any(
@@ -901,8 +902,6 @@ class OtherAgentStateEstimator:
     def _note_heard(self, agent_id: str, model: _AgentModel, observed_at: float, *, complaint: bool) -> None:
         """Close whatever lapse event was open for them, and open one if they raised a failure."""
         try:
-            from core.social.owning_it_first import get_owning_ledger
-
             frustration = self._frustration(model, observed_at)
             if frustration is not None:
                 get_owning_ledger().heard(agent_id, frustration=frustration, complaint=complaint)
@@ -925,8 +924,6 @@ class OtherAgentStateEstimator:
         if signal is None:
             return
         try:
-            from core.social.borrowed_feeling import get_calibration_ledger
-
             get_calibration_ledger().said(believed=float(signal.decayed(observed_at)[0]), said=said)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
