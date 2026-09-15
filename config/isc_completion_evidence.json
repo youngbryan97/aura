@@ -11672,5 +11672,37 @@
     ],
     "note": "a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now",
     "status": "done"
+  },
+  "P8.9": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\",\\s*type=int,\\s*default=64,"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "for draw in range\\(args\\.surrogate_draws\\)"
+      }
+    ],
+    "note": "the replay surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile",
+    "status": "done"
+  },
+  "P8.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"--surrogate-draws\",\\s*type=int,\\s*default=64,"
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "for draw in range\\(args\\.surrogate_draws\\)"
+      }
+    ],
+    "note": "the time-shuffle surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile",
+    "status": "done"
   }
 }
