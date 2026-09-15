@@ -11704,5 +11704,25 @@
     ],
     "note": "the time-shuffle surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile",
     "status": "done"
+  },
+  "P39.6": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/metastability.py",
+        "pattern": "def condition_alignment\\(labels: Any, conditions: Any\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_regimes_are_not_the_condition_labels_rediscovered.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['metastability'].get('not_the_conditions') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the regimes leave entropy once the condition is known and are not the conditions relabelled; read on the next battery run, and on run_032 offline every condition spanned more than one regime (seed 7 NMI 0.00, seed 17 0.67)",
+    "status": "done"
   }
 }
