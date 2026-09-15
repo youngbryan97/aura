@@ -1060,6 +1060,16 @@ sources' own dynamics, the interaction bound as it is, and something in place of
 the fraction that is not a ratio, and it would need all of that preregistered
 with these known answers before it reads her recordings.
 
+ISC-v3 is that revision (docs/ISC_V3_PREREGISTRATION.md, `3e09f8077`). Its
+bootstrap null simulates both sources from their fitted autoregression without
+the target, and its bar asks the raw synergy to clear that null by the null's
+own spread, keeping the fraction floor, the raw bar against the shifted null
+and the interaction bound. At 2,400 rows it registered a coupling of two spreads
+on 25 of 25 synthetic recordings at a persistence of 0.99 and on 16 of 25 at
+0.998, and passed none of 150 uncoupled recordings and none of 50 with an
+additive coupling. It was committed before it read any recording of hers, and
+v1 and v2 stay reported beside it.
+
 The line has not been changed. Aura's synergy on the change had already been
 measured on the A/B recordings when this was found, and a criterion may only be
 made stricter once its results are known. The synergy failure is recorded as

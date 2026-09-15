@@ -217,10 +217,31 @@ def _isc_v2(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) 
 
 
 def load(directory: Path) -> dict[str, Any]:
+    """A run's report, with its ISC-v2 and ISC-v3 lines rescored where the preregistration says so.
+
+    `tools/subject_core_rescore_synergy_v3.py` writes a sidecar for the one
+    campaign recorded before v3. Its v2 and v3 lines and its null table stand in
+    for the report's; the v1 verdict stays the one the run recorded. A sidecar
+    that could not reproduce the run's own v2 reading is not read.
+    """
     report = directory / "subject_core_report.json"
     if not report.exists():
         raise SystemExit(f"no report in {directory}")
-    return json.loads(report.read_text())
+    loaded = json.loads(report.read_text())
+    sidecar = directory / "isc_v3_rescored.json"
+    if not sidecar.exists():
+        return loaded
+    rescored = json.loads(sidecar.read_text())
+    if "refused" in rescored or rescored.get("reproduced") is False:
+        return loaded
+    verdict = dict(loaded.get("verdict") or {})
+    verdict["v2_criteria"] = rescored.get("v2_criteria") or verdict.get("v2_criteria", [])
+    verdict["v3_criteria"] = rescored.get("v3_criteria") or []
+    verdict["rescored_after_the_run"] = True
+    loaded["verdict"] = verdict
+    if rescored.get("nulls_detail"):
+        loaded["nulls"] = {**(loaded.get("nulls") or {}), "detail": rescored["nulls_detail"]}
+    return loaded
 
 
 def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
