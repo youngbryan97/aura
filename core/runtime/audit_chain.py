@@ -139,6 +139,8 @@ class AuditChain:
         self._next_seq: int = 0
         self._unsynced_entries: int = 0
         self._known_chain_signature: tuple[int, int, int] | None = None
+        #: The last drift reported, so a rewind that stays rewound is said once.
+        self._reported_drift: tuple[int, int] | None = None
         self._append_fd: int | None = None
         self._lock_fd: int | None = None
         self._root_ready = False
@@ -193,6 +195,34 @@ class AuditChain:
             )
         except OSError:
             return None
+
+    def _reconcile_next_seq_locked(self) -> int | None:
+        """Confirm the cached next sequence against the durable tail.
+
+        The signature above is a stat, and a rewind that puts the old size and
+        modification time back is invisible to it. The counter then runs ahead
+        of the file, and the next append is assigned a sequence with a hole
+        under it: the ghost line saw "assigned seq 43, chain head 41" on every
+        arm of a campaign and recovered each one by re-reading afterwards.
+
+        The file is the authority. Returns the sequence the cache was holding
+        when the two disagreed, and None when they agreed.
+        """
+        record = self._read_last_record()
+        durable = int(record["seq"]) + 1 if record is not None else 0
+        if durable == self._next_seq:
+            return None
+        stale = int(self._next_seq)
+        self._head_hash = record["entry_hash"] if record is not None else GENESIS_PREV_HASH
+        self._next_seq = durable
+        self._known_chain_signature = self._chain_signature()
+        if (stale, durable) != self._reported_drift:
+            self._reported_drift = (stale, durable)
+            logger.warning(
+                "audit chain %s had drifted from its file: holding %d, file ends at %d",
+                self.path, stale, durable - 1,
+            )
+        return stale
 
     def _refresh_head_if_disk_changed_locked(self) -> None:
         signature = self._chain_signature()
@@ -303,6 +333,7 @@ class AuditChain:
         with self._lock:
             with self._process_append_lock():
                 self._refresh_head_if_disk_changed_locked()
+                self._reconcile_next_seq_locked()
                 content_hash = hash_receipt_body(body)
                 seq = self._next_seq
                 prev_hash = self._head_hash
@@ -351,6 +382,7 @@ class AuditChain:
         with self._lock:
             with self._process_append_lock():
                 self._refresh_head_if_disk_changed_locked()
+                self._reconcile_next_seq_locked()
                 seq = self._next_seq
                 body = body_factory(seq)
                 if not isinstance(body, dict):
