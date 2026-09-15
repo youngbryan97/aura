@@ -113,6 +113,39 @@ def _dig(blob: Any, path: tuple[str, ...]) -> Any:
     return node
 
 
+def _isc_v2(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
+    """ISC-v2 across the runs: every v2 line held on every run, the null line across seeds.
+
+    Only runs that recorded v2 lines are v2 runs. Their per-seed null reading is
+    replaced by the verdict across all of them, which is how the
+    preregistration decides that line. None when no run was a v2 run.
+    """
+    v2_runs = [r for r in reports if (r.get("verdict") or {}).get("v2_criteria")]
+    if not v2_runs:
+        return None
+    lines: dict[str, list[bool]] = {}
+    for report in v2_runs:
+        verdict = report.get("verdict") or {}
+        replaced = {row["criterion"] for row in verdict.get("v2_criteria", [])}
+        for row in verdict.get("criteria", []):
+            if row["criterion"] not in replaced:
+                lines.setdefault(row["criterion"], []).append(bool(row.get("passed")))
+        for row in verdict.get("v2_criteria", []):
+            if row["criterion"] != "beats_every_null":
+                lines.setdefault(row["criterion"], []).append(bool(row.get("passed")))
+    across = bool(null_verdict and null_verdict.get("all_nulls_fail"))
+    lines["beats_every_null"] = [across] * len(v2_runs)
+    holds = sorted(name for name, results in lines.items() if all(results))
+    return {
+        "runs": len(v2_runs),
+        "lines": len(lines),
+        "holds_on_every_run": len(holds),
+        "failing": sorted(name for name in lines if name not in holds),
+        "isc_v2": len(holds) == len(lines) and len(lines) > 0,
+        "null_line_read_across": null_verdict,
+    }
+
+
 def load(directory: Path) -> dict[str, Any]:
     report = directory / "subject_core_report.json"
     if not report.exists():
@@ -203,6 +236,7 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         null_verdict: dict[str, Any] | None = verdict_across_seeds(conjunctions)
     else:
         null_verdict = None
+    isc_v2 = _isc_v2(reports, null_verdict)
 
     campaigns: dict[str, list[str]] = {}
     seeds: list[Any] = []
@@ -230,6 +264,7 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "numbers": numbers,
         "synergy_triples": triples,
         "v2_null_verdict": null_verdict,
+        "isc_v2": isc_v2,
         # Per domain, the weakest channel in and the weakest channel out, on
         # the newest run. A domain can sit inside the component hanging off one
         # thin edge, and the component alone does not say which one.

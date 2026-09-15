@@ -142,6 +142,12 @@ class Criterion:
 class Verdict:
     criteria: list[Criterion] = field(default_factory=list)
     notes: dict[str, Any] = field(default_factory=dict)
+    #: ISC-v2's three changed lines, read on this run. v1 is `criteria` and
+    #: stays the result it is; these are reported beside it. The null line is
+    #: decided across the campaign's declared seeds, so a single run records
+    #: its own seed's reading and the scorecard reads the rest.
+    #: See docs/ISC_V2_PREREGISTRATION.md.
+    v2_criteria: list[Criterion] = field(default_factory=list)
 
     @property
     def isc(self) -> bool:
@@ -179,10 +185,25 @@ class Verdict:
             return False
         return all(item.passed for item in self.criteria if item.key not in _CONTESTED)
 
+    def v2_lines(self) -> list[Criterion]:
+        """The conjunction with ISC-v2's lines standing in for the v1 lines they replace."""
+        replaced = {item.key for item in self.v2_criteria}
+        kept = [item for item in self.criteria if item.key not in replaced]
+        return kept + list(self.v2_criteria)
+
+    @property
+    def isc_v2_on_this_seed(self) -> bool:
+        """Every line under ISC-v2, with the null line read on this seed alone."""
+        lines = self.v2_lines()
+        return bool(lines) and bool(self.v2_criteria) and all(item.passed for item in lines)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
             "isc_specification_corrected": self.isc_with_the_specification_corrected,
+            "isc_v2_on_this_seed": self.isc_v2_on_this_seed,
+            "v2_passed": sum(1 for item in self.v2_lines() if item.passed) if self.v2_criteria else None,
+            "v2_criteria": [item.as_dict() for item in self.v2_criteria],
             "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
@@ -205,6 +226,50 @@ class Verdict:
 
 def _c(key: str, section: str, statement: str, passed: bool, value: Any, bar: Any, **detail: Any) -> Criterion:
     return Criterion(key, section, statement, bool(passed), value, bar, detail)
+
+
+def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v2's three lines, where this run measured what they read.
+
+    A run from before v2 recorded neither synergy on the change nor the v2
+    conjunction, and leaves `v2_criteria` empty rather than reading as failed:
+    it was not a v2 run. A v2 run missing one of them fails that line.
+    """
+    nulls = evidence.get("nulls", {}) or {}
+    synergy_v2 = evidence.get("synergy_v2")
+    if synergy_v2 is None and "v2_phi_beats_comparison_set" not in nulls:
+        return
+    add = out.v2_criteria.append
+    add(_c(
+        "partition_beats_nulls", "18",
+        "the irreducibility lower bound clears every matched surrogate and every "
+        "null architecture that passes the rest of the conjunction (ISC-v2)",
+        bool(nulls.get("v2_phi_beats_comparison_set")),
+        nulls.get("v2_comparison_set", {}),
+        "above the v2 comparison set",
+        real_lower_bound=nulls.get("real_lower_bound"),
+    ))
+    synergy_v2 = synergy_v2 or []
+    add(_c(
+        "synergy", "27",
+        "domains carry information jointly about the target's change that neither "
+        "carries alone (ISC-v2)",
+        bool(synergy_v2) and all(item.get("passes") for item in synergy_v2),
+        [item.get("synergy_fraction") for item in synergy_v2],
+        f">= {THRESHOLDS['synergy_fraction']} on the change and above its shifted null",
+        triples=[item.get("sources", []) + [item.get("target")] for item in synergy_v2],
+    ))
+    conjunction = nulls.get("conjunction") or {}
+    reference = bool(conjunction.get("recurrent", False))
+    passing = sorted(name for name, holds in conjunction.items() if name != "recurrent" and holds)
+    add(_c(
+        "beats_every_null", "41",
+        "no null passes the conjunction and the reference does, read on this seed; "
+        "ISC-v2 decides it across the campaign's declared seeds (ISC-v2)",
+        reference and not passing,
+        {"reference_passes_on_this_seed": reference, "nulls_passing_on_this_seed": passing},
+        "decided across seeds by the scorecard",
+    ))
 
 
 def assemble(evidence: dict[str, Any]) -> Verdict:
@@ -456,6 +521,7 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         nulls.get("summary", {}),
         "no null passes the conjunction",
     ))
+    _assemble_v2(out, evidence)
     del directed
     _invalidate_on_missing_readings(out, evidence)
     return out
@@ -507,13 +573,16 @@ def _invalidate_on_missing_readings(verdict: Verdict, evidence: dict[str, Any]) 
     verdict.notes["organs_mostly_unread"] = sorted(absent)
     import dataclasses
 
-    for index, item in enumerate(verdict.criteria):
-        needed = CRITERION_ORGANS.get(item.key, ())
-        gone = sorted(set(needed) & absent)
-        if not gone:
-            continue
-        verdict.criteria[index] = dataclasses.replace(
-            item,
-            passed=False,
-            detail={**(item.detail or {}), "invalid": f"read from no organ: {', '.join(gone)}"},
-        )
+    # The v2 lines rest on the same organs as the v1 lines they replace, so an
+    # organ that went unread invalidates both.
+    for lines in (verdict.criteria, verdict.v2_criteria):
+        for index, item in enumerate(lines):
+            needed = CRITERION_ORGANS.get(item.key, ())
+            gone = sorted(set(needed) & absent)
+            if not gone:
+                continue
+            lines[index] = dataclasses.replace(
+                item,
+                passed=False,
+                detail={**(item.detail or {}), "invalid": f"read from no organ: {', '.join(gone)}"},
+            )

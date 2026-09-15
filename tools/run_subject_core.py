@@ -323,6 +323,13 @@ async def main() -> int:
     evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
     evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
     evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
+    # ISC-v2 scores each triple on the target's change, because a slow level
+    # shares information with a slid copy of any slow series and its shifted
+    # null rises with the drift (docs/ISC_V2_PREREGISTRATION.md). Recorded beside
+    # the v1 reading, which stays the v1 result.
+    evidence["synergy_v2"] = [
+        item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
+    ]
     matrix, names = _periphery_matrix(periphery_rows)
     turn_rows = recording.turn_rows()
     from core.subject.closure import coverage as periphery_coverage
@@ -1275,6 +1282,10 @@ def _nulls(
             reports = synergy_suite(scored, seed=args.seed)
             extra["synergy"] = [round(float(r.normalised), 4) for r in reports]
             extra["synergy_passes"] = [bool(r.passes) for r in reports]
+            # And on the change, which is what the v2 conjunction judges a null by.
+            extra["synergy_v2_passes"] = [
+                bool(r.passes) for r in synergy_suite(scored, seed=args.seed, of="change")
+            ]
             extra["synergy_min"] = (
                 round(min(float(r.normalised) for r in reports), 4) if reports else 0.0
             )

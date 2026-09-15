@@ -938,3 +938,41 @@ seed and a fixed decoding path, which is a resident 32B and a run this cannot
 schedule beside the live instance. Until then, every edge reported here is an
 edge that does not need language, and the absence of an edge is evidence about
 the non-linguistic coupling only.
+
+### The positive control cannot pass synergy on every seed under ISC-v1
+
+`beats_every_null` needs the recurrent reference to pass every line the nulls
+fail, synergy included. The reference as built wires no product coupling, and
+the held-out interaction check it has to clear is a lower bound over five
+folds, so an additive toy fails it on most seeds by construction. Measured on
+the synergy suite at the null suite's own 2,500 toy steps, it passed all four
+triples on one seed of five.
+
+Whether a reference that genuinely carries the interactions the battery asks
+about can pass reliably was measured before anything was changed. Each
+declared target's additive coupling from its two sources was replaced by their
+product, scaled to the spread those couplings delivered on a burn-in of the
+additive system, so no strength was chosen:
+
+| toy rows | seeds passing all four triples, of 11 |
+|---|---|
+| 2,500 | 6 |
+| 12,500 | 9 |
+| set per seed from its own fold variance, (1.96 s / (sqrt(5) m))^2 times 2,500 | 8 |
+
+The failures are not one thing. On seed 7, a declared campaign seed, every
+triple's interaction bound is positive and every triple fails on the shifted
+null: the null's 99th percentile fraction runs from 0.19 to 0.38, the drift
+inflation section 2 of the ISC-v2 preregistration describes, and more rows do
+not remove it. On seed 17 one fold's interaction gain falls to -3.4 and the
+rows the bound would need come to 1.6 million. On seed 31 two bounds sit at
+-0.006 and 0.000.
+
+So under ISC-v1 the positive control's synergy depends on the seed whatever
+its wiring, and no reference was changed to make it pass. This is the case the
+preregistration's section 3 exists for: a reference that fails on any declared
+seed is recorded as the instrument failing, not as a result about Aura. Runs
+from this commit on record synergy on the target's change beside the v1
+reading, for the real recording and every null, and the battery reports ISC-v2's
+three lines beside the v1 verdict, with the null line decided across seeds by
+the scorecard.

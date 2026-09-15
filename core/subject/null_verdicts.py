@@ -51,6 +51,14 @@ def _synergy_holds(row: Mapping[str, Any]) -> bool:
     return all(bool(item) for item in passes)
 
 
+def _synergy_v2_holds(row: Mapping[str, Any]) -> bool:
+    """Synergy on the target's change, where the row recorded it; v1's reading otherwise."""
+    passes = row.get("synergy_v2_passes")
+    if passes is None:
+        return _synergy_holds(row)
+    return all(bool(item) for item in passes) if passes else True
+
+
 def passes_all_but_irreducibility(row: Mapping[str, Any]) -> bool:
     """Every line of the conjunction a null is judged on, except irreducibility.
 
@@ -111,7 +119,7 @@ def passes_the_v2_conjunction(name: str, table: Mapping[str, Mapping[str, Any]])
         return False
     others = {key: value for key, value in table.items() if key != name}
     beats, _ = beats_the_comparison_set(float(row.get("phi_do", 0.0)), others)
-    return beats and passes_all_but_irreducibility(row)
+    return beats and passes_all_but_irreducibility({**row, "synergy_passes": None}) and _synergy_v2_holds(row)
 
 
 def verdict_across_seeds(conjunctions: Sequence[Mapping[str, bool]]) -> dict[str, Any]:
