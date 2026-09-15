@@ -1144,8 +1144,8 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P64.2` Never let campaign A support a whole-Aura carrier claim. — a whole-Aura claim needs the cortex-inclusive scope
 - [x] `P64.3` Run campaign B through the real cortex under deterministic or common-random-number inference. — the cortex-inclusive campaign is specified with deterministic or common-random-number inference
 - [x] `P64.4` Snapshot and restore the relevant cortex and recurrent-latent state across arms. — cortex and recurrent-latent state are named as part of the snapshot for campaign B
-- [ ] `P64.5` Hold model weights and code identical across arms.
-- [ ] `P64.6` Keep a sham-versus-sham floor in campaign B as well.
+- [x] `P64.5` Hold model weights and code identical across arms. — every arm pins what served it and two pins name their differences: the registry's pointer and descriptor hashes, a stat digest of the model directory, the content hashes of the tokenizer, chat template and generation config, the sampler settings, the commit, and where each organism module was imported from. The battery pins before it records and again before it reports, and a difference refuses the run
+- [x] `P64.6` Keep a sham-versus-sham floor in campaign B as well. — campaign B scores its cuts through the same sweep campaign A does, and that sweep draws sham_a against sham_b at every cut, so the floor comes with the protocol rather than with the campaign; the preflight asks the question and a test holds the protocol to it
 - [x] `P64.7` Report CORTEX_UNSTEPPABLE rather than substituting the stub when reproducible paired cortex execution cannot be obtained. — CORTEX_UNSTEPPABLE rather than substituting the stub
 
 ## Phase 65 — Measure the content geometry without claiming it is felt

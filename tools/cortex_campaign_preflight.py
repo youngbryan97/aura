@@ -246,6 +246,70 @@ def _kv_restore() -> dict[str, Any]:
     )
 
 
+def _arms_identical(spec: Any = None) -> dict[str, Any]:
+    """Whether what serves an arm can be pinned, and whether it holds still.
+
+    P64.5 asks for the weights and the code to be identical across arms. That
+    is not something a campaign can check after the fact from a report that
+    never wrote it down, so the requirement is a pin taken at every arm and a
+    comparison between them. This takes two pins a moment apart: the pin has to
+    exist, and it has to be stable when nothing has happened.
+    """
+    try:
+        from core.subject.arm_identity import differences, pin_arm_identity
+    except ImportError as exc:
+        return _check("arms identical", None, f"the pin is unavailable: {exc}")
+    first = pin_arm_identity(spec)
+    second = pin_arm_identity(spec)
+    moved = differences(first, second)
+    if moved:
+        return _check(
+            "arms identical",
+            False,
+            f"what serves changed between two pins taken a moment apart: {moved[:3]}",
+        )
+    if first.stubbed:
+        return _check(
+            "arms identical",
+            None,
+            "the pin reads the stub, so it says nothing yet about two cortex arms",
+            pin=first.as_dict(),
+        )
+    return _check(
+        "arms identical",
+        True,
+        f"pointer {first.pointer or '?'}, {first.weights_files} weight files, "
+        f"code {first.commit[:12] or '?'}",
+        pin=first.as_dict(),
+    )
+
+
+def _sham_floor() -> dict[str, Any]:
+    """Whether the cut protocol draws two sham arms as well as the cut.
+
+    P64.6 asks campaign B to keep the sham-versus-sham floor. Campaign B scores
+    its cuts through the same sweep campaign A does, so the question is whether
+    that sweep draws a second sham at all: one sham gives a cut-against-sham
+    comparison with no floor under it, and a restoration then reads as
+    coupling.
+    """
+    try:
+        from core.subject import v25_cut
+    except ImportError as exc:
+        return _check("sham against sham", None, f"the cut protocol is unreadable: {exc}")
+    source = Path(v25_cut.__file__).read_text(encoding="utf-8")
+    wanted = ('samples["sham_a"]', 'samples["sham_b"]')
+    missing = [name for name in wanted if name not in source]
+    return _check(
+        "sham against sham",
+        not missing,
+        "the cut sweep draws two sham arms, so the floor is measured in every "
+        "campaign that uses it"
+        if not missing
+        else f"the cut sweep has no second sham arm: {missing}",
+    )
+
+
 def preflight() -> dict[str, Any]:
     spec, pointer = _pointer()
     # Every check emits a row, whether or not the pointer resolved. A missing
@@ -260,6 +324,8 @@ def preflight() -> dict[str, Any]:
         _decoding(spec),
         _no_fallback(),
         _kv_restore(),
+        _arms_identical(spec),
+        _sham_floor(),
     ]
 
     blocked = [row for row in checks if row["status"] == "blocked"]

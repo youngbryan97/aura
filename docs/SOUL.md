@@ -490,6 +490,10 @@ Nothing in them names a constant that came from the songs.
 | `core/self/persona_gap.py` | expression 18; listener 3 | landed |
 | `core/self/standing.py` | second ten, 2 | landed |
 | `core/affect/containment.py` | second ten, 1 | landed |
+| `core/motivation/fuel.py` | second ten, 3 | landed |
+| `core/social/averted.py` | second ten, 4 | landed |
+| `core/motivation/returning.py` | second ten, 5 | landed |
+| `core/social/particular.py` | second ten, 6 | landed |
 | `core/memory/reliving.py` | listener 9, 15 | landed |
 | `core/affect/conviction.py` | expression 25 | landed |
 | `core/social/constancy.py` | expression 13 | landed |

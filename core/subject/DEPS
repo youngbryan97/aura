@@ -43,6 +43,11 @@ include_rules = [
     # named module by module rather than package by package, so a wider reach
     # into any of them is a line in a diff.
     "+core.agency.authorship",
+    # What is serving the arms. An arm records the pointer, the artifact and
+    # the decoding it ran on, because two arms that were not one system are two
+    # experiments and no report can recover which afterwards. Read only: the
+    # registry never hears from the battery.
+    "+core.brain.llm.model_registry",
     "+core.agency.intention_loop",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
