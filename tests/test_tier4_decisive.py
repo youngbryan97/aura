@@ -478,36 +478,53 @@ class TestWorldModelIndispensability:
         )
 
     def test_world_model_state_has_cross_module_effect(self):
-        """A world model change simultaneously affects multiple subsystems:
-        the unified field receives different input when substrate state changes
-        due to threat detection."""
-        sub = _make_substrate(seed=7)
-        uf = _make_field()
-        ncs = NeurochemicalSystem()
+        """A threat the neurochemistry detects reaches the unified field, and stays.
 
-        # Baseline field state
-        _tick_field(uf, n=10)
-        baseline_F = uf.F.copy()
+        Measured against a matched arm. Two fields from the same seed tick the
+        same way; one then takes the chemistry of a threat and the other the
+        chemistry of a calm moment, and the difference between them is what the
+        threat did. This test used to compare the threatened field with itself
+        ten ticks earlier, which mostly measured the field's own drift: with no
+        threat at all that reading is 0.0043 of the 0.0053 it now gives. Its
+        bar of 0.01 was met while the field sat on its rails, before 89255f721
+        made it a leaky integrator.
+        """
 
-        # World model event: threat detected -> triggers neurochemical cascade
-        ncs.on_threat(severity=0.8)
-        ncs._metabolic_tick()
-        mood = ncs.get_mood_vector()
+        def arm(threat: bool, ticks: int) -> np.ndarray:
+            uf = _make_field()
+            _tick_field(uf, n=10)
+            ncs = NeurochemicalSystem()
+            if threat:
+                ncs.on_threat(severity=0.8)
+            ncs._metabolic_tick()
+            mood = ncs.get_mood_vector()
+            chem_vec = np.array([
+                mood.get("valence", 0), mood.get("arousal", 0),
+                mood.get("dominance", 0), mood.get("frustration", 0),
+                mood.get("curiosity", 0), mood.get("energy", 0),
+                mood.get("focus", 0), mood.get("stress", 0),
+            ], dtype=np.float32)
+            uf.receive_chemicals(chem_vec)
+            _tick_field(uf, n=ticks, vary=False)
+            return uf.F.copy()
 
-        # Feed threat-colored neurochemistry into the unified field
-        chem_vec = np.array([
-            mood.get("valence", 0), mood.get("arousal", 0),
-            mood.get("dominance", 0), mood.get("frustration", 0),
-            mood.get("curiosity", 0), mood.get("energy", 0),
-            mood.get("focus", 0), mood.get("stress", 0),
-        ], dtype=np.float32)
-        uf.receive_chemicals(chem_vec)
-        _tick_field(uf, n=10, vary=False)
+        calm = arm(False, 10)
+        # The arms are comparable only if a field with no threat repeats itself.
+        assert np.array_equal(calm, arm(False, 10))
 
-        post_threat_F = uf.F.copy()
-        divergence = np.linalg.norm(post_threat_F - baseline_F)
-        assert divergence > 0.01, (
-            f"Threat must propagate through field (divergence={divergence:.4f})"
+        early = float(np.linalg.norm(arm(True, 1) - arm(False, 1)))
+        effect = float(np.linalg.norm(arm(True, 10) - calm))
+        assert effect > 1000 * np.finfo(np.float32).eps * float(np.linalg.norm(calm)), (
+            f"Threat must reach the field (difference from the calm arm {effect:.6f})"
+        )
+
+        # And persist: the field is a leaky integrator whose response outlasts
+        # the drive by its own time constant, so a hundred ticks later at least
+        # exp(-ticks * dt * decay) of the first tick's difference is still there.
+        cfg = _make_field().cfg
+        later = float(np.linalg.norm(arm(True, 100) - arm(False, 100)))
+        assert later >= early * math.exp(-99 * cfg.dt * cfg.decay), (
+            f"Threat faded faster than the field's leak ({early:.6f} to {later:.6f} over 99 ticks)"
         )
 
     def test_object_permanence_under_interruption(self):
