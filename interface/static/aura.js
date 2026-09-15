@@ -6727,9 +6727,21 @@ function laneHasActiveGeneration(lane) {
         || reason === 'active_generation_in_flight';
 }
 
+// A generation that is answering THIS window's person. The lane says who
+// owns a generation; a background thought of her own — a synthesis pass, a
+// planner, a reflection — holds the lane without owning the foreground, and
+// it is not her thinking about the message in the composer. LIVE
+// 2026-09-15: "Aura is thinking…" and the typing dots stood for eleven
+// minutes with no user turn in flight, over a background pass.
+function laneHasForegroundGeneration(lane) {
+    if (!laneHasActiveGeneration(lane)) return false;
+    if (lane && typeof lane === 'object' && lane.foreground_owned === false) return false;
+    return true;
+}
+
 function surfaceWorkloadMode() {
     if (document.hidden || state.surfaceSuspended) return 'hidden';
-    if (state.isSubmitting || laneHasActiveGeneration(state.conversationLane)) return 'foreground';
+    if (state.isSubmitting || laneHasForegroundGeneration(state.conversationLane)) return 'foreground';
     return 'idle';
 }
 
@@ -7081,7 +7093,7 @@ function conversationLaneStateKey(lane) {
     const laneState = String(lane.state || 'warming').toLowerCase();
     const failureClass = laneFailureClass(lane);
     if (lane.conversation_ready) return 'ready';
-    if (laneHasActiveGeneration(lane)) return 'thinking';
+    if (laneHasForegroundGeneration(lane)) return 'thinking';
     if (failureClass === 'memory_guard') return 'memory_guard';
     if (failureClass === 'cognitive_engine') return 'route_blocked';
     if (failureClass === 'timeout') return 'timeout';
@@ -7123,7 +7135,7 @@ function applyConversationLane(lane, healthStatus = '') {
     const laneWords = LANE_STATES[laneKey] || LANE_STATES.warming;
     const laneText = laneWords.label;
     const laneStandby = laneIsStandby(effectiveLane);
-    const activeGeneration = laneHasActiveGeneration(effectiveLane);
+    const activeGeneration = laneHasForegroundGeneration(effectiveLane);
     if (state.connected) {
         const healthy = laneHealthIsOperational(effectiveLane, healthStatus);
         const laneOperational = (state.conversationReady || activeGeneration) && healthy;

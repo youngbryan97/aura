@@ -2700,12 +2700,14 @@ _PREFILL_CEILING_CHARS = 48_000
 _PREFILL_KEEP_HEAD_CHARS = 12_000
 
 
-def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "") -> str:
+def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "", origin: str = "") -> str:
     """Bound a prompt so prefill cannot eat the whole request deadline.
 
     Keeps the head (the system contract) and the tail (the question and the
     latest exchange), drops the middle, and says so in the text so the model
-    is not silently reasoning over a gap it cannot see.
+    is not silently reasoning over a gap it cannot see. The line names the
+    origin: a 96,998-character prompt was bounded on 2026-09-15 and nothing
+    in the record said who built it.
     """
 
     text = str(prompt or "")
@@ -2719,15 +2721,19 @@ def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "") -> str:
     )
     tail_budget = max(0, _PREFILL_CEILING_CHARS - _PREFILL_KEEP_HEAD_CHARS - len(marker))
     bounded = text[:_PREFILL_KEEP_HEAD_CHARS] + marker + text[-tail_budget:]
+    who = str(origin or "").strip() or "an unnamed caller"
     logger.error(
-        "🪓 [MLX] Prompt %d chars exceeded the %d prefill ceiling for %s — kept head+tail, "
-        "dropped the middle. An unbounded prompt returns one token and no text.",
+        "🪓 [MLX] Prompt %d chars from %s exceeded the %d prefill ceiling for %s — kept "
+        "head+tail, dropped the middle. An unbounded prompt returns one token and no text.",
         len(text),
+        who,
         _PREFILL_CEILING_CHARS,
         os.path.basename(str(model_path or "")) or "model",
     )
     _record_mlx_degradation(
-        RuntimeError(f"prompt {len(text)} chars over prefill ceiling {_PREFILL_CEILING_CHARS}"),
+        RuntimeError(
+            f"prompt {len(text)} chars from {who} over prefill ceiling {_PREFILL_CEILING_CHARS}"
+        ),
         action="bounded the prompt to head+tail so the turn could produce an answer",
         severity="warning",
     )
@@ -12759,7 +12765,8 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             ),
         )
 
-        prompt = _prompt_within_prefill_ceiling(prompt, model_path=self.model_path)
+        prompt = _prompt_within_prefill_ceiling(prompt, model_path=self.model_path,
+                                                origin=str(kwargs.get("origin", "") or ""))
 
         req_id = uuid.uuid4().hex
         self._job_seq_counter += 1

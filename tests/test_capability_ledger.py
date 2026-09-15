@@ -913,3 +913,43 @@ class TestATrueReadingIsSubstance:
         assert agreed == {"memory_pressure"}
         assert denied == {"cpu_pressure"}
         assert not agreed & denied
+
+
+#: LIVE 2026-09-15. Her reply about profiling a stuck asyncio process was
+#: correct, and this sentence in it quoted the user's own hypothetical. The
+#: ledger read the quoted "I can't" as hers, and the reconciler replaced the
+#: whole sentence with "I can run code and report what it actually printed",
+#: which left the next sentence — "But that kills the process" — pointing at
+#: nothing. The reply the runtime shipped was worse than the one she wrote.
+THE_PROFILING_SENTENCE = (
+    "**For the \"I can't add code without restarting\" case:** if you have "
+    "`faulthandler` enabled in your service (you should — it's one line at "
+    "startup), you can send `SIGABRT` to dump all thread stacks."
+)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        THE_PROFILING_SENTENCE,
+        "The error was “I cannot run code here”, which is the sandbox refusing.",
+        "Try `I can't execute code` as the search string.",
+        "She wrote 'I have no camera' in the ticket, and she was right about her laptop.",
+    ],
+)
+def test_quoted_speech_is_not_her_denial(reply):
+    ledger = _ledger(
+        _fixed("code", present=True, usable_now=True),
+        _fixed("camera", present=True, usable_now=True),
+    )
+    assert ledger.contradicted_claims(reply) == []
+
+
+def test_a_denial_beside_a_quotation_is_still_hers():
+    ledger = _ledger(_fixed("code", present=True, usable_now=True))
+    reply = 'Someone once said "measure twice". I cannot execute code, though.'
+    claims = ledger.contradicted_claims(reply)
+    assert [claim.sentence for claim in claims] == ["I cannot execute code, though."]
+    reconciled = cl.reconcile_contradicted_claims(reply, claims)
+    assert reconciled.startswith('Someone once said "measure twice". ')
+    assert "I cannot execute code" not in reconciled

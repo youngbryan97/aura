@@ -215,10 +215,10 @@ class SpecExtractor:
         tests_dir = self.project_root / "tests"
         if not tests_dir.exists():
             return test_cases
-        patterns = [f"test_{module_name}.py"]
-        for test_file in tests_dir.rglob("*.py"):
-            if not any(test_file.name == p for p in patterns):
-                continue
+        # One file name is wanted; ask for it rather than listing every .py
+        # under tests/ and comparing names, which walked six thousand entries
+        # to find one.
+        for test_file in sorted(tests_dir.rglob(f"test_{module_name}.py")):
             try:
                 test_source = test_file.read_text(encoding="utf-8")
                 test_tree = ast.parse(test_source)

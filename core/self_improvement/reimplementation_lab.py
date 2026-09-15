@@ -20,6 +20,7 @@ Usage:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any, Dict, Optional
@@ -93,12 +94,14 @@ class ReimplementationLab:
         logger.info("═══ Reimplementation Lab: Starting reconstruction of %s ═══", module_path)
 
         try:
-            # 1. Extract spec
-            spec = self.spec_extractor.extract(module_path)
+            # 1. Extract spec. Parsing the module and walking tests/ for its
+            # cases is filesystem work; on the loop it was a 6.1s stall
+            # (2026-09-15, the autonomous repair cycle under a live turn).
+            spec = await asyncio.to_thread(self.spec_extractor.extract, module_path)
             logger.info("Step 1/7: Spec extracted — %s", spec.summary().replace("\n", " | "))
 
-            # 2. Create blinded workspace
-            workspace = self.workspace_factory.create(spec, module_path)
+            # 2. Create blinded workspace — copies files; also off the loop.
+            workspace = await asyncio.to_thread(self.workspace_factory.create, spec, module_path)
             logger.info("Step 2/7: Blinded workspace created at %s", workspace.workspace_dir)
 
             # 3-7. Generate, audit, compare, attribute, decide

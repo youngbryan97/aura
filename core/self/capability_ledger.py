@@ -207,6 +207,27 @@ _POSSESSION_FRAME = re.compile(
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
+#: Speech she is quoting rather than making: matched quotation marks and
+#: inline code. LIVE 2026-09-15, in a reply about profiling a stuck process:
+#: **For the "I can't add code without restarting" case:** ... was read as
+#: her own denial of code execution, and the sentence — correct, and the
+#: user's own hypothetical — was replaced with "I can run code and report
+#: what it actually printed", leaving "But that kills the process" pointing
+#: at nothing. What is inside quotation marks is somebody's words, not a
+#: claim about her.
+_QUOTED_SPEECH = re.compile(
+    r"\u201c[^\u201d]{1,240}\u201d"     # “…”
+    r"|\u2018[^\u2019]{1,240}\u2019"    # ‘…’
+    r"|\"[^\"\n]{1,240}\""             # "…"
+    r"|`[^`\n]{1,240}`"                  # `…`
+    r"|(?<!\w)'[^'\n]{1,240}'(?!\w)"    # '…' — bounded by non-word characters, so an apostrophe is not a quote
+)
+
+
+def _without_quoted_speech(sentence: str) -> str:
+    """The sentence with every quoted span blanked, positions preserved."""
+    return _QUOTED_SPEECH.sub(lambda m: " " * len(m.group(0)), sentence)
+
 
 def _negates_directly(sentence: str, subjects: tuple[str, ...]) -> bool:
     """True when the sentence negates one of ``subjects`` as a bare noun phrase.
@@ -291,10 +312,13 @@ class CapabilityLedger:
         talks herself out of things she can do.
         """
         contradictions: list[ContradictedClaim] = []
-        for sentence in _SENTENCE_SPLIT.split(str(reply or "")):
-            sentence = sentence.strip()
-            if not sentence:
+        for spoken in _SENTENCE_SPLIT.split(str(reply or "")):
+            spoken = spoken.strip()
+            if not spoken:
                 continue
+            # Detection runs on her own words; the replacement, if any, is
+            # keyed on the sentence as written so the reply is edited exactly.
+            sentence = _without_quoted_speech(spoken)
             denial = _DENIAL_FRAME.search(sentence)
             self_denial = bool(
                 denial and denial.start() == 0
@@ -337,11 +361,11 @@ class CapabilityLedger:
                     continue
                 if denies_possession and availability.present:
                     contradictions.append(
-                        ContradictedClaim(sentence, availability, "possession")
+                        ContradictedClaim(spoken, availability, "possession")
                     )
                 elif not denies_possession and availability.usable_now:
                     contradictions.append(
-                        ContradictedClaim(sentence, availability, "ability")
+                        ContradictedClaim(spoken, availability, "ability")
                     )
         return contradictions
 

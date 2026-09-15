@@ -87,7 +87,12 @@ def test_legacy_shell_presents_active_generation_as_working_not_unavailable():
     assert "function laneHasActiveGeneration" in js
     assert "active_generation_in_flight" in js
     assert "Number(lane.active_generations || 0) > 0" in js
-    assert "if (laneHasActiveGeneration(lane)) return 'thinking';" in js
+    # "Thinking" is a FOREGROUND generation. A background pass of her own
+    # holds the lane without owning the foreground and is not her thinking
+    # about the message in the composer.
+    assert "function laneHasForegroundGeneration" in js
+    assert "lane.foreground_owned === false) return false;" in js
+    assert "if (laneHasForegroundGeneration(lane)) return 'thinking';" in js
     assert "CORTEX THINKING" in js
     assert "lane.conversation_ready === false && !laneHasActiveGeneration(lane)" in js
     assert "lane.conversation_ready === false && !laneHasActiveGeneration(lane)" in js
