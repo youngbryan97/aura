@@ -644,6 +644,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Graph-factor calibration](evidence/G03_GRAPH_FACTOR_RESULT_2026-09-15.md)
+  completes 500 paired rows: 435 exact / 454 equivalent versus 436 / 456.
+  The candidate regresses and is not promoted; G03 remains open.
   [Runtime argument views](evidence/G03_RUNTIME_ARGUMENT_VIEWS_2026-09-14.md)
   leave all 500 paired program outcomes unchanged: 436 exact, 456 equivalent.
   The refit is not promoted. G03 remains open.

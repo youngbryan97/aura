@@ -41,7 +41,7 @@ def main() -> int:
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
     if args.evaluate_existing and args.validation_output is None:
@@ -58,6 +58,7 @@ def main() -> int:
     if args.runtime_mention_margin and args.objective != "pairwise_arguments":
         parser.error("runtime mention margin requires pairwise_arguments")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
+    from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -109,6 +110,7 @@ def main() -> int:
     refit = {
         "binary_proposals": refit_compositional_argument_proposals,
         "pairwise_arguments": refit_compositional_argument_rankings,
+        "graph_factors": refit_compositional_graph_scales,
         "operation_pointer": refit_compositional_operation_pointer,
         "argument_pointer": refit_compositional_argument_proposals,
         "definition_pointer": refit_compositional_definition_pointer,
@@ -117,6 +119,8 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
+    if args.objective == "graph_factors":
+        options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:

@@ -97,6 +97,8 @@ def optimize_argument_chart(
     definition_options: Sequence[Sequence[Sequence[TokenSpan]]] | None = None,
     definition_scores: Mapping[tuple[int, TokenSpan], float] | None = None,
     prune_dominated: bool = False,
+    excluded_arguments: Sequence[Sequence[int]] | None = None,
+    selection_observer=None,
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -114,6 +116,14 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         or type(node_limit) is not int or node_limit < 1
     ):
         raise ValueError("argument optimization dimensions must be positive")
+    if excluded_arguments is not None and (
+        len(excluded_arguments) != operation_count
+        or any(len(target) != len(node)
+               for target, node in zip(excluded_arguments, options, strict=True))
+        or any(type(register) is not int or not 0 <= register < n_inputs + operation_count
+               for node in excluded_arguments for register in node)
+    ):
+        raise ValueError("excluded argument graph differs from chart")
     choices = []
     slots = defaultdict(list)
     uses = defaultdict(list)
@@ -135,7 +145,8 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         short, names = _shortlist_mentions(options, definition_options)
         try:
             incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
-                node_limit=node_limit, definition_options=names, definition_scores=definition_scores)
+                node_limit=node_limit, definition_options=names, definition_scores=definition_scores,
+                excluded_arguments=excluded_arguments)
         except ArgumentOptimizationIncompleteError:
             incumbent = None
     for node, arguments in enumerate(options):
@@ -197,6 +208,11 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
 
     for indices in slots.values():
         constraint(dict.fromkeys(indices, 1.0), 1.0, 1.0)
+    if excluded_arguments is not None:
+        # Exclude a meaning, including every mention/definition realization of it.
+        matching = {index: 1.0 for index, (node, position, _score, register, _span)
+                    in enumerate(choices) if register == excluded_arguments[node][position]}
+        constraint(matching, -np.inf, len(slots) - 1)
     definitions_by_register = defaultdict(list)
     for label_index, ((register, _definition), indices) in enumerate(definition_uses.items()):
         variable = definition_offset + label_index
@@ -257,10 +273,10 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         or np.any(matrix @ values > np.asarray(highs) + 1e-6)
     ):
         raise ValueError("argument optimizer returned an invalid solution")
-    arguments, spans = [], []
+    arguments, spans, selected_indices = [], [], []
     score = 0.0
     for node, positions in enumerate(options):
-        node_arguments, node_spans = [], []
+        node_arguments, node_spans, node_indices = [], [], []
         for position in range(len(positions)):
             selected = [i for i in slots[node, position] if values[i] > 0.5]
             if len(selected) != 1:
@@ -269,8 +285,10 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
             score += contribution
             node_arguments.append(register)
             node_spans.append(span)
+            node_indices.append(slots[node, position].index(selected[0]))
         arguments.append(tuple(node_arguments))
         spans.append(tuple(node_spans))
+        selected_indices.append(tuple(node_indices))
     dependencies = tuple(
         tuple(sorted({register - n_inputs for register in values if register >= n_inputs}))
         for values in arguments
@@ -278,4 +296,6 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     if definition_scores is not None:
         score += sum(definition_scores[key] for index, key in enumerate(definition_uses)
                      if values[definition_offset + index] > 0.5)
+    if selection_observer is not None:
+        selection_observer(tuple(selected_indices))
     return score, tuple(arguments), tuple(spans), dependencies

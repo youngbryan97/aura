@@ -1269,6 +1269,7 @@ def _assign_typed_arguments(
     chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
     minimum_score: float | None = None,
     relation_score_cache: dict | None = None,
+    retain_score_factors: bool = False,
 ) -> _TypedArgumentAssignment | None:
     if (
         len(operation_nodes) > 1
@@ -1393,6 +1394,7 @@ def _assign_typed_arguments(
     global_constraint = strategy == "global_constraint_v1"
     chart_options = []
     chart_definition_options = []
+    chart_factors = []
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1406,10 +1408,12 @@ def _assign_typed_arguments(
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
         options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         definitions_by_position = []
+        factors_by_position = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
             by_register: dict[int, list[tuple[float, TokenSpan]]] = {}
+            factor_lookup = {} if retain_score_factors else None
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
@@ -1474,6 +1478,12 @@ def _assign_typed_arguments(
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                     )
                     by_register.setdefault(candidate_index, []).append((score, span))
+                    if factor_lookup is not None:
+                        factor_lookup[candidate_index, span] = (
+                            role_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(role_score),
+                            proposal_score if score_strategy == "conditional_log_odds_v1" else _log_sigmoid(proposal_score),
+                            candidate_relation_evidence, _log_sigmoid(pointer_score),
+                        )
             if not by_register:
                 return None
             ranked_options = sorted(
@@ -1498,6 +1508,9 @@ def _assign_typed_arguments(
                 key=lambda item: (-item[0], item[1], item[2].start, item[2].end, item[3]),
             )
             options = [(score, register, span) for score, register, span, _index in ranked_options]
+            if factor_lookup is not None:
+                factors_by_position.append(tuple(factor_lookup[index, span]
+                    for _score, _register, span, index in ranked_options))
             if joint_definitions:
                 definitions_by_position.append(tuple(
                     definition_labels[index] for _score, _register, _span, index in ranked_options
@@ -1531,6 +1544,7 @@ def _assign_typed_arguments(
         if global_constraint:
             chart_options.append(options_by_position)
             chart_definition_options.append(definitions_by_position)
+            chart_factors.append(factors_by_position)
             continue
         candidates: list[
             tuple[
@@ -1606,6 +1620,7 @@ def _assign_typed_arguments(
             prune_dominated=(
                 model.training_receipt.get("argument_proposal_retention") == "overlap_dominance_v3"
             ),
+            option_factors=chart_factors if retain_score_factors else None,
         )
         if chart_observer is not None:
             chart_observer(chart)
