@@ -48,9 +48,9 @@ from core.brain.llm.model_shapes import (
     contract_digest as _contract_digest,
 )
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
+from core.runtime.lockdep import checked_lock
 from core.runtime.model_runtime_assignment import (
     ModelRuntimeAssignment,
     canonical_model_locator,
