@@ -197,7 +197,7 @@ def _proven_latent_cortex_trace():
         "foreground_model_generation_count": 1,
         "foreground_model_generation_transaction_id": "latent-test-transaction",
         "latent_cortex_selected": True,
-        "latent_cortex_selection_reason": "deliberate_cognitive_mode",
+        "latent_cortex_selection_reason": "explicit_requirement",
         "latent_cortex_depth_worthy": True,
         "latent_cortex_attempted": True,
         "latent_cortex_succeeded": True,

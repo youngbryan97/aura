@@ -3762,8 +3762,11 @@ def test_service_idle_state_is_explicitly_unproven_not_healthy(monkeypatch):
                 "incompatible_contract": False,
                 "proof_or_benchmark": False,
             },
-            True,
-            "deliberate_cognitive_mode",
+            # Deliberate mode alone no longer spends the general episode: it
+            # has no proven gain, and live 2026-09-15 it held a laptop
+            # question for 595s and served an unfinished answer.
+            False,
+            "general_episode_unqualified",
         ),
         (
             {

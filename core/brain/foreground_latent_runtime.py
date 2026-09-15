@@ -111,10 +111,16 @@ def select_foreground_episode(
     # held the resident lane for 217 seconds, was soft-cancelled during branch
     # selection, and only then let ordinary decoding begin. Certified typed
     # recurrence is admitted above this selector through its public grammar.
-    # The broader, still-unproven episode therefore requires either an explicit
-    # request or a governed deliberate-mode decision; answer length alone may
-    # never preempt the canonical decoder.
-    depth_worthy = bool(explicitly_required or mode == "deliberate")
+    # The broader, still-unproven episode therefore requires an explicit
+    # request. A deliberate-mode decision used to be enough: live 2026-09-15,
+    # a question about locking down a nine-year-old's laptop was deliberate,
+    # the general episode ran 3 steps and 2 branches over an 85,870-character
+    # prompt for 595 seconds, and the turn was served as her UNFINISHED
+    # answer. The episode has no proven gain to spend that on (G09 is open);
+    # deliberate mode reaches the ordinary decoder as depth — the answer floor
+    # and the open channel — and the qualified families are admitted above
+    # this selector through their public grammar.
+    depth_worthy = bool(explicitly_required)
     exclusion = ""
     if not foreground:
         exclusion = "not_foreground"
@@ -132,8 +138,8 @@ def select_foreground_episode(
     reason = (
         "explicit_requirement"
         if selected and explicitly_required
-        else "deliberate_cognitive_mode"
-        if selected and mode == "deliberate"
+        else "general_episode_unqualified"
+        if not exclusion and mode == "deliberate"
         else "unqualified_prompt_shape"
         if not exclusion and shape_requests_depth
         else exclusion or "depth_threshold_not_met"
