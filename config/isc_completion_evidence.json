@@ -11724,5 +11724,25 @@
     ],
     "note": "the regimes leave entropy once the condition is known and are not the conditions relabelled; read on the next battery run, and on run_032 offline every condition spanned more than one regime (seed 7 NMI 0.00, seed 17 0.67)",
     "status": "done"
+  },
+  "P37.4": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/agency.py",
+        "pattern": "def _same_percept\\(left: list\\[CoreState\\], right: list\\[CoreState\\]\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_ownership_arms_perceive_the_same_thing.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['agency'].get('percepts_identical') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "the two ownership arms are compared on the perception domain of the frame read before any phase ran, so the same percept is checked rather than assumed; read on the next battery run",
+    "status": "done"
   }
 }
