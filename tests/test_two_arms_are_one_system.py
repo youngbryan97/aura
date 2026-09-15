@@ -52,16 +52,36 @@ def test_a_free_sampler_between_arms_is_named() -> None:
     assert any("temperature changed" in line for line in differences(first, second))
 
 
-def test_moved_code_is_named() -> None:
+def test_two_processes_on_two_commits_are_named() -> None:
+    first = pin_arm_identity()
+    second = replace(first, commit="0" * 40, process=first.process + 1)
+    assert any("two processes on two commits" in line for line in differences(first, second))
+
+
+def test_a_commit_moving_under_one_process_is_not_a_change() -> None:
+    """The checkout can move without changing a line of what is executing.
+
+    Committing while a run is in flight refused the run, which is a fact about
+    the working tree rather than about the two arms.
+    """
     first = pin_arm_identity()
     second = replace(first, commit="0" * 40)
-    assert any("the code moved" in line for line in differences(first, second))
+    assert differences(first, second) == []
+
+
+def test_later_imports_are_not_a_change() -> None:
+    """A run imports more of itself as it goes, and that is not two systems."""
+    first = pin_arm_identity()
+    second = replace(first, modules_loaded=first.modules_loaded + 40)
+    assert differences(first, second) == []
 
 
 def test_a_module_from_somewhere_else_is_named() -> None:
-    first = pin_arm_identity()
-    second = replace(first, modules_digest=first.modules_digest[::-1] + "x")
-    assert any("imported from somewhere else" in line for line in differences(first, second))
+    first = replace(pin_arm_identity(), foreign_modules={})
+    second = replace(first, foreign_modules={"core.brain": "/other/checkout/core/brain.py"})
+    assert differences(first, second) == [
+        "core.brain was loaded from None and then from '/other/checkout/core/brain.py'"
+    ]
 
 
 def test_stub_against_cortex_is_two_systems() -> None:

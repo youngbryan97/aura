@@ -139,21 +139,28 @@ def _commit() -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
-def _module_paths(packages: tuple[str, ...]) -> str:
-    """Where the organism's own modules were imported from.
+def _foreign_modules(packages: tuple[str, ...]) -> tuple[dict[str, str], int]:
+    """Organism modules loaded from outside this checkout, and how many were loaded.
 
     A hot reload that rebinds a class, or a second checkout on the path, makes
-    two arms run two versions of the same name. The file each module was loaded
-    from is what says so.
+    two arms run two versions of one name, and the file a module was loaded from
+    is what says so. Only the ones from somewhere else are named: a run imports
+    more of itself as it goes, so a digest over every loaded module rises on
+    every ordinary lazy import and reports a system change that did not happen.
     """
-    rows = []
+    root = str(Path(__file__).resolve().parents[2])
+    foreign: dict[str, str] = {}
+    seen = 0
     for name, module in sorted(sys.modules.items()):
         if not name.startswith(packages):
             continue
         origin = getattr(getattr(module, "__spec__", None), "origin", None)
-        if origin:
-            rows.append((name, str(origin)))
-    return _digest(rows)
+        if not origin:
+            continue
+        seen += 1
+        if not str(origin).startswith(root):
+            foreign[name] = str(origin)
+    return foreign, seen
 
 
 @dataclass(frozen=True)
@@ -173,7 +180,14 @@ class ArmIdentity:
     shaping: dict[str, str] = field(default_factory=dict)
     decoding: dict[str, Any] = field(default_factory=dict)
     commit: str = ""
-    modules_digest: str = ""
+    #: Organism modules loaded from outside this checkout, by name.
+    foreign_modules: dict[str, str] = field(default_factory=dict)
+    #: How many organism modules were loaded. Recorded, never compared: a run
+    #: imports more of itself as it goes.
+    modules_loaded: int = 0
+    #: The process the pin was taken in. Two pins from one process cannot
+    #: differ in the code that is running, whatever the checkout does.
+    process: int = 0
     #: True when the run was served by the deterministic stub rather than by a
     #: cortex. A substrate campaign is authoritative with this set; a
     #: cortex-inclusive claim is not.
@@ -189,7 +203,9 @@ class ArmIdentity:
             "shaping": dict(self.shaping),
             "decoding": dict(self.decoding),
             "commit": self.commit,
-            "modules_digest": self.modules_digest,
+            "foreign_modules": dict(self.foreign_modules),
+            "modules_loaded": self.modules_loaded,
+            "process": self.process,
             "stubbed": self.stubbed,
         }
 
@@ -204,7 +220,9 @@ class ArmIdentity:
             shaping=dict(blob.get("shaping", {}) or {}),
             decoding=dict(blob.get("decoding", {}) or {}),
             commit=str(blob.get("commit", "")),
-            modules_digest=str(blob.get("modules_digest", "")),
+            foreign_modules=dict(blob.get("foreign_modules", {}) or {}),
+            modules_loaded=int(blob.get("modules_loaded", 0) or 0),
+            process=int(blob.get("process", 0) or 0),
             stubbed=bool(blob.get("stubbed", True)),
         )
 
@@ -231,6 +249,7 @@ def pin_arm_identity(
     # An unresolved pointer hands back nothing, and Path("") is Path("."). The
     # first version of this walked the repository root for a run with no cortex
     # and did not come back.
+    foreign, loaded = _foreign_modules(packages)
     named = str(getattr(spec, "model_path", "") or "") if spec is not None else ""
     model_path = Path(named) if named else None
     if model_path is None:
@@ -266,7 +285,9 @@ def pin_arm_identity(
         shaping=_file_digests(model_path) if model_path is not None else {},
         decoding=decoding,
         commit=_commit(),
-        modules_digest=_module_paths(packages),
+        foreign_modules=foreign,
+        modules_loaded=loaded,
+        process=os.getpid(),
         stubbed=weights_files == 0,
     )
 
@@ -296,10 +317,20 @@ def differences(first: ArmIdentity, second: ArmIdentity) -> list[str]:
                 f"{key} changed between the arms: "
                 f"{first.decoding.get(key)!r} then {second.decoding.get(key)!r}"
             )
-    if first.commit != second.commit:
-        out.append(f"the code moved: {first.commit[:12]} then {second.commit[:12]}")
-    if first.modules_digest != second.modules_digest:
-        out.append("a module was imported from somewhere else between the arms")
+    # The checkout can move under a running process without changing a line of
+    # what that process is executing, so a commit is only evidence of two
+    # systems when the two pins were taken in two processes — which is what a
+    # resumed run is.
+    if first.process != second.process and first.commit != second.commit:
+        out.append(
+            f"the arms ran in two processes on two commits: "
+            f"{first.commit[:12]} then {second.commit[:12]}"
+        )
+    for name in sorted(set(first.foreign_modules) | set(second.foreign_modules)):
+        was = first.foreign_modules.get(name)
+        now = second.foreign_modules.get(name)
+        if was != now:
+            out.append(f"{name} was loaded from {was!r} and then from {now!r}")
     if first.weights_truncated or second.weights_truncated:
         out.append(
             "the model artifact was too deep or too large to read whole, so the "

@@ -409,6 +409,13 @@ class MemoryConsolidationPhase(BasePhase):
                 )
                 logger.debug("MemoryConsolidation: MemoryFacade commit failed: %s", e)
  
+        # And into the store the semantic retrieval lane reads. The queue below
+        # says the ColdStore processes it asynchronously and nothing did:
+        # `cold.long_term_memory` had no writer anywhere in the tree, so the
+        # semantic lane returned nothing on every retrieval and the column read
+        # 0.0000 through a whole campaign.
+        self._absorb_semantic(new_state, content)
+
         # Queue the knowledge for the ColdStore to process asynchronously.
         if new_state.cold is not None:
             new_state.cold.evolution_log.append({
@@ -542,6 +549,29 @@ class MemoryConsolidationPhase(BasePhase):
             new_state.cognition.working_memory = wm
             
         return new_state
+
+    @staticmethod
+    def _absorb_semantic(state: AuraState, content: str) -> None:
+        """Put committed knowledge where the semantic retrieval lane looks.
+
+        Only an exact repeat of the last entry is skipped. A wider check would
+        walk the whole store on every commit, and the same thing said twice an
+        hour apart is two occasions rather than one duplicate.
+        """
+        from ..state.aura_state import MAX_SEMANTIC_MEMORY
+
+        cold = getattr(state, "cold", None)
+        text = str(content or "").strip()
+        if cold is None or not text:
+            return
+        store = getattr(cold, "long_term_memory", None)
+        if not isinstance(store, list):
+            return
+        if store and store[-1] == text:
+            return
+        store.append(text)
+        if len(store) > MAX_SEMANTIC_MEMORY:
+            del store[: len(store) - MAX_SEMANTIC_MEMORY]
 
     def _mark_consolidation_status(
         self,

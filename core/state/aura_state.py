@@ -21,6 +21,11 @@ if TYPE_CHECKING:
 MAX_WORKING_MEMORY: Final[int] = 150   # [FRONTIER UPGRADE] Expanded capacity for M5 64GB node to prevent context loss
 MAX_PERCEPTS: Final[int] = 200        # More sensory history
 MAX_EVOLUTION_LOG: Final[int] = working_history_retention_policy("AURA_STATE_EVOLUTION_LOG_MAX").max_items
+#: Her durable semantic store, which the retriever reads as its SEMANTIC
+#: lane. Bounded on the same measured policy as the other histories.
+MAX_SEMANTIC_MEMORY: Final[int] = working_history_retention_policy(
+    "AURA_STATE_SEMANTIC_MEMORY_MAX"
+).max_items
 
 _USER_INTENT_ORIGINS: Final[frozenset[str]] = frozenset({
     "user",
