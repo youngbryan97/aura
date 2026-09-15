@@ -181,7 +181,13 @@ async def sample_classes(
             rows.extend(await runtime.turn_once(shown))
         if not rows:
             return None
-        index = min(max(1, lag) - 1, len(rows) - 1)
+        # The end of the `lag`-th turn after the fork. A turn records a frame
+        # before its phases run and one after each, so reading frame `lag`
+        # read the open frame: the percept was in the stream and no phase had
+        # taken it in. Every class forked from one anchor had the same future
+        # there, and the internal geometry was one distance for every pair.
+        per_turn = max(1, len(rows) // max(1, turns))
+        index = min(max(1, lag) * per_turn - 1, len(rows) - 1)
         return np.asarray(rows[index].vector(), dtype=np.float64), _retrieved(runtime)
 
     for anchor in anchors:
