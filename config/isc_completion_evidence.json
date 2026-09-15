@@ -11550,5 +11550,95 @@
     ],
     "note": "the rescue is tracked across runs beside every deficit it answers, with the recovery fraction",
     "status": "done"
+  },
+  "P12.1": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/consciousness/workspace_feed.py",
+        "pattern": "level = gained\\(level, arousal, usual=0\\.5\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_a_surprise_about_herself_claims_more_when_she_is_aroused tests/test_what_she_reads_is_combined_not_added.py::test_being_easier_to_predict_than_usual_claims_less_when_she_is_aroused -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "a surprise about herself claims attention through arousal's gain, so what wins attention depends on the feeling and the self-model together",
+    "status": "done"
+  },
+  "P12.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/world_model/observe_cycle.py",
+        "pattern": "\\*_recalled\\(cognition\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_deliberation_can_reach_attention.py::test_the_world_model_is_shown_what_arrived_not_only_how_much -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the world model's observation carries what arrived and what recall brought back, in one vector the learned dynamics read together",
+    "status": "done"
+  },
+  "P12.8": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/motivation_update.py",
+        "pattern": "return gained\\(world, arousal, usual=0\\.5\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_a_world_worse_than_its_model_expects_presses_harder_on_an_aroused_organism tests/test_what_she_reads_is_combined_not_added.py::test_a_world_better_than_expected_presses_less_on_an_aroused_organism tests/test_deliberation_can_reach_attention.py::test_the_world_and_the_feelings_reach_what_she_decides -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the drives are pressed by the world model's surprise with arousal as its gain, and what she decides to work on reads the world's surprise and what hurts",
+    "status": "done"
+  },
+  "P12.10": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "def _obstruction\\(state: Any\\) -> float:"
+      },
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_obstruction_is_how_hard_it_presses_times_how_far_it_is_beyond_her tests/test_what_she_reads_is_combined_not_added.py::test_an_obstructed_intention_raises_the_substrate_s_frustration_towards_it -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "an intention obstructed by her demonstrated capacity raises the continuous substrate's frustration: urgency times how far it is beyond her",
+    "status": "done"
+  },
+  "P12.11": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_what_she_reads_is_combined_not_added.py::test_neither_reading_decides_the_effect_of_the_other -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "arousal's effect changes sign with the level it gains, which a sum cannot do, and obstruction is a product",
+    "status": "done"
+  },
+  "P12.12": {
+    "checks": [
+      {
+        "kind": "path",
+        "path": "core/affect/arousal_gain.py"
+      },
+      {
+        "kind": "grep",
+        "path": "core/phases/affect_update.py",
+        "pattern": "an intention is obstructed"
+      }
+    ],
+    "note": "conflict between an intention and her capacity is computed and reaches recurrent cognition; the 300-round A/B showed these first mechanisms did not move the synergy criterion",
+    "status": "done"
   }
 }
