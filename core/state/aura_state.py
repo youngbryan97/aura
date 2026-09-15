@@ -681,6 +681,18 @@ class CognitiveContext:
     #: round, and where the attachment goes when they do not.
     #: See core/social/constancy.py.
     constancy: dict[str, Any] = field(default_factory=dict)
+    #: What she noticed about somebody and declined to record, and whether the
+    #: refusals are live signals she keeps putting down or one-off noise.
+    #: Written by the conversational dynamics phase.
+    #: See core/social/averted.py.
+    averted: dict[str, Any] = field(default_factory=dict)
+    #: Whether anything draws her back after better things have won, and what.
+    #: Written by the motivation phase. See core/motivation/returning.py.
+    returning: dict[str, Any] = field(default_factory=dict)
+    #: Whether what she holds about the person here is about them rather than
+    #: about people. Written by the conversational dynamics phase.
+    #: See core/social/particular.py.
+    particular: dict[str, Any] = field(default_factory=dict)
     #: How likely this sitting with the person here is to end now, from how
     #: her sittings with them have ended before. Written by the conversational
     #: dynamics phase. See core/social/closing_window.py.

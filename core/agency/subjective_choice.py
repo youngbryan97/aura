@@ -637,7 +637,26 @@ class SubjectiveChoiceEngine:
             self._save()
         if self._mirror_identity:
             self._mirror_choice_to_identity_ledger(receipt)
+        self._note_what_she_passed_over(receipt)
         logger.info("🧭 [SubjectiveChoice] %s", receipt.rationale)
+
+    @staticmethod
+    def _note_what_she_passed_over(receipt: SubjectiveChoiceReceipt) -> None:
+        """The losers, so a pull that outlives them can be read.
+
+        The receipt already names every option and its score, and nothing asked
+        whether she comes back to any of them. See core/motivation/returning.py.
+        """
+        try:
+            from core.motivation.returning import get_returning_ledger
+
+            get_returning_ledger().note_choice(
+                chosen_id=receipt.chosen_id,
+                scores=dict(receipt.final_scores),
+                labels={receipt.chosen_id: receipt.chosen_label},
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the returning ledger did not take a choice: %s", exc)
 
     def _mirror_choice_to_identity_ledger(self, receipt: SubjectiveChoiceReceipt) -> None:
         """Best-effort bridge so authored choices also affect identity memory."""

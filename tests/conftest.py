@@ -1338,6 +1338,7 @@ def resource_observer(
             "core.expression.delivery",
             "core.self.borrowed",
             "core.self.persona_gap",
+            "core.social.averted",
             "core.social.constancy",
             "core.social.resolve",
             "core.self.revision",
@@ -1345,6 +1346,7 @@ def resource_observer(
             "core.self.standing",
             "core.affect.containment",
             "core.motivation.fuel",
+            "core.motivation.returning",
         ):
             try:
                 __import__(module, fromlist=["reset_for_test"]).reset_for_test()

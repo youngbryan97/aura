@@ -203,6 +203,15 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.scale",
         "cognition.persona_gap",
         "cognition.constancy",
+        # What she noticed about them and declined to record.
+        # See core/social/averted.py.
+        "cognition.averted",
+        # Whether what she holds about them is about them.
+        # See core/social/particular.py.
+        "cognition.particular",
+        # Whether something draws her back after better things won.
+        # See core/motivation/returning.py.
+        "cognition.returning",
         # How near the end of this sitting is. See core/social/closing_window.py.
         "cognition.closing_window",
         # What her impulse has been worth. See core/agency/asking_the_impulse.py.

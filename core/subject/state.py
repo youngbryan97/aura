@@ -784,6 +784,15 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/constancy.py.
             ("their_constancy", "cognition.constancy.theirs"),
             ("attachment_moved", "cognition.constancy.reallocated"),
+            # What she saw about them and put down, and whether the refusals
+            # come round as often as the things she keeps.
+            # See core/social/averted.py.
+            ("noticed_and_not_kept", "cognition.averted.share_declined"),
+            ("holding_what_she_saw", "cognition.averted.held"),
+            # Whether what she holds about them is theirs alone, and tied to
+            # something they said. See core/social/particular.py.
+            ("knows_them_as_themselves", "cognition.particular.unique"),
+            ("holds_evidence_not_inference", "cognition.particular.anchored"),
             # How near the end of this sitting is, from how her sittings with
             # them have ended. See core/social/closing_window.py.
             ("closing_window", "cognition.closing_window.closing"),
@@ -795,6 +804,10 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/motivation/fuel.py.
             ("running_on_her_own", "cognition.fuel.share_self"),
             ("her_own_fuel_costs_more", "cognition.fuel.burning_her_own"),
+            # Whether something draws her back after better things won it.
+            # See core/motivation/returning.py.
+            ("drawn_back_to_something", "cognition.returning.pull"),
+            ("it_outlasted_the_alternatives", "cognition.returning.survives_alternatives"),
             ("worth_passing_on", "cognition.telling.urge"),
             ("already_said", "cognition.catharsis.times"),
             ("pressure_left", "cognition.catharsis.drain"),
@@ -1577,10 +1590,16 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
         1.0 if (_dig(state, "cognition.persona_gap", {}) or {}).get("known_for_the_performance") else 0.0,
         _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
         1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
+        _f((_dig(state, "cognition.averted", {}) or {}).get("share_declined")),
+        _f((_dig(state, "cognition.averted", {}) or {}).get("held")),
+        _f((_dig(state, "cognition.particular", {}) or {}).get("unique")),
+        _f((_dig(state, "cognition.particular", {}) or {}).get("anchored")),
         _f((_dig(state, "cognition.closing_window", {}) or {}).get("closing")),
         _f((_dig(state, "cognition.impulse", {}) or {}).get("distrust")),
         _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
         1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
+        _f((_dig(state, "cognition.returning", {}) or {}).get("pull")),
+        1.0 if (_dig(state, "cognition.returning", {}) or {}).get("survives_alternatives") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),
         _sat(_f((_dig(state, "cognition.catharsis", {}) or {}).get("times")), 4.0),
         _f((_dig(state, "cognition.catharsis", {}) or {}).get("drain"), 1.0),

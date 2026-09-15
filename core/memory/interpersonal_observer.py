@@ -44,7 +44,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 from core.memory.interpersonal_model import (
     Facet,
@@ -58,6 +58,28 @@ from core.memory.interpersonal_model import (
 logger = logging.getLogger("Aura.InterpersonalObserver")
 
 __all__ = ["Exchange", "Proposal", "InterpersonalObserver"]
+
+
+def _note_averted(proposal: Any, *, recorded: bool) -> None:
+    """Tell the ledger what she noticed and whether it went into the record.
+
+    A refusal here is the courtesy the detectors exist for: a trait read off one
+    exchange is the caricature the store makes unrepresentable. It left no
+    trace, so a claim she declined and a claim she never formed looked the same
+    afterwards. See core/social/averted.py.
+    """
+    try:
+        from core.social.averted import get_averted_ledger
+
+        ledger = get_averted_ledger()
+        facet = str(getattr(proposal, "facet", "") or "")
+        claim = str(getattr(proposal, "claim", "") or "")
+        if recorded:
+            ledger.took(facet, claim)
+        else:
+            ledger.declined(facet, claim)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the averted ledger did not take a noticing: %s", exc)
 
 
 @dataclass(frozen=True)
@@ -223,7 +245,13 @@ class InterpersonalObserver:
             except Exception as exc:  # noqa: BLE001 - a bad proposer must not break a turn
                 logger.warning("interpersonal proposer failed: %s", exc)
 
-        return [p for p in proposals if self._admissible(p)]
+        kept: list[Proposal] = []
+        for proposal in proposals:
+            if self._admissible(proposal):
+                kept.append(proposal)
+            else:
+                _note_averted(proposal, recorded=False)
+        return kept
 
     def _admissible(self, proposal: Proposal) -> bool:
         if proposal.facet in _FORBIDDEN_FROM_EXCHANGE:
@@ -359,6 +387,7 @@ class InterpersonalObserver:
         written: list[Observation] = []
         for proposal in proposals:
             if not self._admissible(proposal):
+                _note_averted(proposal, recorded=False)
                 continue
             observation = self.model.observe(
                 proposal.claim,
@@ -372,6 +401,7 @@ class InterpersonalObserver:
                 at=proposal.at,
             )
             written.append(observation)
+            _note_averted(proposal, recorded=True)
         return written
 
     def observe_exchange(self, exchange: Exchange) -> list[Observation]:

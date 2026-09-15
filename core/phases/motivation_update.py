@@ -121,6 +121,7 @@ class MotivationUpdatePhase(Phase):
         # the credits above, so a drive that was attended to and replenished is
         # not counted as having drained. See core/motivation/fuel.py.
         MotivationUpdatePhase._note_fuel(state, mot, before)
+        MotivationUpdatePhase._note_returning(state)
 
         # Drive Recovery (Homeostatic Feedback)
         # Social and Integrity drives recover when affect is high (Trust/Joy)
@@ -1080,6 +1081,20 @@ class MotivationUpdatePhase(Phase):
             return float(sum(levels.values()))
         except (ImportError, AttributeError, TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _note_returning(state: Any) -> None:
+        """Whether anything draws her back after better things have won it.
+
+        Her chooser marks every loser as passed over; this publishes what she
+        went back to. See core/motivation/returning.py.
+        """
+        try:
+            from core.motivation.returning import get_returning_ledger
+
+            state.cognition.returning = get_returning_ledger().read().as_dict()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return
 
     @staticmethod
     def _note_fuel(state, mot, before: float) -> None:

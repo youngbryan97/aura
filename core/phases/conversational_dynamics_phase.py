@@ -184,6 +184,21 @@ class ConversationalDynamicsPhase(Phase):
             now = time.time()
             ledger.they_came_back(now)
             state.cognition.constancy = ledger.read().as_dict()
+            # And what she saw about them and did not write down. The observer
+            # refuses a trait read off one exchange, and the refusal left no
+            # trace until now. See core/social/averted.py.
+            from core.social.averted import get_averted_ledger
+
+            state.cognition.averted = get_averted_ledger().read().as_dict()
+            # And whether what she holds about them is about them, or is the
+            # handful of things she holds about everybody.
+            # See core/social/particular.py.
+            from core.memory.interpersonal_store import get_interpersonal_store
+            from core.social.particular import read_particularity
+
+            state.cognition.particular = read_particularity(
+                get_interpersonal_store().models()
+            ).as_dict()
             # And where this sitting with them stands against how their
             # sittings have ended. See core/social/closing_window.py.
             from core.social.closing_window import get_sitting_ledger

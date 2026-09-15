@@ -410,6 +410,14 @@ class InterpersonalStore:
             saved += int(await self.save(person))
         return saved
 
+    def models(self) -> dict[str, PersonModel]:
+        """Every person model resident, keyed the way the store keys them.
+
+        A reader that wants to ask how one record differs from the others needs
+        the others. See core/social/particular.py.
+        """
+        return dict(self._models)
+
     def get_status(self) -> dict[str, object]:
         return {
             "people": len(self._models),
