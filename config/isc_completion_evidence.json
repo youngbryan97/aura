@@ -11534,5 +11534,21 @@
     ],
     "note": "the preregistration was committed while runs 029, 030 and 031 were still recording, names them as v1 results only, and applies v2 first to runs started after the commit that implements it",
     "status": "done"
+  },
+  "P49.13": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/subject_core_scorecard.py",
+        "pattern": "\\(\"rescue_synergy\", \\(\"lesion\", \"rescue\", \"synergy\"\\)\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_scorecard_tracks_the_rescue_beside_every_deficit.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      }
+    ],
+    "note": "the rescue is tracked across runs beside every deficit it answers, with the recovery fraction",
+    "status": "done"
   }
 }

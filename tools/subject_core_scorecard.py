@@ -49,7 +49,13 @@ TRACKED: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("lesion_deficit_phi", ("lesion", "deltas", "phi_do")),
     ("lesion_deficit_spread", ("lesion", "deltas", "spread")),
     ("lesion_deficit_synergy", ("lesion", "deltas", "synergy")),
+    # The rescue beside every deficit it answers. Only irreducibility's was
+    # tracked, so a rescue that restored the partition and left spread and
+    # synergy where the cut put them read the same across runs as a full one.
     ("rescue_phi", ("lesion", "rescue", "phi_do")),
+    ("rescue_spread", ("lesion", "rescue", "spread")),
+    ("rescue_synergy", ("lesion", "rescue", "synergy")),
+    ("rescue_recovery_fraction", ("lesion", "recovery_fraction")),
     ("ownership", ("agency", "ownership_divergence")),
     ("ownership_floor", ("agency", "ownership_floor")),
     ("self_to_action", ("agency", "self_to_action")),
