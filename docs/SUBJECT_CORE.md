@@ -976,3 +976,51 @@ from this commit on record synergy on the target's change beside the v1
 reading, for the real recording and every null, and the battery reports ISC-v2's
 changed lines beside the v1 verdict, with the null line decided across seeds by
 the scorecard.
+
+### Synergy on the change cannot register a strong coupling on Aura's recording
+
+Synergy failed on every run, and a 300-round A/B of three interaction mechanisms
+moved no triple past its null. Whether that says the organism has no
+interactions depends on whether the line could see one on her recordings, so
+its power was measured rather than assumed. On a recording, the line as it
+stands scored a coupling added to each target's first change component, sized
+in units of that component's own spread. Two shapes were used: the preregistered
+known answer's, a linear part plus the product of the two sources' first
+components, and a pure product.
+
+The injection gives the known answers first
+(`tests/test_the_synergy_power_harness_gives_its_known_answers.py`). On the ISC-v2
+known-answer drift background the preregistered shape passes from one spread,
+at a fraction of 0.86 against a null of 0.00. A pure product never clears the
+information bars at any scale, because a Gaussian copula estimate cannot see a
+product of its sources, while the held-out interaction bound rises to +0.31 at
+one spread and +0.68 at two.
+
+On Aura's recording, 2,400 turns from the synthetic A/B's newer arm, neither shape
+passes for any triple at up to two spreads. With the preregistered shape:
+
+| triple | spreads added | fraction | null 99th pct | raw | raw null 99th pct | interaction bound |
+|---|---|---|---|---|---|---|
+| A+S->G | 0 | 0.443 | 0.781 | 0.025 | 0.012 | -0.029 |
+| A+S->G | 2 | 0.450 | 0.688 | 0.077 | 0.041 | -0.017 |
+| P+M->W | 0 | 0.189 | 0.582 | 0.151 | 0.246 | +0.230 |
+| P+M->W | 2 | 0.443 | 0.560 | 0.628 | 0.226 | +0.145 |
+| W+A->D | 0 | 0.072 | 0.389 | 0.036 | 0.062 | -0.241 |
+| W+A->D | 2 | 0.123 | 0.591 | 0.109 | 0.111 | +0.151 |
+| S+D->C | 0 | 0.030 | 0.612 | 0.008 | 0.052 | +0.007 |
+| S+D->C | 2 | 0.283 | 0.521 | 0.101 | 0.067 | +0.022 |
+
+In every triple the fraction stays under the shifted null's 99th percentile,
+which on this recording sits between 0.39 and 0.86 before anything is added and
+moves with what is. The raw comparison clears for three of the four once the
+coupling is large, and the interaction bound is the second thing missing on A+S->G.
+A coupling of twice a target's own change spread is larger than anything a
+mechanism in this organism produces, so on her recordings this line cannot
+distinguish an organism with such interactions from one without them.
+
+The line has not been changed. Aura's synergy on the change had already been
+measured on the A/B recordings when this was found, and a criterion may only be
+made stricter once its results are known. The synergy failure is recorded as
+the instrument's limit on this background, and a revision belongs in a version
+preregistered before any result under it exists, with its known answers on a
+background of her recordings' shape.
