@@ -590,14 +590,22 @@ class AgentDelegator(AuraBaseModule):
         self.logger.info("Forming swarm debate on: %s...", topic_text[:50])
 
         agent_ids: list[str] = []
+        from core.security.prompt_fencing import fence
+
+        # The shape is held by the decoder (output_shape); the field names
+        # are the data the answer is about. "Return compact JSON with keys
+        # ..." was an instruction the decoder now makes unnecessary.
+        request = (
+            fence("claim, evidence_refs, confidence, flaws", label="fields")
+            + "\n\n"
+            + topic_text
+        )
         for role in selected_roles:
             agent_id = await self.delegate(
                 role,
-                (
-                    "Analyze this topic from your perspective and return compact JSON with keys "
-                    f"claim, evidence_refs, confidence, flaws: {topic_text}"
-                ),
+                request,
                 agent_timeout=agent_timeout,
+                output_shape="json_object",
                 **kwargs,
             )
             if agent_id:
@@ -956,15 +964,20 @@ FINAL SYNTHESIS:"""
                     default=self.DEFAULT_SHARD_TIMEOUT_S,
                     maximum=300.0,
                 )
+                # The caller's routing choices win over the shard's defaults;
+                # a caller that named an origin or a tier keeps it. Passing
+                # both raised "got multiple values for keyword argument
+                # 'origin'" on every shard (live, 2026-09-15).
+                request = {
+                    "prefer_tier": "local_fast",
+                    "purpose": "swarm_shard",
+                    "origin": f"swarm:{agent.specialty.lower()}",
+                    "allow_cloud_fallback": False,
+                }
+                request.update(kwargs)
+                request["prompt"] = swarm_context + prompt
                 result = await asyncio.wait_for(
-                    router.think(
-                        prompt=swarm_context + prompt,
-                        prefer_tier="local_fast",
-                        purpose="swarm_shard",
-                        origin=f"swarm:{agent.specialty.lower()}",
-                        allow_cloud_fallback=False,
-                        **kwargs,
-                    ),
+                    router.think(**request),
                     timeout=agent_timeout,
                 )
             finally:

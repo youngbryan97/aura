@@ -43,6 +43,15 @@ async def test_the_shard_reaches_the_router_with_its_perspective_as_data(monkeyp
     assert len(router.calls) == 1
     call = router.calls[0]
     assert call["origin"] == "swarm:architect"
+
+    # A caller that names its own origin and tier keeps them: passing both
+    # raised "got multiple values for keyword argument 'origin'" live.
+    other = SwarmAgent("agent-2", "critic")
+    await delegator._run_agent(
+        other, "Find the flaw.", None, origin="debate:critic", prefer_tier="primary"
+    )
+    assert router.calls[1]["origin"] == "debate:critic"
+    assert router.calls[1]["prefer_tier"] == "primary"
     assert "Design a cache for the resident model." in call["prompt"]
     assert "patterns, resilience, scalability" in call["prompt"]
     assert "You are" not in call["prompt"]
