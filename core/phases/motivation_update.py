@@ -60,13 +60,12 @@ class MotivationUpdatePhase(Phase):
         social_decay_multiplier = max(0.1, 1.0 - conv_energy) if conv_energy > 0.5 else 1.0
         legacy_metabolism_active = has_runtime_service("will_engine")
 
-        # A surprising world should press harder. The free-energy engine already
-        # computes an action urgency from prediction error and nothing consulted
-        # it here, so the drives ticked at the same rate whether the world was
-        # behaving as modelled or not. The multiplier is the engine's own
-        # reading, bounded by its own scale: urgency runs 0..1, so drives press
-        # between once and twice as fast and never faster.
-        pressure = 1.0 + self._surprise_pressure()
+        # A surprising world should press harder, and harder on an aroused
+        # organism than on a calm one. The drives used to tick at the same rate
+        # whether the world was behaving as modelled or not. The reading runs
+        # 0..1, so drives press between once and twice as fast and never
+        # faster. See `_surprise_pressure`.
+        pressure = 1.0 + self._surprise_pressure(state)
         borrowed_resolve = bool(
             (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
         )
@@ -623,13 +622,29 @@ class MotivationUpdatePhase(Phase):
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError):
             return
 
-    def _surprise_pressure(self) -> float:
+    def _surprise_pressure(self, state: Any = None) -> float:
         """How urgently the world is asking to be acted on. 0.0 when unknown.
 
-        Zero is the honest default: an engine that is not there has not told us
-        the world is calm, so the drives keep their ordinary rate rather than
-        being told to hurry by an absence.
+        The world model's surprise against how surprising its moments usually
+        are, with arousal as the gain (core/affect/arousal_gain.py): a world
+        going worse than its model expects presses harder on an aroused
+        organism, and one going better than expected presses less. What the
+        world model saw and how she feels meet here rather than being added
+        somewhere downstream.
+
+        Without a world model the free-energy engine's action urgency stands
+        in, ungained, as it did before. Zero is the honest default when neither
+        is there: an engine that is not there has not told us the world is
+        calm, so the drives keep their ordinary rate rather than being told to
+        hurry by an absence.
         """
+        world = self._world_surprise_ratio()
+        if world is not None:
+            from core.affect.arousal_gain import gained
+
+            affect = getattr(state, "affect", None)
+            arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
+            return gained(world, arousal, usual=0.5)
         try:
             # Through the registry: this is an observer reading a rate, and
             # `peek` is exactly right for it — a reading must not boot the
@@ -640,6 +655,25 @@ class MotivationUpdatePhase(Phase):
             return max(0.0, min(1.0, float(engine.get_action_urgency())))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
             return 0.0
+
+    @staticmethod
+    def _world_surprise_ratio() -> float | None:
+        """The world model's surprise as a share of it plus its usual surprise, or None.
+
+        None rather than zero when there is no reading, so the caller can tell
+        a world behaving exactly as modelled from a world model that is not
+        there. Read through the observer seam, like `_world_surprise`.
+        """
+        try:
+            from core.consciousness.workspace_feed import surprise_ratio
+
+            model = get_runtime_service("unified_world_model", default=None)
+            surprise = model.surprise() if model is not None else None
+            if surprise is None:
+                return None
+            return surprise_ratio(model, surprise)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return None
 
     def _conative_spike(self) -> Optional[dict]:
         """A spontaneous goal only when something is actually interesting.

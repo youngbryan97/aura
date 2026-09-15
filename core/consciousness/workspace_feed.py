@@ -29,7 +29,7 @@ from core.runtime.errors import record_degradation
 from core.soma.effort import note_effort
 from core.state.percepts import read_percept
 
-__all__ = ["build_candidates", "feed_workspace"]
+__all__ = ["build_candidates", "feed_workspace", "surprise_ratio"]
 
 logger = logging.getLogger("Aura.Consciousness.WorkspaceFeed")
 
@@ -57,7 +57,7 @@ def _clamp(value: Any, default: float = 0.0) -> float:
     return max(0.0, min(1.0, out))
 
 
-def _surprise_ratio(model: Any, surprise: Any) -> float:
+def surprise_ratio(model: Any, surprise: Any) -> float:
     """How surprising this moment is against how surprising they usually are."""
     typical = 0.0
     try:
@@ -362,6 +362,15 @@ def build_candidates(state: Any) -> list[Any]:
             usual = sum(channels) / len(channels) if channels else 0.0
             total = error + usual
             level = 0.0 if total <= 1e-9 else error / total
+            # How much a surprise about herself claims depends on how aroused
+            # she is, in both directions: harder to predict than usual claims
+            # more under arousal, and easier than usual claims less. Half is
+            # the ratio's own point where now is as surprising as usual. See
+            # core/affect/arousal_gain.py.
+            from core.affect.arousal_gain import gained
+
+            arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
+            level = gained(level, arousal, usual=0.5)
             if level > FLOOR:
                 missed = str(snapshot.get("most_unpredictable") or "herself")
                 bids.append(
@@ -422,7 +431,7 @@ def build_candidates(state: Any) -> list[Any]:
             # on every turn and stopped being a reading of anything. What
             # matters is whether the moment is more surprising than this
             # model's moments usually are.
-            level = _clamp(_surprise_ratio(model, surprise))
+            level = _clamp(surprise_ratio(model, surprise))
             if level > FLOOR:
                 bids.append(
                     CognitiveCandidate(

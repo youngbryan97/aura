@@ -192,6 +192,33 @@ def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     emotions[name] = max(0.0, min(1.0, current + float(delta) * room))
 
 
+
+def _obstruction(state: Any) -> float:
+    """How obstructed her most pressing intention is, in [0, 1].
+
+    The urgency is the one the action domain reads: the hardest any pending
+    initiative or open goal presses. Capacity is her own rate on what she has
+    attempted (core/agency/capacity.py), one half before she has attempted
+    anything. An intention she has shown she can carry out is not obstructed,
+    and neither is an intention that presses on nothing.
+    """
+    cognition = getattr(state, "cognition", None)
+    pressing = 0.0
+    for items in (getattr(cognition, "pending_initiatives", None), getattr(cognition, "active_goals", None)):
+        for item in items if isinstance(items, list) else ():
+            if not isinstance(item, dict) or item.get("urgency") is None:
+                continue
+            try:
+                pressing = max(pressing, min(1.0, max(0.0, float(item["urgency"]))))
+            except (TypeError, ValueError):
+                continue
+    standing = getattr(getattr(state, "identity", None), "capacity", None)
+    try:
+        capacity = float(standing.get("capacity", 0.5)) if isinstance(standing, dict) else 0.5
+    except (TypeError, ValueError):
+        capacity = 0.5
+    return pressing * (1.0 - min(1.0, max(0.0, capacity)))
+
 class AffectUpdatePhase(Phase):
     """
     Unitary Kernel Phase: Affective Transformation.
@@ -762,10 +789,25 @@ class AffectUpdatePhase(Phase):
                 step = float(affect.curiosity) - float(reading.get("curiosity", 0.0) or 0.0)
             except _AFFECT_UPDATE_ERRORS:
                 step = 0.0
+            # And frustration, which nothing here pushed. Frustration is what an
+            # obstructed goal does to the one pursuing it (Berkowitz,
+            # Psychological Bulletin 106, 1989), and an intention is obstructed
+            # when what it asks is beyond what she has shown she can do. Raised
+            # towards that and never lowered here, so frustration some other
+            # writer put in the substrate still decays on the substrate's own
+            # time. See `_obstruction`.
+            raised = 0.0
+            try:
+                current = substrate.current() if callable(getattr(substrate, "current", None)) else None
+                if current is not None:
+                    raised = max(0.0, _obstruction(state) - float(current.frustration))
+            except _AFFECT_UPDATE_ERRORS:
+                raised = 0.0
             result = update(
                 valence=affect.valence,
                 arousal=affect.arousal,
                 delta_curiosity=max(-1.0, min(1.0, step)),
+                delta_frustration=min(1.0, raised),
             )
             if inspect.isawaitable(result):
                 await result
