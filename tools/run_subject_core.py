@@ -1312,10 +1312,11 @@ def _nulls(
             reports = synergy_suite(scored, seed=args.seed)
             extra["synergy"] = [round(float(r.normalised), 4) for r in reports]
             extra["synergy_passes"] = [bool(r.passes) for r in reports]
-            # And on the change, which is what the v2 conjunction judges a null by.
-            extra["synergy_v2_passes"] = [
-                bool(r.passes) for r in synergy_suite(scored, seed=args.seed, of="change")
-            ]
+            # And on the change, which is what the v2 conjunction judges a null
+            # by, with ISC-v3's line read off the same reports.
+            change = synergy_suite(scored, seed=args.seed, of="change")
+            extra["synergy_v2_passes"] = [bool(r.passes) for r in change]
+            extra["synergy_v3_passes"] = [bool(r.passes_v3) for r in change]
             extra["synergy_min"] = (
                 round(min(float(r.normalised) for r in reports), 4) if reports else 0.0
             )
@@ -1455,9 +1456,17 @@ def _nulls(
     # ISC-v2, beside v1 and changing none of it: the same lower bound against
     # the matched surrogates and the nulls that pass the rest of the
     # conjunction (docs/ISC_V2_PREREGISTRATION.md).
-    from core.subject.null_verdicts import beats_the_comparison_set, v2_conjunctions
+    from core.subject.null_verdicts import (
+        beats_the_comparison_set,
+        beats_the_v3_comparison_set,
+        v2_conjunctions,
+        v3_conjunctions,
+    )
 
     v2_beats, v2_compared = beats_the_comparison_set(real_phi, table)
+    # And ISC-v3's, with every null judged by the v3 synergy line
+    # (docs/ISC_V3_PREREGISTRATION.md).
+    v3_beats, v3_compared = beats_the_v3_comparison_set(real_phi, table)
     return {
         "phi_table": {k: v["phi_do"] for k, v in table.items()},
         "detail": table,
@@ -1481,6 +1490,8 @@ def _nulls(
         "compared_on": "lower_bound",
         "v2_phi_beats_comparison_set": v2_beats,
         "v2_comparison_set": {name: round(value, 5) for name, value in v2_compared.items()},
+        "v3_phi_beats_comparison_set": v3_beats,
+        "v3_comparison_set": {name: round(value, 5) for name, value in v3_compared.items()},
         "real_lower_bound": round(real_phi, 5),
         "real_point_estimate": round(real_point, 5),
         "all_nulls_fail": bool(nulls_fail and reference_passes),
@@ -1493,6 +1504,7 @@ def _nulls(
         # ISC-v2's own conjunction per system, which its null line is decided
         # across seeds by. The line above is v1's.
         "conjunction_v2": v2_conjunctions(table),
+        "conjunction_v3": v3_conjunctions(table),
         "summary": {
             "reference_recurrent": reference.get("phi_do"),
             "reference_passes_the_conjunction": reference_passes,

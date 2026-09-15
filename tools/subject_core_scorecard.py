@@ -138,6 +138,51 @@ def _v2_conjunction(report: dict[str, Any]) -> dict[str, bool]:
     return {}
 
 
+def _v3_conjunction(report: dict[str, Any]) -> dict[str, bool]:
+    """One seed's ISC-v3 conjunction per system, as recorded or read off the recorded table."""
+    nulls = report.get("nulls") or {}
+    recorded = nulls.get("conjunction_v3")
+    if isinstance(recorded, dict) and recorded:
+        return recorded
+    table = nulls.get("detail")
+    if isinstance(table, dict) and table:
+        from core.subject.null_verdicts import v3_conjunctions
+
+        return v3_conjunctions(table)
+    return {}
+
+
+def _isc_v3(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
+    """ISC-v3 across the runs: every v3 line held on every run, the null line across seeds.
+
+    Only runs that recorded v3 lines are v3 runs (docs/ISC_V3_PREREGISTRATION.md).
+    None when no run was.
+    """
+    v3_runs = [r for r in reports if (r.get("verdict") or {}).get("v3_criteria")]
+    if not v3_runs:
+        return None
+    lines: dict[str, list[bool]] = {}
+    for report in v3_runs:
+        verdict = report.get("verdict") or {}
+        read = {}
+        for block in ("criteria", "v2_criteria", "v3_criteria"):
+            read.update({row["criterion"]: bool(row.get("passed")) for row in verdict.get(block, [])})
+        for name, passed in read.items():
+            if name != "beats_every_null":
+                lines.setdefault(name, []).append(passed)
+    across = bool(null_verdict and null_verdict.get("all_nulls_fail"))
+    lines["beats_every_null"] = [across] * len(v3_runs)
+    holds = sorted(name for name, results in lines.items() if all(results))
+    return {
+        "runs": len(v3_runs),
+        "lines": len(lines),
+        "holds_on_every_run": len(holds),
+        "failing": sorted(name for name in lines if name not in holds),
+        "isc_v3": len(holds) == len(lines) and len(lines) > 0,
+        "null_line_read_across": null_verdict,
+    }
+
+
 def _isc_v2(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
     """ISC-v2 across the runs: every v2 line held on every run, the null line across seeds.
 
@@ -258,6 +303,15 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         null_verdict = None
     isc_v2 = _isc_v2(reports, null_verdict)
+    # ISC-v3 the same way, with every null judged by the v3 synergy line.
+    conjunctions_v3 = [conjunction for conjunction in map(_v3_conjunction, reports) if conjunction]
+    if conjunctions_v3:
+        from core.subject.null_verdicts import verdict_across_seeds
+
+        null_verdict_v3: dict[str, Any] | None = verdict_across_seeds(conjunctions_v3)
+    else:
+        null_verdict_v3 = None
+    isc_v3 = _isc_v3(reports, null_verdict_v3)
 
     campaigns: dict[str, list[str]] = {}
     seeds: list[Any] = []
@@ -286,6 +340,8 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "synergy_triples": triples,
         "v2_null_verdict": null_verdict,
         "isc_v2": isc_v2,
+        "v3_null_verdict": null_verdict_v3,
+        "isc_v3": isc_v3,
         # Per domain, the weakest channel in and the weakest channel out, on
         # the newest run. A domain can sit inside the component hanging off one
         # thin edge, and the component alone does not say which one.
