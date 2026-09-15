@@ -644,6 +644,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Joint refinement workplan](G_SEMANTIC_REFINEMENT_WORKPLAN.md) tracks capacity
+  proofs, complete bounded search, semantic counterexamples and learned refits.
+  [Capacity and search evidence](evidence/G03_CAPACITY_AND_SEARCH_2026-09-15.md)
+  closes those two implementation tasks, not G03 or a new accuracy claim.
   [Graph-factor calibration](evidence/G03_GRAPH_FACTOR_RESULT_2026-09-15.md)
   completes 500 paired rows: 435 exact / 454 equivalent versus 436 / 456.
   The candidate regresses and is not promoted; G03 remains open.

@@ -492,13 +492,14 @@ def _operation_nodes(
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
     label_limit: int = 1,
+    complete_inventory: bool = False,
 ) -> tuple[_OperationNode, ...]:
     if type(label_limit) is not int or not 1 <= label_limit <= len(classifier.labels):
         raise ValueError("operation label limit is outside the learned vocabulary")
     nodes: list[_OperationNode] = []
     for span, pointer_score in pointer.decode_candidates(
         hidden,
-        limit=_OPERATION_CANDIDATES,
+        limit=max(1, hidden.shape[0] * max_span_tokens) if complete_inventory else _OPERATION_CANDIDATES,
         max_span_tokens=max_span_tokens,
     ):
         if any(_overlap(span, input_span) for input_span in input_spans):

@@ -528,6 +528,16 @@ class CompositionalSemanticProgramTransducer:
             not in {"unfiltered_v1", "register_edge_bounds_v2", "arity_state_bounds_v3"}
             or receipt.get("operation_assignment_policy", "first_feasible_v1")
             not in {"first_feasible_v1", "joint_factor_score_v2"}
+            or receipt.get("operation_search_policy", "ranked_beam_v1")
+            not in {"ranked_beam_v1", "complete_bounded_v1"}
+            or (
+                receipt.get("operation_search_policy") == "complete_bounded_v1"
+                and (receipt.get("operation_assignment_policy") != "joint_factor_score_v2"
+                     or receipt.get("operation_label_limit") != len(self.operation_head.labels))
+            )
+            or (receipt.get("operation_search_max_expansions") is not None
+                and (type(receipt["operation_search_max_expansions"]) is not int
+                     or receipt["operation_search_max_expansions"] < 1))
             or type(receipt.get("operation_label_limit", 1)) is not int
             or not 1 <= receipt.get("operation_label_limit", 1) <= len(self.operation_head.labels)
             or receipt.get("relation_score_strategy", "positive_label_margin_v1")
@@ -932,6 +942,15 @@ class CompositionalSemanticProgramTransducer:
         body["operation_label_limit"] = limit
         return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
 
+    def with_complete_operation_search(self, *, max_expansions=None) -> CompositionalSemanticProgramTransducer:
+        """Search all source spans and learned operation labels inside the declared bounds."""
+        body = {key: value for key, value in self.training_receipt.items() if key != "receipt_sha256"}
+        body.update(operation_search_policy="complete_bounded_v1",
+                    operation_assignment_policy="joint_factor_score_v2",
+                    operation_label_limit=len(self.operation_head.labels),
+                    operation_search_max_expansions=max_expansions)
+        return replace(self, training_receipt={**body, "receipt_sha256": _sha(body)})
+
     def with_order_invariant_argument_graph(self) -> CompositionalSemanticProgramTransducer:
         """Let the complete graph decide dependencies regardless of textual order."""
         body = {
@@ -1040,8 +1059,17 @@ class CompositionalSemanticProgramTransducer:
             hidden_channels=self.hidden_channels,
             hidden_channel_widths=self.hidden_channel_widths,
             label_limit=self.training_receipt.get("operation_label_limit", 1),
+            complete_inventory=self.training_receipt.get("operation_search_policy") == "complete_bounded_v1",
         )
-        charts = _operation_chart_candidates(
+        from core.learning.semantic_operation_search import OperationChartSearch, OperationSearchIncompleteError
+
+        complete_search = self.training_receipt.get("operation_search_policy") == "complete_bounded_v1"
+        charts = (OperationChartSearch(
+            nodes, max_steps=inference_max_steps, length_penalty=self.operation_length_penalty,
+            feasible=lambda selected: _operation_chart_use_feasible(
+                selected, n_inputs=len(inputs), contract=self.register_use_contract),
+            max_expansions=self.training_receipt.get("operation_search_max_expansions"),
+        ) if complete_search else _operation_chart_candidates(
             nodes,
             max_steps=inference_max_steps,
             length_penalty=self.operation_length_penalty,
@@ -1052,7 +1080,7 @@ class CompositionalSemanticProgramTransducer:
                 )
             ) if self.training_receipt.get("operation_chart_feasibility") in {"register_edge_bounds_v2", "arity_state_bounds_v3"} else None,
             preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
-        )
+        ))
         if not charts:
             return SemanticTransductionOutcome(None, "operation_chart_empty", {}, {})
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
@@ -1076,7 +1104,7 @@ class CompositionalSemanticProgramTransducer:
                     relation_score_cache=relation_score_cache,
                 ),
             )
-        except ArgumentOptimizationIncompleteError as exc:
+        except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:
             return SemanticTransductionOutcome(None, str(exc), {}, {})
         if assigned is None:
             return SemanticTransductionOutcome(None, "typed_argument_chart_empty", {}, {})
