@@ -79,7 +79,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P2.13` I -> D: resource state changes planning/action selection. — I->D is a retained edge in the newest run
 - [x] `P2.14` Establish at least one legitimate route back into I. — the effort ledger is the route back into the body: five places in cognition report what they spent, the proprioceptive loop drains the ledger at the top of the turn, and exertion is what it computes
 - [x] `P2.15` Cognition/action must be capable of changing some sensed bodily/computational state. — acting spends effort through the intention loop, and the interoception domain reads that spend as its own column
-- [x] `P2.16` The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A) — the I displacement moves a share of what she has already spent through the ledger rather than writing a temperature; the readout the harness could have written is derived from the ledger at the top of every turn and would not have survived one
+- [ ] `P2.16` The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A) — the I displacement moves a share of what she has already spent through the ledger rather than writing a temperature; the readout the harness could have written is derived from the ledger at the top of every turn and would not have survived one
 - [x] `P2.17` A -> G: feelings genuinely affect attention. — A->G is a retained edge in the newest run
 - [ ] `P2.18` A -> D: affect changes motivation/intention. — A->D is a retained edge in the newest run
 - [x] `P2.19` A -> C: affect changes cognitive dynamics. — A->C is a retained edge in the newest run
@@ -122,7 +122,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P2.56` M -> S: memory changes the self. — M->S is a retained edge in the newest run
 - [x] `P2.57` M -> W: recalled context contributes to world inference. — M->W is a retained edge in the newest run: what she recalled reaches the world model as a coordinate rather than as a score and a count
 - [ ] `P2.58` M -> D: relevant memory changes planning. — M->D is a retained edge in the newest run
-- [x] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W) — the memory displacement moves the retrieved items themselves, which is what the consumers read
+- [ ] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W) — the memory displacement moves the retrieved items themselves, which is what the consumers read
 - [x] `P2.60` P -> W: actual observations update W. — P->W is a retained edge in the newest run
 - [ ] `P2.61` Action consequences update W. — D->W is a retained edge in the newest run — what she did changes what she predicts
 - [x] `P2.62` M -> W: remembered evidence helps construct/predict the world. — remembered evidence helps construct the world: the retrieved set is part of the observation the model learns from
@@ -200,7 +200,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P5.4` Each replicates in at least 3 conditions. — each of them in at least three conditions
 - [x] `P5.5` This holds on every replicate run, not only 2 of 3. — the workspace's own tally says which sources reached attention, run by run, so a criterion holding on one run and not the next is visible
 - [x] `P5.6` G’s consumers modify fields that the destination-domain reader actually reads. — a broadcast consumer writes a field the destination domain's reader reads, and the displacement test says which
-- [ ] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
+- [x] `P5.7` Changes survive long enough to affect later state instead of being overwritten downstream. — what a consumer writes lands where the readout is derived from, and a gate fails when something starts overwriting it again
 - [x] `P5.8` Consumer failures are visible. Resolve the affect-to-drive semantic mismatch A current workspace consumer can strip affect_ from a winner and treat the remainder as a drive name. That can turn an emotion such as affect_joy into joy, while motivation budgets use a different vocabulary such as social, curiosity, rest, integrity, and energy. Most emotions therefore do not correspond to a real drive budget. — a consumer that raised is recorded as a degradation rather than swallowed
 - [x] `P5.9` Define an explicit, theoretically justified affect-to-drive mapping; or — the affect-to-drive mapping is written out, one feeling to one of the five budgets, by what the feeling is about (warmth and its absence to company, interest to finding out, fear to holding together, frustration to growth); every mapped budget exists
 - [x] `P5.10` stop treating affect_* as drive names and only credit genuine drive_* candidates. — closed by P5.9, the first branch of the either-or: an affect source credits only the need the written table names, and one the table does not name credits nothing
@@ -278,7 +278,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P9.6` perturbational complexity/spread. — perturbational spread runs on every null architecture
 - [x] `P9.7` synergy. — synergy runs on every null architecture
 - [x] `P9.8` intrinsic persistence. — intrinsic persistence runs on every null architecture
-- [ ] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
+- [x] `P9.9` causal closure where applicable. — causal closure runs on every architecture, with the broker read as the periphery
 - [x] `P9.10` Evaluate the 24-part conjunction on each null. — each null is put through the conjunction including differentiation, which is the only line a broadcast fails
 - [ ] `P9.11` Require ISC(N)=0 for every null N. — no null passes the conjunction
 - [ ] `P9.12` Require the positive recurrent reference to pass the criteria it is meant to demonstrate. — the recurrent reference passes the conjunction it is there to demonstrate
@@ -634,7 +634,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P29.8` Audit governance state if it changes cognitive selection. — governance state gates whether a subsystem runs and is read as periphery rather than assumed irrelevant
 - [x] `P29.9` Audit model-serving state if it changes cognition. — model-serving state is outside K and reachable by the closure test, which reads every service the container has built
 - [x] `P29.10` Audit active commitments. — active commitments are deliberation's own columns: the initiatives she is holding and what the will deferred
-- [x] `P29.11` Audit persistent planner state. — persistent planner state lives in the same domain and is displaced with it
+- [ ] `P29.11` Audit persistent planner state. — persistent planner state lives in the same domain and is displaced with it
 - [x] `P29.12` Audit active tool outcomes. — what came of an action is read back off the world rather than asserted, and the record of it is in the state the domains read
 - [x] `P29.13` Audit learning state. A core cannot be declared causally closed by definition. — learning state is the ontogenetic reservoir, which is N, and the audit says so if a learning field is not read
 
@@ -729,7 +729,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P36.2` Generalizes across multiple tasks.
 - [ ] `P36.3` Generalizes across multiple self dimensions.
 - [x] `P36.4` No direct test-only S-to-D wire. — no writer touches a state path another domain's schema owns
-- [x] `P36.5` Mediated by normal production cognition. — the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it
+- [ ] `P36.5` Mediated by normal production cognition. — the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it
 - [ ] `P36.6` Survives current code changes.
 - [ ] `P36.7` Survives the full-cortex variant.
 
@@ -829,7 +829,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P43.16` Fast-to-slow but no slow-to-fast. — fast domains write the slow ones and the slow ones write nothing back
 - [x] `P43.17` Slow-to-fast but no fast-to-slow. — slow state drives the fast domains and nothing they do reaches it
 - [x] `P43.18` Recurrent but minimally differentiated. — recurrent and reciprocal with every coupling matrix rank one, so the whole system rides on a single latent
-- [ ] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
+- [x] `P43.19` Differentiated but not integrated. Each should fail or pass for the expected reason. — each domain mixes richly inside itself and nothing crosses between them
 
 ## Phase 44 — Remove hidden test-specific shortcuts
 
@@ -852,7 +852,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
 - [x] `P45.7` Audit model observers that never receive observations. — the world model's own step count moves across a run, so it received the observations the cycle sends it
 - [ ] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
-- [ ] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
+- [x] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
 - [x] `P45.10` Audit return paths that terminate in local dictionaries. — a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one
 - [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
 - [x] `P45.12` Audit service-name mismatches. — the substrate is published under every name its consumers ask for, and the coupling asks again while it is absent
