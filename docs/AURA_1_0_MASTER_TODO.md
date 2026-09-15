@@ -784,6 +784,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   controls 0/6. No accuracy gain; decode latency differs. The negative result
   is retained, with no admission or serving authority.
 - [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  [Prospective task power](evidence/G07_PROSPECTIVE_TASK_POWER_2026-09-15.md)
+  adds exact task-count sizing, frozen task/arm order and immutable publication
+  through the existing plan store. 92 focused tests pass. No candidate-specific
+  prospective plan or fresh run is claimed yet.
   [Preregistration integrity](evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)
   repairs missing-setting confirmation, mutable plans, nonfinite measurements,
   and unchecked arm inventories. Fifty-six focused tests pass; this does not

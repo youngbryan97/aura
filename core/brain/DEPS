@@ -34,6 +34,8 @@ include_rules = [
     "+core.discovery",
     "+core.engineering",
     "+core.epistemics",
+    # Certification and prospective designs share the same exact paired test.
+    "+core.evaluation.paired_power",
     "+core.event_bus",
     "+core.executive",
     "+core.expression",

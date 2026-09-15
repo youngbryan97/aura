@@ -26,6 +26,7 @@ from core.brain.llm.latent_cortex.resource_accounting import (
     validate_information_receipt,
     validate_resource_receipt,
 )
+from core.evaluation.paired_power import binomial_tail, conditional_mcnemar_power
 
 SCHEMA = "aura.latent_cortex.frontier_gain_bundle.v2"
 CERTIFICATE_SCHEMA = "aura.latent_cortex.frontier_gain_certificate.v2"
@@ -207,13 +208,7 @@ _RUN_ORDERS = ("treatment_first", "control_first")
 
 def _binomial_sf(k: int, n: int, p: float) -> float:
     """``P(X >= k)`` for ``X ~ Binomial(n, p)``, computed exactly."""
-    if k <= 0:
-        return 1.0
-    if k > n:
-        return 0.0
-    return math.fsum(
-        math.comb(n, i) * (p**i) * ((1.0 - p) ** (n - i)) for i in range(k, n + 1)
-    )
+    return binomial_tail(k, n, p)
 
 
 def _exact_mcnemar_power(discordant: int, alpha: float, win_share: float) -> float:
@@ -227,13 +222,7 @@ def _exact_mcnemar_power(discordant: int, alpha: float, win_share: float) -> flo
     """
     if discordant <= 0:
         return 0.0
-    critical = next(
-        (k for k in range(discordant + 1) if _binomial_sf(k, discordant, 0.5) <= alpha),
-        None,
-    )
-    if critical is None:
-        return 0.0
-    return _binomial_sf(critical, discordant, win_share)
+    return conditional_mcnemar_power(discordant, alpha, win_share)
 
 
 def _validate_preregistration(prereg: Any, reasons: list[str]) -> dict[str, Any]:
