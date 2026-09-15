@@ -63,6 +63,7 @@ def save_arms(directory: Path, results: Any, *, name: str = "intervention_arms.j
                     "took": bool(trial.took),
                     "self_effect": round(float(trial.self_effect), 6),
                     "injected_at": int(trial.injected_at),
+                    "carried_by": dict(sorted((getattr(trial, "carried_by", {}) or {}).items())),
                     "effect": {k: round(float(v), 6) for k, v in sorted(trial.effect.items())},
                     "floor": {k: round(float(v), 6) for k, v in sorted(trial.floor.items())},
                     "trace": {

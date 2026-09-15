@@ -11857,5 +11857,30 @@
     ],
     "note": "a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)",
     "status": "done"
+  },
+  "P38.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/causal.py",
+        "pattern": "def counter_carried_edges\\("
+      },
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "\"fast_to_slow_not_counters\": any\\("
+      },
+      {
+        "command": "{python} -m pytest tests/test_timescale_coupling_is_not_carried_by_counters.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['timescale'].get('fast_to_slow_not_counters') is True and report['timescale'].get('slow_to_fast_not_counters') is True",
+        "kind": "report"
+      }
+    ],
+    "note": "every trial records the column its effect was read off; a fast-slow edge carried only by columns that go one way is named, and the line holds when each direction keeps an edge carried by state. Read on the next battery run",
+    "status": "done"
   }
 }

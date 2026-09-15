@@ -526,11 +526,27 @@ async def main() -> int:
     }
     fast_to_slow = [f"{s}->{t}" for s, t in kept if s in FAST_DOMAINS and t in SLOW_DOMAINS]
     slow_to_fast = [f"{s}->{t}" for s, t in kept if s in SLOW_DOMAINS and t in FAST_DOMAINS]
+    # And whether a running total could be standing in for the coupling. A
+    # clock moves identically in both arms and cannot carry an effect, but a
+    # counter whose rate the displacement changed can.
+    from core.subject.causal import counter_carried_edges
+
+    monotone = recording.monotone_columns()
+    counters = {
+        (domain, int(index))
+        for domain, where in recording.slices.items()
+        for index in np.flatnonzero(monotone[where])
+    }
+    crossing = [(s, t) for s, t in kept if (s in FAST_DOMAINS) != (t in FAST_DOMAINS)]
+    carried_by_counters = counter_carried_edges(results, crossing, counters)
     evidence["timescale"] = {
         "fast_to_slow": bool(fast_to_slow),
         "fast_to_slow_edges": fast_to_slow,
         "slow_to_fast": bool(slow_to_fast),
         "slow_to_fast_edges": slow_to_fast,
+        "counter_carried_edges": carried_by_counters,
+        "fast_to_slow_not_counters": any(e not in carried_by_counters for e in fast_to_slow),
+        "slow_to_fast_not_counters": any(e not in carried_by_counters for e in slow_to_fast),
     }
 
     _log("agency and ownership")
