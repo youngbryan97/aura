@@ -2455,7 +2455,17 @@ function markLiveSurfaceResponsive(reason = 'activity') {
     const wasResuming = !!state.resumeInProgress;
     state.surfaceSuspended = false;
     state.resumeInProgress = false;
-    if (state.connected && wasResuming) {
+    if (!state.connected) return;
+    // A message from the runtime is the proof the surface is live, whatever
+    // the bookkeeping says. The flags could be clear while the chip still
+    // read "Paused in background": a socket that closed mid-resume showed
+    // the paused toast, the ten-second resume window expired before the new
+    // socket connected, and the first message then found nothing to clear.
+    const toast = $('conn-toast');
+    const toastSaysPaused = !!(toast && toast.classList.contains('show')
+        && /paused|resuming|waking/i.test(toast.textContent || ''));
+    const chipSaysPaused = /paused|waking/i.test($('hud-status')?.textContent || '');
+    if (wasResuming || toastSaysPaused || chipSaysPaused) {
         showConnToast(false);
         setConnectionVisual(state.runtimeHealthy ? 'online' : 'degraded', state.runtimeHealthy ? '' : runtimeHealthStatusText());
     }

@@ -48,6 +48,7 @@ from core.brain.llm.model_shapes import (
     contract_digest as _contract_digest,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.model_runtime_assignment import (
@@ -167,6 +168,14 @@ _ACTIVE_CORTEX_SPEC_TTL_S = 5.0
 _active_cortex_spec_cache: (
     tuple[float, Path, tuple[int, int, int, int], ActiveCortexSpec | None] | None
 ) = None
+#: One background re-validation at a time. Reading the spec validates the
+#: whole migration contract — every component's evidence file opened and
+#: hashed — and the loop thread was doing that every five seconds from the
+#: stream of being's step: a 5.1s stall on 2026-09-14, on the path that only
+#: wanted the resident model's label. On the loop, an unchanged manifest is
+#: served from the last validation and the refresh runs on a worker.
+_active_cortex_spec_refreshing = False
+_active_cortex_spec_lock = checked_lock("model_registry.active_cortex_refresh")
 _DEEP_SPECIALIST_STATUS_TTL_S = 30.0
 _deep_specialist_status_cache: dict[
     str,
@@ -397,17 +406,50 @@ def get_active_cortex_spec(
     signature = _active_cortex_manifest_signature(manifest)
     now = time.monotonic()
     cached = _active_cortex_spec_cache
-    if (
-        not force_refresh
-        and cached is not None
-        and cached[1] == manifest
-        and cached[2] == signature
-        and (now - cached[0]) < _ACTIVE_CORTEX_SPEC_TTL_S
-    ):
+    same_manifest = cached is not None and cached[1] == manifest and cached[2] == signature
+    if not force_refresh and same_manifest and (now - cached[0]) < _ACTIVE_CORTEX_SPEC_TTL_S:
+        return cached[3]
+    if not force_refresh and same_manifest and _refresh_active_cortex_spec_off_loop(manifest):
+        # The manifest has not moved since the last validation; the loop
+        # gets that answer now and a worker re-validates the evidence.
         return cached[3]
     observed = _read_active_cortex_spec(manifest)
     _active_cortex_spec_cache = (now, manifest, signature, observed)
     return observed
+
+
+def _refresh_active_cortex_spec_off_loop(manifest: Path) -> bool:
+    """Re-validate on a worker when called from the loop. True if handed off."""
+    from core.runtime.which_thread_may_do_this import we_are_on_the_loop
+
+    if not we_are_on_the_loop():
+        return False
+    global _active_cortex_spec_refreshing
+    with _active_cortex_spec_lock:
+        if _active_cortex_spec_refreshing:
+            return True
+        _active_cortex_spec_refreshing = True
+
+    def refresh() -> None:
+        global _active_cortex_spec_cache, _active_cortex_spec_refreshing
+        try:
+            signature = _active_cortex_manifest_signature(manifest)
+            observed = _read_active_cortex_spec(manifest)
+            _active_cortex_spec_cache = (time.monotonic(), manifest, signature, observed)
+        finally:
+            with _active_cortex_spec_lock:
+                _active_cortex_spec_refreshing = False
+
+    try:
+        import asyncio
+
+        asyncio.get_running_loop().run_in_executor(None, refresh)
+    except RuntimeError:
+        # No running loop on this thread after all: validate here.
+        with _active_cortex_spec_lock:
+            _active_cortex_spec_refreshing = False
+        return False
+    return True
 
 
 def get_active_cortex_serving_limits(

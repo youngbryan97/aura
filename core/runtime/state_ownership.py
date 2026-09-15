@@ -163,11 +163,29 @@ _INSTANCE_NONCE = uuid.uuid4().hex[:16]
 _STARTED_AT = time.time()
 
 
+#: The last resolution of each root, keyed on the environment it was read
+#: from. `state_root()` is keyed on its inputs so a test that repoints HOME
+#: gets the root it arranged; but the inputs themselves were each a
+#: realpath — one lstat per path component — and every flag lookup asks for
+#: the state root, so a cached lane audit still made six realpath calls and
+#: the runtime made thousands a minute. The environment string is the input;
+#: the path is resolved once per distinct value.
+_HOME_RESOLVED: tuple[tuple[str, str], Path] | None = None
+_LIVE_ROOT_RESOLVED: tuple[str, Path] | None = None
+
+
 def _home() -> Path:
-    override = _bootstrap_env("AURA_HOME")
-    if override:
-        return Path(override).expanduser().resolve()
-    return Path.home().expanduser().resolve()
+    global _HOME_RESOLVED
+    key = (_bootstrap_env("AURA_HOME"), os.environ.get("HOME", ""))
+    cached = _HOME_RESOLVED
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    if key[0]:
+        resolved = Path(key[0]).expanduser().resolve()
+    else:
+        resolved = Path.home().expanduser().resolve()
+    _HOME_RESOLVED = (key, resolved)
+    return resolved
 
 
 #: The home this process started with, captured before anything can redirect
@@ -212,14 +230,21 @@ def live_state_root() -> Path:
     parent, not a self-declaration — the protection this module provides is
     against accident, and an accident cannot forge a parent.
     """
+    global _LIVE_ROOT_RESOLVED
     inherited = _bootstrap_env("AURA_LIVE_STATE_ROOT")
     if inherited:
+        cached = _LIVE_ROOT_RESOLVED
+        if cached is not None and cached[0] == inherited:
+            return cached[1]
         try:
-            return Path(inherited).expanduser().resolve()
+            resolved = Path(inherited).expanduser().resolve()
         except (OSError, RuntimeError, ValueError):
             # An unusable value must fall back to inference rather than
             # disabling the guard.
             pass
+        else:
+            _LIVE_ROOT_RESOLVED = (inherited, resolved)
+            return resolved
     return _ORIGINAL_HOME / _LIVE_ROOT_NAME
 
 

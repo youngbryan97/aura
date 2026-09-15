@@ -13,6 +13,7 @@ from typing import Any, Final
 
 from core.learning.recovery_package_identity import (
     DescriptorIdentity,
+    RecoveryPackageError,
     descriptor_from_manifest,
     evidence_namespace_errors,
 )
@@ -239,13 +240,28 @@ def active_semantic_neural_activation_path() -> Path:
     return ACTIVE_ACTIVATION_PATH if ACTIVE_ACTIVATION_PATH.exists() else DEFAULT_ACTIVATION_PATH
 
 
+#: The fields of a manifest identity that name the model basis. `sha256` is
+#: the rest of the identity: the bytes of the whole file.
+_MANIFEST_BASIS_FIELDS: Final[tuple[str, ...]] = (
+    "path",
+    "active_model_path",
+    "schema_version",
+    "base_model",
+    "tag",
+    "fused_at",
+)
+
+
 def _manifest_identity_matches_activation(
     *,
     expected: dict[str, Any],
     current: dict[str, Any],
     selected_model: Path,
+    current_payload: dict[str, Any] | None = None,
+    descriptor_identity: DescriptorIdentity | None = None,
 ) -> bool:
-    """Accept an exact manifest or a verified identity-only normalization."""
+    """Accept an exact manifest, a verified identity-only normalization, or the
+    same basis under a rewritten migration contract."""
 
     if current == expected:
         return True
@@ -253,7 +269,7 @@ def _manifest_identity_matches_activation(
         from core.brain.llm.model_registry import read_active_cortex_spec
 
         spec = read_active_cortex_spec(str(expected["path"]))
-        return bool(
+        if bool(
             spec is not None
             and spec.identity_transition_verified
             and spec.predecessor_pointer_sha256 == expected.get("sha256")
@@ -261,9 +277,65 @@ def _manifest_identity_matches_activation(
             and spec.pointer_sha256 == current.get("sha256")
             and spec.model_path == selected_model
             and current.get("active_model_path") == expected.get("active_model_path")
-        )
+        ):
+            return True
     except (KeyError, OSError, RuntimeError, TypeError, ValueError):
         return False
+    return _same_basis_under_a_rewritten_contract(
+        expected=expected,
+        current=current,
+        current_payload=current_payload,
+        descriptor_identity=descriptor_identity,
+    )
+
+
+def _same_basis_under_a_rewritten_contract(
+    *,
+    expected: dict[str, Any],
+    current: dict[str, Any],
+    current_payload: dict[str, Any] | None,
+    descriptor_identity: DescriptorIdentity | None,
+) -> bool:
+    """The manifest bytes moved and the model basis did not.
+
+    The manifest carries the migration contract — one signed authority per
+    component, rewritten whenever a component is re-measured. A steering
+    campaign that re-issued its own authority changed the file's sha256 and
+    nothing this package was qualified on, and binding the package to the
+    bytes read that as resident_manifest_drift on every boot afterwards.
+
+    The basis is what the package was qualified on, and it is verified here
+    from the manifest itself rather than from the bytes: every identity field
+    but the sha256, the descriptor the package recorded against the
+    descriptor the manifest now carries, and every section of the manifest
+    naming the one descriptor the artifact_descriptor names. A package that
+    recorded no descriptor identity is not eligible.
+    """
+
+    if current_payload is None or descriptor_identity is None:
+        return False
+    if any(current.get(field) != expected.get(field) for field in _MANIFEST_BASIS_FIELDS):
+        return False
+    try:
+        if descriptor_from_manifest(current_payload).fingerprint() != descriptor_identity.fingerprint():
+            return False
+    except (RecoveryPackageError, TypeError, ValueError):
+        return False
+    descriptor = current_payload.get("artifact_descriptor")
+    descriptor_sha256 = (
+        str(descriptor.get("descriptor_sha256") or "") if isinstance(descriptor, dict) else ""
+    )
+    if not descriptor_sha256:
+        return False
+    for section, key in (
+        ("serving_profile", "model_descriptor_sha256"),
+        ("evaluation", "candidate_descriptor_sha256"),
+        ("migration_contract", "model_descriptor_sha256"),
+    ):
+        body = current_payload.get(section)
+        if isinstance(body, dict) and str(body.get(key) or "") != descriptor_sha256:
+            return False
+    return True
 
 
 def _relative_evidence_path(repo_root: Path, path: Path) -> str:
@@ -744,6 +816,8 @@ def semantic_neural_activation_errors(
                 expected=manifest_identity,
                 current=current_manifest,
                 selected_model=selected_model,
+                current_payload=current_manifest_payload,
+                descriptor_identity=recovery_descriptor,
             ):
                 errors.append("resident_manifest_drift")
             if _identity_for_model(selected_model) != expected_model:
