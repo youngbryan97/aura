@@ -885,6 +885,41 @@ class AffectUpdatePhase(Phase):
         adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
         relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
         affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
+        self._settle_cortisol(affect)
+
+    @staticmethod
+    def _settle_cortisol(affect: AffectVector) -> None:
+        """The slow channel, which is how long she has been mobilised for.
+
+        Cortisol had a rest value, a pressure span, a reader in
+        `physiological_strain` and a column in the subject schema, and no
+        writer anywhere in the tree. It sat at 10.0 for the whole of a six-hour
+        recording while heart rate, conductance and adrenaline moved.
+
+        Adrenaline is the acute channel: it answers an event and momentum
+        returns it. Cortisol is the same signal integrated, so what raises it
+        is not how high adrenaline went but how much of the recent past was
+        spent above rest. It follows adrenaline's share of its own span on
+        adrenaline's own clock, which makes the two one mechanism read at two
+        speeds rather than two mechanisms with two sets of numbers. Momentum is
+        the fraction a channel keeps each cycle, so the slow one keeps what the
+        fast one lets go of twice over: at the default 0.85 the fast channel
+        sheds 15% a cycle and the slow one sheds 2.25%, which is about seven
+        times as long to arrive and as long again to come back.
+        """
+        acute_rest = PHYSIOLOGY_REST["adrenaline"]
+        acute_span = PHYSIOLOGY_PRESSURE_SPAN["adrenaline"]
+        rest = PHYSIOLOGY_REST["cortisol"]
+        span = PHYSIOLOGY_PRESSURE_SPAN["cortisol"]
+        if acute_span <= 0.0:
+            return
+        acute = float(affect.physiology.get("adrenaline", acute_rest) or acute_rest)
+        share = max(0.0, min(1.0, (acute - acute_rest) / acute_span))
+        target = rest + span * share
+        slow = 1.0 - (1.0 - affect.momentum) ** 2
+        current = float(affect.physiology.get("cortisol", rest) or rest)
+        settled = (current * slow) + (target * (1 - slow))
+        affect.physiology["cortisol"] = float(min(rest + span, max(rest, settled)))
 
     @staticmethod
     def _record_what_others_did(percepts: list[Any]) -> int:

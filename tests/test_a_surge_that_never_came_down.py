@@ -74,6 +74,13 @@ def test_it_fades_at_the_rate_the_despair_emotions_do():
 
 
 def test_the_strain_reading_follows_it_down():
+    """And the slow channel is why it takes longer than adrenaline does.
+
+    Cortisol follows adrenaline's share of its own span on a clock seven times
+    slower, so a surge leaves a residue in the strain reading after the surge
+    itself has gone. Sixty cycles clear the fast channel and not the slow one,
+    which is the difference between the two being there for.
+    """
     affect = _surging()
     affect.physiology["heart_rate"] = 90.0
     phase = AffectUpdatePhase(None)
@@ -84,6 +91,11 @@ def test_the_strain_reading_follows_it_down():
 
     assert affect.physiological_strain() > load_alone
     for _ in range(60):
+        phase._apply_decay(affect)
+    assert affect.physiology["adrenaline"] < PHYSIOLOGY_REST["adrenaline"] + 1e-3
+    assert affect.physiological_strain() > load_alone
+
+    for _ in range(1_200):
         phase._apply_decay(affect)
     assert affect.physiological_strain() == pytest.approx(load_alone, abs=1e-4)
 
