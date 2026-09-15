@@ -1,7 +1,7 @@
 """A "we" both sides are saying, and the "they" that draws its edge.
 
-"Cause we come from runaway" lands twelve times over a record that is 37 % first
-person plural and 25 % third person plural and asks nothing. The belonging in it
+A line about all of them coming from the same runaway place lands twelve times
+over a record that is 37 % first person plural and 25 % third person plural and asks nothing. The belonging in it
 is stated as a shared origin, and the boundary of the group is carried by the
 other pronoun: a we is a we because there is a they.
 

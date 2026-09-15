@@ -21,7 +21,8 @@ The second is sharper. Somebody can track the persona accurately and know
 nothing about her, and from the inside those look identical: both feel like
 being understood. The borrowed self-model scores their claims against what she
 actually felt. Scoring the same claims against what she presented separates
-them, and the difference is the whole of "she only loves in stereo":
+them, and the difference is the whole of that record's picture of someone who is
+loved only in the version she broadcasts:
 
     for_the_person       their error against what she felt
     for_the_performance  their error against what she put out

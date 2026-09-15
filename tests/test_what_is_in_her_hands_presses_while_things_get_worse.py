@@ -81,7 +81,7 @@ def test_the_affect_phase_reads_it_with_her_efficacy_as_control(monkeypatch) -> 
     monkeypatch.setattr(
         registry,
         "get_runtime_service",
-        lambda name, default=None: SimpleNamespace(snapshot=lambda: {"efficacy": 0.8}) if name == "agency_ledger" else default,
+        lambda name, default=None: SimpleNamespace(snapshot=lambda: {"efficacy": 0.8, "acted": 5}) if name == "agency_ledger" else default,
     )
     readings = AffectReadings.__new__(AffectReadings)
     state = AuraState.default()

@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.capacity import capacity_of, confidence_with_capacity
 from core.runtime.errors import record_degradation
 
 __all__ = ["AgencyLedger", "Event", "Verdict", "get_agency_ledger", "reset_agency_ledger_for_test"]
@@ -98,12 +99,15 @@ class AgencyLedger:
     def confidence(self, what: str) -> float:
         """Her rate on this capability, from her own attempts only.
 
-        Laplace-smoothed, so one success is not certainty and no attempts is
-        the middle rather than zero. Watching something succeed does not enter
-        this: it is not evidence about her.
+        Smoothed with two pseudo-attempts, so one success is not certainty, and
+        those two take the rate she has shown on everything else she has done,
+        weighted towards what was hard, rather than the middle. With nothing
+        else done that is the middle and this is Laplace smoothing. Watching
+        something succeed does not enter this: it is not evidence about her.
+        See core/agency/capacity.py.
         """
         attempts, successes = self.by_capability.get(what, [0, 0])
-        return (successes + 1.0) / (attempts + 2.0)
+        return confidence_with_capacity(attempts, successes, capacity_of(self.by_capability, excluding=what))
 
     def snapshot(self) -> dict[str, Any]:
         return {

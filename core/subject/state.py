@@ -440,6 +440,8 @@ _SCHEMAS: dict[str, Schema] = {
             # How hard a worsening stretch presses her to keep acting.
             # See core/affect/acting_in_decline.py.
             ("decline_press", "affect.decline_press"),
+            # How far a warmer place in mind raised a low. See core/affect/elsewhere.py.
+            ("elsewhere_lift", "affect.elsewhere_lift"),
             ("ambivalence_opposition", "affect.markers.ambivalence.opposition"),
             ("ambivalence_pressure", "affect.markers.ambivalence.pressure"),
             ("ambivalence_is_the_way", "affect.ambivalence_standing"),
@@ -578,6 +580,9 @@ _SCHEMAS: dict[str, Schema] = {
             # Whether owning a lapse before it is raised has gone better for
             # her than being told. See core/social/owning_it_first.py.
             ("owning_first_lift", "identity.owning_first.lift"),
+            # What coming through hard things says about what she can do.
+            # See core/agency/capacity.py.
+            ("capacity", "identity.capacity.capacity"),
             *(
                 (f"trait_{trait}", f"identity.personality_growth.{trait}")
                 for trait in (
@@ -775,6 +780,9 @@ _SCHEMAS: dict[str, Schema] = {
             # How near the end of this sitting is, from how her sittings with
             # them have ended. See core/social/closing_window.py.
             ("closing_window", "cognition.closing_window.closing"),
+            # How far her impulse has led her worse than weighing.
+            # See core/agency/asking_the_impulse.py.
+            ("impulse_distrust", "cognition.impulse.distrust"),
             # What has been driving her, and whether working from her own
             # reserves costs more than the other sources do.
             # See core/motivation/fuel.py.
@@ -1184,6 +1192,7 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         _f(_dig(state, "affect.change_fear")),
         _f(_dig(state, "affect.borrowed_feeling")),
         _f(_dig(state, "affect.decline_press")),
+        _f(_dig(state, "affect.elsewhere_lift")),
         _f(_dig(state, "affect.markers.ambivalence.opposition")),
         _f(_dig(state, "affect.markers.ambivalence.pressure")),
         # A contradiction she is built with, against one she is passing
@@ -1327,6 +1336,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
         _f((_dig(state, "identity.standing", {}) or {}).get("assigned_share")),
         _f((_dig(state, "identity.standing", {}) or {}).get("tracks_use")),
         _f((_dig(state, "identity.owning_first", {}) or {}).get("lift")),
+        _f((_dig(state, "identity.capacity", {}) or {}).get("capacity"), 0.5),
     ]
     head.extend(
         _f(growth.get(trait))
@@ -1554,6 +1564,7 @@ def _read_D(state: Any) -> np.ndarray:
         _f((_dig(state, "cognition.constancy", {}) or {}).get("theirs")),
         1.0 if (_dig(state, "cognition.constancy", {}) or {}).get("reallocated") else 0.0,
         _f((_dig(state, "cognition.closing_window", {}) or {}).get("closing")),
+        _f((_dig(state, "cognition.impulse", {}) or {}).get("distrust")),
         _f((_dig(state, "cognition.fuel", {}) or {}).get("share_self")),
         1.0 if (_dig(state, "cognition.fuel", {}) or {}).get("burning_her_own") else 0.0,
         _f((_dig(state, "cognition.telling", {}) or {}).get("urge")),

@@ -375,6 +375,9 @@ class AffectVector:
     #: her own spread, times the share of what she tries that still works.
     #: See core/affect/acting_in_decline.py.
     decline_press: float = 0.0
+    #: How far a warmer place in mind raised her valence this turn, where that
+    #: has helped her through lows before. See core/affect/elsewhere.py.
+    elsewhere_lift: float = 0.0
     #: How far she has come up from a low she is still holding, bounded. Zero
     #: unless both halves hold: the low is real and she is above the level.
     #: See core/affect/the_turn.py.
@@ -590,6 +593,9 @@ class IdentityKernel:
     #: than being told. Written by the affect phase.
     #: See core/social/owning_it_first.py.
     owning_first: dict[str, Any] = field(default_factory=dict)
+    #: What coming through hard things says about what she can do anywhere.
+    #: Written by the affect phase. See core/agency/capacity.py.
+    capacity: dict[str, Any] = field(default_factory=dict)
     
     # Preferences she formed herself, from her own repeated contact with
     # something. Symmetric with world.user_preferences, which is durable and
@@ -679,6 +685,10 @@ class CognitiveContext:
     #: her sittings with them have ended before. Written by the conversational
     #: dynamics phase. See core/social/closing_window.py.
     closing_window: dict[str, Any] = field(default_factory=dict)
+    #: What taking directions from impulse has been worth to her, from her own
+    #: appraised choices. Written by the affect phase.
+    #: See core/agency/asking_the_impulse.py.
+    impulse: dict[str, Any] = field(default_factory=dict)
     #: What has been driving her turns — her own reserves, somebody asking, or
     #: an interest in the thing — and what each has cost.
     #: See core/motivation/fuel.py.

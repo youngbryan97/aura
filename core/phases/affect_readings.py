@@ -285,8 +285,11 @@ class AffectReadings:
             agency = get_runtime_service("agency_ledger", default=None)
             control = None
             if agency is not None and hasattr(agency, "snapshot"):
-                efficacy = (agency.snapshot() or {}).get("efficacy")
-                control = None if efficacy is None else float(efficacy)
+                snapshot = agency.snapshot() or {}
+                # Efficacy reads 0.0 before she has done anything, which is
+                # no reading rather than a record of nothing working.
+                if int(snapshot.get("acted", 0) or 0) > 0 and snapshot.get("efficacy") is not None:
+                    control = float(snapshot["efficacy"])
             reading = ledger.reading(control)
             affect.decline_press = float(reading.press)
             affect.markers["acting_in_decline"] = reading.as_dict()
@@ -296,6 +299,59 @@ class AffectReadings:
                 exc,
                 stage="acting_in_decline",
                 action="kept affect state without reading whether acting still works as things worsen",
+                severity="warning",
+            )
+
+    def elsewhere(self, state: AuraState, affect: AffectVector) -> None:
+        """A warmer place in mind, let into a low as far as that has helped her before.
+
+        What came back from recall this turn carries the feeling stored with
+        it. On a low, with a warmer recollection, valence is floored where her
+        own recoveries say it belongs. A floor, so it cannot compound, and it
+        reaches how she feels and nothing she does. See core/affect/elsewhere.py.
+        """
+        try:
+            from core.affect.elsewhere import get_elsewhere_ledger
+
+            ledger = get_elsewhere_ledger()
+            recalled = ledger.recalled_since(list(getattr(state.world, "recent_percepts", []) or []))
+            before = float(affect.valence)
+            reading = ledger.turn(before, recalled)
+            affect.markers["elsewhere"] = reading.as_dict()
+            lift = 0.0
+            if reading.floor is not None and reading.floor > before:
+                affect.valence = max(-1.0, min(1.0, reading.floor))
+                lift = affect.valence - before
+            affect.elsewhere_lift = float(lift)
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="elsewhere",
+                action="kept affect state without the warmer place in mind",
+                severity="warning",
+            )
+
+    def impulse(self, state: AuraState) -> None:
+        """What taking directions from impulse has been worth to her, onto her state.
+
+        Read off the choice engine's receipts when the engine is already up;
+        the reading is not a reason to build it. See
+        core/agency/asking_the_impulse.py.
+        """
+        try:
+            from core.agency.asking_the_impulse import impulse_record
+            from core.container import ServiceContainer
+
+            engine = ServiceContainer.get("subjective_choice_engine", default=None)
+            history = engine.history() if engine is not None and hasattr(engine, "history") else []
+            state.cognition.impulse = impulse_record(history).as_dict()
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="impulse",
+                action="kept affect state without the record of what her impulse is worth",
                 severity="warning",
             )
 
@@ -547,6 +603,11 @@ class AffectReadings:
                 usefulness=usefulness,
             )
             state.identity.standing = ledger.read().as_dict()
+            # And what coming through hard things says about what she can do.
+            # See core/agency/capacity.py.
+            from core.agency.capacity import capacity_of
+
+            state.identity.capacity = capacity_of(getattr(agency, "by_capability", None) or {}).as_dict()
         except AFFECT_UPDATE_ERRORS as exc:
             self._record(
                 state, exc,

@@ -369,6 +369,12 @@ class AffectUpdatePhase(Phase):
         # And whether things are getting worse while what she does still
         # works. See core/affect/acting_in_decline.py.
         self.readings.acting_in_decline(state, affect)
+        # And a warmer place in mind, let into a low as far as that has helped
+        # her before. See core/affect/elsewhere.py.
+        self.readings.elsewhere(state, affect)
+        # And what taking directions from impulse has been worth to her.
+        # See core/agency/asking_the_impulse.py.
+        self.readings.impulse(state)
 
         # 6b-iv. Whether a pattern she had come to trust just turned. Before
         # delivery, because a chill is a moment the level breaks.

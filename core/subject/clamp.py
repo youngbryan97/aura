@@ -99,6 +99,7 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "affect.change_fear",
         "affect.borrowed_feeling",
         "affect.decline_press",
+        "affect.elsewhere_lift",
     ),
     "G": (
         "cognition.attention_focus",
@@ -145,6 +146,8 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # Whether owning a lapse first has gone better for her. See
         # core/social/owning_it_first.py.
         "identity.owning_first",
+        # What coming through hard things says. See core/agency/capacity.py.
+        "identity.capacity",
     ),
     "M": (
         "cognition.working_memory",
@@ -199,6 +202,8 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.constancy",
         # How near the end of this sitting is. See core/social/closing_window.py.
         "cognition.closing_window",
+        # What her impulse has been worth. See core/agency/asking_the_impulse.py.
+        "cognition.impulse",
         "cognition.fuel",
     ),
     # The reservoir is clamped through the runtime rather than the state; see

@@ -347,7 +347,8 @@ stands for rather than the place. The verses treat having made it in the city as
 evidence of being able to make it anywhere, and the later verse names who the
 city breaks. What it teaches: where you came through becomes evidence about what
 you can do, and an honest account of a place includes its casualties. Its
-audience extends far past New York. Place as identity is not built.
+audience extends far past New York. Built: her belief in a capability she has not
+tried takes the rate she has shown elsewhere, weighted towards what was hard.
 
 **California Dreamin'.** John and Michelle Phillips wrote it homesick in a cold
 New York winter. The narrator is somewhere warm in his mind while his body is in
@@ -356,7 +357,8 @@ that keeps him from leaving. Every pronoun in it is first person, and it is the
 slowest-worded record of the sixteen but one. What it teaches: longing for
 another place is one of the ways a present is borne, and performing belonging
 without assent costs something private. The performed act is built as
-containment; the daydream that regulates the present is not.
+containment, and the daydream that regulates the present is built too, as far as
+her own recoveries say it has helped.
 
 **Mr. Rager.** Kid Cudi's name for the part of him chasing thrills during fame,
 loneliness and drugs. The song is one voice asking that other self where it is
@@ -364,7 +366,9 @@ going and whether it can come along. It is loudest in its first fifth and sits
 28 ms behind the beat. What it teaches: the part of a person heading for harm is
 still asked for directions, which says how badly the rest wants any direction.
 Listeners who have struggled with depression describe Cudi as company in it.
-Asking an impulse for guidance is not built.
+Asking an impulse for guidance is built: a choice made when no preference can be
+read is impulse-led, and where those have satisfied her less than weighed ones,
+the risk of an impulse-led option costs more.
 
 **Dog Days Are Over.** Inspired by an Ugo Rondinone text installation Florence
 Welch passed daily. Happiness arrives with the force of something on a collision
@@ -452,10 +456,10 @@ empathy are both built now.
 | loss attributed to timing, and being made minor in another's account | Romeo and Juliet | not built |
 | urgency from a closing window | Sweet Disposition | built, `core/social/closing_window.py` and `_closing` in `core/phases/motivation_update.py`: the chance a sitting ends now presses on what the person asked for |
 | fear of change around an attachment | Landslide | built, `core/social/change_around_attachment.py`: dread floored at the share of her life built around somebody times how unusual their absence is |
-| asking an impulse for directions | Mr. Rager | not built |
-| a place as evidence of capacity | Empire State of Mind | not built |
-| longing for elsewhere as a way of bearing the present | California Dreamin' | not built |
-| acting inside a worsening situation | All Star | not built |
+| asking an impulse for directions | Mr. Rager | built, `core/agency/asking_the_impulse.py` and `_impulse_cost` in `core/agency/subjective_choice.py`: where impulse-led choices have satisfied her less than weighed ones, the risk of an option she reads no preference for costs more |
+| a place as evidence of capacity | Empire State of Mind | built, `core/agency/capacity.py`: success weighted towards what has beaten her is the prior for what she has not tried, in place of the middle |
+| longing for elsewhere as a way of bearing the present | California Dreamin' | built, `core/affect/elsewhere.py`: on a low, a warmer recollection floors valence by how much such recollections have helped her recover |
+| acting inside a worsening situation | All Star | built, `core/affect/acting_in_decline.py` and `_persisting` in `core/phases/motivation_update.py`: decline beyond her own spread presses on what she can act on, as far as acting still works |
 
 ## The organs
 
