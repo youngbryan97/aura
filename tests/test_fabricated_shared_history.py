@@ -31,6 +31,7 @@ from __future__ import annotations
 import pytest
 
 from core.conversation.response_reliability import assess_user_facing_reply
+from core.dialogue import shared_history
 from core.dialogue.shared_history import (
     fabricated_shared_history,
     has_fabricated_shared_history,
@@ -42,6 +43,15 @@ RECENT = [
     "with your own opinion into a PDF saved inside that Orca Demo folder.",
     "Stuck on that one?",
 ]
+
+
+@pytest.fixture(autouse=True)
+def _floor_only(monkeypatch):
+    """These cases pin the FLOOR. The learned surface that sits over it needs
+    the embedding engine, which a unit test does not load; it has its own test
+    below with a stand-in surface."""
+    monkeypatch.setattr(shared_history, "_surface_says_not_an_attribution", lambda _s: False)
+
 
 THE_THREE = [
     (
@@ -254,3 +264,56 @@ class TestTheShapeOfTheCheck:
     )
     def test_actual_second_person_past_claims_remain_checked(self, reply):
         assert has_fabricated_shared_history(reply, "What do you mean?", RECENT)
+
+
+
+class TestTheLearnedSurfaceOverTheFloor:
+    """The regexes are the floor; the surface is the mechanism and can say the
+    floor was wrong about a sentence. LIVE 2026-09-15: "The 2 o'clock hour never
+    exists that night." — a fact about daylight-saving time — was flagged by
+    the time-reference pattern, the 27B answer failed closed, and a smaller
+    model's wrong answer was served."""
+
+    DST = "Quick sanity check: if I run a script every night at 2am and it takes 90 minutes, and the clocks go forward that night, what actually happens on a Mac?"
+
+    def test_a_fact_with_a_time_word_and_no_party_is_not_a_shared_moment(self, monkeypatch):
+        monkeypatch.setattr(shared_history, "_surface_says_not_an_attribution", lambda _s: False)
+        assert not fabricated_shared_history(
+            "The 2 o'clock hour never exists that night. Your 90-minute script then "
+            "runs from roughly 3:00 to 4:30.",
+            self.DST,
+            RECENT,
+        )
+
+    def test_a_shared_moment_with_a_party_is_still_caught(self, monkeypatch):
+        monkeypatch.setattr(shared_history, "_surface_says_not_an_attribution", lambda _s: False)
+        assert fabricated_shared_history(
+            "That night we stayed up talking about the lighthouse.",
+            "What did you make of the report on the harbour dredging?",
+            ["The council wants the harbour dredged before winter."],
+        )
+
+    def test_the_surface_can_overrule_the_floor(self, monkeypatch):
+        vetoed = "You told me last week that your sister was moving to Leeds."
+        monkeypatch.setattr(
+            shared_history,
+            "_surface_says_not_an_attribution",
+            lambda sentence: sentence == vetoed,
+        )
+        assert not fabricated_shared_history(
+            vetoed, "What did you make of the report on the harbour dredging?",
+            ["The council wants the harbour dredged before winter."],
+        )
+        monkeypatch.setattr(shared_history, "_surface_says_not_an_attribution", lambda _s: False)
+        assert fabricated_shared_history(
+            vetoed, "What did you make of the report on the harbour dredging?",
+            ["The council wants the harbour dredged before winter."],
+        )
+
+    def test_an_undecided_surface_leaves_the_floor_in_charge(self, monkeypatch):
+        class _Undecided:
+            def decide(self, _sentence):
+                return None
+
+        monkeypatch.setattr(shared_history, "_attribution_surface", lambda: _Undecided())
+        assert shared_history._surface_says_not_an_attribution("anything") is False

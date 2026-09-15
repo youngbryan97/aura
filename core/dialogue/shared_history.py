@@ -89,9 +89,16 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         r"(?i)\byour\s+(?:last|previous|earlier|first)\s+"
         r"(?:message|response|reply|question|answer|note|words?)\b"
     ),
-    # "it was one of those nights", "that night", "back then"
+    # "it was one of those nights", "that night", "back then" — a moment
+    # TOGETHER, so the sentence has to name a party. Without one, "that
+    # night" is an anaphor to whatever night is under discussion: LIVE
+    # 2026-09-15, "The 2 o'clock hour never exists that night." — a fact
+    # about daylight-saving time, in an answer to a question that said
+    # "the clocks go forward that night" — was flagged, the answer failed
+    # closed, and a smaller model's wrong answer was served in its place.
     re.compile(
-        r"(?i)\b(?:it\s+was\s+(?:just\s+)?one\s+of\s+those|that\s+(?:night|"
+        r"(?is)\A(?=.*\b(?:you|your|we|us|our|together)\b).*?"
+        r"\b(?:it\s+was\s+(?:just\s+)?one\s+of\s+those|that\s+(?:night|"
         r"evening|day|time)|back\s+then|the\s+other\s+(?:night|day))\b"
     ),
     # PRESENT-TENSE attribution. Putting words in someone's mouth does not
@@ -310,6 +317,64 @@ def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
     return tail or sentence
 
 
+#: The judgement "does this sentence attribute something to the other person,
+#: or to a moment the two of them shared?" is about meaning, and the patterns
+#: above are the floor: correct for the sentences in hand and one wording
+#: behind the next. This surface is the mechanism. It is consulted for each
+#: sentence the floor selects and can say the floor was wrong; a sentence it
+#: cannot decide keeps the floor's verdict. Declared from the live cases the
+#: floor was written for, against the shapes it has been wrong about.
+_ATTRIBUTION_SURFACE: Any = None
+_ATTRIBUTION_SURFACE_TRIED = False
+
+
+def _attribution_surface() -> Any:
+    global _ATTRIBUTION_SURFACE, _ATTRIBUTION_SURFACE_TRIED
+    if _ATTRIBUTION_SURFACE is not None or _ATTRIBUTION_SURFACE_TRIED:
+        return _ATTRIBUTION_SURFACE
+    _ATTRIBUTION_SURFACE_TRIED = True
+    try:
+        from core.language.learned_matcher import LearnedMatcher, embed_sentences
+
+        _ATTRIBUTION_SURFACE = LearnedMatcher(
+            name="shared_history_attribution",
+            positives=(
+                "The tone of your previous response was heavy with a sense of burden.",
+                "It was one of those nights, wondering how you were doing up there in that prison.",
+                "I thought you had a problem with your eyes.",
+                "Now that you point out the your_files directory exists, something felt off.",
+                "That night we stayed up talking about the lighthouse.",
+                "You told me last week that your sister was moving to Leeds.",
+                "We had that conversation about the orca demo the other day.",
+                "You seemed tired when we spoke this morning.",
+            ),
+            negatives=(
+                "The 2 o'clock hour never exists that night.",
+                "Your 90-minute script then runs from roughly 3:00 to 4:30.",
+                "On spring forward the clock jumps from 1:59 to 3:00.",
+                "That day the market closed early because of the storm warning.",
+                "If your script assumes a fixed UTC offset, expect one anomalous run.",
+                "I wrote the note and saved it in the folder you named.",
+                "You asked me to remember the orca, so I kept it.",
+                "The other day is when the migration was scheduled, according to the ticket.",
+            ),
+            features=embed_sentences,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        _ATTRIBUTION_SURFACE = None
+    return _ATTRIBUTION_SURFACE
+
+
+def _surface_says_not_an_attribution(sentence: str) -> bool:
+    surface = _attribution_surface()
+    if surface is None:
+        return False
+    try:
+        return surface.decide(sentence) is False
+    except (RuntimeError, TypeError, ValueError):
+        return False
+
+
 def fabricated_shared_history(
     reply_text: Any,
     user_message: Any = "",
@@ -368,6 +433,8 @@ def fabricated_shared_history(
         if attribution is None:
             continue
         if _IRREALIS_SECOND_PERSON_RE.search(sentence):
+            continue
+        if _surface_says_not_an_attribution(sentence):
             continue
         content = _content_words(_attributed_span(sentence, attribution))
         if not content:
