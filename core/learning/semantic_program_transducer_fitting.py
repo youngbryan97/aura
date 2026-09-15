@@ -1271,8 +1271,15 @@ def _assign_typed_arguments(
     minimum_score: float | None = None,
     relation_score_cache: dict | None = None,
     retain_score_factors: bool = False,
+    retain_relation_evidence: bool = False,
     build_only: bool = False,
 ) -> _TypedArgumentAssignment | None:
+    if retain_relation_evidence and (
+        not retain_score_factors or chart_observer is None
+        or model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
+        or model.training_receipt.get("relation_score_strategy") != "categorical_log_margin_v1"
+    ):
+        raise ValueError("relation training needs a joint categorical chart with score factors")
     if build_only and (chart_observer is None or model.training_receipt.get("argument_search_strategy") != "global_constraint_v1"):
         raise ValueError("chart construction needs a global chart observer")
     if (
@@ -1399,6 +1406,8 @@ def _assign_typed_arguments(
     chart_options = []
     chart_definition_options = []
     chart_factors = []
+    chart_relation_evidence = []
+    relation_definition_matrices = {}
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1413,11 +1422,13 @@ def _assign_typed_arguments(
         options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         definitions_by_position = []
         factors_by_position = []
+        evidence_by_position = []
         for position, required_type in enumerate(argument_types):
             role_head = model.argument_role_heads[position]
             proposal_head = model.argument_proposal_heads[position]
             by_register: dict[int, list[tuple[float, TokenSpan]]] = {}
             factor_lookup = {} if retain_score_factors else None
+            evidence_lookup = {} if retain_relation_evidence else None
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
@@ -1453,6 +1464,17 @@ def _assign_typed_arguments(
                         "relation_score_strategy", "positive_label_margin_v1"
                     ),
                 )
+                if evidence_lookup is not None:
+                    from core.learning.semantic_relation_graph_learning import RelationEvidenceBank
+
+                    if eligible_registers not in relation_definition_matrices:
+                        relation_definition_matrices[eligible_registers] = np.stack(
+                            [definition_vectors[index][0][1] for index in eligible_registers])
+                    bank = RelationEvidenceBank(reference,
+                        relation_definition_matrices[eligible_registers],
+                        np.asarray(base_raw_relation_scores))
+                    for selected, index in enumerate(eligible_registers):
+                        evidence_lookup[index, span] = (bank, selected)
                 for (
                     candidate_index,
                     relation_score,
@@ -1515,6 +1537,9 @@ def _assign_typed_arguments(
             if factor_lookup is not None:
                 factors_by_position.append(tuple(factor_lookup[index, span]
                     for _score, _register, span, index in ranked_options))
+            if evidence_lookup is not None:
+                evidence_by_position.append(tuple(evidence_lookup[index, span]
+                    for _score, _register, span, index in ranked_options))
             if joint_definitions:
                 definitions_by_position.append(tuple(
                     definition_labels[index] for _score, _register, _span, index in ranked_options
@@ -1549,6 +1574,7 @@ def _assign_typed_arguments(
             chart_options.append(options_by_position)
             chart_definition_options.append(definitions_by_position)
             chart_factors.append(factors_by_position)
+            chart_relation_evidence.append(evidence_by_position)
             continue
         candidates: list[
             tuple[
@@ -1625,6 +1651,7 @@ def _assign_typed_arguments(
                 model.training_receipt.get("argument_proposal_retention") == "overlap_dominance_v3"
             ),
             option_factors=chart_factors if retain_score_factors else None,
+            option_relation_evidence=chart_relation_evidence if retain_relation_evidence else None,
         )
         if chart_observer is not None:
             chart_observer(chart)

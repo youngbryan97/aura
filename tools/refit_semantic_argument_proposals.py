@@ -6,12 +6,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+
+
+def configure_refit_environment(output):
+    """Keep standalone and supervised refits out of the live state and logs."""
+    root = Path(output).expanduser().absolute().parent
+    os.environ.setdefault("AURA_LOG_DIR", str(root / "logs"))
+    os.environ.setdefault("AURA_STATE_ROOT", str(root / "state"))
 
 
 def verify_source_splits(examples, receipt):
@@ -65,9 +73,12 @@ def main() -> int:
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
                         default="binary_proposals")
+    parser.add_argument("--graph-rounds", type=int, default=3)
+    parser.add_argument("--graph-update-steps", type=int, default=100)
     args = parser.parse_args()
+    configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
         parser.error("evaluate-existing requires validation-output")
     if args.validation_output is not None:
@@ -83,6 +94,7 @@ def main() -> int:
         parser.error("runtime mention margin requires pairwise_arguments")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
+    from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -114,6 +126,7 @@ def main() -> int:
         "binary_proposals": refit_compositional_argument_proposals,
         "pairwise_arguments": refit_compositional_argument_rankings,
         "graph_factors": refit_compositional_graph_scales,
+        "graph_relations": refit_compositional_graph_relations,
         "operation_pointer": refit_compositional_operation_pointer,
         "argument_pointer": refit_compositional_argument_proposals,
         "definition_pointer": refit_compositional_definition_pointer,
@@ -122,8 +135,10 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
-    if args.objective == "graph_factors":
+    if args.objective in {"graph_factors", "graph_relations"}:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
+    if args.objective == "graph_relations":
+        options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:

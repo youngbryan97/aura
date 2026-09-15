@@ -101,6 +101,30 @@ class GraphCounterexampleSearch:
     positive: tuple | None
     negative: tuple | None
     receipt: dict
+    positive_evidence: tuple = ()
+    negative_evidence: tuple = ()
+
+
+def uniform_reduction_equivalence(chart, nodes):
+    """Prove all feasible linear-use monoid trees have one output meaning.
+
+    The argument solver enforces acyclicity and a single sink. With each
+    public input and nonsink intermediate used once, every feasible graph is
+    a tree containing every input exactly once. Integer addition and
+    multiplication are associative and commutative on this total domain.
+    """
+    contract = chart.contract
+    if (not nodes or len(nodes) != len(chart.options) or chart.n_inputs != len(nodes) + 1
+            or any(len(row) != 2 for row in chart.options)
+            or len({node.operation for node in nodes}) != 1
+            or nodes[0].operation not in {"add", "mul"}
+            or (contract.input_min_uses, contract.input_max_uses,
+                contract.intermediate_min_uses, contract.intermediate_max_uses) != (1, 1, 1, 1)):
+        return None
+    return {"method": "linear_use_integer_monoid_v1", "operation": nodes[0].operation,
+            "input_count": chart.n_inputs, "operation_count": len(nodes),
+            "acyclic_single_sink": True, "each_input_and_nonsink_used_once": True,
+            "claim": "output_equality_only"}
 
 
 def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_arguments, *, probes=(), max_graphs=128,
@@ -115,26 +139,36 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
                "search_complete": False, "highest_incorrect_proven": False}
     if progress:
         progress({"stage": "positive_graph"})
+    positive_evidence = []
     try:
-        positive = chart.restrict_arguments(target_arguments).solve_with_factors(time_limit_s=solve_time_limit_s)
+        positive = chart.restrict_arguments(target_arguments).solve_with_factors(time_limit_s=solve_time_limit_s,
+            relation_observer=positive_evidence.append if chart.option_relation_evidence is not None else None)
     except ArgumentOptimizationIncompleteError as exc:
         return GraphCounterexampleSearch(None, None, {**receipt, "status": "positive_search_incomplete", "reason": str(exc)})
     if positive is None:
         return GraphCounterexampleSearch(None, None, {**receipt, "status": "target_unreachable"})
     target = argument_graph_program(nodes, target_arguments, n_inputs=chart.n_inputs)
+    class_proof = uniform_reduction_equivalence(chart, nodes)
+    if class_proof is not None:
+        receipt.update(status="no_incorrect_graph", search_complete=True, equivalence_class_proof=class_proof)
+        return GraphCounterexampleSearch(positive, None, receipt,
+                                         positive_evidence[0] if positive_evidence else ())
     excluded = [target_arguments]
     unresolved = False
+    best_evidence = positive_evidence[0] if positive_evidence else ()
     for _ in range(max_graphs):
         if progress:
             progress({"stage": "alternative_graph", "excluded_graphs": len(excluded)})
         try:
-            candidate = chart.solve_with_factors(excluded_graphs=excluded, time_limit_s=solve_time_limit_s)
+            candidate_evidence = []
+            candidate = chart.solve_with_factors(excluded_graphs=excluded, time_limit_s=solve_time_limit_s,
+                relation_observer=candidate_evidence.append if chart.option_relation_evidence is not None else None)
         except ArgumentOptimizationIncompleteError as exc:
-            return GraphCounterexampleSearch(positive, None, {**receipt, "status": "alternative_search_incomplete", "reason": str(exc)})
+            return GraphCounterexampleSearch(positive, None, {**receipt, "status": "alternative_search_incomplete", "reason": str(exc)}, best_evidence)
         if candidate is None:
             receipt.update(status="equivalence_unresolved" if unresolved else "no_incorrect_graph",
                            search_complete=True)
-            return GraphCounterexampleSearch(positive, None, receipt)
+            return GraphCounterexampleSearch(positive, None, receipt, best_evidence)
         arguments = candidate[0][1]
         program = argument_graph_program(nodes, arguments, n_inputs=chart.n_inputs)
         comparison = compare_program_meanings(target, program, probes)
@@ -142,14 +176,16 @@ def find_graph_counterexample(chart: ScoredArgumentChart, nodes, target_argument
                                      "comparison": comparison})
         if comparison["status"] == "different":
             receipt.update(status="counterexample", highest_incorrect_proven=not unresolved)
-            return GraphCounterexampleSearch(positive, candidate, receipt)
+            return GraphCounterexampleSearch(positive, candidate, receipt, best_evidence,
+                                            candidate_evidence[0] if candidate_evidence else ())
         if comparison["status"] == "unknown":
             unresolved = True
         elif candidate[0][0] > positive[0][0]:
             positive = candidate
+            best_evidence = candidate_evidence[0] if candidate_evidence else ()
         excluded.append(arguments)
     receipt["status"] = "search_incomplete"
-    return GraphCounterexampleSearch(positive, None, receipt)
+    return GraphCounterexampleSearch(positive, None, receipt, best_evidence)
 
 
 @invariant("learning.semantic_counterexamples_do_not_train_against_commutativity", scope="learning",

@@ -23,10 +23,15 @@ It does not replace or close the master G03-G12 obligations.
   training and inference. A three-scalar calibration is not this task.
   [Witnessed graph negatives and algebraic positives](evidence/G03_SEMANTIC_COUNTEREXAMPLES_2026-09-15.md)
   are implemented; joint neural-head learning remains open.
+  [Graph-supervised relation tissue](evidence/G03_GRAPH_RELATION_CANARY_2026-09-15.md)
+  repairs the measured relation conflict and selects equivalent programs on
+  four training canaries. Full-cohort measurement and operation learning remain.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request
   representation expansion rather than declaring optimizer convergence done.
+  The relation refit retains witnessed pairs across rounds; full-cohort
+  iterative qualification is still required.
 - [ ] S05 Counterfactual training. Generate meaning-preserving renamings,
   reorderings and recompositions plus minimal meaning-changing contrasts.
   Validate their IR independently. Freeze fresh evaluation families outside
