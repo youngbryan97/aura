@@ -61,6 +61,10 @@ It does not replace or close the master G03-G12 obligations.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.
+  [Learned-procedure measurement](evidence/G03_LEARNED_PROCEDURE_REUSE_2026-09-15.md)
+  now connects decoded programs to the existing registry and measures new-value
+  execution separately from interpretation correctness. Full-cohort and
+  new-wording transfer remain unmeasured.
 - [ ] S07 Integrated measurement. Run the unchanged 500-row development
   comparison, freeze a selected candidate, publish prospective fresh transfer
   and matched-arm plans, then perform G04-G08 measurement and verification.
