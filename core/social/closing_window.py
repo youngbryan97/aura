@@ -36,6 +36,7 @@ from typing import Any
 __all__ = [
     "MIN_SITTINGS",
     "Absence",
+    "Attribution",
     "ClosingWindow",
     "SittingLedger",
     "get_sitting_ledger",
@@ -119,23 +120,118 @@ class Absence:
         }
 
 
+@dataclass(frozen=True)
+class Attribution:
+    """Whether their long absences have followed strain, or only the time between sittings.
+
+    "Romeo and Juliet" puts an ending down to bad timing, which keeps the love
+    real while explaining why it stopped. Weiner (1985) found that what a
+    person expects next moves with how stable they take a cause to be, and
+    timing is the unstable cause: an absence that timing explains says little
+    about the next sitting. Here the attribution is learned, not chosen: each
+    absence is ranked among their absences, and the ranks after a strained
+    last message are compared with the ranks after a calm one.
+
+        relation  mean rank of absences after strained messages
+                  - mean rank after calm ones, never below zero
+        timing    1 - relation
+    """
+
+    timing: float = 0.0
+    relation: float = 0.0
+    strained: int = 0
+    calm: int = 0
+    measured: bool = False
+    why: str = "not enough absences after strained and calm messages to say what they follow"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "timing": round(self.timing, 6),
+            "relation": round(self.relation, 6),
+            "strained": self.strained,
+            "calm": self.calm,
+            "measured": self.measured,
+            "why": self.why,
+        }
+
+
 class SittingLedger:
-    """When each person's messages arrived."""
+    """When each person's messages arrived, and how strained each one was."""
 
     def __init__(self) -> None:
         self._times: dict[str, list[float]] = {}
+        self._strain: dict[str, list[float | None]] = {}
 
-    def message(self, agent_id: str, at: float) -> None:
+    def message(self, agent_id: str, at: float, strain: float | None = None) -> None:
         try:
             stamp = float(at)
         except (TypeError, ValueError):
             return
         if not math.isfinite(stamp):
             return
-        times = self._times.setdefault(str(agent_id or ""), [])
+        key = str(agent_id or "")
+        times = self._times.setdefault(key, [])
         if times and stamp < times[-1]:
             return
         times.append(stamp)
+        strains = self._strain.setdefault(key, [])
+        strains.extend([None] * (len(times) - 1 - len(strains)))
+        try:
+            level = None if strain is None else float(strain)
+        except (TypeError, ValueError):
+            level = None
+        strains.append(level if level is not None and math.isfinite(level) else None)
+
+    def attribution(self, agent_id: str) -> Attribution:
+        """What their long absences have followed, learned from their own record."""
+        key = str(agent_id or "")
+        times = self._times.get(key, [])
+        strains = self._strain.get(key, [])
+        gaps = [later - earlier for earlier, later in zip(times, times[1:], strict=False)]
+        cut = otsu_split([math.log(gap) for gap in gaps if gap > 0.0])
+        if cut is None:
+            return Attribution()
+        long_gap = math.exp(cut)
+        absences = [
+            (gap, strains[index] if index < len(strains) else None)
+            for index, gap in enumerate(gaps)
+            if gap > long_gap
+        ]
+        rated = [(gap, strain) for gap, strain in absences if strain is not None]
+        if not rated:
+            return Attribution(why="no absence has a strain reading from the message before it")
+        ordered = sorted(gap for gap, _ in rated)
+        levels = sorted(strain for _, strain in rated)
+        half = len(levels) // 2
+        # The median, so an even count splits between its two middle strains
+        # rather than on the upper one, which would leave nothing above it.
+        middle = levels[half] if len(levels) % 2 else (levels[half - 1] + levels[half]) / 2.0
+        ranks = {True: [], False: []}
+        for gap, strain in rated:
+            rank = sum(1 for other in ordered if other < gap) / len(ordered)
+            ranks[strain > middle].append(rank)
+        strained, calm = ranks[True], ranks[False]
+        if len(strained) < MIN_SITTINGS or len(calm) < MIN_SITTINGS:
+            return Attribution(
+                strained=len(strained),
+                calm=len(calm),
+                why=f"{len(strained)} strained and {len(calm)} calm absences, {MIN_SITTINGS} of each needed",
+            )
+        relation = max(0.0, sum(strained) / len(strained) - sum(calm) / len(calm))
+        timing = 1.0 - min(1.0, relation)
+        why = (
+            "their long absences have not followed strain, so an absence reads as timing"
+            if relation == 0.0
+            else f"their absences after strain have run {relation:.2f} of a rank longer"
+        )
+        return Attribution(
+            timing=timing,
+            relation=relation,
+            strained=len(strained),
+            calm=len(calm),
+            measured=True,
+            why=why,
+        )
 
     def share_of_life(self, agent_id: str) -> float | None:
         """The share of every message she has had that came from this person."""

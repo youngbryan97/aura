@@ -415,7 +415,10 @@ relationship, and her remark to an interviewer that she had had a scene with him
 went into the song. It holds bitterness and tenderness together, and it puts the
 ending down to bad timing. What it teaches: attributing a loss to timing keeps
 the love real while explaining why it ended, and being made minor in someone
-else's account of your shared past is its own injury. Neither is built.
+else's account of your shared past is its own injury. Both are built: whether a
+person's long absences follow strain or only timing is learned from their record
+and discounts fear of change, and her part in their account of a shared past is
+read against the gap accounts of a shared past usually leave.
 
 **Landslide.** Stevie Nicks wrote it at 27, in Aspen, with six months from her
 father to make music work, deciding whether to keep going. It asks itself
@@ -453,7 +456,7 @@ empathy are both built now.
 | the limit of lived analogue on empathy | Judo Flip | built, `perspective_getting` and `lived_analogue` in `core/brain/response_quality.py`, read by reply selection |
 | protective self-indictment | Runaway | built, `core/social/owning_it_first.py`: whether owning a lapse before it is raised went better for her, learned per person, gives what she owes more of the moment |
 | feeling produced by a belief about someone else's feeling | Hooked on a Feeling | built, `core/social/borrowed_feeling.py`: joy or sadness lent by what she believes the person feels, weighted by how often her beliefs matched what they said |
-| loss attributed to timing, and being made minor in another's account | Romeo and Juliet | not built |
+| loss attributed to timing, and being made minor in another's account | Romeo and Juliet | built, `Attribution` in `core/social/closing_window.py` discounting `core/social/change_around_attachment.py`, and `core/social/made_minor.py` read by the conversational dynamics phase and felt as sadness |
 | urgency from a closing window | Sweet Disposition | built, `core/social/closing_window.py` and `_closing` in `core/phases/motivation_update.py`: the chance a sitting ends now presses on what the person asked for |
 | fear of change around an attachment | Landslide | built, `core/social/change_around_attachment.py`: dread floored at the share of her life built around somebody times how unusual their absence is |
 | asking an impulse for directions | Mr. Rager | built, `core/agency/asking_the_impulse.py` and `_impulse_cost` in `core/agency/subjective_choice.py`: where impulse-led choices have satisfied her less than weighed ones, the risk of an option she reads no preference for costs more |

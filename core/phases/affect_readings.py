@@ -355,6 +355,27 @@ class AffectReadings:
                 severity="warning",
             )
 
+    def made_minor(self, state: AuraState, affect: AffectVector) -> None:
+        """Being made minor in somebody's account of a shared past, felt as sadness.
+
+        The reading is taken by the conversational dynamics phase; this floors
+        sadness at it, so it cannot compound. See core/social/made_minor.py.
+        """
+        try:
+            reading = getattr(state.cognition, "made_minor", None) or {}
+            minor = float(reading.get("minor", 0.0) or 0.0) if isinstance(reading, dict) else 0.0
+            if minor > 0.0:
+                current = float(affect.emotions.get("sadness", 0.0) or 0.0)
+                _set_emotion(affect, "sadness", max(current, min(1.0, minor)))
+        except AFFECT_UPDATE_ERRORS as exc:
+            self._record(
+                state,
+                exc,
+                stage="made_minor",
+                action="kept affect state without the hurt of being made minor",
+                severity="warning",
+            )
+
     def turn(self, state: AuraState, affect: AffectVector) -> None:
         """Whether she has come up from a low that is still in the record.
 

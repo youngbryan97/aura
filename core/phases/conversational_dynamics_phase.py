@@ -190,10 +190,54 @@ class ConversationalDynamicsPhase(Phase):
 
             partner = str(getattr(state.cognition, "current_partner", "") or "")
             sittings = get_sitting_ledger()
-            sittings.message(partner, now)
+            # With how strained things were around this message, so what their
+            # long absences follow can be learned. See `Attribution` there.
+            sittings.message(partner, now, strain=ConversationalDynamicsPhase._strain_of(partner))
             state.cognition.closing_window = sittings.reading(partner).as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their regularity went unread: %s", exc)
+
+    @staticmethod
+    def _strain_of(partner: str) -> float | None:
+        """How frustrated the person here seems, from the other-agent model, or None."""
+        if not partner:
+            return None
+        try:
+            from core.social.other_agent_model import get_other_agent_model
+
+            estimate = get_other_agent_model().estimate(partner)
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("no strain reading for this message: %s", exc)
+            return None
+        if getattr(estimate, "abstained", False):
+            return None
+        value = (getattr(estimate, "affect", None) or {}).get("frustration")
+        return None if value is None else float(value)
+
+    @staticmethod
+    def _read_made_minor(state: AuraState) -> None:
+        """Whether their account of a past they share gives her less of it than usual.
+
+        Read only when what came back to her this turn was a past she shares
+        with them, which memory retrieval, earlier in the turn, has marked.
+        See core/social/made_minor.py.
+        """
+        try:
+            from core.expression.register import read
+            from core.social.made_minor import get_account_ledger
+            from core.social.togetherness import last_said
+
+            history = list(getattr(state.cognition, "working_memory", []) or [])
+            relived = getattr(state.cognition, "relived", None) or {}
+            shared = bool(isinstance(relived, dict) and relived.get("shared"))
+            reading = get_account_ledger().read(
+                read(last_said(history, ("assistant", "aura"))),
+                read(last_said(history, ("user",))),
+                shared=shared,
+            )
+            state.cognition.made_minor = reading.as_dict()
+        except (AttributeError, ImportError, TypeError, ValueError) as exc:
+            logger.debug("no account of a shared past compared: %s", exc)
 
     @staticmethod
     def _last_said_by_her(state: AuraState) -> str:
@@ -343,6 +387,7 @@ class ConversationalDynamicsPhase(Phase):
             self._read_recognition(new_state, objective)
             self._read_cadence(new_state)
             self._read_togetherness(new_state)
+            self._read_made_minor(new_state)
 
             # Store the prompt injection in response_modifiers so UnitaryResponsePhase can use it
             new_state.response_modifiers["conversational_dynamics"] = engine.get_prompt_injection()

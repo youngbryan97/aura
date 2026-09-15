@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["Togetherness", "read_togetherness"]
+__all__ = ["Togetherness", "last_said", "read_togetherness"]
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,11 @@ class Togetherness:
             "measured": self.measured,
             "why": self.why,
         }
+
+
+def last_said(messages: Sequence[Any], roles: tuple[str, ...]) -> str:
+    """The newest non-empty message from one of these roles, or ""."""
+    return _last(messages, roles)
 
 
 def _last(messages: Sequence[Any], roles: tuple[str, ...]) -> str:

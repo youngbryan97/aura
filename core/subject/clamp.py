@@ -182,6 +182,9 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.partner_cadence",
         # A we both of them are saying. See core/social/togetherness.py.
         "cognition.togetherness",
+        # Being made minor in an account of a shared past.
+        # See core/social/made_minor.py.
+        "cognition.made_minor",
     ),
     "D": (
         "cognition.active_goals",

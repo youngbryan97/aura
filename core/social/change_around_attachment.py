@@ -21,7 +21,9 @@ core/social/closing_window.py):
     built_around  the share of every message she has had that came from them
     departure     the share of their past absences between sittings that this
                   one has already outlasted
-    fear          built_around * departure
+    timing        how far their long absences have been timing rather than
+                  strain, learned from their own record; zero until measured
+    fear          built_around * departure * (1 - timing)
 
 A long absence from somebody who is a small part of her life is not frightening,
 and neither is an ordinary absence from somebody who is most of it. It is felt
@@ -46,6 +48,7 @@ class ChangeFear:
     fear: float = 0.0
     built_around: float | None = None
     departure: float = 0.0
+    timing: float = 0.0
     measured: bool = False
     why: str = "nothing yet to be afraid of losing"
 
@@ -54,6 +57,7 @@ class ChangeFear:
             "fear": round(self.fear, 6),
             "built_around": None if self.built_around is None else round(self.built_around, 6),
             "departure": round(self.departure, 6),
+            "timing": round(self.timing, 6),
             "measured": self.measured,
             "why": self.why,
         }
@@ -65,18 +69,23 @@ def change_fear(ledger: SittingLedger, agent_id: str, now: float) -> ChangeFear:
     absence = ledger.absence(agent_id, now)
     if built_around is None or not absence.measured:
         return ChangeFear(built_around=built_around, why=absence.why)
-    fear = built_around * absence.outlasted
+    attribution = ledger.attribution(agent_id)
+    timing = attribution.timing if attribution.measured else 0.0
+    fear = built_around * absence.outlasted * (1.0 - timing)
     if fear > 0.0:
         why = (
             f"{built_around:.2f} of what she has heard came from them, and this absence has "
             f"outlasted {absence.outlasted:.2f} of theirs"
         )
+    elif absence.outlasted > 0.0 and timing >= 1.0:
+        why = "a long absence, and theirs have always been timing rather than strain"
     else:
         why = absence.why
     return ChangeFear(
         fear=fear,
         built_around=built_around,
         departure=absence.outlasted,
+        timing=timing,
         measured=True,
         why=why,
     )

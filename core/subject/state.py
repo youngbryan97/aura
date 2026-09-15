@@ -703,6 +703,9 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/social/togetherness.py.
             ("together", "cognition.togetherness.together"),
             ("together_edge", "cognition.togetherness.edge"),
+            # Being made minor in their account of a shared past.
+            # See core/social/made_minor.py.
+            ("made_minor", "cognition.made_minor.minor"),
             ("partner_turn_chars", "cognition.partner_cadence.chars"),
             ("partner_turn_gap", "cognition.partner_cadence.gap"),
             ("her_placement", "cognition.partner_cadence.placement"),
@@ -1478,6 +1481,7 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             _sat(_dig(state, "cold.concept_graph", {}) or {}, 32.0),
             _f(_we.get("together")),
             _f(_we.get("edge")),
+            _f((_dig(state, "cognition.made_minor", {}) or {}).get("minor")),
             _sat(_f(_pulse.get("chars")), 400.0),
             _sat(_f(_pulse.get("gap")), 60.0),
             _f(_pulse.get("placement")),
