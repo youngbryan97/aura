@@ -126,23 +126,17 @@ class AgentDelegator(AuraBaseModule):
         self.active_agents: dict[str, SwarmAgent] = {}
         self.max_parallel = 5
 
+        #: What each specialty attends to. Data the shard's request carries,
+        #: not a persona it is told to play: the old table opened with "You
+        #: are 'The Architect'..." and the whole sentence went into the
+        #: cognitive engine as an OBJECTIVE, where the initiative arbiter
+        #: ranked it and the task engine tried to plan it (live, 2026-09-15:
+        #: "planning for '[SWARM PROTOCOL: You are 'The Architect'...").
         self.agent_roles = {
-            "critic": (
-                "You are 'The Critic'. Analyze the provided proposal for flaws, "
-                "edge cases, and security vulnerabilities. Be harsh but precise."
-            ),
-            "architect": (
-                "You are 'The Architect'. Design the high-level structure to solve "
-                "the problem. Focus on patterns, resilience, and scalability."
-            ),
-            "researcher": (
-                "You are 'The Researcher'. Break down the problem and identify "
-                "exactly what information is missing or needed to solve it."
-            ),
-            "optimizer": (
-                "You are 'The Optimizer'. Look at the provided solution and find "
-                "ways to make it faster, use less memory, or be more elegant."
-            ),
+            "critic": "flaws, edge cases and security vulnerabilities in the proposal",
+            "architect": "the high-level structure: patterns, resilience, scalability",
+            "researcher": "what information is missing or needed to solve it",
+            "optimizer": "ways the solution could be faster, lighter or simpler",
         }
         self.running = False
         self._scavenger_task: asyncio.Task | None = None
@@ -929,20 +923,17 @@ FINAL SYNTHESIS:"""
                 agent_id=agent.id,
             )
 
-            local_brain = ServiceContainer.get("cognitive_engine", default=None)
-            if not local_brain and self.orchestrator:
-                local_brain = getattr(self.orchestrator, "cognitive_engine", None)
-            if not local_brain:
-                raise RuntimeError("No cognitive engine available for swarm delegation.")
+            # The language organ, asked directly. A shard is a request for
+            # one perspective on a prompt; through the cognitive engine it
+            # became a cognitive turn with the prompt as its objective.
+            router = ServiceContainer.get("llm_router", default=None)
+            if router is None:
+                raise RuntimeError("No language router available for swarm delegation.")
 
-            role_prompt = self.agent_roles.get(
-                agent.specialty.lower(),
-                f"You are an expert in {agent.specialty}.",
-            )
-            swarm_context = (
-                f"[SWARM PROTOCOL: {role_prompt} "
-                "Focus exclusively on your specialized perspective.]\n"
-            )
+            from core.security.prompt_fencing import fence
+
+            focus = self.agent_roles.get(agent.specialty.lower(), agent.specialty)
+            swarm_context = fence(focus, label="perspective") + "\n\n"
 
             self.logger.debug("Swarm Agent %s waiting for GPU semaphore.", agent.id)
             try:
@@ -966,7 +957,14 @@ FINAL SYNTHESIS:"""
                     maximum=300.0,
                 )
                 result = await asyncio.wait_for(
-                    local_brain.think(swarm_context + prompt, mode="fast", **kwargs),
+                    router.think(
+                        prompt=swarm_context + prompt,
+                        prefer_tier="local_fast",
+                        purpose="swarm_shard",
+                        origin=f"swarm:{agent.specialty.lower()}",
+                        allow_cloud_fallback=False,
+                        **kwargs,
+                    ),
                     timeout=agent_timeout,
                 )
             finally:

@@ -16,14 +16,15 @@ def _engine(tmp_path, monkeypatch, *, content="A general principle."):
 
     captured = {}
 
-    class _Brain:
-        async def think(self, objective, mode=None, block_user=False):
-            captured["prompt"] = objective
-            return SimpleNamespace(content=content)
+    class _Router:
+        async def think(self, **kwargs):
+            captured["prompt"] = kwargs["prompt"]
+            captured["origin"] = kwargs.get("origin")
+            return content
 
     monkeypatch.setattr(
         ae, "get_runtime_service",
-        lambda name, default=None: _Brain() if name == "cognitive_engine" else None,
+        lambda name, default=None: _Router() if name == "llm_router" else None,
     )
     engine = ae.AbstractionEngine()
     engine.storage_path = tmp_path / "principles.json"
@@ -46,6 +47,9 @@ def test_untrusted_task_text_cannot_instruct_the_abstractor(tmp_path, monkeypatc
     assert "system:" not in prompt.lower()
     assert "solved it" in prompt
     assert "untrusted data" in prompt
+    # The request names no persona and reaches the router, not a cognitive turn.
+    assert "You are" not in prompt and "SYSTEM ROLE" not in prompt
+    assert captured["origin"] == "abstraction_engine"
 
 
 def test_success_does_not_reinforce_unattributed_principles(tmp_path, monkeypatch):
