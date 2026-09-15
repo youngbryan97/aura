@@ -213,6 +213,30 @@ class Hypervisor:
             return self._active_lag_threshold, reason
         return self._lag_threshold, "idle"
 
+    def _lag_reading(self, measured: float) -> tuple[float, bool]:
+        """One reading of the loop's lag, and whether its owner has announced it.
+
+        The EventLoopMonitor is the instrument when it is running: it samples
+        the same loop on the same cadence, keeps the breach streak, records the
+        degradation and writes the trace. This loop's own sleep is the reading
+        only when no fresh sample exists, which is the case for a runtime that
+        boots the hypervisor without the monitor.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            monitor = ServiceContainer.get("event_loop_monitor", default=None)
+            sample = monitor.last_lag_sample() if monitor is not None else None
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            sample = None
+        if sample is None:
+            return max(0.0, measured), False
+        lag, age_s = sample
+        interval = float(getattr(monitor, "interval", 1.0) or 1.0)
+        if age_s > 2.0 * interval:
+            return max(0.0, measured), False
+        return max(0.0, float(lag)), True
+
     async def _watchdog_loop(self):
         while self._running:
             # Wall time jumps across macOS sleep/wake and previously turned a
@@ -221,7 +245,7 @@ class Hypervisor:
             # Simple async sleep to measure lag
             await asyncio.sleep(1.0)
             actual_sleep = _monotonic_now() - start
-            lag = actual_sleep - 1.0
+            lag, announced_by_monitor = self._lag_reading(actual_sleep - 1.0)
             self._last_lag = lag
 
             self._last_tick = time.time()
@@ -230,7 +254,12 @@ class Hypervisor:
             lag_threshold, lag_context = self._lag_threshold_for_context()
             if lag > lag_threshold:
                 uptime = time.time() - getattr(self, "_start_time", time.time())
-                if is_shutdown_requested():
+                if announced_by_monitor:
+                    # The EventLoopMonitor measured this lag and said so, with
+                    # its streak and a trace. Two lines for one stall told the
+                    # feed nothing the first did not.
+                    pass
+                elif is_shutdown_requested():
                     logger.debug(
                         "Shutdown event-loop lag observed during bounded teardown: %.3fs "
                         "(context=%s threshold=%.3fs).",

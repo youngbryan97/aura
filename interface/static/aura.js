@@ -3179,14 +3179,23 @@ function publishHealthNeuralPulse(payload, source = 'health_poll') {
     const technical = `[${source}] health=${statusText}; ${probeText}; ${conversationText}${blockerText}${proofText}`;
     const lex = window.AuraShellLexicon;
     const summary = lex && blockers.length ? lex.summarize(blockers) : null;
+    // A proof that is still warming is advisory: the runtime says so itself
+    // ("advisory (non-blocking)"), nothing is blocked, and the answer lane
+    // is ready. It used to make this card a WARNING whose headline was the
+    // technical line, which the plain-English pass then rewrote to
+    // "everything responding" — a warning that said all was well.
+    const proofAdvisoryOnly = strictHealthy && !!proofText
+        && proofBlockers.length === 0 && integrityConcerns.length === 0;
     const headline = strictHealthy && !proofText
         ? 'Health check passed — ready to talk.'
+        : proofAdvisoryOnly
+        ? `Health check passed — ready to talk; still settling: ${proofDetails.slice(0, 2).join('; ')}.`
         : summary
         ? `${summary.title} — ${summary.meaning}`
         : technical;
 
     queueNeuralLivenessCard(headline, {
-        level: strictHealthy && !proofText ? 'info' : 'warning',
+        level: (strictHealthy && !proofText) || proofAdvisoryOnly ? 'info' : 'warning',
         force: changed,
         fullMessage: technical
     });
@@ -3364,9 +3373,15 @@ function buildThoughtFingerprint(data) {
     // payloads differ between paths — one health pulse arrives as SYS without
     // its emoji and again as Aura.Core.Orchestrator with it — while the line
     // a reader sees is the same sentence both times.
+    //
+    // LIVE, 2026-09-15: the health pulse still rendered twice — SYS and
+    // Aura.Core.Orchestrator, both "Vitals steady — processor 24%...". The
+    // face goes through BOTH rule tables (toPlainEnglish, then
+    // plainLanguageThought, whose table holds the pulse rule); this key went
+    // through the first only, so the two raw shapes never met.
     const raw = data.message || data.content || '';
     const ts = formatEventTimestamp(data.timestamp);
-    const shown = toPlainEnglish(cleanThoughtText(raw, ts, data.name || 'SYS'));
+    const shown = plainLanguageThought(toPlainEnglish(cleanThoughtText(raw, ts, data.name || 'SYS')));
     return [thoughtSeverityClass(data.level), normalizeThoughtText(shown)].join('|');
 }
 
@@ -4794,9 +4809,13 @@ const PLAIN_ENGLISH_RULES = [
      (m) => `${m[1].replace(/_/g, ' ')} won her attention — ${m[2]}`],
     [/^WS:\s*Client connected\.\s*Total:\s*(\d+).*/i,
      (m) => `A window connected (${m[1]} open).`],
-    [/^\[?websocket_heartbeat\]?\s*(.*)$/i,
+    // Only the healthy shape reads as "everything responding". A heartbeat
+    // carrying "probes blocked", "not ready" or "degraded" keeps its exact
+    // line, because a plain sentence that contradicts it is worse than a
+    // technical one that does not.
+    [/^\[?websocket_heartbeat\]?\s*health=(?:healthy|ok|ready);\s*probes pass;\s*conversation (?:ready|working)\s*$/i,
      () => `Connection heartbeat — everything responding.`],
-    [/^\[?health_poll\]?\s*(.*)$/i,
+    [/^\[?health_poll\]?\s*health=(?:healthy|ok|ready);\s*probes pass;\s*conversation (?:ready|working)\s*$/i,
      () => `Health check — everything responding.`],
     [/^UNIFIED HEALTH PULSE$/i,
      () => `Routine health pulse across her systems.`],

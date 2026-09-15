@@ -638,6 +638,12 @@ class EventLoopMonitor:
         )
         self._peak_lag = max(self._peak_lag, current)
 
+    def last_lag_sample(self) -> tuple[float, float] | None:
+        """The most recent lag reading and its age in seconds, or None before one."""
+        if self._last_sample_monotonic <= 0.0:
+            return None
+        return self._last_lag, max(0.0, time.perf_counter() - self._last_sample_monotonic)
+
     def get_status(self) -> dict[str, Any]:
         alive = self.is_alive()
         healthy = self.is_healthy() if alive else False

@@ -23,7 +23,23 @@ _REDACT_PATTERNS: list[tuple[Pattern[str], str]] = [
     (re.compile(r'(sk-[A-Za-z0-9\-_]{20,})', re.IGNORECASE), "[REDACTED_API_KEY]"),
     (re.compile(r'(Bearer\s+)[A-Za-z0-9\-_\.=]{10,}', re.IGNORECASE), r"\1[REDACTED_BEARER]"),
     (re.compile(r'(password["\s:=]+)[^\s"\']+', re.IGNORECASE), r"\1[REDACTED_PASS]"),
-    (re.compile(r'(token["\s:=]+)[^\s"\']+', re.IGNORECASE), r"\1[REDACTED_TOKEN]"),
+    # A token VALUE: an assignment (`token=...`, `token: "..."`) of eight or
+    # more token-shaped characters, or a bare word of eight or more with a
+    # digit in it, which is what a generated id looks like and a word does not. A
+    # space alone is an English sentence, and the rule that keyed on it turned
+    # "first-token ceiling 90.0s" into "first-token [REDACTED_TOKEN] 90.0s"
+    # and a claim named "..._a_ruled_out_token: trained" into a redaction —
+    # 1,708 lines of one live log unreadable and nothing in them secret.
+    (
+        re.compile(r'(token["\']?\s*[:=]\s*["\']?)([A-Za-z0-9\-_.+/]{8,})', re.IGNORECASE),
+        r"\1[REDACTED_TOKEN]",
+    ),
+    (
+        re.compile(
+            r'(\btoken\s+)(?=[A-Za-z0-9\-_.+/]*\d)([A-Za-z0-9\-_.+/]{8,})', re.IGNORECASE
+        ),
+        r"\1[REDACTED_TOKEN]",
+    ),
 ]
 
 def redact_text(text: str) -> str:

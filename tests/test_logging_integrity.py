@@ -188,3 +188,27 @@ class TestQueueHandlerOverflow:
         alarms = [r for r in caplog.records if "UI log buffer" in r.getMessage()]
         assert len(alarms) == 1
         assert handler._dropped_warn_count == 5
+
+
+class TestATokenIsAValueNotAWord:
+    """LIVE 2026-09-15: 1,708 lines of one log carried [REDACTED_TOKEN] and none
+    of them held a secret. The rule keyed on the space after "token", so the
+    ceiling in "first-token ceiling 90.0s" and the word after a claim named
+    "..._ruled_out_token:" were both redacted."""
+
+    @pytest.mark.parametrize("raw", [
+        "⏱️ [MLX] first-token ceiling 90.0s for a 5-char prompt (1 max tokens)",
+        "verifier [warning] claims.x @ endogenous_bias_cannot_promote_a_ruled_out_token: trained on 3 seeds",
+        "the token budget is 4096 tokens",
+        "token count 512",
+    ])
+    def test_prose_around_the_word_token_is_left_alone(self, raw):
+        assert redact_text(raw) == raw
+
+    @pytest.mark.parametrize("raw", [
+        "Capability: Generated token 3f2a9b1c for tools: ['think']",
+        "access_token=eyJhbGciOiJIUzI1NiJ9.abc",
+        'token: "abcdefghij12345678"',
+    ])
+    def test_a_token_value_is_still_redacted(self, raw):
+        assert "[REDACTED_TOKEN]" in redact_text(raw)

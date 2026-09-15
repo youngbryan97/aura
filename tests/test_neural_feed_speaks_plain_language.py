@@ -155,3 +155,41 @@ def test_the_generic_path_needs_no_prior_knowledge():
 def test_ordinary_prose_is_left_alone():
     (rendered,) = _plain(["A perfectly ordinary sentence about nothing in particular."])
     assert rendered == "A perfectly ordinary sentence about nothing in particular."
+
+
+def _plain_english(messages: list[str]) -> list[str]:
+    """Run the shipped PLAIN_ENGLISH_RULES (the second table) over each message."""
+    script = """
+    const fs = require('fs');
+    const src = fs.readFileSync(process.argv[1], 'utf8');
+    const start = src.indexOf('const PLAIN_ENGLISH_RULES');
+    const fn = src.indexOf('function toPlainEnglish');
+    const end = src.indexOf('\\n}', fn) + 2;
+    const plain = new Function(src.slice(start, end) + '\\nreturn toPlainEnglish;')();
+    const input = JSON.parse(process.argv[2]);
+    console.log(JSON.stringify(input.map(plain)));
+    """
+    result = subprocess.run(
+        ["node", "-e", script, str(AURA_JS), json.dumps(messages)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_a_heartbeat_that_reports_a_problem_is_not_rewritten_as_everything_responding():
+    """LIVE 2026-09-15: a WARNING card headed "Health check — everything
+    responding." Its technical line said "proof integrity degraded: CAA
+    steering at 30.0% (bootstrap)"; the rule matched any heartbeat at all."""
+    healthy = "[health_poll] health=healthy; probes pass; conversation ready"
+    degraded = (
+        "[websocket_heartbeat] health=healthy; probes pass; conversation ready; "
+        "proof integrity degraded: CAA steering at 30.0% (bootstrap)"
+    )
+    blocked = "[health_poll] health=not ready; probes blocked; conversation not ready | blockers: probe:kernel"
+    plain = _plain_english([healthy, degraded, blocked])
+    assert plain[0] == "Health check — everything responding."
+    assert plain[1] == degraded, "a degraded heartbeat keeps its exact line"
+    assert plain[2] == blocked
