@@ -782,14 +782,22 @@ def _argument_proposal_rows(
     hidden_channel_widths: Sequence[int],
     include_semantic_negatives: bool = False,
     preserve_coreferent_mentions: bool = False,
+    full_runtime_mentions: bool = False,
+    fixed_pointer_scores: list[float] | None = None,
+    pointer_scale: float = 0.0,
+    factorized_features: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
+    from core.learning.semantic_relation_tissue import DirectionalFeatureRows
+
     features: list[np.ndarray] = []
+    factorized = DirectionalFeatureRows() if factorized_features else None
     labels: list[int] = []
     weights: list[float] = []
     geometry_counts = Counter(_geometry(item) for item in examples)
     positive_rows = 0
     negative_rows = 0
     for item in examples:
+        reference_vectors = {}
         pointer_scores = argument_pointer.score_sequence(item.hidden_states)
         nodes = tuple(
             _OperationNode(instruction.operation_span, instruction.op, 0.0, 0.0, 1.0)
@@ -816,7 +824,9 @@ def _argument_proposal_rows(
                 for span, _score in candidates
                 if span != positive
                 and span.end - span.start <= max_argument_span_tokens_by_type[required_type]
-            )[:_POINTER_HARD_NEGATIVES]
+            )
+            if not full_runtime_mentions:
+                negatives = negatives[:_POINTER_HARD_NEGATIVES]
             if include_semantic_negatives:
                 negatives = tuple(dict.fromkeys((
                     *negatives,
@@ -828,33 +838,41 @@ def _argument_proposal_rows(
                 aliases = _argument_identity_spans(item, instruction.args[position])
                 negatives = tuple(span for span in negatives if span not in aliases)
             spans = (positive, *negatives)
+            if fixed_pointer_scores is not None:
+                fixed_pointer_scores.extend(
+                    pointer_scale * _log_sigmoid(pointer_scores.score_span(span))
+                    for span in spans
+                )
             operation = _relation_span_vector(
                 item.hidden_states,
                 instruction.operation_span,
                 hidden_channels=hidden_channels,
                 hidden_channel_widths=hidden_channel_widths,
             )
-            features.extend(
-                _directional_relation_feature(
-                    _relation_span_vector(
+            for span in spans:
+                reference = reference_vectors.get(span) if factorized is not None else None
+                if reference is None:
+                    reference = _relation_span_vector(
                         item.hidden_states,
                         span,
                         hidden_channels=hidden_channels,
                         hidden_channel_widths=hidden_channel_widths,
-                    ),
-                    operation,
-                )
-                for span in spans
-            )
+                    )
+                    if factorized is not None:
+                        reference_vectors[span] = reference
+                if factorized is not None:
+                    factorized.append(reference, operation)
+                else:
+                    features.append(_directional_relation_feature(reference, operation))
             labels.extend((1, *(0 for _ in negatives)))
             decision_weight = 1.0 / geometry_counts[_geometry(item)] / len(spans)
             weights.extend([decision_weight] * len(spans))
             positive_rows += 1
             negative_rows += len(negatives)
-    if not features:
+    if not features and (factorized is None or factorized.shape[0] == 0):
         raise ValueError(f"compositional argument proposal slot has no support: {position}")
     return (
-        np.stack(features),
+        factorized if factorized is not None else np.stack(features),
         np.asarray(labels, dtype=np.int8),
         _normalized_weights(weights),
         positive_rows,

@@ -40,6 +40,7 @@ def main() -> int:
     parser.add_argument("--evaluate-existing", action="store_true",
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
+    parser.add_argument("--runtime-mention-margin", action="store_true")
     parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
                         default="binary_proposals")
     args = parser.parse_args()
@@ -54,6 +55,8 @@ def main() -> int:
         parser.error("validation checkpoint must not overwrite inputs or final outputs")
     if args.runtime_operation_views and args.objective != "pairwise_arguments":
         parser.error("runtime operation views require pairwise_arguments")
+    if args.runtime_mention_margin and args.objective != "pairwise_arguments":
+        parser.error("runtime mention margin requires pairwise_arguments")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
@@ -114,6 +117,8 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
+    if args.runtime_mention_margin:
+        options["runtime_mention_margin"] = True
     if args.runtime_operation_views:
         options["use_runtime_operation_views"] = True
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)

@@ -1653,6 +1653,7 @@ def refit_compositional_argument_rankings(
     *,
     preserve_coreferent_mentions: bool = False,
     use_runtime_operation_views: bool = False,
+    runtime_mention_margin: bool = False,
     progress=None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit source-only argument choices while preserving other learned modules."""
@@ -1681,6 +1682,8 @@ def refit_compositional_argument_rankings(
         raise ValueError("argument ranking source splits duplicate or overlap")
     if type(use_runtime_operation_views) is not bool:
         raise ValueError("runtime operation views must be a boolean")
+    if type(runtime_mention_margin) is not bool:
+        raise ValueError("runtime mention margin must be a boolean")
     fitting_examples = training
     runtime_view_receipt = None
     if use_runtime_operation_views:
@@ -1693,6 +1696,7 @@ def refit_compositional_argument_rankings(
     for position, (role, proposal) in enumerate(zip(
         model.argument_role_heads, model.argument_proposal_heads, strict=True
     )):
+        fixed_scores = [] if runtime_mention_margin else None
         features, labels, weights, _, _ = _argument_proposal_rows(
             fitting_examples, argument_pointer=model.argument_pointer, position=position,
             max_span_tokens=model.max_span_tokens,
@@ -1701,12 +1705,18 @@ def refit_compositional_argument_rankings(
             hidden_channel_widths=model.hidden_channel_widths,
             include_semantic_negatives=True,
             preserve_coreferent_mentions=preserve_coreferent_mentions,
+            full_runtime_mentions=runtime_mention_margin,
+            fixed_pointer_scores=fixed_scores,
+            pointer_scale=model.argument_pointer_scale,
+            factorized_features=runtime_mention_margin,
         )
         weight, fit = fit_pairwise_argument_weight(
             features, labels, weights,
             initial_weight=model.argument_role_scale * role.weight
             + model.argument_proposal_scale * proposal.weight,
+            fixed_scores=None if fixed_scores is None else np.asarray(fixed_scores),
         )
+        del features
         # Keep the proposal module and its calibration fixed. The role module
         # carries the residual needed for their combined log odds to equal the ranker.
         heads.append(LinearArgumentRoleHead(
@@ -1738,6 +1748,11 @@ def refit_compositional_argument_rankings(
     }
     if runtime_view_receipt is not None:
         body["argument_ranking_refit"]["runtime_operation_views"] = runtime_view_receipt
+    if runtime_mention_margin:
+        body["argument_ranking_refit"]["mention_objective"] = "runtime_pointer_margin_v1"
+        body["argument_ranking_refit"]["negative_limit"] = None
+        body["argument_ranking_refit"]["fixed_pointer_scale"] = model.argument_pointer_scale
+        body["argument_ranking_refit"]["graph_relation_terms_fitted"] = False
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
 
 

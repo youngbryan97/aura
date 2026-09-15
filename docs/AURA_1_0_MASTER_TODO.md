@@ -647,6 +647,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Runtime argument views](evidence/G03_RUNTIME_ARGUMENT_VIEWS_2026-09-14.md)
   leave all 500 paired program outcomes unchanged: 436 exact, 456 equivalent.
   The refit is not promoted. G03 remains open.
+  [Full-mention margin result](evidence/G03_RUNTIME_MARGIN_RESULT_2026-09-14.md)
+  fits runtime negatives and the fixed pointer margin from source training.
+  Complete validation regresses from 436 to 435 exact programs, with no gains.
+  The incumbent remains selected; no serving change or G03 closure.
   2026-09-12: [prefix-search development and rejection](evidence/G03_PREFIX_SEARCH_DEVELOPMENT_2026-09-12.md).
   A tested opt-in candidate fixes prefix-infeasible beam occupancy but gains
   four and regresses one on 28 exposed cases; no promotion. Existing relation

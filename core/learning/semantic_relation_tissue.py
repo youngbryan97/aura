@@ -51,6 +51,49 @@ def _directional_relation_feature(
     ).astype(np.float32)
 
 
+class DirectionalFeatureRows:
+    """Keep shared span vectors; materialize exact relation features by batch.
+
+    The expanded product/difference matrix is three times wider than a span
+    vector. Keeping references also avoids copying the operation for each of
+    its candidate mentions. No quantization or feature approximation occurs.
+    """
+
+    def __init__(self) -> None:
+        self._pairs = []
+        self._width = None
+
+    def append(self, reference: np.ndarray, operation: np.ndarray) -> None:
+        if reference.ndim != 1 or reference.shape != operation.shape:
+            raise ValueError("directional feature row geometry differs")
+        width = reference.size * _DIRECTIONAL_RELATION_PARTS
+        if self._width is not None and self._width != width:
+            raise ValueError("directional feature row width differs")
+        self._width = width
+        self._pairs.append((reference, operation))
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return len(self._pairs), self._width or 0
+
+    @property
+    def ndim(self) -> int:
+        return 2
+
+    def __getitem__(self, indices):
+        if isinstance(indices, (int, np.integer)):
+            return _directional_relation_feature(*self._pairs[int(indices)])
+        selected = range(*indices.indices(len(self._pairs))) if isinstance(indices, slice) else indices
+        rows = [_directional_relation_feature(*self._pairs[int(index)]) for index in selected]
+        return np.stack(rows) if rows else np.empty((0, self.shape[1]), dtype=np.float32)
+
+    @property
+    def vector_storage_bytes(self) -> int:
+        return sum(value.nbytes for value in {
+            id(vector): vector for pair in self._pairs for vector in pair
+        }.values())
+
+
 @dataclass(frozen=True, slots=True)
 class DirectionalRelationHead:
     """One directed linker from an argument mention to its definition."""
