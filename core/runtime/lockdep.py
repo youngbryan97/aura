@@ -102,6 +102,9 @@ _get_running_loop = asyncio.events._get_running_loop
 #: reported as a loop-blocking hold. 50ms is well past any legitimate
 #: in-memory critical section and well under a user-perceptible stall.
 LOOP_BLOCKING_HOLD_S = 0.05
+# A hold whose thread CPU time is under this fraction of its wall time was
+# spent waiting, not working. It is reported, at warning rather than error.
+LOOP_HOLD_STARVED_FRACTION = 0.1
 
 #: Max distinct splats retained. Deadlock reports are deduplicated by
 #: signature, so this bounds pathological churn, not real findings.
@@ -204,6 +207,7 @@ class Splat:
     at: float
     stack: tuple[str, ...]
     context: str
+    starved: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -215,6 +219,7 @@ class Splat:
             "at": self.at,
             "stack": list(self.stack),
             "context": self.context,
+            "starved": self.starved,
         }
 
 
@@ -226,6 +231,7 @@ class _HeldLock:
     acquired_at: float
     thread_ident: int
     site: str
+    acquired_cpu: float = 0.0
 
 
 @dataclass(slots=True)
@@ -473,6 +479,7 @@ class LockdepValidator:
                     acquired_at=now,
                     thread_ident=threading.get_ident(),
                     site=site,
+                    acquired_cpu=time.thread_time(),
                 )
             )
 
@@ -505,18 +512,33 @@ class LockdepValidator:
                 and self._loop_thread_ident is not None
                 and entry.thread_ident == self._loop_thread_ident
             ):
+                # Wall time is what the loop lost; thread CPU time is what
+                # the section itself did with it. A four-line dict read held
+                # for 186ms with 1ms on CPU (2026-09-15, load average 33) is
+                # the host descheduling the thread, or the GIL, not the
+                # section — and the line says which so the two are never
+                # chased as one.
+                cpu_for = max(0.0, time.thread_time() - entry.acquired_cpu)
+                starved = cpu_for < held_for * LOOP_HOLD_STARVED_FRACTION
                 splat = self._splat_locked(
                     kind="loop_blocking_hold",
                     signature=f"hold:{name}@{entry.site}",
                     message=(
                         f"blocking lock {name!r} taken at {entry.site} was held "
                         f"{held_for * 1000:.0f}ms on the event loop thread "
-                        f"(limit {LOOP_BLOCKING_HOLD_S * 1000:.0f}ms) — the loop "
-                        "could not make progress for that window"
+                        f"({cpu_for * 1000:.0f}ms on CPU; limit "
+                        f"{LOOP_BLOCKING_HOLD_S * 1000:.0f}ms) — "
+                        + (
+                            "the thread was off the CPU for most of the hold: "
+                            "the host or the GIL, not the section"
+                            if starved
+                            else "the loop could not make progress for that window"
+                        )
                     ),
                     held=state.held,
                     acquiring=name,
                     context=label,
+                    starved=starved,
                 )
                 pending.append(splat)
 
@@ -533,6 +555,7 @@ class LockdepValidator:
         held: list[_HeldLock],
         acquiring: str,
         context: str,
+        starved: bool = False,
     ) -> Splat | None:
         """Record a finding. Caller holds self._lock; nothing here may block.
 
@@ -555,6 +578,7 @@ class LockdepValidator:
             at=_wall_time(),
             stack=self._stack(),
             context=context,
+            starved=starved,
         )
         self._splats[signature] = splat
         return splat
@@ -581,7 +605,10 @@ class LockdepValidator:
         self._reporting.active = True
         try:
             for splat in findings:
-                logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                if splat.starved:
+                    logger.warning("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                else:
+                    logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
                 try:
                     taint(
                         TaintFlag.LOCK_ORDER,

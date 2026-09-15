@@ -8,6 +8,7 @@ are validators, so the tests are mostly "does it actually catch the thing"
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 import time
 from pathlib import Path
@@ -552,3 +553,28 @@ def test_immune_service_list_covers_the_spine():
 
     for essential in ("unified_will", "event_bus", "memory_facade", "flight_recorder"):
         assert essential in IMMUNE_SERVICES
+
+
+def test_a_hold_spent_waiting_is_named_as_waiting(caplog):
+    """Live, 2026-09-15 at load average 33: a four-line dict read under
+    'degradation_habituation' was reported held 186ms on the loop. The thread
+    was off the CPU for the window — the host, not the section."""
+    validator = lockdep_mod.get_validator()
+    validator.note_loop_thread()
+    with caplog.at_level(logging.WARNING, logger="Aura.Lockdep"):
+        with checked_lock("sleeping_section"):
+            time.sleep(lockdep_mod.LOOP_BLOCKING_HOLD_S * 1.5)  # no CPU
+    splat = next(s for s in lockdep_report()["splats"] if "sleeping_section" in s["signature"])
+    assert splat["starved"] is True
+    assert "off the CPU" in splat["message"]
+    assert "ms on CPU" in splat["message"]
+    record = next(r for r in caplog.records if "sleeping_section" in r.getMessage())
+    assert record.levelno == logging.WARNING
+
+    deadline = time.perf_counter() + lockdep_mod.LOOP_BLOCKING_HOLD_S * 1.5
+    with checked_lock("busy_section"):
+        while time.perf_counter() < deadline:
+            sum(range(1000))  # on CPU
+    splat = next(s for s in lockdep_report()["splats"] if "busy_section" in s["signature"])
+    assert splat["starved"] is False
+    assert "could not make progress" in splat["message"]
