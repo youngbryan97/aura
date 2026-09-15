@@ -9,7 +9,7 @@ import numpy as np
 from core.learning.semantic_graph_counterexamples import (
     argument_graph_program, compare_program_meanings, counterfactual_inputs,
 )
-from core.learning.semantic_operation_graph_learning import operation_graph_evidence
+from core.learning.semantic_operation_graph_learning import operation_graph_evidence, OperationSourceSupervision
 from core.learning.semantic_relation_graph_learning import RelationGraphContrast, fit_joint_graph_contrasts
 
 
@@ -105,8 +105,27 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
     return joint_graph_contrast(model, positive, negative, weight=weight), record
 
 
+def source_operation_supervision(model, training):
+    """Preserve all source operation labels, not only the currently wrong graphs."""
+    from core.learning.semantic_program_shared_transducer import _geometry
+    from core.learning.semantic_program_transducer_fitting import _OperationNode
+
+    if not training or any(item.split != 'train' for item in training):
+        raise ValueError('operation retention requires source training examples only')
+    counts = Counter(_geometry(item) for item in training)
+    evidence, weights = [], []
+    for item in training:
+        nodes = tuple(_OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions)
+        rows = operation_graph_evidence(model, item.hidden_states, nodes)
+        evidence.extend(rows)
+        weights.extend([1. / (counts[_geometry(item)] * len(rows))] * len(rows))
+    return OperationSourceSupervision(tuple(np.stack([bank.features[index] for bank, _ in evidence])
+        for index in range(len(model.operation_head.modes))),
+        np.array([label for _, label in evidence]), np.array(weights))
+
+
 def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
-                                    solve_time_limit_s=20., progress=None):
+                                    solve_time_limit_s=20., progress=None, source_weight=1.):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -115,11 +134,14 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     if type(rounds) is not int or rounds < 1:
         raise ValueError("joint graph learning rounds must be positive")
     training, validation = graph_refit_source_splits(model, examples)
+    if not np.isfinite(source_weight) or source_weight < 0:
+        raise ValueError('invalid source operation retention weight')
     if (model.training_receipt.get("definition_selection_policy") != "joint_graph_v1"
             or model.training_receipt.get("relation_score_strategy") != "categorical_log_margin_v1"
             or model.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2"):
         raise ValueError("joint training requires the joint categorical runtime decoder")
     weights = Counter(_geometry(item) for item in training)
+    supervision = source_operation_supervision(model, training) if source_weight else None
     candidate, retained, history = model, [], []
     for round_index in range(rounds):
         records, new_pairs = [], 0
@@ -140,7 +162,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                 row["status"] == "equivalent" for row in records)}})
             break
         relation, operation, fit = fit_joint_graph_contrasts(candidate.definition_relation_head,
-            candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps)
+            candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps,
+            source_supervision=supervision, source_weight=source_weight)
         candidate = candidate._with_coefficients(definition_relation_head=relation, operation_head=operation)
         history.append({"records": records, "fit": fit})
         if progress:
@@ -154,5 +177,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "rounds": history, "negative_origin": "runtime_decode", "positive_origin": "source_annotations",
         "negative_admission": "universal_floor_distinguishing_execution", "test_examples_used": 0,
         "validation_used_for_fit": False, "serving_authority": False,
+        "source_operation_weight": source_weight,
+        "source_operations": len(supervision.labels) if supervision is not None else 0,
     }
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})

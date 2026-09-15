@@ -61,7 +61,7 @@ def contrast_from_search(result, head, *, scale, weight=1.):
 
 
 def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,
-                        operation_parameters=()):
+                        operation_parameters=(), source_supervision=None, source_weight=0.):
     """Pairwise logistic loss on graph margins, with latent choices held fixed."""
     from scipy.special import expit
 
@@ -72,6 +72,9 @@ def relation_graph_loss(query, definition, contrasts, *, scale, initial, regular
                    or row.weight <= 0 for row in contrasts)):
         raise ValueError("invalid relation graph contrasts")
     parameters = (query, definition, *operation_parameters)
+    if (not np.isfinite(source_weight) or source_weight < 0
+            or (source_weight > 0 and source_supervision is None)):
+        raise ValueError("invalid operation source retention")
     if len(initial) != len(parameters):
         raise ValueError("graph optimizer anchor geometry differs")
     loss, gradients = 0., [np.zeros_like(value) for value in parameters]
@@ -94,6 +97,11 @@ def relation_graph_loss(query, definition, contrasts, *, scale, initial, regular
         loss += weight * np.logaddexp(0., -margin)
         for gradient, derivative in zip(gradients, (gq, gd, *operation_gradients), strict=True):
             gradient -= weight * expit(-margin) * derivative
+    if source_weight:
+        source_loss, source_gradients = source_supervision.loss_gradient(operation_parameters)
+        loss += source_weight * source_loss
+        for gradient, derivative in zip(gradients[2:], source_gradients, strict=True):
+            gradient += source_weight * derivative
     for value, start, gradient in zip(parameters, initial, gradients, strict=True):
         delta = value - start
         loss += .5 * regularization * np.sum(delta * delta)
@@ -110,7 +118,8 @@ def fit_relation_graph_contrasts(head, contrasts, *, scale=1., steps=100, learni
 
 
 def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., steps=100,
-                             learning_rate=.001, regularization=.001):
+                             learning_rate=.001, regularization=.001,
+                             source_supervision=None, source_weight=0.):
     """Update existing relation and optional operation heads under one graph loss."""
     if type(steps) is not int or steps < 1 or not np.isfinite(learning_rate) or learning_rate <= 0:
         raise ValueError("invalid relation graph optimizer settings")
@@ -120,7 +129,8 @@ def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., step
                     (head.query_projection, head.definition_projection, *operation_parameters))
     values = [v.copy() for v in initial]
     moments, squares = ([np.zeros_like(v) for v in values] for _ in range(2))
-    kwargs = dict(scale=scale, initial=initial, regularization=regularization)
+    kwargs = dict(scale=scale, initial=initial, regularization=regularization,
+                  source_supervision=source_supervision, source_weight=source_weight)
     def objective(parameters):
         return relation_graph_loss(*parameters[:2], contrasts, operation_parameters=parameters[2:], **kwargs)
 
@@ -148,11 +158,14 @@ def fit_joint_graph_contrasts(head, operation_head, contrasts, *, scale=1., step
     stored_loss = objective(tuple(value.astype(np.float64) for value in stored))[0]
     if stored_loss > initial_loss:
         candidate, operations, stored_loss = head, operation_head, initial_loss
-    return candidate, operations, {"objective": ("witnessed_complete_joint_graph_margin_v1" if operation_head is not None
+    return candidate, operations, {"objective": ("witnessed_joint_graph_with_source_operations_v2" if source_weight else
+        "witnessed_complete_joint_graph_margin_v1" if operation_head is not None
         else "witnessed_complete_graph_relation_margin_v1"), "pairs": len(contrasts),
         "steps": steps, "initial_loss": initial_loss, "stored_loss": stored_loss,
         "learning_rate": learning_rate, "regularization": regularization, "relation_scale": scale,
         "operation_head_updated": operation_head is not None,
+        "source_operation_weight": source_weight,
+        "source_operations": len(source_supervision.labels) if source_supervision is not None else 0,
         "base_head_changed": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False}
 

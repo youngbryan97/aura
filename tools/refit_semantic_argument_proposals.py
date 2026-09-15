@@ -80,6 +80,8 @@ def main() -> int:
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
     parser.add_argument("--graph-update-steps", type=int, default=100)
+    parser.add_argument("--source-operation-weight", type=float, default=1.,
+                        help="source-label retention in joint_graphs; zero reproduces contrast-only fitting")
     args = parser.parse_args()
     configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
@@ -160,6 +162,8 @@ def main() -> int:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
     if args.objective in {"graph_relations", "joint_graphs"}:
         options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)
+    if args.objective == "joint_graphs":
+        options["source_weight"] = args.source_operation_weight
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:

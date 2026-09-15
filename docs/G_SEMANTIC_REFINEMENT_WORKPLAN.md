@@ -32,6 +32,10 @@ It does not replace or close the master G03-G12 obligations.
   [Joint operation/relation trainer](evidence/G03_JOINT_GRAPH_TRAINER_2026-09-15.md)
   now consumes witnessed runtime-selected errors and differentiates both
   shipped heads under one graph objective. Its full-cohort result is pending.
+  [Source-operation retention](evidence/G03_SOURCE_OPERATION_RETENTION_2026-09-15.md)
+  now preserves all source operation labels during joint fitting. The
+  contrast-only run increased source errors across rounds; paired evaluation
+  and measurement of the retention candidate remain separate obligations.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request
@@ -45,6 +49,11 @@ It does not replace or close the master G03-G12 obligations.
   [Counterfactual corpus implementation](evidence/G03_COUNTERFACTUAL_CORPUS_2026-09-15.md)
   passes independent execution and the existing feature-bundle round trip.
   Model feature acquisition, training and fresh transfer remain unmeasured.
+  Update: 36/36 counterfactual examples were subsequently materialized on the
+  resident 27B into `~/.aura/rlc-evidence/semantic-counterfactual-features-20260915/features`.
+  The standard bundle reader accepts them. Mixing with the older source banks
+  is still refused because worker-source identity and parameter-count basis
+  changed; no compatibility exception or training promotion was granted.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.

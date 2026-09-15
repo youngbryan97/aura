@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy.special import softmax
+from core.verify.invariants import invariant
 
 
 @dataclass(frozen=True)
@@ -50,3 +51,69 @@ def operation_graph_evidence(model, hidden, nodes):
         hidden_channels=model.hidden_channels, hidden_channel_widths=model.hidden_channel_widths)
         for mode in model.operation_head.modes)), model.operation_head.labels.index(node.operation))
         for node in nodes)
+
+
+@dataclass(frozen=True)
+class OperationSourceSupervision:
+    """Batched source-label likelihood using the same multiview mixture as decode."""
+
+    features: tuple
+    labels: np.ndarray
+    weights: np.ndarray
+
+    def __post_init__(self):
+        features = tuple(np.asarray(value, dtype=np.float64) for value in self.features)
+        labels = np.asarray(self.labels)
+        weights = np.asarray(self.weights, dtype=np.float64)
+        if (labels.ndim != 1 or not len(labels) or labels.dtype.kind not in 'iu'
+                or np.any(labels < 0) or weights.shape != labels.shape
+                or not np.all(np.isfinite(weights)) or np.any(weights <= 0)
+                or not np.isfinite(weights.sum()) or not features
+                or any(value.ndim != 2 or value.shape[0] != len(labels) or not value.shape[1]
+                       or not np.all(np.isfinite(value)) for value in features)):
+            raise ValueError('invalid operation source supervision')
+        object.__setattr__(self, 'features', features)
+        object.__setattr__(self, 'labels', labels)
+        object.__setattr__(self, 'weights', weights / weights.sum())
+
+    def loss_gradient(self, parameters):
+        if len(parameters) != 2 * len(self.features):
+            raise ValueError('operation source views differ from parameters')
+        distributions = []
+        for index, feature in enumerate(self.features):
+            weight, bias = parameters[2 * index:2 * index + 2]
+            if (weight.ndim != 2 or weight.shape[1] != feature.shape[1]
+                    or bias.shape != (len(weight),) or len(weight) < 2
+                    or np.max(self.labels) >= len(weight)
+                    or not np.all(np.isfinite(weight)) or not np.all(np.isfinite(bias))):
+                raise ValueError('operation source classifier geometry differs')
+            distributions.append(softmax(feature @ weight.T + bias, axis=1))
+        if len({value.shape[1] for value in distributions}) != 1:
+            raise ValueError('operation source class inventories differ')
+        rows = np.arange(len(self.labels))
+        mass = sum(value[rows, self.labels] for value in distributions)
+        probability = mass / len(distributions)
+        loss = -float(self.weights @ np.log(np.maximum(probability, 1e-12)))
+        gradients = []
+        for feature, distribution in zip(self.features, distributions, strict=True):
+            coefficient = np.divide(distribution[rows, self.labels], mass,
+                                    out=np.zeros_like(mass), where=probability > 1e-12)
+            delta = distribution.copy()
+            delta[rows, self.labels] -= 1.
+            delta *= (self.weights * coefficient)[:, None]
+            gradients.extend((delta.T @ feature, delta.sum(axis=0)))
+        return loss, tuple(gradients)
+
+
+@invariant('learning.source_operation_loss_matches_runtime_mixture', scope='learning',
+           owner='core/learning/semantic_operation_graph_learning.py', observational=False)
+def _source_loss_matches_decode() -> tuple:
+    features = (np.array([1., .5]),)
+    parameters = (np.array([[.2, .3], [-.4, .1]]), np.zeros(2))
+    value, derivatives = OperationEvidenceBank(features).score_gradient(1, parameters)
+    source = OperationSourceSupervision(tuple(row[None, :] for row in features),
+                                       np.array([1]), np.ones(1))
+    loss, gradients = source.loss_gradient(parameters)
+    assert np.isclose(loss, -value)
+    assert all(np.allclose(a, -b) for a, b in zip(gradients, derivatives, strict=True))
+    return ()

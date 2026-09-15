@@ -5,7 +5,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from core.learning.semantic_operation_graph_learning import OperationEvidenceBank
+from core.learning.semantic_operation_graph_learning import OperationEvidenceBank, OperationSourceSupervision
 from core.learning.semantic_relation_graph_learning import (
     fit_joint_graph_contrasts, RelationGraphContrast, relation_graph_loss,
 )
@@ -36,9 +36,12 @@ def test_joint_gradient_matches_central_differences_for_all_heads():
     row = replace(relation, positive_operations=((bank, 1),), negative_operations=((bank, 0),))
     initial = (query + .1, definition - .2, *(value + .05 for value in operations))
     parameters = (query, definition, *operations)
+    source = OperationSourceSupervision(tuple(value[None, :] for value in bank.features),
+                                       np.array([2]), np.array([1.]))
     def objective(values):
         return relation_graph_loss(*values[:2], (row,), scale=1.3, initial=initial,
-                                   regularization=.02, operation_parameters=values[2:])
+                                   regularization=.02, operation_parameters=values[2:],
+                                   source_supervision=source, source_weight=.7)
     _, derivatives = objective(parameters)
     for which, value in enumerate(parameters):
         for index in np.ndindex(value.shape):
@@ -99,6 +102,8 @@ def test_runtime_negative_mining_uses_no_test_examples_and_roundtrips():
     receipt = candidate.training_receipt['joint_graph_refit']
     assert receipt['training_examples'] == sum(x.split == 'train' for x in examples)
     assert receipt['test_examples_used'] == 0 and not receipt['validation_used_for_fit']
+    assert receipt['source_operation_weight'] == 1.
+    assert receipt['source_operations'] == sum(len(x.ir.instructions) for x in examples if x.split == 'train')
     assert not receipt['serving_authority']
     assert replay.receipt_sha256 == candidate.receipt_sha256
     assert compositional_semantic_program_transducer_from_dict(candidate.to_dict()).receipt_sha256 == candidate.receipt_sha256
@@ -138,3 +143,50 @@ def test_actual_runtime_operation_errors_drive_joint_training():
 def test_invalid_operation_evidence_is_rejected(feature):
     with pytest.raises(ValueError):
         OperationEvidenceBank(feature)
+
+
+def test_batched_source_loss_matches_individual_runtime_scores_and_gradients():
+    _, bank, parameters = operation_fixture()
+    second = OperationEvidenceBank(tuple(value * .6 for value in bank.features))
+    source = OperationSourceSupervision(tuple(np.stack((a, b)) for a, b in
+        zip(bank.features, second.features, strict=True)), np.array([0, 2]), np.array([1., 3.]))
+    loss, gradients = source.loss_gradient(parameters)
+    first_score, first_grad = bank.score_gradient(0, parameters)
+    second_score, second_grad = second.score_gradient(2, parameters)
+    assert loss == pytest.approx(-.25 * first_score - .75 * second_score)
+    for actual, a, b in zip(gradients, first_grad, second_grad, strict=True):
+        np.testing.assert_allclose(actual, -.25 * a - .75 * b, atol=1e-12)
+
+
+def test_source_retention_refuses_validation_and_test_rows():
+    from core.learning.semantic_joint_graph_learning import source_operation_supervision
+    model, examples = model_examples()
+    training = tuple(row for row in examples if row.split == 'train')
+    source = source_operation_supervision(model, training)
+    assert len(source.labels) == sum(len(row.ir.instructions) for row in training)
+    for split in ('validation', 'test'):
+        with pytest.raises(ValueError, match='source training'):
+            source_operation_supervision(model, (replace(training[0], split=split),))
+
+
+def test_source_retention_changes_update_even_for_an_operation_absent_from_errors():
+    from core.learning.semantic_relation_tissue import DirectionalRelationHead
+    query, definition, relation = fixture()
+    head = DirectionalRelationHead(np.zeros(9), .2, .3, query, definition)
+    operation, bank, parameters = operation_fixture()
+    source = OperationSourceSupervision(tuple(value[None, :] for value in bank.features),
+                                       np.array([2]), np.array([1.]))
+    # This graph error contains only relation evidence; source operations still learn.
+    _, fitted, receipt = fit_joint_graph_contrasts(head, operation, (relation,), steps=30,
+        learning_rate=.01, source_supervision=source, source_weight=1.)
+    after = tuple(value.astype(np.float64) for part in fitted.heads for value in (part.weight, part.bias))
+    assert source.loss_gradient(after)[0] < source.loss_gradient(parameters)[0]
+    assert receipt['source_operations'] == 1
+
+
+@pytest.mark.parametrize('weight', [-1., float('nan'), float('inf'), 1.])
+def test_invalid_or_missing_source_retention_fails(weight):
+    query, definition, row = fixture()
+    with pytest.raises(ValueError, match='source retention'):
+        relation_graph_loss(query, definition, (row,), scale=1., initial=(query, definition),
+                            regularization=0., source_weight=weight)
