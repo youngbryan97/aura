@@ -1,10 +1,12 @@
 """ISC-v2, assembled beside ISC-v1 and changing none of it.
 
-docs/ISC_V2_PREREGISTRATION.md changes three lines: irreducibility is compared
-against the v2 comparison set, synergy is scored on the target's change, and
-the null line is decided across the campaign's declared seeds. These pin that
-a run from before v2 reports no v2 lines, a v2 run reports all three beside an
-untouched v1 verdict, and the scorecard decides the null line across seeds.
+docs/ISC_V2_PREREGISTRATION.md changes four lines: irreducibility is compared
+against the v2 comparison set, synergy is scored on the target's change, the
+null line is decided across the campaign's declared seeds, and by its third
+amendment persistence is read on the next level rather than the next change.
+These pin that a run from before v2 reports no v2 lines, a v2 run reports all
+four beside an untouched v1 verdict, and the scorecard decides the null line
+across seeds.
 """
 
 from __future__ import annotations
@@ -46,6 +48,7 @@ def _evidence(*, v2: bool, reference_passes: bool = True, change_synergy: bool =
         ]
         evidence["nulls"]["v2_phi_beats_comparison_set"] = True
         evidence["nulls"]["v2_comparison_set"] = {"replay": 0.02}
+        evidence["persistence_v2"] = {"passes": True, "gain_lower_bound": 0.2, "over_shuffle_lower_bound": 0.1}
     return evidence
 
 
@@ -55,13 +58,17 @@ def test_a_run_from_before_v2_reports_no_v2_lines() -> None:
     assert verdict.as_dict()["v2_passed"] is None
 
 
-def test_a_v2_run_reports_all_three_lines_and_leaves_v1_alone() -> None:
+def test_a_v2_run_reports_all_four_lines_and_leaves_v1_alone() -> None:
     v1_only = assemble(_evidence(v2=False))
     verdict = assemble(_evidence(v2=True))
-    assert [c.key for c in verdict.v2_criteria] == ["partition_beats_nulls", "synergy", "beats_every_null"]
+    assert [c.key for c in verdict.v2_criteria] == [
+        "partition_beats_nulls", "synergy", "intrinsic_persistence", "beats_every_null",
+    ]
     assert [(c.key, c.passed) for c in verdict.criteria] == [(c.key, c.passed) for c in v1_only.criteria]
     lines = {c.key: c.passed for c in verdict.v2_criteria}
-    assert lines == {"partition_beats_nulls": True, "synergy": True, "beats_every_null": True}
+    assert lines == {
+        "partition_beats_nulls": True, "synergy": True, "intrinsic_persistence": True, "beats_every_null": True,
+    }
     v1 = {c.key: c.passed for c in verdict.criteria}
     assert v1["synergy"] is False and v1["partition_beats_nulls"] is False
 

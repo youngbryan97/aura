@@ -206,7 +206,7 @@ async def main() -> int:
         start_organism,
     )
     from core.subject.graph import analyse_graph
-    from core.subject.intrinsic import intrinsic_gain
+    from core.subject.intrinsic import intrinsic_gain, persistence
     from core.subject.irreducibility import phi_do
     from core.subject.metastability import regimes
     from core.subject.nulls import (
@@ -325,6 +325,13 @@ async def main() -> int:
     evidence["phi"] = phi.as_dict()
     evidence["differentiation"] = effective_dimension(recording).as_dict()
     evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
+    # ISC-v2's persistence line reads the next level, not the next change, and
+    # the same reading again with memory left out (P35.7). See
+    # docs/ISC_V2_PREREGISTRATION.md, third amendment.
+    evidence["persistence_v2"] = persistence(turns, seed=args.seed).as_dict()
+    evidence["persistence_v2"]["without_memory"] = persistence(
+        turns, seed=args.seed, exclude=("M",)
+    ).as_dict()
     evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
     evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
     # ISC-v2 scores each triple on the target's change, because a slow level

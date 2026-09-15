@@ -37,17 +37,18 @@ information; whatever does not was capacity.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
 from core.subject.estimate import fit_predict, split_rows
-from core.subject.irreducibility import COMPONENTS, _basis, _block_columns
+from core.subject.irreducibility import COMPONENTS, LOWER_BOUND_Z, _basis, _block_columns, _folds
 from core.subject.recording import Recording
 from core.subject.state import DOMAINS
 
-__all__ = ["IntrinsicReport", "intrinsic_gain"]
+__all__ = ["IntrinsicReport", "PersistenceReport", "intrinsic_gain", "persistence"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,4 +137,113 @@ def intrinsic_gain(recording: Recording, *, seed: int = 0) -> IntrinsicReport:
         gain_over_shuffle=float(over_shuffle),
         pairs=int(now.shape[0]),
         env_width=int(env.shape[1]),
+    )
+
+
+# ── ISC-v2's persistence line ────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class PersistenceReport:
+    """Whether the state carries its own history into its next level. See `persistence`."""
+
+    gain: float
+    gain_lower_bound: float
+    over_shuffle: float
+    over_shuffle_lower_bound: float
+    folds: tuple[float, ...]
+    pairs: int
+    domains: tuple[str, ...]
+    note: str = ""
+
+    @property
+    def passes(self) -> bool:
+        return self.gain_lower_bound > 0.0 and self.over_shuffle_lower_bound > 0.0
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "gain": round(self.gain, 6),
+            "gain_lower_bound": round(self.gain_lower_bound, 6),
+            "over_shuffle": round(self.over_shuffle, 6),
+            "over_shuffle_lower_bound": round(self.over_shuffle_lower_bound, 6),
+            "folds": [round(value, 6) for value in self.folds],
+            "pairs": self.pairs,
+            "domains": list(self.domains),
+            "passes": self.passes,
+            "note": self.note,
+        }
+
+
+def _bound(values: list[float]) -> tuple[float, float]:
+    if not values:
+        return 0.0, 0.0
+    mean = float(np.mean(values))
+    if len(values) < 2:
+        return mean, mean
+    error = float(np.std(values, ddof=1)) / math.sqrt(len(values))
+    return mean, mean - LOWER_BOUND_Z * error
+
+
+def persistence(recording: Recording, *, seed: int = 0, exclude: tuple[str, ...] = ()) -> PersistenceReport:
+    """How much of the state's next level its present level explains, beyond the world and the clock.
+
+    `intrinsic_gain` predicts each domain's change, and a change is predictable
+    from the present level whenever the level has no memory at all: for
+    independent noise the next change is minus the present value plus noise,
+    so memoryless noise scored a gain near one half and passed, while a random
+    walk, which carries all of its history, scored below zero and failed. The
+    measure rewarded reverting to the mean, which is the opposite of persistence.
+
+    This predicts the next level instead. The drift that made the level hard to
+    score is given to both models as elapsed time, so a trend explains nothing
+    the state is credited with, and the comparison is read over forward-chaining
+    folds with the bound irreducibility uses, so the state has to establish its
+    advantage rather than show it on one split. The shuffled arm keeps every
+    column and permutes the state's rows, as `intrinsic_gain` does.
+
+    ``exclude`` leaves domains out of the state and the target, so the reading
+    can be taken without a long-lived store.
+    """
+    frames = recording.frames
+    env = recording.env[:-1] if recording.env.size else np.zeros((max(0, frames - 1), 0))
+    live = tuple(key for key in recording.live_domains() if key not in set(exclude))
+    if frames < 60 or not live:
+        return PersistenceReport(0.0, 0.0, 0.0, 0.0, (), max(0, frames - 1), live, "too few frames or no live domain")
+    pairs = frames - 1
+    folds = _folds(pairs)
+    first_train = folds[0][0]
+    sources: list[np.ndarray] = []
+    targets: list[np.ndarray] = []
+    for key in live:
+        columns = _block_columns(recording, (key,))
+        basis = _basis(recording.x[:-1][:, columns], first_train, COMPONENTS)
+        sources.append(basis(recording.x[:-1][:, columns]))
+        targets.append(basis(recording.x[1:][:, columns]))
+    now = np.hstack(sources)
+    following = np.hstack(targets)
+    clock = (np.arange(pairs, dtype=np.float64) / max(1, pairs - 1)).reshape(-1, 1)
+    world = np.hstack([env, clock])
+    rng = np.random.default_rng(seed)
+    shuffled_now = now[rng.permutation(pairs)]
+    gains: list[float] = []
+    over: list[float] = []
+    for train, validate, test in folds:
+        base = fit_predict(world, following, train=train, validate=validate, test=test)
+        state = fit_predict(np.hstack([world, now]), following, train=train, validate=validate, test=test, own_width=world.shape[1])
+        shuffled = fit_predict(
+            np.hstack([world, shuffled_now]), following, train=train, validate=validate, test=test, own_width=world.shape[1]
+        )
+        gains.append((base.loss - state.loss) / base.loss if base.loss > 1e-12 else 0.0)
+        over.append((shuffled.loss - state.loss) / shuffled.loss if shuffled.loss > 1e-12 else 0.0)
+    gain, gain_bound = _bound(gains)
+    shuffle_gain, shuffle_bound = _bound(over)
+    return PersistenceReport(
+        gain=gain,
+        gain_lower_bound=gain_bound,
+        over_shuffle=shuffle_gain,
+        over_shuffle_lower_bound=shuffle_bound,
+        folds=tuple(gains),
+        pairs=pairs,
+        domains=live,
+        note=f"next level from the present level, beyond environment and elapsed time, over {len(gains)} forward folds",
     )

@@ -142,7 +142,7 @@ class Criterion:
 class Verdict:
     criteria: list[Criterion] = field(default_factory=list)
     notes: dict[str, Any] = field(default_factory=dict)
-    #: ISC-v2's three changed lines, read on this run. v1 is `criteria` and
+    #: ISC-v2's four changed lines, read on this run. v1 is `criteria` and
     #: stays the result it is; these are reported beside it. The null line is
     #: decided across the campaign's declared seeds, so a single run records
     #: its own seed's reading and the scorecard reads the rest.
@@ -229,7 +229,7 @@ def _c(key: str, section: str, statement: str, passed: bool, value: Any, bar: An
 
 
 def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
-    """ISC-v2's three lines, where this run measured what they read.
+    """ISC-v2's four lines, where this run measured what they read.
 
     A run from before v2 recorded neither synergy on the change nor the v2
     conjunction, and leaves `v2_criteria` empty rather than reading as failed:
@@ -258,6 +258,23 @@ def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
         [item.get("synergy_fraction") for item in synergy_v2],
         f">= {THRESHOLDS['synergy_fraction']} on the change and above its shifted null",
         triples=[item.get("sources", []) + [item.get("target")] for item in synergy_v2],
+    ))
+    # Persistence on the next level rather than the next change. The v1 line
+    # passes memoryless noise and fails a random walk; see
+    # docs/ISC_V2_PREREGISTRATION.md, third amendment. A v2 run without the
+    # reading fails the line, as it does every other v2 line.
+    persistence_v2 = evidence.get("persistence_v2") or {}
+    add(_c(
+        "intrinsic_persistence", "19",
+        "the present level predicts the next beyond the environment and elapsed time, "
+        "established over forward folds and above the shuffled state (ISC-v2)",
+        bool(persistence_v2.get("passes")),
+        {
+            "gain_lower_bound": persistence_v2.get("gain_lower_bound"),
+            "over_shuffle_lower_bound": persistence_v2.get("over_shuffle_lower_bound"),
+        },
+        "both lower bounds above zero",
+        rescored_after_the_run=bool(persistence_v2.get("rescored_after_the_run")),
     ))
     conjunction = nulls.get("conjunction") or {}
     reference = bool(conjunction.get("recurrent", False))

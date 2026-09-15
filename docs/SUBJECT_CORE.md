@@ -974,5 +974,5 @@ preregistration's section 3 exists for: a reference that fails on any declared
 seed is recorded as the instrument failing, not as a result about Aura. Runs
 from this commit on record synergy on the target's change beside the v1
 reading, for the real recording and every null, and the battery reports ISC-v2's
-three lines beside the v1 verdict, with the null line decided across seeds by
+changed lines beside the v1 verdict, with the null line decided across seeds by
 the scorecard.
