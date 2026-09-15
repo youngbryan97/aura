@@ -98,3 +98,19 @@ def test_empty_text_from_a_healthy_worker_does_not_open_the_circuit():
     assert "ep.is_local and _worker_still_healthy(ep)" in block
     # A worker that is not alive still trips.
     assert "elif ep.is_local:" in block
+
+
+def test_our_budget_on_a_healthy_worker_is_not_logged_as_an_error():
+    """LIVE 2026-09-15: a background caller's 9.6s budget ran out under load,
+    the router said the worker was healthy and the circuit stayed closed, and
+    then logged "timed out after 9.6s" at ERROR — an ERROR card in the feed
+    beside a line saying nothing was wrong. The level follows the finding."""
+    import re
+
+    from core.brain import llm_health_router
+
+    source = inspect.getsource(llm_health_router)
+    block = source[source.index("our_budget_only = bool(ep.is_local and _worker_still_healthy(ep))") :]
+    block = block[: block.index("if is_bg:")]
+    assert re.search(r"if our_budget_only:\s*\n\s*logger\.info\(", block)
+    assert re.search(r"if not our_budget_only:\s*\n(?:\s*#.*\n)*\s*logger\.error\(", block)

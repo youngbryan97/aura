@@ -3994,23 +3994,30 @@ class HealthAwareLLMRouter(_DefersBackgroundWork):
                 # A worker that is genuinely wedged does not present as a
                 # caller timeout — it livelocks, errors, or dies, and every
                 # one of those still trips the circuit below.
-                if ep.is_local and _worker_still_healthy(ep):
+                our_budget_only = bool(ep.is_local and _worker_still_healthy(ep))
+                if our_budget_only:
                     logger.info(
-                        "Endpoint %s did not answer inside OUR %.1fs budget; the worker is "
-                        "healthy, so the circuit stays closed.",
+                        "Endpoint %s did not answer inside OUR %.1fs budget (force_aborted=%s); "
+                        "the worker is healthy, so the circuit stays closed.",
                         ep.name,
                         endpoint_budget,
+                        aborted,
                     )
                 elif ep.is_local:
                     ep.trip_temporarily(last_error)
                 else:
                     ep.record_failure(last_error)
-                logger.error(
-                    "Endpoint %s timed out after %.1fs (force_aborted=%s).",
-                    ep.name,
-                    endpoint_budget,
-                    aborted,
-                )
+                if not our_budget_only:
+                    # The level follows the finding. A background caller's
+                    # budget running out under load is backpressure; it read
+                    # as an ERROR card in the feed beside a line saying the
+                    # worker was healthy (live 2026-09-15).
+                    logger.error(
+                        "Endpoint %s timed out after %.1fs (force_aborted=%s).",
+                        ep.name,
+                        endpoint_budget,
+                        aborted,
+                    )
                 if is_bg:
                     self.last_background_error = last_error
                 else:

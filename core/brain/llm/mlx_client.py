@@ -13296,8 +13296,14 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 self._deferred_reboot_reason = "cancelled_unhealthy"
             raise
         except TimeoutError:
-            logger.error(
-                "🛑 [MLX] Generation deadline reached for %s.", os.path.basename(self.model_path)
+            # A person's turn losing its deadline is an error; a background
+            # request's budget running out under load is the backpressure the
+            # budget exists to apply, and the degraded event below records it.
+            logger.log(
+                logging.ERROR if foreground_request else logging.INFO,
+                "🛑 [MLX] Generation deadline reached for %s (%s).",
+                os.path.basename(self.model_path),
+                "foreground" if foreground_request else "background",
             )
             self._pending_generations.pop(req_id, None)
             _cancel_shared_future(fut)
