@@ -49,6 +49,7 @@ def _evidence(*, v2: bool, reference_passes: bool = True, change_synergy: bool =
         evidence["nulls"]["v2_phi_beats_comparison_set"] = True
         evidence["nulls"]["v2_comparison_set"] = {"replay": 0.02}
         evidence["persistence_v2"] = {"passes": True, "gain_lower_bound": 0.2, "over_shuffle_lower_bound": 0.1}
+        evidence["nulls"]["conjunction_v2"] = dict(evidence["nulls"]["conjunction"])
     return evidence
 
 
@@ -108,6 +109,31 @@ def test_the_v2_null_conjunction_judges_synergy_on_the_change() -> None:
     assert passes_the_v2_conjunction("recurrent", table)
     table["recurrent"]["synergy_v2_passes"] = [False]
     assert not passes_the_v2_conjunction("recurrent", table)
+
+
+def test_a_run_recorded_before_the_fourth_amendment_is_read_by_v2s_lines() -> None:
+    """v1's lines let a hub through that v2's synergy on the change fails.
+
+    The run recorded v1's conjunction and a comparison set built on v1's lines.
+    Both null lines are read off its own recorded table instead.
+    """
+    evidence = _evidence(v2=True)
+    del evidence["nulls"]["conjunction_v2"]
+    evidence["nulls"]["conjunction"] = {"recurrent": True, "hub": True}
+    evidence["nulls"]["v2_phi_beats_comparison_set"] = False
+    evidence["nulls"]["v2_comparison_set"] = {"replay": 0.02, "hub": 0.5}
+    evidence["nulls"]["real_lower_bound"] = 0.3
+    evidence["nulls"]["detail"] = {
+        "recurrent": {"kind": "architecture", "phi_do": 0.3, "one_component": True, "vertex_connectivity": 2,
+                      "reentry": True, "closed": True, "synergy_passes": [False], "synergy_v2_passes": [True]},
+        "hub": {"kind": "architecture", "phi_do": 0.5, "one_component": True, "vertex_connectivity": 2,
+                "reentry": True, "closed": True, "synergy_passes": [True], "synergy_v2_passes": [False]},
+        "replay": {"kind": "surrogate", "phi_do": 0.02},
+    }
+    lines = {c.key: c for c in assemble(evidence).v2_criteria}
+    assert lines["partition_beats_nulls"].passed is True
+    assert lines["partition_beats_nulls"].value == {"replay": 0.02}
+    assert lines["beats_every_null"].passed is True
 
 
 def test_the_scorecard_decides_the_null_line_across_seeds() -> None:

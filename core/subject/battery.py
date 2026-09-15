@@ -239,13 +239,25 @@ def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
     synergy_v2 = evidence.get("synergy_v2")
     if synergy_v2 is None and "v2_phi_beats_comparison_set" not in nulls:
         return
+    from core.subject.null_verdicts import beats_the_comparison_set, v2_conjunctions
+
+    # Both null lines are read off the recorded null table where the run kept
+    # one, so a run recorded while the nulls were judged by v1's lines is read
+    # by v2's (docs/ISC_V2_PREREGISTRATION.md, fourth amendment). The rules are
+    # pure functions of the table, and on a later run they give what it recorded.
+    table = nulls.get("detail") or {}
+    if table and nulls.get("real_lower_bound") is not None:
+        beats, compared = beats_the_comparison_set(float(nulls["real_lower_bound"]), table)
+        compared = {name: round(value, 5) for name, value in compared.items()}
+    else:
+        beats, compared = bool(nulls.get("v2_phi_beats_comparison_set")), nulls.get("v2_comparison_set", {})
     add = out.v2_criteria.append
     add(_c(
         "partition_beats_nulls", "18",
         "the irreducibility lower bound clears every matched surrogate and every "
         "null architecture that passes the rest of the conjunction (ISC-v2)",
-        bool(nulls.get("v2_phi_beats_comparison_set")),
-        nulls.get("v2_comparison_set", {}),
+        beats,
+        compared,
         "above the v2 comparison set",
         real_lower_bound=nulls.get("real_lower_bound"),
     ))
@@ -276,7 +288,9 @@ def _assemble_v2(out: Verdict, evidence: dict[str, Any]) -> None:
         "both lower bounds above zero",
         rescored_after_the_run=bool(persistence_v2.get("rescored_after_the_run")),
     ))
-    conjunction = nulls.get("conjunction") or {}
+    conjunction = nulls.get("conjunction_v2")
+    if conjunction is None:
+        conjunction = v2_conjunctions(table) if table else {}
     reference = bool(conjunction.get("recurrent", False))
     passing = sorted(name for name, holds in conjunction.items() if name != "recurrent" and holds)
     add(_c(

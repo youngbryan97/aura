@@ -26,6 +26,7 @@ __all__ = [
     "passes_all_but_irreducibility",
     "passes_the_conjunction",
     "passes_the_v2_conjunction",
+    "v2_conjunctions",
     "verdict_across_seeds",
 ]
 
@@ -82,18 +83,26 @@ def passes_the_conjunction(row: Mapping[str, Any]) -> bool:
     return float(row.get("phi_do", 0.0)) > THRESHOLDS["phi_do"] and passes_all_but_irreducibility(row)
 
 
+def _passes_v2_all_but_irreducibility(row: Mapping[str, Any]) -> bool:
+    """v1's other lines with synergy read on the change, where the row recorded it."""
+    return passes_all_but_irreducibility({**row, "synergy_passes": None}) and _synergy_v2_holds(row)
+
+
 def comparison_set(table: Mapping[str, Mapping[str, Any]]) -> dict[str, float]:
     """ISC-v2: the nulls a real irreducibility score is compared against.
 
     Every matched surrogate, and every architecture other than the reference
-    that passes the rest of the conjunction. A null already told apart from a
+    that passes the rest of the v2 conjunction. A null already told apart from a
     subject by another line is not asked about again with the harder number.
+
+    Until the fourth amendment to docs/ISC_V2_PREREGISTRATION.md this read the
+    rest of v1's conjunction, which judges synergy on the level.
     """
     return {
         name: float(row.get("phi_do", 0.0))
         for name, row in table.items()
         if name != REFERENCE
-        and (row.get("kind") == "surrogate" or passes_all_but_irreducibility(row))
+        and (row.get("kind") == "surrogate" or _passes_v2_all_but_irreducibility(row))
     }
 
 
@@ -119,7 +128,16 @@ def passes_the_v2_conjunction(name: str, table: Mapping[str, Mapping[str, Any]])
         return False
     others = {key: value for key, value in table.items() if key != name}
     beats, _ = beats_the_comparison_set(float(row.get("phi_do", 0.0)), others)
-    return beats and passes_all_but_irreducibility({**row, "synergy_passes": None}) and _synergy_v2_holds(row)
+    return beats and _passes_v2_all_but_irreducibility(row)
+
+
+def v2_conjunctions(table: Mapping[str, Mapping[str, Any]]) -> dict[str, bool]:
+    """ISC-v2's conjunction for every system in one seed's recorded null table.
+
+    This is what section 3 reads across the declared seeds. A surrogate is
+    judged on irreducibility alone and never passes a conjunction.
+    """
+    return {name: passes_the_v2_conjunction(name, table) for name in table}
 
 
 def verdict_across_seeds(conjunctions: Sequence[Mapping[str, bool]]) -> dict[str, Any]:

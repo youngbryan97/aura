@@ -190,6 +190,33 @@ rescored field says it was added after the run. That rescoring uses nothing
 the run's result could have chosen: the measure, its bound and its known
 answers are fixed in this commit, before any v2 result exists.
 
+## Fourth amendment, before any v2 result: the nulls are judged by v2's lines
+
+Recorded on 15 September 2026. The declared seeds were recording at
+`1a9ebe561`, seed 7 was on the first of its six intervention trials, and no
+checkout on the host held a report carrying `v2_criteria`.
+
+**What the code did.** Sections 1 and 3 judge each null architecture by the v2
+conjunction: irreducibility against the comparison set, and every other line,
+with synergy read on the change. Two places read v1's lines instead. The runner
+recorded one conjunction per seed, v1's, and the scorecard decided section 3's
+null line across seeds from it, as the battery did for one seed. And the
+comparison set took in the architectures that passed the rest of v1's
+conjunction, which reads synergy on the level. `passes_the_v2_conjunction`,
+which reads v2's lines, was called only by the second amendment's tests.
+
+**What it does now.** The comparison set takes in the architectures that pass
+the rest of the conjunction under v2's lines, reading synergy on the change
+where a row recorded it and on the level where it did not, as
+`passes_the_v2_conjunction` already did. The runner records `conjunction_v2`
+beside v1's `conjunction`. The battery and the scorecard read `conjunction_v2`,
+and a run recorded without it is read off its own recorded null table. The
+rules are pure functions of that table, so nothing is measured again. The
+tables of runs 026, 027 and 028 predate synergy on the change, and the second
+amendment's answers on them come out as before.
+
+No threshold and no v1 line changes.
+
 ## What does not change
 
 Every other line of the conjunction, every threshold in `THRESHOLDS`, the edge

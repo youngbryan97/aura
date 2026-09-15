@@ -1455,7 +1455,7 @@ def _nulls(
     # ISC-v2, beside v1 and changing none of it: the same lower bound against
     # the matched surrogates and the nulls that pass the rest of the
     # conjunction (docs/ISC_V2_PREREGISTRATION.md).
-    from core.subject.null_verdicts import beats_the_comparison_set
+    from core.subject.null_verdicts import beats_the_comparison_set, v2_conjunctions
 
     v2_beats, v2_compared = beats_the_comparison_set(real_phi, table)
     return {
@@ -1490,6 +1490,9 @@ def _nulls(
         "conjunction": {
             name: _passes_the_conjunction(row) for name, row in table.items()
         },
+        # ISC-v2's own conjunction per system, which its null line is decided
+        # across seeds by. The line above is v1's.
+        "conjunction_v2": v2_conjunctions(table),
         "summary": {
             "reference_recurrent": reference.get("phi_do"),
             "reference_passes_the_conjunction": reference_passes,

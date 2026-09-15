@@ -119,6 +119,25 @@ def _dig(blob: Any, path: tuple[str, ...]) -> Any:
     return node
 
 
+def _v2_conjunction(report: dict[str, Any]) -> dict[str, bool]:
+    """One seed's ISC-v2 conjunction per system, as recorded or read off the recorded table.
+
+    Never v1's `conjunction`, which judges the nulls by v1's lines
+    (docs/ISC_V2_PREREGISTRATION.md, fourth amendment). Empty when the run kept
+    neither.
+    """
+    nulls = report.get("nulls") or {}
+    recorded = nulls.get("conjunction_v2")
+    if isinstance(recorded, dict) and recorded:
+        return recorded
+    table = nulls.get("detail")
+    if isinstance(table, dict) and table:
+        from core.subject.null_verdicts import v2_conjunctions
+
+        return v2_conjunctions(table)
+    return {}
+
+
 def _isc_v2(reports: list[dict[str, Any]], null_verdict: dict[str, Any] | None) -> dict[str, Any] | None:
     """ISC-v2 across the runs: every v2 line held on every run, the null line across seeds.
 
@@ -231,11 +250,7 @@ def scorecard(reports: list[dict[str, Any]]) -> dict[str, Any]:
     # only if it fails on every one, and the reference passes only if it passes
     # on every one (docs/ISC_V2_PREREGISTRATION.md). Runs that recorded no
     # conjunction cannot be read this way, and none at all leaves it unread.
-    conjunctions = [
-        conjunction
-        for conjunction in ((report.get("nulls") or {}).get("conjunction") for report in reports)
-        if isinstance(conjunction, dict) and conjunction
-    ]
+    conjunctions = [conjunction for conjunction in map(_v2_conjunction, reports) if conjunction]
     if conjunctions:
         from core.subject.null_verdicts import verdict_across_seeds
 

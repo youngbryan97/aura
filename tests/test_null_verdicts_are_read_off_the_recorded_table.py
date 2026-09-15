@@ -80,6 +80,26 @@ def test_on_a_steady_seed_only_the_reference_passes_the_v2_conjunction(run: str)
     assert passing == [REFERENCE]
 
 
+@pytest.mark.parametrize("run", RUNS)
+def test_the_v2_conjunctions_of_a_table_are_the_v2_conjunction_of_each_system(run: str) -> None:
+    from core.subject.null_verdicts import passes_the_v2_conjunction, v2_conjunctions
+
+    table = _nulls(run)["detail"]
+    assert v2_conjunctions(table) == {name: passes_the_v2_conjunction(name, table) for name in table}
+
+
+def test_a_null_that_passes_only_v1s_synergy_is_left_out_of_the_v2_comparison_set() -> None:
+    table = {
+        REFERENCE: {"kind": "architecture", "phi_do": 0.3},
+        "hub": {"kind": "architecture", "phi_do": 0.5, "one_component": True, "vertex_connectivity": 2,
+                "reentry": True, "closed": True, "synergy_passes": [True], "synergy_v2_passes": [False]},
+        "replay": {"kind": "surrogate", "phi_do": 0.02},
+    }
+    assert comparison_set(table) == {"replay": 0.02}
+    table["hub"]["synergy_v2_passes"] = [True]
+    assert comparison_set(table) == {"hub": 0.5, "replay": 0.02}
+
+
 def test_on_seed_13_the_null_suite_flip_carries_into_v2() -> None:
     """The instability section 3 is for: one seed's toy recording lets low_rank through."""
     from core.subject.null_verdicts import passes_the_v2_conjunction
