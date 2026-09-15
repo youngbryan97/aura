@@ -64,6 +64,8 @@ def load_source_examples(model, report, bundles):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transducer", type=Path, required=True)
+    parser.add_argument("--starting-candidate", type=Path,
+                        help="fit this development candidate while retaining transducer as the comparison incumbent")
     parser.add_argument("--source-report", type=Path, required=True)
     parser.add_argument("--bundle", action="append", required=True, metavar="NAME=PATH")
     parser.add_argument("--output", type=Path, required=True)
@@ -73,7 +75,8 @@ def main() -> int:
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
     parser.add_argument("--runtime-mention-margin", action="store_true")
-    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
+    parser.add_argument("--joint-operation-argument-scores", action="store_true")
+    parser.add_argument("--objective", choices=("binary_proposals", "pairwise_arguments", "graph_factors", "graph_relations", "joint_graphs", "operation_pointer", "argument_pointer", "definition_pointer", "operation_views", "paired_operation_pointer", "ranked_operation_pointer"),
                         default="binary_proposals")
     parser.add_argument("--graph-rounds", type=int, default=3)
     parser.add_argument("--graph-update-steps", type=int, default=100)
@@ -92,9 +95,14 @@ def main() -> int:
         parser.error("runtime operation views require pairwise_arguments")
     if args.runtime_mention_margin and args.objective != "pairwise_arguments":
         parser.error("runtime mention margin requires pairwise_arguments")
+    if args.joint_operation_argument_scores and args.objective != "joint_graphs":
+        parser.error("joint operation-argument scoring requires joint_graphs")
+    if args.evaluate_existing and (args.starting_candidate or args.joint_operation_argument_scores):
+        parser.error("evaluate-existing cannot change the fit starting candidate or decoder")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
+    from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs
     from core.learning.semantic_paired_pointer_refit import (
         refit_compositional_paired_operation_pointer,
     )
@@ -122,11 +130,24 @@ def main() -> int:
     )
     report = json.loads(args.source_report.read_text("ascii"))
     bound = load_source_examples(model, report, args.bundle)
+    starting = model
+    if args.starting_candidate is not None:
+        starting = compositional_semantic_program_transducer_from_dict(
+            json.loads(args.starting_candidate.read_text("ascii")))
+        verify_source_splits(bound, starting.training_receipt)
+        if (starting.model_basis_sha256 != model.model_basis_sha256
+                or starting.input_grounding != model.input_grounding
+                or (starting.hidden_channels, starting.hidden_channel_widths)
+                != (model.hidden_channels, model.hidden_channel_widths)):
+            raise ValueError("starting candidate representation differs from incumbent")
+    if args.joint_operation_argument_scores:
+        starting = starting.with_joint_operation_argument_scores()
     refit = {
         "binary_proposals": refit_compositional_argument_proposals,
         "pairwise_arguments": refit_compositional_argument_rankings,
         "graph_factors": refit_compositional_graph_scales,
         "graph_relations": refit_compositional_graph_relations,
+        "joint_graphs": refit_compositional_joint_graphs,
         "operation_pointer": refit_compositional_operation_pointer,
         "argument_pointer": refit_compositional_argument_proposals,
         "definition_pointer": refit_compositional_definition_pointer,
@@ -135,9 +156,9 @@ def main() -> int:
         "ranked_operation_pointer": refit_compositional_paired_operation_pointer,
     }[args.objective]
     options = {"refit_pointer": True} if args.objective == "argument_pointer" else {}
-    if args.objective in {"graph_factors", "graph_relations"}:
+    if args.objective in {"graph_factors", "graph_relations", "joint_graphs"}:
         options["progress"] = lambda row: print(json.dumps(row, sort_keys=True), flush=True)
-    if args.objective == "graph_relations":
+    if args.objective in {"graph_relations", "joint_graphs"}:
         options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
@@ -154,7 +175,7 @@ def main() -> int:
         if candidate.model_basis_sha256 != model.model_basis_sha256:
             raise ValueError("saved candidate representation differs from incumbent")
     else:
-        candidate = refit(model, bound, **options)
+        candidate = refit(starting, bound, **options)
         payload = (json.dumps(candidate.to_dict(), sort_keys=True, separators=(",", ":")) + "\n")
         if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
             raise FileExistsError(args.output)
