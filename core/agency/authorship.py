@@ -28,7 +28,14 @@ from typing import Any
 from core.agency.capacity import capacity_of, confidence_with_capacity
 from core.runtime.errors import record_degradation
 
-__all__ = ["AgencyLedger", "Event", "Verdict", "get_agency_ledger", "reset_agency_ledger_for_test"]
+__all__ = [
+    "AgencyLedger",
+    "Event",
+    "Verdict",
+    "actor_of_percept",
+    "get_agency_ledger",
+    "reset_agency_ledger_for_test",
+]
 
 logger = logging.getLogger("Aura.Agency.Authorship")
 
@@ -36,6 +43,22 @@ logger = logging.getLogger("Aura.Agency.Authorship")
 #: else, including "unknown" — an outcome whose cause is not established is not
 #: hers, and defaulting the other way is how a self-model inflates.
 SELF = "self"
+
+#: Percept sources that name the user as the cause of what arrived: a message is
+#: the user's doing whichever channel carried it, and so is being treated warmly
+#: in a conversation. A percept from her own processing (a memory she recalled,
+#: a reading of her own body, the failure of her own action) is nothing she
+#: watched anybody do, and a source that names nobody is attributed to nobody.
+_USER_SOURCES = frozenset({"user", "voice", "admin", "chat", "conversation"})
+_USER_PREFIXES = ("user:", "voice:", "api:")
+
+
+def actor_of_percept(percept: Mapping[str, Any]) -> str | None:
+    """Who caused this percept, when its source says; None when it does not name anyone."""
+    source = str(percept.get("source") or "").strip().lower()
+    if source in _USER_SOURCES or source.startswith(_USER_PREFIXES):
+        return "user"
+    return None
 
 
 @dataclass(frozen=True, slots=True)

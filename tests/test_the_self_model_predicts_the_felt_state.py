@@ -38,6 +38,55 @@ def test_the_heartbeat_prefers_the_state_the_phases_settle():
     assert body.index("_felt_state_from_the_state") < body.index("affect_engine")
 
 
+def test_the_heartbeat_reads_drives_from_the_state_before_the_engine():
+    """The same fix for the other half: the drive engine is a store no phase writes."""
+    source = (ROOT / "core" / "consciousness" / "heartbeat.py").read_text()
+    tree = ast.parse(source)
+    gather = next(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "_gather_state"
+    )
+    body = ast.get_source_segment(source, gather) or ""
+    assert body.index("_drives_from_the_state(") < body.index('getattr(self.orch, "drive_engine"')
+
+
+def test_the_drive_reading_names_the_least_filled_budget_the_phase_settled(monkeypatch):
+    from types import SimpleNamespace
+
+    from core.consciousness.heartbeat import CognitiveHeartbeat
+    from core.container import ServiceContainer
+
+    budgets = {
+        "curiosity": {"level": 80.0, "capacity": 100.0},
+        "growth": {"level": 55.0, "capacity": 100.0},
+        "social": {"level": 30.0, "capacity": 50.0},
+    }
+    repo = SimpleNamespace(_current=SimpleNamespace(motivation=SimpleNamespace(budgets=budgets)))
+    real_get = ServiceContainer.get
+    monkeypatch.setattr(
+        ServiceContainer, "get", lambda name, default=None: repo if name == "state_repository" else real_get(name, default=default)
+    )
+    reading: dict = {}
+    assert CognitiveHeartbeat._drives_from_the_state(reading) is True
+    assert reading["dominant_drive"] == "growth"
+    assert abs(reading["drive_urgency"] - 0.45) < 1e-9
+    assert reading["drives"]["social"]["percent"] == 60.0
+
+
+def test_the_drive_reading_says_when_there_is_no_state(monkeypatch):
+    from core.consciousness.heartbeat import CognitiveHeartbeat
+    from core.container import ServiceContainer
+
+    real_get = ServiceContainer.get
+    monkeypatch.setattr(
+        ServiceContainer, "get", lambda name, default=None: None if name == "state_repository" else real_get(name, default=default)
+    )
+    reading: dict = {}
+    assert CognitiveHeartbeat._drives_from_the_state(reading) is False
+    assert reading == {}
+
+
 def test_the_fallback_reports_whether_it_found_anything():
     """A fallback that cannot say it failed is a fallback that cannot be used."""
     from core.consciousness.heartbeat import CognitiveHeartbeat

@@ -11851,7 +11851,7 @@
         "timeout": 300
       },
       {
-        "expr": "(lambda K: any((('P', a) in K and (a, 'D') in K) or (('P', a) in K and (a, b) in K and (b, 'D') in K) for a in 'PIAGCSMWDN' for b in 'PIAGCSMWDN'))({(e['source'], e['target']) for e in report['edges'] if e.get('kept')})",
+        "expr": "any((('P', a) in K and (a, 'D') in K) or (('P', a) in K and (a, b) in K and (b, 'D') in K) for K in [{(e['source'], e['target']) for e in report['edges'] if e.get('kept')}] for a in 'PIAGCSMWDN' for b in 'PIAGCSMWDN')",
         "kind": "report"
       }
     ],

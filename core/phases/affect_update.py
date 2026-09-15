@@ -320,6 +320,7 @@ class AffectUpdatePhase(Phase):
         self._process_percepts(affect, recent_percepts)
         for item in recent_percepts:
             mark_consumed(item, "affect")
+        self._record_what_others_did(recent_percepts)
         state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
@@ -884,6 +885,42 @@ class AffectUpdatePhase(Phase):
         adrenaline = float(affect.physiology.get("adrenaline", rest) or rest)
         relaxed = (adrenaline * affect.momentum) + (rest * (1 - affect.momentum))
         affect.physiology["adrenaline"] = float(min(ceiling, max(rest, relaxed)))
+
+    @staticmethod
+    def _record_what_others_did(percepts: list[Any]) -> int:
+        """Tell the agency ledger what somebody else did, from the percepts that name them.
+
+        The intention loop records what she did and says outcomes she only
+        watched arrive through perception, and nothing on the perception path
+        recorded them: in the runtime and in every battery recording the ledger
+        saw her own actions alone, so the share of what happened that she did
+        read 1.0 for the whole of every life and the last actor was always her.
+        This phase feels each percept once, so each is recorded once. What she
+        watched never reaches her capability beliefs.
+        """
+        recorded = 0
+        try:
+            from core.agency.authorship import Event, actor_of_percept, get_agency_ledger
+
+            ledger = get_agency_ledger()
+            for item in percepts:
+                if not isinstance(item, dict):
+                    continue
+                actor = actor_of_percept(item)
+                if actor is None:
+                    continue
+                ledger.observe(
+                    Event(
+                        what=str(item.get("type") or "percept"),
+                        actor=actor,
+                        verified=True,
+                        detail={"source": str(item.get("source") or "")},
+                    )
+                )
+                recorded += 1
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("what others did went unrecorded this turn: %s", exc)
+        return recorded
 
     def _process_percepts(self, affect: AffectVector, percepts: list[dict]):
         """Maps recent world events to emotional triggers."""
