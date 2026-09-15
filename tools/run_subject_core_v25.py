@@ -318,6 +318,7 @@ async def _spectrum(
     seed: int,
     domains: Sequence[str] | None = None,
     screen: int = 0,
+    shard: tuple[int, int] | None = None,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -333,7 +334,7 @@ async def _spectrum(
         runtime, anchors, conditions,
         lags=lags, frame_seconds=frame_seconds,
         turns=turns, rounds=rounds, seed=seed, domains=domains,
-        screen=screen,
+        screen=screen, shard=shard,
     )
     for lag in sorted(reports):
         report = reports[lag]
@@ -347,6 +348,43 @@ async def _spectrum(
             f"/{report.as_dict()['cuts_tested']} decided"
         )
     return spectrum, detail
+
+
+async def _await_shards(directory: Path, wait_seconds: float) -> list[dict[str, Any]]:
+    """Every shard file in a directory once all of them are there, or a refusal.
+
+    The count comes from the files' own names. The directory is listed every
+    thirty seconds, which costs a listing against a sweep measured in hours.
+    """
+    deadline = time.monotonic() + max(0.0, float(wait_seconds))
+    while True:
+        found, counts, payloads = await asyncio.to_thread(_shard_files, Path(directory))
+        if len(counts) > 1:
+            raise SystemExit(f"refusing: {directory} holds shards of more than one split: {sorted(counts)}")
+        if payloads is not None:
+            return payloads
+        if time.monotonic() >= deadline:
+            raise SystemExit(f"refusing: {found} shard file(s) in {directory} when the wait ran out")
+        await asyncio.sleep(30.0)
+
+
+def _shard_files(directory: Path) -> tuple[int, set[int], list[dict[str, Any]] | None]:
+    """How many shard files a directory holds, of which splits, and their contents once every one is there."""
+    found = sorted(directory.glob("shard_*_of_*.json"))
+    counts = {int(path.stem.rsplit("_of_", 1)[1]) for path in found}
+    if len(counts) == 1 and len(found) == next(iter(counts)):
+        return len(found), counts, [json.loads(path.read_text(encoding="utf-8")) for path in found]
+    return len(found), counts, None
+
+
+def _write_shard(directory: Path, shard: tuple[int, int], payload: dict[str, Any]) -> Path:
+    """A shard file, written under another name and moved into place so the coordinator never reads half of one."""
+    directory.mkdir(parents=True, exist_ok=True)
+    final = directory / f"shard_{shard[0]}_of_{shard[1]}.json"
+    partial = final.with_suffix(".partial")
+    partial.write_text(json.dumps(payload, default=str) + "\n", encoding="utf-8")
+    partial.replace(final)
+    return final
 
 
 def _horizon_is_binding(spectrum: dict[float, float], lags: Sequence[int]) -> bool:
@@ -504,7 +542,32 @@ async def main() -> int:
         "--allow-degraded", action="store_true",
         help="record the run even when an authority gate refuses it",
     )
+    parser.add_argument(
+        "--shard", type=str, default="",
+        help=(
+            "I/N: run as shard worker I of N. The worker builds its own organism, "
+            "collects its own anchors, scores every N-th cut and writes a shard file; "
+            "it reports nothing else. See tools/run_subject_core_v25_sharded.py"
+        ),
+    )
+    parser.add_argument("--shard-dir", type=Path, default=None, help="where a shard worker writes its file")
+    parser.add_argument(
+        "--from-shards", type=Path, default=None,
+        help="run as coordinator: read the cut sweep from these shard files instead of scoring it",
+    )
+    parser.add_argument(
+        "--shard-wait-seconds", type=float, default=0.0,
+        help="how long the coordinator waits for every shard file before refusing",
+    )
     args = parser.parse_args()
+    shard: tuple[int, int] | None = None
+    if args.shard:
+        index, _, count = args.shard.partition("/")
+        shard = (int(index), int(count))
+        if shard[1] < 1 or not 0 <= shard[0] < shard[1]:
+            raise SystemExit(f"--shard {args.shard} names no shard")
+        if args.from_shards:
+            raise SystemExit("a run is a shard worker or the coordinator, not both")
 
     if args.quick:
         args.rounds, args.anchors, args.cut_rounds = 3, 8, 1
@@ -529,7 +592,11 @@ async def main() -> int:
     from core.subject.recording import build_recording
     from core.subject.state import DOMAINS, domain_slices
     from core.subject.v25_exclusion import select_carriers
-    from core.subject.v25_runtime import collect_anchor_bank, collect_partition_samples
+    from core.subject.v25_runtime import (
+        bipartitions,
+        collect_anchor_bank,
+        collect_partition_samples,
+    )
 
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
@@ -631,6 +698,35 @@ async def main() -> int:
         if len(anchors) < 2:
             raise RuntimeError("fewer than two anchors; nothing can be forked")
 
+        # ── a shard worker scores its share of the cuts and stops ──────
+        if shard is not None:
+            lags = (1, 8) if args.quick else LAGS
+            _log(f"shard {shard[0]} of {shard[1]}: scoring its cuts at {len(lags)} horizons")
+            _, cut_detail = await _spectrum(
+                runtime, anchors, conditions,
+                lags=lags, frame_seconds=frame_seconds, turns=args.turns,
+                rounds=args.cut_rounds, seed=args.seed, domains=support,
+                screen=args.screen, shard=shard,
+            )
+            payload = {
+                "shard": f"{shard[0]}/{shard[1]}",
+                "seed": args.seed,
+                "commit": fingerprint.get("commit"),
+                "support": list(support),
+                "conditions": [getattr(c, "name", str(c)) for c in conditions],
+                "lags": [int(lag) for lag in lags],
+                "frame_seconds": frame_seconds,
+                "anchor_states": [np.asarray(a.current, dtype=np.float64).tolist() for a in anchors],
+                "reports": cut_detail,
+                "run_dir": str(run_dir),
+                "seconds": round(time.monotonic() - started, 1),
+            }
+            final = await asyncio.to_thread(
+                _write_shard, args.shard_dir or (args.out / "shards"), shard, payload
+            )
+            _log(f"wrote {final} in {payload['seconds']}s")
+            return 0
+
         # ── the grain ──────────────────────────────────────────────────
         if args.skip_grain:
             evidence["canonical_grain"] = {"skipped": True}
@@ -653,13 +749,43 @@ async def main() -> int:
 
         # ── the spectrum over horizons ─────────────────────────────────
         lags = (1, 8) if args.quick else LAGS
-        _log(f"scoring every bipartition at {len(lags)} horizons")
-        spectrum, cut_detail = await _spectrum(
-            runtime, anchors, conditions,
-            lags=lags, frame_seconds=frame_seconds, turns=args.turns,
-            rounds=args.cut_rounds, seed=args.seed, domains=support,
-            screen=args.screen,
-        )
+        if args.from_shards:
+            from core.subject.v25_cut import merge_shard_payloads
+
+            _log(f"reading the cut sweep from shard files in {args.from_shards}")
+            payloads = await _await_shards(args.from_shards, args.shard_wait_seconds)
+            reports, gate = merge_shard_payloads(
+                payloads,
+                reference_anchors=np.asarray([a.current for a in anchors], dtype=np.float64),
+                cuts_in_full=len(bipartitions(tuple(support))),
+                lags=lags,
+                frame_seconds=frame_seconds,
+                support=support,
+                conditions=[getattr(c, "name", str(c)) for c in conditions],
+                seed=args.seed,
+            )
+            evidence["shards"] = gate
+            _log(f"  {gate['shards']} shards merged; anchors exchangeable: {gate['exchangeable']}")
+            spectrum, cut_detail = {}, {}
+            for lag in sorted(reports):
+                report = reports[lag]
+                tau = float(lag) * float(frame_seconds)
+                weakest = report.weakest
+                spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
+                cut_detail[f"lag_{lag}"] = report.as_dict()
+                _log(
+                    f"  lag {lag:>3} ({tau:.4f}s): weakest {report.as_dict()['weakest_cut']} "
+                    f"lower bound {spectrum[tau]:.5f}, {report.as_dict()['cuts_decided']}"
+                    f"/{report.as_dict()['cuts_tested']} decided"
+                )
+        else:
+            _log(f"scoring every bipartition at {len(lags)} horizons")
+            spectrum, cut_detail = await _spectrum(
+                runtime, anchors, conditions,
+                lags=lags, frame_seconds=frame_seconds, turns=args.turns,
+                rounds=args.cut_rounds, seed=args.seed, domains=support,
+                screen=args.screen,
+            )
         binding = _horizon_is_binding(spectrum, lags)
         tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
         evidence["spectrum"] = {
@@ -943,6 +1069,12 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
         blockers.append("tau-star is still horizon-bound at the ceiling")
     if undecided:
         blockers.append(f"{len(undecided)} cut(s) had insufficient power to decide cut against sham")
+    shards = evidence.get("shards")
+    if shards is not None and not shards.get("exchangeable"):
+        blockers.append(
+            "the cut sweep was merged from shards whose anchors were not exchangeable "
+            f"with the coordinator's: {shards.get('why', 'no reason recorded')}"
+        )
     if invariance and not invariance.get("measured"):
         blockers.append(
             f"representation invariance was not measured: {invariance.get('why', 'no reason recorded')}"

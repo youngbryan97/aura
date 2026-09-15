@@ -28,6 +28,7 @@ thing gone.
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
@@ -46,6 +47,10 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "CutVerdict",
     "SweepReport",
+    "anchors_exchangeable",
+    "merge_shard_payloads",
+    "merge_sweeps",
+    "shard_of",
     "OPENING_ANCHORS",
     "ANCHOR_STEP",
     "decide_cut",
@@ -69,6 +74,25 @@ EXCLUDED: frozenset[tuple[tuple[str, ...], tuple[str, ...]]] = frozenset()
 MINIMUM_ANCHORS: int = 5
 
 
+@dataclass(frozen=True)
+class RecordedRate:
+    """The two rates of an estimate made in another process, read back from its report."""
+
+    raw_rate: float
+    sham_rate: float
+
+
+def shard_of(cuts: Sequence[Any], index: int, count: int) -> list[tuple[int, Any]]:
+    """Every `count`-th cut starting at `index`, each with its place in the full list.
+
+    The place travels with the cut so a cut's bootstrap seed is a property of
+    the cut, and a sharded sweep draws exactly what one process would have.
+    """
+    if count < 1 or not 0 <= index < count:
+        raise ValueError(f"shard {index} of {count} does not exist")
+    return [(place, cut) for place, cut in enumerate(cuts) if place % count == index]
+
+
 @dataclass
 class CutVerdict:
     """One partition, and whether the experiment could decide it."""
@@ -86,6 +110,31 @@ class CutVerdict:
     @property
     def name(self) -> str:
         return f"{''.join(self.left)}|{''.join(self.right)}"
+
+    @classmethod
+    def from_dict(cls, row: dict[str, Any]) -> CutVerdict:
+        """A verdict read back from `as_dict`, so shards run elsewhere can be merged.
+
+        The Fisher-Rao estimates behind the rates are not carried across, and
+        nothing downstream of a sweep reads them: the weakest cut, the decided
+        set and the report read the rates, the bound and the decision. The rates
+        come back on a record with the two fields the report prints.
+        """
+        left, _, right = str(row["cut"]).partition("|")
+        estimate = None
+        if row.get("raw_rate") is not None:
+            estimate = RecordedRate(raw_rate=float(row["raw_rate"]), sham_rate=float(row.get("sham_rate") or 0.0))
+        return cls(
+            left=tuple(left),
+            right=tuple(right),
+            anchors_used=int(row.get("anchors", 0)),
+            estimate=estimate,
+            excess=float(row.get("excess_rate", 0.0)),
+            lower_bound=float(row.get("lower_bound", 0.0)),
+            p_value=float(row.get("p_value", 1.0)),
+            decided=bool(row.get("decided", False)),
+            note=str(row.get("note", "")),
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -120,6 +169,9 @@ class SweepReport:
     #: not empty the irreducibility claim is UNRESOLVED, not false.
     undecided: list[str] = field(default_factory=list)
     anchors_spent: int = 0
+    #: "index/count" when this sweep scored one shard of the cuts. A shard on its
+    #: own has not scored every cut and claims nothing until merged.
+    shard: str = ""
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -136,7 +188,7 @@ class SweepReport:
         one cut compatible with zero refuses it and no amount of margin
         elsewhere buys it back.
         """
-        if self.screened:
+        if self.screened or self.shard:
             return False
         return bool(self.verdicts) and not self.undecided and all(
             v.decided and v.lower_bound > 0.0 for v in self.verdicts
@@ -160,6 +212,7 @@ class SweepReport:
             ),
             "undecided": list(self.undecided),
             "anchors_spent": self.anchors_spent,
+            "shard": self.shard,
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -170,7 +223,42 @@ class SweepReport:
             # is built from these, and a summary of the eight cheapest would
             # have built it from a twelfth of the evidence.
             "decided_cuts": [v.name for v in self.verdicts if v.decided],
+            "verdicts": [v.as_dict() for v in self.verdicts],
         }
+
+
+def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> SweepReport:
+    """One horizon's sweep from its shards, refused unless they cover every cut exactly once.
+
+    Each shard is a `SweepReport.as_dict` for the same horizon. A cut scored by
+    two shards, or by none, means the shards were not a partition of the cuts,
+    and a merged report would claim a sweep nobody ran.
+    """
+    if not shards:
+        raise ValueError("nothing to merge")
+    taus = {round(float(s["tau_seconds"]), 6) for s in shards}
+    if len(taus) != 1:
+        raise ValueError(f"shards disagree about the horizon: {sorted(taus)}")
+    verdicts: list[CutVerdict] = []
+    seen: set[str] = set()
+    for shard in shards:
+        if shard.get("screened"):
+            raise ValueError("a screened shard is a look, and a merge of looks is not a sweep")
+        for row in shard.get("verdicts", []):
+            if row["cut"] in seen:
+                raise ValueError(f"cut {row['cut']} was scored by more than one shard")
+            seen.add(row["cut"])
+            verdicts.append(CutVerdict.from_dict(row))
+    if len(seen) != cuts_in_full:
+        raise ValueError(f"shards scored {len(seen)} of {cuts_in_full} cuts")
+    return SweepReport(
+        tau_seconds=float(shards[0]["tau_seconds"]),
+        cuts_in_full=cuts_in_full,
+        unscorable=sum(int(s.get("cuts_unscorable", 0)) for s in shards),
+        verdicts=verdicts,
+        undecided=sorted(v.name for v in verdicts if not v.decided),
+        anchors_spent=sum(int(s.get("anchors_spent", 0)) for s in shards),
+    )
 
 
 def decide_cut(
@@ -350,6 +438,7 @@ async def sweep_cuts_over_lags(
     seed: int = 0,
     domains: Sequence[str] | None = None,
     screen: int = 0,
+    shard: tuple[int, int] | None = None,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -387,14 +476,18 @@ async def sweep_cuts_over_lags(
         cuts = cuts[::stride][:screen]
         screened = True
 
+    placed = shard_of(cuts, *shard) if shard is not None else list(enumerate(cuts))
     reports = {
         lag: SweepReport(
             tau_seconds=float(lag) * float(frame_seconds),
             screened=screened,
             cuts_in_full=every_cut,
+            shard="" if shard is None else f"{shard[0]}/{shard[1]}",
         )
         for lag in ladder
     }
+    place_of = {f"{''.join(left)}|{''.join(right)}": place for place, (left, right) in placed}
+    cuts = [cut for _, cut in placed]
     names = [f"{''.join(left)}|{''.join(right)}" for left, right in cuts]
     verdicts = {
         lag: {
@@ -418,7 +511,11 @@ async def sweep_cuts_over_lags(
         if take < 2:
             break
         chosen = list(anchors[:take])
-        for position, name in enumerate(pending):
+        for name in pending:
+            # Seeded by the cut's place in the full list rather than its place
+            # in this round's queue, which shrinks as cuts are decided and is
+            # different in every shard.
+            position = place_of[name]
             cut = verdicts[ladder[0]][name]
             samples = await collect_partition_samples(
                 runtime,
@@ -473,3 +570,138 @@ async def sweep_cuts_over_lags(
                 lag,
             )
     return reports
+
+
+def anchors_exchangeable(
+    reference: np.ndarray,
+    other: np.ndarray,
+    *,
+    comparisons: int = 1,
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Whether two anchor banks look drawn from one ordinary life, by a permutation test.
+
+    A shard worker is its own process with its own organism, and two processes
+    do not reach bit-identical states even from one seed. So a shard scores its
+    cuts from its own anchors, and the merge is only honest if those anchors
+    are the same kind of state the coordinator forked from. The statistic is
+    the squared distance between the two banks' mean states, each column scaled
+    by the pooled spread; the null permutes which bank each anchor came from.
+
+    One test runs per shard, so the level is alpha divided by the number of
+    comparisons. The draws are the fewest at which the smallest attainable
+    p-value is a twentieth of that level, so a p-value near the level is
+    resolved rather than rounded.
+    """
+    a = np.asarray(reference, dtype=np.float64)
+    b = np.asarray(other, dtype=np.float64)
+    if a.ndim != 2 or b.ndim != 2 or a.shape[1] != b.shape[1] or len(a) < 2 or len(b) < 2:
+        return {
+            "measured": False,
+            "exchangeable": False,
+            "why": "the two banks are not both at least two anchors of the same width",
+        }
+    pooled = np.vstack([a, b])
+    spread = pooled.std(axis=0)
+    live = spread > 1e-12
+    level = float(alpha) / max(1, int(comparisons))
+    if not live.any():
+        return {
+            "measured": True,
+            "exchangeable": True,
+            "p_value": 1.0,
+            "level": level,
+            "why": "no column moves in either bank",
+        }
+    scaled = pooled[:, live] / spread[live]
+    split = len(a)
+
+    def statistic(rows: np.ndarray) -> float:
+        return float(np.sum((rows[:split].mean(axis=0) - rows[split:].mean(axis=0)) ** 2))
+
+    observed = statistic(scaled)
+    draws = math.ceil(20.0 / level)
+    rng = np.random.default_rng(seed)
+    exceed = 0
+    for _ in range(draws):
+        if statistic(scaled[rng.permutation(len(scaled))]) >= observed - 1e-15:
+            exceed += 1
+    p_value = (exceed + 1.0) / (draws + 1.0)
+    exchangeable = p_value >= level
+    return {
+        "measured": True,
+        "exchangeable": exchangeable,
+        "p_value": round(p_value, 6),
+        "level": round(level, 6),
+        "draws": draws,
+        "statistic": round(observed, 6),
+        "reference_anchors": int(len(a)),
+        "shard_anchors": int(len(b)),
+        "why": (
+            "the shard's anchors are the kind of state the coordinator forked from"
+            if exchangeable
+            else f"the shard's mean anchor state differs from the coordinator's at p = {p_value:.4g}"
+        ),
+    }
+
+
+def merge_shard_payloads(
+    payloads: Sequence[dict[str, Any]],
+    *,
+    reference_anchors: np.ndarray,
+    cuts_in_full: int,
+    lags: Sequence[int],
+    frame_seconds: float,
+    support: Sequence[str],
+    conditions: Sequence[str],
+    alpha: float = 0.05,
+    seed: int = 0,
+) -> tuple[dict[int, SweepReport], dict[str, Any]]:
+    """The whole sweep from its shard files, and the check that let them be merged.
+
+    Refused outright when the shards are not the same experiment: a different
+    set of horizons, clock, support or conditions, or shard numbers that are
+    not every index of one count. Merged either way when they are, with the
+    exchangeability of each shard's anchors reported for the authority gate.
+    """
+    if not payloads:
+        raise ValueError("no shard files to merge")
+    counts = {int(str(p["shard"]).split("/")[1]) for p in payloads}
+    if len(counts) != 1:
+        raise ValueError(f"shards disagree about how many there are: {sorted(counts)}")
+    count = counts.pop()
+    indices = sorted(int(str(p["shard"]).split("/")[0]) for p in payloads)
+    if indices != list(range(count)):
+        raise ValueError(f"shards {indices} are not every index of {count}")
+    for payload in payloads:
+        if [int(lag) for lag in payload["lags"]] != [int(lag) for lag in lags]:
+            raise ValueError(f"shard {payload['shard']} scored other horizons: {payload['lags']}")
+        if abs(float(payload["frame_seconds"]) - float(frame_seconds)) > 1e-9:
+            raise ValueError(f"shard {payload['shard']} ran on another clock: {payload['frame_seconds']}")
+        if list(payload["support"]) != list(support) or list(payload["conditions"]) != list(conditions):
+            raise ValueError(f"shard {payload['shard']} tested another support or other conditions")
+    checks = {
+        str(p["shard"]): anchors_exchangeable(
+            reference_anchors, np.asarray(p["anchor_states"], dtype=np.float64),
+            comparisons=count, alpha=alpha, seed=seed + index,
+        )
+        for index, p in enumerate(payloads)
+    }
+    reports = {
+        int(lag): merge_sweeps(
+            [p["reports"][f"lag_{int(lag)}"] for p in payloads], cuts_in_full=cuts_in_full
+        )
+        for lag in lags
+    }
+    gate = {
+        "shards": count,
+        "exchangeable": all(check.get("exchangeable") for check in checks.values()),
+        "by_shard": checks,
+        "why": (
+            "every shard's anchors are exchangeable with the coordinator's"
+            if all(check.get("exchangeable") for check in checks.values())
+            else "; ".join(f"shard {name}: {check.get('why')}" for name, check in checks.items() if not check.get("exchangeable"))
+        ),
+    }
+    return reports, gate
