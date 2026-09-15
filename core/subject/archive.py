@@ -25,7 +25,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-__all__ = ["write_json", "write_text", "save_arms", "save_edge_table"]
+__all__ = ["write_json", "write_text", "load_arms", "save_arms", "save_edge_table"]
 
 _SOURCE = "subject_core.archive"
 
@@ -91,6 +91,52 @@ def save_arms(directory: Path, results: Any, *, name: str = "intervention_arms.j
         separators=(",", ":"),
     )
     return write_text(directory, name, "\n".join([header, *lines]) + "\n")
+
+
+def load_arms(
+    directory: Path, *, scale: Any, name: str = "intervention_arms.jsonl"
+) -> Any:
+    """Read the arms back into the set the edge rule was computed from.
+
+    A campaign that dies in a late stage has already spent hours on these, and
+    without a reader the only way back to them was to run them again. ``scale``
+    comes from the recording rather than the file, because it is the
+    recording's own spread per column and is not a property of a trial.
+    """
+    from core.subject.causal import InterventionSet, Trial
+
+    path = directory / name
+    lines = [line for line in path.read_text().splitlines() if line.strip()]
+    if not lines:
+        raise ValueError(f"{path} holds no arms")
+    meta = json.loads(lines[0]).get("_meta", {})
+    trials = []
+    for line in lines[1:]:
+        row = json.loads(line)
+        trials.append(
+            Trial(
+                source=row["source"],
+                condition=row["condition"],
+                index=int(row["trial"]),
+                effect={k: float(v) for k, v in row["effect"].items()},
+                floor={k: float(v) for k, v in row["floor"].items()},
+                trace={k: [float(x) for x in v] for k, v in row["trace"].items()},
+                floor_trace={
+                    k: [float(x) for x in v] for k, v in row["floor_trace"].items()
+                },
+                took=bool(row["took"]),
+                self_effect=float(row.get("self_effect", 0.0)),
+                injected_at=int(row.get("injected_at", 0)),
+                carried_by={k: int(v) for k, v in (row.get("carried_by") or {}).items()},
+            )
+        )
+    out = InterventionSet(trials=trials, scale=dict(scale))
+    if meta.get("delta") is not None:
+        out.delta = float(meta["delta"])
+    out.lags = int(meta.get("lags") or 0)
+    out.unwritable = tuple(meta.get("unwritable") or ())
+    out.seconds = float(meta.get("seconds") or 0.0)
+    return out
 
 
 def save_edge_table(directory: Path, tested: list[dict[str, Any]], *, name: str = "edges.csv") -> Path:

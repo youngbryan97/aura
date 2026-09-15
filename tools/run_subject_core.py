@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import math
 import os
 import sys
@@ -32,6 +33,48 @@ os.environ.setdefault("AURA_TESTING", "1")
 import numpy as np  # noqa: E402
 
 from core.subject.clock import real_time  # noqa: E402
+
+
+#: The stages a run can be resumed from, in the order they happen. A campaign
+#: that dies in the lesion has already spent six hours on the two before it,
+#: and without this the only way back to them was to run them again.
+RESUMABLE: tuple[str, ...] = ("record", "interventions", "pci", "agency", "lesion")
+
+
+def _checkpoint(args: Any, stage: str, evidence: dict[str, Any]) -> None:
+    """Everything measured so far, named by the last stage that finished."""
+    from core.subject.archive import write_json
+
+    write_json(args.out, "checkpoint.json", {"stage": stage, "evidence": evidence})
+
+
+def _resume(args: Any) -> dict[str, Any] | None:
+    """The checkpoint a resumed run carries forward, or None for a fresh run."""
+    if not args.resume:
+        return None
+    path = args.resume / "checkpoint.json"
+    if not path.exists():
+        raise SystemExit(f"refusing: {path} does not exist, so there is nothing to resume")
+    saved = json.loads(path.read_text())
+    stage = str(saved.get("stage", ""))
+    if stage not in RESUMABLE:
+        raise SystemExit(
+            f"refusing: {path} names stage {stage!r}, which is not one of {RESUMABLE}"
+        )
+    return saved
+
+
+class _RecalledCut:
+    """The cheapest cut, read back from the report rather than recomputed.
+
+    The lesion stage asks phi for one thing. Recomputing the whole irreducibility
+    to get it would answer a question the run has already answered, and could
+    answer it differently, which would mean the lesion cut somewhere other than
+    where the report says the cut is.
+    """
+
+    def __init__(self, best_cut: Any) -> None:
+        self.best_cut = tuple(tuple(side) for side in best_cut)
 
 
 def _log(message: str) -> None:
@@ -156,6 +199,13 @@ async def main() -> int:
         "from the channels that recorded it instead of from the conditions' "
         "scripted percepts, and the report says which channels carried it",
     )
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        help="a run directory holding checkpoint.json. The stages it already "
+        "finished are read back rather than run again, and the campaign "
+        "fingerprint has to match or the two are different experiments",
+    )
     parser.add_argument("--quick", action="store_true", help="a short run for wiring checks")
     parser.add_argument(
         "--allow-degraded",
@@ -187,12 +237,19 @@ async def main() -> int:
     from core.subject.isolation import isolate_state
     from core.subject.provenance import next_run_directory
 
+    resumed = _resume(args)
     root = args.out
-    args.out = next_run_directory(root) if not args.here else root
+    if resumed is not None:
+        args.out = args.resume
+    else:
+        args.out = next_run_directory(root) if not args.here else root
     state_root_path = isolate_state(args.out)
+    done: tuple[str, ...] = (
+        RESUMABLE[: RESUMABLE.index(str(resumed["stage"])) + 1] if resumed else ()
+    )
 
     from core.subject.agency import run_agency
-    from core.subject.archive import save_arms, save_edge_table, write_json
+    from core.subject.archive import load_arms, save_arms, save_edge_table, write_json
     from core.subject.battery import assemble
     from core.subject.causal import build_edges, power_note, run_interventions
     from core.subject.clamp import clamped
@@ -224,7 +281,7 @@ async def main() -> int:
         manifest,
         mind_identity,
     )
-    from core.subject.recording import build_recording
+    from core.subject.recording import build_recording, load_recording
     from core.subject.state import DOMAINS, FAST_DOMAINS, SLOW_DOMAINS
     from core.subject.synergy import synergy_suite
 
@@ -253,6 +310,49 @@ async def main() -> int:
         f"campaign {evidence['campaign']['fingerprint']}"
     )
 
+    if resumed is not None:
+        # The earlier process's evidence is the run. A resumed run that started
+        # its own would report a campaign whose recording it never took.
+        started_again = evidence["campaign"]
+        evidence = dict(resumed["evidence"])
+        evidence.setdefault("notes", {})
+        if evidence["campaign"]["fingerprint"] != started_again["fingerprint"]:
+            # Which part of the method moved, not only that it did. The state
+            # schema is the one that changes without anybody meaning it to: a
+            # column added between the two processes makes the recording on
+            # disk describe a different organism from the one resuming.
+            was = evidence["campaign"].get("frozen", {}) or {}
+            now = started_again.get("frozen", {}) or {}
+            moved = sorted(
+                key
+                for key in set(was) | set(now)
+                if was.get(key) != now.get(key)
+            )
+            raise SystemExit(
+                "refusing: the checkpoint was written by campaign "
+                f"{evidence['campaign']['fingerprint']} and this one is "
+                f"{started_again['fingerprint']} — two settings are two "
+                f"experiments. What moved: {moved or 'the seed alone'}"
+            )
+        evidence["campaign"].setdefault("resumes", []).append(
+            {
+                "from_stage": resumed["stage"],
+                "at": real_time(),
+                "commit": started_again["commit"],
+                "dirty": started_again["dirty"],
+            }
+        )
+        # The readings below are taken again by this process and would go over
+        # the ones the recording was taken under. Kept under their own names,
+        # because a reader asking what the organism was while it was recorded
+        # must not be handed what it was while the lesion ran.
+        if "organism" in evidence:
+            evidence["organism_at_record"] = evidence["organism"]
+        for key in ("state", "clock"):
+            if key in evidence["notes"]:
+                evidence["notes"][f"{key}_at_record"] = evidence["notes"][key]
+        _log(f"resuming {args.out.name} after {resumed['stage']}: {', '.join(done)} already measured")
+
     _log(f"building the offline organism in {args.out}")
     runtime = build_runtime(args.out / "runtime", seed=args.seed)
     # Perception, before the organism lives a frame. A tape has to be on the
@@ -278,6 +378,32 @@ async def main() -> int:
         raise SystemExit(
             f"refusing: a module kept a path into the shared state root: {evidence['notes']['state']['leaks'][:6]}"
         )
+    # What is serving, pinned before anything is measured. Two arms that did
+    # not run on one system are two experiments, and nothing in a report can
+    # recover afterwards which of them it was. See core/subject/arm_identity.py.
+    from core.subject.arm_identity import differences, pin_arm_identity
+
+    opening_identity = pin_arm_identity()
+    if resumed is not None:
+        # A resumed run is two processes, and the one that records has to be
+        # the one that lesions. The fingerprint above compares the method; this
+        # compares the system, which is the half a commit can move without.
+        from core.subject.arm_identity import ArmIdentity
+
+        earlier_pin = evidence["campaign"].get("arm_identity")
+        moved = (
+            differences(ArmIdentity.from_dict(earlier_pin), opening_identity)
+            if earlier_pin
+            else ["the earlier process recorded no pin, so there is nothing to compare"]
+        )
+        if moved:
+            raise SystemExit(
+                "refusing: the resumed run is not the system that recorded: "
+                + "; ".join(moved)
+            )
+        evidence["campaign"]["arm_identity_on_resume"] = opening_identity.as_dict()
+    else:
+        evidence["campaign"]["arm_identity"] = opening_identity.as_dict()
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")
     if organism["down"]:
         _log(f"  did not come up: {organism['down']}")
@@ -295,301 +421,356 @@ async def main() -> int:
         f"(the machine took {reading['real_seconds_per_frame']:.4f}s a frame)"
     )
 
-    _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
-    frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds)
-    recording = build_recording(
-        frames,
-        notes={
-            "rounds": args.rounds,
-            "conditions": [c.name for c in CONDITIONS],
-            "phase_failures": dict(runtime.failures),
-        },
-    )
-    recording.save(args.out)
-    scale = _scales(recording)
-    _log(
-        f"{recording.frames} frames, {len(recording.live_domains())} live domains, "
-        f"{len(recording.flat_columns())} flat columns"
-    )
-    evidence["recording"] = recording.summary()
+    if "record" not in done:
+        _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
+        frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds)
+        recording = build_recording(
+            frames,
+            notes={
+                "rounds": args.rounds,
+                "conditions": [c.name for c in CONDITIONS],
+                "phase_failures": dict(runtime.failures),
+            },
+        )
+        recording.save(args.out)
+        scale = _scales(recording)
+        _log(
+            f"{recording.frames} frames, {len(recording.live_domains())} live domains, "
+            f"{len(recording.flat_columns())} flat columns"
+        )
+        evidence["recording"] = recording.summary()
 
-    _log("observational measures")
-    # Everything that fits K_{t+1} from K_t runs on one row per turn. A
-    # frame-to-frame step inside a turn is one line of the transition function,
-    # not a transition: the phases run in a fixed order and most domains do not
-    # move between two of them, so the frame series makes the prediction task
-    # "the same as last time" and the comparison a comparison of noise.
-    turns = recording.by_turn()
-    _log(f"{turns.frames} turns from {recording.frames} frames")
-    phi = phi_do(turns)
-    evidence["phi"] = phi.as_dict()
-    evidence["differentiation"] = effective_dimension(recording).as_dict()
-    evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
-    # ISC-v2's persistence line reads the next level, not the next change, and
-    # the same reading again with memory left out (P35.7). See
-    # docs/ISC_V2_PREREGISTRATION.md, third amendment.
-    evidence["persistence_v2"] = persistence(turns, seed=args.seed).as_dict()
-    evidence["persistence_v2"]["without_memory"] = persistence(
-        turns, seed=args.seed, exclude=("M",)
-    ).as_dict()
-    evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
-    evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
-    # ISC-v2 scores each triple on the target's change, because a slow level
-    # shares information with a slid copy of any slow series and its shifted
-    # null rises with the drift (docs/ISC_V2_PREREGISTRATION.md). Recorded beside
-    # the v1 reading, which stays the v1 result.
-    evidence["synergy_v2"] = [
-        item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
-    ]
-    matrix, names = periphery_read
-    turn_rows = recording.turn_rows()
-    from core.subject.closure import coverage as periphery_coverage
+        _log("observational measures")
+        # Everything that fits K_{t+1} from K_t runs on one row per turn. A
+        # frame-to-frame step inside a turn is one line of the transition function,
+        # not a transition: the phases run in a fixed order and most domains do not
+        # move between two of them, so the frame series makes the prediction task
+        # "the same as last time" and the comparison a comparison of noise.
+        turns = recording.by_turn()
+        _log(f"{turns.frames} turns from {recording.frames} frames")
+        phi = phi_do(turns)
+        evidence["phi"] = phi.as_dict()
+        evidence["differentiation"] = effective_dimension(recording).as_dict()
+        evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
+        # ISC-v2's persistence line reads the next level, not the next change, and
+        # the same reading again with memory left out (P35.7). See
+        # docs/ISC_V2_PREREGISTRATION.md, third amendment.
+        evidence["persistence_v2"] = persistence(turns, seed=args.seed).as_dict()
+        evidence["persistence_v2"]["without_memory"] = persistence(
+            turns, seed=args.seed, exclude=("M",)
+        ).as_dict()
+        evidence["metastability"] = regimes(turns, seed=args.seed).as_dict()
+        evidence["synergy"] = [item.as_dict() for item in synergy_suite(turns, seed=args.seed)]
+        # ISC-v2 scores each triple on the target's change, because a slow level
+        # shares information with a slid copy of any slow series and its shifted
+        # null rises with the drift (docs/ISC_V2_PREREGISTRATION.md). Recorded beside
+        # the v1 reading, which stays the v1 result.
+        evidence["synergy_v2"] = [
+            item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
+        ]
+        matrix, names = periphery_read
+        turn_rows = recording.turn_rows()
+        from core.subject.closure import coverage as periphery_coverage
 
-    evidence["closure"] = closure_gain(
-        turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
-    ).as_dict()
-    # What the walk could and could not see. A closure result is a claim about
-    # everything outside the core, and a walk that stopped at four hundred
-    # numbers or two levels down has not seen everything outside the core.
-    evidence["closure"]["coverage"] = periphery_coverage()
-    _log(
-        f"phi_do={evidence['phi']['phi_do']} cut={evidence['phi']['best_cut']} "
-        f"D_eff={evidence['differentiation']['d_eff_normalised']} "
-        f"intrinsic={evidence['intrinsic']['delta_intrinsic']} "
-        f"closed={evidence['closure']['closed']}"
-    )
+        evidence["closure"] = closure_gain(
+            turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
+        ).as_dict()
+        # What the walk could and could not see. A closure result is a claim about
+        # everything outside the core, and a walk that stopped at four hundred
+        # numbers or two levels down has not seen everything outside the core.
+        evidence["closure"]["coverage"] = periphery_coverage()
+        _log(
+            f"phi_do={evidence['phi']['phi_do']} cut={evidence['phi']['best_cut']} "
+            f"D_eff={evidence['differentiation']['d_eff_normalised']} "
+            f"intrinsic={evidence['intrinsic']['delta_intrinsic']} "
+            f"closed={evidence['closure']['closed']}"
+        )
+        _checkpoint(args, "record", evidence)
+    else:
+        recording = load_recording(args.out)
+        scale = _scales(recording)
+        turns = recording.by_turn()
+        phi = _RecalledCut(evidence["phi"]["best_cut"])
+        # The phases that raised while the recording was taken belong to the
+        # run, not to the process that took them. Carried forward so the
+        # authority check below sees the whole of it.
+        for name, count in (evidence["notes"].get("phase_failures") or {}).items():
+            runtime.failures[name] = max(int(runtime.failures.get(name, 0)), int(count))
+        runtime.failure_notes.update(evidence["notes"].get("phase_failure_notes") or {})
+        _log(
+            f"recalled {recording.frames} frames and {turns.frames} turns, "
+            f"cut {phi.best_cut}"
+        )
 
     # The recording is taken with the organism running as it runs. The
     # interventions are not: two arms have to see the same computation, and a
     # loop ticking at whatever rate the machine allows makes them incomparable.
     stopped = await quiesce_organism(runtime)
-    evidence["organism"] = runtime.organism.summary() if runtime.organism else evidence["organism"]
-    # What the free-running layers did, counted rather than timed. An empty
-    # `unsteppable` is the bar the specification asks for: a live cognitive
-    # loop that cannot be advanced by a count cannot be inside a paired
-    # measurement, so a run that has one says so in the report rather than
-    # reporting numbers taken while it was stopped.
-    evidence["notes"]["layers"] = runtime.layer_steps.summary()
-    # Who bid for attention and who ever got it. A bid type that never wins is
-    # a channel into the workspace that cannot fire, and the winner alone
-    # cannot show it: every source that lost looks the same as one that never
-    # spoke.
-    try:
-        workspace = runtime.organs.workspace
-        snapshot = workspace.get_snapshot() if workspace is not None else {}
-        evidence["notes"]["attention"] = {
-            "bids_by_source": dict(snapshot.get("bids_by_source", {}) or {}),
-            "wins_by_source": dict(snapshot.get("wins_by_source", {}) or {}),
-            "sources_that_never_won": list(snapshot.get("sources_that_never_won", []) or []),
-            "tie_impasses": snapshot.get("tie_impasses", 0),
-        }
-    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        _log(f"  the workspace could not say who won: {exc}")
-    # And which broadcast consumers ever did anything. A consumer that returns
-    # early every time is a registered processor with no effect, and the list
-    # of what is wired looks the same either way.
-    try:
-        from core.consciousness.broadcast_consumers import consumer_activity
-
-        evidence["notes"]["broadcast_consumers"] = consumer_activity()
-    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-        _log(f"  the broadcast consumers could not say what they did: {exc}")
-    _log(f"stopped {len(stopped)} background loops for the paired arms")
-
-    # An authoritative run refuses rather than reports.
-    #
-    # A live cognitive loop that cannot be advanced by a count cannot be inside
-    # a paired measurement, and a required phase that raised was not run in
-    # either arm — both leave the numbers below describing a different organism
-    # from the one that lives here. Saying so in the report is not enough: a
-    # reader who takes a scorecard at face value has no reason to look, and an
-    # unauthoritative run is exactly the one somebody quotes.
-    #
-    # `--allow-degraded` exists because a diagnostic run during repair work is
-    # a legitimate thing to want, and it is recorded on the run so a reader can
-    # tell which kind they are holding.
-    blocking = _authority_blockers(
-        runtime, evidence, turns=args.rounds * len(CONDITIONS)
-    )
-    evidence["campaign"]["authoritative"] = not blocking
-    evidence["campaign"]["authority_blockers"] = blocking
-    if blocking and not args.allow_degraded:
-        for line in blocking:
-            _log(f"  REFUSED: {line}")
-        raise SystemExit(
-            "this run is not authoritative: "
-            + "; ".join(blocking)
-            + " — rerun with --allow-degraded to record it anyway"
+    if "interventions" in done:
+        # The earlier process's readings describe the recording; this one's
+        # describe a few calibration turns. Kept beside them rather than over
+        # them, because the authority check is decided on the run's own life.
+        evidence["notes"]["layers_on_resume"] = runtime.layer_steps.summary()
+        # And asked again, because this process brought its own organism up and
+        # a resumed run that skipped the check could report a layer that never
+        # came up as though nothing had happened.
+        blocking = _authority_blockers(
+            runtime, evidence, turns=args.rounds * len(CONDITIONS)
         )
-    if blocking:
-        _log(f"  running degraded on purpose: {'; '.join(blocking)}")
-    _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
-    results = await run_interventions(
-        runtime,
-        CONDITIONS,
-        scale=scale,
-        trials=args.trials,
-        turns=args.turns,
-        seed=args.seed,
-        on_progress=_log,
-    )
-    edges, tested = build_edges(results, seed=args.seed)
-    evidence["edges"] = tested
-    # The arms, not only the conclusion drawn from them. An edge that missed
-    # the bar by one condition and an edge that carried in none read the same
-    # from the summary, and neither can be rechecked from it.
-    save_arms(args.out, results)
-    save_edge_table(args.out, tested)
-    _log(
-        "coupling gain: "
-        + ", ".join(
-            f"{k}:{v['attenuation']}" for k, v in sorted(results.attenuation().items())
+        evidence["campaign"]["authoritative"] = not blocking
+        evidence["campaign"]["authority_blockers"] = blocking
+        if blocking and not args.allow_degraded:
+            for line in blocking:
+                _log(f"  REFUSED: {line}")
+            raise SystemExit(
+                "this resumed run is not authoritative: "
+                + "; ".join(blocking)
+                + " — rerun with --allow-degraded to record it anyway"
+            )
+    if "interventions" not in done:
+        evidence["organism"] = runtime.organism.summary() if runtime.organism else evidence["organism"]
+        # What the free-running layers did, counted rather than timed. An empty
+        # `unsteppable` is the bar the specification asks for: a live cognitive
+        # loop that cannot be advanced by a count cannot be inside a paired
+        # measurement, so a run that has one says so in the report rather than
+        # reporting numbers taken while it was stopped.
+        evidence["notes"]["layers"] = runtime.layer_steps.summary()
+        # Who bid for attention and who ever got it. A bid type that never wins is
+        # a channel into the workspace that cannot fire, and the winner alone
+        # cannot show it: every source that lost looks the same as one that never
+        # spoke.
+        try:
+            workspace = runtime.organs.workspace
+            snapshot = workspace.get_snapshot() if workspace is not None else {}
+            evidence["notes"]["attention"] = {
+                "bids_by_source": dict(snapshot.get("bids_by_source", {}) or {}),
+                "wins_by_source": dict(snapshot.get("wins_by_source", {}) or {}),
+                "sources_that_never_won": list(snapshot.get("sources_that_never_won", []) or []),
+                "tie_impasses": snapshot.get("tie_impasses", 0),
+            }
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _log(f"  the workspace could not say who won: {exc}")
+        # And which broadcast consumers ever did anything. A consumer that returns
+        # early every time is a registered processor with no effect, and the list
+        # of what is wired looks the same either way.
+        try:
+            from core.consciousness.broadcast_consumers import consumer_activity
+
+            evidence["notes"]["broadcast_consumers"] = consumer_activity()
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            _log(f"  the broadcast consumers could not say what they did: {exc}")
+        _log(f"stopped {len(stopped)} background loops for the paired arms")
+
+        # An authoritative run refuses rather than reports.
+        #
+        # A live cognitive loop that cannot be advanced by a count cannot be inside
+        # a paired measurement, and a required phase that raised was not run in
+        # either arm — both leave the numbers below describing a different organism
+        # from the one that lives here. Saying so in the report is not enough: a
+        # reader who takes a scorecard at face value has no reason to look, and an
+        # unauthoritative run is exactly the one somebody quotes.
+        #
+        # `--allow-degraded` exists because a diagnostic run during repair work is
+        # a legitimate thing to want, and it is recorded on the run so a reader can
+        # tell which kind they are holding.
+        blocking = _authority_blockers(
+            runtime, evidence, turns=args.rounds * len(CONDITIONS)
         )
-    )
-    evidence["notes"]["unwritable_domains"] = list(results.unwritable)
-    evidence["notes"]["intervention_seconds"] = round(results.seconds, 1)
-    kept = [(e.source, e.target) for e in edges]
-    graph = analyse_graph(list(DOMAINS), kept)
-    evidence["graph"] = graph.as_dict()
-    _log(f"{len(kept)} edges kept of {len(tested)} tested; components={graph.components}")
-
-    per_condition: dict[str, Any] = {}
-    with_scc = 0
-    for condition in CONDITIONS:
-        local = [
-            (e.source, e.target) for e in edges if condition.name in e.conditions
-        ]
-        report = analyse_graph(list(DOMAINS), local)
-        per_condition[condition.name] = {
-            "edges": len(local),
-            "one_component": report.one_component,
-            "vertex_connectivity": report.connectivity,
-        }
-        with_scc += int(report.one_component)
-    evidence["per_condition"] = {
-        "per_condition": per_condition,
-        "conditions_with_scc": with_scc,
-    }
-
-    _log("perturbational complexity")
-    spreads: dict[str, float] = {}
-    pcis: dict[str, float] = {}
-    null_pcis: dict[str, float] = {}
-    null_spreads: dict[str, float] = {}
-    rows: dict[str, Any] = {}
-    for source in DOMAINS:
-        report = perturbational_complexity(results, source=source)
-        null = perturbational_complexity(results, source=source, arm="floor")
-        spreads[source] = report.spread
-        pcis[source] = report.pci
-        null_pcis[source] = null.pci
-        null_spreads[source] = null.spread
-        rows[source] = report.as_dict()
-    null_values = list(null_pcis.values())
-    null_bar = float(np.quantile(null_values, 0.99)) if null_values else 0.0
-    mean_pci = float(np.mean(list(pcis.values()))) if pcis else 0.0
-    evidence["perturbation"] = {
-        "mean_spread": float(np.mean(list(spreads.values()))) if spreads else 0.0,
-        "mean_pci": mean_pci,
-        "null_q99": round(null_bar, 4),
-        "beats_null": mean_pci > null_bar,
-        "mean_null_spread": float(np.mean(list(null_spreads.values()))) if null_spreads else 0.0,
-        "spread_by_source": {k: round(v, 3) for k, v in spreads.items()},
-        "pci_by_source": {k: round(v, 3) for k, v in pcis.items()},
-        "null_pci_by_source": {k: round(v, 3) for k, v in null_pcis.items()},
-        "matrices": rows,
-        # Whether the response unfolds in time and differs between sources.
-        # See core/subject/pci.py `response_structure`.
-        **response_structure(rows),
-    }
-    evidence["notes"]["intervention_power"] = power_note(results)
-    # Whether the two-turn horizon is binding. An effect that peaks at the last
-    # frame recorded is an effect the horizon cut off, and that is a fact about
-    # the measurement rather than about the organism. The specification asks
-    # for the horizon to be preregistered and for the question to be asked.
-    at_horizon = [row for row in tested if row.get("at_the_horizon")]
-    evidence["notes"]["horizon"] = {
-        "turns_per_arm": args.turns,
-        "pairs_peaking_at_the_last_frame": len(at_horizon),
-        "of_pairs_tested": len(tested),
-        "kept_edges_peaking_there": sum(1 for row in at_horizon if row.get("kept")),
-        "binding": len(at_horizon) > len(tested) // 4 if tested else False,
-    }
-    evidence["notes"]["attenuation"] = results.attenuation()
-    # And the instrument's own noise, broken out every way it can be read. An
-    # effect bar a floor approaches is a bar measuring restoration rather than
-    # coupling, and one pooled number cannot say which domain that happened in.
-    evidence["sham_floor"] = results.floor_report()
-
-    consumers = sorted({t for s, t in kept if s == "G"})
-    returns = [
-        "->".join(cycle) for cycle in graph.cycles if "G" in cycle and len(cycle) >= 3
-    ]
-    evidence["global_access"] = {
-        "consumers": len(consumers),
-        "consumer_list": consumers,
-        "returns": bool(returns),
-        "return_paths": returns[:10],
-    }
-    fast_to_slow = [f"{s}->{t}" for s, t in kept if s in FAST_DOMAINS and t in SLOW_DOMAINS]
-    slow_to_fast = [f"{s}->{t}" for s, t in kept if s in SLOW_DOMAINS and t in FAST_DOMAINS]
-    # And whether a running total could be standing in for the coupling. A
-    # clock moves identically in both arms and cannot carry an effect, but a
-    # counter whose rate the displacement changed can.
-    from core.subject.causal import counter_carried_edges
-
-    monotone = recording.monotone_columns()
-    counters = {
-        (domain, int(index))
-        for domain, where in recording.slices.items()
-        for index in np.flatnonzero(monotone[where])
-    }
-    crossing = [(s, t) for s, t in kept if (s in FAST_DOMAINS) != (t in FAST_DOMAINS)]
-    carried_by_counters = counter_carried_edges(results, crossing, counters)
-    evidence["timescale"] = {
-        "fast_to_slow": bool(fast_to_slow),
-        "fast_to_slow_edges": fast_to_slow,
-        "slow_to_fast": bool(slow_to_fast),
-        "slow_to_fast_edges": slow_to_fast,
-        "counter_carried_edges": carried_by_counters,
-        "fast_to_slow_not_counters": any(e not in carried_by_counters for e in fast_to_slow),
-        "slow_to_fast_not_counters": any(e not in carried_by_counters for e in slow_to_fast),
-    }
-
-    _log("agency and ownership")
-    act_condition = next(c for c in CONDITIONS if c.after == "act")
-    # More than one seed. A divergence that only survives the generator it was
-    # found on is a property of that draw, and the report has to be able to say
-    # which of the two it is.
-    seeds = max(1, int(args.agency_seeds))
-    runs: list[dict[str, Any]] = []
-    for index in range(seeds):
-        if index:
-            runtime.rng.seed(args.seed + 1000 * index)
-        runs.append(
-            (
-                await run_agency(
-                    runtime, act_condition, scale=scale, trials=args.agency_trials
-                )
-            ).as_dict()
+        evidence["campaign"]["authoritative"] = not blocking
+        evidence["campaign"]["authority_blockers"] = blocking
+        if blocking and not args.allow_degraded:
+            for line in blocking:
+                _log(f"  REFUSED: {line}")
+            raise SystemExit(
+                "this run is not authoritative: "
+                + "; ".join(blocking)
+                + " — rerun with --allow-degraded to record it anyway"
+            )
+        if blocking:
+            _log(f"  running degraded on purpose: {'; '.join(blocking)}")
+        _log(f"interventions: {len(DOMAINS)} domains x {len(CONDITIONS)} conditions x {args.trials} trials")
+        results = await run_interventions(
+            runtime,
+            CONDITIONS,
+            scale=scale,
+            trials=args.trials,
+            turns=args.turns,
+            seed=args.seed,
+            on_progress=_log,
         )
+        edges, tested = build_edges(results, seed=args.seed)
+        evidence["edges"] = tested
+        # The arms, not only the conclusion drawn from them. An edge that missed
+        # the bar by one condition and an edge that carried in none read the same
+        # from the summary, and neither can be rechecked from it.
+        save_arms(args.out, results)
+        save_edge_table(args.out, tested)
         _log(
-            f"  seed {index + 1}/{seeds}: ownership {runs[-1]['ownership_divergence']} "
-            f"over floor {runs[-1]['ownership_floor']}, "
-            f"generalises={runs[-1]['ownership_generalises']}"
+            "coupling gain: "
+            + ", ".join(
+                f"{k}:{v['attenuation']}" for k, v in sorted(results.attenuation().items())
+            )
         )
-    runtime.rng.seed(args.seed)
-    evidence["agency"] = _agency_across_seeds(runs)
+        evidence["notes"]["unwritable_domains"] = list(results.unwritable)
+        evidence["notes"]["intervention_seconds"] = round(results.seconds, 1)
+        kept = [(e.source, e.target) for e in edges]
+        graph = analyse_graph(list(DOMAINS), kept)
+        evidence["graph"] = graph.as_dict()
+        _log(f"{len(kept)} edges kept of {len(tested)} tested; components={graph.components}")
 
-    if args.skip_lesion:
-        _log("lesion skipped")
-        evidence["lesion"] = {"deficit": False, "rescued_ok": False, "note": "not measured"}
+        per_condition: dict[str, Any] = {}
+        with_scc = 0
+        for condition in CONDITIONS:
+            local = [
+                (e.source, e.target) for e in edges if condition.name in e.conditions
+            ]
+            report = analyse_graph(list(DOMAINS), local)
+            per_condition[condition.name] = {
+                "edges": len(local),
+                "one_component": report.one_component,
+                "vertex_connectivity": report.connectivity,
+            }
+            with_scc += int(report.one_component)
+        evidence["per_condition"] = {
+            "per_condition": per_condition,
+            "conditions_with_scc": with_scc,
+        }
+        _checkpoint(args, "interventions", evidence)
     else:
-        _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
-        evidence["lesion"] = await _lesion(
-            runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
-            perturbational_complexity, synergy_suite, run_interventions, scale
+        tested = evidence["edges"]
+        kept = [(row["source"], row["target"]) for row in tested if row.get("kept")]
+        graph = analyse_graph(list(DOMAINS), kept)
+        results = load_arms(args.out, scale=scale) if "pci" not in done else None
+        _log(
+            f"recalled {len(kept)} kept edges of {len(tested)} tested; "
+            f"components={graph.components}"
         )
+
+    if "pci" not in done:
+        _log("perturbational complexity")
+        spreads: dict[str, float] = {}
+        pcis: dict[str, float] = {}
+        null_pcis: dict[str, float] = {}
+        null_spreads: dict[str, float] = {}
+        rows: dict[str, Any] = {}
+        for source in DOMAINS:
+            report = perturbational_complexity(results, source=source)
+            null = perturbational_complexity(results, source=source, arm="floor")
+            spreads[source] = report.spread
+            pcis[source] = report.pci
+            null_pcis[source] = null.pci
+            null_spreads[source] = null.spread
+            rows[source] = report.as_dict()
+        null_values = list(null_pcis.values())
+        null_bar = float(np.quantile(null_values, 0.99)) if null_values else 0.0
+        mean_pci = float(np.mean(list(pcis.values()))) if pcis else 0.0
+        evidence["perturbation"] = {
+            "mean_spread": float(np.mean(list(spreads.values()))) if spreads else 0.0,
+            "mean_pci": mean_pci,
+            "null_q99": round(null_bar, 4),
+            "beats_null": mean_pci > null_bar,
+            "mean_null_spread": float(np.mean(list(null_spreads.values()))) if null_spreads else 0.0,
+            "spread_by_source": {k: round(v, 3) for k, v in spreads.items()},
+            "pci_by_source": {k: round(v, 3) for k, v in pcis.items()},
+            "null_pci_by_source": {k: round(v, 3) for k, v in null_pcis.items()},
+            "matrices": rows,
+            # Whether the response unfolds in time and differs between sources.
+            # See core/subject/pci.py `response_structure`.
+            **response_structure(rows),
+        }
+        evidence["notes"]["intervention_power"] = power_note(results)
+        # Whether the two-turn horizon is binding. An effect that peaks at the last
+        # frame recorded is an effect the horizon cut off, and that is a fact about
+        # the measurement rather than about the organism. The specification asks
+        # for the horizon to be preregistered and for the question to be asked.
+        at_horizon = [row for row in tested if row.get("at_the_horizon")]
+        evidence["notes"]["horizon"] = {
+            "turns_per_arm": args.turns,
+            "pairs_peaking_at_the_last_frame": len(at_horizon),
+            "of_pairs_tested": len(tested),
+            "kept_edges_peaking_there": sum(1 for row in at_horizon if row.get("kept")),
+            "binding": len(at_horizon) > len(tested) // 4 if tested else False,
+        }
+        evidence["notes"]["attenuation"] = results.attenuation()
+        # And the instrument's own noise, broken out every way it can be read. An
+        # effect bar a floor approaches is a bar measuring restoration rather than
+        # coupling, and one pooled number cannot say which domain that happened in.
+        evidence["sham_floor"] = results.floor_report()
+
+        consumers = sorted({t for s, t in kept if s == "G"})
+        returns = [
+            "->".join(cycle) for cycle in graph.cycles if "G" in cycle and len(cycle) >= 3
+        ]
+        evidence["global_access"] = {
+            "consumers": len(consumers),
+            "consumer_list": consumers,
+            "returns": bool(returns),
+            "return_paths": returns[:10],
+        }
+        fast_to_slow = [f"{s}->{t}" for s, t in kept if s in FAST_DOMAINS and t in SLOW_DOMAINS]
+        slow_to_fast = [f"{s}->{t}" for s, t in kept if s in SLOW_DOMAINS and t in FAST_DOMAINS]
+        # And whether a running total could be standing in for the coupling. A
+        # clock moves identically in both arms and cannot carry an effect, but a
+        # counter whose rate the displacement changed can.
+        from core.subject.causal import counter_carried_edges
+
+        monotone = recording.monotone_columns()
+        counters = {
+            (domain, int(index))
+            for domain, where in recording.slices.items()
+            for index in np.flatnonzero(monotone[where])
+        }
+        crossing = [(s, t) for s, t in kept if (s in FAST_DOMAINS) != (t in FAST_DOMAINS)]
+        carried_by_counters = counter_carried_edges(results, crossing, counters)
+        evidence["timescale"] = {
+            "fast_to_slow": bool(fast_to_slow),
+            "fast_to_slow_edges": fast_to_slow,
+            "slow_to_fast": bool(slow_to_fast),
+            "slow_to_fast_edges": slow_to_fast,
+            "counter_carried_edges": carried_by_counters,
+            "fast_to_slow_not_counters": any(e not in carried_by_counters for e in fast_to_slow),
+            "slow_to_fast_not_counters": any(e not in carried_by_counters for e in slow_to_fast),
+        }
+        _checkpoint(args, "pci", evidence)
+
+    if "agency" not in done:
+        _log("agency and ownership")
+        act_condition = next(c for c in CONDITIONS if c.after == "act")
+        # More than one seed. A divergence that only survives the generator it was
+        # found on is a property of that draw, and the report has to be able to say
+        # which of the two it is.
+        seeds = max(1, int(args.agency_seeds))
+        runs: list[dict[str, Any]] = []
+        for index in range(seeds):
+            if index:
+                runtime.rng.seed(args.seed + 1000 * index)
+            runs.append(
+                (
+                    await run_agency(
+                        runtime, act_condition, scale=scale, trials=args.agency_trials
+                    )
+                ).as_dict()
+            )
+            _log(
+                f"  seed {index + 1}/{seeds}: ownership {runs[-1]['ownership_divergence']} "
+                f"over floor {runs[-1]['ownership_floor']}, "
+                f"generalises={runs[-1]['ownership_generalises']}"
+            )
+        runtime.rng.seed(args.seed)
+        evidence["agency"] = _agency_across_seeds(runs)
+        _checkpoint(args, "agency", evidence)
+
+    if "lesion" not in done:
+        if args.skip_lesion:
+            _log("lesion skipped")
+            evidence["lesion"] = {"deficit": False, "rescued_ok": False, "note": "not measured"}
+        else:
+            _log(f"lesion of the cheapest cut {phi.best_cut} and rescue")
+            evidence["lesion"] = await _lesion(
+                runtime, CONDITIONS, phi, args, build_recording, clamped, phi_do,
+                perturbational_complexity, synergy_suite, run_interventions, scale
+            )
+        _checkpoint(args, "lesion", evidence)
 
     if not args.skip_nulls:
         _log("nulls")
@@ -614,6 +795,26 @@ async def main() -> int:
         write_json(args.out, "nulls.json", evidence["nulls"])
     write_json(args.out, "lesion.json", evidence["lesion"])
     write_json(args.out, "campaign.json", evidence["campaign"])
+
+    # And what is serving now the arms are done. A pointer that moved, a
+    # template that was edited, a module that came from somewhere else: each
+    # makes the arms two systems, and the run says so rather than reporting a
+    # number taken across both.
+    closing_identity = pin_arm_identity()
+    drift = differences(opening_identity, closing_identity)
+    evidence["campaign"]["arm_identity_at_close"] = closing_identity.as_dict()
+    evidence["campaign"]["arm_identity_drift"] = drift
+    if drift:
+        blockers = list(evidence["campaign"].get("authority_blockers", []))
+        blockers.append(f"the arms did not run on one system: {drift}")
+        evidence["campaign"]["authority_blockers"] = blockers
+        evidence["campaign"]["authoritative"] = False
+        for line in drift:
+            _log(f"  REFUSED: {line}")
+        if not args.allow_degraded:
+            raise SystemExit(
+                "this run is not authoritative: " + "; ".join(drift)
+            )
 
     verdict = assemble(evidence)
     evidence["verdict"] = verdict.as_dict()
