@@ -232,8 +232,10 @@ class TestInitiativeRouting(unittest.TestCase):
 
     def test_email_routes_through_capability_engine(self):
         """Email check routes through CapabilityEngine, not direct instantiation."""
-        from core.autonomy import autonomous_initiative_loop
-        source = Path(autonomous_initiative_loop.__file__).read_text()
+        # The social checks moved out of the loop module into
+        # core/autonomy/social_initiative.py; read the module the method is in.
+        from core.autonomy import social_initiative
+        source = Path(social_initiative.__file__).read_text()
 
         self.assertIn("capability_engine", source)
         # Find the email method body
@@ -244,10 +246,10 @@ class TestInitiativeRouting(unittest.TestCase):
 
     def test_reddit_routes_through_capability_engine(self):
         """Reddit check routes through CapabilityEngine."""
-        from core.autonomy import autonomous_initiative_loop
-        source = Path(autonomous_initiative_loop.__file__).read_text()
+        from core.autonomy import social_initiative
+        source = Path(social_initiative.__file__).read_text()
 
-        reddit_section = source[source.index("_check_reddit_initiative"):]
+        reddit_section = source[source.index("def _check_reddit_initiative"):]
         self.assertIn("cap_engine", reddit_section)
 
 
