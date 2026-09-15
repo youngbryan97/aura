@@ -1,0 +1,934 @@
+{
+  "example_ids_sha256": "572c1499d787af57b580b8d33aa8dad8167154b47dd283f194006afdf81c3445",
+  "generation": {
+    "forbidden_constructions": [],
+    "generated_examples": 36,
+    "ignored_nontraining_examples": 12,
+    "receipt_sha256": "35b3f16b7c901ec8b1c7fd01339057192a2c588f57fd1c84ea59fe72dd468b7a",
+    "records": [
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "3a30b8c19fa424557c73467553989dd5afdd5a9c3e62391877dc1ac62a6fa15e",
+        "source": "390d4458b426751bba37f3a2",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "07b04c19bc07760452093c7b926f0eba807569d604f152831b00d4e719cb583c",
+        "source": "390d4458b426751bba37f3a2",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "8e163f84f5e098e8e3aa0ad39dc8b30e69f723ed85ad4b63405a7ba0b52102a8",
+                "receipt_sha256": "ed6f8d9b5ccd3608cbaac870f44818a299218daf7541e0049aa39ed5414e808c",
+                "result_sha256": "7a9b1b9dd2e433fc1fc962c38ad571bf1ebb49cb365bfdfb2c36d3f059d6fdd5",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "9c67c54a017420ca838caa5806c6a7c5cd3b15ac0daca76045d6242249d9b0da",
+                "receipt_sha256": "e8773300247d6f6d54832505dd2a0433f285c9fb119c8aaa1b7ddfc92d2b5b84",
+                "result_sha256": "86d6dd9b28aa400b8e74c8a3560f372a5894d523a8be523dc99de76a1a6b2756",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              159,
+              47,
+              4
+            ],
+            "outputs": [
+              824,
+              29892
+            ]
+          },
+          "witness_sha256": "8bbe5cd0c7ffeb74542fc0cd9335a30968b44241b54f4304510e35c2b2c48040"
+        },
+        "example": "1ca73ec3066a4d11a1c677575291e071a52371835af08ef1d3ea2900304aed8d",
+        "source": "390d4458b426751bba37f3a2",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "2aef3a0723500cef088c16d1a1e24d4c06475852f89fee2618bb05e77b6d7a8a",
+        "source": "64e06030d61118649d25f634",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "b38aa8bdcbb617d37bf372d64405afb1a7dd7f92a90c314e9e5ba15dcd3a2b7e",
+        "source": "64e06030d61118649d25f634",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "163442482be035a688a53f388bfc4c7e65d855fdd4a2d99544ac0ef9ca26115c",
+                "receipt_sha256": "237564a7575370154f9fa2bf6bc7e8fb8e6942742e248cfa8873fc85a18f084e",
+                "result_sha256": "8def3488486c17dfbc2861301b63237c3c3a05b4c23afed03d59829fba57e10c",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "6fbe83838434c2ea6f120ae8bdc4ae3d4e98ce77da6c1265c4dfe0e489280c32",
+                "receipt_sha256": "b0a5ce1a906ab2d04a36c866220dd47b59db4e1d55e6f93855e2eafb5f9666e5",
+                "result_sha256": "c1ee18ea153479d5dbc33c68dc2f4538bd2be44f49304881d409e59f9c37048e",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              593,
+              58,
+              3
+            ],
+            "outputs": [
+              538,
+              34397
+            ]
+          },
+          "witness_sha256": "2ca7988d19a25f9a9e7e5d0926a0686ee9d7d0d87fedfbef54596ee6d3faf592"
+        },
+        "example": "b50c89cdb71fe9a2272b8ef6a827e97adb8790d14e86552754d5f66fae33e882",
+        "source": "64e06030d61118649d25f634",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "c1ec64104081d7f22890eca4930a317d90eeb349b4db13cb1adc2525a507fabd",
+        "source": "a85e241db824472a59edca48",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "4817008a9d085f3cb6c77d944ea0190fffaf4a55d46d2e801be4a7a7a16405a7",
+        "source": "a85e241db824472a59edca48",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "577b1d99483dba999a560c3dd309608d04ed4596bab8d9cec06bf2349ba1bab8",
+                "receipt_sha256": "32be76e76e2922c98a99e487e432ed8a6eb0a20d160a8455e656b2e31dba7469",
+                "result_sha256": "dae469cdd7440d3ace7b3b51cb955c0642fe38ab1cd74d86573caf9e61409e6a",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "fd99a68beb0aa5be10a050409e0c39cc5115f33822fb163de15bc8e410083fb8",
+                "receipt_sha256": "58b3d6b369e1abaada70a5640fb62bf2d19c924d0cf40ea8a27e2f68f476a942",
+                "result_sha256": "02d20bbd7e394ad5999a4cebabac9619732c343a4cac99470c03e23ba2bdc2bc",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              584,
+              87,
+              9
+            ],
+            "outputs": [
+              5645,
+              55
+            ]
+          },
+          "witness_sha256": "486e6761ad0ce6661ea14ff2f5c3ad21e563eec316268761c42d1729dc158d55"
+        },
+        "example": "c0b4386e68a73f682253aa07f97d1fcbb3f8ab30220fb180fce016e1a91712b0",
+        "source": "a85e241db824472a59edca48",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "fcf778df7f5ac8f64e297bc8039a1aa19c54755ea8a9b9609ff81574e5e6e26d",
+        "source": "6966e4338fcf9ca24cebfd47",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "4f34cb6f60bce655cc8fe38003d5e39eaaba892895000f70d3e47c342fd18f8c",
+        "source": "6966e4338fcf9ca24cebfd47",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "5303188b09ade9652741d487c81a7ef8c6f9dc56e578040ea54dda0141a0343d",
+                "receipt_sha256": "fb36bf48a8059ce763d41be87a754280b6c3f36b7a2831a8c150a562a98300ad",
+                "result_sha256": "0c658eb5d61e88c86f37613342bbce6cbf278a9a86ba6514dc7e5c205f76c99f",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "85205c69da2b0d5c91d43b6549b207c0b391f38e06e00649208947da14d3cc73",
+                "receipt_sha256": "fe0f70a491bd7cc027ce437fef34aef95274067b1e33c755983fea364f4d0235",
+                "result_sha256": "27f6adf35e41ba252d5c5f20e66bb82a6ba472ce0c4a9d6570f7972c178f7fd2",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              743,
+              13,
+              8
+            ],
+            "outputs": [
+              748,
+              9651
+            ]
+          },
+          "witness_sha256": "89af780f3ca6d0fa8d272d8dfd4909b844583676efd4c081e3c1b31e23f34d69"
+        },
+        "example": "88766d554318a03657d44c1f6f1b2ad7ff6578bf4040a0c8cb8235dd3e24956b",
+        "source": "6966e4338fcf9ca24cebfd47",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "ee8899e839d5d56d127dfb2c30f6afdd33910fee3a72ce594cccb9339f920f5f",
+        "source": "3a3d4d53ab18e4d1bf235306",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "81686cc875a17557de9db762ef14d350e2f3aaa50741f79420aeb1dd90bf6759",
+        "source": "3a3d4d53ab18e4d1bf235306",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "d32e92a75ae9f6a17f2efabfb80325fa8c46720567e4c651ed33ee3b633ed708",
+                "receipt_sha256": "c633e0089ce03aa0452abe607304d9ee09178dc5ae2b41cb67b968b6859827e3",
+                "result_sha256": "624b60c58c9d8bfb6ff1886c2fd605d2adeb6ea4da576068201b6c6958ce93f4",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "747dd13cbc7845d84b7ad8e0b7e9d34f6008626638c549fea7c47fdce142bbd1",
+                "receipt_sha256": "159ed842bcff0ce2bc0581989d7e0bb65e4c6134ffce84ff1b950c1b68878e62",
+                "result_sha256": "615bdd17c2556f82f384392ea8557f8cc88b03501c759e23093ab0b2a9b5cd48",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                73,
+                26,
+                59,
+                74,
+                44,
+                33,
+                58
+              ],
+              5,
+              3
+            ],
+            "outputs": [
+              30,
+              -3
+            ]
+          },
+          "witness_sha256": "939cbff9682fb3a19754316cb778c5e41de9125cb95124e36d38088936e14250"
+        },
+        "example": "67f23a2bace922189d76841c94806c1958e6e8e6ba954c5d3ea11a35c1870b3a",
+        "source": "3a3d4d53ab18e4d1bf235306",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "c64039bced166ae3b4fe71ac06211ef9312d088b0458d54bb55ab740a7d615e2",
+        "source": "d8716db19b541a8828c635dd",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "b115ecf0859a54710903208c3d99f3e5cbff5a9e67cbcd05dc343ddb3bce6b8c",
+        "source": "d8716db19b541a8828c635dd",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "e24af9007fb0554735dab4b4517c29d1439d19d0e0cc34d88a25521e343c23cd",
+                "receipt_sha256": "8bea289beb8dc1e81e0c9d5b005dd3b1bb42f6b01d3d678d578c7177dc98a88e",
+                "result_sha256": "8c1f1046219ddd216a023f792356ddf127fce372a72ec9b4cdac989ee5b0b455",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "a23d30abfdc16b73aa79857413f94f681558f9c3c88b4dfec02007c405eb4bf7",
+                "receipt_sha256": "e932e8ef512224f7ccedf8d75ff64066a0b24401deccb717ae74f99ec50a1b00",
+                "result_sha256": "624b60c58c9d8bfb6ff1886c2fd605d2adeb6ea4da576068201b6c6958ce93f4",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                17,
+                33,
+                17,
+                31,
+                47,
+                45,
+                19
+              ],
+              1,
+              3
+            ],
+            "outputs": [
+              99,
+              30
+            ]
+          },
+          "witness_sha256": "a5de17a664b0efd5821c649a820bb691a0335b8869e6e27674c523ed7a6bf0e8"
+        },
+        "example": "606fab655287923df768e2615d5a8c387f2d0408efb8fe0b028cd194487e4a7b",
+        "source": "d8716db19b541a8828c635dd",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "30ca3bb2a8f081644c73e462c75af712b1b6d863bed01c0ca5c0a798d5fb1484",
+        "source": "b255e56d39ab87e1fbf91abc",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "03ca315740d855037ad672a1c0080fb5abe8170ea0744ab2853c656c2afab606",
+        "source": "b255e56d39ab87e1fbf91abc",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "7fb499fedc96e954f2d3c8ef8f0914316338eeb90816a58b305f89be2c7f21df",
+                "receipt_sha256": "b257c12d398cfb4d491c6ee1d31a4ee2c0d2059409279fa2b72b67f43d82fd62",
+                "result_sha256": "5316ca1c5ddca8e6ceccfce58f3b8540e540ee22f6180fb89492904051b3d531",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "4fd9b9c8afad90b04541c4d37f7ffdd5fe0913a824e2f49f9ccc2a6b9e5ec2a3",
+                "receipt_sha256": "9838b506328cd8d715974f14ee94f1c1fcbea3b0877d2f00fa615228c90c3ebe",
+                "result_sha256": "96061e92f58e4bdcdee73df36183fe3ac64747c81c26f6c83aada8d2aabb1864",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                17,
+                22,
+                68,
+                52,
+                52,
+                77,
+                66
+              ],
+              5,
+              4
+            ],
+            "outputs": [
+              81,
+              73
+            ]
+          },
+          "witness_sha256": "bfc38118a7f1f6d5eb425dbbde315ef6b0d6c89b8ea1f19d068d0acf184a8fee"
+        },
+        "example": "e63f256af0521a0a71a167bf20f7819e75f94e5c04bdcf17f5728e73b5961bf7",
+        "source": "b255e56d39ab87e1fbf91abc",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "ccb491d3e7a5100079d881b8f95488307aef2b1a7872bb4222d68a75675636cc",
+        "source": "3823ab6aaaa1339015ff754f",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "523f4055c3ff986091cffa3f4f5d3407e9faff63395a3bdaa0d01fc1fc0e6704",
+        "source": "3823ab6aaaa1339015ff754f",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "fad701b7483f4e1f3e82c00088e46860113bf5e56412bbdf9d621e5eac1116e6",
+                "receipt_sha256": "bc64c73659653a1343dc1a76d11a7ed422ed0d9a6132e7fe88dbfe5e268ccc00",
+                "result_sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "55aaf1d68e8f95a31563c09eb841911cbed4ee7474a4257fb7a69716bd71a88e",
+                "receipt_sha256": "2e4ad7f0991affcff18bbc966fbb70c2b6426636fa9bba500ad9b3fae549f23d",
+                "result_sha256": "98010bd9270f9b100b6214a21754fd33bdc8d41b2bc9f9dd16ff54d3c34ffd71",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                20,
+                50,
+                16,
+                44,
+                57,
+                33,
+                19
+              ],
+              2,
+              3
+            ],
+            "outputs": [
+              5,
+              48
+            ]
+          },
+          "witness_sha256": "a2b4efdb6ebbfeecc93539806c0f996ae092b70273fe050e00adf2259feb8e26"
+        },
+        "example": "b552e1b4f49f0501486b4a86846eacabf4ef6971d2eda7dfe5611fb88834cd20",
+        "source": "3823ab6aaaa1339015ff754f",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "0a8edb310055ebb2dd4ee5cdf54e71e0d6b863d069ea4a323efe28b462b1fa18",
+        "source": "6f3a70f8d98152d99eef0a14",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "1ab1625c2f879b41999428fd57f04ed3b60bf74bf6402c76839703234c9e72d7",
+        "source": "6f3a70f8d98152d99eef0a14",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "5beeb154a46f113734cc43cdeef5747e6ef25a1d240429fb02d7de5084cb0059",
+                "receipt_sha256": "85a46f4b3a138b7ea994b8db5e579e70e799852e18b694b6cf8bce25edaee1ad",
+                "result_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "19bf667e2fc6f2ac95f500c1b35f3a03cde214ad6bfbb3d4b7411e1599c856a0",
+                "receipt_sha256": "a0fc2d218ce870bc5af9fb16131ac17d93762722f2dcf65f027ab4eea064c70d",
+                "result_sha256": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                61,
+                4,
+                62,
+                51,
+                4,
+                54,
+                16
+              ],
+              4,
+              4
+            ],
+            "outputs": [
+              0,
+              6
+            ]
+          },
+          "witness_sha256": "1023ad6e80710494c21d9ceb2ba851ec498a5210b37be929065277309450e118"
+        },
+        "example": "b98c483b6f42a5f4b4cfecb5d65849c3ea3a76f57a1329f99d94fa92a179a6e4",
+        "source": "6f3a70f8d98152d99eef0a14",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "6a7809964de2d52ab7697570f6f0466d5b7f399a0cb10f89256dab51da02c60d",
+        "source": "da083682bc12beb5a6b5bb9b",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "54d0811273ea3047f92dbbd3c58dac7721920968a4fb2f1e352d0555452d08c5",
+        "source": "da083682bc12beb5a6b5bb9b",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "b72912f4b42bea34149ac3da2bd4e0c3c229675f94d3d07ea20a93356afd6ed1",
+                "receipt_sha256": "ac2bcc7350227d5c3e23209421a05e41febb8ea86a0955419a8b67190374d400",
+                "result_sha256": "03b26944890929ff751653acb2f2af795cee38f937f379f52ed654a68ce91216",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "fa53c15e887cfa8ea19388a052d5fc32a6768729cc3f4750cc7ebdfad74e1d78",
+                "receipt_sha256": "34894b03f70b0599257fce67dc7f8d23d9bba8658ced00da94629acf0744c98b",
+                "result_sha256": "4a44dc15364204a80fe80e9039455cc1608281820fe2b24f1e5233ade6af1dd5",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                16,
+                6,
+                48,
+                38,
+                6,
+                34,
+                37
+              ],
+              6,
+              8
+            ],
+            "outputs": [
+              -6,
+              10
+            ]
+          },
+          "witness_sha256": "7fb00ba0854f2423538478d01c9e7c044f3e2ae9258e2623286663fc2ffb7b7c"
+        },
+        "example": "d6bf39cdf1869c98098490b0d3d351fa9839dae4d1cb31df7b020f7a5a92ddeb",
+        "source": "da083682bc12beb5a6b5bb9b",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "33526b5f4965acbe77fa21ccefbac0033c44c25e48278d013aa980c9fcc7f7a4",
+        "source": "4ce4869726e27e8491b3a618",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "067b4765e2020ee4ddfc3317a24958e9c1f4b99ae6bcfe29b1b9e79a8e6a7140",
+        "source": "4ce4869726e27e8491b3a618",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "bcd403e3fe16d30b429516a8d1763ec073ef1dd68ef7107496633fca82df61ae",
+                "receipt_sha256": "43ae67f6361c44309e1621afabd6980b241e1bd0c03f4d8ab0d3092c2230d129",
+                "result_sha256": "e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "bb34290beabe167b8668ed2ca34af109637aa9407ae80b8db68d2a7ea86f501f",
+                "receipt_sha256": "88a25052cf237281367f7b13073346886da92b8f8dcb6156bd3c81f34c728893",
+                "result_sha256": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                17,
+                7,
+                74,
+                17,
+                7,
+                13,
+                13
+              ],
+              7,
+              3
+            ],
+            "outputs": [
+              6,
+              5
+            ]
+          },
+          "witness_sha256": "321fd6d06f923bf39cf9d0319e0bcdda42ccf04c15e7dbd40bfd92e5f838db60"
+        },
+        "example": "7fa509f5acbcf1623c4660aa3cb94f0f24c742c9d3b07894fdee024a13d63e96",
+        "source": "4ce4869726e27e8491b3a618",
+        "status": "different"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "1126e2fa3588dc64dd96cf37f3fdd7bb176db58ba36dee527e4ec34fc8ff9d56",
+        "source": "9e229c0b879bf4bfea328af6",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "floor_structural_symmetry_v1",
+          "status": "equivalent"
+        },
+        "example": "1dbfde7efe52dee3f5af0c71da466aecb0e34152a971b87aa39ad008b2a52a13",
+        "source": "9e229c0b879bf4bfea328af6",
+        "status": "equivalent"
+      },
+      {
+        "comparison": {
+          "method": "universal_floor_counterexample_v1",
+          "status": "different",
+          "witness": {
+            "execution_receipts": [
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "4731798c78cb1e4ee1681ad1213984b0ead81a83b8b7894f747b6d0e15080231",
+                "receipt_sha256": "2895cce5a246c58ecbdbb6b834d70bcb680ea771edb1525a41fb7916183257c7",
+                "result_sha256": "4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              },
+              {
+                "correctness_authority": false,
+                "execution_engine": "universal_metered_floor",
+                "expected_answer_available": false,
+                "fuel_limit": 100000,
+                "generated_code_available": false,
+                "program_receipt_sha256": "d2a460624afc345943c30a1c33ac4ec46a809b0196501512a0d38257318884cc",
+                "receipt_sha256": "6561170c209ab982187a6d1e21e4670176871e850e24f53a2ebc2939304ec0ee",
+                "result_sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9",
+                "schema": "aura.semantic_floor_execution.v1",
+                "verifier_trace_available": false
+              }
+            ],
+            "failures": [
+              null,
+              null
+            ],
+            "inputs": [
+              [
+                54,
+                4,
+                38,
+                26,
+                4,
+                60,
+                29
+              ],
+              4,
+              2
+            ],
+            "outputs": [
+              4,
+              0
+            ]
+          },
+          "witness_sha256": "461f241cbdd9b59ef3f4901c2dc9a993e40963e623e83451a46a307c8f092550"
+        },
+        "example": "1d296ad2194bad6c172a500af037be6e9b93d5a0d5e751ee6ca2d4065e427c93",
+        "source": "9e229c0b879bf4bfea328af6",
+        "status": "different"
+      }
+    ],
+    "schema": "aura.semantic_counterfactual_corpus.v1",
+    "seed": 43,
+    "serving_authority": false,
+    "source_training_ids": [
+      "3823ab6aaaa1339015ff754f",
+      "390d4458b426751bba37f3a2",
+      "3a3d4d53ab18e4d1bf235306",
+      "4ce4869726e27e8491b3a618",
+      "64e06030d61118649d25f634",
+      "6966e4338fcf9ca24cebfd47",
+      "6f3a70f8d98152d99eef0a14",
+      "9e229c0b879bf4bfea328af6",
+      "a85e241db824472a59edca48",
+      "b255e56d39ab87e1fbf91abc",
+      "d8716db19b541a8828c635dd",
+      "da083682bc12beb5a6b5bb9b"
+    ],
+    "test_examples_used": 0,
+    "variations": 2
+  },
+  "independent_execution_agreement": true,
+  "independent_execution_count": 36,
+  "model_features_acquired": false,
+  "receipt_sha256": "87fe20b2165a20ef888426a497893962722745eee7c87f13996b45d6d80c90ea",
+  "recompositions": 0,
+  "schema": "aura.semantic_counterfactual_corpus_audit.v1",
+  "serving_authority": false,
+  "status_counts": {
+    "different": 12,
+    "equivalent": 24
+  },
+  "trained": false
+}

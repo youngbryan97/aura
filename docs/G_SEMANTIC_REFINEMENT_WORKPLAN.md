@@ -42,6 +42,9 @@ It does not replace or close the master G03-G12 obligations.
   reorderings and recompositions plus minimal meaning-changing contrasts.
   Validate their IR independently. Freeze fresh evaluation families outside
   the generation/training inventory.
+  [Counterfactual corpus implementation](evidence/G03_COUNTERFACTUAL_CORPUS_2026-09-15.md)
+  passes independent execution and the existing feature-bundle round trip.
+  Model feature acquisition, training and fresh transfer remain unmeasured.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.
