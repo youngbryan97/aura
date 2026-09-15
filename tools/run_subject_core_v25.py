@@ -578,7 +578,7 @@ async def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
-    from core.subject.closure import closure_gain, periphery_matrix, read_periphery
+    from core.subject.closure import PeripheryAccumulator, closure_gain, read_periphery
     from core.subject.closure import coverage as periphery_coverage
     from core.subject.driver import (
         CONDITIONS,
@@ -646,7 +646,9 @@ async def main() -> int:
         # ── the baseline, which every scale is read against ────────────
         _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
         frames = []
-        periphery_rows: list[dict[str, float]] = []
+        # Straight into an array: a list of the dicts `read_periphery` returns
+        # costs 284 KB a frame, which is 21.5 GB at three hundred rounds.
+        periphery = PeripheryAccumulator()
         for _ in range(args.rounds):
             for condition in conditions:
                 for reading in await runtime.turn_once(condition):
@@ -655,7 +657,7 @@ async def main() -> int:
                     # what the machine was carrying against what K did next, so
                     # a single reading taken at the end would be one row against
                     # a whole recording.
-                    periphery_rows.append(read_periphery(runtime.kernel))
+                    periphery.note(read_periphery(runtime.kernel))
         recording = build_recording(frames)
         recording.save(run_dir)
         scale = _pooled_scale(recording)
@@ -837,10 +839,10 @@ async def main() -> int:
 
         # ── closure, which is a gate ───────────────────────────────────
         _log("closure against the measured periphery")
-        periphery, names = periphery_matrix(periphery_rows)
+        periphery_read, names = periphery.matrix()
         closed, leak = False, float("nan")
-        if periphery.size:
-            report = closure_gain(recording, periphery, names, seed=args.seed)
+        if periphery_read.size:
+            report = closure_gain(recording, periphery_read, names, seed=args.seed)
             closed, leak = bool(report.closed), float(report.leak)
             evidence["closure"] = report.as_dict()
         else:

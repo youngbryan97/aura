@@ -43,6 +43,7 @@ from core.subject.estimate import fit_predict, split_rows
 from core.subject.recording import Recording
 
 __all__ = [
+    "PeripheryAccumulator",
     "periphery_matrix","ClosureReport", "closure_gain", "coverage", "read_periphery"]
 
 #: What the last periphery walk saw, and what it could not reach. Read through
@@ -442,6 +443,73 @@ class ClosureReport:
                 {"variable": name, "gain": round(value, 5)} for name, value in self.top_leaks
             ],
         }
+
+
+class PeripheryAccumulator:
+    """Every frame's periphery reading, in one array rather than one dict each.
+
+    `read_periphery` returns a fresh dict of up to four hundred entries whose
+    keys it formats fresh every call, so keeping one per frame keeps four
+    hundred new strings per frame as well. Measured on the offline organism it
+    costs 284 KB a frame against 2.5 KB for everything else the recording
+    holds: at sixty rounds that is 4.3 GB and at three hundred it is 21.5 GB,
+    which is what took a campaign to thirty-five gigabytes resident and put the
+    machine into swap at about three hundred seconds a turn.
+
+    The readings are numbers in a fixed set of slots, so they belong in an
+    array. A key that first appears part way through widens the matrix and its
+    earlier rows read zero, which is what `periphery_matrix` gives them too.
+
+    Columns come out sorted by name, so the array is the one
+    `periphery_matrix` would have built from the same dicts.
+    """
+
+    def __init__(self, *, chunk: int = 4096) -> None:
+        self._chunk = max(64, int(chunk))
+        self._index: dict[str, int] = {}
+        self._data: np.ndarray = np.zeros((self._chunk, 0), dtype=np.float64)
+        self._rows = 0
+
+    def note(self, reading: Mapping[str, float]) -> None:
+        """Take one frame's reading.
+
+        New columns are added in one step. Widening once per key copied the
+        whole buffer once per key, and the first frame brings four hundred of
+        them at once — which allocated 5.6 GB of transient copies before a
+        single row had been written.
+        """
+        fresh = [name for name in reading if name not in self._index]
+        if fresh:
+            width = self._data.shape[1]
+            for offset, name in enumerate(fresh):
+                self._index[name] = width + offset
+            self._data = np.hstack(
+                [self._data, np.zeros((self._data.shape[0], len(fresh)), dtype=np.float64)]
+            )
+        if self._rows >= self._data.shape[0]:
+            self._data = np.vstack(
+                [self._data, np.zeros_like(self._data)] if self._data.shape[0]
+                else [np.zeros((self._chunk, self._data.shape[1]), dtype=np.float64)]
+            )
+        row = self._data[self._rows]
+        row[:] = 0.0
+        for name, value in reading.items():
+            try:
+                row[self._index[name]] = float(value)
+            except (TypeError, ValueError):
+                continue
+        self._rows += 1
+
+    def rows(self) -> int:
+        return self._rows
+
+    def matrix(self) -> tuple[np.ndarray, tuple[str, ...]]:
+        """The readings so far, columns sorted by name."""
+        if not self._index:
+            return np.zeros((self._rows, 0)), ()
+        names = tuple(sorted(self._index))
+        order = [self._index[name] for name in names]
+        return np.array(self._data[: self._rows][:, order], copy=True), names
 
 
 def periphery_matrix(rows: Sequence[Mapping[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:

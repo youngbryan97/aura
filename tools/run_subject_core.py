@@ -38,24 +38,28 @@ def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
-async def _record(runtime: Any, conditions: Any, rounds: int) -> tuple[list[Any], list[dict[str, float]]]:
-    from core.subject.closure import read_periphery
+async def _record(
+    runtime: Any, conditions: Any, rounds: int
+) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
+    """Live the rounds, keeping each frame's core state and periphery reading.
+
+    The periphery goes straight into an array. `read_periphery` returns a dict
+    of up to four hundred entries whose keys it formats fresh every call, so a
+    list of them costs 284 KB a frame against 2.5 KB for everything else here.
+    At three hundred rounds that was 21.5 GB, which took the campaign to
+    thirty-five gigabytes resident and the machine into swap at three hundred
+    seconds a turn. The array is the same numbers in 0.25 GB.
+    """
+    from core.subject.closure import PeripheryAccumulator, read_periphery
 
     frames: list[Any] = []
-    periphery: list[dict[str, float]] = []
+    periphery = PeripheryAccumulator()
     for _ in range(rounds):
         for condition in conditions:
             for reading in await runtime.turn_once(condition):
                 frames.append(reading)
-                periphery.append(read_periphery(runtime.kernel))
-    return frames, periphery
-
-
-def _periphery_matrix(rows: list[dict[str, float]]) -> tuple[np.ndarray, tuple[str, ...]]:
-    """One implementation, beside what consumes it. See `closure.periphery_matrix`."""
-    from core.subject.closure import periphery_matrix
-
-    return periphery_matrix(rows)
+                periphery.note(read_periphery(runtime.kernel))
+    return frames, periphery.matrix()
 
 
 def _scales(recording: Any) -> dict[str, np.ndarray]:
@@ -292,7 +296,7 @@ async def main() -> int:
     )
 
     _log(f"recording {args.rounds} rounds over {len(CONDITIONS)} conditions")
-    frames, periphery_rows = await _record(runtime, CONDITIONS, args.rounds)
+    frames, periphery_read = await _record(runtime, CONDITIONS, args.rounds)
     recording = build_recording(
         frames,
         notes={
@@ -330,7 +334,7 @@ async def main() -> int:
     evidence["synergy_v2"] = [
         item.as_dict() for item in synergy_suite(turns, seed=args.seed, of="change")
     ]
-    matrix, names = _periphery_matrix(periphery_rows)
+    matrix, names = periphery_read
     turn_rows = recording.turn_rows()
     from core.subject.closure import coverage as periphery_coverage
 
