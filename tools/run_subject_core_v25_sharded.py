@@ -37,6 +37,27 @@ REPO = Path(__file__).resolve().parents[1]
 SHARED = ("rounds", "anchors", "history_turns", "turns", "cut_rounds", "seed", "domains", "conditions")
 
 
+def thread_budget(processes: int, cores: int | None = None) -> dict[str, str]:
+    """The numeric-library thread caps for each process, so the processes share the cores.
+
+    Every organism process sized its BLAS and torch pools to the whole machine.
+    Seven of them on eighteen cores ran fifty-two threads each and held the
+    load average above a hundred, which is most of the machine spent switching
+    between threads rather than computing. Each process gets its share of the
+    cores, and never less than one thread.
+    """
+    share = max(1, (cores or os.cpu_count() or 1) // max(1, processes))
+    value = str(share)
+    return {
+        "OMP_NUM_THREADS": value,
+        "OPENBLAS_NUM_THREADS": value,
+        "MKL_NUM_THREADS": value,
+        "VECLIB_MAXIMUM_THREADS": value,
+        "NUMEXPR_NUM_THREADS": value,
+        "AURA_SUBSTRATE_TORCH_THREADS": value,
+    }
+
+
 def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]]:
     """Every process to start, as (name, argv). Pure, so the plan can be read before it runs."""
     shared: list[str] = []
@@ -98,19 +119,21 @@ def main() -> int:
 
     (base / "logs").mkdir(parents=True, exist_ok=True)
     bound = int(args.hours * 3600)
+    environment = {**os.environ, **thread_budget(len(plan))}
     started: list[dict[str, object]] = []
     children: list[subprocess.Popen] = []
     for name, argv in plan:
         log_path = base / "logs" / f"{name}.log"
         wrapped = ["caffeinate", "-dims", "perl", "-e", f"alarm {bound}; exec @ARGV", *argv]
         with open(log_path, "wb") as log:
-            child = subprocess.Popen(wrapped, cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
+            child = subprocess.Popen(wrapped, cwd=REPO, stdout=log, stderr=subprocess.STDOUT, env=environment)
         children.append(child)
         started.append({"name": name, "pid": child.pid, "log": str(log_path), "argv": argv})
     manifest = {
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "workers": args.workers,
         "bound_seconds": bound,
+        "thread_budget": thread_budget(len(plan)),
         "processes": started,
     }
     (base / "launch.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

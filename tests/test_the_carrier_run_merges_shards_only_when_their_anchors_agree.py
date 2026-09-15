@@ -138,3 +138,14 @@ def test_the_launcher_gives_every_process_one_experiment() -> None:
     assert [argv[argv.index("--shard") + 1] for _, argv in plan[:3]] == ["0/3", "1/3", "2/3"]
     coordinator = plan[-1][1]
     assert "--from-shards" in coordinator and "--shard" not in coordinator
+
+
+def test_the_launcher_shares_the_cores_between_its_processes() -> None:
+    spec = importlib.util.spec_from_file_location("sharded", REPO / "tools" / "run_subject_core_v25_sharded.py")
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    budget = module.thread_budget(7, cores=18)
+    assert budget["VECLIB_MAXIMUM_THREADS"] == "2"
+    assert budget["AURA_SUBSTRATE_TORCH_THREADS"] == "2"
+    assert module.thread_budget(40, cores=18)["OMP_NUM_THREADS"] == "1"
