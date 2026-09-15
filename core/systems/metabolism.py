@@ -1,11 +1,14 @@
 """Metabolism Engine — Digital Homeostasis
 
-Periodically scans the project tree and purges:
-  - Temp files (.tmp, .cache, .pyc, __pycache__)
-  - Stale log files older than days_threshold
-
-Returns a report of bytes reclaimed and files removed.
+Periodically scans the project tree and purges temp files (.tmp, .cache,
+.pyc, __pycache__). Returns a report of bytes reclaimed and files removed.
 Runs as the first maintenance step in DreamerV2.engage_sleep_cycle().
+
+It does not touch .log files. It used to delete any older than seven days
+anywhere under the tree, and the tree holds artifacts/closeout/ — the
+runner and detached logs of every sealed campaign, tracked in git. On
+2026-09-15 it deleted 103 of them, 21 tracked. The runtime's own logs live
+under the state root and the Archiver keeps those.
 """
 from core.runtime.errors import record_degradation
 import asyncio
@@ -26,7 +29,6 @@ logger = logging.getLogger("Kernel.Metabolism")
 
 WASTE_EXTENSIONS = {".tmp", ".cache", ".pyc"}
 WASTE_DIRS = {"__pycache__"}
-LOG_EXTENSION = ".log"
 
 
 @dataclass
@@ -58,8 +60,15 @@ class MetabolismEngine:
     ):
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self.days_threshold = days_threshold
+        # `.claude` holds other sessions' worktrees — thirty-six of them on
+        # the live host — and a directory with its own .git is somebody
+        # else's checkout whatever it is called. The sweep walked all of them
+        # (2026-09-15: 2,368 directories removed in 80.2s, during shutdown,
+        # under three running campaigns) and deleted their caches and any
+        # .tmp file they were writing.
         self.protected_dirs = protected_dirs or {
             ".git", "node_modules", "venv", ".venv", "backups", "dist", ".tox",
+            ".claude", ".worktrees",
         }
 
     async def scan_and_purge(self) -> PurgeReport:
@@ -71,7 +80,6 @@ class MetabolismEngine:
         logger.info("🫀 Metabolism sweep starting at %s", self.root_dir)
         try:
             self._purge_waste(report)
-            self._purge_stale_logs(report)
         except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('metabolism', exc)
             msg = f"Metabolism sweep error: {exc}"
@@ -81,10 +89,17 @@ class MetabolismEngine:
         logger.info("🫀 %s", report)
         return report
 
+    def _own_subdirectories(self, dp: Path, dirnames: list[str]) -> list[str]:
+        """The subdirectories this sweep may enter: not protected, not a checkout."""
+        return [
+            d for d in dirnames
+            if d not in self.protected_dirs and not (dp / d / ".git").exists()
+        ]
+
     def _purge_waste(self, report: PurgeReport) -> None:
         for dirpath, dirnames, filenames in os.walk(self.root_dir, topdown=True):
             dp = Path(dirpath)
-            dirnames[:] = [d for d in dirnames if d not in self.protected_dirs]
+            dirnames[:] = self._own_subdirectories(dp, dirnames)
             for dname in list(dirnames):
                 if dname in WASTE_DIRS:
                     target = dp / dname
@@ -103,24 +118,6 @@ class MetabolismEngine:
                         report.bytes_reclaimed += size
                     except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                         logger.debug("Metabolism left volatile waste file in place: %s: %s", fpath, exc)
-
-    def _purge_stale_logs(self, report: PurgeReport) -> None:
-        cutoff = time.time() - (self.days_threshold * 86400)
-        for dirpath, dirnames, filenames in os.walk(self.root_dir, topdown=True):
-            dp = Path(dirpath)
-            dirnames[:] = [d for d in dirnames if d not in self.protected_dirs]
-            for fname in filenames:
-                fpath = dp / fname
-                if fpath.suffix == LOG_EXTENSION:
-                    try:
-                        if fpath.stat().st_mtime < cutoff:
-                            size = fpath.stat().st_size
-                            fpath.unlink()
-                            report.files_removed += 1
-                            report.bytes_reclaimed += size
-                    except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                        record_degradation('metabolism', exc)
-                        report.errors.append(f"stale log {fpath}: {exc}")
 
     def _remove_waste_dir(self, target: Path) -> tuple[bool, int]:
         """Best-effort removal for volatile cache directories.
