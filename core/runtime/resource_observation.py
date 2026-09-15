@@ -33,6 +33,8 @@ from typing import Any, Protocol, runtime_checkable
 
 import psutil
 
+from core.runtime.lockdep import LockRank, checked_lock
+
 #: Debug only, and it exists because this module reports a NUMBER for every
 #: field it cannot read. A process that will not say how much CPU it is using
 #: is reported as using none, and a pressure decision downstream cannot tell
@@ -699,7 +701,7 @@ class HostResourceObserver:
         self._tree_children_rss_cache: dict[int, tuple[float, int]] = {}
         self._tree_children_rss_ttl_s = 2.0
         self._tree_children_rss_refreshing: set[int] = set()
-        self._tree_children_rss_lock = threading.Lock()
+        self._tree_children_rss_lock = checked_lock("resource_observation.children_rss", rank=LockRank.LEAF)
 
     @property
     def provenance(self) -> ObservationProvenance:

@@ -41,7 +41,7 @@ _RAW_LOCK_MODULES = frozenset({"threading", "asyncio"})
 
 #: The wrapped lane. Constructing through these IS lockdep coverage.
 _CHECKED_CONSTRUCTORS = frozenset({
-    "checked_lock", "checked_async_lock", "checked_async_condition",
+    "checked_lock", "checked_async_lock", "checked_async_condition", "checked_condition",
     "checked_semaphore", "instrument",
 })
 

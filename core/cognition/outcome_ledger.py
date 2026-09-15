@@ -46,6 +46,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core.config import config
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LockRank, checked_condition
 from core.runtime.sqlite_support import connecting
 from core.verify.invariants import invariant
 
@@ -190,7 +191,7 @@ class OutcomeLedger:
         # initiative arbiter -> preference learner -> open -> _persist).
         self._write_queue: "queue.SimpleQueue[tuple[Any, ...]]" = queue.SimpleQueue()
         self._writes_in_flight = 0
-        self._writes_cv = threading.Condition()
+        self._writes_cv = checked_condition("outcome_ledger.writes", rank=LockRank.LEAF)
         self._writer: threading.Thread | None = None
         self._init_schema()
         self._load_pending()

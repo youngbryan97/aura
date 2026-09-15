@@ -768,6 +768,12 @@ class CheckedLock:
             return False
         return True
 
+    def _is_owned(self) -> bool:
+        # threading.Condition asks its lock this before wait()/notify(). A
+        # probe acquire would be recorded by lockdep as an acquisition, so
+        # the answer comes from the lock itself (reentrant locks only).
+        return self.held_by_current_thread()
+
     def held_by_current_thread(self) -> bool:
         """True when *this* thread already owns the lock.
 
@@ -1057,6 +1063,19 @@ def checked_async_lock(name: str, *, rank: LockRank = LockRank.UNRANKED) -> Chec
     return CheckedAsyncLock(name, rank=rank)
 
 
+def checked_condition(
+    name: str, *, rank: LockRank = LockRank.UNRANKED
+) -> threading.Condition:
+    """A ``threading.Condition`` whose mutex is a checked lock.
+
+    Waiters release and reacquire the same checked mutex, so the wait shows
+    up in lockdep like any other hold on it. The mutex is reentrant, as the
+    one ``threading.Condition()`` makes for itself is: the condition asks
+    its lock whether the calling thread owns it, and only an RLock knows.
+    """
+    return threading.Condition(CheckedLock(name, rank=rank, reentrant=True))
+
+
 def checked_async_condition(
     name: str, *, rank: LockRank = LockRank.UNRANKED
 ) -> CheckedAsyncCondition:
@@ -1152,6 +1171,7 @@ __all__ = [
     "assert_no_locks_held",
     "checked_async_condition",
     "checked_async_lock",
+    "checked_condition",
     "checked_lock",
     "checked_semaphore",
     "checked_thread_semaphore",

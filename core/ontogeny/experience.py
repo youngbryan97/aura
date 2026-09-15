@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.lockdep import LockRank, checked_condition, checked_lock
 from core.runtime.state_ownership import state_root
 from core.runtime.sqlite_support import connecting
 
@@ -310,7 +310,7 @@ class ExperienceSpine:
         # query the connection, let alone decide whether it is finished. A
         # flag that only writes raised left every read looking like a leak.
         self._open_handles = 0
-        self._handles_changed = threading.Condition()
+        self._handles_changed = checked_condition("ontogeny.spine.handles", rank=LockRank.LEAF)
         # stats() is three unindexed aggregates over the whole episodes table,
         # and ontogeny_report() calls it once per control point — so a single
         # health report used to scan the corpus N times. Under demo load that

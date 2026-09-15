@@ -159,7 +159,6 @@
     "core/consciousness/adaptive_mood.py::::threading.Lock",
     "core/consciousness/adaptive_mood.py::AdaptiveMoodCoefficients.__init__::threading.RLock",
     "core/consciousness/affective_steering.py::::threading.Lock",
-    "core/consciousness/affective_steering.py::AffectiveSteeringHook.__init__::threading.Lock",
     "core/consciousness/alife_extensions.py::ALifeExtensions.__init__::threading.Lock",
     "core/consciousness/alife_extensions.py::ColumnSpeciation.__init__::threading.Lock",
     "core/consciousness/alife_extensions.py::OwnershipModel.__init__::threading.Lock",

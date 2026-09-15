@@ -1719,9 +1719,9 @@ class _DeclaredHost(_HeldObserver):
 
     def __init__(self, inner: Any, host: dict[str, float]) -> None:
         super().__init__(inner)
-        import threading
+        from core.runtime.lockdep import LockRank, checked_lock
 
-        self._declared_lock = threading.Lock()
+        self._declared_lock = checked_lock("subject.snapshot.declared_host", rank=LockRank.LEAF)
         self.declare(host)
 
     def declare(self, host: dict[str, float]) -> None:
