@@ -217,7 +217,7 @@ async def main() -> int:
         toy_edges,
         toy_recording,
     )
-    from core.subject.pci import perturbational_complexity
+    from core.subject.pci import perturbational_complexity, response_structure
     from core.subject.provenance import (
         campaign,
         environment,
@@ -491,6 +491,9 @@ async def main() -> int:
         "pci_by_source": {k: round(v, 3) for k, v in pcis.items()},
         "null_pci_by_source": {k: round(v, 3) for k, v in null_pcis.items()},
         "matrices": rows,
+        # Whether the response unfolds in time and differs between sources.
+        # See core/subject/pci.py `response_structure`.
+        **response_structure(rows),
     }
     evidence["notes"]["intervention_power"] = power_note(results)
     # Whether the two-turn horizon is binding. An effect that peaks at the last

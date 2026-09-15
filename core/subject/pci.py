@@ -29,7 +29,7 @@ import numpy as np
 from core.subject.causal import InterventionSet
 from core.subject.state import DOMAINS
 
-__all__ = ["PerturbationReport", "lempel_ziv", "perturbational_complexity"]
+__all__ = ["PerturbationReport", "lempel_ziv", "perturbational_complexity", "response_structure"]
 
 #: A domain counts as reached when it moves past this quantile of the floor.
 FLOOR_QUANTILE: float = 0.95
@@ -105,6 +105,39 @@ class PerturbationReport:
             "lags": self.lags,
             "rows": ["".join(str(int(v)) for v in row) for row in self.matrix],
         }
+
+
+def response_structure(matrices: dict[str, Any]) -> dict[str, Any]:
+    """Whether the responses unfold in time and whether sources differ in what they reach.
+
+    Complexity over the whole matrix can be bought two cheap ways: a response
+    that switches every domain on and holds it, and every source reaching the
+    same set. P34.3 asks that the response stay temporally structured and P34.4
+    that it stay heterogeneous. Read from the matrices as the report stores
+    them, a row of lags per target, so a saved report can be read the same way.
+
+    A source's response is structured in time when at least one of its targets
+    is reached at some lags and not at others; a response held on or off for
+    the whole horizon is not. The responses are heterogeneous when the sources
+    that reached anything did not all reach the same set.
+    """
+    reaching = {
+        source: row
+        for source, row in (matrices or {}).items()
+        if any("1" in str(bits) for bits in (row or {}).get("rows", []))
+    }
+    held = sorted(
+        source for source, row in reaching.items()
+        if not any("0" in str(bits) and "1" in str(bits) for bits in row.get("rows", []))
+    )
+    patterns = {tuple(sorted(row.get("reached", []))) for row in reaching.values()}
+    return {
+        "sources_reaching": len(reaching),
+        "held_for_the_whole_horizon": held,
+        "temporally_structured": bool(reaching) and not held,
+        "distinct_reach_patterns": len(patterns),
+        "heterogeneous": len(patterns) > 1,
+    }
 
 
 def _threshold(floor: list[list[float]], lag: int) -> float:

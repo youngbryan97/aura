@@ -11744,5 +11744,40 @@
     ],
     "note": "the two ownership arms are compared on the perception domain of the frame read before any phase ran, so the same percept is checked rather than assumed; read on the next battery run",
     "status": "done"
+  },
+  "P34.3": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "core/subject/pci.py",
+        "pattern": "def response_structure\\(matrices: dict\\[str, Any\\]\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_the_response_unfolds_in_time_and_differs_by_source.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "bool([m for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])]) and all(any(('0' in r and '1' in r) for r in m['rows']) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows']))",
+        "kind": "report"
+      }
+    ],
+    "note": "every source that reached anything reached some target at some lags and not others; all ten sources on run_031 and both run_032s",
+    "status": "done"
+  },
+  "P34.4": {
+    "checks": [
+      {
+        "command": "{python} -m pytest tests/test_the_response_unfolds_in_time_and_differs_by_source.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "len({tuple(sorted(m['reached'])) for m in report['perturbation']['matrices'].values() if any('1' in r for r in m['rows'])}) > 1",
+        "kind": "report"
+      }
+    ],
+    "note": "the sources that reached anything reached different sets: ten distinct reach patterns out of ten sources on run_031 and both run_032s",
+    "status": "done"
   }
 }
