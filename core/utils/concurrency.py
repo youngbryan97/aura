@@ -4,6 +4,7 @@ import os
 import random
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -408,6 +409,10 @@ class EventLoopMonitor:
         self._last_sample_at: float = 0.0
         self._last_sample_monotonic: float = 0.0
         self._peak_lag: float = 0.0
+        #: (wall time, lag seconds) for the last five minutes at one sample a
+        #: second. The stability guardian reads this window rather than
+        #: keeping a sleep of its own on the same loop.
+        self._lag_samples: deque[tuple[float, float]] = deque(maxlen=300)
         self._last_breach_lag: float = 0.0
         self._last_breach_at: float = 0.0
         self._consecutive_breaches: int = 0
@@ -637,6 +642,12 @@ class EventLoopMonitor:
             sampled_monotonic if sampled_monotonic is not None else time.perf_counter()
         )
         self._peak_lag = max(self._peak_lag, current)
+        self._lag_samples.append((self._last_sample_at, current))
+
+    def lag_samples(self, window_s: float) -> list[tuple[float, float]]:
+        """(wall time, lag seconds) samples from the last ``window_s`` seconds."""
+        cutoff = time.time() - max(0.0, float(window_s))
+        return [(at, lag) for at, lag in self._lag_samples if at >= cutoff]
 
     def last_lag_sample(self) -> tuple[float, float] | None:
         """The most recent lag reading and its age in seconds, or None before one."""

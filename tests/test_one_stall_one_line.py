@@ -81,3 +81,33 @@ async def test_the_watchdog_does_not_warn_for_a_lag_the_monitor_announced(monkey
         await hypervisor._watchdog_loop()
     assert hypervisor._last_lag == pytest.approx(3.5)
     assert not [r for r in caplog.records if "HIGH EVENT LOOP LAG" in r.getMessage()]
+
+
+def test_the_guardian_reads_the_monitors_window_rather_than_its_own_sleep():
+    """The third detector. The stability guardian slept on the same loop and kept
+    its own five-minute window; now it reads the monitor's."""
+    from core.resilience.stability_guardian import StabilityGuardian
+
+    monitor = EventLoopMonitor()
+    now = time.time()
+    monitor._capture_lag_sample(0.2, sampled_at=now - 10.0)
+    monitor._capture_lag_sample(4.0, sampled_at=now - 5.0)
+    monitor._capture_lag_sample(0.1, sampled_at=now - 900.0)  # outside the window
+    ServiceContainer.register_instance("event_loop_monitor", monitor, required=False)
+
+    guardian = StabilityGuardian.__new__(StabilityGuardian)
+    guardian._loop_lag_samples = __import__("collections").deque(maxlen=60)
+    guardian._loop_lag_samples.append((now - 1.0, 9999.0))  # its own sample, not consulted
+
+    lags = guardian._recent_loop_lags(now, 300.0)
+    assert sorted(lags) == [200.0, 4000.0]
+
+
+def test_without_a_monitor_the_guardian_keeps_its_own_samples():
+    from core.resilience.stability_guardian import StabilityGuardian
+
+    now = time.time()
+    guardian = StabilityGuardian.__new__(StabilityGuardian)
+    guardian._loop_lag_samples = __import__("collections").deque(maxlen=60)
+    guardian._loop_lag_samples.append((now - 1.0, 1500.0))
+    assert guardian._recent_loop_lags(now, 300.0) == [1500.0]

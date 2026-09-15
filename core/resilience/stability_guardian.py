@@ -354,13 +354,32 @@ class StabilityGuardian:
             if float(sample.get("duration_ms", 0.0) or 0.0) > 0.0
         ]
 
+    def _loop_lag_window(self, now: float, window_s: float) -> list[tuple[float, float]]:
+        """(wall time, lag ms) over the window, from the one instrument.
+
+        The EventLoopMonitor samples the loop once a second and keeps five
+        minutes of it. This guardian slept on the same loop and kept its own
+        samples, so one stall was measured twice and announced twice. Its
+        own samples remain the reading only for a runtime with no monitor.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            monitor = ServiceContainer.get("event_loop_monitor", default=None)
+            samples = monitor.lag_samples(window_s) if monitor is not None else None
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            samples = None
+        if samples is not None:
+            return [(at, lag_s * 1000.0) for at, lag_s in samples]
+        return [
+            (timestamp, lag_ms)
+            for timestamp, lag_ms in self._loop_lag_samples
+            if (now - timestamp) <= window_s
+        ]
+
     def _recent_loop_lags(self, now: float | None = None, window_s: float = 300.0) -> list[float]:
         current_time = now or time.time()
-        return [
-            lag_ms
-            for timestamp, lag_ms in self._loop_lag_samples
-            if (current_time - timestamp) <= window_s
-        ]
+        return [lag_ms for _at, lag_ms in self._loop_lag_window(current_time, window_s)]
 
     # ── Main check loop ───────────────────────────────────────────────────────
 
@@ -719,8 +738,8 @@ class StabilityGuardian:
 
         severe_loop_lags = [
             (timestamp, lag_ms)
-            for timestamp, lag_ms in self._loop_lag_samples
-            if (now - timestamp) <= self.EVENT_LOOP_LAG_WINDOW_S and lag_ms > loop_lag_threshold_ms
+            for timestamp, lag_ms in self._loop_lag_window(now, self.EVENT_LOOP_LAG_WINDOW_S)
+            if lag_ms > loop_lag_threshold_ms
         ]
         latest_loop_lag_age = (
             now - max(timestamp for timestamp, _lag in severe_loop_lags)
