@@ -1076,3 +1076,44 @@ made stricter once its results are known. The synergy failure is recorded as
 the instrument's limit on this background, and a revision belongs in a version
 preregistered before any result under it exists, with its known answers on a
 background of her recordings' shape.
+
+### Irreducibility reads unrelated columns as lost integration
+
+Partition irreducibility projects each domain onto its first four components
+and asks how much each side of a cut gains from seeing the other. A column with
+nothing to do with the dynamics still takes a share of those four components,
+and the gain falls. Measured on toy systems with one unrelated column appended
+to the deliberation domain, 2,500 rows, and nothing of hers read:
+
+| system | seed | as generated | with a clock | with a random walk | with independent noise |
+|---|---|---|---|---|---|
+| recurrent reference | 7 | 0.264 | 0.237 | 0.176 | 0.204 |
+| recurrent reference | 11 | 0.129 | 0.123 | 0.123 | 0.121 |
+| recurrent reference | 13 | 0.146 | 0.141 | 0.142 | 0.129 |
+| star | 7 | 0.008 | 0.008 | 0.008 | 0.009 |
+| frozen slow | 7 | 0.000 | 0.000 | 0.000 | 0.000 |
+
+The star null moved by at most 0.005 on any of three seeds, and the
+frozen-slow null read exactly zero on all three.
+
+The recurrent reference's reading fell in every case and rose in none, and no
+null moved towards passing, so the error runs one way: against a system that
+records more than its dynamics. Independent noise costs about as much as a
+random walk, which places the cause in the projection rather than in drift
+carrying later rows past the first training window. Two corrections aimed at
+drift were tried on the same recordings, fitting each fold's projection on that
+fold's own training rows and giving both models the elapsed time, and neither
+moved the recurrent reference by more than 0.012 in any variant.
+
+That bears on Aura's cheapest cut. On the 300-round seed-7 recording of the
+ISC-v2 campaign, perception, affect and the world model against the other seven
+scored a lower bound of -0.161: the first of five folds read -0.334 and the rest
++0.126, +0.075, +0.085 and +0.088. Twenty-seven of the forty-two directed pairs
+across that cut are kept causal edges. With that side's columns whose lag-one
+correlation exceeds 0.995 left out, two step counters among them, the same
+cut's lower bound was +0.057.
+
+That was one cut, read on a recording whose result was already known, and it
+changes nothing. The v1 line stays failed. A version that corrects the
+estimator may read only recordings from which no number under it has been read,
+which excludes this one, and no correction has yet survived its known answers.
