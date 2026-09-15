@@ -11,7 +11,7 @@ reverts to open by itself.
 .venv/bin/python tools/isc_completion_status.py --check  # fail if it is out of date
 ```
 
-**741 done, 0 blocked, 0 not applicable, 162 open, of 903.**
+**764 done, 0 blocked, 0 not applicable, 139 open, of 903.**
 
 Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
@@ -79,7 +79,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P2.13` I -> D: resource state changes planning/action selection. — I->D is a retained edge in the newest run
 - [x] `P2.14` Establish at least one legitimate route back into I. — the effort ledger is the route back into the body: five places in cognition report what they spent, the proprioceptive loop drains the ledger at the top of the turn, and exertion is what it computes
 - [x] `P2.15` Cognition/action must be capable of changing some sensed bodily/computational state. — acting spends effort through the intention loop, and the interoception domain reads that spend as its own column
-- [ ] `P2.16` The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A) — the I displacement moves a share of what she has already spent through the ledger rather than writing a temperature; the readout the harness could have written is derived from the ledger at the top of every turn and would not have survived one
+- [x] `P2.16` The return cannot be a test harness simply writing a new temperature or load number. A legitimate return loop could be: D→chosen computational workload →host/resource state →I. If I remains purely exogenous, it is difficult to justify including it inside a fully recurrent intrinsic core. Affect/conation (A) — the I displacement moves a share of what she has already spent through the ledger rather than writing a temperature; the readout the harness could have written is derived from the ledger at the top of every turn and would not have survived one
 - [x] `P2.17` A -> G: feelings genuinely affect attention. — A->G is a retained edge in the newest run
 - [ ] `P2.18` A -> D: affect changes motivation/intention. — A->D is a retained edge in the newest run
 - [x] `P2.19` A -> C: affect changes cognitive dynamics. — A->C is a retained edge in the newest run
@@ -122,7 +122,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P2.56` M -> S: memory changes the self. — M->S is a retained edge in the newest run
 - [x] `P2.57` M -> W: recalled context contributes to world inference. — M->W is a retained edge in the newest run: what she recalled reaches the world model as a coordinate rather than as a score and a count
 - [ ] `P2.58` M -> D: relevant memory changes planning. — M->D is a retained edge in the newest run
-- [ ] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W) — the memory displacement moves the retrieved items themselves, which is what the consumers read
+- [x] `P2.59` Ensure current M intervention affects the exact retrieved content that consumers use. World model (W) — the memory displacement moves the retrieved items themselves, which is what the consumers read
 - [x] `P2.60` P -> W: actual observations update W. — P->W is a retained edge in the newest run
 - [ ] `P2.61` Action consequences update W. — D->W is a retained edge in the newest run — what she did changes what she predicts
 - [x] `P2.62` M -> W: remembered evidence helps construct/predict the world. — remembered evidence helps construct the world: the retrieved set is part of the observation the model learns from
@@ -258,8 +258,8 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P8.6` Real Phi exceeds prompt-only architecture. — irreducibility above the prompt_only null
 - [ ] `P8.7` Real Phi exceeds frozen-slow architecture. — irreducibility above the frozen_slow null
 - [ ] `P8.8` The recurrent positive reference still passes. — the recurrent reference passes the conjunction the nulls fail, so the instrument can say yes
-- [ ] `P8.9` Increase replay-surrogate draws substantially.
-- [ ] `P8.10` Increase shuffle draws substantially.
+- [x] `P8.9` Increase replay-surrogate draws substantially. — the replay surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile
+- [x] `P8.10` Increase shuffle draws substantially. — the time-shuffle surrogate is drawn sixty-four times per run, up from eight on 11 September, and its spread is reported beside the quantile
 - [x] `P8.11` Report distributions, not one or a few point estimates. — every draw is kept, not one point estimate
 - [x] `P8.12` Report percentile and confidence interval. — the quantile a null is read at is recorded with it
 - [x] `P8.13` Add multiple random instantiations of each synthetic architecture. — several instantiations of each architecture, so a null is a distribution rather than one draw of a weight matrix
@@ -334,18 +334,18 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
 **A + S -> G**
 
-- [ ] `P12.1` Attention depends jointly on what Aura feels and what that state means relative to herself.
+- [x] `P12.1` Attention depends jointly on what Aura feels and what that state means relative to herself. — a surprise about herself claims attention through arousal's gain, so what wins attention depends on the feeling and the self-model together
 - [ ] `P12.2` Preserve this result if it remains a pass after rerun. P + M -> W
-- [ ] `P12.3` World interpretation combines present observation with remembered context.
+- [x] `P12.3` World interpretation combines present observation with remembered context. — the world model's observation carries what arrived and what recall brought back, in one vector the learned dynamics read together
 - [x] `P12.4` It must not be merely W=f(P)+g(M). — a second measurement asks the question a different way: whether the products of the two sources improve held-out prediction over the two side by side
 - [x] `P12.5` There must be meaningful interaction f(P,M). — and the interaction term has to be there for the triple to mean anything
-- [ ] `P12.6` Memory should disambiguate perception.
-- [ ] `P12.7` Perception should update the meaning of recalled context. W + A -> D
-- [ ] `P12.8` Deliberation uses both predicted world state and affect/value state.
+- [x] `P12.6` Memory should disambiguate perception. — what was just recalled primes the percepts it bears on, in proportion to how strongly it was recalled, so memory decides which of several arrivals is taken as meant
+- [x] `P12.7` Perception should update the meaning of recalled context. W + A -> D — a salient percept raises the recollections that carry it before recall keeps its best, so what she perceives changes what a memory is worth now
+- [x] `P12.8` Deliberation uses both predicted world state and affect/value state. — the drives are pressed by the world model's surprise with arousal as its gain, and what she decides to work on reads the world's surprise and what hurts
 - [ ] `P12.9` Preserve this if it remains a pass. S + D -> C
-- [ ] `P12.10` Recurrent cognition depends on the combination of current self-state and current intention.
-- [ ] `P12.11` The two signals should not merely add independently.
-- [ ] `P12.12` Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening:
+- [x] `P12.10` Recurrent cognition depends on the combination of current self-state and current intention. — an intention obstructed by her demonstrated capacity raises the continuous substrate's frustration: urgency times how far it is beyond her
+- [x] `P12.11` The two signals should not merely add independently. — arousal's effect changes sign with the level it gains, which a sum cannot do, and obstruction is a product
+- [x] `P12.12` Candidate mechanisms include identity-conditioned planning, self-consistency constraints, conflict/commitment computation, and goal relevance conditioned on self/value state. Measurement hardening: — conflict between an intention and her capacity is computed and reaches recurrent cognition; the 300-round A/B showed these first mechanisms did not move the synergy criterion
 - [x] `P12.13` Increase null draws beyond the current exploratory count. — a thousand shifts, not two hundred: the ninety-ninth percentile of two hundred draws is the second-largest of them
 - [x] `P12.14` Report confidence intervals. — with the bar's own spread and the margin over it beside each triple
 - [x] `P12.15` Retain the independent held-out interaction-gain check. — the held-out interaction gain is kept beside the information-theoretic estimate
@@ -558,11 +558,11 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P25.8` Make timestamps deterministic/replayable. — the timestamps are the experiment's, not the day the tape was cut, so recency means the same thing in the run as it did when it was recorded
 - [x] `P25.9` Preserve external content without directly mutating internal target domains. — a replayed percept goes on the stream through the same emitter a live one does and is indistinguishable downstream; nothing writes a target domain directly
 - [x] `P25.10` Let P be produced by the actual perception stack. Then run a stronger closed-loop experiment: — the battery plays a recorded stream from the real channels instead of the conditions' scripted percepts, at the turn index so both arms of a paired trial see the same frame; a run without a tape says its perception was scripted rather than reporting no channels
-- [ ] `P25.11` Aura acts in a sandboxed real environment.
-- [ ] `P25.12` The environment changes.
-- [ ] `P25.13` Real sensors detect it.
-- [ ] `P25.14` Perception changes W/A/M/etc.
-- [ ] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D.
+- [x] `P25.11` Aura acts in a sandboxed real environment. — the action arm writes to a scratch room inside the run directory through the governed file gateway, and every kind of action is a real filesystem operation
+- [x] `P25.12` The environment changes. — the room changes: a room made on one turn is a directory on disk, and the count of rooms grows turn by turn
+- [x] `P25.13` Real sensors detect it. — the outcome is read back off the filesystem and arrives as a percept from the filesystem, carrying what the room now holds
+- [x] `P25.14` Perception changes W/A/M/etc. — perception reaches the world model, affect or memory through edges kept against their shams: P->A and P->W on run_031, P->A and P->M on both run_032s
+- [ ] `P25.15` Those changes affect later action. Desired form: S/W/ D→Act→E→P→W/G/ S/ D. — a later action's outcome depends on what an earlier one left in the room, and perception reaches deliberation within three kept edges (P->A->I->D on run_031, P->S->D and P->S->W->D on the run_032s)
 
 ## Phase 26 — Generalize agency and ownership
 
@@ -634,7 +634,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P29.8` Audit governance state if it changes cognitive selection. — governance state gates whether a subsystem runs and is read as periphery rather than assumed irrelevant
 - [x] `P29.9` Audit model-serving state if it changes cognition. — model-serving state is outside K and reachable by the closure test, which reads every service the container has built
 - [x] `P29.10` Audit active commitments. — active commitments are deliberation's own columns: the initiatives she is holding and what the will deferred
-- [ ] `P29.11` Audit persistent planner state. — persistent planner state lives in the same domain and is displaced with it
+- [x] `P29.11` Audit persistent planner state. — persistent planner state lives in the same domain and is displaced with it
 - [x] `P29.12` Audit active tool outcomes. — what came of an action is read back off the world rather than asserted, and the record of it is in the state the domains read
 - [x] `P29.13` Audit learning state. A core cannot be declared causally closed by definition. — learning state is the ontogenetic reservoir, which is N, and the audit says so if a learning field is not read
 
@@ -704,11 +704,11 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 
 - [x] `P34.1` Response remains nonzero. — every source produces a nonzero response
 - [x] `P34.2` Response remains distributed. — the response reaches more than one domain from every source
-- [ ] `P34.3` Response remains temporally structured.
-- [ ] `P34.4` Response remains heterogeneous.
+- [x] `P34.3` Response remains temporally structured. — every source that reached anything reached some target at some lags and not others; all ten sources on run_031 and both run_032s
+- [x] `P34.4` Response remains heterogeneous. — the sources that reached anything reached different sets: ten distinct reach patterns out of ten sources on run_031 and both run_032s
 - [x] `P34.5` Response stays above matched-null complexity. — above the matched null's complexity
 - [x] `P34.6` Multiple source domains produce nondegenerate responses. — more than one source produces a nondegenerate response
-- [ ] `P34.7` Do not sacrifice structure to make every domain light up.
+- [x] `P34.7` Do not sacrifice structure to make every domain light up. — complexity clears its sham null while every response stays structured in time and the sources reach different sets, so the spread was not bought by lighting everything up
 
 ## Phase 35 — Preserve intrinsic persistence
 
@@ -718,7 +718,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P35.4` Result persists with the real cortex.
 - [ ] `P35.5` Result persists across several ordinary conditions.
 - [x] `P35.6` It is not explained by a single counter/clock. — a column that never decreases is named in the recording, so a counter carrying the result is visible
-- [ ] `P35.7` It is not driven entirely by one persistent memory scalar.
+- [ ] `P35.7` It is not driven entirely by one persistent memory scalar. — persistence on the next level holds with memory left out: lower bounds +0.525 and +0.511 on the two run_032 seeds and +0.380 and +0.287 on the 300-round recordings, computed after the third amendment was committed. Runs record it from e6685d206 on
 
 ## Phase 36 — Preserve functional self-causation
 
@@ -729,7 +729,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P36.2` Generalizes across multiple tasks.
 - [ ] `P36.3` Generalizes across multiple self dimensions.
 - [x] `P36.4` No direct test-only S-to-D wire. — no writer touches a state path another domain's schema owns
-- [ ] `P36.5` Mediated by normal production cognition. — the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it
+- [x] `P36.5` Mediated by normal production cognition. — the displacement goes through the self model's own governed belief update and the ordinary phase loop carries it
 - [ ] `P36.6` Survives current code changes.
 - [ ] `P36.7` Survives the full-cortex variant.
 
@@ -741,7 +741,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P37.1` Same external outcome. — the two arms end with the same file holding the same bytes
 - [x] `P37.2` Same content. — the same fact recorded
 - [x] `P37.3` Same goal. — the same goal appended with the same text
-- [ ] `P37.4` Same percept.
+- [ ] `P37.4` Same percept. — the two ownership arms are compared on the perception domain of the frame read before any phase ran, so the same percept is checked rather than assumed; read on the next battery run
 - [x] `P37.5` Only actor attribution differs. — the ownership arms match on everything but who the action is attributed to
 - [x] `P37.6` Divergence exceeds same-arm floor. — the divergence clears the same-arm floor
 - [x] `P37.7` Generalizes to multiple action types. — ownership holds for more than one kind of action and more than one outcome. ownership_generalises requires two action kinds and two outcome shapes, each over its own same-arm floor, and every compared pair of arms ending in the same world. Tightened on Sep 12, so run_023's stored flag was computed under the older kinds-only rule and the next run re-judges it
@@ -756,7 +756,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [ ] `P38.4` Survives a long life.
 - [ ] `P38.5` Survives after developmental state has matured.
 - [x] `P38.6` Not explained by memory count alone. — the coupling is not a memory count: the edges are measured on displaced arms against their own shams, not on a correlation
-- [ ] `P38.7` Not explained by time/counters alone.
+- [ ] `P38.7` Not explained by time/counters alone. — every trial records the column its effect was read off; a fast-slow edge carried only by columns that go one way is named, and the line holds when each direction keeps an edge carried by state. Read on the next battery run
 - [x] `P38.8` Not a test-only direct write. — no writer reaches into another domain
 
 ## Phase 39 — Preserve metastability
@@ -766,7 +766,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P39.3` Regimes turn over. — and it turns over
 - [x] `P39.4` Transition entropy is greater than zero. — transition entropy above zero
 - [x] `P39.5` Transition entropy is below its maximum. — and below its ceiling, so the sequence is not noise
-- [ ] `P39.6` Clustering is not merely rediscovering condition labels.
+- [ ] `P39.6` Clustering is not merely rediscovering condition labels. — the regimes leave entropy once the condition is known and are not the conditions relabelled; read on the next battery run, and on run_032 offline every condition spanned more than one regime (seed 7 NMI 0.00, seed 17 0.67)
 - [ ] `P39.7` Replicate with held-out conditions.
 - [ ] `P39.8` Persist with the real cortex.
 - [ ] `P39.9` Prefer interpretable internal configurations rather than pure workload classes.
@@ -925,7 +925,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P48.5` Do not rewrite history. — a rewritten history shows as an unreachable commit or a tree that no longer hashes the same, recomputed from the commit's own blobs
 - [x] `P48.6` Archive exact source tarball/commit. — the commit, the hash of the tree that decides the answer and whether it was dirty are recorded with every run
 - [x] `P48.7` All tests defining the evaluation are green. — the tag is not written while a defining suite is red
-- [ ] `P48.8` Evidence artifacts point to that exact tag. — and a SHA-256 for every file the run wrote
+- [x] `P48.8` Evidence artifacts point to that exact tag. — and a SHA-256 for every file the run wrote
 
 ## Phase 49 — Replicate over independent seeds
 
@@ -941,7 +941,7 @@ Newest run with a report: `run_031` — 18/24 criteria, commit `45a74c9130db`.
 - [x] `P49.10` Especially synergy. — synergy especially, per triple and by name
 - [x] `P49.11` Especially spread. — spread especially
 - [x] `P49.12` Especially lesion deficit. — lesion deficit especially, per measure, with the rescue beside it
-- [ ] `P49.13` Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one.
+- [x] `P49.13` Especially rescue. Identical-code nondeterministic repeats answer one question; independent initializations answer a stronger one. — the rescue is tracked across runs beside every deficit it answers, with the recovery fraction
 
 ## Phase 50 — Replicate on a second machine
 
