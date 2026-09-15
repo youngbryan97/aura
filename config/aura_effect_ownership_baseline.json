@@ -14118,14 +14118,6 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/systems/metabolism.py",
-      "scope": "<module>.MetabolismEngine._purge_stale_logs"
-    },
-    {
-      "callee": "fpath.unlink",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/systems/metabolism.py",
       "scope": "<module>.MetabolismEngine._purge_waste"
     },
     {
@@ -16085,6 +16077,14 @@
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
+      "path": "core/subject/arm_identity.py",
+      "scope": "<module>._commit"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
       "path": "core/subject/provenance.py",
       "scope": "<module>._run_git"
     },
@@ -16490,6 +16490,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "babba6ab89c6f8aef8a38dc31ffacccf2630a1c8128a7deb96bf2bc07c296126",
+  "inventory_sha256": "715597ccc6ff442f798b10fe80bd880515a0a79ca55b6e64781043146c3533e4",
   "schema_version": 1
 }
