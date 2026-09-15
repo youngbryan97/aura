@@ -632,8 +632,14 @@ register_contract(
             "cognition.fragmentation_score",
             "cognition.long_term_memory",
             "cognition.modifiers",
+            # The loop-break branch suppresses the initiatives that re-queued
+            # the repeated answer, through the executive authority. Live
+            # 2026-09-15 that write was reported as undeclared on every
+            # repeated answer; it is this phase's work and is declared.
+            "cognition.pending_initiatives",
             "cognition.working_memory",
             "health",
+            "identity.stability",
             "response_modifiers",
             "transition_cause",
         ),
@@ -648,6 +654,12 @@ register_contract(
                 "nothing_to_consolidate",
                 "working memory holds nothing new",
                 "return state unchanged",
+            ),
+            BranchSpec(
+                "loop_break",
+                "the latest assistant message repeats an earlier one",
+                "lower identity stability, prune the duplicate, suppress the "
+                "initiatives that re-queued it",
             ),
         ),
         side_effects=("writes to the durable memory store",),
