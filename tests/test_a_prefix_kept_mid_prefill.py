@@ -218,3 +218,34 @@ def test_an_unnamed_model_still_gets_a_key_of_its_own():
 
     assert _prompt_cache_model_key("") == "<unnamed model>"
     assert _prompt_cache_model_key(None) == "<unnamed model>"
+
+
+def test_binding_a_resume_handle_leaves_the_prefix_in_the_trie():
+    """LIVE 2026-09-15: bind_resume EXTRACTED the entry, so the moment a turn
+    bound its handle the trie under that key was empty — `<0 branch(es),
+    none walkable>` with 11,625 tokens retained a second earlier — and the
+    repair pass of the same turn re-read all 11,510 tokens. The binding owns
+    a copy; the trie keeps the prefix for every request without the handle."""
+    lru = PromptCacheLRU(max_size=4)
+    key = ("model", "user_surface")
+    tokens = [10, 20, 30, 40]
+    kv = [["kv-block"]]
+    lru.insert_cache(key, tokens, kv)
+
+    handle = lru.bind_resume(key, tokens)
+    assert handle
+
+    # The prefix is still there for a longer prompt that starts with it.
+    cache, remaining = lru.fetch_nearest_cache(
+        key,
+        [10, 20, 30, 40, 50, 60],
+        can_trim_prompt_cache=lambda _cache: False,
+        trim_prompt_cache=lambda _cache, _count: None,
+    )
+    assert cache is not None
+    assert remaining == [50, 60]
+
+    # And the binding's copy is its own object: the generation that took the
+    # trie entry may extend it without touching the continuation.
+    bound = lru._resume_bindings[handle].prompt_cache
+    assert bound == kv and bound is not cache

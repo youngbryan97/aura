@@ -449,7 +449,18 @@ class PromptCacheLRU:
             return ""
         exact = self._search(model_key, tokens).exact
         if exact is not None:
-            owned_cache = self._extract(model_key, exact).prompt_cache
+            # The binding owns a COPY, and the trie keeps its entry.
+            #
+            # This used to extract the entry, so the moment a turn bound its
+            # resume handle the trie under that key was empty. Every request
+            # that arrived without the handle — the repair pass of the same
+            # turn, the next turn once its head had moved a byte — searched
+            # an empty trie and read `matched 0 (0.0%)`, `<0 branch(es),
+            # none walkable>`, with 11,625 tokens retained a second earlier.
+            # Measured live 2026-09-15: two full 11,510-token prefills inside
+            # one turn, 85 seconds each. The copy costs one KV's worth of
+            # memory for the binding's lifetime and is counted like any other.
+            owned_cache = copy.deepcopy(self._get(model_key, exact).prompt_cache)
         elif prompt_cache is not None:
             owned_cache = prompt_cache
         else:
