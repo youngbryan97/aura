@@ -52,7 +52,7 @@ import re
 import threading
 import time
 from collections import defaultdict
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Mapping
 from contextlib import asynccontextmanager
 from itertools import islice
 from pathlib import Path
@@ -989,6 +989,9 @@ class MycelialNetwork:
             # --- Props ---
             self.ui_callback: Callable[[str], Coroutine] | None = None
             self.mapped_files: dict[str, dict[str, Any]] = {}
+            self._mapped_files_snapshot_cache: (
+                tuple[tuple[int, int], dict[str, dict[str, Any]]] | None
+            ) = None
             self.infrastructure_mapped: bool = False
             self._centrality: dict[str, int] = {}
             self._critical_modules: list[str] = []
@@ -3139,17 +3142,44 @@ class MycelialNetwork:
             owner = self._active_owner_locked()
             if owner is not None and owner is not self:
                 return owner.get_mapped_files_snapshot()
-            return self._mapped_files_snapshot_locked()
+            canonical = self._mapped_files_canonical_locked()
+        return self._detach_mapped_files(canonical)
 
-    def _mapped_files_snapshot_locked(self) -> dict[str, dict[str, Any]]:
+    def _mapped_files_canonical_locked(self) -> dict[str, dict[str, Any]]:
+        """One detached copy per published map, shared by readers, never edited.
+
+        The map is replaced wholesale when a mapping run completes and
+        cleared on shutdown, never edited in place, so the copy is keyed on
+        the dict's identity and size. Copying every module entry and its
+        import list for each reader, under the class lock, was a 5.5s hold
+        on 2026-09-15: the vault sync worker took the snapshot while the MLX
+        response listener waited for the same lock on the loop thread. A
+        reader that hands the map out detaches it with
+        :meth:`_detach_mapped_files` after releasing the lock.
+        """
+        key = (id(self.mapped_files), len(self.mapped_files))
+        cached = self._mapped_files_snapshot_cache
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        snapshot = self._detach_mapped_files(self.mapped_files)
+        self._mapped_files_snapshot_cache = (key, snapshot)
+        return snapshot
+
+    @staticmethod
+    def _detach_mapped_files(
+        mapped_files: Mapping[str, dict[str, Any]],
+    ) -> dict[str, dict[str, Any]]:
         snapshot: dict[str, dict[str, Any]] = {}
-        for module_key, module_data in self.mapped_files.items():
+        for module_key, module_data in mapped_files.items():
             detached = dict(module_data)
             imports = detached.get("imports")
             if isinstance(imports, list):
                 detached["imports"] = list(imports)
             snapshot[module_key] = detached
         return snapshot
+
+    def _mapped_files_snapshot_locked(self) -> dict[str, dict[str, Any]]:
+        return self._detach_mapped_files(self._mapped_files_canonical_locked())
 
     def get_route_cache_token(self) -> tuple[int, int]:
         """Return the active topology owner's identity and structure revision."""
@@ -3165,9 +3195,9 @@ class MycelialNetwork:
             owner = self._active_owner_locked()
             if owner is not None and owner is not self:
                 return owner.get_graph_snapshot()
-            return {
+            snapshot = {
                 "topology": self._network_topology_snapshot_locked(),
-                "mapped_files": self._mapped_files_snapshot_locked(),
+                "mapped_files": self._mapped_files_canonical_locked(),
                 "centrality": dict(self._centrality),
                 "critical_modules": list(self._critical_modules),
                 "mapping_generation": self._mapping_generation,
@@ -3176,6 +3206,8 @@ class MycelialNetwork:
                 "topology_revision": self._topology_revision,
                 "topology_structure_revision": self._topology_structure_revision,
             }
+        snapshot["mapped_files"] = self._detach_mapped_files(snapshot["mapped_files"])
+        return snapshot
 
     def get_runtime_snapshot(self) -> dict[str, Any]:
         """Return the complete API read model under one topology lock."""
@@ -3264,7 +3296,8 @@ class MycelialNetwork:
             return self._infrastructure_report_snapshot_locked()
 
     def _infrastructure_report_snapshot_locked(self) -> dict[str, Any]:
-        mapped_files = self._mapped_files_snapshot_locked()
+        # Read only: a count and the paths. No detached copy is needed.
+        mapped_files = self._mapped_files_canonical_locked()
         physical_hyphae = {
             name: {
                 "source": hypha.source,
@@ -3757,7 +3790,8 @@ class MycelialNetwork:
             "captured_at_unix": captured_at_unix,
             "pathways": pathways,
             "hyphae": hyphae,
-            "mapped_files": self._mapped_files_snapshot_locked(),
+            # Serialized by the sync worker and never edited: the shared copy.
+            "mapped_files": self._mapped_files_canonical_locked(),
             "centrality": dict(self._centrality),
             "critical_modules": list(self._critical_modules),
             "cross_links": {

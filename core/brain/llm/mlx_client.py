@@ -9993,7 +9993,11 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                     self._last_heartbeat = time.time()
                     self._mark_progress()
                     try:
-                        self._pulse_mycelial_worker(res)
+                        # The pulse takes the mycelium's class lock, which
+                        # the vault sync worker holds while it snapshots
+                        # the topology. Waiting for it here is waiting on
+                        # the loop thread (5.5s, stall dump 2026-09-15).
+                        await run_io_bound(self._pulse_mycelial_worker, res)
                     except (
                         ImportError,
                         AttributeError,

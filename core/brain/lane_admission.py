@@ -238,7 +238,9 @@ def _host_total_gb(observer: ResourceObserver | None = None) -> tuple[float, boo
     The guess is gone. Callers get 0.0 and the False flag, and admit()
     refuses rather than sizing a budget it cannot justify.
     """
-    memory = (observer or get_resource_observer()).memory()
+    # Only the host total is read here; the process-tree walk that the
+    # default observation includes enumerates every pid on the host.
+    memory = (observer or get_resource_observer()).memory(include_process_tree=False)
     if memory.available and memory.total_bytes > 0:
         return float(memory.total_bytes) / float(1024**3), True
     return 0.0, False

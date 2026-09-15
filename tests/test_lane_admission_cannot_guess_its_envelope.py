@@ -38,7 +38,7 @@ class _Observer:
             source=SimpleNamespace(value="test"), scenario_id="test"
         )
 
-    def memory(self):
+    def memory(self, *, include_process_tree: bool = True):
         if self._total_gb is None:
             return _Memory(0, False)
         return _Memory(int(self._total_gb * 1024**3), True)

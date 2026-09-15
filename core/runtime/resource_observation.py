@@ -16,6 +16,7 @@ cannot be mistaken for live evidence merely because its numbers look real.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import ctypes
 import logging
@@ -441,6 +442,15 @@ class ResourceObservation:
         }
 
 
+def _on_a_running_loop() -> bool:
+    """True on a thread that is currently running an asyncio loop."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 @runtime_checkable
 class ResourceObserver(Protocol):
     @property
@@ -688,6 +698,8 @@ class HostResourceObserver:
         # RSS is one cheap call and stays live.
         self._tree_children_rss_cache: dict[int, tuple[float, int]] = {}
         self._tree_children_rss_ttl_s = 2.0
+        self._tree_children_rss_refreshing: set[int] = set()
+        self._tree_children_rss_lock = threading.Lock()
 
     @property
     def provenance(self) -> ObservationProvenance:
@@ -1041,14 +1053,43 @@ class HostResourceObserver:
         cached = self._tree_children_rss_cache.get(root)
         if cached is not None and now - cached[0] < self._tree_children_rss_ttl_s:
             return cached[1]
+        if _on_a_running_loop():
+            # The TTL bounds how often the walk runs, not how long one takes:
+            # 7.3s on the loop thread on 2026-09-15 (stall dump), from the
+            # lane reconciler asking for the host total. On the loop the
+            # last reading is served and a thread refreshes it.
+            self._refresh_children_rss_off_loop(process, root)
+            return cached[1] if cached is not None else 0
+        return self._walk_children_rss(process, root)
+
+    def _walk_children_rss(self, process: Any, root: int) -> int:
         total = 0
         for child in process.children(recursive=True):
             try:
                 total += int(getattr(child.memory_info(), "rss", 0) or 0)
             except (psutil.Error, OSError, RuntimeError, ValueError):
                 continue
-        self._tree_children_rss_cache[root] = (now, total)
+        self._tree_children_rss_cache[root] = (time.monotonic(), total)
         return total
+
+    def _refresh_children_rss_off_loop(self, process: Any, root: int) -> None:
+        with self._tree_children_rss_lock:
+            if root in self._tree_children_rss_refreshing:
+                return
+            self._tree_children_rss_refreshing.add(root)
+
+        def _run() -> None:
+            try:
+                self._walk_children_rss(process, root)
+            except (psutil.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
+                logger.debug("Process tree RSS refresh failed: %s", exc)
+            finally:
+                with self._tree_children_rss_lock:
+                    self._tree_children_rss_refreshing.discard(root)
+
+        threading.Thread(
+            target=_run, name=f"children-rss-{root}", daemon=True
+        ).start()
 
     def memory(
         self,

@@ -447,7 +447,11 @@ class IntentionalRetriever:
         try:
             from core.knowledge.local_corpus import get_local_corpus_store
             corpus = get_local_corpus_store()
-            if corpus.document_count() > 0:
+            # has_documents(), not document_count(): this is an existence
+            # guard, and COUNT(*) over the corpus is a full scan — 5.7s on
+            # the loop when the retriever was first built mid-turn (stall
+            # dump, 2026-09-15 15:40).
+            if corpus.has_documents():
                 self.register_store(
                     _T.REFERENCE,
                     lambda q, n: [h.to_memory_dict() for h in corpus.search(q, limit=n)],

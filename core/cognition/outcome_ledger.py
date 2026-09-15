@@ -31,9 +31,11 @@ standing moves.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import math
+import queue
 import sqlite3
 import threading
 import time
@@ -152,6 +154,14 @@ def _measured_learning_evidence() -> tuple:
     return ()
 
 
+def _on_a_running_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 class OutcomeLedger:
     """Delayed-receipt credit assignment with persistence and expectation calibration."""
 
@@ -173,6 +183,15 @@ class OutcomeLedger:
         self._pending_db_count = 0
         self._startup_expired_count = 0
         self._pending_load_truncated = False
+        # Rows wait here for the writer thread. A receipt is durable
+        # bookkeeping about a decision already taken in memory, so the
+        # INSERT does not have to happen on the caller's thread — and on
+        # 2026-09-15 it happened on the loop thread for 5.5s (stall dump:
+        # initiative arbiter -> preference learner -> open -> _persist).
+        self._write_queue: "queue.SimpleQueue[tuple[Any, ...]]" = queue.SimpleQueue()
+        self._writes_in_flight = 0
+        self._writes_cv = threading.Condition()
+        self._writer: threading.Thread | None = None
         self._init_schema()
         self._load_pending()
 
@@ -241,26 +260,97 @@ class OutcomeLedger:
         except (sqlite3.Error, OSError) as e:
             record_degradation("outcome_ledger", e)
 
+    _INSERT_SQL = (
+        "INSERT OR REPLACE INTO outcome_receipts "
+        "(receipt_id, action, category, expected, sources_json, opened_at, "
+        "horizon_s, context_json, observed, resolved_at, status, "
+        "prediction_error, observation, repeat_count) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+    )
+
+    @staticmethod
+    def _row_of(r: OutcomeReceipt) -> tuple[Any, ...]:
+        return (
+            r.receipt_id, r.action, r.category, r.expected,
+            json.dumps([s.as_dict() for s in r.sources]),
+            r.opened_at, r.horizon_s, json.dumps(r.context or {}),
+            r.observed, r.resolved_at, r.status, r.prediction_error,
+            r.observation, r.repeat_count,
+        )
+
     def _persist(self, r: OutcomeReceipt) -> None:
+        """Write the receipt's row — inline off the loop, queued on it.
+
+        On the loop thread the row is snapshotted and handed to the writer
+        thread. Off the loop the write is inline as it always was, after any
+        queued rows, so rows land in the order they were made. Every reader
+        of the table calls ``_flush_writes`` first, so nothing reads past a
+        write it made.
+        """
+        row = self._row_of(r)
+        if _on_a_running_loop():
+            with self._writes_cv:
+                self._writes_in_flight += 1
+            self._write_queue.put(row)
+            self._ensure_writer()
+            return
+        self._flush_writes()
+        self._write_rows([row])
+
+    def _write_rows(self, rows: list[tuple[Any, ...]]) -> None:
         try:
             with connecting(self._connect()) as conn:
-                conn.execute(
-                    """INSERT OR REPLACE INTO outcome_receipts
-                       (receipt_id, action, category, expected, sources_json, opened_at,
-                        horizon_s, context_json, observed, resolved_at, status,
-                        prediction_error, observation, repeat_count)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (
-                        r.receipt_id, r.action, r.category, r.expected,
-                        json.dumps([s.as_dict() for s in r.sources]),
-                        r.opened_at, r.horizon_s, json.dumps(r.context or {}),
-                        r.observed, r.resolved_at, r.status, r.prediction_error,
-                        r.observation, r.repeat_count,
-                    ),
-                )
+                conn.executemany(self._INSERT_SQL, rows)
                 conn.commit()
         except (sqlite3.Error, OSError) as e:
             record_degradation("outcome_ledger", e)
+
+    def _ensure_writer(self) -> None:
+        with self._writes_cv:
+            if self._writer is not None and self._writer.is_alive():
+                return
+            self._writer = threading.Thread(
+                target=self._drain_writes, name="outcome-ledger-writer", daemon=True
+            )
+            self._writer.start()
+
+    def _drain_writes(self) -> None:
+        while True:
+            try:
+                first = self._write_queue.get(timeout=30.0)
+            except queue.Empty:
+                with self._writes_cv:
+                    if self._writes_in_flight == 0:
+                        self._writer = None
+                        return
+                continue
+            rows = [first]
+            while True:
+                try:
+                    rows.append(self._write_queue.get_nowait())
+                except queue.Empty:
+                    break
+            try:
+                self._write_rows(rows)
+            finally:
+                with self._writes_cv:
+                    self._writes_in_flight -= len(rows)
+                    self._writes_cv.notify_all()
+
+    def _flush_writes(self, timeout_s: float = 10.0) -> bool:
+        """Wait for every queued row to reach the table. False on timeout."""
+        with self._writes_cv:
+            if self._writes_in_flight == 0:
+                return True
+        self._ensure_writer()
+        deadline = time.monotonic() + timeout_s
+        with self._writes_cv:
+            while self._writes_in_flight > 0:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._writes_cv.wait(remaining)
+        return True
 
     def _load_pending(self) -> None:
         try:
@@ -332,6 +422,7 @@ class OutcomeLedger:
         )
 
     def _fetch_pending_receipt(self, receipt_id: str) -> OutcomeReceipt | None:
+        self._flush_writes()
         try:
             with connecting(self._connect()) as conn:
                 row = conn.execute(
@@ -633,6 +724,7 @@ class OutcomeLedger:
         """Net reward by source ref over resolved receipts in the window (from the db)."""
         cutoff = (time.time() if now is None else now) - hours * 3600
         out: Dict[str, float] = {}
+        self._flush_writes()
         try:
             with connecting(self._connect()) as conn:
                 rows = conn.execute(
@@ -680,6 +772,7 @@ class OutcomeLedger:
         """
         out: Dict[str, Dict[str, float]] = {}
         columns = "action, observed" + (", context_json" if by_state else "")
+        self._flush_writes()
         try:
             with connecting(self._connect()) as conn:
                 rows = conn.execute(
