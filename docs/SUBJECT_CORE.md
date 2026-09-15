@@ -174,6 +174,50 @@ came from.
 
 <!-- end generated -->
 
+### What the last four are, and why they are one thing
+
+run_032 was the first run carrying the attention, affect and closure repairs.
+It scored 20 of 24. Vertex connectivity reached two and perturbational spread
+reached 0.689, both for the first time, and intrinsic persistence held. Four
+criteria were left, and three of the four are the same quantity read twice or
+blocked by the instrument rather than by the organism.
+
+**Irreducibility and its null.** The cheapest cut was interoception and memory
+against the other eight, scored at -0.0283 against a bar of 0.05 on the lower
+bound. The five held-out folds were +0.024, -0.249, +0.020, +0.042, +0.023:
+four agreeing near +0.03 and one an order of magnitude the other way. The
+denominator on that fold is healthy — its target block moved 0.93 of what the
+fitted window did — so the outlier is estimator variance rather than an
+artefact of scale. Discarding it entirely still leaves +0.027 against a bar of
+0.05, so the fold is not the story. The organism's irreducibility at its
+cheapest cut is genuinely about half the bar.
+
+Why that cut is cheapest is legible. Six of the nine domains scored exactly
+0.000 into interoception with a q-value of one: perception, attention, memory,
+deliberation, the world model and development could none of them change how her
+body felt. `soma.sensors` was read by the schema, held still by the clamp, and
+written by nothing in the tree. The proprioceptive loop already built that
+reading and sent it only to the substrate.
+
+**Synergy.** All four triples cleared the absolute bar of 0.10 — 0.272, 0.568,
+0.115, 0.138 — and all four failed on the held-out interaction gain's lower
+bound, which was negative for every one of them while the gain itself was
+positive for every one. The same five-fold shape: A,S->G ran +0.013, -0.022,
++0.109, +0.042, +0.238, a mean of +0.076 against a fold standard deviation of
+0.103. Four folds positive and one negative is not enough evidence to resolve a
+threshold of zero, and the rows that would resolve it are computable from that
+variance rather than chosen.
+
+**Every null failing.** No null passed, which is what the criterion wants, and
+the positive control failed too, which is what it cannot survive: the recurrent
+reference is the architecture the battery exists to say yes to. It failed on
+closure, because a toy with no broker has no periphery and an empty periphery
+had stopped counting as closed, and on synergy, through the same lower bound.
+
+So the four are two: enough rows for a five-fold bound to decide, and enough
+real coupling across the weakest cut for the value to clear its bar. The
+thresholds are untouched.
+
 The partition score across the session, on the same organism, as each
 methodological defect was removed and each channel repaired:
 
