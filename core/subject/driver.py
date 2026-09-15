@@ -287,6 +287,7 @@ from core.subject.snapshot import (  # noqa: E402
     SUBSTRATE_BODY,
     Snapshot,
     _built_services,
+    _DeclaredHost,
     _differs,
     _effort_state,
     _empty_again,
@@ -635,6 +636,8 @@ class SubjectRuntime:
             return
         if self._held_observer is not None:
             return
+        # Over the run's declared host when one is installed, so an arm's held
+        # answers are the declared reading rather than the machine's.
         held = _HeldObserver(get_resource_observer())
         self._previous_observer = set_resource_observer_for_test(held)
         self._held_observer = held
@@ -788,6 +791,9 @@ class SubjectRuntime:
         env = {"turn": float(self.turn), "condition_id": float(_condition_index(condition.name))}
         if condition.prepare is not None:
             env.update(condition.prepare(self.state, self.rng))
+        declared = getattr(self, "declared_host", None)
+        if declared is not None:
+            declared.declare(dict(getattr(self.state.soma, "hardware", {}) or {}))
         # The body senses the world the condition prepared, and nothing else.
         # Arms held the host still and the recorded rounds did not, so between
         # phases the proprioceptive loop read the real machine through the live
@@ -1697,6 +1703,37 @@ def build_runtime(workdir: Path, *, seed: int = 0, mind: Any = None) -> SubjectR
 SECONDS_PER_TURN: float = 1.0
 
 
+def install_declared_host(runtime: Any) -> Any:
+    """Install one declared host for the run over the real observer. Returns it, or None."""
+    try:
+        from core.runtime.resource_observation import (
+            get_resource_observer,
+            set_resource_observer_for_test,
+        )
+    except (ImportError, AttributeError):
+        return None
+    if getattr(runtime, "declared_host", None) is not None:
+        return runtime.declared_host
+    hardware = dict(getattr(getattr(runtime.state, "soma", None), "hardware", {}) or {})
+    declared = _DeclaredHost(get_resource_observer(), hardware)
+    runtime.previous_observer = set_resource_observer_for_test(declared)
+    runtime.declared_host = declared
+    return declared
+
+
+def release_declared_host(runtime: Any) -> None:
+    """Put back the observer that was installed before the run's declared host."""
+    if getattr(runtime, "declared_host", None) is None:
+        return
+    try:
+        from core.runtime.resource_observation import set_resource_observer_for_test
+    except (ImportError, AttributeError):
+        return
+    set_resource_observer_for_test(getattr(runtime, "previous_observer", None))
+    runtime.declared_host = None
+    runtime.previous_observer = None
+
+
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
@@ -1720,6 +1757,10 @@ async def calibrate_clock(
     clock = ExperimentClock(step)
     clock.install()
     runtime.clock = clock
+    # And a host of its own, for the same reason and in the same place: every
+    # reader of the machine's load, in any thread and between turns, reads the
+    # host the conditions declare rather than whatever else the machine is running.
+    install_declared_host(runtime)
     reading = {
         "seconds_per_turn": SECONDS_PER_TURN,
         "frames_per_turn": per_turn,

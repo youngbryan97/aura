@@ -1690,6 +1690,104 @@ def _delegate_to_the_real_observer() -> None:
 _delegate_to_the_real_observer()
 
 
+#: The thermal module's own thresholds for calling a temperature serious and
+#: critical (core/runtime/thermal.py), so a declared temperature reads as the
+#: level a host at that temperature would report.
+_SERIOUS_C = 78.0
+_CRITICAL_C = 90.0
+
+
+class _DeclaredHost(_HeldObserver):
+    """The host a run declares, standing in for the machine for the whole run.
+
+    Each turn's condition prepares a host reading and the recorded body keeps
+    it. The organs that guard against load did not read the body: they asked
+    the process-wide observer, which answered from the real machine. When
+    another campaign loaded the machine during the seed-7 run, proprioception's
+    reflex dropped metabolic load and inhibited world decay on 241 turns,
+    homeostasis throttled cognitive depth on 280, and the defensive resource
+    monitor, sampling from its own thread between turns, pushed the emergency
+    protocol into minimal mode. The recorded body read the prepared host
+    throughout, so none of it could be explained from the recording.
+
+    Installed once for the run and told each turn's prepared reading, this
+    answers compute, memory and thermal from that reading to every reader, in
+    any thread and between turns. Every other question, processes,
+    connections, open files, disk and power, goes to the real observer,
+    because those are the harness's bookkeeping and nothing she feels.
+    """
+
+    def __init__(self, inner: Any, host: dict[str, float]) -> None:
+        super().__init__(inner)
+        import threading
+
+        self._declared_lock = threading.Lock()
+        self.declare(host)
+
+    def declare(self, host: dict[str, float]) -> None:
+        """Make this reading the host until the next one."""
+        inner = self._inner
+        from core.runtime.resource_observation import (
+            ComputeObservation,
+            MemoryObservation,
+            ObservationProvenance,
+            ObservationSource,
+            ThermalObservation,
+        )
+
+        provenance = ObservationProvenance(
+            source=ObservationSource.SIMULATED,
+            scenario_id="subject-core-declared-host",
+            observer="core.subject.snapshot._DeclaredHost",
+        )
+        real_compute = inner.compute()
+        real_memory = inner.memory(include_process_tree=False)
+        cpu = max(0.0, min(100.0, float(host.get("cpu_usage", 0.0) or 0.0)))
+        cores = max(1, int(getattr(real_compute, "cpu_count", 1) or 1))
+        load = cpu / 100.0 * cores
+        compute = ComputeObservation(
+            provenance=provenance,
+            cpu_percent=cpu,
+            cpu_count=cores,
+            load_1m=load,
+            load_5m=load,
+            load_15m=load,
+            boot_time=float(getattr(real_compute, "boot_time", 0.0) or 0.0),
+        )
+        percent = float(host.get("ram_usage") or host.get("vram_usage") or 0.0)
+        percent = max(0.0, min(100.0, percent))
+        total = int(getattr(real_memory, "total_bytes", 0) or 0)
+        available = int(total * (1.0 - percent / 100.0))
+        memory = MemoryObservation(
+            provenance=provenance,
+            total_bytes=total,
+            available_bytes=available,
+            used_bytes=total - available,
+            free_bytes=available,
+            active_bytes=total - available,
+            percent=percent,
+            process_rss_bytes=int(getattr(real_memory, "process_rss_bytes", 0) or 0),
+            process_tree_rss_bytes=int(getattr(real_memory, "process_tree_rss_bytes", 0) or 0),
+        )
+        temperature = float(host.get("temperature", 0.0) or 0.0)
+        level = 3 if temperature >= _CRITICAL_C else 2 if temperature >= _SERIOUS_C else 0
+        thermal = ThermalObservation(provenance=provenance, level=level, provider="declared")
+        with self._declared_lock:
+            self._compute, self._memory, self._thermal = compute, memory, thermal
+
+    def compute(self) -> Any:
+        with self._declared_lock:
+            return self._compute
+
+    def memory(self, *args: Any, **kwargs: Any) -> Any:
+        with self._declared_lock:
+            return self._memory
+
+    def thermal(self, *args: Any, **kwargs: Any) -> Any:
+        with self._declared_lock:
+            return self._thermal
+
+
 @dataclass
 class Snapshot:
     """Everything a fork has to carry for two arms to start from one place."""
