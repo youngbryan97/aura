@@ -41,6 +41,10 @@ _RECALL_VERB = (
 # phrases always has.
 _FIRST = r"\b(first|initially|originally|the (?:very )?(?:start|beginning|outset))\b"
 _LAST = r"\b(last|previous|recent|recently|just|earlier|a moment ago)\b"
+#: The words in `_LAST` that pick a turn out by its place. "Earlier" and
+#: "recently" say when something was said and leave which thing to the rest of
+#: the sentence.
+_ORDINAL_LAST = r"\b(last|previous|just|a moment ago)\b"
 
 # The three components have to be *connected*, not merely co-present.
 #
@@ -320,12 +324,21 @@ def resolve_own_prior_turn(user_message: str, history: Any = None) -> str | None
     # 2026-08-30 she said "I had just finished answering that before this
     # turn" without saying what the answer had been.
     where = detect_positional_recall(user_message)
-    if where is not None:
-        return exchanges[0][1] if where == "first" else exchanges[-1][1]
+    by_place = exchanges[0][1] if where == "first" else exchanges[-1][1]
+    # Only an ordinal is a question about position. "Earlier in this
+    # conversation you told me which of your senses you'd give up" names what
+    # it is asking about, and the "earlier" in it only says when: answered by
+    # position it quoted her latest turn about energy and focus, the
+    # confabulation this resolver was written against, back again.
+    ordinal = where == "first" or (
+        where == "last" and _positional_recall_span(str(user_message or ""), _ORDINAL_LAST)
+    )
+    if where is not None and ordinal:
+        return by_place
 
     asked = _content_words(user_message)
     if not asked:
-        return None
+        return by_place if where is not None else None
 
     best: tuple[int, str] | None = None
     for prompt, turn in exchanges:
@@ -336,7 +349,9 @@ def resolve_own_prior_turn(user_message: str, history: Any = None) -> str | None
             # recent statement is her current position.
             best = (overlap, turn)
     if best is None:
-        return None
+        # A time with no topic that matches anything: the most recent is what
+        # "earlier" most plausibly points at.
+        return by_place if where is not None else None
     return best[1]
 
 
