@@ -11882,5 +11882,25 @@
     ],
     "note": "every trial records the column its effect was read off; a fast-slow edge carried only by columns that go one way is named, and the line holds when each direction keeps an edge carried by state. Read on the next battery run",
     "status": "done"
+  },
+  "P35.7": {
+    "checks": [
+      {
+        "kind": "grep",
+        "path": "tools/run_subject_core.py",
+        "pattern": "turns, seed=args\\.seed, exclude=\\(\"M\",\\)"
+      },
+      {
+        "command": "{python} -m pytest tests/test_persistence_is_memory_not_reversion_to_the_mean.py -q -p no:randomly",
+        "kind": "command",
+        "timeout": 300
+      },
+      {
+        "expr": "report['persistence_v2']['without_memory']['passes'] is True",
+        "kind": "report"
+      }
+    ],
+    "note": "persistence on the next level holds with memory left out: lower bounds +0.525 and +0.511 on the two run_032 seeds and +0.380 and +0.287 on the 300-round recordings, computed after the third amendment was committed. Runs record it from e6685d206 on",
+    "status": "done"
   }
 }
