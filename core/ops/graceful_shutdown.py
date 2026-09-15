@@ -208,6 +208,7 @@ class GracefulShutdown:
                 logger.error("Final shutdown verdict persistence failed: %s", exc)
 
             logger.info("All Aura core services terminated")
+            _arm_exit_stall_dump()
         finally:
             cls._shutdown_owner_task = None
             cls._shutdown_event.set()
@@ -223,6 +224,66 @@ class GracefulShutdown:
         if shutdown_event is None:  # pragma: no cover - setup_signals initializes it
             raise RuntimeError("shutdown event initialization failed")
         await shutdown_event.wait()
+
+
+#: How long the process may take from "every service terminated" to the root
+#: finalizer before whatever is holding it is written down. Measured
+#: 2026-09-15: 14 seconds on one shutdown, 119 on the next, with nothing in
+#: the log for the difference. asyncio.run joins the default executor on the
+#: way out (up to 300s in 3.12), so a worker thread still busy at that
+#: moment is a silent two-minute exit.
+EXIT_STALL_DUMP_AFTER_S = 10.0
+
+#: Frames that mean a thread is waiting for work, not doing it.
+_IDLE_MARKERS = (
+    'threading.py", line 355, in wait',
+    "waiter.acquire()",
+    'concurrent/futures/thread.py", line 90, in _worker',
+    "work_queue.get(block=True)",
+    'queue.py", line',
+    'selectors.py", line',
+)
+
+
+def _arm_exit_stall_dump(after_s: float = EXIT_STALL_DUMP_AFTER_S) -> None:
+    """Name the threads still working if the process has not exited in time."""
+    import threading
+
+    def _dump() -> None:
+        import sys
+        import traceback
+
+        frames = sys._current_frames()
+        busy: list[str] = []
+        for thread in threading.enumerate():
+            if thread is threading.main_thread() or thread.daemon and thread.ident not in frames:
+                continue
+            frame = frames.get(thread.ident or -1)
+            if frame is None:
+                continue
+            stack = "".join(traceback.format_stack(frame)[-6:])
+            if any(marker in stack for marker in _IDLE_MARKERS):
+                continue
+            busy.append(f"[{thread.name} daemon={thread.daemon}]\n{stack}")
+        if busy:
+            logger.warning(
+                "Exit stalled %.0fs after every service terminated; %d thread(s) still "
+                "working:\n%s",
+                after_s,
+                len(busy),
+                "\n".join(busy)[:12000],
+            )
+        else:
+            logger.warning(
+                "Exit stalled %.0fs after every service terminated; no thread is "
+                "working, so the wait is in the interpreter's own teardown.",
+                after_s,
+            )
+
+    timer = threading.Timer(after_s, _dump)
+    timer.daemon = True
+    timer.name = "exit-stall-dump"
+    timer.start()
 
 
 def register_shutdown_hook(hook: ShutdownHook) -> None:
