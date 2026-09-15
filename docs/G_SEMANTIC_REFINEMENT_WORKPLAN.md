@@ -36,6 +36,10 @@ It does not replace or close the master G03-G12 obligations.
   now preserves all source operation labels during joint fitting. The
   contrast-only run increased source errors across rounds; paired evaluation
   and measurement of the retention candidate remain separate obligations.
+  [Decode-local feature reuse](evidence/G03_CHART_FEATURE_REUSE_2026-09-15.md)
+  removes repeated span pooling and definition-pointer scoring across charts.
+  The contrast-only trial was stopped with only 216/500 candidate rows; it
+  supplies no complete paired verdict.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request

@@ -1086,6 +1086,8 @@ class CompositionalSemanticProgramTransducer:
         from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
         from core.learning.semantic_argument_chart import select_operation_argument_graph
         relation_score_cache = {}
+        relation_vector_cache = {}
+        definition_pointer_scores = self.definition_pointer.score_sequence(hidden)
 
         try:
             assigned = select_operation_argument_graph(
@@ -1094,6 +1096,8 @@ class CompositionalSemanticProgramTransducer:
                     model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
                     operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
                     relation_score_cache=relation_score_cache,
+                    relation_vector_cache=relation_vector_cache,
+                    definition_pointer_scores=definition_pointer_scores,
                 ),
                 length_penalty=self.operation_length_penalty,
                 joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
@@ -1102,6 +1106,8 @@ class CompositionalSemanticProgramTransducer:
                     operation_nodes=selected, argument_pointer_scores=argument_pointer_scores,
                     minimum_score=minimum,
                     relation_score_cache=relation_score_cache,
+                    relation_vector_cache=relation_vector_cache,
+                    definition_pointer_scores=definition_pointer_scores,
                 ),
             )
         except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:

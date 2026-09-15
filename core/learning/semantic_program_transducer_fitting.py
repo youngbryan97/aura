@@ -1270,6 +1270,8 @@ def _assign_typed_arguments(
     chart_observer: Callable[[ScoredArgumentChart], None] | None = None,
     minimum_score: float | None = None,
     relation_score_cache: dict | None = None,
+    relation_vector_cache: dict | None = None,
+    definition_pointer_scores: LinearPointerSequenceScores | None = None,
     retain_score_factors: bool = False,
     retain_relation_evidence: bool = False,
     build_only: bool = False,
@@ -1312,7 +1314,8 @@ def _assign_typed_arguments(
         *(_input_type(value) for value in inputs),
         *(result_type for _argument_types, result_type in operation_types),
     )
-    definition_pointer_scores = model.definition_pointer.score_sequence(hidden)
+    if definition_pointer_scores is None:
+        definition_pointer_scores = model.definition_pointer.score_sequence(hidden)
     joint_definitions = model.training_receipt.get("definition_selection_policy") == "joint_graph_v1"
     definition_candidates = _register_definition_candidates(
         definitions,
@@ -1357,28 +1360,28 @@ def _assign_typed_arguments(
         definition_registers = tuple(register for register, _span in hypotheses)
         definition_labels = tuple(span for _register, span in hypotheses)
         definition_candidates = tuple((span,) for span in definition_labels)
+    def relation_vector(span):
+        # This cache belongs to one decode, just like relation_score_cache.
+        if relation_vector_cache is not None and span in relation_vector_cache:
+            return relation_vector_cache[span]
+        vector = _relation_span_vector(hidden, span, hidden_channels=model.hidden_channels,
+                                       hidden_channel_widths=model.hidden_channel_widths)
+        if relation_vector_cache is not None:
+            relation_vector_cache[span] = vector
+        return vector
+
     definition_vectors = tuple(
         tuple(
             (
                 candidate,
-                _relation_span_vector(
-                    hidden,
-                    candidate,
-                    hidden_channels=model.hidden_channels,
-                    hidden_channel_widths=model.hidden_channel_widths,
-                ),
+                relation_vector(candidate),
             )
             for candidate in candidates
         )
         for candidates in definition_candidates
     )
     reference_vectors = {
-        span: _relation_span_vector(
-            hidden,
-            span,
-            hidden_channels=model.hidden_channels,
-            hidden_channel_widths=model.hidden_channel_widths,
-        )
+        span: relation_vector(span)
         for proposals in proposals_by_operation
         for span, _score in proposals
     }
@@ -1412,12 +1415,7 @@ def _assign_typed_arguments(
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
             return None
-        operation_vector = _relation_span_vector(
-            hidden,
-            node.span,
-            hidden_channels=model.hidden_channels,
-            hidden_channel_widths=model.hidden_channel_widths,
-        )
+        operation_vector = relation_vector(node.span)
         partial: list[tuple[float, tuple[int, ...], tuple[TokenSpan, ...]]] = [(0.0, (), ())]
         options_by_position: list[list[tuple[float, int, TokenSpan]]] = []
         definitions_by_position = []

@@ -83,3 +83,60 @@ def test_decode_local_pair_cache_reuses_overlapping_chart_work(monkeypatch):
         {a: expected[0][a] * 2}, {a: expected[1][a] * 2},
     )
     assert len(calls) == 1
+
+
+def test_chart_feature_reuse_preserves_assignment_and_avoids_repeated_span_work(monkeypatch):
+    from core.learning import semantic_program_transducer_fitting as fitting
+    from tests.test_semantic_relation_graph_learning import model_examples
+
+    model, examples = model_examples()
+    item = examples[0]
+    kwargs = dict(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
+        input_spans=item.ir.input_spans,
+        operation_nodes=tuple(fitting._OperationNode(ins.operation_span, ins.op, 0., 0., 1.)
+                              for ins in item.ir.instructions),
+        argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states))
+    expected = fitting._assign_typed_arguments(**kwargs)
+    assert expected is not None
+    original, calls = fitting._relation_span_vector, []
+    def counted(*args, **options):
+        calls.append(args[1])
+        return original(*args, **options)
+    monkeypatch.setattr(fitting, '_relation_span_vector', counted)
+    cache = {}
+    options = dict(relation_vector_cache=cache,
+                   definition_pointer_scores=model.definition_pointer.score_sequence(item.hidden_states))
+    assert fitting._assign_typed_arguments(**kwargs, **options) == expected
+    count = len(calls)
+    assert count == len(cache) and count > 0
+    assert fitting._assign_typed_arguments(**kwargs, **options) == expected
+    assert len(calls) == count
+
+
+def test_runtime_decode_owns_fresh_feature_caches_and_matches_uncached_selection(monkeypatch):
+    from core.learning import semantic_program_compositional_transducer as transducer
+    from tests.test_semantic_relation_graph_learning import model_examples
+
+    model, examples = model_examples()
+    model = model.with_joint_operation_argument_scores().with_source_ordered_definitions()
+    item = examples[0]
+    kwargs = dict(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+                  public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+                  model_basis_sha256=model.model_basis_sha256)
+    original, caches = transducer._assign_typed_arguments, []
+    def observed(**options):
+        caches.append(options['relation_vector_cache'])
+        return original(**options)
+    monkeypatch.setattr(transducer, '_assign_typed_arguments', observed)
+    cached = model.decode(**kwargs)
+    first_caches = tuple(caches)
+    assert first_caches and all(value is first_caches[0] for value in first_caches)
+    caches.clear()
+    assert model.decode(**kwargs) == cached
+    assert caches and caches[0] is not first_caches[0]
+    def uncached(**options):
+        options.pop('relation_vector_cache')
+        options.pop('definition_pointer_scores')
+        return original(**options)
+    monkeypatch.setattr(transducer, '_assign_typed_arguments', uncached)
+    assert model.decode(**kwargs) == cached
