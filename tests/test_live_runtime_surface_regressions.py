@@ -366,6 +366,16 @@ def test_background_policy_defers_work_during_boot_grace(monkeypatch):
     monkeypatch.delenv("AURA_TESTING", raising=False)
     monkeypatch.setenv("AURA_BACKGROUND_BOOT_GRACE_S", "300")
     monkeypatch.setattr(background_policy, "_PROCESS_STARTED_AT", time.time() - 300)
+    # The readers that come before boot grace read the host. Left live, this
+    # test answered "memory_pressure" whenever the machine was busy.
+    monkeypatch.setattr(background_policy, "_foreground_activity_reason", lambda: "")
+    monkeypatch.setattr(background_policy, "_read_compute_pressure_reason", lambda: "")
+    monkeypatch.setattr(
+        background_policy,
+        "_read_memory_pressure_snapshot",
+        lambda: background_policy._MemoryPressureSnapshot(pressure_pct=12.0, reason=""),
+    )
+    monkeypatch.setattr(background_policy, "get_unified_failure_state", lambda: {"pressure": 0.0})
     orch = SimpleNamespace(status=SimpleNamespace(start_time=time.time() - 42))
 
     assert background_policy.background_activity_reason(
