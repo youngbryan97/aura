@@ -57,3 +57,14 @@ replay, retained constraints, source-only fitting, and exported-model reload.
 The mode remains opt-in and has no serving authority.
 Smoke passed 164 tests with one skipped. Lint, compile, layering, governance,
 writing and documentation-drift checks passed.
+
+The argument-enabled fit now computes a step from the linearized weighted
+deficits, then checks every protected constraint and actual loss after float32
+storage. Backtracking rejects unsafe steps. This replaces the fixed maximum
+parameter step only in the new opt-in mode. Fifty-eight focused tests passed,
+including a 20-point linear deficit repaired within three updates and
+conflicting-objective retention under both step policies.
+
+`--compare-fit-start` adds the unchanged pre-fit decoder as a separate
+validation candidate. Its purpose is to measure the policy/weight distinction,
+not to choose answers with validation labels at runtime.

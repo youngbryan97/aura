@@ -86,6 +86,8 @@ def main() -> int:
                         help="joint_graphs only: retain satisfied witnesses and source bindings during fitting")
     parser.add_argument("--learn-argument-heads", action="store_true",
                         help="retained joint_graphs only: differentiate runtime argument-mention heads too")
+    parser.add_argument("--compare-fit-start", action="store_true",
+                        help="also evaluate the pre-fit candidate to separate decoder changes from learning")
     args = parser.parse_args()
     configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
@@ -109,6 +111,8 @@ def main() -> int:
         parser.error("argument-head learning requires retained semantic constraints")
     if args.evaluate_existing and (args.starting_candidate or args.joint_operation_argument_scores):
         parser.error("evaluate-existing cannot change the fit starting candidate or decoder")
+    if args.compare_fit_start and args.evaluate_existing:
+        parser.error("compare-fit-start requires a fresh fit with its recorded starting candidate")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
     from core.learning.semantic_graph_margin import refit_compositional_graph_scales
     from core.learning.semantic_relation_graph_learning import refit_compositional_graph_relations
@@ -194,8 +198,11 @@ def main() -> int:
         if not atomic_write_bytes_if_absent(args.output, payload.encode("ascii"), mode=0o400):
             raise FileExistsError(args.output)
     if args.validation_output is not None:
+        candidates = {"incumbent": model, "refit": candidate}
+        if args.compare_fit_start:
+            candidates["fit_start"] = starting
         selection = select_compositional_program_candidate(
-            {"incumbent": model, "refit": candidate}, bound, incumbent="incumbent",
+            candidates, bound, incumbent="incumbent",
             checkpoint_path=args.validation_checkpoint,
             progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True),
         )

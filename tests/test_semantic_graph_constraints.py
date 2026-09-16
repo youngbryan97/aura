@@ -45,11 +45,13 @@ def test_a_wrong_binding_can_be_repaired_without_sacrificing_a_correct_one():
     assert all(graph_margin(parameters, row) >= .1 for row in constraints)
 
 
-def test_conflicting_objectives_cannot_buy_a_loss_gain_by_destroying_a_satisfied_witness():
+@pytest.mark.parametrize("adaptive", [False, True])
+def test_conflicting_objectives_cannot_buy_a_loss_gain_by_destroying_a_satisfied_witness(adaptive):
     head, operation = simple_model()
     constraints = (operation_constraint([1., 0.], weight=.001),
                    operation_constraint([1., 0.], positive=1, weight=1000.))
-    _fitted, _operations, receipt = fit_graph_constraints(head, operation, constraints, steps=20, learning_rate=.1)
+    _fitted, _operations, receipt = fit_graph_constraints(head, operation, constraints, steps=20, learning_rate=.1,
+                                                        adaptive_step=adaptive)
     assert receipt["stored_margins"][0] > 0.
     assert receipt["stored_wrong_or_tied"] == 1
     assert receipt["retained_positive_regressions"] == 0

@@ -238,7 +238,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         if learn_arguments:
             from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
             candidate, fit = fit_complete_graph_constraints(candidate, tuple(retained),
-                scale=candidate.definition_relation_scale, steps=steps)
+                scale=candidate.definition_relation_scale, steps=steps, adaptive_step=True)
         elif constraint_learning:
             from core.learning.semantic_graph_constraints import fit_graph_constraints
             relation, operation, fit = fit_graph_constraints(candidate.definition_relation_head,

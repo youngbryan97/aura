@@ -100,7 +100,7 @@ def graph_margin(parameters, row, *, scale=1.):
         + sum(bank.score(index, operations[:2 * len(bank.features)]) for bank, index in op_choices))
         for sign, relations, op_choices in (
             (1., row.positive, row.positive_operations), (-1., row.negative, row.negative_operations)))
-        + sum(sign * term.score_gradient(parameters)[0] for sign, term in row.argument_terms))
+        + sum(sign * term.score(parameters) for sign, term in row.argument_terms))
 
 
 def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,

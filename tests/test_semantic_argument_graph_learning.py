@@ -62,6 +62,23 @@ def test_complete_constraint_fit_updates_existing_argument_heads():
     assert fitted.input_grounding == model.input_grounding
 
 
+def test_measured_step_repairs_a_large_linear_deficit_without_thousands_of_updates():
+    from tests.test_semantic_relation_graph_learning import model_examples
+    from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
+    model, _examples = model_examples()
+    offset = 2 + 2 * len(model.operation_head.heads)
+    feature = np.zeros_like(model.argument_role_heads[0].weight, dtype=np.float64)
+    feature[0] = 1.
+    term = ArgumentScoreTerm(offset, feature, 1., "conditional_log_odds_v1")
+    parameters = (model.definition_relation_head.query_projection, model.definition_relation_head.definition_projection,
+                  *(v for h in model.operation_head.heads for v in (h.weight, h.bias)), *argument_parameters(model))
+    row = RelationGraphContrast((), (), -20. - term.score_gradient(parameters)[0], argument_terms=((1., term),))
+    _fitted, receipt = fit_complete_graph_constraints(model, (row,), steps=3, adaptive_step=True)
+    assert receipt["stored_wrong_or_tied"] == 0
+    assert receipt["stored_margins"][0] >= .0999
+    assert receipt["step_policy"] == "linearized_deficit_backtracking_v1"
+
+
 def test_complete_source_fit_roundtrips_without_test_or_validation_training():
     from tests.test_semantic_relation_graph_learning import model_examples
     from core.learning.semantic_joint_graph_learning import refit_compositional_joint_graphs

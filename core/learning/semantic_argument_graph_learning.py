@@ -22,13 +22,22 @@ class ArgumentScoreTerm:
             raise ValueError("invalid argument graph evidence")
         object.__setattr__(self, "feature", feature)
 
-    def score_gradient(self, parameters):
+    def _logit(self, parameters):
         if self.parameter_index + 1 >= len(parameters):
             raise ValueError("argument graph parameter block is missing")
         weight, bias = parameters[self.parameter_index:self.parameter_index + 2]
         if weight.shape != self.feature.shape or np.size(bias) != 1:
             raise ValueError("argument graph parameter geometry differs")
-        logit = float(self.feature @ weight + np.asarray(bias).item())
+        return float(self.feature @ weight + np.asarray(bias).item())
+
+    def score(self, parameters):
+        logit = self._logit(parameters)
+        return float(self.scale * (logit if self.strategy == "conditional_log_odds_v1"
+                                   else -np.logaddexp(0., -logit)))
+
+    def score_gradient(self, parameters):
+        logit = self._logit(parameters)
+        bias = parameters[self.parameter_index + 1]
         if self.strategy == "conditional_log_odds_v1":
             value, slope = logit, 1.
         elif self.strategy == "independent_positive_v1":

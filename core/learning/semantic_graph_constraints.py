@@ -34,9 +34,10 @@ def _project_direction(direction, normals):
 
 
 def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
-                          required_margin=.1, learning_rate=.001, max_active=32):
+                          required_margin=.1, learning_rate=.001, max_active=32,
+                          adaptive_step=False):
     """Search for all retained inequalities; retain every already-positive margin."""
-    if (not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
+    if (type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
             or not np.isfinite(scale) or scale <= 0
@@ -90,7 +91,20 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         if largest == 0 or not np.isfinite(largest):
             status = "no_feasible_direction_found"
             break
-        direction *= learning_rate / largest
+        direction /= largest
+        step_size = learning_rate
+        if adaptive_step:
+            # Minimize the linearized squared deficit along the feasible direction.
+            slopes = np.zeros_like(margins)
+            for index in np.flatnonzero(deficits):
+                _margin, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
+                slopes[index] = sum(float(np.sum(value * part)) for value, part in
+                                    zip(gradient, unpack(direction), strict=True))
+            denominator = float(weights @ (slopes ** 2))
+            numerator = float(weights @ (deficits * slopes))
+            if denominator > 0 and numerator > 0:
+                step_size = numerator / denominator
+        direction *= step_size
         loss = float(weights @ (deficits ** 2))
         accepted = False
         for backtrack in range(24):
@@ -106,7 +120,8 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                 accepted = True
                 trace.append({"step": step + 1, "loss": trial_loss,
                               "wrong_or_tied": int(np.count_nonzero(margins <= 0)),
-                              "minimum_margin": float(margins.min()), "backtracks": backtrack})
+                              "minimum_margin": float(margins.min()), "backtracks": backtrack,
+                              "step_size": step_size * 2. ** -backtrack})
                 break
         if not accepted:
             status = "no_retention_preserving_step_found"
@@ -122,6 +137,7 @@ def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
         "stored_wrong_or_tied": int(np.count_nonzero(margins <= 0)),
         "retained_positive_regressions": int(np.count_nonzero((before > 0) & (margins <= 0))),
         "accepted_steps": trace, "max_projected_constraints": max_active,
+        "step_policy": "linearized_deficit_backtracking_v1" if adaptive_step else "fixed_max_parameter_step_v1",
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
