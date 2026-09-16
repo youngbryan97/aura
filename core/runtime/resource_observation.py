@@ -78,6 +78,7 @@ def _seed_cpu_counter() -> None:
 #: can have moved.
 _CPU_LAST_VALUE = 0.0
 _CPU_EVER_MEASURED = False
+_CPU_SAMPLE_LOCK = checked_lock("resource_observation.cpu_sampler", rank=LockRank.LEAF)
 
 
 def _measured_cpu_percent() -> float:
@@ -89,20 +90,26 @@ def _measured_cpu_percent() -> float:
     runtime past the launcher's boot deadline and put it in a restart loop.
     """
     global _CPU_SAMPLED_AT, _CPU_LAST_VALUE, _CPU_EVER_MEASURED
-    now = time.monotonic()
-    if _CPU_SAMPLED_AT and (now - _CPU_SAMPLED_AT) >= _CPU_MINIMUM_WINDOW_S:
-        _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=None) or 0.0)
-        _CPU_SAMPLED_AT = now
+    # One sampler. psutil keeps a single baseline for interval=None, so two
+    # threads reaching this together made the second diff against a baseline
+    # the first had just reset — and read 0.0. The live health pulse showed
+    # "CPU 0.0%" on a host at load 15 (2026-09-16), every few samples.
+    with _CPU_SAMPLE_LOCK:
+        now = time.monotonic()
+        if _CPU_SAMPLED_AT and (now - _CPU_SAMPLED_AT) >= _CPU_MINIMUM_WINDOW_S:
+            _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=None) or 0.0)
+            _CPU_SAMPLED_AT = now
+            _CPU_EVER_MEASURED = True
+            return _CPU_LAST_VALUE
+        if _CPU_EVER_MEASURED:
+            return _CPU_LAST_VALUE
+        # Nothing has ever been measured and the seed is too fresh to diff
+        # against. One bounded wait, once per process, so the first answer is
+        # a reading.
+        _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=_CPU_MINIMUM_WINDOW_S) or 0.0)
+        _CPU_SAMPLED_AT = time.monotonic()
         _CPU_EVER_MEASURED = True
         return _CPU_LAST_VALUE
-    if _CPU_EVER_MEASURED:
-        return _CPU_LAST_VALUE
-    # Nothing has ever been measured and the seed is too fresh to diff against.
-    # One bounded wait, once per process, so the first answer is a reading.
-    _CPU_LAST_VALUE = float(psutil.cpu_percent(interval=_CPU_MINIMUM_WINDOW_S) or 0.0)
-    _CPU_SAMPLED_AT = time.monotonic()
-    _CPU_EVER_MEASURED = True
-    return _CPU_LAST_VALUE
 
 
 _seed_cpu_counter()

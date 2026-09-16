@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import threading
+import time
 import re
 from pathlib import Path
 
@@ -216,3 +217,38 @@ def test_the_actionable_goal_verdict_is_remembered_by_text(monkeypatch):
     frame = "\n".join(["|    @    .....    #    |"] * 6)
     assert goal_text.is_actionable_goal_text(frame) is False
     assert goal_text.is_actionable_goal_text({"goal": frame}) is False
+
+
+def test_two_threads_sampling_cpu_together_do_not_read_zero(monkeypatch):
+    """The health pulse said "CPU 0.0%" on a host at load 15 (2026-09-16):
+    two samplers diffed against a baseline the other had just reset."""
+    from core.runtime import resource_observation as ro
+
+    calls: list[float] = []
+
+    def fake_cpu_percent(interval=None):
+        # psutil semantics: the first diff after a reset reads 0.0.
+        calls.append(time.monotonic())
+        if len(calls) >= 2 and calls[-1] - calls[-2] < 0.05:
+            return 0.0
+        return 42.0
+
+    monkeypatch.setattr(ro.psutil, "cpu_percent", fake_cpu_percent)
+    monkeypatch.setattr(ro, "_CPU_SAMPLED_AT", time.monotonic() - 5.0)
+    monkeypatch.setattr(ro, "_CPU_EVER_MEASURED", True)
+    monkeypatch.setattr(ro, "_CPU_LAST_VALUE", 42.0)
+
+    readings: list[float] = []
+    barrier = threading.Barrier(4)
+
+    def sample():
+        barrier.wait()
+        readings.append(ro._measured_cpu_percent())
+
+    workers = [threading.Thread(target=sample) for _ in range(4)]
+    for w in workers:
+        w.start()
+    for w in workers:
+        w.join()
+    assert readings == [42.0] * 4
+    assert len(calls) == 1  # one sampler; the rest read its value
