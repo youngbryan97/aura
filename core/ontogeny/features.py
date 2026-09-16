@@ -55,14 +55,21 @@ class FeatureSchema:
     #: Where each feature comes from, for forensics and for the invalidation
     #: sweep when a subsystem is retired.
     sources: Mapping[str, str] = field(default_factory=dict)
+    #: Meaning of the outcome labels. A changed grader retires its old rows
+    #: and heads even when the input feature geometry is unchanged.
+    outcome_contract: str = ""
 
     def __post_init__(self) -> None:
         if len(set(self.names)) != len(self.names):
             raise ValueError(f"duplicate feature names in schema for {self.control_point}")
+        if not isinstance(self.outcome_contract, str):
+            raise TypeError("outcome contract must be a string")
 
     @property
     def schema_id(self) -> str:
         payload = f"v{self.version}|" + "|".join(sorted(self.names))
+        if self.outcome_contract:
+            payload += f"|outcome:{len(self.outcome_contract)}:{self.outcome_contract}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
     @property
@@ -81,6 +88,7 @@ class FeatureSchema:
             "names": list(self.names),
             "width": self.width,
             "sources": dict(self.sources),
+            "outcome_contract": self.outcome_contract,
         }
 
 
@@ -200,6 +208,7 @@ def row_names(schema: FeatureSchema) -> tuple[str, ...]:
 EXECUTIVE_ADMISSION = FeatureSchema(
     control_point="executive.admission",
     version=1,
+    outcome_contract="executive.admission.owned_consequence.v2",
     names=(
         "priority",
         "confidence",

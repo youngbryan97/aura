@@ -229,7 +229,7 @@ class Episode:
             f"{k}={round(float(v), _DEDUP_PRECISION)}"
             for k, v in sorted(self.features.items())
         )
-        payload = f"{self.control_point}|{self.decision}|{self.decider}|{quantised}"
+        payload = f"{self.control_point}|{self.feature_schema}|{self.decision}|{self.decider}|{quantised}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:24]
 
     def as_dict(self) -> dict[str, Any]:

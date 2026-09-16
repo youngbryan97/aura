@@ -946,6 +946,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Outcome contract repair](evidence/G09_OUTCOME_CONTRACT_2026-09-16.md) prevents
+  corrected graders from retraining and reauthorizing policies on their old
+  labels. Historical observations remain intact; 189 focused tests passed.
+  Live memory admission and broad gain remain separate requirements.
   [Knowledge revision](evidence/G09_KNOWLEDGE_REVISION_2026-09-15.md) adds
   dependency-aware correction and retraction to the existing graph, with
   versioned belief updates and shared evidence envelopes. Constructed graph

@@ -52,6 +52,7 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.Ontogeny.Authority")
 
 AUTHORITY_SCHEMA = "aura.ontogeny.authority.v1"
+COMPARISON_EVIDENCE_UNIT = "unique_resolved_episode.v1"
 
 #: Graded episodes required from *each* side before a comparison is allowed to
 #: mean anything.
@@ -137,6 +138,7 @@ class Comparison:
     def as_dict(self) -> dict[str, Any]:
         return {
             "control_point": self.control_point,
+            "evidence_unit": COMPARISON_EVIDENCE_UNIT,
             "challenger": {
                 "successes": self.challenger_successes,
                 "total": self.challenger_total,
@@ -207,6 +209,18 @@ class AuthorityLedger:
         #: not.
         self._notes: dict[str, Any] = {}
         self._load()
+        for cp, grant in tuple(self._grants.items()):
+            comparison = grant.evidence.get("comparison")
+            if (
+                grant.stage is AuthorityStage.AUTHORITY
+                and isinstance(comparison, Mapping)
+                and comparison.get("evidence_unit") != COMPARISON_EVIDENCE_UNIT
+            ):
+                self.set_stage(
+                    cp, AuthorityStage.ADVISORY,
+                    reason="authority comparison requires unique resolved episodes",
+                    evidence={"previous_evidence": dict(grant.evidence)},
+                )
 
     def note(self, key: str, value: Any) -> None:
         """Record a fact about the ledger that every later grant inherits."""
@@ -218,6 +232,28 @@ class AuthorityLedger:
     def noted(self, key: str, default: Any = None) -> Any:
         with self._lock:
             return self._notes.get(str(key), default)
+
+    def bind_evidence_contract(self, control_point: str, contract: str) -> None:
+        """Retire grants whose training or outcome semantics have changed."""
+        if not control_point or not contract:
+            raise ValueError("evidence binding requires a control point and contract")
+        key = f"evidence_contract:{control_point}"
+        with self._lock:
+            previous = self._notes.get(key)
+            if previous == contract:
+                return
+            grant = self._grants.get(control_point)
+            if grant is not None:
+                self._grants[control_point] = Grant(
+                    control_point=control_point,
+                    stage=AuthorityStage.OBSERVE,
+                    reason="learning evidence contract changed",
+                    evidence={"previous_contract": previous, "current_contract": contract},
+                    revocations=grant.revocations + int(grant.stage.rank > AuthorityStage.OBSERVE.rank),
+                )
+            self._notes[key] = contract
+            snapshot = self._snapshot_locked()
+        self._save(snapshot)
 
     def attach_calibration(self, monitor: CalibrationMonitor) -> None:
         """Share the organ's calibration monitor.
@@ -298,7 +334,11 @@ class AuthorityLedger:
         be a deliberate act with evidence attached, not something that happens
         mid-conversation because a counter crossed a line.
         """
-        comparison = compare(control_point, episodes)
+        contract = self.noted(f"evidence_contract:{control_point}")
+        comparison = compare(
+            control_point,
+            (episode for episode in episodes if not contract or episode.feature_schema == contract),
+        )
         current = self.stage(control_point)
         calibration = self._calibration.report(control_point)
         ece = calibration.ece if calibration else None
@@ -313,6 +353,17 @@ class AuthorityLedger:
             "holdout_accuracy": holdout_accuracy,
             "action": "hold",
         }
+
+        if not head_ready:
+            if current is AuthorityStage.OBSERVE:
+                return verdict
+            self.set_stage(
+                control_point, AuthorityStage.OBSERVE,
+                reason="head no longer has enough graded evidence to be fitted",
+                evidence=verdict,
+            )
+            verdict["action"] = "demoted_unready"
+            return verdict
 
         if current is AuthorityStage.AUTHORITY:
             if drifted:
@@ -329,17 +380,6 @@ class AuthorityLedger:
                 )
                 verdict["action"] = "revoked_outcomes"
                 return verdict
-            return verdict
-
-        if not head_ready:
-            if current is AuthorityStage.OBSERVE:
-                return verdict
-            self.set_stage(
-                control_point, AuthorityStage.OBSERVE,
-                reason="head no longer has enough graded evidence to be fitted",
-                evidence=verdict,
-            )
-            verdict["action"] = "demoted_unready"
             return verdict
 
         if current is AuthorityStage.OBSERVE:
@@ -543,7 +583,10 @@ def compare(control_point: str, episodes: Iterable[Episode]) -> Comparison:
     one whose outcomes are easier to observe.
     """
     c_success = c_total = i_success = i_total = 0
+    seen: dict[str, tuple[str, str, str, OutcomeKind]] = {}
     for episode in episodes:
+        if episode.control_point != control_point:
+            continue
         outcome = episode.outcome
         if outcome is None or not outcome.kind.is_evidence:
             continue
@@ -553,14 +596,21 @@ def compare(control_point: str, episodes: Iterable[Episode]) -> Comparison:
             # score: whichever side inherited them would be judged partly on
             # decisions it did not make.
             continue
-        weight = max(1, int(episode.repeat_count))
+        identity = (episode.feature_schema, episode.decision, episode.decider, outcome.kind)
+        if episode.episode_id in seen:
+            if seen[episode.episode_id] != identity:
+                raise ValueError(f"conflicting resolved episode: {episode.episode_id}")
+            continue
+        seen[episode.episode_id] = identity
+        # repeat_count tracks collapsed attempts sharing one observed outcome;
+        # it cannot increase the number of independent statistical trials.
         won = outcome.kind is OutcomeKind.SUCCESS
         if episode.decider.startswith("ontogeny"):
-            c_total += weight
-            c_success += weight if won else 0
+            c_total += 1
+            c_success += int(won)
         else:
-            i_total += weight
-            i_success += weight if won else 0
+            i_total += 1
+            i_success += int(won)
     return Comparison(
         control_point=control_point,
         challenger_successes=c_success,
