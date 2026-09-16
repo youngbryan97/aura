@@ -348,6 +348,8 @@ def _bind_cache_to_engine(engine: Any) -> None:
         _REQUEST_CACHE.clear()
         _ALIGNMENT_QUERY_CACHE.clear()
         _CACHE_ENGINE_TOKEN = token
+    # The anchors are cold again, so the next turn may ask for a warm again.
+    _WARMING["asked"] = False
 
 
 def _embedder() -> Any | None:
@@ -398,23 +400,44 @@ def semantic_routing_ready() -> bool:
     before anything had been said back.
 
     A readiness question must not do the thing it is asking about.
+
+    The anchors count as part of the model. LIVE 2026-09-16: the boot
+    warmup was skipped on a loaded host, the model was resident, and the
+    first turn encoded every anchor sentence of every evidence kind through
+    the resident model, synchronously, on the API server's event loop. The
+    server answered nothing for fifty minutes, health probes included.
     """
     embedder = _embedder()
     if embedder is None:
         return False
-    return getattr(embedder, "_model", None) is not None
+    if getattr(embedder, "_model", None) is None:
+        return False
+    return anchors_warm()
+
+
+def anchors_warm() -> bool:
+    """Whether every evidence kind's concept and baseline are encoded already."""
+    with _LOCK:
+        cached = set(_ANCHOR_CACHE)
+    for kind in _ANCHORS:
+        if kind not in cached or f"__baseline__:{kind}" not in cached:
+            return False
+    return True
 
 
 def warm_semantic_routing() -> bool:
-    """Load the embedding model. For a background task or boot, never a turn."""
+    """Load the embedding model and its anchors. For a background task or boot, never a turn."""
     try:
-        return semantic_routing_available()
-    except (AttributeError, RuntimeError, OSError):
+        if not semantic_routing_available():
+            return False
+        _prewarm_anchor_vectors()
+        return anchors_warm()
+    except (AttributeError, RuntimeError, OSError, ValueError, TypeError):
         return False
 
 
 def _ask_for_a_warm() -> None:
-    """Get the model loaded off the critical path, once."""
+    """Get the model and its anchors loaded off the critical path, once."""
     if _WARMING["asked"]:
         return
     _WARMING["asked"] = True

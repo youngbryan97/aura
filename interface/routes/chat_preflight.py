@@ -2289,7 +2289,11 @@ async def _run_chat_preflight(
             try:
                 from core.senses.sight_intent import classify as _classify_sight
 
-                _sight = _classify_sight(_original_user_message)
+                # The classifier embeds the turn through the resident encoder.
+                # A forward pass on the API server's loop is a forward pass
+                # nobody else's request can run beside (2026-09-16: the
+                # server was silent for fifty minutes inside this call).
+                _sight = await asyncio.to_thread(_classify_sight, _original_user_message)
                 if _sight.kind == "look":
                     from core.senses.sight import look as _look
 
