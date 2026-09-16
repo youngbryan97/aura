@@ -25,6 +25,16 @@ from core.brain.living_mind_context import (
 )
 
 
+def _prefill_ceiling_chars() -> int:
+    """The client's own character ceiling on a prompt, or 0 if unreadable."""
+    try:
+        from core.brain.llm.context_budget import prefill_ceiling
+
+        return int(prefill_ceiling())
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0
+
+
 class _BuildsAndFitsThePrompt:
     """Lifted whole from InferenceGate; see inference_gate.py."""
 
@@ -1119,10 +1129,17 @@ class _BuildsAndFitsThePrompt:
         window = self._foreground_prompt_context_window()
         reserve = max(0, int(answer_tokens))
         allowed = window - reserve
+        # The client has a second ceiling, in characters, past which it keeps
+        # the head and the tail and drops the middle. A prompt between the
+        # two — 52,355 chars, 11,931 tokens, inside a 14,336-token window on
+        # 2026-09-16 — passed here and was amputated there, every turn, as a
+        # fault. Whichever of the two is tighter is the window.
+        char_ceiling = _prefill_ceiling_chars()
         receipt: dict[str, Any] = {
             "window": window,
             "reserved_for_answer": reserve,
             "allowed": allowed,
+            "char_ceiling": char_ceiling,
             "trimmed": [],
             "origin": str(origin or ""),
         }
@@ -1135,8 +1152,19 @@ class _BuildsAndFitsThePrompt:
                 _cost(message.get("content")) for message in messages
             )
 
+        def _chars() -> int:
+            return len(str(system_prompt or "")) + sum(
+                len(str(message.get("content") or "")) for message in messages
+            )
+
+        def _over() -> bool:
+            if allowed > 0 and total > allowed:
+                return True
+            return char_ceiling > 0 and _chars() > char_ceiling
+
         total = _total()
         receipt["tokens_before"] = total
+        receipt["chars_before"] = _chars()
         receipt["history_messages_before"] = sum(
             message.get("role") in {"user", "assistant"} for message in messages
         )
@@ -1144,7 +1172,7 @@ class _BuildsAndFitsThePrompt:
         # A complete contiguous suffix preserves dialogue references. Apply
         # this once, at serving capacity, rather than at each profile's soft
         # latency budget. Keep the latest exchange for scaffold fitting below.
-        while allowed > 0 and total > allowed:
+        while _over():
             user_indices = [
                 index for index, message in enumerate(messages)
                 if message.get("role") == "user"
@@ -1173,11 +1201,17 @@ class _BuildsAndFitsThePrompt:
                 receipt["history_messages_after"], receipt["history_messages_before"],
                 len(receipt["omitted_exchanges"]), allowed,
             )
-        if allowed <= 0 or total <= allowed:
+        if not _over():
             receipt["tokens_after"] = total
-            receipt["fits"] = total <= allowed
+            receipt["chars_after"] = _chars()
+            receipt["fits"] = True
             self._prompt_fit_receipt = receipt
             return system_prompt, messages
+        if allowed <= 0 or total <= allowed:
+            # Under the token window and over the character ceiling: the
+            # scaffold trim below measures tokens, so give it the overflow
+            # in the ceiling's own unit.
+            allowed = min(allowed if allowed > 0 else total, max(1, total - (_chars() - char_ceiling) // 4))
 
         # Trim system scaffold, largest first. Index -1 stands for the
         # separately-passed system_prompt, which the client merges into

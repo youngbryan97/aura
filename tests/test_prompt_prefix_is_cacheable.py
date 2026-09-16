@@ -384,3 +384,28 @@ def test_append_extractor_refuses_a_second_user_turn_after_cached_history() -> N
         assert "user message must be final" in str(exc)
     else:
         raise AssertionError("ambiguous append transcript must be refused")
+
+
+def test_the_fitter_honours_the_clients_character_ceiling(monkeypatch):
+    """LIVE 2026-09-16: 84 messages, 52,355 chars, 11,931 tokens — inside a
+    14,336-token window, over the client's 48,000-char prefill ceiling. The
+    fitter passed it; the client kept head and tail and dropped the middle,
+    as a fault, every turn."""
+    from core.brain import inference_gate_prompt as igp
+
+    gate = _gate()
+    monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 1_000_000)
+    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda: 6_000)
+    history = []
+    for index in range(30):
+        history.extend([("user", f"question {index} " * 20), ("assistant", f"answer {index} " * 20)])
+    history.append(("user", "What did you just explain?"))
+    _, output = gate._fit_prompt_to_window("", _turn("state", history), answer_tokens=512, origin="user")
+    total_chars = sum(len(str(row.get("content") or "")) for row in output)
+    assert total_chars <= 6_000
+    dialogue = [(row["role"], row["content"]) for row in output if row["role"] in {"user", "assistant"}]
+    assert dialogue == history[-len(dialogue):]
+    assert dialogue[0][0] == "user"
+    receipt = gate.prompt_fit_receipt()
+    assert receipt["fits"] and receipt["char_ceiling"] == 6_000
+    assert receipt["omitted_exchanges"]
