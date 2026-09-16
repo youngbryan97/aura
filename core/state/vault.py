@@ -328,6 +328,29 @@ def _remove_vault_signal_handlers(
             logger.debug("StateVaultActor signal cleanup skipped for %s: %s", signum.name, exc)
 
 
+def state_vault_actor_spec(actor_spec: Any, db_path: str) -> Any:
+    """The one supervisor contract for the state vault, for every boot path.
+
+    Two boot paths built this spec by hand and disagreed: the resilient
+    stage started the vault on the orchestrator's ``state_repo.db_path``;
+    the orchestrator's own fallback used ``config.paths.data_dir`` and a
+    restart policy the supervisor stopped accepting in July. Neither
+    disagreement was reachable until a loaded host made the vault's
+    handshake late (2026-09-16, load 34): the fallback then died on the
+    stale policy, and once that was fixed, on the supervisor refusing a
+    second contract for the actor it already held. The supervisor's
+    ``add_actor`` treats an identical contract as the same registration,
+    so one builder is the fix, and the db path is the caller's, so it is
+    the vault that is already running.
+    """
+    return actor_spec(
+        name="state_vault",
+        entry_point=vault_process_entry,
+        args=(str(db_path),),  # Pipe is added by supervisor.start_actor
+        restart_policy="always",  # State Vault must always be up
+    )
+
+
 def vault_process_entry(db_path: str, pipe):
     """Entry point for the vault process."""
     exit_code = 0

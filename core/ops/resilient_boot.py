@@ -257,7 +257,7 @@ class ResilientBoot:
     async def _stage_state(self):
         """Initialize State Repository (Aura's heart) via Supervision Tree."""
         from core.container import ServiceContainer
-        from core.state.vault import vault_process_entry
+        from core.state.vault import state_vault_actor_spec
         from core.supervisor.tree import ActorSpec
         
         supervisor = ServiceContainer.get("supervisor")
@@ -270,12 +270,7 @@ class ResilientBoot:
         
         # 1. Register and Start State Vault Actor
         db_path = str(self.orchestrator.state_repo.db_path)
-        spec = ActorSpec(
-            name="state_vault",
-            entry_point=vault_process_entry,
-            args=(db_path,),
-            restart_policy="always"
-        )
+        spec = state_vault_actor_spec(ActorSpec, db_path)
         
         supervisor.add_actor(spec)
         if (

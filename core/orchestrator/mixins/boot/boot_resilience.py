@@ -78,25 +78,6 @@ def _pipe_recv(pipe: Any) -> Any:
     return pipe.recv()
 
 
-def _state_vault_actor_spec(actor_spec: Any, entry: Any, db_path: str) -> Any:
-    """The supervisor spec for the state vault: always restarted.
-
-    This was ``restart_policy="permanent"`` from April, and the supervisor
-    has accepted only always/transient/never since July. Nothing noticed,
-    because every boot found the vault already usable and returned before
-    building the spec. LIVE 2026-09-16, load 34: the vault's handshake timed
-    out in the State Repository stage, the boot reached this line for the
-    first time in two months, and the desktop process died on the
-    ValueError. A path a boot can take is a path a test has to take.
-    """
-    return actor_spec(
-        name="state_vault",
-        target=entry,
-        args=(db_path,),  # Pipe is added by supervisor.start_actor
-        restart_policy="always",  # State Vault must always be up
-    )
-
-
 class BootResilienceMixin:
     """Provides initialization for state, resilience, threading, and recovery systems."""
 
@@ -452,7 +433,7 @@ class BootResilienceMixin:
     async def _start_state_vault_actor(self):
         """Initializes and starts the StateVaultActor via the Supervision Tree (Phase 3)."""
         try:
-            from core.state.vault import vault_process_entry
+            from core.state.vault import state_vault_actor_spec
             from core.supervisor.tree import ActorSpec
 
             # Check if already started (e.g. by ResilientBoot)
@@ -516,10 +497,9 @@ class BootResilienceMixin:
                 logger.info("🛡️  StateVaultActor already active. Skipping redundant start.")
                 return
 
-            # 1. Register with Supervisor
-            spec = _state_vault_actor_spec(
-                ActorSpec, vault_process_entry, str(config.paths.data_dir / "aura_state.db")
-            )
+            # 1. Register with Supervisor, on the contract the resilient stage
+            # used, so the supervisor sees the actor it already holds.
+            spec = state_vault_actor_spec(ActorSpec, str(self.state_repo.db_path))
 
             if not sup:
                 logger.error("❌ Cannot start StateVaultActor: Supervisor Tree not available.")
