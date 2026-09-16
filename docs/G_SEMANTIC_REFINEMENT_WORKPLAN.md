@@ -58,6 +58,9 @@ It does not replace or close the master G03-G12 obligations.
   The standard bundle reader accepts them. Mixing with the older source banks
   is still refused because worker-source identity and parameter-count basis
   changed; no compatibility exception or training promotion was granted.
+  [One-load reacquisition](evidence/G03_SINGLE_LOAD_REACQUISITION_2026-09-15.md)
+  now rebuilds the exact cohorts from their manifests and uses one existing
+  worker lifecycle. CPU checks pass; the new feature bank is not yet acquired.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.
