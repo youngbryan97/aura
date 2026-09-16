@@ -5813,6 +5813,7 @@ def _mlx_worker_loop(
                 strict_envelope_prefixed = False
                 operator_response_prefix = ""
                 native_thinking: bool | None = None
+                native_effort: str | None = None
                 # Contract-truth flags surfaced in the response payload: an
                 # exhausted proof retry, a seeded strict-value replacement,
                 # and the operator-evidence scaffolding/model composition
@@ -6973,6 +6974,12 @@ def _mlx_worker_loop(
                                         final_prompt_cache = cache
 
                                     attempt_logits_processors = list(logits_processors)
+                                    for _processor in attempt_logits_processors:
+                                        # A bounded private channel arms once per
+                                        # generation; a retry is a new generation.
+                                        _rearm = getattr(_processor, "reset", None)
+                                        if callable(_rearm):
+                                            _rearm()
                                     if bool(job.get("semantic_completion_contract", False)):
                                         if semantic_terminal_guard is not None:
                                             logger.info(
@@ -8511,6 +8518,8 @@ def _mlx_worker_loop(
                                                             fallback_prompt=original_prompt,
                                                             reasons=rejection_reasons,
                                                             job=job,
+                                                            enable_thinking=native_thinking,
+                                                            reasoning_effort=native_effort,
                                                         )
                                                     )
                                                 _prepare_clean_retry_kwargs(

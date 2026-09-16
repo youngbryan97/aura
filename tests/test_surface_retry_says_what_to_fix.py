@@ -71,3 +71,40 @@ def test_every_instruction_is_advice_not_jargon():
             f"{reason} echoes its own internal name back at the model"
         )
         assert len(instruction.split()) >= 8, f"{reason} instruction is too vague"
+
+
+def test_the_retry_renders_with_the_drafts_channel_and_effort():
+    """Rendered with the template's defaults, the retry opened the channel at
+    xhigh — an effort sentence at the head of the prompt, which the cache
+    matched 3 tokens of (2026-09-16)."""
+    from core.brain.llm.mlx_worker_surface_repair import (
+        _build_user_surface_quality_retry_prompt,
+    )
+
+    seen: dict = {}
+
+    class _Tok:
+        # A template that demonstrably honours both controls, so the render
+        # passes them through rather than leaving them out as unsupported.
+        chat_template = "{{ enable_thinking }}{{ reasoning_effort }}"
+
+        def apply_chat_template(self, messages, **kwargs):
+            seen.update(kwargs)
+            head = ""
+            if kwargs.get("enable_thinking", True):
+                head = f"[effort={kwargs.get('reasoning_effort', 'xhigh')}]"
+            return head + "".join(str(m.get("content", "")) for m in messages)
+
+    prompt = _build_user_surface_quality_retry_prompt(
+        tokenizer=_Tok(),
+        messages=[{"role": "user", "content": "hi"}],
+        tools=None,
+        fallback_prompt="fallback",
+        reasons=["internal_task_prompt_leak"],
+        job={},
+        enable_thinking=True,
+        reasoning_effort="medium",
+    )
+    assert prompt.startswith("[effort=medium]")
+    assert seen.get("enable_thinking") is True
+    assert seen.get("reasoning_effort") == "medium"

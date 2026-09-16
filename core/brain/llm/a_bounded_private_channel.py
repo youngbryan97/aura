@@ -220,7 +220,15 @@ def close_the_channel_after(
         )
         return forced
 
+    def reset() -> None:
+        # One generation per arming. The worker's quality retries reuse the
+        # processor list, and a processor that stayed "closed" from the
+        # first draft bounded nothing on the second.
+        state["closed"] = False
+        state["forced_at"] = 0
+
     bound_the_private_channel.budget_tokens = budget  # type: ignore[attr-defined]
     bound_the_private_channel.closing_token = closing_token  # type: ignore[attr-defined]
     bound_the_private_channel.state = state  # type: ignore[attr-defined]
+    bound_the_private_channel.reset = reset  # type: ignore[attr-defined]
     return bound_the_private_channel

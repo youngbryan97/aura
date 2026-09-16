@@ -321,3 +321,20 @@ def test_a_channel_the_decoder_closed_is_a_proof_the_budget_was_too_small():
     source = worker_source()
     assert '_forced_close_at = int(' in source
     assert '_record_budget_that_ran_out_thinking(max(_channel_budget, _forced_close_at), model_path)' in source
+
+
+def test_the_bound_rearms_for_a_retry():
+    """The worker's quality retries reuse the processor list; a bound that
+    stayed closed from the first draft bounded nothing on the second."""
+    from core.brain.llm.a_bounded_private_channel import close_the_channel_after
+
+    from mlx_source import worker_source
+
+    bound = close_the_channel_after(_ATokenizer(), 40)
+    assert bound is not None
+    bound.state["closed"] = True
+    bound.state["forced_at"] = 24
+    bound.reset()
+    assert bound.state == {"closed": False, "forced_at": 0}
+    source = worker_source()
+    assert '_rearm = getattr(_processor, "reset", None)' in source

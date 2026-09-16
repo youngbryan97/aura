@@ -919,17 +919,26 @@ def _build_user_surface_quality_retry_prompt(
     fallback_prompt: Any,
     reasons: list[str],
     job: dict[str, Any] | None = None,
+    enable_thinking: bool | None = None,
+    reasoning_effort: str | None = None,
 ) -> str:
     retry_messages = _messages_with_user_surface_retry(messages, reasons, job)
     if retry_messages is not None and hasattr(tokenizer, "apply_chat_template"):
         try:
             from core.brain.llm.chat_format import render_chat_template
 
+            # The same channel and effort as the draft being retried. Rendered
+            # with the template's defaults, the retry opened the channel at
+            # xhigh, which puts an effort sentence at the head of the prompt:
+            # the cache matched 3 tokens of it (2026-09-16), and the retry
+            # re-read a prompt the draft had just read.
             rendered = render_chat_template(
                 tokenizer,
                 retry_messages,
                 tools=tools,
                 add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+                reasoning_effort=reasoning_effort,
             )
             if rendered:
                 return str(rendered)
