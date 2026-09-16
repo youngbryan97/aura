@@ -800,6 +800,39 @@ def install_runtime_validation() -> dict[str, Any]:
     )
     suite.add_model(model)
 
+    _install_runtime_audit_tests(suite)
+    _install_semantic_composition_tests(suite)
+    _install_tissue_and_attestation_tests(suite)
+
+    # ── the 2026-08-11 corrections ─────────────────────────────────────────
+    #
+    # Six statements that used to be made more broadly than the code supported.
+    # Each predicate below re-derives its answer from the live modules, so a
+    # regression retracts the claim rather than leaving it standing in prose.
+    _install_honesty_coverage_claims(suite)
+
+    from core.organism.claims_language_growth import _install_language_growth_claims
+
+    _install_language_growth_claims(suite)
+    _install_morphogenesis_claims(suite)
+
+    _install_knowledge_revision_claims(suite)
+    _install_suite_tail(suite)
+    _install_phenomena_claims(suite)
+
+    _install_interiority_and_conation_claims(suite)
+    _install_typed_workflow_claims(suite)
+    _install_search_and_delivery_claims(suite)
+    _install_effect_and_fact_claims(suite)
+
+    return {
+        "model": model.name,
+        "tests": [t.name for t in suite.tests()],
+        "claims": len(suite.claims()),
+    }
+
+
+def _install_runtime_audit_tests(suite) -> None:
     suite.add_test(
         ValidationTest(
             name="fabrication_audit_never_accuses_an_unknown_turn",
@@ -1187,6 +1220,9 @@ def install_runtime_validation() -> dict[str, Any]:
             owner="core/runtime/turn_analysis.py",
         )
     )
+
+
+def _install_semantic_composition_tests(suite) -> None:
     suite.add_test(
         ValidationTest(
             name="reality_metrology_contract_separates_sources",
@@ -1415,6 +1451,9 @@ def install_runtime_validation() -> dict[str, Any]:
             owner="tools/verify_semantic_program_campaign.py",
         )
     )
+
+
+def _install_tissue_and_attestation_tests(suite) -> None:
     suite.add_test(
         ValidationTest(
             name="frozen_semantic_programs_transfer_to_fresh_cohort",
@@ -1651,22 +1690,8 @@ def install_runtime_validation() -> dict[str, Any]:
         )
     )
 
-    # ── the 2026-08-11 corrections ─────────────────────────────────────────
-    #
-    # Six statements that used to be made more broadly than the code supported.
-    # Each predicate below re-derives its answer from the live modules, so a
-    # regression retracts the claim rather than leaving it standing in prose.
-    _install_honesty_coverage_claims(suite)
 
-    from core.organism.claims_language_growth import _install_language_growth_claims
-
-    _install_language_growth_claims(suite)
-    _install_morphogenesis_claims(suite)
-
-    _install_knowledge_revision_claims(suite)
-    _install_suite_tail(suite)
-    _install_phenomena_claims(suite)
-
+def _install_interiority_and_conation_claims(suite) -> None:
     # Graded honestly. Both mechanisms are proven by construction and by
     # test, and neither has yet run against live traffic — the work ledger
     # has recorded no production turns and no canary has been evaluated on
@@ -1945,6 +1970,9 @@ def install_runtime_validation() -> dict[str, Any]:
             ),
         )
     )
+
+
+def _install_typed_workflow_claims(suite) -> None:
     suite.add_claim(
         Claim(
             statement=(
@@ -2192,6 +2220,8 @@ def install_runtime_validation() -> dict[str, Any]:
         )
     )
 
+
+def _install_search_and_delivery_claims(suite) -> None:
     # Graded MEASURED_SYNTHETIC on purpose. The arithmetic is proven and the
     # policy is wired into live best-of-N, but no live reasoning gain has
     # been measured — and every previous RLC claim that skipped that
@@ -2372,6 +2402,8 @@ def install_runtime_validation() -> dict[str, Any]:
         )
     )
 
+
+def _install_effect_and_fact_claims(suite) -> None:
     # ── claims corrected on 2026-08-11 ─────────────────────────────────────
     #
     # Each of these replaces a broader statement that the code did not
@@ -2609,11 +2641,7 @@ def install_runtime_validation() -> dict[str, Any]:
         )
     )
 
-    return {
-        "model": model.name,
-        "tests": [t.name for t in suite.tests()],
-        "claims": len(suite.claims()),
-    }
+
 
 def _affect_appraisal_widest_gap() -> float:
     """How far apart the heuristic appraisal puts the five situations."""
