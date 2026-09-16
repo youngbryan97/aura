@@ -303,6 +303,8 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
     # ── registration ─────────────────────────────────────────────────────
 
     def register(self, control_point: ControlPoint) -> ControlPoint:
+        if control_point.schema.outcome_contract:
+            self._authority.bind_evidence_contract(control_point.name, control_point.schema.schema_id)
         with self._lock:
             control_point.ensure_heads(self._units)
             self._control_points[control_point.name] = control_point

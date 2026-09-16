@@ -132,6 +132,30 @@ def _authority_implies_exploration() -> Iterator[Violation]:
 
 
 @invariant(
+    "ontogeny.authority_matches_outcome_contract",
+    scope="ontogeny",
+    owner="core/ontogeny/authority.py",
+    description="a deciding grant uses the current declared outcome semantics",
+)
+def _authority_matches_outcome_contract() -> Iterator[Violation]:
+    core = _organ()
+    if core is None:
+        return
+    with core._lock:
+        points = tuple(core._control_points.values())
+    for point in points:
+        if not point.schema.outcome_contract or not core.authority.has_authority(point.name):
+            continue
+        bound = core.authority.noted(f"evidence_contract:{point.name}")
+        if bound != point.schema.schema_id:
+            yield Violation(
+                subject=point.name,
+                message="deciding grant has a different outcome contract",
+                remedy="bind the current contract and fit from compatible observations",
+            )
+
+
+@invariant(
     "ontogeny.unobserved_carries_no_utility",
     scope="ontogeny",
     owner="core/ontogeny/experience.py",
@@ -201,6 +225,7 @@ def install() -> list[str]:
         "ontogeny.live_corpus_is_lived_experience",
         "ontogeny.authority_implies_observation",
         "ontogeny.authority_implies_exploration",
+        "ontogeny.authority_matches_outcome_contract",
         "ontogeny.unobserved_carries_no_utility",
         "ontogeny.verbalization_preserves_accepted_claims",
     ]
