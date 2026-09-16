@@ -193,6 +193,7 @@ class MorphogeneticRuntime(_BridgesSignalsToImmunity):
         self._immunity_dropped = 0
         self._last_immunity_error = ""
         self._last_immunity_degradation_at = 0.0
+        self._immunity_processed_at_last_report = 0
 
     async def start(self) -> None:
         if self._task and not self._task.done():

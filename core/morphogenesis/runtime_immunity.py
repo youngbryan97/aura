@@ -266,6 +266,26 @@ class _BridgesSignalsToImmunity:
         if self._last_degradation_at - self._last_immunity_degradation_at < interval:
             return
         self._last_immunity_degradation_at = self._last_degradation_at
+        # A full queue that is draining is the bridge doing its job: the
+        # immune observer is slower than the signal rate on a loaded host,
+        # and the lowest-intensity signals are the ones dropped. That is
+        # backpressure, said at info. A full queue that has not drained
+        # since the last report is a stuck bridge, and that is recorded.
+        processed = int(self._immunity_processed)
+        drained_since_last = processed > self._immunity_processed_at_last_report
+        self._immunity_processed_at_last_report = processed
+        if drained_since_last:
+            logger.info(
+                "Adaptive-immunity bridge queue full (%s of %s); dropped a %s signal "
+                "(%d dropped so far, %d processed); the observer is behind the "
+                "signal rate, not stuck.",
+                extra.get("queue_depth"),
+                extra.get("queue_capacity"),
+                extra.get("signal_kind"),
+                self._immunity_dropped,
+                processed,
+            )
+            return
         # Imported here rather than at module level: runtime.py imports this
         # module to build the class, so the other direction has to be local.
         from .runtime import _record_morphogenesis_runtime_degradation
@@ -274,7 +294,7 @@ class _BridgesSignalsToImmunity:
             error,
             action=action,
             severity="warning",
-            extra=extra,
+            extra={**extra, "processed": processed, "stuck": True},
         )
 
     async def wait_for_immunity_idle(self, *, timeout_s: float = 10.0) -> None:

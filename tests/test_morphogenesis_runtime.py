@@ -1022,3 +1022,42 @@ def test_clamp01():
     assert clamp01(1.5) == 1.0
     assert clamp01(-0.5) == 0.0
     assert clamp01(0.5) == 0.5
+
+
+def test_a_full_bridge_that_drains_is_backpressure_and_a_stuck_one_is_a_degradation(monkeypatch, caplog):
+    """Four QueueFull degradations per boot on a loaded host, each feeding the
+    resilience engine, for a queue that was draining. Said at info while the
+    observer keeps up; recorded only when nothing has drained since the last
+    report."""
+    import logging
+
+    from core.morphogenesis import runtime as runtime_module
+    from core.morphogenesis import runtime_immunity as bridge_module
+
+    recorded: list[dict] = []
+    monkeypatch.setattr(
+        runtime_module,
+        "_record_morphogenesis_runtime_degradation",
+        lambda error, **kwargs: recorded.append(kwargs),
+    )
+    rt = MorphogeneticRuntime(
+        config=MorphogenesisConfig(
+            adaptive_immunity_bridge=True,
+            immunity_bridge_queue_capacity=1,
+            immunity_bridge_degradation_interval_s=1.0,
+        )
+    )
+    rt._last_immunity_degradation_at = 0.0
+    extra = {"queue_depth": 1, "queue_capacity": 1, "signal_kind": "error"}
+
+    with caplog.at_level(logging.INFO, logger=bridge_module.logger.name):
+        # The observer processed something since the last report: draining.
+        rt._immunity_processed = 3
+        rt._record_immunity_bridge_degradation(asyncio.QueueFull(), action="x", extra=extra)
+    assert recorded == []
+    assert any("not stuck" in r.getMessage() for r in caplog.records)
+
+    # Nothing processed since: stuck, and recorded.
+    rt._last_immunity_degradation_at = 0.0
+    rt._record_immunity_bridge_degradation(asyncio.QueueFull(), action="x", extra=extra)
+    assert len(recorded) == 1 and recorded[0]["extra"]["stuck"] is True
