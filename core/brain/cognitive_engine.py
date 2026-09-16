@@ -2444,6 +2444,14 @@ class CognitiveEngine(_RunsItsAugmentors):
                 if mode is ThinkingMode.FAST
                 else CognitiveMode.DELIBERATE
             )
+        else:
+            # And a background turn owns its own, which is what DREAMING means:
+            # "background synthesis, no user", in the enum's own words. Leaving
+            # it alone left the mode of whichever foreground turn happened to
+            # run last, so two of her four modes were never assigned anywhere
+            # in the tree — read in four places, written in none, and flat in
+            # every recording.
+            state.cognition.current_mode = CognitiveMode.DREAMING
         bind_cognitive_execution_scope(
             state,
             objective,

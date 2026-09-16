@@ -45,6 +45,12 @@ _AUTONOMOUS_REFLECTION_TIMEOUT_SECONDS = 120.0
 #: in its own contract since it was written.
 _CONTINUITY_CHECKPOINT_SECONDS = 300.0
 
+#: Where the metabolism stops paying for ordinary cognition. The distillation
+#: arm below already used this number to decide a period was cool enough to
+#: spend on persistence; naming the mode from the same number means the mode
+#: and the behaviour cannot disagree.
+_DORMANT_ENERGY = 0.1
+
 _AUTONOMOUS_REFLECTION_INTERVAL_SECONDS = 1800.0
 _AUTONOMOUS_REFLECTION_FAILURE_BACKOFF_SECONDS = 300.0
 _AUTONOMOUS_REFLECTION_MIN_INTERVAL_SECONDS = (
@@ -508,6 +514,40 @@ class MetabolicCoordinator:
                 action="continuity checkpoint skipped for this cycle",
             )
 
+    @staticmethod
+    def _cognitive_mode_value(state: "object | None") -> str:
+        """The mode as the string it names, whether it is an enum or already one."""
+        mode = getattr(getattr(state, "cognition", None), "current_mode", None)
+        return str(getattr(mode, "value", mode) or "").lower()
+
+    def _name_the_resting_mode(self) -> None:
+        """Say she is dormant when the metabolism says she is.
+
+        DORMANT means minimal processing, and nothing in the tree ever assigned
+        it: it was read in three places and written in none, so the column for
+        it was flat in every recording and the distillation arm that waits for
+        a cool period could only ever be reached through the energy test beside
+        it. The energy is the condition; this is the name for it.
+        """
+        try:
+            from core.state.aura_state import CognitiveMode
+
+            state = getattr(getattr(self, "orch", None), "state", None)
+            cognition = getattr(state, "cognition", None)
+            if cognition is None:
+                return
+            mode = getattr(cognition, "current_mode", None)
+            low = self._metabolic_energy < _DORMANT_ENERGY
+            if low and mode is not CognitiveMode.DORMANT:
+                cognition.current_mode = CognitiveMode.DORMANT
+            elif not low and mode is CognitiveMode.DORMANT:
+                # Out of it the way she came in: the next turn owns its own
+                # mode, and leaving her dormant after the energy came back
+                # would be the stale-mode defect with a different name.
+                cognition.current_mode = CognitiveMode.REACTIVE
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            return
+
     async def _allostasis_pulse(self) -> None:
         """One allostatic sample per metabolic cycle (the 60 s pulse).
 
@@ -691,6 +731,7 @@ class MetabolicCoordinator:
 
         self._metabolic_energy = min(1.0, self._metabolic_energy + (delta * refill_rate))
         self._last_energy_refill = now
+        self._name_the_resting_mode()
 
         # [UNITY] Calculate idle time for autonomous triggers
         orch = self.orch
@@ -905,7 +946,12 @@ class MetabolicCoordinator:
             # Only distill during 'cool' periods to save energy
             continuity = kernel.organs.get("continuity") if kernel and hasattr(kernel, 'organs') else None
             if continuity and continuity.instance and state:
-                if state.cognition.current_mode in ("dormant", "dreaming") or self._metabolic_energy < 0.1:
+                # The mode is a CognitiveMode, not its value, so this read
+                # `False` whatever mode she was in and the distillation ran
+                # only on the energy arm. Comparing the enum to two strings is
+                # a condition that cannot be true.
+                resting = self._cognitive_mode_value(state) in ("dormant", "dreaming")
+                if resting or self._metabolic_energy < _DORMANT_ENERGY:
                     self.track_metabolic_task(
                         "metabolic.continuity_distill",
                         continuity.instance.distill(state),
