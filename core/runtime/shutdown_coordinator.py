@@ -1180,6 +1180,20 @@ def _write_grace_flag(*, reason: str, created_at_unix: float) -> None:
     )
 
 
+def _requesting_frames(depth: int = 6) -> str:
+    """The nearest callers outside this module, innermost first."""
+    import traceback
+
+    names: list[str] = []
+    for frame in reversed(traceback.extract_stack()[:-2]):
+        if frame.filename.endswith("shutdown_coordinator.py"):
+            continue
+        names.append(f"{os.path.basename(frame.filename)}:{frame.lineno} {frame.name}")
+        if len(names) >= depth:
+            break
+    return " <- ".join(names) or "unknown"
+
+
 def request_shutdown(
     reason: str = "",
     *,
@@ -1240,7 +1254,15 @@ def request_shutdown(
         snapshot = shutdown_request_snapshot()
 
     if first_request:
-        logger.info("Shutdown requested%s.", f": {normalized_reason}" if normalized_reason else "")
+        # The first request ends the process, and the reason string names a
+        # path, not a caller: "orchestrator_shutdown" ended a boot 89s in on
+        # 2026-09-16 and nothing said who called stop(). The caller chain is
+        # part of the record.
+        logger.info(
+            "Shutdown requested%s. Requested from: %s",
+            f": {normalized_reason}" if normalized_reason else "",
+            _requesting_frames(),
+        )
         try:
             _write_grace_flag(reason=normalized_reason, created_at_unix=now_unix)
         except (ImportError, AttributeError, RuntimeError, OSError) as exc:
