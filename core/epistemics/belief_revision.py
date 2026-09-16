@@ -146,6 +146,8 @@ class Belief:
     # Revision is evidence-weighted, so confirmations accumulate instead of
     # being blended away and contradictions stay visible as high-count middles.
     evidence_count: float = 1.0
+    revision: int = 0
+    last_decay: float = 0.0
 
 
 class BeliefRevisionEngine:
@@ -441,6 +443,8 @@ class BeliefRevisionEngine:
             old = weaker.confidence
             weaker.confidence = max(0.05, weaker.confidence * 0.6)
             weaker.last_updated = time.time()
+            weaker.revision += 1
+            self._mirror_claim_to_atomspace(weaker)
             if "logical_conflict" not in weaker.supporting_evidence:
                 weaker.supporting_evidence.append("logical_conflict")
             logger.warning(
@@ -498,6 +502,7 @@ class BeliefRevisionEngine:
                 TruthValue(belief.confidence, max(belief.evidence_count, 1e-6)),
                 domain=belief.domain,
                 source=f"belief:{belief.id}",
+                revision=belief.revision,
             )
         except (ImportError, ValueError, TypeError, RuntimeError, AttributeError) as e:
             _record_belief_revision_degradation(
@@ -541,6 +546,7 @@ class BeliefRevisionEngine:
                 b.confidence = revised.strength
                 b.evidence_count = revised.count
                 b.last_updated = time.time()
+                b.revision += 1
                 if source not in b.supporting_evidence:
                     b.supporting_evidence.append(source)
                 self._mirror_claim_to_atomspace(b)
@@ -667,7 +673,10 @@ class BeliefRevisionEngine:
                         # same records; it belongs off the loop with the rest.
                         rows: list[dict] = []
                         for atom in derived:
-                            entry: dict = {"implication": str(atom)}
+                            state = space.evidence_state(atom)
+                            if state is None or state.evidence.mass <= 0:
+                                continue
+                            entry: dict = {"implication": str(atom), "state": state.to_dict()}
                             if isinstance(atom, Link) and atom.atype == IMPLICATION:
                                 chains = space.explain(atom, max_depth=3, max_paths=2)
                                 if chains:
@@ -680,7 +689,7 @@ class BeliefRevisionEngine:
                     await bus.publish(
                         "atomspace.derived",
                         {
-                            "implications": [str(link) for link in derived],
+                            "implications": [entry["implication"] for entry in explained],
                             "explanations": explained,
                             "origin": "belief_revision.pln_forward_chain",
                         },
@@ -739,7 +748,7 @@ class BeliefRevisionEngine:
                 # Axioms are held by construction, not by evidence, so there is
                 # nothing for time to erode.
                 continue
-            days = max(0.0, (moment - belief.last_updated) / 86400.0)
+            days = max(0.0, (moment - max(belief.last_updated, belief.last_decay)) / 86400.0)
             if days < 1.0:
                 continue
             if belief.confidence <= self.DECAY_FLOOR:
@@ -756,6 +765,9 @@ class BeliefRevisionEngine:
             if abs(decayed - belief.confidence) < 1e-9:
                 continue
             belief.confidence = min(1.0, max(0.0, decayed))
+            belief.last_decay = moment
+            belief.revision += 1
+            self._mirror_claim_to_atomspace(belief)
             moved += 1
         if moved:
             logger.info("Belief decay: %d belief(s) aged toward agnosticism", moved)

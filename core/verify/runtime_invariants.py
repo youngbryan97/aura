@@ -18,6 +18,24 @@ from core.verify.invariants import Severity, Violation, invariant
 _OWNER = "core/verify/runtime_invariants.py"
 
 
+@invariant(
+    "knowledge.revision_support_is_consistent",
+    scope="knowledge",
+    owner="core/knowledge/revision_validation.py",
+    description="active derivations agree with their support and reverse dependency index",
+)
+def _knowledge_revision_support() -> Iterator[Violation]:
+    from core.knowledge import atomspace
+    from core.knowledge.revision_validation import revision_violations
+
+    # Inspection must not load a knowledge store merely to validate its absence.
+    if atomspace._space is None:
+        return
+    for failure in revision_violations(atomspace._space):
+        yield Violation(subject="atomspace", message=failure,
+                        remedy="repair the evidence mutation or dependency index")
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Service container — the spine. Everything else resolves through it.
 # ══════════════════════════════════════════════════════════════════════

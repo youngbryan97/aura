@@ -49,8 +49,7 @@ Worked example, p(wrong mode) = 0.70, p* = 0.05, N = 8:
     i.i.d.      1 − 0.95^8                        = 33.7%
     exclusion   mode refuted on draw 1, p* now
                 0.05/0.30 = 16.7% per draw        ≈ 76%
-That is not a tuning delta. It is the same model, the same checkpoint, the
-same eight forward passes.
+Both calculations use the same model, checkpoint and eight forward passes.
 
 THE THREE WAYS IT FAILS, ALL MEASURED HERE
 ──────────────────────────────────────────

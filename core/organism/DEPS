@@ -11,6 +11,8 @@
 description = "core.organism: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
+    # The registered knowledge-revision canary exercises the canonical store.
+    "+core.knowledge.revision_validation",
     "+core.organism",
 
     # What this package reaches for today.

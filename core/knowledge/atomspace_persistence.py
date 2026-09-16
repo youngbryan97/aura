@@ -25,7 +25,9 @@ from core.knowledge.atomspace import (
     Node,
     TruthValue,
     Variable,
+    _Derivation,
     _Record,
+    _fold,
 )
 
 if TYPE_CHECKING:
@@ -33,7 +35,7 @@ if TYPE_CHECKING:
 
 #: Snapshot format id. A version in the file rather than in a comment, so a
 #: store written by an older build is refused instead of half-loaded.
-SNAPSHOT_SCHEMA = "aura.atomspace.snapshot.v1"
+SNAPSHOT_SCHEMA = "aura.atomspace.snapshot.v2"
 
 __all__ = [
     "SNAPSHOT_SCHEMA",
@@ -85,12 +87,20 @@ def snapshot(space: "AtomSpace") -> dict[str, Any]:
             "derived_total": space._derived_total,
             "duplicate_assertions": space._duplicate_assertions,
             "unattributed_assertions": space._unattributed_assertions,
+            "invalidated_derivations": space._invalidated_derivations,
+            "observations": {
+                source: {"revision": revision,
+                         "claims": [[encode_atom(a), [tv.strength, tv.count]]
+                                    for a, tv in claims.items()]}
+                for source, (revision, claims) in space._observations.items()
+            },
             "atoms": [
                 {
                     "atom": encode_atom(rec.atom),
                     "tv": [rec.tv.strength, rec.tv.count],
                     "av": [rec.av.sti, rec.av.lti, rec.av.vlti],
                     "added_at": rec.added_at,
+                    "revision": rec.revision,
                     "sources": {
                         name: [tv.strength, tv.count]
                         for name, tv in rec.sources.items()
@@ -100,6 +110,16 @@ def snapshot(space: "AtomSpace") -> dict[str, Any]:
                         if rec.unattributed is not None
                         else None
                     ),
+                    "derivations": {
+                        key: {
+                            "tv": [d.tv.strength, d.tv.count],
+                            "dependencies": [encode_atom(a) for a in sorted(d.dependencies, key=repr)],
+                            "sources": sorted(d.sources),
+                            "premise_revisions": [[encode_atom(a), revision]
+                                                  for a, revision in d.premise_revisions.items()],
+                        }
+                        for key, d in rec.derivations.items()
+                    },
                 }
                 for rec in space._records.values()
             ],
@@ -157,7 +177,7 @@ def restore(space: "AtomSpace", payload: Mapping[str, Any]) -> int:
     understands: a store that silently comes back smaller is worse than
     one that refuses to come back.
     """
-    if payload.get("schema") != SNAPSHOT_SCHEMA:
+    if payload.get("schema") not in {SNAPSHOT_SCHEMA, "aura.atomspace.snapshot.v1"}:
         raise ValueError(
             f"snapshot schema {payload.get('schema')!r} is not "
             f"{SNAPSHOT_SCHEMA!r}; refusing to load part of it"
@@ -176,6 +196,7 @@ def restore(space: "AtomSpace", payload: Mapping[str, Any]) -> int:
             tv=TruthValue(float(strength), float(count)),
             av=AttentionValue(float(sti), float(lti), bool(vlti)),
             added_at=float(row.get("added_at", time.time())),
+            revision=int(row.get("revision", 0)),
             sources={
                 name: TruthValue(float(s), float(c))
                 for name, (s, c) in (row.get("sources") or {}).items()
@@ -185,11 +206,61 @@ def restore(space: "AtomSpace", payload: Mapping[str, Any]) -> int:
                 if unattributed is not None
                 else None
             ),
+            derivations={
+                key: _Derivation(TruthValue(*d["tv"]),
+                    frozenset(decode_atom(a) for a in d["dependencies"]),
+                    frozenset(d["sources"]),
+                    {decode_atom(a): revision for a, revision in d["premise_revisions"]})
+                for key, d in row.get("derivations", {}).items()
+            },
         )
+    dependents: dict[Atom, set[tuple[Atom, str]]] = {}
+    for atom, rec in rebuilt.items():
+        if rec.derivations and _fold(rec) != rec.tv:
+            raise ValueError("snapshot derived truth disagrees with its support")
+        for key, derivation in rec.derivations.items():
+            if not derivation.dependencies or not derivation.sources:
+                raise ValueError("snapshot derivation has no identifiable support")
+            if set(derivation.premise_revisions) != derivation.dependencies or any(
+                revision != (rebuilt[a].revision if a in rebuilt else None)
+                for a, revision in derivation.premise_revisions.items()
+            ):
+                raise ValueError("snapshot derivation depends on a stale premise revision")
+            for dependency in derivation.dependencies:
+                dependents.setdefault(dependency, set()).add((atom, key))
+    observations = {}
+    for source, row in payload.get("observations", {}).items():
+        revision = row["revision"]
+        if not isinstance(source, str) or not source or type(revision) is not int or revision < 0:
+            raise ValueError("snapshot observation has invalid identity or revision")
+        claims = {decode_atom(a): TruthValue(*tv) for a, tv in row["claims"]}
+        for atom, tv in claims.items():
+            if atom in rebuilt and rebuilt[atom].sources.get(source) != tv:
+                raise ValueError("snapshot observation disagrees with its attributed truth")
+        observations[source] = (revision, claims)
+    # Reject cyclic proofs before changing the destination store.
+    remaining = {a: {p for d in r.derivations.values() for p in d.dependencies if p in rebuilt}
+                 for a, r in rebuilt.items()}
+    ready = [a for a, parents in remaining.items() if not parents]
+    queued = set(ready)
+    visited = 0
+    while ready:
+        atom = ready.pop()
+        visited += 1
+        for child, _key in dependents.get(atom, ()):
+            remaining[child].discard(atom)
+            if not remaining[child] and child not in queued:
+                ready.append(child)
+                queued.add(child)
+    if visited != len(rebuilt):
+        raise ValueError("snapshot contains circular derivation support")
     with space._lock:
         space._records = rebuilt
         space._by_type = {}
         space._incoming = {}
+        space._dependents = dependents
+        space._observations = observations
+        space._invalidated_derivations = int(payload.get("invalidated_derivations", 0))
         for atom in rebuilt:
             if isinstance(atom, (Node, Link)):
                 space._by_type.setdefault(atom.atype, set()).add(atom)

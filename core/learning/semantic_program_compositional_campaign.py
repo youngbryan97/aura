@@ -168,6 +168,52 @@ class CompositionalLeaveFamilyOutResult:
     report: dict[str, Any]
 
 
+def prepare_compositional_source_training(bundles):
+    """Bind exact source cohorts, admitting training-only augmentation without test access."""
+    manifests = {name: bundle.manifest for name, bundle in bundles.items()}
+    compatibility = establish_semantic_training_representation_compatibility(manifests)
+    examples = {name: training_examples_from_feature_bundle(bundle, required_splits=frozenset({"train"}))
+                for name, bundle in bundles.items()}
+    bound = bind_training_examples_to_shared_representation(examples, compatibility=compatibility)
+    ids = [item.ir.source_text_sha256 for item in bound]
+    if len(ids) != len(set(ids)):
+        raise ValueError("compositional source examples repeat across cohorts or splits")
+    selected = tuple(item for item in bound if item.split in {"train", "validation"})
+    if {item.split for item in selected} != {"train", "validation"}:
+        raise ValueError("compositional source training needs train and validation")
+    body = {
+        "schema": "aura.compositional_source_training_plan.v1",
+        "representation_compatibility": compatibility,
+        "cohort_split_counts": {name: {split: sum(item.split == split for item in items)
+            for split in ("train", "validation", "test")} for name, items in examples.items()},
+        "training_example_count": sum(item.split == "train" for item in selected),
+        "validation_example_count": sum(item.split == "validation" for item in selected),
+        "training_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in selected if item.split == "train")),
+        "validation_example_ids_sha256": _sha(sorted(item.ir.source_text_sha256 for item in selected if item.split == "validation")),
+        "test_examples_available_to_fit": 0,
+        "serving_authority": False,
+    }
+    return selected, {**body, "report_sha256": _sha(body)}
+
+
+def fit_compositional_source_campaign(bundles, *, input_grounding, progress=None):
+    """Fit new coefficients on a measured representation, never relabel an older head."""
+    examples, report = prepare_compositional_source_training(bundles)
+    if progress:
+        progress({"stage": "source_fit_start", "training_examples": report["training_example_count"],
+                  "validation_examples": report["validation_example_count"]})
+    model = fit_compositional_semantic_program_transducer(examples, input_grounding=input_grounding)
+    model = (model.with_global_constraint_arguments().with_conditional_argument_scores()
+             .with_overlap_complete_mentions().with_atomic_literal_arguments()
+             .with_feasible_operation_charts().with_order_invariant_argument_graph()
+             .with_joint_definition_graph().with_categorical_relation_scores())
+    body = {key: value for key, value in report.items() if key != "report_sha256"}
+    body.update(schema="aura.compositional_source_training.v1", transducer_receipt_sha256=model.receipt_sha256,
+                decoder_recipe="global_joint_categorical_atomic_v1", inherited_coefficients=False,
+                fit_complete=True, evaluation_complete=False)
+    return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})
+
+
 def diagnose_compositional_definition_relations(
     model: CompositionalSemanticProgramTransducer,
     examples: Sequence[SemanticTransducerTrainingExample],

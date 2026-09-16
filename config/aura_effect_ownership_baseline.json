@@ -5158,7 +5158,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/ontogeny/authority.py",
-      "scope": "<module>.AuthorityLedger._save"
+      "scope": "<module>.AuthorityLedger._write"
     },
     {
       "callee": "<file_write_gateway>.write_text",
@@ -5166,7 +5166,7 @@
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/ontogeny/authority.py",
-      "scope": "<module>.AuthorityLedger._save"
+      "scope": "<module>.AuthorityLedger._write"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -7025,20 +7025,20 @@
       "scope": "<module>._write"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/world_model/acg.py",
-      "scope": "<module>.ActionConsequenceGraph._save"
+      "scope": "<module>.ActionConsequenceGraph._write_payload"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "<file_write_gateway>.write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
-      "path": "core/world_model/belief_graph.py",
-      "scope": "<module>.BeliefGraph._save"
+      "path": "core/world_model/acg.py",
+      "scope": "<module>.ActionConsequenceGraph._write_payload"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -7047,6 +7047,22 @@
       "count": 1,
       "path": "core/world_model/belief_graph.py",
       "scope": "<module>.BeliefGraph._save_causal"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/world_model/belief_graph.py",
+      "scope": "<module>.BeliefGraph._write_graph_payload"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/world_model/belief_graph.py",
+      "scope": "<module>.BeliefGraph._write_graph_payload"
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
@@ -14293,22 +14309,6 @@
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/world_model/acg.py",
-      "scope": "<module>.ActionConsequenceGraph._save"
-    },
-    {
-      "callee": "os.makedirs",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/world_model/belief_graph.py",
-      "scope": "<module>.BeliefGraph._save"
-    },
-    {
-      "callee": "os.makedirs",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
       "path": "core/world_model/belief_graph.py",
       "scope": "<module>.BeliefGraph._save_causal"
     },
@@ -16522,6 +16522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "420df438f7d06f7c0c5bf9981dbcbbe2779e9b9c33c8bc3497b433a6b186310a",
+  "inventory_sha256": "27f7afb460ef0ce33b80b057e850836d519bb975180f381ba6da23d89afc5b55",
   "schema_version": 1
 }

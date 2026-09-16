@@ -53,7 +53,7 @@ def load_source_examples(model, report, bundles):
         bundle = load_standard_semantic_feature_bundle(Path(path).expanduser())
         if bundle.manifest["manifest_sha256"] != expected[name]:
             raise ValueError(f"source manifest differs: {name}")
-        examples[name] = training_examples_from_feature_bundle(bundle)
+        examples[name] = training_examples_from_feature_bundle(bundle, required_splits=frozenset({"train"}))
     if set(examples) != set(expected):
         raise ValueError("source bundles must include every source family")
     bound = bind_training_examples_to_shared_representation(examples, compatibility=compatibility)
@@ -82,6 +82,8 @@ def main() -> int:
     parser.add_argument("--graph-update-steps", type=int, default=100)
     parser.add_argument("--source-operation-weight", type=float, default=1.,
                         help="source-label retention in joint_graphs; zero reproduces contrast-only fitting")
+    parser.add_argument("--retain-semantic-constraints", action="store_true",
+                        help="joint_graphs only: retain satisfied witnesses and source bindings during fitting")
     args = parser.parse_args()
     configure_refit_environment(args.output)
     if args.evaluate_existing and args.validation_output is None:
@@ -99,6 +101,8 @@ def main() -> int:
         parser.error("runtime mention margin requires pairwise_arguments")
     if args.joint_operation_argument_scores and args.objective != "joint_graphs":
         parser.error("joint operation-argument scoring requires joint_graphs")
+    if args.retain_semantic_constraints and (args.objective != "joint_graphs" or args.evaluate_existing):
+        parser.error("semantic constraints require a fresh joint_graphs fit")
     if args.evaluate_existing and (args.starting_candidate or args.joint_operation_argument_scores):
         parser.error("evaluate-existing cannot change the fit starting candidate or decoder")
     from core.learning.semantic_operation_view_refit import refit_compositional_operation_views
@@ -164,6 +168,7 @@ def main() -> int:
         options.update(rounds=args.graph_rounds, steps=args.graph_update_steps)
     if args.objective == "joint_graphs":
         options["source_weight"] = args.source_operation_weight
+        options["constraint_learning"] = args.retain_semantic_constraints
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:
