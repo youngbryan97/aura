@@ -13,6 +13,7 @@ before a conclusion.
 
 from __future__ import annotations
 
+import pytest
 from mlx_source import worker_source
 
 from pathlib import Path
@@ -124,51 +125,68 @@ def test_a_generation_that_is_not_the_surface_is_left_alone() -> None:
     )
 
 
-def test_a_budget_that_cannot_hold_both_halves_keeps_the_channel_shut() -> None:
-    """Nothing served is worse than partial working served.
+def test_a_budget_that_cannot_hold_both_halves_opens_a_bounded_channel() -> None:
+    """Nothing served is worse than partial working served — and the bound is
+    the decoder's now, not a veto.
 
     LIVE, 2026-08-27: three attempts in a row ended inside the channel, the
     last after 127 seconds and 3,411 characters of reasoning, and the turn
-    served nothing each time. The same question with the channel closed had
-    served a real partial derivation.
+    served nothing each time. That was an UNBOUNDED channel; the decoder now
+    closes it at its budget (a_bounded_private_channel, 2026-09-08), so an
+    attempt cannot end inside it.
 
-    This was asserted through the record of a budget that had already run out.
-    That owner was retired on 2026-09-10 (1ab1b1f4e), because one runaway set
-    the mark and every ordinary turn was refused from then on. The protection
-    is the same and its owner is now the price: what the clock can decode in
-    the time this turn has, less the room the answer needs. All three of those
-    attempts had a budget the size of its own answer floor, which leaves
-    nothing for a channel in front of it.
+    LIVE, 2026-09-15: the veto this test used to assert kept the channel
+    shut on a "walk me through" question whose floor was its whole budget.
+    Shut, the model reasoned in the reply — 4,530 characters beginning "The
+    user is asking about", every token of the budget, no answer — and the
+    person was told to ask again. The channel opens, at the smallest size
+    worth opening, and the decoder closes it there.
     """
 
     import time as _time
+
+    from core.brain.llm import thinking_reserve
+    from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
+    from core.brain.llm.mlx_worker import _the_private_channel_budget
 
     budget_is_the_whole_answer = {
         "user_surface_completion_floor": 896,
         "max_tokens": 896,
         "deadline_unix": _time.time() + 127,
     }
-    assert not _answer_is_derived_here(budget_is_the_whole_answer)
-
-    room_for_both = dict(budget_is_the_whole_answer, max_tokens=4096)
-    assert _answer_is_derived_here(room_for_both)
+    thinking_reserve.forget()
+    try:
+        # Six tokens a second, as on 2026-08-27: 127 seconds buys 762, and
+        # the answer alone needs 896.
+        for _ in range(20):
+            thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
+        assert _answer_is_derived_here(budget_is_the_whole_answer)
+        assert (
+            _the_private_channel_budget(budget_is_the_whole_answer, 896)
+            == TOO_SMALL_TO_THINK_IN
+        )
+    finally:
+        thinking_reserve.forget()
 
 
 def test_a_job_with_no_budget_is_left_to_the_floor_alone() -> None:
     assert _answer_is_derived_here({"user_surface_completion_floor": 896})
 
 
-def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
-    """The clock spent proving it will not close is spent for nothing.
+def test_the_clock_sizes_the_channel_and_no_longer_vetoes_it() -> None:
+    """The clock spent proving it will not close is spent for nothing — so
+    the decoder closes it, and the clock decides where.
 
     LIVE, 2026-08-27: the first attempt burned 98 of a 148-second turn
-    discovering the channel would not close, and the retry that did answer had
-    50 seconds and produced 85 characters.
+    discovering the channel would not close. The bound is enforced now; what
+    the clock still decides is how much of the turn the channel may take.
     """
 
     import time as _time
 
     from core.brain.llm import thinking_reserve
+    from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
+    from core.brain.llm.mlx_worker import _the_private_channel_budget
 
     thinking_reserve.forget()
     try:
@@ -187,10 +205,14 @@ def test_a_channel_there_is_no_time_to_close_is_not_opened() -> None:
                 generated_tokens=900, elapsed_s=150.0
             )
         # Thirty seconds at six a second is 180 tokens, and the answer alone
-        # needs 896 of them.
-        assert not _answer_is_derived_here(job(30))
-        # Ten minutes is time for both halves.
+        # needs 896 of them: the role stands, the channel is the smallest one.
+        assert _answer_is_derived_here(job(30))
+        assert _the_private_channel_budget(job(30), 4096) == TOO_SMALL_TO_THINK_IN
+        # Ten minutes buys 3,600 tokens; the answer keeps 896 of them.
         assert _answer_is_derived_here(job(600))
+        assert _the_private_channel_budget(job(600), 4096) == pytest.approx(
+            3600 - 896, abs=40
+        )
         # A job that states no deadline is left to the other tests.
         assert _answer_is_derived_here(
             {"user_surface_completion_floor": 896, "max_tokens": 896}

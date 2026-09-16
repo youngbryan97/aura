@@ -6045,8 +6045,14 @@ def _mlx_worker_loop(
                 # is zero until there is enough to measure. Both caps below still
                 # bind, so a reserve widens the answer and never overruns the
                 # serving profile.
+                _channel_budget = 0
                 if native_thinking is True:
-                    _reserve = _reasoning_reserve_tokens(model_path)
+                    # What the channel may take, on top of the answer. The
+                    # measured reserve when there is one; otherwise the bound
+                    # the decoder will hold, so the channel never comes out of
+                    # the answer's own tokens.
+                    _channel_budget = _the_private_channel_budget(job, max_tokens)
+                    _reserve = max(_reasoning_reserve_tokens(model_path), _channel_budget)
                     if _reserve > 0:
                         max_tokens += _reserve
                 max_tokens = _serving_lane_output_cap(
@@ -6334,9 +6340,7 @@ def _mlx_worker_loop(
                             close_the_channel_after,
                         )
 
-                        _bound = close_the_channel_after(
-                            tokenizer, _the_private_channel_budget(job, max_tokens)
-                        )
+                        _bound = close_the_channel_after(tokenizer, _channel_budget)
                         if _bound is not None:
                             logits_processors.append(_bound)
                             logger.info(
@@ -9221,6 +9225,10 @@ def _mlx_worker_loop(
                 temp = _admit_sampling_control(job, "temp")
                 top_p = _admit_sampling_control(job, "top_p")
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
+                _channel_budget = 0
+                if native_thinking is True:
+                    _channel_budget = _the_private_channel_budget(job, max_tokens)
+                    max_tokens += max(_reasoning_reserve_tokens(model_path), _channel_budget)
                 max_tokens = _serving_lane_output_cap(
                     model_path,
                     str(job.get("serving_lane") or "foreground_standard"),
@@ -9355,9 +9363,7 @@ def _mlx_worker_loop(
                             close_the_channel_after,
                         )
 
-                        _bound = close_the_channel_after(
-                            tokenizer, _the_private_channel_budget(job, max_tokens)
-                        )
+                        _bound = close_the_channel_after(tokenizer, _channel_budget)
                         if _bound is not None:
                             logits_processors.append(_bound)
                             logger.info(

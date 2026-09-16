@@ -1241,23 +1241,15 @@ def answer_is_derived_for_generation(
     # is work the request named and nothing upstream has done.
     if floor <= A_CLOSED_QUESTIONS_FLOOR:
         return False
-    # Affordability has one owner, and it is asked only when it is answerable.
-    #
-    # These two decisions have to agree or the worst case happens: thinking
-    # switched on and no budget to bound it with. What the channel may take is
-    # the tokens the clock can decode in the time this turn has, less the room
-    # the answer needs — and zero is a real answer, meaning this turn cannot
-    # afford to think privately and nothing should open the channel.
-    #
-    # With no clock there is no affordability question to ask. The one caller
-    # that arrives here without one is `_time_the_answer_needs`, which is
-    # computing the deadline and so cannot be handed it; answering False there
-    # drops the reserve out of its own estimate and under-prices exactly the
-    # turns that will think. It gets the role question, which is all this can
-    # honestly answer without a clock, and it cannot open a channel with the
-    # answer — only the worker does that, and the worker sizes through the
-    # owner below.
-    if remaining <= 0.0:
+    # This is the role question and only the role question. It used to be
+    # vetoed by affordability — "zero is a real answer, meaning this turn
+    # cannot afford to think privately and nothing should open the channel"
+    # — on the premise that a shut channel costs nothing. It costs the turn:
+    # the model reasons either way, and shut, it reasons in the reply and
+    # spends the whole budget there (LIVE, 2026-08-27 and 2026-09-15). The
+    # channel's size is the owner's question, asked with the clock, and it
+    # answers with a bound the decoder holds rather than with a veto.
+    if remaining <= 0.0 or budget <= 0:
         return True
     return (
         the_channel_budget_for(

@@ -50,16 +50,21 @@ def test_one_runaway_does_not_close_the_channel_for_every_later_turn():
         _forget()
 
 
-def test_a_clock_with_no_time_for_the_generation_still_refuses():
-    """Not gating into a coma is not the same as never gating.
+def test_a_clock_with_no_time_for_the_generation_sizes_the_channel_and_does_not_veto_it():
+    """The clock answers the size question; the role question is its own.
 
-    The refusal that remains is about ONE generation. The channel is a share
-    of the same budget the answer is written from and the decoder closes it
-    there (see core/brain/llm/a_bounded_private_channel.py), so there is no
-    second cost to afford — which is what made comparing the two a deadlock:
-    the clock added the reserve only once the gate said yes, and the gate said
-    no because the budget had no reserve in it.
+    This test once asserted the refusal: with half the time the answer needs,
+    the channel stayed shut. Shut, the model reasoned in the reply and spent
+    the whole budget there (LIVE, 2026-09-15, "The user is asking about...",
+    4,530 characters, nothing delivered). A derived answer opens the channel
+    whatever the clock says; the clock decides how much the decoder allows
+    it, down to the smallest channel worth opening.
     """
+    from core.brain.llm.a_bounded_private_channel import (
+        TOO_SMALL_TO_THINK_IN,
+        the_channel_budget_for,
+    )
+
     _forget()
     try:
         for _ in range(12):
@@ -68,18 +73,21 @@ def test_a_clock_with_no_time_for_the_generation_still_refuses():
             )
         needed = thinking_reserve.seconds_to_decode(1024, _A_MODEL)
         assert needed > 0.0, "the rate window should be able to price it"
-        assert answer_is_derived_for_generation(
-            completion_floor=512,
-            budget_tokens=1024,
-            model_name=_A_MODEL,
-            seconds_remaining=needed / 2.0,
-        ) is False
-        assert answer_is_derived_for_generation(
-            completion_floor=512,
-            budget_tokens=1024,
-            model_name=_A_MODEL,
-            seconds_remaining=needed * 2.0,
-        ) is True
+        for seconds in (needed / 2.0, needed * 2.0):
+            assert answer_is_derived_for_generation(
+                completion_floor=512,
+                budget_tokens=1024,
+                model_name=_A_MODEL,
+                seconds_remaining=seconds,
+            ) is True
+        starved = the_channel_budget_for(
+            max_tokens=1024, seconds_left=needed / 2.0, answer_floor=512, model=_A_MODEL
+        )
+        roomy = the_channel_budget_for(
+            max_tokens=1024, seconds_left=needed * 2.0, answer_floor=512, model=_A_MODEL
+        )
+        assert starved == TOO_SMALL_TO_THINK_IN
+        assert roomy == 1024
     finally:
         _forget()
 

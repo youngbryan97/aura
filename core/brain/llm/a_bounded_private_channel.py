@@ -102,13 +102,28 @@ def the_channel_budget_for(
         from core.brain.llm.thinking_reserve import tokens_decodable_in
     except ImportError:
         return 0
-    affordable = int(tokens_decodable_in(seconds, str(model or ""), ceiling=total))
     try:
         needed = int(answer_floor or 0)
     except (TypeError, ValueError):
         needed = 0
-    budget = min(affordable, total) - max(needed, TOO_SMALL_TO_THINK_IN)
-    return budget if budget >= TOO_SMALL_TO_THINK_IN else 0
+    needed = max(needed, TOO_SMALL_TO_THINK_IN)
+    # The channel sits on top of the answer, not inside its budget. The
+    # first arithmetic took it from inside — total less the floor — and on
+    # the desktop lane the floor IS the total, so the channel was zero on
+    # every derived answer and the model searched in public. What the clock
+    # can decode beyond the answer is the channel's room; the answer's own
+    # ceiling is the channel's ceiling.
+    affordable = int(tokens_decodable_in(seconds, str(model or ""), ceiling=needed + total))
+    budget = min(total, affordable - needed)
+    if budget < TOO_SMALL_TO_THINK_IN:
+        # The clock cannot pay for the answer and a channel. The model
+        # reasons regardless: shut, the channel moved the search into the
+        # reply, where it spent every token and delivered nothing (LIVE,
+        # 2026-09-15: 4,530 characters beginning "The user is asking about",
+        # rejected, the person told to ask again). The smallest channel worth
+        # opening, and the decoder closes it.
+        return TOO_SMALL_TO_THINK_IN
+    return budget
 
 
 def _the_token_that_closes_it(tokenizer: Any) -> int | None:

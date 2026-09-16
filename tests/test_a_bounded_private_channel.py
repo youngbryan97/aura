@@ -121,13 +121,28 @@ def test_the_channel_gets_what_the_clock_can_pay_for_after_the_answer():
             answer_floor=1024,
             model=_A_RATE_MODEL,
         ) == pytest.approx(4000 - 1024, abs=40)
-        # A turn whose whole clock is spent on the answer thinks in the open.
+        # A turn whose whole clock is spent on the answer used to "think in
+        # the open". LIVE, 2026-09-15: in the open it spent every token of a
+        # 1,024 budget on "The user is asking about..." and delivered nothing.
+        # It gets the smallest channel worth opening, and the decoder closes
+        # it there.
+        from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
+
         assert the_channel_budget_for(
             max_tokens=2048,
             seconds_left=110.0,
             answer_floor=1024,
             model=_A_RATE_MODEL,
-        ) == 0
+        ) == TOO_SMALL_TO_THINK_IN
+        # And the channel sits on top of the answer, never inside its budget:
+        # on the desktop lane the floor IS the budget, and "total less floor"
+        # made every derived answer's channel zero.
+        assert the_channel_budget_for(
+            max_tokens=1024,
+            seconds_left=400.0,
+            answer_floor=1024,
+            model=_A_RATE_MODEL,
+        ) == 1024
     finally:
         _forget_rates()
 
@@ -204,14 +219,19 @@ def test_an_ordinary_turn_can_now_derive_its_answer_here():
     ) is True
 
 
-def test_a_budget_too_small_for_both_halves_still_refuses():
+def test_a_budget_too_small_for_both_halves_opens_a_bounded_channel():
+    """The role question is not vetoed by the size question any more.
+
+    Shut, the channel did not save the budget; the model reasoned in the
+    reply instead and the reply was all reasoning (LIVE, 2026-09-15).
+    """
     from core.brain.llm.chat_format import answer_is_derived_for_generation
 
     assert answer_is_derived_for_generation(
         completion_floor=1024,
         budget_tokens=200,
         seconds_remaining=480.0,
-    ) is False
+    ) is True
 
 
 def test_with_no_clock_the_role_is_answered_and_the_size_is_not():

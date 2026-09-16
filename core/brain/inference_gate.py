@@ -4453,7 +4453,25 @@ class InferenceGate(_WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             logger.debug("Chat format unavailable, reserving nothing for reasoning: %s", exc)
             return 0
-        return cls._reasoning_reserve(model) if native_thinking is True else 0
+        if native_thinking is not True:
+            return 0
+        # The same number the worker adds: the measured reserve, or the
+        # bound the decoder will hold on the channel when nothing has been
+        # measured yet — which is every turn until a channel has run.
+        try:
+            from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
+
+            bounded = int(
+                the_channel_budget_for(
+                    max_tokens=budget_tokens,
+                    seconds_left=seconds_remaining,
+                    answer_floor=completion_floor,
+                    model=model,
+                )
+            )
+        except (ImportError, TypeError, ValueError):
+            bounded = 0
+        return max(cls._reasoning_reserve(model), bounded)
 
     @staticmethod
     def _tokens_the_clock_can_deliver(max_tokens: Any, *, seconds: float) -> int:
