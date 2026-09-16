@@ -60,10 +60,7 @@ def test_a_clock_with_no_time_for_the_generation_sizes_the_channel_and_does_not_
     whatever the clock says; the clock decides how much the decoder allows
     it, down to the smallest channel worth opening.
     """
-    from core.brain.llm.a_bounded_private_channel import (
-        TOO_SMALL_TO_THINK_IN,
-        the_channel_budget_for,
-    )
+    from core.brain.llm.a_bounded_private_channel import the_channel_budget_for
 
     _forget()
     try:
@@ -86,7 +83,9 @@ def test_a_clock_with_no_time_for_the_generation_sizes_the_channel_and_does_not_
         roomy = the_channel_budget_for(
             max_tokens=1024, seconds_left=needed * 2.0, answer_floor=512, model=_A_MODEL
         )
-        assert starved == TOO_SMALL_TO_THINK_IN
+        # Starved of clock, the channel gets the answer's own room; with
+        # time, what the clock can decode beyond the answer, up to that room.
+        assert starved == 1024
         assert roomy == 1024
     finally:
         _forget()

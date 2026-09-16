@@ -6046,6 +6046,7 @@ def _mlx_worker_loop(
                 # bind, so a reserve widens the answer and never overruns the
                 # serving profile.
                 _channel_budget = 0
+                _channel_bound = None
                 if native_thinking is True:
                     # What the channel may take, on top of the answer. The
                     # measured reserve when there is one; otherwise the bound
@@ -6341,6 +6342,7 @@ def _mlx_worker_loop(
                         )
 
                         _bound = close_the_channel_after(tokenizer, _channel_budget)
+                        _channel_bound = _bound
                         if _bound is not None:
                             logits_processors.append(_bound)
                             logger.info(
@@ -8820,6 +8822,19 @@ def _mlx_worker_loop(
                     _spent_the_whole_budget = (
                         _budget_applied > 0 and int(total_generated_tokens) >= _budget_applied
                     )
+                    # The decoder closed the channel: the model had not
+                    # finished thinking at that budget. That is a proof the
+                    # channel cost more than it was given — recorded, so the
+                    # reserve widens — and it was not recorded before. LIVE,
+                    # 2026-09-16: closed at 80 tokens, the model went on
+                    # reasoning in the reply for 1,067 tokens, the draft was
+                    # rejected as a prompt leak, and a second generation cost
+                    # seven more minutes.
+                    _forced_close_at = int(
+                        (getattr(_channel_bound, "state", None) or {}).get("forced_at", 0) or 0
+                    )
+                    if native_thinking is True and _forced_close_at > 0:
+                        _record_budget_that_ran_out_thinking(max(_channel_budget, _forced_close_at), model_path)
                     if (
                         semantic_completion_state["semantic_completion_incomplete"]
                         and not expected_empty_precompile

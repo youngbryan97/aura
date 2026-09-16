@@ -120,9 +120,15 @@ def the_channel_budget_for(
         # reasons regardless: shut, the channel moved the search into the
         # reply, where it spent every token and delivered nothing (LIVE,
         # 2026-09-15: 4,530 characters beginning "The user is asking about",
-        # rejected, the person told to ask again). The smallest channel worth
-        # opening, and the decoder closes it.
-        return TOO_SMALL_TO_THINK_IN
+        # rejected, the person told to ask again). And the smallest channel
+        # worth opening was not enough either: closed by the decoder at 80
+        # tokens, the model went on reasoning in the reply for 1,067 tokens
+        # and a second generation cost seven more minutes (2026-09-16). A
+        # turn somebody is waiting for is not cancelled while it produces
+        # tokens, so the clock's refusal buys nothing here; the channel gets
+        # the room the answer has — the one ceiling the request carries —
+        # and the measured reserve replaces it once channels have run.
+        return total
     return budget
 
 

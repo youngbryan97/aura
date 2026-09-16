@@ -124,16 +124,16 @@ def test_the_channel_gets_what_the_clock_can_pay_for_after_the_answer():
         # A turn whose whole clock is spent on the answer used to "think in
         # the open". LIVE, 2026-09-15: in the open it spent every token of a
         # 1,024 budget on "The user is asking about..." and delivered nothing.
-        # It gets the smallest channel worth opening, and the decoder closes
-        # it there.
-        from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
-
+        # LIVE, 2026-09-16: the smallest channel worth opening (96) was
+        # closed by the decoder at 80 and the model reasoned on in the reply
+        # for 1,067 tokens. It gets the room the answer has, and the decoder
+        # closes it there.
         assert the_channel_budget_for(
             max_tokens=2048,
             seconds_left=110.0,
             answer_floor=1024,
             model=_A_RATE_MODEL,
-        ) == TOO_SMALL_TO_THINK_IN
+        ) == 2048
         # And the channel sits on top of the answer, never inside its budget:
         # on the desktop lane the floor IS the budget, and "total less floor"
         # made every derived answer's channel zero.
@@ -310,3 +310,14 @@ def test_a_turn_that_only_renders_an_answer_keeps_the_channel_shut():
         final_user_surface=True,
         answer_is_derived_here=False,
     ) is False
+
+
+def test_a_channel_the_decoder_closed_is_a_proof_the_budget_was_too_small():
+    """LIVE, 2026-09-16: closed at 80 tokens, the model reasoned on in the
+    reply for 1,067 tokens, and nothing recorded that 96 was too small, so
+    the next turn would have been given 96 again."""
+    from mlx_source import worker_source
+
+    source = worker_source()
+    assert '_forced_close_at = int(' in source
+    assert '_record_budget_that_ran_out_thinking(max(_channel_budget, _forced_close_at), model_path)' in source

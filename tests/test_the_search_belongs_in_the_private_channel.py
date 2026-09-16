@@ -146,7 +146,6 @@ def test_a_budget_that_cannot_hold_both_halves_opens_a_bounded_channel() -> None
     import time as _time
 
     from core.brain.llm import thinking_reserve
-    from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
     from core.brain.llm.mlx_worker import _the_private_channel_budget
 
     budget_is_the_whole_answer = {
@@ -161,10 +160,8 @@ def test_a_budget_that_cannot_hold_both_halves_opens_a_bounded_channel() -> None
         for _ in range(20):
             thinking_reserve.record_decode_rate(generated_tokens=900, elapsed_s=150.0)
         assert _answer_is_derived_here(budget_is_the_whole_answer)
-        assert (
-            _the_private_channel_budget(budget_is_the_whole_answer, 896)
-            == TOO_SMALL_TO_THINK_IN
-        )
+        # The channel gets the answer's room: 896 on top of 896.
+        assert _the_private_channel_budget(budget_is_the_whole_answer, 896) == 896
     finally:
         thinking_reserve.forget()
 
@@ -185,7 +182,6 @@ def test_the_clock_sizes_the_channel_and_no_longer_vetoes_it() -> None:
     import time as _time
 
     from core.brain.llm import thinking_reserve
-    from core.brain.llm.a_bounded_private_channel import TOO_SMALL_TO_THINK_IN
     from core.brain.llm.mlx_worker import _the_private_channel_budget
 
     thinking_reserve.forget()
@@ -205,9 +201,10 @@ def test_the_clock_sizes_the_channel_and_no_longer_vetoes_it() -> None:
                 generated_tokens=900, elapsed_s=150.0
             )
         # Thirty seconds at six a second is 180 tokens, and the answer alone
-        # needs 896 of them: the role stands, the channel is the smallest one.
+        # needs 896 of them: the role stands, the channel gets the answer's
+        # own room, since the clock's refusal buys a waited-for turn nothing.
         assert _answer_is_derived_here(job(30))
-        assert _the_private_channel_budget(job(30), 4096) == TOO_SMALL_TO_THINK_IN
+        assert _the_private_channel_budget(job(30), 4096) == 4096
         # Ten minutes buys 3,600 tokens; the answer keeps 896 of them.
         assert _answer_is_derived_here(job(600))
         assert _the_private_channel_budget(job(600), 4096) == pytest.approx(
