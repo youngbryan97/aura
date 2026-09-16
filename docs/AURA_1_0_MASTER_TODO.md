@@ -756,6 +756,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 ## 2. General RLC reasoning: the scientific critical path
 
+  MEASURED 2026-09-16, two consecutive ordinary desktop turns on build
+  d4fecd987, host at load 15. Turn one: 10,557 tokens prefilled from
+  nothing (first turn after a restart), 10,610 retained. Turn two, a
+  follow-up: "hybrid recurrent/KV exact resume — reused 10609/12184 tokens,
+  1575 to prefill" — 87% of the prompt served from the previous turn's
+  cache, the strict-prefix path this model allows. What made it reachable:
+  the history window no longer slides by one exchange per turn (once it
+  moves it makes room for the next turn, 304e9083d), the fitter measures the
+  rendered prompt the client will measure so the client's head+tail cut
+  never runs (02beef8da), and a quality retry renders with the draft's own
+  channel and effort so its head matches (9227fa30a). Decode remains the
+  cost: 247 characters in 3.5 minutes at this load. Not yet split out:
+  retrieval and queue.
 - [x] G01 Freeze a current baseline and exact mechanism/claim boundary.
   Closed 2026-09-08: [frozen evidence and boundary](evidence/G01_RLC_BASELINE_2026-09-08.md),
   nine hash-bound artifacts, current configured model metadata and source
