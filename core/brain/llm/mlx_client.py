@@ -11045,7 +11045,14 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             # transient JIT/Metal compilation or memory alignment glitches.
             for handshake_attempt in range(2):
                 try:
-                    res = await _await_shared_future(fut, timeout_s=handshake_timeout)
+                    if soft_timeout:
+                        # The caller's own budget: a wall clock by nature,
+                        # and it keeps the worker alive when it runs out.
+                        res = await _await_shared_future(fut, timeout_s=handshake_timeout)
+                    else:
+                        res = await self._await_init_while_the_worker_loads(
+                            fut, stall_s=handshake_timeout
+                        )
                     if res.get("status") == "ok":
                         # READINESS IS EARNED, NOT ANNOUNCED. CP126 34c42774:
                         # any dict with status=ok used to set init_done,
@@ -11328,6 +11335,43 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 self._req_q.get_nowait()
             except (_queue_mod.Empty, OSError, ValueError):
                 break
+
+    async def _await_init_while_the_worker_loads(
+        self, fut: SharedFuture, *, stall_s: float
+    ) -> Any:
+        """Wait for the init handshake while the worker is still loading.
+
+        The handshake bound was an absolute wall clock: 300s, then the
+        worker is wedged and respawned. LIVE 2026-09-16, load 34 on 18
+        cores: the 27B worker was at 9GB of RSS and loading when the clock
+        ran out, and the respawn started the load again from nothing. The
+        bound is now on the worker's progress. Its RSS and CPU advance while
+        it loads; ``stall_s`` of neither is the wedge the clock was for.
+        """
+        stall_s = max(0.0, float(stall_s))
+        period = max(0.05, min(15.0, stall_s / 20.0)) if stall_s else 15.0
+        seen = self.worker_load_progress()
+        still_for = 0.0
+        while True:
+            try:
+                return await _await_shared_future(fut, timeout_s=period)
+            except TimeoutError:
+                pass
+            progress = self.worker_load_progress()
+            if progress is None:
+                # No process to read: nothing can advance, so the wait is
+                # bounded by the clock alone, as it was.
+                still_for += period
+            elif seen is None or progress[0] > seen[0] or progress[1] > seen[1]:
+                seen, still_for = progress, 0.0
+            else:
+                still_for += period
+            if still_for >= stall_s:
+                raise TimeoutError(
+                    f"worker init made no progress for {still_for:.0f}s "
+                    f"(rss={0 if seen is None else seen[0] / 1e9:.1f}GB, "
+                    f"cpu={0 if seen is None else seen[1]:.0f}s)"
+                )
 
     def worker_load_progress(self) -> tuple[float, float] | None:
         """What the worker has done so far: its (rss_bytes, cpu_seconds).

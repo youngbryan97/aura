@@ -1630,3 +1630,38 @@ def test_a_child_the_host_cannot_observe_is_still_bounded(monkeypatch):
     assert out.returncode == 124
     assert out.stderr.startswith("probe_unobservable:")
     assert time.monotonic() - started < 30.0
+
+
+@pytest.mark.asyncio
+async def test_the_init_handshake_waits_while_the_worker_loads():
+    """LIVE 2026-09-16, load 34: the 27B worker was at 9GB of RSS and loading
+    when the 300s handshake clock ran out and the respawn started the load
+    again from nothing. The bound is the worker's progress: RSS and CPU that
+    advance are a load; ``stall_s`` of neither is the wedge."""
+    import asyncio
+
+    from core.brain.llm import mlx_client
+
+    client = mlx_client.MLXLocalClient.__new__(mlx_client.MLXLocalClient)
+    import itertools
+
+    steps = itertools.count(1)
+
+    def progress():
+        n = next(steps)  # every look sees more memory and more CPU
+        return (1e9 * n, 10.0 * n)
+
+    client.worker_load_progress = progress
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    # Resolve after 0.35s: three periods of a 0.1s stall budget, each with
+    # progress, so the wall clock alone would have cut it at 0.1s.
+    loop.call_later(0.35, fut.set_result, {"status": "ok"})
+    res = await client._await_init_while_the_worker_loads(fut, stall_s=0.1)
+    assert res == {"status": "ok"}
+
+    # The same wait on a worker whose readings stop advancing is a wedge.
+    client.worker_load_progress = lambda: (5e9, 50.0)
+    stuck: asyncio.Future = loop.create_future()
+    with pytest.raises(TimeoutError, match="worker init made no progress"):
+        await client._await_init_while_the_worker_loads(stuck, stall_s=0.1)
