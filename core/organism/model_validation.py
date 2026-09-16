@@ -1663,6 +1663,7 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_language_growth_claims(suite)
     _install_morphogenesis_claims(suite)
 
+    _install_knowledge_revision_claims(suite)
     _install_suite_tail(suite)
     _install_phenomena_claims(suite)
 
@@ -2931,6 +2932,29 @@ def _install_morphogenesis_claims(suite: Any) -> None:
             evidence=Evidence.MEASURED_SYNTHETIC,
             evidence_note=note,
         ))
+
+
+def _install_knowledge_revision_claims(suite):
+    from core.knowledge.revision_validation import revision_canary
+
+    name = "knowledge_revision_propagates_corrections"
+    suite.add_test(ValidationTest(
+        name=name,
+        description="a same-count correction revises a derived claim and rejects stale replay",
+        required_capability="",
+        observation=Observation(name="revision_canary", value=True,
+            source="tests/test_atomspace_truth_maintenance.py"),
+        predict=lambda _m: revision_canary(),
+        score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="knowledge revision"),
+        owner="core/knowledge/atomspace.py",
+    ))
+    suite.add_claim(Claim(
+        statement="The AtomSpace revision canary propagates a corrected premise without increasing evidence mass.",
+        test=name, owner="core/knowledge/atomspace.py",
+        asserted_in="core/knowledge/revision_validation.py",
+        evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Constructed claims on the production graph class; not a broad reasoning result.",
+    ))
 
 
 def _install_suite_tail(suite):

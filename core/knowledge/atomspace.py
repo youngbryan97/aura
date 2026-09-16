@@ -24,11 +24,13 @@ implications on the event bus (``atomspace.derived``).
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from core.runtime.lockdep import checked_lock
+from core.evidence.packet import EvidenceKind, EvidencePacket, fuse
 
 # ── PLN truth values ──────────────────────────────────────────────────────
 
@@ -206,6 +208,14 @@ _MAX_SOURCES_PER_ATOM = 256
 
 
 @dataclass
+class _Derivation:
+    tv: TruthValue
+    dependencies: frozenset[Atom]
+    sources: frozenset[str]
+    premise_revisions: dict[Atom, int | None] = field(default_factory=dict)
+
+
+@dataclass
 class _Record:
     atom: Atom
     tv: TruthValue
@@ -218,6 +228,21 @@ class _Record:
     sources: dict[str, TruthValue] = field(default_factory=dict)
     #: Everything asserted without an identity, accumulated the old way.
     unattributed: TruthValue | None = None
+    derivations: dict[str, _Derivation] = field(default_factory=dict)
+    revision: int = 0
+
+
+def _support_packets(rec: "_Record") -> list[EvidencePacket]:
+    packets = [EvidencePacket(tv.strength, tv.count, EvidenceKind.OBSERVATION,
+                              frozenset({source})) for source, tv in rec.sources.items()]
+    if rec.unattributed is not None:
+        # This labels an accumulated legacy pool, not an independent observation.
+        identity = hashlib.sha256(repr(rec.atom).encode("utf-8")).hexdigest()
+        packets.append(EvidencePacket(rec.unattributed.strength, rec.unattributed.count,
+            EvidenceKind.STIPULATION, frozenset({f"atomspace:unattributed:{identity}"})))
+    packets.extend(EvidencePacket(d.tv.strength, d.tv.count, EvidenceKind.DERIVATION,
+                                  d.sources) for _key, d in sorted(rec.derivations.items()))
+    return packets
 
 
 def _fold(rec: "_Record") -> TruthValue:
@@ -227,6 +252,9 @@ def _fold(rec: "_Record") -> TruthValue:
     unattributed pool joins as one more contribution, so a store still passing
     bare truth values is not silently dropped — it is just not deduplicated.
     """
+    if rec.derivations:
+        combined = fuse(_support_packets(rec))
+        return TruthValue(combined.strength, combined.mass)
     contributions = list(rec.sources.values())
     if rec.unattributed is not None:
         contributions.append(rec.unattributed)
@@ -306,6 +334,10 @@ class AtomSpace:
         self._by_type: dict[str, set[Atom]] = {}
         self._incoming: dict[Atom, set[Link]] = {}
         self._grounded: dict[str, Callable[..., bool]] = {}
+        self._dependents: dict[Atom, set[tuple[Atom, str]]] = {}
+        self._truth_reads: set[Atom] | None = None
+        self._invalidated_derivations = 0
+        self._observations: dict[str, tuple[int, dict[Atom, TruthValue]]] = {}
         # ECAN economy parameters
         self._sti_fund = float(sti_fund)
         self._sti_fund_capacity = float(sti_fund)
@@ -347,7 +379,45 @@ class AtomSpace:
         if not _pattern_is_ground(atom):
             raise ValueError("cannot add a pattern (Variable) to the AtomSpace")
         with self._lock:
+            if tv is not None and source in self._observations:
+                raise ValueError("versioned observations must use revise_observation")
             return self._add_locked(atom, tv, source=source)
+
+    def revise_observation(self, source: str, revision: int,
+                           claims: Mapping[Atom, TruthValue]) -> bool:
+        """Atomically replace the claims from one versioned observation.
+
+        The source owns its monotonic revision. Empty claims retract it while
+        retaining the version watermark, so a delayed delivery cannot revive
+        withdrawn evidence. Other sources are not overwritten. Claims can be
+        any ground atoms; time, domain and partial obligations belong in their
+        typed representation rather than a string-matching policy here.
+        """
+        if not isinstance(source, str) or not source or type(revision) is not int or revision < 0:
+            raise ValueError("an observation needs an identity and nonnegative integer revision")
+        claims = dict(claims)
+        if any(not _pattern_is_ground(a) or not isinstance(a, (Node, Link))
+               or not isinstance(tv, TruthValue) for a, tv in claims.items()):
+            raise ValueError("observation claims must map ground atoms to truth values")
+        with self._lock:
+            old_revision, old_claims = self._observations.get(source, (-1, {}))
+            if revision < old_revision:
+                return False
+            if revision == old_revision:
+                if claims != old_claims:
+                    raise ValueError("one observation revision cannot contain conflicting payloads")
+                return False
+            self._observations[source] = (revision, claims)
+            for atom in old_claims.keys() - claims.keys():
+                rec = self._records.get(atom)
+                if rec and source in rec.sources:
+                    del rec.sources[source]
+                    rec.tv = _fold(rec)
+                    rec.revision += 1
+                    self._invalidate_dependents_locked(atom)
+            for atom, tv in claims.items():
+                self._add_locked(atom, tv, source=source)
+            return True
 
     def _add_locked(
         self, atom: Atom, tv: TruthValue | None, *, source: str | None = None
@@ -368,6 +438,7 @@ class AtomSpace:
             self._records[atom] = rec
             atype = atom.atype if isinstance(atom, (Node, Link)) else "Unknown"
             self._by_type.setdefault(atype, set()).add(atom)
+            self._invalidate_dependents_locked(atom)
             return rec.tv
         if tv is None:
             return rec.tv
@@ -385,13 +456,117 @@ class AtomSpace:
                 # An atom with thousands of distinct witnesses is past the point
                 # where per-source bookkeeping buys anything; fold the oldest
                 # into the unattributed pool rather than growing without bound.
-                oldest = next(iter(rec.sources))
-                folded = rec.sources.pop(oldest)
-                rec.unattributed = (
-                    folded if rec.unattributed is None else rec.unattributed.revise(folded)
-                )
+                oldest = next((s for s in rec.sources if s not in self._observations), None)
+                if oldest is not None:
+                    folded = rec.sources.pop(oldest)
+                    rec.unattributed = (
+                        folded if rec.unattributed is None else rec.unattributed.revise(folded)
+                    )
         rec.tv = _fold(rec)
+        rec.revision += 1
+        self._invalidate_dependents_locked(atom)
         return rec.tv
+
+    def retract_source(self, atom: Atom, source: str) -> bool:
+        """Withdraw one identified contribution and its dependent conclusions.
+
+        Other witnesses remain. A source already compacted into the legacy
+        unattributed pool cannot be selectively withdrawn; this returns False
+        instead of claiming to have removed evidence it cannot identify.
+        """
+        with self._lock:
+            if source in self._observations:
+                raise ValueError("retract a versioned observation with a new empty revision")
+            rec = self._records.get(atom)
+            if rec is None or source not in rec.sources:
+                return False
+            del rec.sources[source]
+            rec.tv = _fold(rec)
+            rec.revision += 1
+            self._invalidate_dependents_locked(atom)
+            return True
+
+    def _remove_derivation_locked(self, atom: Atom, key: str) -> bool:
+        rec = self._records.get(atom)
+        derivation = rec.derivations.pop(key, None) if rec else None
+        if derivation is None:
+            return False
+        for dependency in derivation.dependencies:
+            consumers = self._dependents.get(dependency)
+            if consumers is not None:
+                consumers.discard((atom, key))
+                if not consumers:
+                    del self._dependents[dependency]
+        rec.tv = _fold(rec)
+        rec.revision += 1
+        return True
+
+    def _invalidate_dependents_locked(self, changed: Atom) -> None:
+        pending = [changed]
+        while pending:
+            for conclusion, key in tuple(self._dependents.get(pending.pop(), ())):
+                if self._remove_derivation_locked(conclusion, key):
+                    self._invalidated_derivations += 1
+                    pending.append(conclusion)
+
+    def _depends_on_locked(self, atom: Atom, target: Atom) -> bool:
+        pending, seen = [atom], set()
+        while pending:
+            current = pending.pop()
+            if current == target:
+                return True
+            if current in seen:
+                continue
+            seen.add(current)
+            rec = self._records.get(current)
+            if rec:
+                pending.extend(p for d in rec.derivations.values() for p in d.dependencies)
+        return False
+
+    def _derive_locked(self, rule: "InferenceRule", binding: "Bindings",
+                       premise_atoms: list[Atom], conclusion: Atom) -> bool:
+        structural = [p for p in premise_atoms if self._grounded_clause(p) is None]
+        reads, previous_reads = set(structural), self._truth_reads
+        self._truth_reads = reads
+        try:
+            # Recheck filters under the same lock as their captured truth reads.
+            if not self.query(premise_atoms):
+                return False
+            tvs = tuple(self.get_tv(p) if p in structural else TruthValue()
+                        for p in premise_atoms)
+            support = [tv.count for p, tv in zip(premise_atoms, tvs) if p in structural]
+            if not support or any(count <= 0 for count in support):
+                return False
+            new_tv = rule.tv_fn(self, binding, tvs)
+        finally:
+            self._truth_reads = previous_reads
+            if previous_reads is not None:
+                previous_reads.update(reads)
+        if new_tv is None or new_tv.count <= 0:
+            return False
+        new_tv = TruthValue(new_tv.strength, min(new_tv.count, *support))
+        if any(self._depends_on_locked(p, conclusion) for p in reads):
+            return False
+        sources = frozenset().union(*(
+            packet.sources for p in reads if p in self._records
+            for packet in _support_packets(self._records[p]) if packet.mass > 0))
+        key = hashlib.sha256(repr((rule.name, rule.premises, rule.conclusion,
+                                  sorted(binding.items()))).encode("utf-8")).hexdigest()
+        self._add_locked(conclusion, None)
+        derivation = _Derivation(new_tv, frozenset(reads), sources,
+            {p: self._records[p].revision if p in self._records else None for p in reads})
+        rec = self._records[conclusion]
+        if rec.derivations.get(key) == derivation:
+            return False
+        self._remove_derivation_locked(conclusion, key)
+        rec.derivations[key] = derivation
+        for dependency in reads:
+            self._dependents.setdefault(dependency, set()).add((conclusion, key))
+        rec.tv = _fold(rec)
+        rec.revision += 1
+        self._invalidate_dependents_locked(conclusion)
+        self._derived_total += 1
+        return True
 
     def evidence_sources(self, atom: Atom) -> frozenset[str]:  # noqa: D402
         """The observation identities this atom's truth value rests on."""
@@ -413,12 +588,34 @@ class AtomSpace:
                 "atoms_with_sources": attributed,
                 "duplicate_assertions_refused": self._duplicate_assertions,
                 "unattributed_assertions": self._unattributed_assertions,
+                "active_derivations": sum(len(r.derivations) for r in self._records.values()),
+                "invalidated_derivations": self._invalidated_derivations,
+                "versioned_observations": len(self._observations),
             }
 
     def get_tv(self, atom: Atom) -> TruthValue | None:
         with self._lock:
+            if self._truth_reads is not None:
+                self._truth_reads.add(atom)
             rec = self._records.get(atom)
             return rec.tv if rec else None
+
+    def evidence_state(self, atom: Atom) -> Any:
+        """Read truth, source ancestry and revision through the shared envelope."""
+        from core.evidence.state_ref import CognitiveStateRef
+
+        with self._lock:
+            rec = self._records.get(atom)
+            if rec is None:
+                return None
+            parents = {p for d in rec.derivations.values() for p in d.dependencies}
+            return CognitiveStateRef(
+                kind="atomspace", payload=atom, owner="core.knowledge.atomspace",
+                evidence=fuse(_support_packets(rec)).with_subject(str(atom)),
+                parents=tuple(CognitiveStateRef(kind="atomspace", payload=p,
+                    owner="core.knowledge.atomspace").identity for p in sorted(parents, key=repr)),
+                version=rec.revision,
+            )
 
     def get_av(self, atom: Atom) -> AttentionValue | None:
         with self._lock:
@@ -640,6 +837,11 @@ class AtomSpace:
             return evicted
 
     def _evict_locked(self, atom: Atom) -> None:
+        self._invalidate_dependents_locked(atom)
+        existing = self._records.get(atom)
+        if existing is not None:
+            for key in tuple(existing.derivations):
+                self._remove_derivation_locked(atom, key)
         rec = self._records.pop(atom, None)
         if rec is None:
             return
@@ -740,19 +942,13 @@ class AtomSpace:
                     continue
                 if isinstance(conclusion, Link) and len(set(conclusion.outgoing)) < len(conclusion.outgoing):
                     continue  # degenerate (self-implication etc.)
-                premise_tvs = tuple(
-                    self.get_tv(p) or TruthValue() for p in premise_atoms
-                )
-                new_tv = rule.tv_fn(self, binding, premise_tvs)
-                if new_tv is None or new_tv.count <= 0.0:
-                    continue
                 with self._lock:
-                    already = self._records.get(conclusion)
-                    if already is not None and already.tv.count >= new_tv.count:
+                    if not self._derive_locked(rule, binding, premise_atoms, conclusion):
                         continue
-                    self._add_locked(conclusion, new_tv)
-                    self._derived_total += 1
                 derived.append(conclusion)
+        with self._lock:
+            derived = list(dict.fromkeys(a for a in derived
+                                        if a in self._records and self._records[a].tv.count > 0))
         for atom in derived:
             self.stimulate(atom, self._stimulus_size * 0.25)
         return derived
@@ -921,6 +1117,7 @@ def assert_claim(
     domain: str = "world",
     stimulate: bool = True,
     source: str | None = None,
+    revision: int | None = None,
 ) -> tuple[Atom, TruthValue]:
     """Assert a natural-language claim into the space and return its revised TV.
 
@@ -956,10 +1153,14 @@ def assert_claim(
         a_node = concept(("¬" if ante_neg else "") + ante)
         c_node = concept(("¬" if cons_neg else "") + cons)
         atom: Atom = implication(a_node, c_node)
-        out_tv = space.add(atom, tv, source=source)
     else:
         atom = concept(encoded.core_key)
-        out_tv = space.add(atom, tv.negation() if encoded.negated else tv, source=source)
+        tv = tv.negation() if encoded.negated else tv
+    if revision is None:
+        out_tv = space.add(atom, tv, source=source)
+    else:
+        space.revise_observation(source, revision, {atom: tv})
+        out_tv = space.get_tv(atom) or TruthValue()
     ev = evaluation(predicate("claim_domain"), atom, concept(domain))
     # The domain link is a stipulation about the claim, not evidence for it;
     # it is asserted under its own identity so re-asserting a claim does not

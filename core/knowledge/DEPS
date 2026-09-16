@@ -18,6 +18,8 @@ include_rules = [
     "+core.config",
     "+core.container",
     "+core.event_bus",
+    # Derived truth retains the existing evidence packet's source identities.
+    "+core.evidence",
     "+core.governance_context",
     "+core.reasoning",
     "+core.runtime",

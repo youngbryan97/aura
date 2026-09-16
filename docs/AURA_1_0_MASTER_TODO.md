@@ -931,6 +931,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  [Knowledge revision](evidence/G09_KNOWLEDGE_REVISION_2026-09-15.md) adds
+  dependency-aware correction and retraction to the existing graph, with
+  versioned belief updates and shared evidence envelopes. Constructed graph
+  tests pass; broad reasoning and live deployment remain unproven.
   [Action completion evidence](evidence/G09_ACTION_COMPLETION_EVIDENCE_2026-09-14.md)
   carries actual planner results and selected-answer verdicts through execution.
   Missing observations retry without repeating effects; repairs preserve required
