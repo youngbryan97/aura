@@ -2,6 +2,7 @@
 Combines Bayesian-ish updates, time-decay, and cognitive dissonance resolution.
 """
 from core.runtime.errors import record_degradation
+import asyncio
 import json
 import logging
 import os
@@ -42,6 +43,14 @@ class BeliefEdge:
             "count": self.evidence_count,
             "is_goal": self.is_goal
         }
+
+
+def _on_a_running_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 class BeliefGraph:
@@ -550,7 +559,11 @@ class BeliefGraph:
                     for u, v, d in self.graph.edges(data=True)
                 ],
             }
-        self._state_writer.submit(json.dumps(data, indent=2), background=True)
+        on_loop = _on_a_running_loop()
+        self._state_writer.submit(json.dumps(data, indent=2), background=on_loop)
+        if not on_loop:
+            # Off the loop the write is the caller's, as it always was.
+            self._state_writer.flush()
 
     def _write_graph_payload(self, payload: str) -> None:
         from core.runtime.file_write_gateway import get_file_write_gateway

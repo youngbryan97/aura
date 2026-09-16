@@ -78,10 +78,9 @@ class AttentionSummarizer:
         before the model saw it (live, 2026-09-15). The items are the whole
         input here, fenced as data.
         """
-        from core.container import ServiceContainer
         from core.security.prompt_fencing import fence
 
-        router = ServiceContainer.get("llm_router", default=None)
+        router = get_runtime_service("llm_router", default=None)
         if router is None:
             return None
 

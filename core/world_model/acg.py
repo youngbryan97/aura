@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -40,6 +41,14 @@ _PENDING_RETRY_INTERVAL_S = 5.0
 def _is_deferral(reason: str) -> bool:
     text = str(reason or "").lower()
     return any(marker in text for marker in _DEFERRAL_MARKERS)
+
+def _on_a_running_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
 
 @dataclass
 class CausalLink:
@@ -211,29 +220,53 @@ class ActionConsequenceGraph:
         return matches / len(common) > 0.5
 
     def _save(self, force: bool = False):
-        """Throttled save to prevent O(N) writes (BUG-040)."""
+        """Throttled save to prevent O(N) writes (BUG-040).
+
+        The snapshot is taken here and written by one writer thread; the
+        write ran on whichever thread recorded the link, the loop included
+        (2026-09-16).
+        """
         now = time.time()
         if not force and now - self._last_save < 10:
             self._dirty = True
             return
+        self._last_save = now
+        self._dirty = False
+        writer = self._state_writer()
+        on_loop = _on_a_running_loop()
+        writer.submit(json.dumps(self.links, indent=2), background=on_loop)
+        if not on_loop:
+            # Off the loop the write is the caller's, as it always was.
+            writer.flush()
 
-        try:
-            self._last_save = now
-            self._dirty = False
-            os.makedirs(os.path.dirname(self.persist_path), exist_ok=True)
-            from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
+    def _state_writer(self) -> Any:
+        writer = getattr(self, "_writer", None)
+        if writer is None:
+            from core.adaptation.immune_state_writer import SingleSlotStateWriter
 
-            source = "world_model.acg.save"
-            with local_internal_governed_scope(source, domain="file_write"):
-                get_file_write_gateway().write_text(
-                    self.persist_path,
-                    json.dumps(self.links, indent=2),
-                    source=source,
-                )
-        except OSError as e:
-            record_degradation('acg', e)
-            logger.error("Failed to save ACG: %s", e)
+            writer = SingleSlotStateWriter(
+                "world_model.acg", self._write_payload, on_error=self._record_write_failure
+            )
+            self._writer = writer
+        return writer
+
+    def _write_payload(self, payload: str) -> None:
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        source = "world_model.acg.save"
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope(source, domain="file_write"):
+            gateway.ensure_directory(os.path.dirname(self.persist_path), source=source)
+            gateway.write_text(self.persist_path, payload, source=source)
+
+    def _record_write_failure(self, exc: BaseException) -> None:
+        record_degradation('acg', exc)
+        logger.error("Failed to save ACG: %s", exc)
+
+    def flush(self, timeout: float = 5.0) -> bool:
+        """Make a pending snapshot durable (tests, shutdown)."""
+        return self._state_writer().flush(timeout)
 
     def _load(self):
         try:

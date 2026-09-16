@@ -1719,6 +1719,10 @@ def test_runtime_registry_batch_four_boot_sensory_health_seams():
         async def think(self, *_args, **_kwargs):
             return SimpleNamespace(content="seed thought")
 
+    class Router:
+        async def think(self, *_args, **_kwargs):
+            return "seed thought"
+
     class Graph:
         def __init__(self):
             self.beliefs = []
@@ -1745,6 +1749,10 @@ def test_runtime_registry_batch_four_boot_sensory_health_seams():
         "executive_closure": object(),
         "causal_world_model": SimpleNamespace(get_prompt_context=lambda: "causal context"),
         "cognitive_engine": Brain(),
+        # The summarizer asks the router, not the cognitive engine: a full
+        # cognitive turn assembled 96,998 characters around fifty items
+        # (2026-09-15). The fake answers either way.
+        "llm_router": Router(),
         "skill_router": object(),
         "cognitive_integration_layer": recovery,
         "mycelium": bus,
