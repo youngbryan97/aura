@@ -189,7 +189,23 @@ class AuthorityLedger:
         self._grants: dict[str, Grant] = {}
         self._calibration = calibration or CalibrationMonitor()
         self._frozen = False
+        #: Facts about the ledger itself that outlive any one grant — which
+        #: version of a grading rule its evidence was produced under, for
+        #: one. A grant's evidence is replaced on every transition; this is
+        #: not.
+        self._notes: dict[str, Any] = {}
         self._load()
+
+    def note(self, key: str, value: Any) -> None:
+        """Record a fact about the ledger that every later grant inherits."""
+        with self._lock:
+            self._notes[str(key)] = value
+            snapshot = self._snapshot_locked()
+        self._save(snapshot)
+
+    def noted(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            return self._notes.get(str(key), default)
 
     def attach_calibration(self, monitor: CalibrationMonitor) -> None:
         """Share the organ's calibration monitor.
@@ -410,6 +426,7 @@ class AuthorityLedger:
             "saved_at": time.time(),
             "frozen": self._frozen,
             "grants": {cp: g.as_dict() for cp, g in self._grants.items()},
+            "notes": dict(self._notes),
         }
 
     def _save(self, payload: dict[str, Any] | None = None) -> None:
@@ -442,6 +459,7 @@ class AuthorityLedger:
         try:
             payload = json.loads(self._path.read_text(encoding="utf-8"))
             self._frozen = bool(payload.get("frozen", False))
+            self._notes = dict(payload.get("notes") or {})
             for cp, raw in (payload.get("grants") or {}).items():
                 self._grants[cp] = Grant(
                     control_point=cp,

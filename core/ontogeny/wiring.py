@@ -297,6 +297,7 @@ def install(*, register_services: bool = True) -> bool:
     try:
         core = get_ontogeny()
         core.resolvers.register(get_executive_resolver())
+        _revoke_authority_earned_on_ungraded_deferrals(core)
         from core.ontogeny import control_points, invariants, telemetry
 
         control_points.register(core)
@@ -313,6 +314,37 @@ def install(*, register_services: bool = True) -> bool:
             action="ontogeny organ not installed; every control point keeps its incumbent",
         )
         return False
+
+
+#: The rule that grades a deferral. Version 1 graded it by whether a goal
+#: with the same text ever succeeded; version 2 by what became of the work
+#: it deferred. A grant earned under version 1 was earned on evidence the
+#: rule could not produce, and is handed back.
+DEFERRAL_GRADING_RULE = 2
+
+
+def _revoke_authority_earned_on_ungraded_deferrals(core: Any) -> None:
+    """Hand back an admission authority earned before deferrals were graded.
+
+    LIVE, 2026-09-15: the head decided "deferred" for 388 of 400 admissions
+    on 64 successes graded by the goal class and no failure for the 2,342
+    writes it caused to be shed. Authority is re-earned on evidence graded
+    by consequence; the incumbent's rules stand until then.
+    """
+    try:
+        authority = core.authority
+        if int(authority.noted("deferral_grading_rule", 1) or 1) >= DEFERRAL_GRADING_RULE:
+            return
+        grant = authority.grant_of(EXECUTIVE_ADMISSION)
+        if grant is not None and grant.stage.decides:
+            authority.revoke(
+                EXECUTIVE_ADMISSION,
+                "authority was earned while deferrals were graded by the goal "
+                "class, not by what became of the deferred work",
+            )
+        authority.note("deferral_grading_rule", DEFERRAL_GRADING_RULE)
+    except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("ontogeny: grading-rule revocation not applied: %s", exc)
 
 
 def _register_services(core: Any) -> None:

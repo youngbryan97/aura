@@ -126,3 +126,25 @@ def test_the_executive_grades_a_deferred_intents_consequence(monkeypatch):
     core.complete_intent("intent-1", success=False)
     assert resolver.resolve(_episode("ep-1", "deferred", intent.goal)).kind.value == "failure"
     assert "intent-1" not in core._deferred_intents
+
+
+def test_an_authority_earned_on_ungraded_deferrals_is_handed_back_once(tmp_path):
+    from core.ontogeny import wiring
+    from core.ontogeny.authority import AuthorityLedger, AuthorityStage
+
+    ledger = AuthorityLedger(path=tmp_path / "authority.json")
+    ledger.set_stage(wiring.EXECUTIVE_ADMISSION, AuthorityStage.AUTHORITY, reason="held-out win")
+    core = SimpleNamespace(authority=ledger)
+
+    wiring._revoke_authority_earned_on_ungraded_deferrals(core)
+    assert ledger.stage(wiring.EXECUTIVE_ADMISSION) is AuthorityStage.ADVISORY
+    assert ledger.noted("deferral_grading_rule") == wiring.DEFERRAL_GRADING_RULE
+
+    # Re-earned later under the new rule: asked once, never again.
+    ledger.set_stage(wiring.EXECUTIVE_ADMISSION, AuthorityStage.AUTHORITY, reason="re-earned")
+    wiring._revoke_authority_earned_on_ungraded_deferrals(core)
+    assert ledger.stage(wiring.EXECUTIVE_ADMISSION) is AuthorityStage.AUTHORITY
+
+    # And the note survives a reload.
+    reloaded = AuthorityLedger(path=tmp_path / "authority.json")
+    assert reloaded.noted("deferral_grading_rule") == wiring.DEFERRAL_GRADING_RULE
