@@ -4157,6 +4157,22 @@
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
+      "path": "core/consciousness/unified_self.py",
+      "scope": "<module>.UnifiedSelf._save_to_disk_async"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/consciousness/unified_self.py",
+      "scope": "<module>.UnifiedSelf._save_to_disk_async"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
       "path": "core/consciousness/whole_system_phi_service.py",
       "scope": "<module>.WholeSystemPhiService.persist_latest"
     },
@@ -16506,6 +16522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "4f9f6188af84803f19942f2d59a87b8c0624c0c234c575820a8d15955d737e74",
+  "inventory_sha256": "420df438f7d06f7c0c5bf9981dbcbbe2779e9b9c33c8bc3497b433a6b186310a",
   "schema_version": 1
 }

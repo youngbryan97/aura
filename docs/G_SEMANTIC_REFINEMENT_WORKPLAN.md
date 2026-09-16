@@ -40,6 +40,9 @@ It does not replace or close the master G03-G12 obligations.
   removes repeated span pooling and definition-pointer scoring across charts.
   The contrast-only trial was stopped with only 216/500 candidate rows; it
   supplies no complete paired verdict.
+  [Completed retention comparison](evidence/G03_SOURCE_RETENTION_RESULT_2026-09-15.md)
+  measured all 500 validation rows: 451 exact with 31 regressions and 454
+  equivalent with 30 regressions. The incumbent remains selected.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request
@@ -72,6 +75,10 @@ It does not replace or close the master G03-G12 obligations.
   completes 500 interpretations and exposes an evaluator domain-accounting
   defect plus three empty-sequence lowering mismatches. Those are repaired;
   the corrected full measurement and new-wording transfer remain required.
+  [Corrected full measurement](evidence/G03_REUSABLE_PROCEDURE_RESULT_2026-09-15.md)
+  preserves selected-program semantics on 15,860 fresh-value probes with no
+  lowering mismatch or execution error. Selection remains 471/500 proved
+  equivalent; new-wording transfer and runtime qualification are still open.
 - [ ] S07 Integrated measurement. Run the unchanged 500-row development
   comparison, freeze a selected candidate, publish prospective fresh transfer
   and matched-arm plans, then perform G04-G08 measurement and verification.

@@ -11,7 +11,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import random
 
-from core.learning.procedure_induction import Instruction, Program
+from core.cognition.the_floor_she_stands_on import Stuck
+from core.learning.procedure_induction import Instruction, Program, _UNDEFINED
 from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
 from core.learning.semantic_program_campaign import _sha
@@ -59,8 +60,34 @@ def argument_graph_program(nodes, arguments, *, n_inputs: int) -> Program:
         tuple(r if r < n_inputs else remap[r] for r in arguments[index])) for index in order))
 
 
+def _observe_program_domain(program, values, *, fuel):
+    """Require reference/floor agreement before admitting a value or domain fact."""
+    reference = program.run(values)
+    observation = {"status": "error", "result": None, "execution_receipt": None,
+                   "compiled_receipt": None, "failure": None,
+                   "reference_defined": reference is not _UNDEFINED}
+    try:
+        compiled = compile_source_independent_program_to_floor(program, tuple(values),
+            provenance_receipt_sha256=_sha({"program": program.sha(), "purpose": "training_contrast"}))
+        observation["compiled_receipt"] = compiled.receipt
+        result = execute_semantic_floor_program(compiled, fuel=fuel)
+    except Stuck as exc:
+        if reference is _UNDEFINED and observation["compiled_receipt"] is not None:
+            observation["status"] = "undefined"
+        observation["failure"] = f"{type(exc).__name__}:{exc}"
+    except (ValueError, TypeError, RuntimeError, ArithmeticError) as exc:
+        observation["failure"] = f"{type(exc).__name__}:{exc}"
+    else:
+        observation.update(result=result.result, execution_receipt=result.receipt)
+        if reference is not _UNDEFINED and result.result == reference:
+            observation["status"] = "value"
+        else:
+            observation["failure"] = "reference_floor_disagreement"
+    return observation
+
+
 def compare_program_meanings(target: Program, alternative: Program, probes: Sequence[tuple], *, fuel=100_000) -> dict:
-    """Prove a supported symmetry or find a replayable different-output witness."""
+    """Prove a supported symmetry or witness different values or defined domains."""
     if target.n_inputs != alternative.n_inputs:
         raise ValueError("semantic contrast public input geometry differs")
     if semantic_programs_structurally_equivalent(target, alternative):
@@ -71,29 +98,24 @@ def compare_program_meanings(target: Program, alternative: Program, probes: Sequ
                 "normal_form_sha256": _sha(key)}
     observations = []
     for values in probes:
-        outputs, receipts, failures = [], [], []
-        for program in (target, alternative):
-            try:
-                compiled = compile_source_independent_program_to_floor(program, tuple(values),
-                    provenance_receipt_sha256=_sha({"program": program.sha(), "purpose": "training_contrast"}))
-                result = execute_semantic_floor_program(compiled, fuel=fuel)
-            except (ValueError, TypeError, RuntimeError, ArithmeticError) as exc:
-                outputs.append(None)
-                receipts.append(None)
-                failures.append(f"{type(exc).__name__}:{exc}")
-            else:
-                outputs.append(result.result)
-                receipts.append(result.receipt)
-                failures.append(None)
-        observation = {"inputs": list(values), "outputs": outputs, "execution_receipts": receipts,
-                       "failures": failures}
-        if not any(failures) and outputs[0] != outputs[1]:
-            return {"status": "different", "method": "universal_floor_counterexample_v1",
+        outcomes = [_observe_program_domain(program, values, fuel=fuel) for program in (target, alternative)]
+        statuses = [row["status"] for row in outcomes]
+        outputs = [row["result"] for row in outcomes]
+        observation = {"inputs": list(values), "outputs": outputs,
+                       "execution_receipts": [row["execution_receipt"] for row in outcomes],
+                       "failures": [row["failure"] for row in outcomes], "outcomes": outcomes}
+        if "error" not in statuses and (statuses[0] != statuses[1] or (
+                statuses[0] == "value" and outputs[0] != outputs[1])):
+            return {"status": "different", "method": "universal_floor_counterexample_v2",
+                    "distinction": "domain" if statuses[0] != statuses[1] else "value",
                     "witness": observation, "witness_sha256": _sha(observation)}
         observations.append(observation)
     return {"status": "unknown", "method": "finite_probes_without_distinction",
             "probes_checked": len(observations), "observations_sha256": _sha(observations),
-            "failed_probes": sum(any(row["failures"]) for row in observations)}
+            "failed_probes": sum(any(item["status"] == "error" for item in row["outcomes"])
+                                 for row in observations),
+            "jointly_undefined_probes": sum(all(item["status"] == "undefined" for item in row["outcomes"])
+                                            for row in observations)}
 
 
 @dataclass(frozen=True)

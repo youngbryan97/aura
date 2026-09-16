@@ -68,10 +68,68 @@ def test_no_distinguishing_probe_is_unknown_not_an_incorrect_label():
     assert not result.receipt["highest_incorrect_proven"]
 
 
-def test_probe_failure_never_becomes_a_difference_witness():
+def test_definedness_difference_has_a_reference_checked_floor_witness():
     target = Program(2, (Instruction("idiv", (0, 1)),))
     other = Program(2, (Instruction("sub", (1, 0)),))
     report = compare_program_meanings(target, other, [(3, 0)])
+    assert report["status"] == "different" and report["distinction"] == "domain"
+    undefined, defined = report["witness"]["outcomes"]
+    assert undefined["status"] == "undefined" and not undefined["reference_defined"]
+    assert undefined["compiled_receipt"] and undefined["failure"].startswith("Stuck:")
+    assert defined["status"] == "value" and defined["reference_defined"]
+    assert defined["execution_receipt"]["execution_engine"] == "universal_metered_floor"
+    reverse = compare_program_meanings(other, target, [(3, 0)])
+    assert reverse["status"] == "different" and reverse["distinction"] == "domain"
+
+
+def test_joint_domain_rejection_does_not_prove_equivalence():
+    first = Program(2, (Instruction("idiv", (0, 1)),))
+    second = Program(2, (Instruction("mod", (0, 1)),))
+    report = compare_program_meanings(first, second, [(3, 0)])
+    assert report["status"] == "unknown"
+    assert report["jointly_undefined_probes"] == 1 and report["failed_probes"] == 0
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("worker gone"), ValueError("bad receipt")])
+def test_infrastructure_failure_is_not_a_domain_witness(monkeypatch, failure):
+    import core.learning.semantic_graph_counterexamples as module
+
+    def fail(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(module, "execute_semantic_floor_program", fail)
+    report = compare_program_meanings(Program(2, (Instruction("idiv", (0, 1)),)),
+                                     Program(2, (Instruction("sub", (1, 0)),)), [(3, 0)])
+    assert report["status"] == "unknown" and report["failed_probes"] == 1
+
+
+def test_exhaustion_cannot_supply_a_domain_witness():
+    report = compare_program_meanings(Program(2, (Instruction("idiv", (0, 1)),)),
+                                     Program(2, (Instruction("sub", (1, 0)),)), [(3, 0)], fuel=1)
+    assert report["status"] == "unknown" and report["failed_probes"] == 1
+
+
+def test_lowering_disagreement_cannot_supply_a_difference_witness(monkeypatch):
+    import core.learning.semantic_graph_counterexamples as module
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(module, "execute_semantic_floor_program",
+                        lambda *a, **k: SimpleNamespace(result=123456, receipt={"bad": True}))
+    report = compare_program_meanings(Program(2, (Instruction("add", (0, 1)),)),
+                                     Program(2, (Instruction("sub", (1, 0)),)), [(3, 0)])
+    assert report["status"] == "unknown" and report["failed_probes"] == 1
+
+
+def test_floor_stuck_on_a_defined_reference_remains_an_error(monkeypatch):
+    import core.learning.semantic_graph_counterexamples as module
+    from core.cognition.the_floor_she_stands_on import Stuck
+
+    def broken_floor(*args, **kwargs):
+        raise Stuck("incorrect lowering")
+
+    monkeypatch.setattr(module, "execute_semantic_floor_program", broken_floor)
+    report = compare_program_meanings(Program(2, (Instruction("idiv", (0, 1)),)),
+                                     Program(2, (Instruction("sub", (1, 0)),)), [(3, 0)])
     assert report["status"] == "unknown" and report["failed_probes"] == 1
 
 
@@ -92,7 +150,7 @@ def test_polynomial_certificate_rejects_partial_operations_and_bounded_expansion
     partial = Program(2, (Instruction("idiv", (0, 1)), Instruction("sub", (2, 2))))
     zero = Program(2, (Instruction("sub", (0, 0)),))
     assert semantic_program_polynomial_key(partial) is None
-    assert compare_program_meanings(partial, zero, [(3, 0)])["status"] == "unknown"
+    assert compare_program_meanings(partial, zero, [(3, 0)])["distinction"] == "domain"
     wide = Program(2, (Instruction("add", (0, 1)), Instruction("mul", (2, 2))))
     assert semantic_program_polynomial_key(wide, max_terms=3) is None
     assert semantic_program_polynomial_key(wide, max_terms=4) is not None
