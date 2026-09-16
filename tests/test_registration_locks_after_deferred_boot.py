@@ -84,3 +84,75 @@ def test_the_remaining_window_shrinks_with_the_boot_clock(monkeypatch):
 
     monkeypatch.setattr(boot_profile, "get_boot_profiler", lambda: _Clock())
     assert aura_main._remaining_desktop_boot_window_s() == pytest.approx(60.0)
+
+
+@pytest.mark.asyncio
+async def test_a_deferred_boot_task_registers_through_the_lock():
+    """On a loaded host the window ran out first (16s allowed, 65s needed,
+    2026-09-16 03:22Z) and the lock fell under the autonomy initialiser.
+    A task under a boot lease is boot, and registers."""
+    from core.container import ServiceContainer
+    from core.exceptions import ContainerError
+
+    saved = (
+        dict(ServiceContainer._services),
+        dict(ServiceContainer._aliases),
+        ServiceContainer._registration_locked,
+    )
+    try:
+        ServiceContainer._registration_locked = True
+        with pytest.raises(ContainerError):
+            ServiceContainer.register("late_without_lease", lambda: object(), required=False)
+
+        landed = []
+
+        async def deferred_init():
+            with ServiceContainer.boot_registration_lease("orchestrator.init_x"):
+                await asyncio.sleep(0)
+                ServiceContainer.register("late_with_lease", lambda: object(), required=False)
+                ServiceContainer.register_alias("late_alias", "late_with_lease")
+                landed.append("ok")
+
+        await asyncio.create_task(deferred_init())
+        assert landed == ["ok"]
+        assert "late_with_lease" in ServiceContainer._services
+        # The lease died with its task: nothing registers afterwards.
+        with pytest.raises(ContainerError):
+            ServiceContainer.register("late_after_lease", lambda: object(), required=False)
+    finally:
+        ServiceContainer._services, ServiceContainer._aliases, ServiceContainer._registration_locked = saved
+
+
+@pytest.mark.asyncio
+async def test_a_task_spawned_by_a_boot_task_loses_the_lease_when_its_parent_finishes():
+    from core.container import ServiceContainer
+    from core.exceptions import ContainerError
+
+    saved = (dict(ServiceContainer._services), ServiceContainer._registration_locked)
+    try:
+        ServiceContainer._registration_locked = True
+        child_done = asyncio.Event()
+        parent_done = asyncio.Event()
+        outcome = {}
+
+        async def child():
+            await parent_done.wait()
+            try:
+                ServiceContainer.register("child_late", lambda: object(), required=False)
+                outcome["child"] = "registered"
+            except ContainerError:
+                outcome["child"] = "refused"
+            child_done.set()
+
+        async def parent():
+            with ServiceContainer.boot_registration_lease("orchestrator.init_parent"):
+                asyncio.create_task(child())
+                ServiceContainer.register("parent_late", lambda: object(), required=False)
+
+        await parent()
+        parent_done.set()
+        await asyncio.wait_for(child_done.wait(), 2.0)
+        assert outcome["child"] == "refused"
+        assert "parent_late" in ServiceContainer._services
+    finally:
+        ServiceContainer._services, ServiceContainer._registration_locked = saved

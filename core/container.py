@@ -225,6 +225,33 @@ def zero_sync_guard(func: Callable[..., Any]) -> Callable[..., Any]:
 
 ZeroSyncGuard = zero_sync_guard
 
+class _BootRegistrationLease:
+    __slots__ = ("_container", "_token", "active", "name")
+
+    def __init__(self, container: type, name: str) -> None:
+        self._container = container
+        self._token: contextvars.Token | None = None
+        self.active = False
+        self.name = name
+
+    def __enter__(self) -> "_BootRegistrationLease":
+        self.active = True
+        self._token = self._container._boot_lease.set(self)
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.active = False
+        if self._token is not None:
+            try:
+                self._container._boot_lease.reset(self._token)
+            except ValueError:
+                # Reset from a different context than set: the lease was
+                # entered in one task and left in another. The flag is what
+                # gates registration; the var only carries it.
+                self._container._boot_lease.set(None)
+            self._token = None
+
+
 class ServiceContainer:
     """Aura 3.0 Static ServiceContainer.
     
@@ -242,6 +269,13 @@ class ServiceContainer:
     _services: dict[str, ServiceDescriptor] = {}
     _aliases: dict[str, str] = {}
     _registration_locked = False
+    #: The deferred boot initialisers register services after the lock can
+    #: fall (on a loaded host they landed 65s after it, 2026-09-15). A task
+    #: running under a boot lease is boot, and registers through the lock
+    #: for as long as the task that holds the lease is running.
+    _boot_lease: contextvars.ContextVar["_BootRegistrationLease | None"] = (
+        contextvars.ContextVar("service_container_boot_lease", default=None)
+    )
     _resolving_var: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar('resolving', default=frozenset())
     _wake_lock = RobustLock("ServiceContainer.Wake")
     _start_time: float | None = None
@@ -398,7 +432,7 @@ class ServiceContainer:
         if cls._runtime_registration_suppressed(name):
             return
         cls._begin_new_lifecycle_epoch_if_needed()
-        if cls._registration_locked:
+        if cls._registration_locked and not cls._boot_lease_active():
             raise ContainerError(f"Registration locked: Cannot register '{name}'")
         if isinstance(lifetime, str):
             try:
@@ -512,6 +546,22 @@ class ServiceContainer:
             # The log line above is still emitted; never let audit plumbing
             # stop an unlock a booting runtime may depend on.
             pass
+
+    @classmethod
+    def _boot_lease_active(cls) -> bool:
+        lease = cls._boot_lease.get()
+        return bool(lease is not None and lease.active)
+
+    @classmethod
+    def boot_registration_lease(cls, name: str) -> "_BootRegistrationLease":
+        """A lease for one deferred boot task to register through the lock.
+
+        Enter it inside the task: the lease lives in the task's context, so
+        everything the task awaits sees it, and it is deactivated on exit —
+        a task the boot task spawned inherits the same lease object and loses
+        the right when its parent finishes.
+        """
+        return _BootRegistrationLease(cls, str(name))
 
     @classmethod
     def lock_registration(cls) -> None:
@@ -647,7 +697,7 @@ class ServiceContainer:
         """Register a legacy service alias that resolves to another service name."""
         if cls._runtime_registration_suppressed(alias):
             return
-        if cls._registration_locked:
+        if cls._registration_locked and not cls._boot_lease_active():
             raise ContainerError(f"Registration locked: Cannot register alias '{alias}'")
         with cls._lock:
             cls._aliases[alias] = target

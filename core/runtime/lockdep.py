@@ -606,9 +606,15 @@ class LockdepValidator:
         try:
             for splat in findings:
                 if splat.starved:
+                    # The section did nothing with the time; the host or the
+                    # GIL took it. Said once, and not recorded as a
+                    # degradation: the loop monitor already records the
+                    # stall, and a second record for the same starvation
+                    # fed the resilience engine's frustration (0.99, 2026-09-15)
+                    # for something no subsystem did.
                     logger.warning("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
-                else:
-                    logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                    continue
+                logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
                 try:
                     taint(
                         TaintFlag.LOCK_ORDER,

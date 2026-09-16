@@ -570,6 +570,11 @@ def test_a_hold_spent_waiting_is_named_as_waiting(caplog):
     assert "ms on CPU" in splat["message"]
     record = next(r for r in caplog.records if "sleeping_section" in r.getMessage())
     assert record.levelno == logging.WARNING
+    # And no degradation record for it: the loop monitor owns the stall.
+    assert not any(
+        "DEGRADATION" in r.getMessage() and "sleeping_section" in r.getMessage()
+        for r in caplog.records
+    )
 
     deadline = time.perf_counter() + lockdep_mod.LOOP_BLOCKING_HOLD_S * 1.5
     with checked_lock("busy_section"):

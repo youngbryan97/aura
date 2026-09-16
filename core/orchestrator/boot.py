@@ -788,10 +788,18 @@ class OrchestratorBootMixin(
                 def _spawn_boot_task(coro: Any, name: str) -> asyncio.Task:
                     from core.utils.task_tracker import get_task_tracker
 
+                    async def _as_boot() -> Any:
+                        # Boot, however late it lands: the lease lets the
+                        # task register services through the lock for as
+                        # long as it runs.
+                        with ServiceContainer.boot_registration_lease(name):
+                            return await coro
+
+                    wrapped = _as_boot()
                     try:
-                        return get_task_tracker().create_task(coro, name=name)
+                        return get_task_tracker().create_task(wrapped, name=name)
                     except (RuntimeError, AttributeError, TypeError, ValueError):
-                        return get_task_tracker().create_task(coro, name=name)
+                        return get_task_tracker().create_task(wrapped, name=name)
 
                 # Discovery and isolated validation form one immutable catalog
                 # transaction. Start it before identity/guardian boot, but do
