@@ -56,6 +56,12 @@ this adoption repair; 79 focused tests passed afterward. Smoke passed 164 tests
 with one skipped; lint and compile passed. Previously compacted, unattributed
 evidence remains outside this recoverable provenance boundary.
 
+Snapshot restoration now prepares counters and indexes before replacing the
+destination. A malformed counter previously raised after replacing the graph
+and its observation watermarks. The regression demonstrated that loss; 55
+graph, revision and concurrency tests passed after the atomic restore repair.
+Smoke (164 passed, one skipped), lint and compile also passed.
+
 These tests establish the correction mechanism on constructed graph workloads.
 They do not close G09, establish 500/500 semantic binding, or demonstrate
 frontier reasoning. Source-matched live deployment remains a separate check.

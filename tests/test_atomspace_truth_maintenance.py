@@ -22,6 +22,20 @@ def test_first_versioned_revision_replaces_legacy_claims_from_same_source():
     assert space.get_tv(new) == TruthValue(.8, 10)
 
 
+def test_failed_snapshot_metadata_conversion_preserves_destination():
+    from core.knowledge.atomspace_persistence import restore, snapshot
+    destination = AtomSpace()
+    destination.revise_observation("existing", 3, {concept("kept"): TruthValue(.8, 5)})
+    before = snapshot(destination)
+    replacement = AtomSpace()
+    replacement.add(concept("replacement"), TruthValue(.9, 2))
+    payload = snapshot(replacement)
+    payload["unattributed_assertions"] = "invalid-counter"
+    with pytest.raises(ValueError):
+        restore(destination, payload)
+    assert snapshot(destination) == before
+
+
 def test_grounded_filter_truth_reads_invalidate_derived_support():
     from core.knowledge.atomspace import Node, GROUNDED_PREDICATE, evaluation
     space = AtomSpace()
