@@ -87,6 +87,9 @@ class InterpersonalStore:
         self._root = Path(root) if root is not None else state_root() / "data" / "interpersonal"
         self._authority = authority
         self._models: dict[str, PersonModel] = {}
+        #: The last exchange observed per person, so one turn watched by two
+        #: lanes is recorded once.
+        self._last_exchange: dict[str, str] = {}
         self._observers: dict[str, InterpersonalObserver] = {}
         self._load_failures = 0
         self._save_failures = 0
@@ -180,6 +183,25 @@ class InterpersonalStore:
         if not self.allows(key, "recall"):
             self._consent_skips += 1
             return []
+
+        # The same words twice in a row are one exchange, whichever lane
+        # carried them. Observation is already idempotent per episode id, and
+        # two callers watching one turn give it two ids: the HTTP route logs
+        # from its episodic write, and a phase has no episode of its own. A
+        # claim would then be recorded as noticed twice on a turn that happened
+        # once, and how often something was noticed is what this store's
+        # confidence is made of.
+        #
+        # A regenerated turn is the exception and says so: it carries the
+        # episodes it supersedes, which is a re-observation of the same words
+        # under a new id on purpose.
+        seen = hashlib.blake2b(
+            f"{user_text or ''}\x00{assistant_text or ''}".encode(), digest_size=16
+        ).hexdigest()
+        if not superseded_episode_ids:
+            if self._last_exchange.get(key) == seen:
+                return []
+        self._last_exchange[key] = seen
 
         model = self.model_for(key)
         removed = sum(

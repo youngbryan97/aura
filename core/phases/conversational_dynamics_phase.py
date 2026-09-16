@@ -405,6 +405,44 @@ class ConversationalDynamicsPhase(Phase):
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("how she was read went unrecorded for this message: %s", exc)
 
+    @staticmethod
+    async def _let_the_record_see_this_turn(
+        state: AuraState, message: str, partner: str
+    ) -> None:
+        """Let the person record observe the exchange, on whichever lane it came.
+
+        `log_chat_turn_auto` is called from one place in the tree — the HTTP
+        chat route — so everything she knows about a person was learned through
+        that one door. A voice turn, an autonomous turn or a battery turn
+        updated nothing, and the organs that read the record (particularity,
+        what she declined to write down, what he has told her he likes) had
+        nothing to read on any other lane.
+
+        The store treats the same words twice in a row as one exchange, so this
+        and the route watching the same turn record it once.
+        """
+        try:
+            from core.memory.interpersonal_store import get_interpersonal_store
+
+            if not partner:
+                return
+            said = ""
+            for entry in reversed(list(getattr(state.cognition, "working_memory", []) or [])):
+                if isinstance(entry, dict) and str(entry.get("role", "")).lower() in {
+                    "assistant",
+                    "aura",
+                }:
+                    said = str(entry.get("content", "") or "")
+                    break
+            await get_interpersonal_store().observe_turn(
+                partner,
+                episode_id=f"turn:{getattr(state, 'version', 0)}",
+                user_text=str(message or ""),
+                assistant_text=said,
+            )
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the person record did not see this turn: %s", exc)
+
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if not objective:
             return state
@@ -435,6 +473,7 @@ class ConversationalDynamicsPhase(Phase):
             # which together tell somebody testifying from somebody asking.
             # Assistance is the wrong response to testimony and nothing here
             # could tell the difference before. See core/expression/register.py.
+            await self._let_the_record_see_this_turn(new_state, objective, active_user_id)
             self._read_register(new_state, objective)
             self._read_witness(new_state)
             self._read_recognition(new_state, objective)
