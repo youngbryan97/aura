@@ -999,6 +999,30 @@ class CognitiveContext:
 
         return max(0.0, min(1.0, score))
 
+    def name_the_resting_mode(self, *, resting: bool) -> bool:
+        """Say she is dormant while the metabolism says she is, or stop saying it.
+
+        DORMANT means minimal processing and nothing in the tree ever assigned
+        it: read in three places, written in none, and flat in every recording.
+        The metabolism knows when the condition holds and this names it, so the
+        enum stays where the enum lives and the coordinator does not have to
+        reach for it.
+
+        Returns True when the mode changed.
+        """
+        if resting:
+            if self.current_mode is CognitiveMode.DORMANT:
+                return False
+            self.current_mode = CognitiveMode.DORMANT
+            return True
+        if self.current_mode is not CognitiveMode.DORMANT:
+            return False
+        # Out of it the way she came in. The next turn owns its own mode, and
+        # leaving her dormant after the energy came back would be the stale
+        # mode this exists to end, under another name.
+        self.current_mode = CognitiveMode.REACTIVE
+        return True
+
     def salience_prune(self, target: int) -> None:
         """Prune working memory to target size using salience ranking.
 

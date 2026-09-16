@@ -530,22 +530,13 @@ class MetabolicCoordinator:
         it. The energy is the condition; this is the name for it.
         """
         try:
-            from core.state.aura_state import CognitiveMode
-
             state = getattr(getattr(self, "orch", None), "state", None)
             cognition = getattr(state, "cognition", None)
-            if cognition is None:
+            namer = getattr(cognition, "name_the_resting_mode", None)
+            if namer is None:
                 return
-            mode = getattr(cognition, "current_mode", None)
-            low = self._metabolic_energy < _DORMANT_ENERGY
-            if low and mode is not CognitiveMode.DORMANT:
-                cognition.current_mode = CognitiveMode.DORMANT
-            elif not low and mode is CognitiveMode.DORMANT:
-                # Out of it the way she came in: the next turn owns its own
-                # mode, and leaving her dormant after the energy came back
-                # would be the stale-mode defect with a different name.
-                cognition.current_mode = CognitiveMode.REACTIVE
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
+            namer(resting=self._metabolic_energy < _DORMANT_ENERGY)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             return
 
     async def _allostasis_pulse(self) -> None:

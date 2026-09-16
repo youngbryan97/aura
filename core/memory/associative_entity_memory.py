@@ -808,6 +808,27 @@ class AssociativeEntityMemory:
                 return None
         return self._row_to_entity(row) if row else None
 
+    def best_known(self, limit: int = 12) -> list[Entity]:
+        """The entities she has met most, most recently met first among equals.
+
+        `world.known_entities` is read by the context assembler and by the
+        subject schema and had no writer anywhere in the tree, so the standing
+        list of what she knows was empty on every turn and its column was flat
+        through a six-hour recording. This is what belongs in it.
+        """
+        if not self.available:
+            return []
+        with self._lock:
+            try:
+                rows = self._conn.execute(
+                    "SELECT * FROM entities ORDER BY mention_count DESC, last_seen DESC "
+                    "LIMIT ?",
+                    (max(0, int(limit)),),
+                ).fetchall()
+            except sqlite3.Error:
+                return []
+        return [self._row_to_entity(row) for row in rows]
+
     # -- stance: the derived feeling ---------------------------------------
 
     def _recency_weight(self, at: float, now: float) -> float:

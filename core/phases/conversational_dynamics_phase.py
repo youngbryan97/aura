@@ -206,6 +206,7 @@ class ConversationalDynamicsPhase(Phase):
             mirrored = store.preferences_for_prompt(partner)
             if mirrored:
                 state.world.user_preferences = mirrored
+            ConversationalDynamicsPhase._mirror_known_entities(state)
             # And where this sitting with them stands against how their
             # sittings have ended. See core/social/closing_window.py.
             from core.social.closing_window import get_sitting_ledger
@@ -217,6 +218,37 @@ class ConversationalDynamicsPhase(Phase):
             state.cognition.closing_window = sittings.reading(partner).as_dict()
         except (AttributeError, ImportError, TypeError, ValueError) as exc:
             logger.debug("their regularity went unread: %s", exc)
+
+    @staticmethod
+    def _mirror_known_entities(state: AuraState) -> None:
+        """The standing list of what she has met, where the prompt looks for it.
+
+        `world.known_entities` is read by the context assembler and by the
+        subject schema and had no writer anywhere in the tree: the block was
+        empty on every turn and the column reading it was flat through a
+        six-hour recording. The associative entity memory is where the meeting
+        is actually recorded, and the description is its own stance sentence
+        rather than a summary written here.
+        """
+        try:
+            from core.memory.associative_entity_memory import (
+                get_associative_entity_memory,
+            )
+
+            memory = get_associative_entity_memory()
+            known = memory.best_known()
+            if not known:
+                return
+            state.world.known_entities = {
+                entity.canonical_name: {
+                    "kind": str(entity.kind.value),
+                    "description": memory.stance(entity).sentence(entity.canonical_name),
+                    "met": entity.mention_count,
+                }
+                for entity in known
+            }
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("the standing list of what she knows was not mirrored: %s", exc)
 
     @staticmethod
     def _strain_of(partner: str) -> float | None:
