@@ -63,3 +63,25 @@ def test_a_real_web_question_still_searches(asked: str) -> None:
     should, query, _contract = _should_collect_desktop_required_search_evidence(asked)
     assert should is True
     assert query
+
+
+def test_a_directory_named_relative_to_her_roots_settles_it() -> None:
+    """LIVE 2026-09-16: a count over her own tree was sent to web_search.
+
+    "How many Python files are under core/consciousness in your source tree,
+    and which one is the largest by bytes?" names a folder relative to her
+    roots. The count observable resolves it; the search gate did not, and the
+    turn asked the web for it.
+    """
+    should, _query, _contract = _should_collect_desktop_required_search_evidence(
+        "How many Python files are under core/consciousness in your source tree, "
+        "and which one is the largest by bytes?"
+    )
+    assert should is False, "a folder in her own tree sent the turn to a web search"
+
+
+def test_a_relative_directory_that_does_not_exist_does_not_settle_it() -> None:
+    should, _query, _contract = _should_collect_desktop_required_search_evidence(
+        "how many python files are under nope/not/here, and who founded Hugging Face?"
+    )
+    assert should is True

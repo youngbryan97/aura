@@ -357,6 +357,24 @@ def _should_collect_desktop_required_search_evidence(
             return False, "", None
     except _CHAT_RECOVERABLE_ERRORS:
         pass
+    # A directory named RELATIVE to her roots, and asked about as a count.
+    #
+    # The reader above sees absolute paths. "core/consciousness" is a folder
+    # in her own tree, and the count observable already resolves it there.
+    #
+    # LIVE 2026-09-16: "How many Python files are under core/consciousness in
+    # your source tree, and which one is the largest by bytes?" was routed to
+    # web_search as required desktop search evidence. The search was vetoed,
+    # the veto was logged as a failed search, and the count that would have
+    # answered was never taken.
+    try:
+        from core.conversation.filesystem_check import requested_filesystem_count
+
+        counted = requested_filesystem_count(user_message)
+    except _CHAT_RECOVERABLE_ERRORS:
+        counted = None
+    if counted is not None and counted.exists:
+        return False, "", None
     # A document the person addressed directly is not a search question
     # either, for the same reason: the bytes are AT that address.
     #
