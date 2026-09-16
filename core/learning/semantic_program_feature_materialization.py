@@ -1125,13 +1125,20 @@ def load_semantic_feature_bundle(
     return LoadedSemanticFeatureBundle(manifest=manifest, examples=tuple(loaded))
 
 
-def load_standard_semantic_feature_bundle(
-    output_directory: Path,
-) -> LoadedSemanticFeatureBundle:
-    """Reload a bundle and independently reconstruct its seeded corpus."""
+def rebuild_semantic_feature_selection(
+    manifest: Mapping[str, Any],
+) -> tuple[SemanticFeatureConfig, tuple[SemanticProgramExample, ...]]:
+    """Recover the exact public corpus without loading old hidden-state arrays."""
 
-    bundle = load_semantic_feature_bundle(output_directory)
-    config = semantic_feature_config_from_manifest(bundle.manifest)
+    body = {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+    if (
+        manifest.get("schema") != FEATURE_MANIFEST_SCHEMA
+        or manifest.get("complete") is not True
+        or manifest.get("manifest_sha256") != _sha(body)
+        or manifest.get("config_sha256") != _sha(manifest.get("config"))
+    ):
+        raise SemanticFeatureMaterializationError("feature manifest identity differs")
+    config = semantic_feature_config_from_manifest(manifest)
     corpus = build_semantic_program_corpus_for_config(config)
     expected_examples = select_bounded_semantic_examples(
         corpus,
@@ -1140,8 +1147,8 @@ def load_standard_semantic_feature_bundle(
     expected_identities = {
         item.example_id: _example_public_identity(item) for item in expected_examples
     }
-    selected_ids = bundle.manifest["config"]["selected_example_ids"]
-    if len(selected_ids) != bundle.manifest["example_count"]:
+    selected_ids = manifest["config"]["selected_example_ids"]
+    if len(selected_ids) != manifest["example_count"]:
         raise SemanticFeatureMaterializationError(
             "feature manifest selection count differs from its records"
         )
@@ -1155,10 +1162,23 @@ def load_standard_semantic_feature_bundle(
             "examples": [expected_identities[item.example_id] for item in expected_examples],
         }
     )
-    if expected_corpus_sha256 != bundle.manifest["corpus_sha256"]:
+    if expected_corpus_sha256 != manifest["corpus_sha256"]:
         raise SemanticFeatureMaterializationError(
             "feature manifest corpus hash differs from rebuilt seeded corpus"
         )
+    return config, tuple(expected_examples)
+
+
+def load_standard_semantic_feature_bundle(
+    output_directory: Path,
+) -> LoadedSemanticFeatureBundle:
+    """Reload a bundle and independently reconstruct its seeded corpus."""
+
+    bundle = load_semantic_feature_bundle(output_directory)
+    _config, expected_examples = rebuild_semantic_feature_selection(bundle.manifest)
+    expected_identities = {
+        item.example_id: _example_public_identity(item) for item in expected_examples
+    }
     observed_ids = {item.metadata["example_id"] for item in bundle.examples}
     if observed_ids != set(expected_identities):
         raise SemanticFeatureMaterializationError(
@@ -1379,8 +1399,7 @@ async def materialize_semantic_program_features(
                     config_sha256=config_sha256,
                     corpus_sha256=corpus_sha256,
                 )
-                await asyncio.to_thread(
-                    _write_bytes,
+                await _write_bytes(
                     writer,
                     root / _STATUS_NAME,
                     status,
@@ -1595,6 +1614,7 @@ __all__ = [
     "load_semantic_feature_record",
     "load_standard_semantic_feature_bundle",
     "materialize_semantic_program_features",
+    "rebuild_semantic_feature_selection",
     "select_bounded_semantic_examples",
     "semantic_feature_config_from_manifest",
     "offset_tokenizer_for_worker",

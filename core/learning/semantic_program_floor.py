@@ -521,13 +521,13 @@ def _primitive(op: str, args: Sequence[Any]) -> Any:
     if op == "length":
         return _list_length(args[0])
     if op == "total":
-        return _list_total(args[0])
+        return IF(ISPAIR(args[0]), _list_total(args[0]), _stuck())
     if op == "largest":
         return _list_extreme(args[0], largest=True)
     if op == "smallest":
         return _list_extreme(args[0], largest=False)
     if op == "sorted_up":
-        return _sort(args[0])
+        return IF(ISPAIR(args[0]), _sort(args[0]), _stuck())
     if op == "reversed_":
         return _reverse(args[0])
     if op == "head":
@@ -539,7 +539,7 @@ def _primitive(op: str, args: Sequence[Any]) -> Any:
     if op == "front":
         return _front(args[0])
     if op == "unique":
-        return _unique_sorted(args[0])
+        return IF(ISPAIR(args[0]), _unique_sorted(args[0]), _stuck())
     if op == "at":
         return _at(args[0], args[1])
     if op == "count_of":
