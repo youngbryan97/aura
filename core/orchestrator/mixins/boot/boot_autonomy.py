@@ -418,8 +418,63 @@ class BootAutonomyMixin:
         finally:
             self._final_foundations_initializing = False
 
+    #: The modules the salvaged initialiser imports. Loaded on a thread
+    #: before the initialiser runs, so the construction below finds them in
+    #: sys.modules and pays no disk read on the loop: a module read inside
+    #: this initialiser was a 5.7s loop stall on a busy disk (dump,
+    #: 2026-09-16 22:56).
+    _SALVAGED_SUBSYSTEM_MODULES: tuple[str, ...] = (
+        "core.adaptation.abstraction_engine",
+        "core.adaptation.dialectics",
+        "core.adaptation.dream_journal",
+        "core.adaptation.heuristic_synthesizer",
+        "core.adaptation.star_reasoner",
+        "core.adaptation.value_autopoiesis",
+        "core.agency.ambient_life_director",
+        "core.agency.subjective_choice",
+        "core.autonomic.reflection_loop",
+        "core.autonomy.genuine_refusal",
+        "core.autonomy.self_modification",
+        "core.config",
+        "core.conversation.external_chat",
+        "core.coordinators.skill_execution_diagnostics",
+        "core.environment.embodied_simulator",
+        "core.epistemics.belief_revision",
+        "core.goals.goal_drift_detector",
+        "core.memory.scar_formation",
+        "core.ops.graceful_shutdown",
+        "core.ops.process_manager",
+        "core.reliability_engine",
+        "core.resilience.snapshot_manager",
+        "core.runtime.shutdown_coordinator",
+        "core.safety.constitutional_gate",
+        "core.self_improvement.reimplementation_lab",
+        "core.self_modification.shadow_ast_healer",
+        "core.session.session_guardian",
+        "core.state.state_authority",
+        "core.utils.task_tracker",
+        "core.values.values_engine",
+        "core.volition",
+        "core.world_model.belief_graph",
+        "core.world_model.goal_beliefs",
+        "core.world_model.user_model",
+    )
+
+    async def _import_salvaged_modules_off_loop(self) -> None:
+        import importlib
+
+        def _load() -> None:
+            for name in self._SALVAGED_SUBSYSTEM_MODULES:
+                try:
+                    importlib.import_module(name)
+                except Exception as exc:  # noqa: BLE001 — the initialiser reports its own
+                    logger.debug("Salvaged module %s did not preload: %s", name, exc)
+
+        await asyncio.to_thread(_load)
+
     async def _init_salvaged_subsystems(self):
         """Wire in fully-implemented subsystems that were previously unregistered."""
+        await self._import_salvaged_modules_off_loop()
 
         # SessionGuardian — prevents conversation cascade failures in long sessions
         try:
