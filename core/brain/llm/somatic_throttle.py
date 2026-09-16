@@ -40,8 +40,21 @@ class SomaticComputeSentinel:
     def __init__(self):
         logger.info("🌡️ SomaticComputeSentinel initialized.")
 
-    def adjust_generation_options(self, base_options: dict[str, Any]) -> dict[str, Any]:
-        """Dynamically adjusts LLM sampling and length parameters based on metabolic and hardware stress."""
+    def adjust_generation_options(
+        self, base_options: dict[str, Any], *, foreground: bool = False
+    ) -> dict[str, Any]:
+        """Dynamically adjusts LLM sampling and length parameters based on metabolic and hardware stress.
+
+        A foreground generation keeps its token budget and its sampling: the
+        budget is the answer clock's, priced from the request and the
+        measured decode rate, and the temperature is the contract's. Host
+        CPU held by other processes shortens nothing here — it slows the
+        decode, and the clock already pays for that. LIVE, 2026-09-16: a
+        timetable question was capped at 256 tokens because the host's CPU
+        was at 92% under two other agents' jobs; the thinking was cut short
+        and the answer was wrong. Recurrent depth is a compute knob and is
+        still throttled; the severe caps stay for background work.
+        """
         # 1. Fetch virtual physiological stress (arousal)
         arousal = 0.0
         try:
@@ -110,17 +123,20 @@ class SomaticComputeSentinel:
             or (gov_throttle <= 0.2)
         )
 
+        def _cap(limit: int, temperature: float) -> None:
+            if foreground:
+                return
+            original_max = base_options.get("max_tokens", 512)
+            base_options["max_tokens"] = min(original_max, limit)
+            base_options["temperature"] = temperature
+
         if gov_throttle == 0.0 and gov_measured:
             # Token exhaustion: severe cap to block further consumption
-            original_max = base_options.get("max_tokens", 512)
-            base_options["max_tokens"] = min(original_max, 8)
-            base_options["temperature"] = 0.05
+            _cap(8, 0.05)
             logger.error("🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. Sampling capped to 8 tokens.")
         elif is_critical:
             # Force severe parameter cuts to prevent OOM/Thermal crash
-            original_max = base_options.get("max_tokens", 512)
-            base_options["max_tokens"] = min(original_max, 128)
-            base_options["temperature"] = 0.15
+            _cap(128, 0.15)
             # Throttle recurrent lane depth if supported by token generator
             if "recurrent_lane_depth" in base_options:
                 base_options["recurrent_lane_depth"] = 0.2
@@ -132,9 +148,7 @@ class SomaticComputeSentinel:
             )
         elif is_stressed:
             # Moderate parameter cuts
-            original_max = base_options.get("max_tokens", 512)
-            base_options["max_tokens"] = min(original_max, 256)
-            base_options["temperature"] = 0.3
+            _cap(256, 0.3)
             if "recurrent_lane_depth" in base_options:
                 base_options["recurrent_lane_depth"] = 0.4
             elif "recurrent_depth" in base_options:

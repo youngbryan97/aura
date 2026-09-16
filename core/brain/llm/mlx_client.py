@@ -12447,7 +12447,9 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             from core.brain.llm.somatic_throttle import SomaticComputeSentinel
 
             sentinel = SomaticComputeSentinel()
-            kwargs = sentinel.adjust_generation_options(kwargs)
+            kwargs = sentinel.adjust_generation_options(
+                kwargs, foreground=bool(foreground_request)
+            )
         except _MLX_OPTIONAL_THROTTLE_ERRORS as exc:
             kwargs = _apply_unthrottled_fallback_ceiling(kwargs)
             _record_mlx_degradation(

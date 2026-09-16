@@ -175,3 +175,26 @@ def test_somatic_throttle_records_expected_probe_failures(monkeypatch, resource_
     assert records
     assert records[0][0] == "somatic_throttle"
     assert records[0][2]["action"] == "using neutral arousal for generation throttle"
+
+
+def test_a_foreground_turn_keeps_its_budget_and_sampling_under_host_stress(monkeypatch, resource_observer):
+    """LIVE 2026-09-16: a timetable question was capped at 256 tokens because
+    the host's CPU was at 92% under other agents' jobs; the thinking was cut
+    short and the answer was wrong. The budget is the clock's."""
+    _install_probe_readings(
+        monkeypatch,
+        resource_observer,
+        arousal=0.2,
+        cpu_percent=96.0,
+        memory_percent=94.0,
+    )
+    sentinel = SomaticComputeSentinel()
+    opts = {"max_tokens": 1024, "temperature": 0.7, "recurrent_depth": 0.8}
+    adjusted = sentinel.adjust_generation_options(opts.copy(), foreground=True)
+    assert adjusted["max_tokens"] == 1024
+    assert adjusted["temperature"] == 0.7
+    # Compute depth is still a throttle's to turn down.
+    assert adjusted["recurrent_depth"] == 0.2
+
+    background = sentinel.adjust_generation_options(opts.copy())
+    assert background["max_tokens"] == 128
