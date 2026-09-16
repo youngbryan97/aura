@@ -304,6 +304,7 @@ async def test_workspace_inhibition_timeout_rejects_without_late_admission(
     tmp_path,
     receipt_store_factory,
 ):
+
     import asyncio
 
     from core.consciousness.global_workspace import CognitiveCandidate, GlobalWorkspace
@@ -386,3 +387,55 @@ async def test_workspace_policy_inhibition_is_a_receipted_rejection(
     receipt = store.query_recent_persisted("workspace_gate", limit=1)[0]
     assert receipt.reason == "source_inhibited"
     assert receipt.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_the_inhibition_gate_closes_the_checks_it_never_ran(monkeypatch):
+    """A check the gate builds and never runs is a coroutine holding another one.
+
+    `gather` wraps them the moment it is called, so the only way past it is
+    that it was never called: a loop closing under the gate during shutdown.
+    The live log carried seventeen "coroutine is_inhibited was never awaited"
+    warnings from that, each one a real inhibition question nothing answered.
+    """
+    import inspect
+
+    import core.consciousness.global_workspace as workspace_module
+    from core.consciousness.global_workspace import CognitiveCandidate, GlobalWorkspace
+
+    built: list[object] = []
+
+    class ClosingLoop:
+        instance_id = "inhibition-shutdown"
+
+        async def is_inhibited(self, _source):  # pragma: no cover - never awaited
+            return False
+
+        def __getattribute__(self, name):
+            attribute = object.__getattribute__(self, name)
+            if name != "is_inhibited":
+                return attribute
+
+            def remember(source):
+                coroutine = attribute(source)
+                built.append(coroutine)
+                return coroutine
+
+            return remember
+
+    _install_services(monkeypatch, inhibition=ClosingLoop())
+
+    def _closed_loop(*_args, **_kwargs):
+        raise RuntimeError("Event loop is closed")
+
+    monkeypatch.setattr(workspace_module.asyncio, "gather", _closed_loop)
+
+    workspace = GlobalWorkspace()
+    workspace._global_inhibition = None
+    candidates = [CognitiveCandidate(f"content-{index}", f"source-{index}", 0.5) for index in range(3)]
+    with pytest.raises(RuntimeError):
+        await workspace._check_candidates_for_competition(candidates)
+
+    assert len(built) == len(candidates)
+    for coroutine in built:
+        assert inspect.getcoroutinestate(coroutine) == inspect.CORO_CLOSED
