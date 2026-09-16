@@ -1333,6 +1333,41 @@ def _format_grok_messages(
     return "".join(prompt_parts)
 
 
+def chatml_prompt_chars(system_prompt: str, messages: Iterable[dict[str, Any]]) -> int:
+    """What :func:`format_chatml_messages` will make of these, in characters.
+
+    The prompt fitter budgets message content; the client measures the
+    rendered prompt against its prefill ceiling. The difference is the
+    markup — a role header and a close per message, the assistant opener,
+    the identity guard — and on 2026-09-16 it was 3,547 characters: a
+    47,224-char plan the fitter passed became a 50,771-char prompt the
+    client cut. The same arithmetic on both sides, from one place.
+    """
+    total = 0
+    identity_injected = False
+    rendered = list(messages)
+    if system_prompt and not any(
+        _normalize_role(m.get("role")) == "system" for m in rendered if isinstance(m, dict)
+    ):
+        rendered = [{"role": "system", "content": str(system_prompt)}, *rendered]
+    for message in rendered:
+        if not isinstance(message, dict):
+            continue
+        content = str(message.get("content", "") or "").strip()
+        if not content:
+            continue
+        role = _normalize_role(message.get("role"))
+        if role == "system" and not identity_injected:
+            if "persistent local cognitive runtime" not in content.lower():
+                total += len(_IDENTITY_GUARD) + 2
+            identity_injected = True
+        total += len(f"<|im_start|>{role}\n{content}<|im_end|>\n")
+    if not identity_injected:
+        total += len(f"<|im_start|>system\n{_IDENTITY_GUARD}<|im_end|>\n")
+    total += len("<|im_start|>assistant\n")
+    return total
+
+
 def format_chatml_messages(
     messages: Iterable[dict[str, str]],
     *,

@@ -25,6 +25,17 @@ from core.brain.living_mind_context import (
 )
 
 
+def _rendered_prompt_chars(system_prompt: Any, messages: list[dict[str, Any]]) -> int:
+    try:
+        from core.brain.llm.chat_format import chatml_prompt_chars
+
+        return int(chatml_prompt_chars(str(system_prompt or ""), messages))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return len(str(system_prompt or "")) + sum(
+            len(str(message.get("content") or "")) for message in messages
+        )
+
+
 def _prefill_ceiling_chars() -> int:
     """The client's own character ceiling on a prompt, or 0 if unreadable."""
     try:
@@ -1153,9 +1164,8 @@ class _BuildsAndFitsThePrompt:
             )
 
         def _chars() -> int:
-            return len(str(system_prompt or "")) + sum(
-                len(str(message.get("content") or "")) for message in messages
-            )
+            # As the client will measure it: the rendered ChatML prompt.
+            return _rendered_prompt_chars(system_prompt, messages)
 
         def _over() -> bool:
             if allowed > 0 and total > allowed:

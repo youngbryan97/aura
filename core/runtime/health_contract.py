@@ -23,6 +23,7 @@ from typing import Any
 
 from core.runtime.health_fragments import collect_health_fragments
 from core.runtime.lockdep import checked_lock
+from core.runtime.off_loop_snapshot import OffLoopSnapshot
 from core.runtime.service_registry import get_runtime_service
 
 logger = logging.getLogger("Aura.HealthContract")
@@ -2280,14 +2281,24 @@ _INTEGRITY_SNAPSHOT: dict[str, Any] | None = None
 _INTEGRITY_SNAPSHOT_AT = 0.0
 _INTEGRITY_SNAPSHOT_UNIX = 0.0
 _INTEGRITY_REFRESHING = False
+_INTEGRITY_REFRESH_THREAD: threading.Thread | None = None
 _INTEGRITY_COLLECTIONS = 0
 _INTEGRITY_LOOP_SERVES = 0
 
 
 def reset_integrity_snapshot_for_test() -> None:
-    """Drop the cached integrity snapshot so a test observes a cold collect."""
+    """Drop the cached integrity snapshot so a test observes a cold collect.
+
+    A refresher a previous test started is waited out first: one that landed
+    after the reset handed the next test a snapshot it never asked for, and
+    that test then found no collection of its own (order-dependent on a
+    loaded host, 2026-09-16).
+    """
     global _INTEGRITY_SNAPSHOT, _INTEGRITY_SNAPSHOT_AT, _INTEGRITY_SNAPSHOT_UNIX
     global _INTEGRITY_COLLECTIONS, _INTEGRITY_LOOP_SERVES, _INTEGRITY_REFRESHING
+    straggler = _INTEGRITY_REFRESH_THREAD
+    if straggler is not None and straggler.is_alive() and straggler is not threading.current_thread():
+        straggler.join(5.0)
     with _INTEGRITY_LOCK:
         _INTEGRITY_SNAPSHOT = None
         _INTEGRITY_SNAPSHOT_AT = 0.0
@@ -2357,10 +2368,12 @@ def _refresh_integrity_snapshot_async() -> None:
             with _INTEGRITY_LOCK:
                 _INTEGRITY_REFRESHING = False
 
+    global _INTEGRITY_REFRESH_THREAD
     try:
-        threading.Thread(
+        _INTEGRITY_REFRESH_THREAD = threading.Thread(
             target=_run, name="AuraHealthIntegritySnapshot", daemon=True
-        ).start()
+        )
+        _INTEGRITY_REFRESH_THREAD.start()
     except RuntimeError:
         # Interpreter shutdown, or the thread table is exhausted. Release the
         # latch so a later call can try again rather than wedging the snapshot
@@ -2427,6 +2440,18 @@ def integrity_block_snapshot() -> dict[str, Any]:
     return block
 
 
+_FRAGMENTS_SNAPSHOT = OffLoopSnapshot(
+    "health_fragments",
+    collect_health_fragments,
+    ttl_s=_INTEGRITY_TTL_S,
+    empty=dict,
+)
+
+
+def reset_health_fragments_snapshot_for_test() -> None:
+    _FRAGMENTS_SNAPSHOT.reset_for_test()
+
+
 def runtime_health_report() -> dict[str, Any]:
     """Return Aura's canonical runtime health contract report."""
     report = evaluate_health().to_report()
@@ -2444,8 +2469,11 @@ def runtime_health_report() -> dict[str, Any]:
     report["shutdown"] = shutdown
     report["integrity"] = integrity_block_snapshot()
     # Subsystems publish; the foundation never reaches down. See
-    # core/runtime/health_fragments.py for why.
-    report.update(collect_health_fragments())
+    # core/runtime/health_fragments.py for why. And they are read the way
+    # the integrity block is: never collected on the loop.
+    fragments, how = _FRAGMENTS_SNAPSHOT.read()
+    report.update(fragments)
+    report["fragments_snapshot"] = how
     request = shutdown.get("request") if isinstance(shutdown, dict) else None
     if isinstance(request, dict) and request.get("requested") is True:
         report["pre_shutdown_status"] = report.get("status")

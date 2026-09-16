@@ -434,3 +434,18 @@ def test_once_the_window_moves_it_moves_far_enough_for_the_next_turn(monkeypatch
     second_dialogue = [row["content"] for row in second if row["role"] in {"user", "assistant"}]
     assert second_dialogue[0] == first_dialogue[0]
     assert len(second_dialogue) == len(first_dialogue) + 2
+
+
+def test_the_fitter_measures_the_prompt_the_client_will_render():
+    """A 47,224-char plan became a 50,771-char rendered prompt: the markup
+    per message, the assistant opener and the identity guard, which the
+    fitter did not count and the client's ceiling did (2026-09-16)."""
+    from core.brain.llm.chat_format import chatml_prompt_chars, format_chatml_messages
+
+    messages = [{"role": "system", "content": "You are Aura."}]
+    for index in range(40):
+        messages.append({"role": "user", "content": f"question {index}"})
+        messages.append({"role": "assistant", "content": f"answer {index}"})
+    rendered = format_chatml_messages(messages)
+    assert chatml_prompt_chars("", messages) == len(rendered)
+    assert chatml_prompt_chars("", messages) - sum(len(m["content"]) for m in messages) > 40 * 60

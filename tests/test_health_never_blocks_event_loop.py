@@ -413,3 +413,48 @@ def test_caa_vector_provenance_is_reread_when_the_file_changes(tmp_path):
     rescanned = readiness_report.scan_vector_files(vectors)
     assert rescanned["extracted"] == 1
     assert rescanned["fallback"] == 0
+
+
+# ── 5. The fragments never collect on a running event loop either ─────────
+
+
+def test_fragments_never_collect_on_the_event_loop(monkeypatch):
+    """2026-09-16, 5.8s: a health pulse read the MCP connector registry from
+    disk inside collect_health_fragments, on the loop."""
+    from core.runtime import health_contract
+
+    health_contract.reset_health_fragments_snapshot_for_test()
+    calls: list[str] = []
+
+    def slow_fragments() -> dict[str, dict[str, object]]:
+        calls.append(threading.current_thread().name)
+        time.sleep(0.4)
+        return {"external_reach": {"registered": True, "connectors": 3}}
+
+    monkeypatch.setattr(health_contract._FRAGMENTS_SNAPSHOT, "_collect", slow_fragments)
+
+    async def on_loop():
+        started = time.monotonic()
+        value, how = health_contract._FRAGMENTS_SNAPSHOT.read()
+        elapsed = time.monotonic() - started
+        assert elapsed < 0.1, f"fragment collection blocked the loop for {elapsed:.3f}s"
+        assert how["warming"] is True and value == {}
+        for _ in range(50):
+            if health_contract._FRAGMENTS_SNAPSHOT.collections:
+                break
+            await asyncio.sleep(0.05)
+        value, how = health_contract._FRAGMENTS_SNAPSHOT.read()
+        return value, how
+
+    value, how = asyncio.run(on_loop())
+    assert value["external_reach"]["connectors"] == 3
+    assert how["collected"] is True
+    assert calls and all(name != "MainThread" for name in calls)
+
+    # Off the loop: inline, behind the TTL.
+    health_contract.reset_health_fragments_snapshot_for_test()
+    calls.clear()
+    value, how = health_contract._FRAGMENTS_SNAPSHOT.read()
+    assert value["external_reach"]["connectors"] == 3 and how["stale"] is False
+    health_contract._FRAGMENTS_SNAPSHOT.read()
+    assert calls == [threading.current_thread().name]
