@@ -139,13 +139,20 @@ def runtime_shell_request_path(relative: str) -> str:
 
 
 def _run_git(root: Path, arguments: Sequence[str], *, timeout: float = 3.0) -> str:
-    completed = get_subprocess_gateway().run(
+    """One git query, bounded by the work git does rather than by the clock.
+
+    ``timeout`` is the CPU budget: what the query costs on an idle host, with
+    room. LIVE 2026-09-16, load 34 on 18 cores, another agent's git holding
+    a core: ``git symbolic-ref --short HEAD`` took more than 3.0s of wall
+    and a boot died in its provenance snapshot.
+    """
+    completed = get_subprocess_gateway().run_until_its_work_is_done(
         ["git", "-C", str(root), *arguments],
-        timeout=timeout,
+        cpu_budget_s=timeout,
         read_only=True,
-        capture_output=True,
         source="runtime_launch_provenance.git",
         accelerator_capability="none",
+        watch_period_s=0.25,
     )
     if completed.returncode != 0:
         detail = str(completed.stderr or completed.stdout or "git command failed").strip()
@@ -158,13 +165,13 @@ def _git_identity(root: Path) -> dict[str, str]:
         Path(_run_git(root, ("rev-parse", "--show-toplevel")).strip()).expanduser().resolve()
     )
     commit = _run_git(canonical_root, ("rev-parse", "HEAD")).strip()
-    branch_result = get_subprocess_gateway().run(
+    branch_result = get_subprocess_gateway().run_until_its_work_is_done(
         ["git", "-C", str(canonical_root), "symbolic-ref", "--quiet", "--short", "HEAD"],
-        timeout=3.0,
+        cpu_budget_s=3.0,
         read_only=True,
-        capture_output=True,
         source="runtime_launch_provenance.git_branch",
         accelerator_capability="none",
+        watch_period_s=0.25,
     )
     branch = (
         str(branch_result.stdout or "").strip() if branch_result.returncode == 0 else "DETACHED"

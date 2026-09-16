@@ -876,7 +876,7 @@ def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
     assert subprocess_must_use_gateway("core/brain/llm/mlx_client.py") is True
     assert "_run_probe_until_its_work_is_done(" in source
     runner = inspect.getsource(mlx_client._run_probe_until_its_work_is_done)
-    assert "get_subprocess_gateway().spawn(" in runner
+    assert "get_subprocess_gateway().run_until_its_work_is_done(" in runner
     # The probe timeout became an operator-configurable bound rather than a
     # hardcoded 25.0: on a host whose page cache is thrashing, importing MLX
     # alone can exceed a fixed budget and the probe reported
@@ -888,7 +888,11 @@ def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
     # and every wall budget killed a healthy MLX (2026-09-16).
     probe_timeout = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
     assert 5.0 <= probe_timeout <= 600.0
-    assert "cpu_seen >= budget" in runner and "now - advanced_at >= budget" in runner
+    assert "cpu_budget_s=float(_MLX_RUNTIME_PROBE_TIMEOUT_S)" in runner
+    from core.runtime.subprocess_gateway import SubprocessGateway
+
+    bound = inspect.getsource(SubprocessGateway.run_until_its_work_is_done)
+    assert "cpu_seen >= budget" in bound and "now - advanced_at >= budget" in bound
     assert "source=\"runtime_probe:mlx_runtime_probe\"" in runner
     assert "read_only=True" in runner
     assert "AURA_TEST_MODE" not in source
@@ -1592,7 +1596,7 @@ def test_the_probe_is_bounded_by_its_own_work_not_the_wall_clock(monkeypatch):
         [sys.executable, "-c", "import time; time.sleep(60)"], cwd=os.getcwd(), env=env
     )
     assert wedged.returncode == 124
-    assert wedged.stderr.startswith("probe_wedged:")
+    assert wedged.stderr.startswith("wedged:")
     assert time.monotonic() - started < 30.0
 
     started = time.monotonic()
@@ -1600,27 +1604,29 @@ def test_the_probe_is_bounded_by_its_own_work_not_the_wall_clock(monkeypatch):
         [sys.executable, "-c", "while True: pass"], cwd=os.getcwd(), env=env
     )
     assert busy.returncode == 124
-    assert busy.stderr.startswith("probe_cpu_budget_exhausted:")
+    assert busy.stderr.startswith("cpu_budget_exhausted:")
     assert time.monotonic() - started < 60.0
 
     # Neither stop reason reads as the old wall-clock timeout.
-    assert mlx_client._normalize_probe_detail("", wedged.stderr, 124).startswith("probe_wedged")
+    assert mlx_client._normalize_probe_detail("", wedged.stderr, 124).startswith("wedged")
     assert mlx_client._normalize_probe_detail("", busy.stderr, 124).startswith(
-        "probe_cpu_budget_exhausted"
+        "cpu_budget_exhausted"
     )
 
 
 def test_a_child_the_host_cannot_observe_is_still_bounded(monkeypatch):
-    """The simulated observer knows no pids. The wall clock then bounds the
-    probe, as it did before; the bound is never none."""
+    """A child whose CPU cannot be read is bounded by the wall clock, as it
+    was before; the bound is never none."""
     import os
     import sys
     import time
 
     from core.brain.llm import mlx_client
+    from core.runtime import subprocess_gateway
 
     monkeypatch.setattr(mlx_client, "_MLX_RUNTIME_PROBE_TIMEOUT_S", 2.0)
     monkeypatch.setattr(mlx_client, "_PROBE_WATCH_PERIOD_S", 0.2)
+    monkeypatch.setattr(subprocess_gateway, "_child_cpu_seconds", lambda pid: None)
     started = time.monotonic()
     out = mlx_client._run_probe_until_its_work_is_done(
         [sys.executable, "-c", "import time; time.sleep(60)"],
@@ -1628,7 +1634,7 @@ def test_a_child_the_host_cannot_observe_is_still_bounded(monkeypatch):
         env=dict(os.environ),
     )
     assert out.returncode == 124
-    assert out.stderr.startswith("probe_unobservable:")
+    assert out.stderr.startswith("unobservable:")
     assert time.monotonic() - started < 30.0
 
 
@@ -1665,3 +1671,15 @@ async def test_the_init_handshake_waits_while_the_worker_loads():
     stuck: asyncio.Future = loop.create_future()
     with pytest.raises(TimeoutError, match="worker init made no progress"):
         await client._await_init_while_the_worker_loads(stuck, stall_s=0.1)
+
+
+def test_the_probe_command_is_a_recognised_import_only_probe():
+    """LIVE 2026-09-16, 45 minutes of spawns aborted with
+    model_process_claim_missing_model_path: the probe had grown a line that
+    printed its own CPU clock, and the gateway's probe grammar no longer
+    recognised it, so the gateway asked it for a model path. The probe's
+    shape is a contract with the lane control; this pins it."""
+    from core.brain.llm.mlx_client import _mlx_runtime_probe_command
+    from core.runtime.model_lane_control import is_registered_non_model_process_command
+
+    assert is_registered_non_model_process_command(_mlx_runtime_probe_command())

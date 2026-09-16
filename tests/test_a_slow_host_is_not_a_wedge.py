@@ -114,3 +114,46 @@ def test_the_boot_stages_are_bounded_by_their_motion():
     source = (ROOT / "core/ops/resilient_boot.py").read_text(encoding="utf-8")
     assert "await_while_the_task_moves(\n                        stage_fn(), stall_s=timeout" in source
     assert "asyncio.wait_for(stage_fn()" not in source
+
+
+def test_the_provenance_git_queries_are_bounded_by_their_work():
+    """2026-09-16: a boot died in its provenance snapshot when
+    ``git symbolic-ref --short HEAD`` took more than 3.0s of wall on a host
+    where another agent's git held a core. The query costs milliseconds of
+    CPU; the bound is on that."""
+    source = (ROOT / "core/runtime/launch_provenance.py").read_text(encoding="utf-8")
+    git = source[source.index("def _run_git(") : source.index("def _status_paths(")]
+    assert "run_until_its_work_is_done(" in git
+    assert "cpu_budget_s=" in git
+    assert "timeout=3.0" not in git
+
+
+def test_the_gateway_runner_stops_a_wedged_child_and_a_busy_one():
+    import os
+    import sys
+    import time
+
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    gateway = get_subprocess_gateway()
+    started = time.monotonic()
+    wedged = gateway.run_until_its_work_is_done(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        cpu_budget_s=1.0,
+        cwd=os.getcwd(),
+        read_only=True,
+        source="test.progress_bound.wedged",
+        watch_period_s=0.2,
+    )
+    assert wedged.returncode == 124 and wedged.stderr.startswith("wedged:")
+    assert time.monotonic() - started < 30.0
+
+    done = gateway.run_until_its_work_is_done(
+        [sys.executable, "-c", "print('ok')"],
+        cpu_budget_s=5.0,
+        cwd=os.getcwd(),
+        read_only=True,
+        source="test.progress_bound.done",
+        watch_period_s=0.2,
+    )
+    assert done.returncode == 0 and done.stdout.strip() == "ok"

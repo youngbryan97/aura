@@ -4503,23 +4503,6 @@ _MLX_RUNTIME_PROBE_TIMEOUT_S = _finite_env_float(
 )
 
 
-#: The resolution at which the running probe's CPU progress is read. It
-#: bounds how far past either limit the probe can run before it is stopped.
-_PROBE_WATCH_PERIOD_S = 1.0
-
-
-def _probe_cpu_seconds(pid: int) -> float | None:
-    """CPU seconds the probe has spent so far, or None once it is gone."""
-    try:
-        times = psutil.Process(pid).cpu_times()
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-        return None
-    try:
-        return float(times.user) + float(times.system)
-    except (AttributeError, TypeError, ValueError):
-        return None
-
-
 def _run_probe_until_its_work_is_done(
     command: list[str], *, cwd: str, env: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
@@ -4530,83 +4513,41 @@ def _run_probe_until_its_work_is_done(
     the host gives it, so a wall budget measures the host. LIVE 2026-09-16 at
     load 34 on 18 cores: the probe ran to success in 56.6s of wall on 16.6s
     of CPU (a 29% share), and a budget scaled by load over cores (1.9x, 47s)
-    still killed it. The load average undercounts contention from GPU-bound
-    renderer processes. Seven spawns aborted with exit_124 while MLX was
+    still killed it. Seven spawns aborted with exit_124 while MLX was
     healthy, and the lane sat in 'spawning' for an hour.
 
-    So the bound is on the probe's own work. It ends when the child exits;
-    when it has spent the idle-host budget in CPU time, which is work a probe
-    does not do; or when its CPU time has not advanced for that long, which
-    is a wedge. Starvation never looks like a wedge: a starved process still
-    advances, only slowly.
+    The gateway owns the mechanism (``run_until_its_work_is_done``); this
+    names the probe's budget and reports its share once it is done.
     """
-    budget = float(_MLX_RUNTIME_PROBE_TIMEOUT_S)
-    proc = get_subprocess_gateway().spawn(
+    started = time.monotonic()
+    completed = get_subprocess_gateway().run_until_its_work_is_done(
         command,
+        cpu_budget_s=float(_MLX_RUNTIME_PROBE_TIMEOUT_S),
         cwd=cwd,
         env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
         read_only=True,
         source="runtime_probe:mlx_runtime_probe",
         accelerator_capability="auto",
+        watch_period_s=_PROBE_WATCH_PERIOD_S,
     )
-    started = time.monotonic()
-    cpu_seen = 0.0
-    advanced_at = started
-    stopped_for = ""
-    while True:
-        try:
-            stdout, stderr = proc.communicate(timeout=_PROBE_WATCH_PERIOD_S)
-            break
-        except subprocess.TimeoutExpired:
-            pass
-        now = time.monotonic()
-        cpu = _probe_cpu_seconds(proc.pid)
-        if cpu is None:
-            # Exiting, and the next communicate collects it; or a host whose
-            # process table cannot be read, where the wall clock is the only
-            # bound left and it is never allowed to be none.
-            if proc.poll() is None and now - started >= budget:
-                stopped_for = (
-                    f"probe_unobservable: no CPU reading for this child and "
-                    f"{now - started:.1f}s of wall against a {budget:.0f}s budget"
-                )
-                proc.kill()
-                stdout, stderr = proc.communicate()
-                break
-            continue
-        if cpu > cpu_seen:
-            cpu_seen = cpu
-            advanced_at = now
-        if cpu_seen >= budget:
-            stopped_for = (
-                f"probe_cpu_budget_exhausted: {cpu_seen:.1f}s of CPU against a "
-                f"{budget:.0f}s budget after {now - started:.1f}s of wall"
+    if completed.returncode == 0:
+        wall = time.monotonic() - started
+        cpu = getattr(completed, "cpu_seconds", None)
+        if cpu is not None:
+            logger.info(
+                "🔬 [MLX] Runtime probe finished in %.1fs of wall on %.1fs of CPU (a %.0f%% share).",
+                wall,
+                cpu,
+                100.0 * cpu / max(1e-6, wall),
             )
-        elif now - advanced_at >= budget:
-            stopped_for = (
-                f"probe_wedged: no CPU progress for {now - advanced_at:.1f}s "
-                f"at {cpu_seen:.1f}s of CPU, {now - started:.1f}s of wall"
-            )
-        if stopped_for:
-            proc.kill()
-            stdout, stderr = proc.communicate()
-            break
-    if stopped_for:
-        stderr = f"{stopped_for}\n{stderr or ''}"
-        returncode = 124
-    else:
-        returncode = int(proc.returncode or 0)
-    if cpu_seen and not stopped_for:
-        logger.info(
-            "🔬 [MLX] Runtime probe finished in %.1fs of wall on %.1fs of CPU (a %.0f%% share).",
-            time.monotonic() - started,
-            cpu_seen,
-            100.0 * cpu_seen / max(1e-6, time.monotonic() - started),
-        )
-    return subprocess.CompletedProcess(command, returncode, stdout or "", stderr or "")
+        else:
+            logger.info("🔬 [MLX] Runtime probe finished in %.1fs of wall.", wall)
+    return completed
+
+
+#: The resolution at which the running probe's CPU progress is read. It
+#: bounds how far past either limit the probe can run before it is stopped.
+_PROBE_WATCH_PERIOD_S = 1.0
 
 
 _LKG_PROBE_MAX_CONSECUTIVE = 2

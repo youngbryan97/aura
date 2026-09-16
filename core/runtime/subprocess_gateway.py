@@ -17,6 +17,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -877,6 +878,22 @@ def _require_not_shutting_down(
     raise GovernanceViolation(f"{operation} refused during runtime shutdown")
 
 
+def _child_cpu_seconds(pid: int) -> float | None:
+    """CPU seconds a child has spent so far, or None once it is gone or unreadable."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    try:
+        times = psutil.Process(int(pid)).cpu_times()
+    except (psutil.Error, OSError, ValueError):
+        return None
+    try:
+        return float(times.user) + float(times.system)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
 class SubprocessGateway:
     """Single owner for subprocess execution and spawning."""
 
@@ -1144,6 +1161,106 @@ class SubprocessGateway:
         finally:
             if resource_token is not None:
                 end_shutdown_resource_creation_scope(resource_token)
+
+    def run_until_its_work_is_done(
+        self,
+        argv: Sequence[str],
+        *,
+        cpu_budget_s: float,
+        cwd: str | os.PathLike[str] | None = None,
+        env: Mapping[str, str] | None = None,
+        read_only: bool = False,
+        offline_tooling: bool = False,
+        allow_during_shutdown: bool = False,
+        source: str = "unknown",
+        accelerator_capability: AcceleratorCapability | str | None = None,
+        watch_period_s: float = 1.0,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run a command until its work is done, not until a clock says so.
+
+        A command with a fixed cost (a probe that imports a library, a git
+        query) takes a fixed amount of CPU and whatever wall time the host
+        gives it. A wall budget measured on an idle host measures the host
+        on a loaded one: LIVE 2026-09-16, load 34 on 18 cores, the MLX probe
+        ran to success in 56.6s of wall on 16.6s of CPU and every wall budget
+        killed it, and a boot died when ``git symbolic-ref`` took more than
+        its 3.0s.
+
+        The bound is on the child's own work. It ends when the child exits;
+        when it has spent ``cpu_budget_s`` of CPU, which is more than the
+        command does; or when its CPU has not advanced for that long, which
+        is a wedge. A starved process advances slowly and is neither. A
+        child whose CPU cannot be read falls back to the wall clock, so the
+        bound is never none. The stop reason is the first line of stderr and
+        the return code is 124, as a timeout's was.
+        """
+        proc = self.spawn(
+            argv,
+            cwd=cwd,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            read_only=read_only,
+            offline_tooling=offline_tooling,
+            allow_during_shutdown=allow_during_shutdown,
+            source=source,
+            accelerator_capability=accelerator_capability,
+        )
+        budget = max(0.0, float(cpu_budget_s))
+        started = time.monotonic()
+        cpu_seen = 0.0
+        advanced_at = started
+        stopped_for = ""
+        stdout = stderr = ""
+        while True:
+            try:
+                stdout, stderr = proc.communicate(timeout=watch_period_s)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            now = time.monotonic()
+            cpu = _child_cpu_seconds(proc.pid)
+            if cpu is None:
+                if proc.poll() is None and now - started >= budget:
+                    stopped_for = (
+                        f"unobservable: no CPU reading for this child and "
+                        f"{now - started:.1f}s of wall against a {budget:.0f}s budget"
+                    )
+            else:
+                if cpu > cpu_seen:
+                    cpu_seen = cpu
+                    advanced_at = now
+                if cpu_seen >= budget:
+                    stopped_for = (
+                        f"cpu_budget_exhausted: {cpu_seen:.1f}s of CPU against a "
+                        f"{budget:.0f}s budget after {now - started:.1f}s of wall"
+                    )
+                elif now - advanced_at >= budget:
+                    stopped_for = (
+                        f"wedged: no CPU progress for {now - advanced_at:.1f}s "
+                        f"at {cpu_seen:.1f}s of CPU, {now - started:.1f}s of wall"
+                    )
+            if stopped_for:
+                proc.kill()
+                stdout, stderr = proc.communicate()
+                break
+        if stopped_for:
+            completed = subprocess.CompletedProcess(
+                list(argv), 124, stdout or "", f"{stopped_for}\n{stderr or ''}"
+            )
+        else:
+            completed = subprocess.CompletedProcess(
+                list(argv), int(proc.returncode or 0), stdout or "", stderr or ""
+            )
+        # What the child spent, for a caller that reports its share. The last
+        # reading before exit; a child that exits within one period reads
+        # as nothing, and None says so.
+        final = _child_cpu_seconds(proc.pid)
+        completed.cpu_seconds = (  # type: ignore[attr-defined]
+            max(cpu_seen, final) if final is not None else (cpu_seen or None)
+        )
+        return completed
 
     def run_model_blocking(
         self,
