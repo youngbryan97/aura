@@ -14,6 +14,255 @@ from typing import Any
 from core.brain.llm.latent_cortex.branch_exchange import eligible_exchange_steps
 
 
+# The receipt's value checks. Pure functions of what they are handed; they
+# lived inside the checker as closures over nothing.
+def _positive_int(mapping: dict[str, Any], key: str) -> bool:
+    return type(mapping.get(key)) is int and mapping[key] > 0
+
+def _nonnegative_int(mapping: dict[str, Any], key: str) -> bool:
+    return type(mapping.get(key)) is int and mapping[key] >= 0
+
+def _finite_number_list(value: Any) -> bool:
+    return isinstance(value, list) and all(
+        not isinstance(item, bool)
+        and isinstance(item, (int, float))
+        and math.isfinite(float(item))
+        for item in value
+    )
+
+def _finite_number(value: Any) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(float(value))
+    )
+
+def _verifier_arbitration_valid(
+    arbitration: Any,
+    *,
+    attempts: int,
+    accepted_steps: int,
+) -> bool:
+    """Independently replay one non-regression arbitration receipt."""
+    if not isinstance(arbitration, dict):
+        return False
+    score_accepts = arbitration.get("score_improvement_accepts")
+    proxy_accepts = arbitration.get("proxy_nonregression_accepts")
+    plateau_accepts = arbitration.get("plateau_exploration_accepts")
+    plateau_rollbacks = arbitration.get("plateau_rollbacks")
+    strict_committed = arbitration.get("strict_improvement_committed")
+    score_source = arbitration.get("score_source")
+    commit_policy = arbitration.get("commit_policy")
+    decisions = arbitration.get("decisions")
+    score_trail = arbitration.get("score_trail")
+    tolerance = arbitration.get("score_tolerance")
+    proxy_scale = arbitration.get("proxy_tolerance_scale")
+    if (
+        arbitration.get("policy") != "task_score_nonregression_with_proxy_descent_v1"
+        or arbitration.get("baseline_source")
+        not in {"caller_reused_verified_branch", "decoded_state_probe"}
+        or type(score_accepts) is not int
+        or score_accepts < 0
+        or type(proxy_accepts) is not int
+        or proxy_accepts < 0
+        or type(plateau_accepts) is not int
+        or plateau_accepts < 0
+        or type(plateau_rollbacks) is not int
+        or not 0 <= plateau_rollbacks <= plateau_accepts
+        or type(strict_committed) is not bool
+        or score_source
+        not in {
+            "unspecified",
+            "semantic_candidate_score_for_latent_search_only_v1",
+        }
+        or commit_policy
+        not in {
+            "immediate",
+            "strict_task_improvement_after_plateau_search_v1",
+        }
+        or score_accepts + proxy_accepts != accepted_steps
+        or not _finite_number(tolerance)
+        or not 0.0 <= float(tolerance) <= 1e-3
+        or not _finite_number(proxy_scale)
+        or not 0.0 < float(proxy_scale) <= 1e-3
+        or not isinstance(decisions, list)
+        or len(decisions) != attempts
+        or not _finite_number_list(score_trail)
+        or len(score_trail) != len(decisions) + 1
+    ):
+        return False
+    score_tolerance = float(tolerance)
+    proxy_tolerance_scale = float(proxy_scale)
+    receipt_epsilon = 2e-12
+    observed_score_accepts = 0
+    observed_proxy_accepts = 0
+    observed_plateau_accepts = 0
+    observed_plateau_rollbacks = 0
+    allowed_decisions = {
+        "accepted_task_score_improvement",
+        "accepted_task_score_nonregression_with_proxy_descent",
+        "rejected_task_score_regression",
+        "rejected_proxy_non_descent",
+        "rejected_nonfinite_task_score",
+        "rejected_nonfinite_proxy_loss",
+    }
+    for index, row in enumerate(decisions):
+        if not isinstance(row, dict) or row.get("proposal") != index:
+            return False
+        decision = row.get("decision")
+        if decision not in allowed_decisions:
+            return False
+        baseline = row.get("baseline_score")
+        current_proxy = row.get("current_proxy_loss")
+        required_delta = row.get("proxy_required_delta")
+        if (
+            not _finite_number(baseline)
+            or not _finite_number(current_proxy)
+            or not _finite_number(required_delta)
+            or float(required_delta) < 0.0
+            or not math.isclose(
+                float(baseline),
+                float(score_trail[index]),
+                rel_tol=0.0,
+                abs_tol=receipt_epsilon,
+            )
+            or not math.isclose(
+                float(required_delta),
+                proxy_tolerance_scale * max(1.0, abs(float(current_proxy))),
+                rel_tol=1e-6,
+                abs_tol=receipt_epsilon,
+            )
+        ):
+            return False
+        baseline_score = float(baseline)
+        next_score = float(score_trail[index + 1])
+        raw_candidate = row.get("candidate_score")
+        candidate_proxy = row.get("candidate_proxy_loss")
+        if decision == "rejected_nonfinite_task_score":
+            if raw_candidate != "nonfinite" or not math.isclose(
+                next_score,
+                baseline_score,
+                rel_tol=0.0,
+                abs_tol=receipt_epsilon,
+            ):
+                return False
+            continue
+        if not _finite_number(raw_candidate):
+            return False
+        candidate_score = float(raw_candidate)
+        score_improved = (
+            candidate_score > baseline_score + score_tolerance + receipt_epsilon
+        )
+        score_nonregressing = (
+            candidate_score >= baseline_score - score_tolerance - receipt_epsilon
+        )
+        proxy_finite = _finite_number(candidate_proxy)
+        proxy_improved = bool(
+            proxy_finite
+            and float(candidate_proxy)
+            < float(current_proxy) - float(required_delta) - receipt_epsilon
+        )
+        if decision == "rejected_nonfinite_proxy_loss":
+            if proxy_finite or not math.isclose(
+                next_score,
+                baseline_score,
+                rel_tol=0.0,
+                abs_tol=receipt_epsilon,
+            ):
+                return False
+        elif decision == "accepted_task_score_improvement":
+            if (
+                not proxy_finite
+                or not score_improved
+                or not math.isclose(
+                    next_score,
+                    candidate_score,
+                    rel_tol=0.0,
+                    abs_tol=receipt_epsilon,
+                )
+            ):
+                return False
+            if commit_policy == "strict_task_improvement_after_plateau_search_v1" and row.get(
+                "commit_disposition"
+            ) != "committed_to_best_strict_improvement":
+                return False
+            observed_score_accepts += 1
+        elif decision == ("accepted_task_score_nonregression_with_proxy_descent"):
+            if (
+                score_improved
+                or not score_nonregressing
+                or not proxy_improved
+                or not math.isclose(
+                    next_score,
+                    max(baseline_score, candidate_score),
+                    rel_tol=0.0,
+                    abs_tol=receipt_epsilon,
+                )
+            ):
+                return False
+            observed_plateau_accepts += 1
+            disposition = row.get("commit_disposition")
+            if commit_policy == "strict_task_improvement_after_plateau_search_v1":
+                if disposition == "committed_to_best_strict_improvement":
+                    observed_proxy_accepts += 1
+                elif disposition == "rolled_back_plateau_without_later_task_gain":
+                    observed_plateau_rollbacks += 1
+                else:
+                    return False
+            elif disposition is not None:
+                return False
+            else:
+                observed_proxy_accepts += 1
+        elif decision == "rejected_task_score_regression":
+            if score_nonregressing or not math.isclose(
+                next_score,
+                baseline_score,
+                rel_tol=0.0,
+                abs_tol=receipt_epsilon,
+            ):
+                return False
+        elif decision == "rejected_proxy_non_descent":
+            if (
+                not score_nonregressing
+                or score_improved
+                or not proxy_finite
+                or proxy_improved
+                or not math.isclose(
+                    next_score,
+                    baseline_score,
+                    rel_tol=0.0,
+                    abs_tol=receipt_epsilon,
+                )
+            ):
+                return False
+    return (
+        observed_score_accepts == score_accepts
+        and observed_proxy_accepts == proxy_accepts
+        and observed_plateau_accepts == plateau_accepts
+        and observed_plateau_rollbacks == plateau_rollbacks
+        and strict_committed == bool(score_accepts)
+        and (
+            commit_policy != "strict_task_improvement_after_plateau_search_v1"
+            or score_source
+            == "semantic_candidate_score_for_latent_search_only_v1"
+        )
+    )
+
+def _sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+def _git_oid(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) in {40, 64}
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 class _ChecksTheReceiptContract:
     """Lifted whole from LatentCortexService; see latent_cortex_service.py."""
 
@@ -64,14 +313,6 @@ class _ChecksTheReceiptContract:
         expected_request_payload_sha256: str = "",
         allocated_budget: dict[str, Any] | None = None,
     ) -> list[str]:
-        from .latent_cortex_service import (
-            LatentCortexService,
-            _check_the_exchange_count_contract,
-            _check_the_latent_optimiser_contract,
-            _integrity_verdict,
-            _recurrence_halt_reason,
-        )
-
         if not isinstance(receipt, dict):
             return ["receipt_not_mapping"]
         errors: list[str] = []
@@ -88,252 +329,76 @@ class _ChecksTheReceiptContract:
         if output_tokens is not ... and not isinstance(output_tokens, list):
             errors.append("output_tokens_unavailable")
 
-        def positive_int(mapping: dict[str, Any], key: str) -> bool:
-            return type(mapping.get(key)) is int and mapping[key] > 0
+        (
+            claimed_request_sha256,
+            information_accounting,
+            resource_accounting,
+            verified_counterfactual,
+            verified_generation,
+        ) = _ChecksTheReceiptContract._check_accounting_identity_and_verifiers(
+            receipt=receipt,
+            errors=errors,
+            expected_worker_identity=expected_worker_identity,
+            config=config,
+            runtime_controls=runtime_controls,
+        )
+        _ChecksTheReceiptContract._check_request_input_and_runtime_identity(
+            claimed_request_sha256=claimed_request_sha256,
+            errors=errors,
+            expected_request_payload_sha256=expected_request_payload_sha256,
+            information_accounting=information_accounting,
+            receipt=receipt,
+            config=config,
+        )
+        _ChecksTheReceiptContract._check_uncertainty_halting_and_causal_receipts(
+            receipt=receipt,
+            config=config,
+            errors=errors,
+            answer_replacement_private=answer_replacement_private,
+            output_tokens=output_tokens,
+            expected_domain=expected_domain,
+            output_text=output_text,
+            information_accounting=information_accounting,
+            resource_accounting=resource_accounting,
+        )
+        budget = _ChecksTheReceiptContract._check_search_memory_and_branch_exchange(
+            receipt=receipt,
+            resource_accounting=resource_accounting,
+            config=config,
+            errors=errors,
+            information_accounting=information_accounting,
+            answer_replacement_private=answer_replacement_private,
+            output_text=output_text,
+            expected_objective=expected_objective,
+            output_tokens=output_tokens,
+            verified_generation=verified_generation,
+            verified_counterfactual=verified_counterfactual,
+        )
+        _ChecksTheReceiptContract._check_compute_and_decode_contracts(
+            allocated_budget=allocated_budget,
+            budget=budget,
+            errors=errors,
+            receipt=receipt,
+            config=config,
+            expected_worker_identity=expected_worker_identity,
+            resource_accounting=resource_accounting,
+            output_text=output_text,
+            output_tokens=output_tokens,
+        )
+        return errors
 
-        def nonnegative_int(mapping: dict[str, Any], key: str) -> bool:
-            return type(mapping.get(key)) is int and mapping[key] >= 0
-
-        def finite_number_list(value: Any) -> bool:
-            return isinstance(value, list) and all(
-                not isinstance(item, bool)
-                and isinstance(item, (int, float))
-                and math.isfinite(float(item))
-                for item in value
-            )
-
-        def finite_number(value: Any) -> bool:
-            return (
-                not isinstance(value, bool)
-                and isinstance(value, (int, float))
-                and math.isfinite(float(value))
-            )
-
-        def verifier_arbitration_valid(
-            arbitration: Any,
-            *,
-            attempts: int,
-            accepted_steps: int,
-        ) -> bool:
-            """Independently replay one non-regression arbitration receipt."""
-            if not isinstance(arbitration, dict):
-                return False
-            score_accepts = arbitration.get("score_improvement_accepts")
-            proxy_accepts = arbitration.get("proxy_nonregression_accepts")
-            plateau_accepts = arbitration.get("plateau_exploration_accepts")
-            plateau_rollbacks = arbitration.get("plateau_rollbacks")
-            strict_committed = arbitration.get("strict_improvement_committed")
-            score_source = arbitration.get("score_source")
-            commit_policy = arbitration.get("commit_policy")
-            decisions = arbitration.get("decisions")
-            score_trail = arbitration.get("score_trail")
-            tolerance = arbitration.get("score_tolerance")
-            proxy_scale = arbitration.get("proxy_tolerance_scale")
-            if (
-                arbitration.get("policy") != "task_score_nonregression_with_proxy_descent_v1"
-                or arbitration.get("baseline_source")
-                not in {"caller_reused_verified_branch", "decoded_state_probe"}
-                or type(score_accepts) is not int
-                or score_accepts < 0
-                or type(proxy_accepts) is not int
-                or proxy_accepts < 0
-                or type(plateau_accepts) is not int
-                or plateau_accepts < 0
-                or type(plateau_rollbacks) is not int
-                or not 0 <= plateau_rollbacks <= plateau_accepts
-                or type(strict_committed) is not bool
-                or score_source
-                not in {
-                    "unspecified",
-                    "semantic_candidate_score_for_latent_search_only_v1",
-                }
-                or commit_policy
-                not in {
-                    "immediate",
-                    "strict_task_improvement_after_plateau_search_v1",
-                }
-                or score_accepts + proxy_accepts != accepted_steps
-                or not finite_number(tolerance)
-                or not 0.0 <= float(tolerance) <= 1e-3
-                or not finite_number(proxy_scale)
-                or not 0.0 < float(proxy_scale) <= 1e-3
-                or not isinstance(decisions, list)
-                or len(decisions) != attempts
-                or not finite_number_list(score_trail)
-                or len(score_trail) != len(decisions) + 1
-            ):
-                return False
-
-            score_tolerance = float(tolerance)
-            proxy_tolerance_scale = float(proxy_scale)
-            receipt_epsilon = 2e-12
-            observed_score_accepts = 0
-            observed_proxy_accepts = 0
-            observed_plateau_accepts = 0
-            observed_plateau_rollbacks = 0
-            allowed_decisions = {
-                "accepted_task_score_improvement",
-                "accepted_task_score_nonregression_with_proxy_descent",
-                "rejected_task_score_regression",
-                "rejected_proxy_non_descent",
-                "rejected_nonfinite_task_score",
-                "rejected_nonfinite_proxy_loss",
-            }
-            for index, row in enumerate(decisions):
-                if not isinstance(row, dict) or row.get("proposal") != index:
-                    return False
-                decision = row.get("decision")
-                if decision not in allowed_decisions:
-                    return False
-                baseline = row.get("baseline_score")
-                current_proxy = row.get("current_proxy_loss")
-                required_delta = row.get("proxy_required_delta")
-                if (
-                    not finite_number(baseline)
-                    or not finite_number(current_proxy)
-                    or not finite_number(required_delta)
-                    or float(required_delta) < 0.0
-                    or not math.isclose(
-                        float(baseline),
-                        float(score_trail[index]),
-                        rel_tol=0.0,
-                        abs_tol=receipt_epsilon,
-                    )
-                    or not math.isclose(
-                        float(required_delta),
-                        proxy_tolerance_scale * max(1.0, abs(float(current_proxy))),
-                        rel_tol=1e-6,
-                        abs_tol=receipt_epsilon,
-                    )
-                ):
-                    return False
-                baseline_score = float(baseline)
-                next_score = float(score_trail[index + 1])
-                raw_candidate = row.get("candidate_score")
-                candidate_proxy = row.get("candidate_proxy_loss")
-                if decision == "rejected_nonfinite_task_score":
-                    if raw_candidate != "nonfinite" or not math.isclose(
-                        next_score,
-                        baseline_score,
-                        rel_tol=0.0,
-                        abs_tol=receipt_epsilon,
-                    ):
-                        return False
-                    continue
-                if not finite_number(raw_candidate):
-                    return False
-                candidate_score = float(raw_candidate)
-                score_improved = (
-                    candidate_score > baseline_score + score_tolerance + receipt_epsilon
-                )
-                score_nonregressing = (
-                    candidate_score >= baseline_score - score_tolerance - receipt_epsilon
-                )
-                proxy_finite = finite_number(candidate_proxy)
-                proxy_improved = bool(
-                    proxy_finite
-                    and float(candidate_proxy)
-                    < float(current_proxy) - float(required_delta) - receipt_epsilon
-                )
-                if decision == "rejected_nonfinite_proxy_loss":
-                    if proxy_finite or not math.isclose(
-                        next_score,
-                        baseline_score,
-                        rel_tol=0.0,
-                        abs_tol=receipt_epsilon,
-                    ):
-                        return False
-                elif decision == "accepted_task_score_improvement":
-                    if (
-                        not proxy_finite
-                        or not score_improved
-                        or not math.isclose(
-                            next_score,
-                            candidate_score,
-                            rel_tol=0.0,
-                            abs_tol=receipt_epsilon,
-                        )
-                    ):
-                        return False
-                    if commit_policy == "strict_task_improvement_after_plateau_search_v1" and row.get(
-                        "commit_disposition"
-                    ) != "committed_to_best_strict_improvement":
-                        return False
-                    observed_score_accepts += 1
-                elif decision == ("accepted_task_score_nonregression_with_proxy_descent"):
-                    if (
-                        score_improved
-                        or not score_nonregressing
-                        or not proxy_improved
-                        or not math.isclose(
-                            next_score,
-                            max(baseline_score, candidate_score),
-                            rel_tol=0.0,
-                            abs_tol=receipt_epsilon,
-                        )
-                    ):
-                        return False
-                    observed_plateau_accepts += 1
-                    disposition = row.get("commit_disposition")
-                    if commit_policy == "strict_task_improvement_after_plateau_search_v1":
-                        if disposition == "committed_to_best_strict_improvement":
-                            observed_proxy_accepts += 1
-                        elif disposition == "rolled_back_plateau_without_later_task_gain":
-                            observed_plateau_rollbacks += 1
-                        else:
-                            return False
-                    elif disposition is not None:
-                        return False
-                    else:
-                        observed_proxy_accepts += 1
-                elif decision == "rejected_task_score_regression":
-                    if score_nonregressing or not math.isclose(
-                        next_score,
-                        baseline_score,
-                        rel_tol=0.0,
-                        abs_tol=receipt_epsilon,
-                    ):
-                        return False
-                elif decision == "rejected_proxy_non_descent":
-                    if (
-                        not score_nonregressing
-                        or score_improved
-                        or not proxy_finite
-                        or proxy_improved
-                        or not math.isclose(
-                            next_score,
-                            baseline_score,
-                            rel_tol=0.0,
-                            abs_tol=receipt_epsilon,
-                        )
-                    ):
-                        return False
-            return (
-                observed_score_accepts == score_accepts
-                and observed_proxy_accepts == proxy_accepts
-                and observed_plateau_accepts == plateau_accepts
-                and observed_plateau_rollbacks == plateau_rollbacks
-                and strict_committed == bool(score_accepts)
-                and (
-                    commit_policy != "strict_task_improvement_after_plateau_search_v1"
-                    or score_source
-                    == "semantic_candidate_score_for_latent_search_only_v1"
-                )
-            )
-
-        def sha256(value: Any) -> bool:
-            return (
-                isinstance(value, str)
-                and len(value) == 64
-                and all(character in "0123456789abcdef" for character in value)
-            )
-
-        def git_oid(value: Any) -> bool:
-            return (
-                isinstance(value, str)
-                and len(value) in {40, 64}
-                and all(character in "0123456789abcdef" for character in value)
-            )
+    @staticmethod
+    def _check_accounting_identity_and_verifiers(
+        receipt,
+        errors,
+        expected_worker_identity,
+        config,
+        runtime_controls,
+    ) -> tuple[Any, ...]:
+        from .latent_cortex_service import (
+            _integrity_verdict,
+            _recurrence_halt_reason,
+        )
 
         resource_accounting: dict[str, Any] | None = None
         information_accounting: dict[str, Any] | None = None
@@ -381,9 +446,9 @@ class _ChecksTheReceiptContract:
         elif params_verdict != "proven":
             errors.append("checkpoint_invariant_unproven")
         if (
-            not sha256(receipt.get("checkpoint_fingerprint"))
+            not _sha256(receipt.get("checkpoint_fingerprint"))
             or receipt.get("checkpoint_fingerprint_method") != "sha256"
-            or not positive_int(receipt, "checkpoint_file_count")
+            or not _positive_int(receipt, "checkpoint_file_count")
         ):
             errors.append("exact_checkpoint_identity_unproven")
         from core.brain.llm.latent_cortex.runtime_identity import worker_identity_errors
@@ -645,7 +710,7 @@ class _ChecksTheReceiptContract:
             if (
                 type(expected_loops) is not int
                 or expected_loops <= 0
-                or not positive_int(receipt, "steps_taken")
+                or not _positive_int(receipt, "steps_taken")
             ):
                 errors.append("live_recurrence_depth_unproven")
             elif receipt["steps_taken"] < expected_loops and not _recurrence_halt_reason(
@@ -661,7 +726,18 @@ class _ChecksTheReceiptContract:
         # different request entirely and still pass — the digest proved the
         # worker could format a string, not that it answered this call.
         claimed_request_sha256 = receipt.get("request_payload_sha256")
-        if not sha256(claimed_request_sha256):
+        return claimed_request_sha256, information_accounting, resource_accounting, verified_counterfactual, verified_generation
+
+    @staticmethod
+    def _check_request_input_and_runtime_identity(
+        claimed_request_sha256,
+        errors,
+        expected_request_payload_sha256,
+        information_accounting,
+        receipt,
+        config,
+    ) -> None:
+        if not _sha256(claimed_request_sha256):
             errors.append("request_payload_identity_unproven")
         elif expected_request_payload_sha256:
             if str(claimed_request_sha256) != expected_request_payload_sha256:
@@ -670,7 +746,7 @@ class _ChecksTheReceiptContract:
             # Say when the binding could not be performed rather than letting
             # a shape check stand in for it.
             errors.append("request_payload_identity_unbound")
-        if not sha256(receipt.get("input_tokens_sha256")) or not positive_int(
+        if not _sha256(receipt.get("input_tokens_sha256")) or not _positive_int(
             receipt, "input_token_count"
         ):
             errors.append("tokenized_input_identity_unproven")
@@ -696,12 +772,12 @@ class _ChecksTheReceiptContract:
                 compaction.get("schema") != "aura.latent_context_compaction.v1"
                 or compaction.get("policy") != "resident_latent_salience_v1"
                 or compaction.get("max_chars") != input_context_max_chars
-                or not sha256(compaction.get("original_sha256"))
-                or not sha256(compaction.get("compacted_sha256"))
-                or not positive_int(compaction, "original_message_count")
-                or not positive_int(compaction, "compacted_message_count")
-                or not positive_int(compaction, "original_char_count")
-                or not positive_int(compaction, "compacted_char_count")
+                or not _sha256(compaction.get("original_sha256"))
+                or not _sha256(compaction.get("compacted_sha256"))
+                or not _positive_int(compaction, "original_message_count")
+                or not _positive_int(compaction, "compacted_message_count")
+                or not _positive_int(compaction, "original_char_count")
+                or not _positive_int(compaction, "compacted_char_count")
                 or compaction["compacted_char_count"] > input_context_max_chars
                 or compaction["original_char_count"] < compaction["compacted_char_count"]
                 or compaction["compacted_message_count"] > compaction["original_message_count"]
@@ -732,20 +808,20 @@ class _ChecksTheReceiptContract:
         else:
             if runtime_identity.get("identity_bound") is not True:
                 errors.append("runtime_identity_unbound")
-            if not git_oid(runtime_identity.get("source_commit")):
+            if not _git_oid(runtime_identity.get("source_commit")):
                 errors.append("runtime_source_commit_unproven")
-            if not sha256(runtime_identity.get("workspace_state_sha256")):
+            if not _sha256(runtime_identity.get("workspace_state_sha256")):
                 errors.append("runtime_workspace_identity_unproven")
-            if not sha256(runtime_identity.get("shell_assets_sha256")):
+            if not _sha256(runtime_identity.get("shell_assets_sha256")):
                 errors.append("runtime_shell_identity_unproven")
             if (
                 runtime_identity.get("installed_app_required") is True
                 and runtime_identity.get("installed_app_verified") is not True
             ):
                 errors.append("installed_app_identity_unproven")
-        if not sha256(receipt.get("schedule_hash")):
+        if not _sha256(receipt.get("schedule_hash")):
             errors.append("invalid_schedule_hash")
-        if not positive_int(receipt, "steps_taken"):
+        if not _positive_int(receipt, "steps_taken"):
             errors.append("no_recurrent_steps")
         if type(config.get("n_slots")) is not int or receipt.get("n_slots") != config.get(
             "n_slots"
@@ -980,6 +1056,19 @@ class _ChecksTheReceiptContract:
             )
         except (ImportError, TypeError, ValueError):
             errors.append("contradiction_perturbation_unproven")
+
+    @staticmethod
+    def _check_uncertainty_halting_and_causal_receipts(
+        receipt,
+        config,
+        errors,
+        answer_replacement_private,
+        output_tokens,
+        expected_domain,
+        output_text,
+        information_accounting,
+        resource_accounting,
+    ) -> None:
         try:
             from core.brain.llm.latent_cortex.neural_uncertainty import (
                 NeuralUncertaintyRuntime,
@@ -1305,6 +1394,26 @@ class _ChecksTheReceiptContract:
             )
         except (ImportError, TypeError, ValueError):
             errors.append("virtual_quanta_unproven")
+
+    @staticmethod
+    def _check_search_memory_and_branch_exchange(
+        receipt,
+        resource_accounting,
+        config,
+        errors,
+        information_accounting,
+        answer_replacement_private,
+        output_text,
+        expected_objective,
+        output_tokens,
+        verified_generation,
+        verified_counterfactual,
+    ) -> Any:
+        from .latent_cortex_service import (
+            LatentCortexService,
+            _check_the_exchange_count_contract,
+        )
+
         try:
             from core.brain.llm.latent_cortex.latent_tree_search import (
                 LatentTreeSearchConfig,
@@ -1448,10 +1557,10 @@ class _ChecksTheReceiptContract:
                         and row.get("index") == index
                         and isinstance(row.get("role"), str)
                         and bool(row["role"])
-                        and sha256(row.get("context_sha256"))
-                        and sha256(row.get("rng_stream_sha256"))
-                        and sha256(row.get("seed_sha256"))
-                        and sha256(row.get("candidate_sha256"))
+                        and _sha256(row.get("context_sha256"))
+                        and _sha256(row.get("rng_stream_sha256"))
+                        and _sha256(row.get("seed_sha256"))
+                        and _sha256(row.get("candidate_sha256"))
                         and type(row.get("candidate_step")) is int
                         and row["candidate_step"] >= isolation_steps
                         for index, row in enumerate(candidates)
@@ -1480,7 +1589,7 @@ class _ChecksTheReceiptContract:
                         "all_restored",
                     }
                     and cache_discipline.get("schema") == "aura.rlc.cache_discipline.v1"
-                    and positive_int(cache_discipline, "nonpersistent_calls")
+                    and _positive_int(cache_discipline, "nonpersistent_calls")
                     and cache_discipline.get("restored_calls")
                     == cache_discipline.get("nonpersistent_calls")
                     and cache_discipline.get("restore_failures") == 0
@@ -1489,7 +1598,7 @@ class _ChecksTheReceiptContract:
                 exchanges = receipt.get("exchanges")
                 first_exchange_step = isolation.get("first_exchange_step")
                 exposure_valid = (
-                    nonnegative_int(isolation, "blocked_cross_exposures")
+                    _nonnegative_int(isolation, "blocked_cross_exposures")
                     and (
                         (exchanges == 0 and first_exchange_step is None)
                         or (
@@ -1587,8 +1696,8 @@ class _ChecksTheReceiptContract:
             and exchange_interval > 0
             and type(config.get("n_branches")) is int
             and config["n_branches"] > 1
-            and positive_int(receipt, "steps_taken")
-            and not positive_int(receipt, "exchanges")
+            and _positive_int(receipt, "steps_taken")
+            and not _positive_int(receipt, "exchanges")
             and eligible_exchange_steps(
                 n_branches=int(config["n_branches"]),
                 max_steps=int(receipt["steps_taken"]),
@@ -1598,10 +1707,29 @@ class _ChecksTheReceiptContract:
         ):
             errors.append("branch_exchange_unproven")
         budget = receipt.get("budget")
-        if not isinstance(budget, dict) or not positive_int(budget, "spent_layer_apps"):
+        return budget
+
+    @staticmethod
+    def _check_compute_and_decode_contracts(
+        allocated_budget,
+        budget,
+        errors,
+        receipt,
+        config,
+        expected_worker_identity,
+        resource_accounting,
+        output_text,
+        output_tokens,
+    ) -> None:
+        from .latent_cortex_service import (
+            LatentCortexService,
+            _check_the_latent_optimiser_contract,
+        )
+
+        if not isinstance(budget, dict) or not _positive_int(budget, "spent_layer_apps"):
             errors.append("missing_compute_receipt")
         elif (
-            not positive_int(budget, "max_layer_apps")
+            not _positive_int(budget, "max_layer_apps")
             or budget["spent_layer_apps"] > budget["max_layer_apps"]
             or budget.get("exhausted") is not False
         ):
@@ -1638,11 +1766,11 @@ class _ChecksTheReceiptContract:
                 and float(spent_wall) > float(allocated_wall) * 1.25
             ):
                 errors.append("wall_clock_exceeds_allocation")
-        if not positive_int(receipt, "decode_requested_tokens") or receipt.get(
+        if not _positive_int(receipt, "decode_requested_tokens") or receipt.get(
             "decode_requested_tokens"
         ) != config.get("decode_max_tokens"):
             errors.append("decode_request_mismatch")
-        if not positive_int(receipt, "decode_generated_tokens"):
+        if not _positive_int(receipt, "decode_generated_tokens"):
             errors.append("decode_output_empty")
         decode_contract = config.get("decode_contract", "none")
         contract_required = decode_contract == "final_answer_v1"
@@ -1729,11 +1857,11 @@ class _ChecksTheReceiptContract:
                 errors.append("decode_bridge_unapplied")
             if receipt.get("decode_bridge_policy") != decode_bridge_policy:
                 errors.append("decode_bridge_policy_mismatch")
-            if not positive_int(receipt, "decode_bridge_token_count"):
+            if not _positive_int(receipt, "decode_bridge_token_count"):
                 errors.append("decode_bridge_tokens_missing")
-            if not sha256(receipt.get("decode_bridge_tokens_sha256")):
+            if not _sha256(receipt.get("decode_bridge_tokens_sha256")):
                 errors.append("decode_bridge_token_identity_unproven")
-            if not sha256(receipt.get("decode_bridge_logits_digest")):
+            if not _sha256(receipt.get("decode_bridge_logits_digest")):
                 errors.append("decode_bridge_logits_unproven")
         elif not latent_output_authority and (
             receipt.get("decode_bridge_applied") is True
@@ -1743,7 +1871,7 @@ class _ChecksTheReceiptContract:
             or receipt.get("decode_bridge_logits_digest") not in {None, ""}
         ):
             errors.append("decode_bridge_applied_to_vanilla_incumbent")
-        if not nonnegative_int(receipt, "decode_newline_suppressions"):
+        if not _nonnegative_int(receipt, "decode_newline_suppressions"):
             errors.append("decode_newline_discipline_unreceipted")
         configured_repetition = config.get("decode_repetition_penalty", 1.0)
         applied_repetition = receipt.get("decode_repetition_penalty_applied")
@@ -1794,10 +1922,9 @@ class _ChecksTheReceiptContract:
         _check_the_latent_optimiser_contract(
             config=config,
             errors=errors,
-            nonnegative_int=nonnegative_int,
-            positive_int=positive_int,
+            nonnegative_int=_nonnegative_int,
+            positive_int=_positive_int,
             receipt=receipt,
-            verifier_arbitration_valid=verifier_arbitration_valid,
+            verifier_arbitration_valid=_verifier_arbitration_valid,
         )
-        LatentCortexService._receipt_fast_weight_errors(config, errors, expected_worker_identity, finite_number_list, nonnegative_int, output_text, output_tokens, positive_int, receipt, resource_accounting)
-        return errors
+        LatentCortexService._receipt_fast_weight_errors(config, errors, expected_worker_identity, _finite_number_list, _nonnegative_int, output_text, output_tokens, _positive_int, receipt, resource_accounting)
