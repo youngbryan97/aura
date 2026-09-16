@@ -280,6 +280,29 @@ class TestGuiDegradedReadyKeepsUI:
         # Conversation works; only a background loop is degraded → keep the UI.
         assert _heartbeat_response_state(_Resp()) == "degraded_ready"
 
+    def test_a_turn_in_flight_is_working_not_a_miss(self):
+        # Live 2026-09-15: the payload during a 636s answer.
+        from interface.gui_actor import _heartbeat_response_state
+
+        class _Resp:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {
+                    "healthy": False,
+                    "status": "working",
+                    "runtime_probe_healthy": True,
+                    "runtime_status": "working",
+                    "conversation_ready": False,
+                    "conversation_busy": True,
+                    "boot_phase": "conversation_working",
+                    "blockers": [],
+                    "required_probes": {"all_passed": True},
+                }
+
+        assert _heartbeat_response_state(_Resp()) == "working"
+
     def test_truly_down_is_still_unhealthy(self):
         from interface.gui_actor import _heartbeat_response_state
 

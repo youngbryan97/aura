@@ -194,6 +194,17 @@ def _heartbeat_response_state(resp: Any) -> str:
         and payload.get("conversation_ready") is True
     ):
         return "degraded_ready"
+    # Answering: every probe passes and the conversation lane is busy with
+    # a turn, so it reports not-ready. Live 2026-09-15, a 636s answer
+    # deadline: three probes into the turn this counted as "Kernel heartbeat
+    # missed three times", and at six it would have shown the reconnect
+    # surface over a conversation that was working.
+    if (
+        bool(payload.get("runtime_probe_healthy", False))
+        and bool(probes.get("all_passed", False))
+        and payload.get("conversation_busy") is True
+    ):
+        return "working"
     return "unhealthy"
 
 
@@ -413,6 +424,11 @@ def gui_actor_entry(port: int, token: str = None):
                                 "and will be demand-warmed by the next foreground turn."
                             )
                             last_warming_log = now
+                    elif heartbeat_state == "working":
+                        # A turn in flight is a live runtime, not a miss.
+                        if not _boot_completed:
+                            _boot_completed = True
+                        consecutive_failures = 0
                     elif heartbeat_state == "degraded_ready":
                         # Conversation works; only a background loop is degraded.
                         # Keep the live UI — do NOT count this toward the
