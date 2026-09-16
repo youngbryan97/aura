@@ -93,9 +93,21 @@ class DeferredWrites[T]:
         per_replay: int = 4,
         interval_s: float = 5.0,
         identity: Callable[[T], Hashable] = id,
+        on_landed: Callable[[T], None] | None = None,
+        on_shed: Callable[[T], None] | None = None,
+        on_renewed: Callable[[T, T], None] | None = None,
     ) -> None:
         self.lane = str(lane)
         self._retry = retry
+        # The consequence of a deferral is what happens to the held write:
+        # it lands, and the deferral cost time; or it is shed, and the
+        # deferral destroyed it. Whoever graded the deferral needs both — and
+        # a replay that is deferred again is one more deferral of the same
+        # write, told to the item already held.
+        self._on_landed = on_landed
+        self._on_shed = on_shed
+        self._on_renewed = on_renewed
+        self._by_key: dict[Hashable, T] = {}
         self._per_replay = max(1, int(per_replay))
         self._interval_s = max(0.0, float(interval_s))
         self._held: deque[T] = deque(maxlen=max(1, int(limit)))
@@ -150,10 +162,14 @@ class DeferredWrites[T]:
         """Keep a write the governor deferred."""
 
         key = self._identity(item)
+        shed_item: T | None = None
         with self._state_lock:
             # The drain retains custody while the store retries. A renewed
             # deferral of that write must not enqueue another obligation.
             if key in self._owned:
+                existing = self._by_key.get(key)
+                if existing is not None and self._on_renewed is not None:
+                    self._tell_two(self._on_renewed, existing, item)
                 return
             if len(self._owned) == self._held.maxlen:
                 self._shed += 1
@@ -166,15 +182,21 @@ class DeferredWrites[T]:
                 if not self._held:
                     # The sole slot belongs to an in-flight write.
                     return
-                self._owned.remove(self._identity(self._held.popleft()))
+                shed_item = self._held.popleft()
+                shed_key = self._identity(shed_item)
+                self._owned.remove(shed_key)
+                self._by_key.pop(shed_key, None)
             self._held.append(item)
             self._owned.add(key)
+            self._by_key[key] = item
             self._held_total += 1
             if self._next_at <= 0.0:
                 self._next_at = time.monotonic() + self._interval_s
             held_total = self._held_total
             queued = len(self._held)
             landed = self._landed
+        if shed_item is not None:
+            self._tell(self._on_shed, shed_item)
         # The first, and then a line per _SAY_EVERY. A governor that defers
         # steadily makes this the most frequent line in the feed, and the
         # useful facts — that the queue exists, how deep it is, and that
@@ -225,18 +247,38 @@ class DeferredWrites[T]:
                     if ok:
                         landed += 1
                         self._landed += 1
-                        self._owned.remove(self._identity(item))
-                    else:
-                        # Back where it came from, not onto the end. Appending
-                        # would reorder the queue on every failed replay.
-                        self._held.appendleft(item)
-                        break
+                        key = self._identity(item)
+                        self._owned.remove(key)
+                        self._by_key.pop(key, None)
+                if ok:
+                    self._tell(self._on_landed, item)
+                    continue
+                with self._state_lock:
+                    # Back where it came from, not onto the end. Appending
+                    # would reorder the queue on every failed replay.
+                    self._held.appendleft(item)
+                break
             with self._state_lock:
                 self._next_at = now + self._interval_s if self._held else 0.0
             return landed
         finally:
             with self._state_lock:
                 self._replaying_on = None
+
+    @staticmethod
+    def _tell_two(listener: Callable[[T, T], None], existing: T, item: T) -> None:
+        try:
+            listener(existing, item)
+        except Exception as exc:  # noqa: BLE001 — a listener must not break the queue
+            logger.debug("deferral renewal listener raised: %s", exc)
+
+    def _tell(self, listener: Callable[[T], None] | None, item: T) -> None:
+        if listener is None:
+            return
+        try:
+            listener(item)
+        except Exception as exc:  # noqa: BLE001 — a listener must not break the queue
+            logger.debug("%s: deferral consequence listener raised: %s", self.lane, exc)
 
     def state(self) -> dict[str, Any]:
         """What is waiting, for the health surface."""

@@ -164,6 +164,9 @@ class ExecutiveAdmissionResolver:
         #: goal text -> (succeeded, at), for grading deferrals by what followed.
         self._goal_outcomes: dict[str, tuple[bool, float]] = {}
         self._episode_goals: dict[str, tuple[str, str, float]] = {}
+        #: episodes whose consequence a holder will report; the goal-returned
+        #: rule does not apply to them.
+        self._owned_consequence: dict[str, float] = {}
 
     # ── the executive calls these ────────────────────────────────────────
 
@@ -179,8 +182,19 @@ class ExecutiveAdmissionResolver:
             return
         with self._lock:
             self._completions[episode_id] = (bool(success), time.time())
-            if goal:
+            owned = self._owned_consequence.pop(episode_id, None) is not None
+            # A deferral's own consequence says nothing about the goal class:
+            # a held write landing is not "the goal came round and landed".
+            if goal and not owned:
                 self._goal_outcomes[goal] = (bool(success), time.time())
+            self._prune_locked()
+
+    def expect_consequence(self, episode_id: str) -> None:
+        """The holder of this deferral's work will report what became of it."""
+        if not episode_id:
+            return
+        with self._lock:
+            self._owned_consequence[episode_id] = time.time()
             self._prune_locked()
 
     def _prune_locked(self) -> None:
@@ -193,6 +207,8 @@ class ExecutiveAdmissionResolver:
         stale_goals = [k for k, (_, _, at) in self._episode_goals.items() if at < cutoff]
         for key in stale_goals:
             self._episode_goals.pop(key, None)
+        for key in [k for k, at in self._owned_consequence.items() if at < cutoff]:
+            self._owned_consequence.pop(key, None)
 
     # ── the sweeper calls this ───────────────────────────────────────────
 
@@ -202,6 +218,9 @@ class ExecutiveAdmissionResolver:
             located = self._episode_goals.get(episode.episode_id)
             goal = located[0] if located else str(episode.context.get("goal", ""))
             followed = self._goal_outcomes.get(goal) if goal else None
+            if completion is None and episode.episode_id in self._owned_consequence:
+                # Its holder has not said yet. Unobserved, not "goal returned".
+                followed = None
 
         if completion is not None:
             success, _ = completion

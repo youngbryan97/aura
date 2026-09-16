@@ -23,7 +23,7 @@ import logging
 import os
 import time
 import uuid
-from collections import deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import lru_cache
@@ -342,6 +342,11 @@ class Intent:
     timestamp: float = field(default_factory=lambda: time.time())
 
 
+#: Deferred intents kept for their consequence — the deferred-write queues
+#: hold 256 each, and an intent past that many is not coming back.
+_DEFERRED_INTENTS_KEPT = 2048
+
+
 @dataclass
 class DecisionRecord:
     """Record of an executive decision."""
@@ -444,6 +449,10 @@ class ExecutiveCore:
         #: intent_id -> ontogeny episode, so a completion can grade the
         #: admission that allowed it. Bounded by the active-intent lifetime.
         self._ontogeny_episodes: Dict[str, str] = {}
+        #: intent_id -> intent, for decisions that DEFERRED it. A deferral's
+        #: consequence is observed later by whoever held the work: the
+        #: deferred-write queue lands it or sheds it. Bounded like that queue.
+        self._deferred_intents: "OrderedDict[str, Intent]" = OrderedDict()
         logger.info("🏛️ ExecutiveCore initialized — sovereign control plane active.")
 
     # ── Core Approval API ────────────────────────────────────────────────
@@ -1171,6 +1180,10 @@ class ExecutiveCore:
             self._approval_count += 1
         elif final is DecisionOutcome.REJECTED:
             self._rejection_count += 1
+        elif final is DecisionOutcome.DEFERRED:
+            self._deferred_intents[intent.intent_id] = intent
+            while len(self._deferred_intents) > _DEFERRED_INTENTS_KEPT:
+                self._deferred_intents.popitem(last=False)
         self._decision_history.append(record)
         if verdict and verdict.get("episode_id"):
             self._ontogeny_episodes[intent.intent_id] = str(verdict["episode_id"])
@@ -1222,9 +1235,40 @@ class ExecutiveCore:
 
     # ── Intent Lifecycle ─────────────────────────────────────────────────
 
+    def own_deferral_consequence(self, intent_id: str) -> bool:
+        """Say that the consequence of deferring this intent will be reported.
+
+        The deferred-write queue that holds the work knows what became of it
+        — landed, or shed — and reports through :meth:`complete_intent`. Until
+        then the ontogeny episode stays unobserved rather than being graded
+        by whether a goal with the same text ever succeeded: every episode
+        write shares the goal "write_memory:episodic_episode", so that rule
+        graded every deferral a success the moment any write landed, and the
+        organ learned that deferring memory is free (LIVE, 2026-09-15: 388
+        of 400 admissions deferred, 2,342 held writes shed).
+        """
+        episode_id = self._ontogeny_episodes.get(intent_id)
+        if not episode_id or intent_id not in self._deferred_intents:
+            return False
+        try:
+            from core.ontogeny.wiring import get_executive_resolver
+
+            get_executive_resolver().expect_consequence(episode_id)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation('executive_core', exc, severity="debug",
+                               action="deferral consequence not registered with ontogeny")
+            return False
+        return True
+
     def complete_intent(self, intent_id: str, success: bool = True) -> None:
-        """Mark an intent as completed. Frees capacity."""
+        """Mark an intent as completed. Frees capacity.
+
+        For a deferred intent, "completed" means its consequence arrived: the
+        held work landed (success) or was shed (failure).
+        """
         intent = self._active_intents.pop(intent_id, None)
+        if intent is None:
+            intent = self._deferred_intents.pop(intent_id, None)
         episode_id = self._ontogeny_episodes.pop(intent_id, None)
         if episode_id and intent is not None:
             try:

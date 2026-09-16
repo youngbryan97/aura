@@ -236,6 +236,9 @@ class EpisodicMemory(_RanksWhatToRecall):
         self._deferred_episodes: DeferredWrites[dict[str, Any]] = DeferredWrites(
             "episodic_memory", self._write_a_held_episode,
             identity=lambda held: held["idempotency_key"],
+            on_landed=lambda held: self._settle_deferral(held, landed=True),
+            on_shed=lambda held: self._settle_deferral(held, landed=False),
+            on_renewed=self._deferred_again,
         )
 
     def _hold_if_deferred(
@@ -252,14 +255,31 @@ class EpisodicMemory(_RanksWhatToRecall):
         source: str,
         metadata: dict[str, Any] | None,
         stable_key: str,
+        governance_decision: Any = None,
     ) -> None:
         """Keep an episode the governor deferred; drop one it refused."""
 
         reason = self._last_refusal_reason
         if not is_a_deferral(reason):
             return
+        # The executive's intent for this deferral. What becomes of the held
+        # write — landed or shed — is the deferral's consequence, and it is
+        # reported back against this id so the organ that chose to defer
+        # learns what deferring cost. Without it, every deferral was graded
+        # a success the moment any other write landed.
+        intent_id = str(getattr(governance_decision, "intent_id", "") or "")
+        if intent_id:
+            try:
+                from core.executive.executive_core import get_executive_core
+
+                if not get_executive_core().own_deferral_consequence(intent_id):
+                    intent_id = ""
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation("episodic_memory", exc, severity="debug")
+                intent_id = ""
         self._deferred_episodes.hold(
             {
+                "_deferral_intents": [intent_id] if intent_id else [],
                 "context": context,
                 "action": action,
                 "outcome": outcome,
@@ -281,7 +301,33 @@ class EpisodicMemory(_RanksWhatToRecall):
     def _write_a_held_episode(self, held: dict[str, Any]) -> bool:
         """Retry one held episode. True when it landed."""
 
-        return bool(self.record_episode(**held))
+        fields = {k: v for k, v in held.items() if k != "_deferral_intents"}
+        return bool(self.record_episode(**fields))
+
+    @staticmethod
+    def _deferred_again(held: dict[str, Any], renewed: dict[str, Any]) -> None:
+        """A replay was deferred once more: one more intent awaits the same consequence."""
+
+        intents = held.setdefault("_deferral_intents", [])
+        for intent_id in renewed.get("_deferral_intents") or []:
+            if intent_id and intent_id not in intents:
+                intents.append(intent_id)
+
+    def _settle_deferral(self, held: dict[str, Any], *, landed: bool) -> None:
+        """Report the consequence of every deferral that held this write."""
+
+        intents = [str(i) for i in held.get("_deferral_intents") or [] if i]
+        if not intents:
+            return
+        try:
+            from core.executive.executive_core import get_executive_core
+
+            executive = get_executive_core()
+            for intent_id in intents:
+                executive.complete_intent(intent_id, success=landed)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("episodic_memory", exc, severity="debug",
+                               action="deferral consequence not reported")
 
     def deferred_state(self) -> dict[str, Any]:
         """What is waiting on the governor, for the health surface."""
@@ -739,6 +785,7 @@ class EpisodicMemory(_RanksWhatToRecall):
                 source,
                 metadata,
                 stable_key,
+                governance_decision,
             )
             return ""
         # Rate limiting — prevent flood during rapid tool loops
