@@ -473,105 +473,63 @@ class UnifiedRecurrentController(nn.Module):
             mx.random.key(config.initialization_seed),
             num=27,
         )
-        (
-            key_process_reader_1_query,
-            key_process_reader_1_key,
-            key_process_reader_1_value,
-            key_process_reader_1_output,
-            key_process_reader_2_query,
-            key_process_reader_2_key,
-            key_process_reader_2_value,
-            key_process_reader_2_output,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x50524F43),
-            num=8,
-        )
-        (
-            key_action_workspace_seed,
-            key_action_workspace_depth,
-            key_action_workspace_cross_query,
-            key_action_workspace_cross_key,
-            key_action_workspace_cross_value,
-            key_action_workspace_cross_output,
-            key_action_workspace_self_query,
-            key_action_workspace_self_key,
-            key_action_workspace_self_value,
-            key_action_workspace_self_output,
-            key_action_workspace_ff_up,
-            key_action_workspace_ff_down,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x4143544E),
-            num=12,
-        )
-        (
-            key_action_causal_values,
-            key_action_causal_input,
-            key_action_causal_state,
-            key_action_causal_prior,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x43415553),
-            num=4,
-        )
-        (
-            key_action_literal_binding_query,
-            key_action_literal_binding_key,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x42494E44),
-            num=2,
-        )
-        (
-            key_transition_memory_input,
-            key_transition_memory_reset_input,
-            key_transition_memory_reset_recurrent,
-            key_transition_memory_update_input,
-            key_transition_memory_update_recurrent,
-            key_transition_memory_candidate_input,
-            key_transition_memory_candidate_recurrent,
-            key_transition_memory_cross_input,
-            key_transition_memory_cross_recurrent,
-            key_transition_memory_depth,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x54524D45),
-            num=10,
-        )
-        (
-            key_transition_processor_state,
-            key_transition_processor_action_left,
-            key_transition_processor_action_right,
-            key_transition_processor_history,
-            key_transition_processor_up,
-            key_transition_processor_down,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x54505243),
-            num=6,
-        )
-        (
-            key_transition_tape_key,
-            key_transition_tape_value,
-            key_transition_tape_position_key,
-            key_transition_tape_position_value,
-            key_transition_tape_state_query,
-            key_transition_tape_action_query,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x54504552),
-            num=6,
-        )
-        (key_transition_opcode_interaction_up,) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x4F504958),
-            num=1,
-        )
-        (
-            key_transition_replay_key,
-            key_transition_replay_value,
-            key_transition_replay_position_key,
-            key_transition_replay_position_value,
-            key_transition_replay_query,
-            key_transition_replay_projection,
-        ) = mx.random.split(
-            mx.random.key(config.initialization_seed ^ 0x52504C59),
-            num=6,
-        )
         scale = 1.0 / math.sqrt(config.hidden_size)
+        self._init_correction_and_halt(
+            config,
+            scale=scale,
+            key_a=key_a,
+            key_depth=key_depth,
+            key_memory=key_memory,
+            key_halt=key_halt,
+        )
+        self._init_state_registers_and_actions(
+            config,
+            scale=scale,
+            key_state=key_state,
+            key_state_slots=key_state_slots,
+            key_state_values=key_state_values,
+            key_transition_query=key_transition_query,
+            key_transition_key=key_transition_key,
+            key_transition_value=key_transition_value,
+            key_transition_self=key_transition_self,
+            key_transition_output=key_transition_output,
+            key_transition_depth=key_transition_depth,
+            key_action_slots=key_action_slots,
+            key_action_values=key_action_values,
+            key_action_query=key_action_query,
+            key_action_key=key_action_key,
+            key_action_value=key_action_value,
+            key_action_output=key_action_output,
+            key_action_depth=key_action_depth,
+            key_state_action=key_state_action,
+        )
+        self._init_transition_memory(config, scale=scale)
+        self._init_transition_tape(config)
+        self._init_transition_processor(config)
+        self._init_transition_replay(config)
+        workspace_scale, workspace_width = self._init_action_workspace_and_family(config)
+        self._init_action_causal_and_answer(
+            config,
+            workspace_width=workspace_width,
+            workspace_scale=workspace_scale,
+            key_literal_values=key_literal_values,
+            scale=scale,
+            key_answer_query=key_answer_query,
+            key_answer_key=key_answer_key,
+            key_answer_value=key_answer_value,
+            key_answer_output=key_answer_output,
+        )
+        self._init_process_reader_and_answer_gates(config, scale=scale)
+
+    def _init_correction_and_halt(
+        self,
+        config: UnifiedRecurrenceConfig,
+        scale,
+        key_a,
+        key_depth,
+        key_memory,
+        key_halt,
+    ) -> None:
         self.correction_a = (
             mx.random.normal(
                 (config.hidden_size, config.correction_rank),
@@ -624,6 +582,29 @@ class UnifiedRecurrentController(nn.Module):
         )
         self.halt_motion_weight = mx.array(0.0, dtype=mx.float32)
         self.halt_bias = mx.array(-6.0, dtype=mx.float32)
+
+    def _init_state_registers_and_actions(
+        self,
+        config: UnifiedRecurrenceConfig,
+        scale,
+        key_state,
+        key_state_slots,
+        key_state_values,
+        key_transition_query,
+        key_transition_key,
+        key_transition_value,
+        key_transition_self,
+        key_transition_output,
+        key_transition_depth,
+        key_action_slots,
+        key_action_values,
+        key_action_query,
+        key_action_key,
+        key_action_value,
+        key_action_output,
+        key_action_depth,
+        key_state_action,
+    ) -> None:
         self.state_readout_weight = (
             mx.random.normal(
                 (
@@ -782,6 +763,23 @@ class UnifiedRecurrentController(nn.Module):
             ).astype(mx.float32)
             * scale
         )
+
+    def _init_transition_memory(self, config: UnifiedRecurrenceConfig, scale) -> None:
+        (
+            key_transition_memory_input,
+            key_transition_memory_reset_input,
+            key_transition_memory_reset_recurrent,
+            key_transition_memory_update_input,
+            key_transition_memory_update_recurrent,
+            key_transition_memory_candidate_input,
+            key_transition_memory_candidate_recurrent,
+            key_transition_memory_cross_input,
+            key_transition_memory_cross_recurrent,
+            key_transition_memory_depth,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x54524D45),
+            num=10,
+        )
         # Keep every typed action field in its own recurrent cell. The former
         # history summary compressed the complete instruction into one vector
         # with a fixed 0.5 decay, which made order observable but did not give
@@ -896,6 +894,19 @@ class UnifiedRecurrentController(nn.Module):
             ),
             dtype=mx.float32,
         )
+
+    def _init_transition_tape(self, config: UnifiedRecurrenceConfig) -> None:
+        (
+            key_transition_tape_key,
+            key_transition_tape_value,
+            key_transition_tape_position_key,
+            key_transition_tape_position_value,
+            key_transition_tape_state_query,
+            key_transition_tape_action_query,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x54504552),
+            num=6,
+        )
         # The gated memory above is a useful learned summary, but it is not an
         # information-preserving view of the public program.  Three frontier
         # families have legal transitions that are ambiguous from local state
@@ -971,6 +982,23 @@ class UnifiedRecurrentController(nn.Module):
                 config.correction_rank,
             ),
             dtype=mx.float32,
+        )
+
+    def _init_transition_processor(self, config: UnifiedRecurrenceConfig) -> None:
+        (
+            key_transition_processor_state,
+            key_transition_processor_action_left,
+            key_transition_processor_action_right,
+            key_transition_processor_history,
+            key_transition_processor_up,
+            key_transition_processor_down,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x54505243),
+            num=6,
+        )
+        (key_transition_opcode_interaction_up,) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x4F504958),
+            num=1,
         )
         # Preserve exact categorical identity before learning the transition
         # algebra. The old state head added independently projected state and
@@ -1118,6 +1146,19 @@ class UnifiedRecurrentController(nn.Module):
             ),
             dtype=mx.float32,
         )
+
+    def _init_transition_replay(self, config: UnifiedRecurrenceConfig) -> None:
+        (
+            key_transition_replay_key,
+            key_transition_replay_value,
+            key_transition_replay_position_key,
+            key_transition_replay_position_value,
+            key_transition_replay_query,
+            key_transition_replay_projection,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x52504C59),
+            num=6,
+        )
         # A recurrent state cannot repair itself if every recovery feature is
         # queried through that same state.  This separate causal reader sees
         # only the public action prefix, preserving field and order identity.
@@ -1210,6 +1251,25 @@ class UnifiedRecurrentController(nn.Module):
         self.transition_replay_gate_bias = mx.zeros(
             (config.state_slots,),
             dtype=mx.float32,
+        )
+
+    def _init_action_workspace_and_family(self, config: UnifiedRecurrenceConfig) -> tuple[Any, ...]:
+        (
+            key_action_workspace_seed,
+            key_action_workspace_depth,
+            key_action_workspace_cross_query,
+            key_action_workspace_cross_key,
+            key_action_workspace_cross_value,
+            key_action_workspace_cross_output,
+            key_action_workspace_self_query,
+            key_action_workspace_self_key,
+            key_action_workspace_self_value,
+            key_action_workspace_self_output,
+            key_action_workspace_ff_up,
+            key_action_workspace_ff_down,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x4143544E),
+            num=12,
         )
         # The legacy action head is a single cross-attention read. Broad
         # programs require several action fields to jointly retain evidence,
@@ -1364,6 +1424,36 @@ class UnifiedRecurrentController(nn.Module):
             (FRONTIER_ACTION_EXPERT_COUNT, config.action_slots),
             dtype=mx.float32,
         )
+        return workspace_scale, workspace_width
+
+    def _init_action_causal_and_answer(
+        self,
+        config: UnifiedRecurrenceConfig,
+        workspace_width,
+        workspace_scale,
+        key_literal_values,
+        scale,
+        key_answer_query,
+        key_answer_key,
+        key_answer_value,
+        key_answer_output,
+    ) -> None:
+        (
+            key_action_causal_values,
+            key_action_causal_input,
+            key_action_causal_state,
+            key_action_causal_prior,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x43415553),
+            num=4,
+        )
+        (
+            key_action_literal_binding_query,
+            key_action_literal_binding_key,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x42494E44),
+            num=2,
+        )
         # A program instruction is not eight independent labels. The opcode
         # constrains its arguments, each emitted argument constrains those that
         # follow, and the previous instruction can matter to the next recurrent
@@ -1473,6 +1563,21 @@ class UnifiedRecurrentController(nn.Module):
                 key=key_answer_output,
             ).astype(mx.float32)
             / math.sqrt(config.correction_rank)
+        )
+
+    def _init_process_reader_and_answer_gates(self, config: UnifiedRecurrenceConfig, scale) -> None:
+        (
+            key_process_reader_1_query,
+            key_process_reader_1_key,
+            key_process_reader_1_value,
+            key_process_reader_1_output,
+            key_process_reader_2_query,
+            key_process_reader_2_key,
+            key_process_reader_2_value,
+            key_process_reader_2_output,
+        ) = mx.random.split(
+            mx.random.key(config.initialization_seed ^ 0x50524F43),
+            num=8,
         )
         # Causal process composition and answer extraction are distinct roles.
         # Sharing these projections made one objective erase progress on the
