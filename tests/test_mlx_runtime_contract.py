@@ -874,21 +874,23 @@ def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
 
     source = inspect.getsource(mlx_client._probe_mlx_runtime)
     assert subprocess_must_use_gateway("core/brain/llm/mlx_client.py") is True
-    assert "get_subprocess_gateway().run(" in source
+    assert "_run_probe_until_its_work_is_done(" in source
+    runner = inspect.getsource(mlx_client._run_probe_until_its_work_is_done)
+    assert "get_subprocess_gateway().spawn(" in runner
     # The probe timeout became an operator-configurable bound rather than a
     # hardcoded 25.0: on a host whose page cache is thrashing, importing MLX
     # alone can exceed a fixed budget and the probe reported
     # "mlx_runtime_unavailable:exit_124" on a perfectly healthy machine. What
     # this contract requires is that the call stays BOUNDED, and that the
     # bound has a floor so it cannot be configured away.
-    # And the bound scales with the host's oversubscription: at load 28 the
-    # idle-host budget aborted four spawns of a healthy MLX (2026-09-16).
-    assert "timeout=_mlx_runtime_probe_budget_s()" in source
+    # The bound is on the probe's own work (CPU spent, and CPU progress), not
+    # on the wall clock: at load 34 the probe took 100s of wall on 17s of CPU
+    # and every wall budget killed a healthy MLX (2026-09-16).
     probe_timeout = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
     assert 5.0 <= probe_timeout <= 600.0
-    assert mlx_client._mlx_runtime_probe_budget_s() >= probe_timeout
-    assert "source=\"runtime_probe:mlx_runtime_probe\"" in source
-    assert "read_only=True" in source
+    assert "cpu_seen >= budget" in runner and "now - advanced_at >= budget" in runner
+    assert "source=\"runtime_probe:mlx_runtime_probe\"" in runner
+    assert "read_only=True" in runner
     assert "AURA_TEST_MODE" not in source
     assert "shell=True" not in source
 
@@ -1562,21 +1564,69 @@ async def test_model_load_admission_denial_backoff_suppresses_background_retry_s
     assert attempts == [False, True]
 
 
-def test_the_probe_budget_reads_the_hosts_oversubscription(monkeypatch):
-    from types import SimpleNamespace
+@pytest.mark.host_observation
+def test_the_probe_is_bounded_by_its_own_work_not_the_wall_clock(monkeypatch):
+    """LIVE 2026-09-16, load 34 on 18 cores: the probe ran to success in 56.6s
+    of wall on 16.6s of CPU. Every wall budget, scaled or not, killed it, and
+    the lane sat in 'spawning' for an hour. The bound is the probe's own work:
+    CPU spent past the idle-host budget is not a probe; CPU that stops
+    advancing for that long is a wedge. A starved process advances slowly and
+    is neither."""
+    import os
+    import sys
+    import time
 
     from core.brain.llm import mlx_client
-    from core.runtime import resource_observation
 
-    class _Observer:
-        def __init__(self, load, cores):
-            self._c = SimpleNamespace(load_1m=load, cpu_count=cores)
+    monkeypatch.setattr(mlx_client, "_MLX_RUNTIME_PROBE_TIMEOUT_S", 2.0)
+    monkeypatch.setattr(mlx_client, "_PROBE_WATCH_PERIOD_S", 0.2)
+    env = dict(os.environ)
 
-        def compute(self):
-            return self._c
+    done = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "print('mlx_runtime_ok')"], cwd=os.getcwd(), env=env
+    )
+    assert done.returncode == 0 and "mlx_runtime_ok" in done.stdout
 
-    base = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
-    monkeypatch.setattr(resource_observation, "get_resource_observer", lambda: _Observer(2.0, 10))
-    assert mlx_client._mlx_runtime_probe_budget_s() == base  # under-subscribed: never below one
-    monkeypatch.setattr(resource_observation, "get_resource_observer", lambda: _Observer(28.0, 10))
-    assert mlx_client._mlx_runtime_probe_budget_s() == base * 2.8
+    started = time.monotonic()
+    wedged = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "import time; time.sleep(60)"], cwd=os.getcwd(), env=env
+    )
+    assert wedged.returncode == 124
+    assert wedged.stderr.startswith("probe_wedged:")
+    assert time.monotonic() - started < 30.0
+
+    started = time.monotonic()
+    busy = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "while True: pass"], cwd=os.getcwd(), env=env
+    )
+    assert busy.returncode == 124
+    assert busy.stderr.startswith("probe_cpu_budget_exhausted:")
+    assert time.monotonic() - started < 60.0
+
+    # Neither stop reason reads as the old wall-clock timeout.
+    assert mlx_client._normalize_probe_detail("", wedged.stderr, 124).startswith("probe_wedged")
+    assert mlx_client._normalize_probe_detail("", busy.stderr, 124).startswith(
+        "probe_cpu_budget_exhausted"
+    )
+
+
+def test_a_child_the_host_cannot_observe_is_still_bounded(monkeypatch):
+    """The simulated observer knows no pids. The wall clock then bounds the
+    probe, as it did before; the bound is never none."""
+    import os
+    import sys
+    import time
+
+    from core.brain.llm import mlx_client
+
+    monkeypatch.setattr(mlx_client, "_MLX_RUNTIME_PROBE_TIMEOUT_S", 2.0)
+    monkeypatch.setattr(mlx_client, "_PROBE_WATCH_PERIOD_S", 0.2)
+    started = time.monotonic()
+    out = mlx_client._run_probe_until_its_work_is_done(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        cwd=os.getcwd(),
+        env=dict(os.environ),
+    )
+    assert out.returncode == 124
+    assert out.stderr.startswith("probe_unobservable:")
+    assert time.monotonic() - started < 30.0
