@@ -332,20 +332,30 @@ Return ONLY the fixed code (same line range), no explanation, no markdown.
 Start your response with the first line of fixed code."""
 
         try:
-            thought = await self.brain.think(prompt, priority=0.1)
-            response = thought.content # proper extraction
-            
-            # Clean up response
-            response = response.strip()
-            
-            # Remove markdown code blocks if present
-            if response.startswith("```"):
-                lines = response.split('\n')
-                # Remove first and last lines (```python and ```)
-                response = '\n'.join(lines[1:-1])
-            
-            return response
-            
+            # A code request, not an objective. Through the cognitive engine
+            # this prompt became the kernel's objective ("obj: You are fixing
+            # a bug in your own code.") and the kernel answered it as a
+            # conversation — "I would handle this as a bounded..." — the same
+            # sentence every tick, 230 loop detections in one session
+            # (2026-09-15). The code generator asks the router for code and
+            # extracts the source.
+            from core.brain.llm.code_generator import LLMCodeGenerator
+
+            generator = LLMCodeGenerator(
+                prefer_tier="primary", max_tokens=1400, temperature=0.2
+            )
+            response = await generator.generate_async(
+                prompt,
+                {
+                    "is_background": True,
+                    "language": "python",
+                    "module_path": str(file_path),
+                    "origin": "code_repair",
+                },
+            )
+            response = str(response or "").strip()
+            return response or None
+
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('code_repair', e)
             logger.error("Fix generation failed: %s", e)

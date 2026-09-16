@@ -317,6 +317,7 @@ class LLMCodeGenerator:
             max_tokens=max(64, min(max_tokens, self.max_tokens)),
             temperature=max(0.0, min(temperature, 2.0)),
             is_background=is_background,
+            origin=str(context.get("origin") or GenerationRequest.origin),
         )
 
         try:
