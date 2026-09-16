@@ -29,7 +29,7 @@ from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 from core.runtime.flags import FlagKind as _FlagKind, declare as _declare_flag
-from core.runtime.lockdep import LOOP_HOLD_STARVED_FRACTION
+from core.runtime.lockdep import LOOP_BLOCKED_CEILING_FRACTION, LOOP_HOLD_STARVED_FRACTION
 from core.runtime.task_ownership import create_tracked_task
 from core.runtime.thread_cpu import thread_cpu_seconds, thread_cpu_share
 
@@ -374,7 +374,10 @@ class StallWatchdog(threading.Thread):
                     self._consecutive_long_stalls = 0
                     continue
                 share = self._loop_cpu_share_since_heartbeat(elapsed)
-                if share is not None and 0.0 < share < LOOP_HOLD_STARVED_FRACTION:
+                if (
+                    share is not None
+                    and LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION
+                ):
                     self._report_starvation(elapsed, share)
                     self._last_heartbeat = time.time()
                     self._consecutive_long_stalls = 0
@@ -816,7 +819,7 @@ class StallWatchdog(threading.Thread):
     def _report_stall(self, elapsed: float, share: float | None = None):
         if share is None:
             logger.error("🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)
-        elif share <= 0.0:
+        elif share < LOOP_BLOCKED_CEILING_FRACTION:
             logger.error(
                 "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs; the loop thread "
                 "accrued no CPU: blocked)",

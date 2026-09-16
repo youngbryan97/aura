@@ -96,7 +96,7 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
     # Starved: 0.8s of CPU over 10s of wall is 8% of a core.
     monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: 100.8)
     share = watchdog._loop_cpu_share_since_heartbeat(10.0)
-    assert share is not None and 0.0 < share < sw.LOOP_HOLD_STARVED_FRACTION
+    assert share is not None and sw.LOOP_BLOCKED_CEILING_FRACTION <= share < sw.LOOP_HOLD_STARVED_FRACTION
     with caplog.at_level(logging.WARNING):
         watchdog._report_starvation(10.0, share)
     assert watchdog._starved_stalls == 1
@@ -125,8 +125,85 @@ def test_the_watchdog_loop_skips_dump_and_recovery_for_a_starved_stall():
     loop = source[source.index("# Check for stall") :]
     loop = loop[: loop.index("def stop(self)")]
     assert "share = self._loop_cpu_share_since_heartbeat(elapsed)" in loop
-    assert "0.0 < share < LOOP_HOLD_STARVED_FRACTION" in loop
+    assert "LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION" in loop
     starved = loop[loop.index("self._report_starvation(elapsed, share)") :]
     starved = starved[: starved.index("continue")]
     assert "_attempt_active_recovery" not in starved
     assert "_report_stall" not in starved
+
+
+@pytest.mark.asyncio
+async def test_the_loop_monitor_files_no_breach_for_a_starved_sample(monkeypatch, caplog):
+    """LIVE 2026-09-16: 52 CRITICAL event_loop_monitor degradations in 22
+    minutes for a loop thread on a fifth of a core. Its own clock over the
+    sample says the lag was the host's."""
+    import logging
+
+    from core.utils import concurrency as cc
+
+    monitor = cc.EventLoopMonitor(interval=1.0, threshold=0.75)
+    monitor._started_at = time.perf_counter() - 600.0
+    monitor.startup_grace = 0.0
+
+    # One sleep of 6.0s wall on 0.3s of the loop thread's CPU: 5% of a core.
+    walls = iter([0.0, 6.0])
+    cpus = iter([100.0, 100.3])
+    # cc.time is the time module itself; the fakes stay total so nothing that
+    # runs after the sample (fixture teardown included) meets an exhausted one.
+    monkeypatch.setattr(cc.time, "perf_counter", lambda: next(walls, 6.0))
+    monkeypatch.setattr(cc.time, "thread_time", lambda: next(cpus, 100.3))
+    monkeypatch.setattr(monitor, "_lag_threshold_for_context", lambda: (0.75, "idle"))
+
+    async def one_sleep(_seconds):
+        monitor._stop_event.set()
+
+    monkeypatch.setattr(cc.asyncio, "sleep", one_sleep)
+    recorded = []
+    monkeypatch.setattr(cc, "record_degradation", lambda *a, **k: recorded.append(a))
+    with caplog.at_level(logging.WARNING):
+        await monitor._run()
+    assert recorded == [], "a starved loop is not an event_loop_monitor failure"
+    assert monitor._consecutive_breaches == 0
+    assert monitor._starved_samples == 1
+    assert any("starved, not blocked" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_the_hypervisor_opens_no_freeze_for_a_starved_sample(monkeypatch, caplog):
+    """LIVE 2026-09-16: 38 SEVERE FREEZE criticals in 22 minutes, same cause."""
+    import logging
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+    from core.ops import hypervisor as hv
+
+    ServiceContainer.clear()
+    try:
+        hypervisor = hv.Hypervisor(lag_threshold_s=1.5)
+        hypervisor._running = True
+        hypervisor._start_time = time.time() - 600.0
+        hypervisor._required_severe_lag_samples = 1
+        monkeypatch.setattr(hypervisor, "_lag_threshold_for_context", lambda: (1.5, "idle"))
+        monos = iter([0.0, 9.0])
+        cpus = iter([50.0, 50.4])  # 0.4s of CPU over 9s: 4% of a core
+        monkeypatch.setattr(hv, "_monotonic_now", lambda: next(monos, 9.0))
+        monkeypatch.setattr(hv.time, "thread_time", lambda: next(cpus, 50.4))
+
+        async def one_sleep(_seconds):
+            hypervisor._running = False
+
+        monkeypatch.setattr(hv.asyncio, "sleep", one_sleep)
+        monkeypatch.setattr(
+            hv, "get_resource_observer", lambda: SimpleNamespace(process=lambda _pid: None)
+        )
+        recorded = []
+        monkeypatch.setattr(hv, "record_degradation", lambda *a, **k: recorded.append(a))
+        with caplog.at_level(logging.WARNING, logger="Aura.Hypervisor"):
+            await hypervisor._watchdog_loop()
+        assert recorded == [], "a starved loop is not a hypervisor freeze"
+        assert hypervisor._severe_lag_streak == 0
+        assert hypervisor._starved_samples == 1
+        assert not [r for r in caplog.records if "SEVERE FREEZE" in r.getMessage()]
+        assert any("starved, not frozen" in r.getMessage() for r in caplog.records)
+    finally:
+        ServiceContainer.clear()
