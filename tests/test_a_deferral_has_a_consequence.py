@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from core.memory.a_deferral_is_not_a_refusal import DeferredWrites
 from core.ontogeny.wiring import ExecutiveAdmissionResolver
 from core.ontogeny.experience import Episode
@@ -148,3 +150,30 @@ def test_an_authority_earned_on_ungraded_deferrals_is_handed_back_once(tmp_path)
     # And the note survives a reload.
     reloaded = AuthorityLedger(path=tmp_path / "authority.json")
     assert reloaded.noted("deferral_grading_rule") == wiring.DEFERRAL_GRADING_RULE
+
+
+@pytest.mark.asyncio
+async def test_a_transition_made_on_the_loop_is_written_by_a_thread(tmp_path):
+    """write_text:ontogeny_authority ran on the loop thread at boot (2026-09-16):
+    the revocation in install() saved twice, on the loop."""
+    import json
+    import threading
+
+    from core.ontogeny.authority import AuthorityLedger, AuthorityStage
+
+    ledger = AuthorityLedger(path=tmp_path / "authority.json")
+    writers: list[str] = []
+    real = ledger._write
+
+    def spy(payload):
+        writers.append(threading.current_thread().name)
+        real(payload)
+
+    ledger._write = spy
+    ledger.set_stage("cp", AuthorityStage.ADVISORY, reason="one")
+    ledger.note("k", 1)
+    ledger.flush()
+    assert writers and all(name == "ontogeny-authority-writer" for name in writers)
+    saved = json.loads((tmp_path / "authority.json").read_text())
+    assert saved["grants"]["cp"]["stage"] == "advisory"
+    assert saved["notes"]["k"] == 1

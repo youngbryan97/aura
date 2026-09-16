@@ -14,6 +14,7 @@ include_rules = [
     "+core.world_model",
 
     # What this package reaches for today.
+    "+core.adaptation",
     "+core.advanced_cognition",
     "+core.brain",
     "+core.cognition",

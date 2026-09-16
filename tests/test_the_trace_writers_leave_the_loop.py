@@ -139,3 +139,47 @@ async def test_the_unified_self_saves_off_the_loop(monkeypatch, tmp_path):
     assert gateway.sync == []
     assert gateway.async_ == ["mkdir:unified_self.save_to_disk", "unified_self.save_to_disk"]
     assert json.loads(gateway.written[str(self_._storage_path)])["interaction_count"] == 1
+
+
+def test_the_belief_graph_writes_off_the_lock_and_off_the_loop(tmp_path):
+    """write_text:belief_graph.save_graph ran on the loop thread at boot
+    (2026-09-16), under the graph lock."""
+    import threading
+
+    from core.world_model.belief_graph import BeliefGraph
+
+    graph = BeliefGraph(
+        persist_path=str(tmp_path / "world_model.json"),
+        causal_path=str(tmp_path / "causal.json"),
+    )
+    writers: list[tuple[str, bool]] = []
+    real = graph._write_graph_payload
+
+    def spy(payload):
+        # Not under the graph lock: a second acquire from another thread
+        # would block if it were held; an RLock lets this thread through,
+        # so record whether the lock is currently held by asking a helper.
+        writers.append((threading.current_thread().name, _held_by_other(graph._graph_lock)))
+        real(payload)
+
+    def _held_by_other(lock):
+        acquired = lock.acquire(blocking=False)
+        if acquired:
+            lock.release()
+            return False
+        return True
+
+    graph._write_graph_payload = spy
+    graph._state_writer._write = spy
+
+    async def on_loop():
+        graph.graph.add_node("test.belief", value=1.0)
+        graph._save(force=True)
+        assert threading.current_thread().name not in [w[0] for w in writers]
+
+    asyncio.run(on_loop())
+    assert graph.flush(5.0)
+    assert writers
+    assert all(name != "MainThread" for name, _ in writers)
+    assert all(not held for _, held in writers)
+    assert (tmp_path / "world_model.json").exists()

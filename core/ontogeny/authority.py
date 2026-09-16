@@ -32,8 +32,10 @@ learned controller that cannot show its licence has no business holding one.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import threading
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -155,6 +157,14 @@ class Comparison:
         }
 
 
+def _on_a_running_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
 @dataclass
 class Grant:
     """A control point's current standing, and how it got there."""
@@ -189,6 +199,8 @@ class AuthorityLedger:
         self._grants: dict[str, Grant] = {}
         self._calibration = calibration or CalibrationMonitor()
         self._frozen = False
+        self._pending_payload: dict[str, Any] | None = None
+        self._writer: threading.Thread | None = None
         #: Facts about the ledger itself that outlive any one grant — which
         #: version of a grading rule its evidence was produced under, for
         #: one. A grant's evidence is replaced on every transition; this is
@@ -433,6 +445,39 @@ class AuthorityLedger:
         if payload is None:
             with self._lock:
                 payload = self._snapshot_locked()
+        if _on_a_running_loop():
+            # A transition made on the loop thread (install, a revocation at
+            # boot) hands its snapshot to one writer thread. The newest
+            # snapshot wins, so two transitions in a row land as one file
+            # with both in it, never the older over the newer.
+            with self._lock:
+                self._pending_payload = payload
+                if self._writer is not None and self._writer.is_alive():
+                    return
+                self._writer = threading.Thread(
+                    target=self._drain_pending, name="ontogeny-authority-writer", daemon=True
+                )
+                self._writer.start()
+            return
+        self._write(payload)
+
+    def _drain_pending(self) -> None:
+        while True:
+            with self._lock:
+                payload = self._pending_payload
+                self._pending_payload = None
+                if payload is None:
+                    self._writer = None
+                    return
+            self._write(payload)
+
+    def flush(self, timeout_s: float = 5.0) -> None:
+        """Wait for a snapshot handed to the writer thread to reach disk."""
+        writer = self._writer
+        if writer is not None and writer is not threading.current_thread():
+            writer.join(timeout_s)
+
+    def _write(self, payload: dict[str, Any]) -> None:
         try:
             from core.governance_context import local_internal_governed_scope
             from core.runtime.file_write_gateway import get_file_write_gateway

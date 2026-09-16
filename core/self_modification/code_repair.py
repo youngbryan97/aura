@@ -339,22 +339,24 @@ Start your response with the first line of fixed code."""
             # sentence every tick, 230 loop detections in one session
             # (2026-09-15). The code generator asks the router for code and
             # extracts the source.
-            from core.brain.llm.code_generator import LLMCodeGenerator
+            from core.container import ServiceContainer
+            from core.utils.python_source_extraction import extract_python_code
 
-            generator = LLMCodeGenerator(
-                prefer_tier="primary", max_tokens=1400, temperature=0.2
+            router = ServiceContainer.get("llm_router", default=None)
+            if router is None or not hasattr(router, "think"):
+                raise RuntimeError("no LLM router is registered for code repair")
+            response = await router.think(
+                prompt=prompt,
+                prefer_tier="primary",
+                max_tokens=1400,
+                temperature=0.2,
+                is_background=True,
+                origin="code_repair",
+                purpose="code_repair",
             )
-            response = await generator.generate_async(
-                prompt,
-                {
-                    "is_background": True,
-                    "language": "python",
-                    "module_path": str(file_path),
-                    "origin": "code_repair",
-                },
-            )
-            response = str(response or "").strip()
-            return response or None
+            raw = response if isinstance(response, str) else getattr(response, "content", "") or ""
+            code = extract_python_code(str(raw)).strip()
+            return code or None
 
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('code_repair', e)

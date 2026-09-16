@@ -13,13 +13,13 @@ import asyncio
 import concurrent.futures
 import inspect
 import logging
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
 from core.brain.llm.deferral_record import explain_empty_generation
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.python_source_extraction import extract_python_code
 
 logger = logging.getLogger("Aura.LLMCodeGenerator")
 
@@ -67,11 +67,6 @@ _CODE_GEN_SYSTEM_PROMPT = (
 )
 
 
-_FENCE_RE = re.compile(r"```(?:python|py)?\s*\n(?P<code>.*?)```", re.IGNORECASE | re.DOTALL)
-#: Just the opening marker, for output that never got to close it.
-_OPENING_FENCE_RE = re.compile(r"```(?:python|py)?[ \t]*\r?\n?", re.IGNORECASE)
-
-
 class GenerationDeferredError(RuntimeError):
     """The request was not run, and the runtime said why.
 
@@ -91,78 +86,6 @@ class GenerationRequest:
     temperature: float
     origin: str = "reimplementation_lab"
     is_background: bool = True
-
-
-def _first_pythonish_line(text: str) -> int:
-    starters = (
-        "from ",
-        "import ",
-        "class ",
-        "def ",
-        "async def ",
-        "@",
-        '"""',
-        "'''",
-        "#",
-        "__all__",
-    )
-    for idx, line in enumerate(text.splitlines()):
-        stripped = line.strip()
-        if stripped.startswith(starters):
-            return idx
-    return 0
-
-
-def extract_python_code(text: str) -> str:
-    """Extract Python source from a model response without trusting wrappers."""
-
-    raw = str(text or "").strip()
-    if not raw:
-        return ""
-
-    fenced = _FENCE_RE.findall(raw)
-    if fenced:
-        candidates = [candidate.strip() for candidate in fenced if candidate.strip()]
-        if candidates:
-            return max(candidates, key=len).strip()
-
-    # An opening fence with no closing one. The pattern requires both, so a
-    # generation that ran out of tokens mid-block matched nothing and the raw
-    # text — fence marker and all — went to the parser, which reported
-    # "invalid syntax" on line 1 and lost an otherwise usable implementation.
-    # Truncation is ordinary; throwing the whole answer away for it is not.
-    opening = _OPENING_FENCE_RE.search(raw)
-    if opening:
-        tail = raw[opening.end():]
-        closing = tail.find("```")
-        body = (tail[:closing] if closing >= 0 else tail).strip()
-        if body:
-            return body
-
-    lines = raw.splitlines()
-    start = _first_pythonish_line(raw)
-    if start:
-        raw = "\n".join(lines[start:]).strip()
-
-    # Some models append a short explanatory tail after otherwise valid code.
-    # Prefer the full response if it parses; otherwise progressively trim the
-    # tail until the candidate is syntactically valid.
-    try:
-        ast.parse(raw)
-        return raw
-    except SyntaxError as _exc:
-        logger.debug("Suppressed %s in core.brain.llm.code_generator: %s", type(_exc).__name__, _exc)
-
-    trimmed = raw.splitlines()
-    for end in range(len(trimmed) - 1, 0, -1):
-        candidate = "\n".join(trimmed[:end]).rstrip()
-        try:
-            ast.parse(candidate)
-            return candidate
-        except SyntaxError:
-            continue
-
-    return raw
 
 
 def _coerce_response_text(response: Any) -> str:

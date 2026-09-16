@@ -15,23 +15,22 @@ import pytest
 from core.self_modification import code_repair
 
 
-class _Generator:
-    calls: list[tuple[str, dict]] = []
+class _Router:
+    calls: list[dict] = []
 
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
-
-    async def generate_async(self, prompt, context):
-        _Generator.calls.append((prompt, dict(context)))
-        return "def fixed():\n    return 1\n"
+    async def think(self, **kwargs):
+        _Router.calls.append(dict(kwargs))
+        return "Here you go:\n```python\ndef fixed():\n    return 1\n```\n"
 
 
 @pytest.mark.asyncio
-async def test_the_fix_comes_from_the_code_generator(monkeypatch):
-    import core.brain.llm.code_generator as cg
+async def test_the_fix_comes_from_the_router_as_code(monkeypatch):
+    from core.container import ServiceContainer
 
-    monkeypatch.setattr(cg, "LLMCodeGenerator", _Generator)
-    _Generator.calls.clear()
+    _Router.calls.clear()
+    monkeypatch.setattr(
+        ServiceContainer, "get", classmethod(lambda cls, name, default=None: _Router() if name == "llm_router" else default)
+    )
 
     class _Brain:
         async def think(self, *a, **k):
@@ -45,10 +44,10 @@ async def test_the_fix_comes_from_the_code_generator(monkeypatch):
         {"root_cause": "off by one", "explanation": "x", "potential_fix": "y"},
     )
     assert code == "def fixed():\n    return 1"
-    (prompt, context), = _Generator.calls
-    assert context["origin"] == "code_repair"
-    assert context["is_background"] is True
-    assert context["module_path"] == "core/example.py"
+    (request,) = _Router.calls
+    assert request["origin"] == "code_repair"
+    assert request["is_background"] is True
+    assert request["prefer_tier"] == "primary"
 
 
 def test_the_repair_module_never_thinks_through_the_brain():

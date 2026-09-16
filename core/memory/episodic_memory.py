@@ -269,12 +269,11 @@ class EpisodicMemory(_RanksWhatToRecall):
         # a success the moment any other write landed.
         intent_id = str(getattr(governance_decision, "intent_id", "") or "")
         if intent_id:
+            executive = self._executive()
             try:
-                from core.executive.executive_core import get_executive_core
-
-                if not get_executive_core().own_deferral_consequence(intent_id):
+                if executive is None or not executive.own_deferral_consequence(intent_id):
                     intent_id = ""
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("episodic_memory", exc, severity="debug")
                 intent_id = ""
         self._deferred_episodes.hold(
@@ -319,15 +318,25 @@ class EpisodicMemory(_RanksWhatToRecall):
         intents = [str(i) for i in held.get("_deferral_intents") or [] if i]
         if not intents:
             return
+        executive = self._executive()
+        if executive is None:
+            return
         try:
-            from core.executive.executive_core import get_executive_core
-
-            executive = get_executive_core()
             for intent_id in intents:
                 executive.complete_intent(intent_id, success=landed)
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("episodic_memory", exc, severity="debug",
                                action="deferral consequence not reported")
+
+    @staticmethod
+    def _executive() -> Any:
+        """The executive that decided the deferral, through the container spine."""
+        try:
+            from core.container import ServiceContainer
+
+            return ServiceContainer.get("executive_core", default=None)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError):
+            return None
 
     def deferred_state(self) -> dict[str, Any]:
         """What is waiting on the governor, for the health surface."""

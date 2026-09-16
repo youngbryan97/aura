@@ -62,6 +62,13 @@ class BeliefGraph:
         self._causal_last_save = 0.0 # For causal links
         self._causal_dirty = False # For causal links
         self._graph_lock = threading.RLock()
+        from core.adaptation.immune_state_writer import SingleSlotStateWriter
+
+        self._state_writer = SingleSlotStateWriter(
+            "belief_graph.state",
+            self._write_graph_payload,
+            on_error=self._record_graph_write_failure,
+        )
 
         # Phase 44: Index sets for O(E) optimization (BUG-044)
         self._goal_edges = set()
@@ -521,39 +528,54 @@ class BeliefGraph:
             }
 
     def _save(self, force: bool = False):
-        """Throttled save to prevent O(N) writes (BUG-039)."""
+        """Throttled save to prevent O(N) writes (BUG-039).
+
+        The snapshot is built under the graph lock and written off it, by
+        one writer thread. The write used to happen under the lock and on
+        whichever thread called — the loop thread, at boot, while the
+        sovereign goals were installed (2026-09-16).
+        """
         with self._graph_lock:
             now = time.time()
             if not force and now - self._last_save < 30:
                 self._dirty = True
                 return
+            self._last_save = now
+            self._dirty = False
+            # Serialization of NetworkX graph to simple dict for JSON
+            data = {
+                "nodes": {n: dict(self.graph.nodes[n]) for n in self.graph.nodes},
+                "edges": [
+                    {"source": u, "target": v, **d}
+                    for u, v, d in self.graph.edges(data=True)
+                ],
+            }
+        self._state_writer.submit(json.dumps(data, indent=2), background=True)
 
-            try:
-                self._last_save = now
-                self._dirty = False
-                os.makedirs(os.path.dirname(self._persist_path), exist_ok=True)
-                # Serialization of NetworkX graph to simple dict for JSON
-                data = {
-                    "nodes": {n: self.graph.nodes[n] for n in self.graph.nodes},
-                    "edges": []
-                }
-                for u, v, d in self.graph.edges(data=True):
-                    data["edges"].append({"source": u, "target": v, **d})
+    def _write_graph_payload(self, payload: str) -> None:
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
-                from core.runtime.file_write_gateway import get_file_write_gateway
+        gateway = get_file_write_gateway()
+        with local_internal_governed_scope(
+            "belief_graph.save_graph",
+            receipt_prefix="belief-graph-save",
+        ):
+            gateway.ensure_directory(
+                os.path.dirname(self._persist_path), source="belief_graph.save_graph"
+            )
+            gateway.write_text(
+                self._persist_path,
+                payload,
+                source="belief_graph.save_graph",
+            )
 
-                with local_internal_governed_scope(
-                    "belief_graph.save_graph",
-                    receipt_prefix="belief-graph-save",
-                ):
-                    get_file_write_gateway().write_text(
-                        self._persist_path,
-                        json.dumps(data, indent=2),
-                        source="belief_graph.save_graph",
-                    )
-            except (OSError, IOError) as e:
-                record_degradation('belief_graph', e)
-                logger.error("Failed to save world model: %s", e)
+    def _record_graph_write_failure(self, exc: BaseException) -> None:
+        record_degradation('belief_graph', exc)
+        logger.error("Failed to save world model: %s", exc)
+
+    def flush(self, timeout: float = 5.0) -> bool:
+        """Make a pending graph snapshot durable (tests, shutdown)."""
+        return self._state_writer.flush(timeout)
 
     def _load(self):
         with self._graph_lock:
