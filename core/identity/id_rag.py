@@ -435,11 +435,25 @@ _chronicle_singleton_lock = checked_lock("identity_chronicle.singleton")
 
 def get_identity_chronicle() -> IdentityChronicle:
     global _chronicle_singleton
-    if _chronicle_singleton is None:
-        with _chronicle_singleton_lock:
-            if _chronicle_singleton is None:
-                _chronicle_singleton = IdentityChronicle()
-                _chronicle_singleton.seed_defaults()
+    if _chronicle_singleton is not None:
+        return _chronicle_singleton
+    # Built and seeded outside the lock, published under it: construction
+    # opens the store and seeding writes to it, and under the lock that was
+    # a hold on the loop thread at boot (2026-09-16). A second first caller
+    # may build one too; the one published first is the chronicle and the
+    # other is closed.
+    built = IdentityChronicle()
+    built.seed_defaults()
+    with _chronicle_singleton_lock:
+        if _chronicle_singleton is None:
+            _chronicle_singleton = built
+            return built
+    close = getattr(built, "close", None)
+    if callable(close):
+        try:
+            close()
+        except (OSError, RuntimeError, AttributeError):
+            pass
     return _chronicle_singleton
 
 

@@ -986,8 +986,17 @@ _SERVICE_LOCK = checked_lock("core.interiority.service.singleton")
 def get_interiority() -> InteriorityService:
     global _SERVICE
     with _SERVICE_LOCK:
+        if _SERVICE is not None:
+            return _SERVICE
+    # Built outside the lock and published under it. Construction reads
+    # state from disk; under the lock it was a 389ms hold on the loop
+    # thread at boot (2026-09-16), and every other reader queued behind it.
+    # Two first callers can both build; the first to publish wins and the
+    # other's instance is dropped unread.
+    built = InteriorityService()
+    with _SERVICE_LOCK:
         if _SERVICE is None:
-            _SERVICE = InteriorityService()
+            _SERVICE = built
         return _SERVICE
 
 
