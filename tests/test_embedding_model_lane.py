@@ -218,7 +218,10 @@ async def test_embedding_engine_refuses_eviction_during_encode(
     )
     engine = EmbeddingEngine()
 
-    assert engine.embed("initial").shape == (384,)
+    # The first use loads the weights, and a first use from the loop thread
+    # now loads them on a thread and answers nothing that once — which is
+    # what this test's own sync call from a coroutine would have hit.
+    assert (await asyncio.to_thread(engine.embed, "initial")).shape == (384,)
     monkeypatch.setattr(
         engine,
         "_init_tfidf_fallback",

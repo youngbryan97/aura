@@ -53,7 +53,9 @@ import hashlib
 import json
 import logging
 import sqlite3
+import threading
 import time
+import traceback
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -144,6 +146,22 @@ class EmbeddingWorkDeferredError(RuntimeError):
     """Low-priority embedding yielded before competing with foreground work."""
 
 
+def _on_a_running_loop() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _first_frame_outside(this_file: str) -> str:
+    """The nearest caller not in this module, as file:line function."""
+    for frame in reversed(traceback.extract_stack()[:-2]):
+        if frame.filename != this_file:
+            return f"{frame.filename}:{frame.lineno} {frame.name}"
+    return "unknown"
+
+
 class EmbeddingEngine:
     """
     Converts text to dense semantic vectors.
@@ -166,6 +184,7 @@ class EmbeddingEngine:
         self._initialized = False
         self._lane_lease: Any | None = None
         self._lifecycle_lock = checked_lock("vector_memory_engine.lifecycle_lock", reentrant=True)
+        self._loader: threading.Thread | None = None
         self._closing = False
         #: Encodes running right now, outside the lifecycle lock. Eviction
         #: reads this to decide whether the model is idle.
@@ -331,12 +350,40 @@ class EmbeddingEngine:
         in-flight count tells eviction it is not idle — which is the question
         the old non-blocking acquire was really trying to ask.
         """
+        if not self._initialized and _on_a_running_loop():
+            # The first checkout loads the weights: 3–10s of sentence-
+            # transformers on whichever thread asks. Asked from the loop
+            # thread at boot (2026-09-16 04:08Z) it stalled the loop long
+            # enough for MindTick's memory_retrieval phase to trip its circuit
+            # and the runtime lease to miss its renew deadline. The load
+            # happens on a thread; this caller goes without, this once, and
+            # says who it was so the sync call site can be moved.
+            self._load_off_loop()
+            return None
         with self._lifecycle_lock:
             self._initialize_locked()
             model = self._model
             if model is not None:
                 self._inflight += 1
             return model
+
+    def _load_off_loop(self) -> None:
+        with self._lifecycle_lock:
+            if self._initialized:
+                return
+            loader = self._loader
+            if loader is not None and loader.is_alive():
+                return
+            caller = _first_frame_outside(__file__)
+            logger.info(
+                "🧠 EmbeddingEngine: first use came from the loop thread (%s); "
+                "loading the encoder on a thread and answering nothing this once.",
+                caller,
+            )
+            self._loader = threading.Thread(
+                target=self._initialize, name="embedding-engine-load", daemon=True
+            )
+            self._loader.start()
 
     def _return_model(self) -> None:
         with self._lifecycle_lock:

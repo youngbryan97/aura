@@ -161,3 +161,53 @@ async def test_assemble_context_keeps_semantic_search_off_the_loop() -> None:
         "semantic search ran on the event loop thread"
     )
     assert ticks >= 15, f"the loop only ticked {ticks} times during the search"
+
+
+def test_the_first_use_from_the_loop_loads_on_a_thread_and_answers_nothing_once(monkeypatch, caplog):
+    """Boot, 2026-09-16 04:08Z: the first checkout ran the weight load on the
+    loop thread. MindTick's memory_retrieval phase tripped its circuit and
+    the runtime lease missed its renew deadline."""
+    import logging
+
+    engine = EmbeddingEngine.__new__(EmbeddingEngine)
+    EmbeddingEngine.__init__(engine)
+    loads: list[str] = []
+
+    def fake_initialize_locked():
+        if engine._initialized:
+            return
+        loads.append(threading.current_thread().name)
+        engine._model = _SlowModel(0.0)
+        engine._initialized = True
+
+    monkeypatch.setattr(engine, "_initialize_locked", fake_initialize_locked)
+
+    async def on_loop():
+        with caplog.at_level(logging.INFO):
+            first = engine._checkout_model()
+        assert first is None
+        for _ in range(100):
+            if engine._initialized:
+                break
+            await asyncio.sleep(0.01)
+        assert engine._initialized
+        return engine._checkout_model()
+
+    second = asyncio.run(on_loop())
+    assert second is not None
+    assert loads == ["embedding-engine-load"]
+    assert any("first use came from the loop thread" in r.getMessage() for r in caplog.records)
+
+    # Off the loop the load is inline, as before.
+    other = EmbeddingEngine.__new__(EmbeddingEngine)
+    EmbeddingEngine.__init__(other)
+    inline: list[str] = []
+
+    def inline_initialize():
+        inline.append(threading.current_thread().name)
+        other._model = _SlowModel(0.0)
+        other._initialized = True
+
+    monkeypatch.setattr(other, "_initialize_locked", inline_initialize)
+    assert other._checkout_model() is not None
+    assert inline == [threading.current_thread().name]
