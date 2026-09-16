@@ -213,6 +213,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   persisted state survived, and three readiness samples passed.
   Evidence: [R02 receipt](evidence/R02_SUCCESSOR_IDENTITY_2026-09-06.md).
 - [ ] R03 Live-validate native-thinking public sentence grace (d472d2268).
+  OBSERVED 2026-09-16. The first live turn with native thinking on since
+  d472d2268 (see R05, b5ccbba06): a bounded 96-token channel, then a public
+  answer that ended at a sentence boundary with the budget not exhausted. One
+  turn on a loaded host; the grace path itself (a channel that runs to the
+  limit and needs the boundary held) has not yet been exercised live.
 - [ ] R04 Live-validate progress-aware owner cleanup (2aefb6f46); audit other
   eviction paths and cross-client ownership, not only the patched function.
 - [ ] R05 Resolve empty latent answers without exposing private reasoning.
@@ -229,6 +234,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   had just answered; a 9B answered instead. Not reproduced on a second attempt
   and not yet fixed. The corrector that contradicted a TRUE claim is fixed —
   cd4cb7917.
+  UPDATE 2026-09-15/16. The canned line came back on a live turn and the
+  cause is settled. "Walk me through why a hybrid linear-attention model can't
+  trim its KV cache" ran 7.5 minutes and served "I couldn't get to an answer
+  I'd stand behind." The worker had opened no private channel: the answer
+  floor (1,024) equalled the budget (1,024), and the channel's room was
+  computed as total less floor — zero on every derived answer on the desktop
+  lane. Shut, the model reasoned in the reply: 4,530 characters beginning
+  "The user is asking about", every token, rejected as
+  internal_task_prompt_leak, retries exhausted, canned fallback. The channel
+  now sits on top of the answer (what the clock can decode beyond the floor,
+  capped at the answer's own ceiling; the smallest channel worth opening when
+  the clock cannot pay for both), the role question is not vetoed by the
+  size question, the worker adds the bound to max_tokens and the clock prices
+  it (b5ccbba06). Replayed on the new build at load 15: "Native thinking True
+  (floor=1024 mode=fast effort=medium)", "Private channel bounded at 96
+  tokens", three correct paragraphs delivered at 20:49:41 after 16m47s of
+  ~2 tok/s decode, no canned line. Three tests that asserted the old veto
+  carried the 2026-08-27 evidence of an unbounded channel; they now carry
+  this. Also: "keep this short" set a 64-token hard ceiling that cut answers
+  mid-sentence into the fallback; a bare brevity request is a semantic cap
+  only (d985f43b2).
 - [ ] R06 Repair event-loop blocking: filesystem writes, fsync under locks,
   knowledge operations, learning callbacks, and scheduler contention.
   UPDATE 2026-09-08. Lockdep reported nine distinct loop-blocking holds in one
@@ -420,6 +446,39 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     with an equation, while the answer told the person an animation was on
     its way. The renderer takes source and a scene name; the caller passed
     neither, and the promise went out regardless. FIXED, 9a542c22a.
+  UPDATE 2026-09-16. From two boots on a host at load 15–33, each by cause:
+  - `Circuit OPEN for Reflex ... cancelled_worker_not_acknowledged` x359 over
+    four hours, and every background inference deferred to a tier with no
+    endpoints. One missed soft-cancel acknowledgement rebooted the worker
+    with mark_failed=True; a failed lane is refused before generate, so
+    nothing could respawn it, and only a runtime probe clears "failed". A
+    reboot leaves the lane cold now (5ac746ead). FIXED.
+  - `Registration locked: Cannot register 'interiority' / 'reliability_engine'
+    / 'state_authority'` on every boot: the deferred autonomy initialiser
+    landed after the container lock (65s after, at load 33). A deferred boot
+    task runs under a boot lease that lets it register through the lock and
+    dies with the task (310edd0b3, 373000784). FIXED.
+  - `[GUI WATCHDOG] Kernel heartbeat missed three times` and the reconnect
+    surface mid-turn: a busy conversation reports conversation_ready=False
+    with every probe passing, and the watchdog read that as a miss. A busy
+    lane is "working" (de1a1c919). FIXED.
+  - `Integrity warnings: ['Thermal pressure is fair']` x230, every five
+    minutes: said once now, and once when it clears (de1a1c919). FIXED.
+  - `rate group 1hz slipped` x99 in half an hour with a matching EVR line:
+    the first, one in thirty, and the recovery (c7f67c54e). FIXED.
+  - `LOCKDEP loop_blocking_hold ... held 186ms` on a four-line dict read: the
+    thread was off the CPU. The line carries CPU time beside wall time; a
+    starved hold is a warning and not a degradation (c0aeeb804, 373000784).
+    FIXED.
+  - `episodic_memory: deferred capacity full; shedding one pending write`
+    x2,342 and no episode landing: the ontogeny head chose "deferred" for
+    388 of 400 admissions on evidence that graded every deferral a success
+    by goal class and never graded a shed write. The queue reports the
+    consequence against the deferral's own intent; the authority earned on
+    the old grading is handed back once (b1330c0e6, 9bfae62ee). FIXED at the
+    cause; the head re-earns on graded evidence.
+  - `System: CPU 0.0%` in the health pulse at load 15: two samplers diffing
+    against one psutil baseline (7c83ee2d4). FIXED.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
