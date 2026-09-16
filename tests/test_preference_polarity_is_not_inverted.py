@@ -134,9 +134,11 @@ def test_formation_uses_the_parsed_stance_end_to_end(monkeypatch):
             recorded.append((subject, stance))
             return super().encounter(subject, stance=stance, note=note)
 
+    # The former builds a fresh set from the ledger rather than reading the
+    # stored one back, because it now runs on every commit and accumulating
+    # would register one position again on each of them.
     monkeypatch.setattr(
-        "core.being.individual_preferences.IndividualPreferences.from_dict",
-        classmethod(lambda cls, payload: _Spy()),
+        "core.being.individual_preferences.IndividualPreferences", _Spy
     )
 
     class _Entry:

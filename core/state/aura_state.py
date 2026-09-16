@@ -186,6 +186,18 @@ def _stance_of_position(text: str) -> str | None:
     body = " ".join(str(text or "").split())
     if not body:
         return None
+    # Past the announcement first. The ledger marks a sentence as a position
+    # when it opens with "I think", "I believe", "in my view" and the rest, and
+    # every stance pattern below is anchored to the start of the sentence. A
+    # sentence cannot open with both, so every position entry read as
+    # polarity-unknown and nothing was ever recorded: her own preferences could
+    # not form at all. What follows the opener is the position.
+    try:
+        from core.brain.llm.continuity_ledger import POSITION_OPENER
+
+        body = POSITION_OPENER.sub("", body, count=1).strip() or body
+    except ImportError:
+        pass
     # Negative first: "I don't like X" matches the positive pattern too.
     if _NEGATIVE_STANCE_RE.search(body):
         return "averse_to"
@@ -1019,7 +1031,46 @@ class CognitiveContext:
         kept_set = set(id(msg) for msg in kept)
         ordered_kept = [msg for msg in candidates if id(msg) in kept_set]
 
+        # What is about to be dropped, into the ledger before it goes.
+        #
+        # `AuraState.compact` says compaction is the only moment where the
+        # original wording is still available, and folds it. Compaction fires
+        # above MAX_WORKING_MEMORY and this prunes to MAX_WORKING_MEMORY, so
+        # the trimmer holds the list at the threshold the fold waits to be
+        # crossed and the fold never runs. Through a six-hour recording
+        # `cognition.continuity_ledger`, `cognition.rolling_summary` and
+        # `identity.self_preferences` all stayed empty, and every turn that
+        # left working memory left no trace at all.
+        dropped_set = kept_set | set(id(msg) for msg in tail)
+        dropped = [msg for msg in candidates if id(msg) not in dropped_set]
         self.working_memory = ordered_kept + tail
+        self.remember_before_dropping(dropped)
+
+    def remember_before_dropping(self, messages: list[dict]) -> None:
+        """Fold messages leaving working memory into the continuity ledger.
+
+        Whichever path removes them. The ledger is the copy that survives the
+        rolling summary, so it has to see the originals rather than whatever is
+        left after they have gone.
+        """
+        if not messages:
+            return
+        try:
+            from core.brain.llm.continuity_ledger import ContinuityLedger
+
+            ledger = ContinuityLedger.from_dict(getattr(self, "continuity_ledger", None))
+            ledger.observe(messages)
+            self.continuity_ledger = ledger.to_dict()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "aura_state.continuity_ledger",
+                exc,
+                severity="warning",
+                action="pruned working memory without folding the dropped turns into the ledger",
+                enforce_failure_policy=False,
+            )
 
     def _deduplicate_summaries(self) -> None:
         """Collapse multiple synthetic_summary entries into the most recent one.
@@ -1276,6 +1327,18 @@ class AuraState:
                 enforce_failure_policy=False,
             )
 
+    def _form_preferences_from_the_ledger(self) -> None:
+        """Read the stored ledger back and let her positions accumulate."""
+        try:
+            from core.brain.llm.continuity_ledger import ContinuityLedger
+
+            stored = getattr(self.cognition, "continuity_ledger", None)
+            if not stored:
+                return
+            self._form_preferences_from(ContinuityLedger.from_dict(stored))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return
+
     def _form_preferences_from(self, ledger) -> None:
         """Let repeated contact of her own accumulate into a stance.
 
@@ -1285,11 +1348,22 @@ class AuraState:
         both would make her preferences a mirror rather than hers.
         """
         try:
-            from core.being.individual_preferences import IndividualPreferences
-
-            prefs = IndividualPreferences.from_dict(
-                getattr(self.identity, "self_preferences", None)
+            from core.being.individual_preferences import (
+                IndividualPreferences,
+                formation_threshold,
             )
+
+            # Rebuilt from the ledger rather than accumulated onto what is
+            # already stored. This runs on every commit now that the ledger is
+            # fed by the prune as well as by compaction, and accumulating would
+            # register the same position again on each one — a stance she took
+            # twice would read as fifty. The ledger is the history, so replaying
+            # it is the same answer computed the same way every time.
+            prefs = IndividualPreferences()
+            # Encounters past the point where strength saturates cannot change
+            # a stance or its weight, and a pinned entry can carry a large
+            # mention count.
+            ceiling = max(1, formation_threshold() * 3)
             for entry in getattr(ledger, "entries", []) or []:
                 if getattr(entry, "kind", "") != "position":
                     continue
@@ -1314,7 +1388,7 @@ class AuraState:
                 # counts it in `mentions`. Registering a single encounter per
                 # entry would mean a position she took ten times weighed the
                 # same as one she said once, and nothing would ever form.
-                for _ in range(max(1, int(getattr(entry, "mentions", 1) or 1))):
+                for _ in range(min(ceiling, max(1, int(getattr(entry, "mentions", 1) or 1)))):
                     prefs.encounter(subject, stance=stance)
             self.identity.self_preferences = prefs.to_dict()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -1488,6 +1562,11 @@ class AuraState:
         """
         working = list(getattr(self.cognition, "working_memory", []) or [])
         if len(working) <= trigger_threshold:
+            # The ledger is fed by the salience prune as well as by the fold
+            # below, and the prune holds working memory at exactly the bound
+            # this waits to be crossed. Her own positions accumulate here or
+            # they never accumulate at all.
+            self._form_preferences_from_the_ledger()
             self._refresh_cognitive_health()
             return False
 

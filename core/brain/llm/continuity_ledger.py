@@ -161,6 +161,21 @@ _POSITION = re.compile(
     r"i see myself|i don'?t think|i disagree|i'm not)\b",
     re.IGNORECASE,
 )
+
+#: The epistemic opener a position is announced with, where it leads the
+#: sentence. What follows it is the position itself, and a reader of the
+#: stance has to see past the announcement: "I think I really like slow music"
+#: is a liking with "I think" in front of it.
+#:
+#: Exported because `core/state/aura_state.py` strips it before reading the
+#: polarity of a position. Both patterns are anchored, so a sentence that opens
+#: with one cannot also open with the other, and every position entry in the
+#: ledger read as polarity-unknown: her own preferences could not form at all.
+POSITION_OPENER = re.compile(
+    r"^\s*(?:i think|i believe|in my view|my position is|my position is that|"
+    r"i'?d argue|i would argue)\b[,:]?\s*(?:that\s+)?",
+    re.IGNORECASE,
+)
 _COMMITMENT = re.compile(
     r"\b(i'?ll|i will|let me|i'?m going to|i promise|next step|i'?ll remember)\b",
     re.IGNORECASE,
