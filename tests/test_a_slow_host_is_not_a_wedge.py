@@ -70,3 +70,47 @@ def test_the_live_mind_activation_is_bounded_by_its_progress():
 
     runtime = LiveMindRuntime()
     assert runtime.materialized() == ""
+
+
+@pytest.mark.asyncio
+async def test_a_stage_working_through_synchronous_steps_outlives_the_budget():
+    """The kernel stage: organ after organ, synchronous on the loop thread,
+    106s on a loaded host against a 15s wall budget."""
+    import time
+
+    from core.runtime.progress_bound import await_while_the_task_moves
+
+    organs: list[str] = []
+
+    async def kernel_like():
+        for organ in ("llm", "vision", "memory", "affect", "will", "mesh"):
+            time.sleep(0.12)  # synchronous work on the loop thread
+            organs.append(organ)
+            await asyncio.sleep(0)
+        return "kernel ready"
+
+    # 0.72s of blocking work against a 0.3s stall budget.
+    result = await await_while_the_task_moves(kernel_like(), stall_s=0.3, name="kernel")
+    assert result == "kernel ready"
+    assert len(organs) == 6
+
+
+@pytest.mark.asyncio
+async def test_a_stage_awaiting_something_that_never_resolves_is_a_wedge():
+    from core.runtime.progress_bound import await_while_the_task_moves
+
+    never = asyncio.get_running_loop().create_future()
+
+    async def wedged():
+        await asyncio.sleep(0.05)
+        await never
+        return "never"
+
+    with pytest.raises(TimeoutError, match=r"boot stage x sat on one await"):
+        await await_while_the_task_moves(wedged(), stall_s=0.3, name="boot stage x")
+
+
+def test_the_boot_stages_are_bounded_by_their_motion():
+    source = (ROOT / "core/ops/resilient_boot.py").read_text(encoding="utf-8")
+    assert "await_while_the_task_moves(\n                        stage_fn(), stall_s=timeout" in source
+    assert "asyncio.wait_for(stage_fn()" not in source

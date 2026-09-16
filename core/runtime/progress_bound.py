@@ -20,7 +20,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 
-__all__ = ["await_while_it_progresses"]
+__all__ = ["await_while_it_progresses", "await_while_the_task_moves", "innermost_await"]
 
 
 async def await_while_it_progresses[T](
@@ -57,4 +57,71 @@ async def await_while_it_progresses[T](
             task.cancel()
             raise TimeoutError(
                 f"{name} made no progress for {now - last_at:.1f}s (last progress: {last!r})"
+            )
+
+
+def innermost_await(task: asyncio.Task[object]) -> tuple[object, ...]:
+    """Where a task is right now: the innermost coroutine it is inside and its line.
+
+    Walks the ``cr_await`` chain from the task's coroutine. A coroutine that
+    is running, or that has moved on to a different line or a different
+    awaitable, gives a different key. Cheap enough to read every period.
+    """
+    coro: object = task.get_coro()
+    key: list[object] = []
+    depth = 0
+    while depth < 64:
+        depth += 1
+        frame = getattr(coro, "cr_frame", None) or getattr(coro, "gi_frame", None)
+        if frame is None:
+            key.append(id(coro))
+            break
+        key.append((id(coro), frame.f_lineno))
+        nxt = getattr(coro, "cr_await", None) or getattr(coro, "gi_yieldfrom", None)
+        if nxt is None:
+            break
+        coro = nxt
+    return tuple(key)
+
+
+async def await_while_the_task_moves[T](
+    awaitable: Awaitable[T],
+    *,
+    stall_s: float,
+    name: str,
+) -> T:
+    """Await a stage; give up only when it has sat on one await for ``stall_s``.
+
+    The stage's own position is its progress: the innermost coroutine and
+    line it is at. A stage that is running through synchronous work on the
+    loop thread moves between the waiter's looks; one that is awaiting
+    something which never resolves does not.
+
+    Only time the waiter could observe counts toward the stall. When the
+    stage blocks the loop synchronously for a long call, the waiter cannot
+    run, and a single late wake is one look, not a verdict about everything
+    that happened while it could not look.
+    """
+    task = asyncio.ensure_future(awaitable)
+    stall_s = max(0.0, float(stall_s))
+    period = max(0.05, min(1.0, stall_s / 10.0)) if stall_s else 1.0
+    last = innermost_await(task)
+    still_for = 0.0
+    last_wake = time.monotonic()
+    while True:
+        done, _pending = await asyncio.wait({task}, timeout=period)
+        if done:
+            return task.result()
+        now = time.monotonic()
+        observed = min(now - last_wake, 2.0 * period)
+        last_wake = now
+        seen = innermost_await(task)
+        if seen != last:
+            last, still_for = seen, 0.0
+            continue
+        still_for += observed
+        if still_for >= stall_s:
+            task.cancel()
+            raise TimeoutError(
+                f"{name} sat on one await for {still_for:.1f}s of observed time"
             )
