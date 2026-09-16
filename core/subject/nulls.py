@@ -32,6 +32,7 @@ over the same horizon, so the graph measures get a null too.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -425,7 +426,33 @@ def predicted_synergy(system: ToySystem, *, of: str = "change") -> dict[tuple[st
 def _reference(
     widths: dict[str, int], rng: np.random.Generator, strength: float, noise: float, seed: int
 ) -> LinearReference:
-    """The reference wiring, solved into the shape the lines are built to read."""
+    """The reference wiring, solved into the shape the lines are built to read.
+
+    Solved once per set of settings and copied after that. The solve is two
+    dozen Lyapunov solves and costs most of a second, and a run asks for the
+    reference a dozen times: eight draws for its irreducibility row, one for
+    the graph, one for closure and one for the rest of the suite. The copy is
+    what callers get, because they set gains on it.
+    """
+    key = (seed, strength, noise, tuple(sorted(widths.items())))
+    built = _REFERENCES.get(key)
+    if built is None:
+        built = _solve_reference(widths, rng, strength, noise, seed)
+        if len(_REFERENCES) >= _REFERENCE_CACHE:
+            _REFERENCES.pop(next(iter(_REFERENCES)))
+        _REFERENCES[key] = built
+    return deepcopy(built)
+
+
+#: Solved references, by their settings. Small: a run uses one set of settings
+#: and a sweep over seeds is what fills it.
+_REFERENCES: dict[tuple, LinearReference] = {}
+_REFERENCE_CACHE: int = 32
+
+
+def _solve_reference(
+    widths: dict[str, int], rng: np.random.Generator, strength: float, noise: float, seed: int
+) -> LinearReference:
     from core.subject.synergy import TRIPLES
 
     decay = {key: rng.uniform(0.3, 0.7, size=width) for key, width in widths.items()}
