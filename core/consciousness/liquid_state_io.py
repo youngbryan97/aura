@@ -233,8 +233,16 @@ class _KeepsItsStateOnDisk:
 
     def _state_snapshot_locked(self) -> dict[str, Any]:
         """Build the snapshot dict; caller must hold sync_lock."""
-        x = np.nan_to_num(self.x.copy(), nan=0.0, posinf=1.0, neginf=-1.0)
-        v = np.nan_to_num(self.v.copy(), nan=0.0, posinf=0.0, neginf=0.0)
+        # nan_to_num is eight small ufunc calls per array, each a GIL round
+        # trip against the substrate and mesh threads; a 5.1s loop stall on
+        # 2026-09-16 was caught inside its isposinf. A finite state — the
+        # ordinary case — costs one call to confirm and one to copy.
+        x = self.x.copy()
+        if not np.isfinite(x).all():
+            x = np.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
+        v = self.v.copy()
+        if not np.isfinite(v).all():
+            v = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
         phi = self._current_phi if np.isfinite(self._current_phi) else 0.0
         last_update = float(self.last_update or 0.0)
         update_rate = float(self.current_update_rate or self.config.update_rate or 0.0)

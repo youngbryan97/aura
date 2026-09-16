@@ -552,7 +552,9 @@ class SandboxTester:
             
             # Copy relevant files to sandbox
             try:
-                sandbox_ok = self._setup_sandbox(temp_path, fix)
+                # Copies a source directory into the sandbox; on the loop it
+                # was a 5.7s stall (dump, 2026-09-15 16:05).
+                sandbox_ok = await asyncio.to_thread(self._setup_sandbox, temp_path, fix)
                 if not sandbox_ok:
                     return False, {"error": "Sandbox setup failed"}
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:

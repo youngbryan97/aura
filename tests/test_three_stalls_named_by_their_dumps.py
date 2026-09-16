@@ -252,3 +252,33 @@ def test_two_threads_sampling_cpu_together_do_not_read_zero(monkeypatch):
         w.join()
     assert readings == [42.0] * 4
     assert len(calls) == 1  # one sampler; the rest read its value
+
+
+def test_four_more_stalls_are_off_the_loop():
+    """Dumps of 2026-09-15/16: the experience stream's autosave fsync from
+    the existence loop (5.1s), the repair sandbox copy from the repair
+    executor (5.7s), a source read inside the salvaged initialiser's imports
+    (5.7s), and nan_to_num under the substrate lock (5.1s)."""
+    stream = (ROOT / "core/consciousness/stream_of_being.py").read_text(encoding="utf-8")
+    assert "await asyncio.to_thread(\n                        self._continuous_experience.append_now_moment," in stream
+    repair = (ROOT / "core/self_modification/code_repair.py").read_text(encoding="utf-8")
+    assert "await asyncio.to_thread(self._setup_sandbox, temp_path, fix)" in repair
+    boot = (ROOT / "core/orchestrator/mixins/boot/boot_autonomy.py").read_text(encoding="utf-8")
+    assert "await self._import_salvaged_modules_off_loop()" in boot
+    io = (ROOT / "core/consciousness/liquid_state_io.py").read_text(encoding="utf-8")
+    body = io[io.index("def _state_snapshot_locked") :]
+    assert "if not np.isfinite(x).all():" in body
+
+
+def test_the_salvaged_module_list_matches_the_initialiser():
+    """The preload list is the initialiser's own imports; a new import that
+    is not listed loads on the loop again."""
+    import re
+
+    from core.orchestrator.mixins.boot.boot_autonomy import BootAutonomyMixin
+
+    source = (ROOT / "core/orchestrator/mixins/boot/boot_autonomy.py").read_text(encoding="utf-8")
+    start = source.index("    async def _init_salvaged_subsystems(self):")
+    end = source.index("\n    async def ", start + 10)
+    imported = set(re.findall(r"^\s*from (core\.[a-z_.]+) import", source[start:end], re.M))
+    assert imported == set(BootAutonomyMixin._SALVAGED_SUBSYSTEM_MODULES)

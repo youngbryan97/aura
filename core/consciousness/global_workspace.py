@@ -11,6 +11,7 @@ import random
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Iterator
+from contextlib import suppress
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast
@@ -854,12 +855,12 @@ class GlobalWorkspace:
             return []
 
         timeout = max(0.01, float(_INHIBITION_GATE_TIMEOUT_FLAG.value()))
-        checks = [
-            asyncio.wait_for(manager.is_inhibited(candidate.source), timeout=timeout)
-            for candidate in candidates
-        ]
+        questions = [manager.is_inhibited(candidate.source) for candidate in candidates]
+        checks = [asyncio.wait_for(question, timeout=timeout) for question in questions]
+        gathered = False
         try:
             results = await asyncio.gather(*checks, return_exceptions=True)
+            gathered = True
         except asyncio.CancelledError as exc:
             for candidate in candidates:
                 await asyncio.shield(
@@ -873,6 +874,20 @@ class GlobalWorkspace:
             self._candidates = []
             self._global_inhibition = None
             raise
+        finally:
+            if not gathered:
+                # A check that never ran is a coroutine holding another one.
+                # `gather` wraps them the moment it is called, so the only way
+                # here is that it never was: a loop closing under the gate
+                # during shutdown raised before the wrapping, and the live log
+                # carried seventeen "coroutine is_inhibited was never awaited"
+                # warnings from exactly that. Closing them says so once, in the
+                # place that made them.
+                # Both layers: a `wait_for` that never started holds its
+                # question as an argument and closing it does not reach it.
+                for coroutine in (*checks, *questions):
+                    with suppress(RuntimeError):
+                        coroutine.close()
 
         accepted: list[CognitiveCandidate] = []
         gate_fault = False

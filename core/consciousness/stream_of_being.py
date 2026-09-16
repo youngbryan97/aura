@@ -1282,7 +1282,12 @@ class StreamOfBeing:
             self._thread.add(moment)
             if self._continuous_experience is not None:
                 try:
-                    self._continuous_experience.append_now_moment(
+                    # The append autosaves: a journal append and a snapshot
+                    # write, each fsynced. Called inline it was a 5.1s loop
+                    # stall (dump, 2026-09-15 16:09). The stream's own lock
+                    # makes the append safe from a thread.
+                    await asyncio.to_thread(
+                        self._continuous_experience.append_now_moment,
                         moment,
                         objective=moment.attentional_focus,
                         privacy_tier="standard",

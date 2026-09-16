@@ -1117,3 +1117,64 @@ That was one cut, read on a recording whose result was already known, and it
 changes nothing. The v1 line stays failed. A version that corrects the
 estimator may read only recordings from which no number under it has been read,
 which excludes this one, and no correction has yet survived its known answers.
+
+Four corrections have now been tried and none survives. The known answers are a
+ring of six domains at 1,500 rows, with one, two or four columns of noise, of
+random walk or of a clock added to every domain, and the systems the answer is
+zero for: ten independent domains, the same ring with its rows shuffled, and
+each of those with two random walks per domain.
+
+| reading | ring | +4 noise | +4 walk | +4 clock | independent | shuffled | shuffled +2 walk |
+|---|---|---|---|---|---|---|---|
+| over the cut model's loss | 0.099 | 0.022 | 0.051 | 0.107 | -0.003 | -0.001 | -0.006 |
+| over what the intact model explains | 0.126 | 0.030 | 0.157 | 0.137 | -0.008 | -0.002 | -0.009 |
+| that, and sources in the directions anything predicts | 0.126 | 0.050 | 0.316 | 0.130 | -0.008 | -0.002 | -0.006 |
+
+Scoring only the target components the intact model predicts on its validation
+rows changed nothing at all: four noise columns per domain took a coupled toy
+from 0.218 to 0.023 and the rule read 0.023. The dilution happens before the
+loss, when each domain is reduced to components: every column is standardised
+first, so a column nothing predicts weighs as much as a column the rest of the
+system drives, and four of them take the components over.
+
+Choosing each domain's *target* directions by what the whole previous state
+predicts, fitted on training rows alone, read +0.021 with a lower bound of
++0.015 on a recording whose rows had been shuffled, where the answer is zero. A
+basis chosen for predictability finds the drift in a random walk.
+
+The last two rows of the table are safe on every system the answer is zero for,
+and neither is a correction. Over what the intact model explains recovers less
+than half of what four noise columns cost, and it reads 0.157 where the truth is
+0.126 when the added columns are random walks. Reading the sources in the
+directions anything predicts reads 0.316 there. A line that a drifting column
+can inflate by two and a half times is not a line, and the columns her
+recordings carry drift.
+
+What the table does settle is that a clock costs nothing under any reading. The
+cost is unpredictable variance, not drift.
+
+### The interaction check reads a gain where there is no interaction
+
+Synergy's second half is a held-out ridge given the products of the sources'
+components against one without them, judged at the mean of its forward folds
+less 1.96 standard errors. The wider model's extra columns carry their own
+penalty, chosen on the validation rows, so on a target the narrow model already
+predicts well the wider one can win out of sample with no interaction to find.
+
+Measured on the rebuilt linear reference with its products removed, which is a
+system with no interaction in it at all: a positive lower bound on 21 of 48
+triples over twelve seeds, at a median gain of 0.006. The same reference with
+its products reads a median gain of 0.176 and a positive bound on 48 of 48.
+
+So the line separates the two by size, not by sign, and a gain of a few
+thousandths is not evidence of an interaction. A bound with a null of its own
+would settle it; that would be a stricter line than v3's and has not been
+written.
+
+Her own counters are not the dilution either. On the 40-round seed-7 recording
+made with the declared host and the affect fix, 26 of its 280 columns only ever
+move one way — ticks, broadcasts, loop cycles, belief and snapshot counts. The
+run scores 0.0701 with a lower bound of +0.0142 as recorded, -0.0316 with every
+one of those columns entered as its change, and +0.0338 with them left out. A
+running total is read here: a belief version gates a phase every twentieth
+turn, and taking the level away takes the gate with it.
