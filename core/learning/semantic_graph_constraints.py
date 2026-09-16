@@ -33,7 +33,7 @@ def _project_direction(direction, normals):
     return direction + a.T @ result.x
 
 
-def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=100,
+def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
                           required_margin=.1, learning_rate=.001, max_active=32):
     """Search for all retained inequalities; retain every already-positive margin."""
     if (not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
@@ -43,9 +43,7 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
             or any(not np.isfinite(row.weight) or row.weight <= 0
                    or not np.isfinite(row.fixed_margin) for row in contrasts)):
         raise ValueError("invalid semantic graph constraint fit")
-    initial = tuple(np.asarray(value, dtype=np.float64) for value in (
-        head.query_projection, head.definition_projection,
-        *(value for part in operation_head.heads for value in (part.weight, part.bias))))
+    initial = tuple(np.asarray(value, dtype=np.float64) for value in initial)
     shapes = tuple(value.shape for value in initial)
     ends = np.cumsum([value.size for value in initial])
 
@@ -116,11 +114,7 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
     if np.all(margins >= required_margin):
         status = "retained_constraints_satisfied"
     values = unpack(flat)
-    fitted = replace(head, query_projection=values[0], definition_projection=values[1])
-    operations = replace(operation_head, heads=tuple(replace(part,
-        weight=values[2 + 2 * index], bias=values[3 + 2 * index])
-        for index, part in enumerate(operation_head.heads)))
-    return fitted, operations, {
+    return values, {
         "objective": "retained_semantic_inequalities_v1", "status": status,
         "pairs": len(contrasts), "required_margin": required_margin,
         "initial_margins": before.tolist(), "stored_margins": margins.tolist(),
@@ -132,6 +126,40 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
     }
+
+
+def _model_parameters(head, operation_head):
+    return (head.query_projection, head.definition_projection,
+            *(value for part in operation_head.heads for value in (part.weight, part.bias)))
+
+
+def _fitted_heads(head, operation_head, values):
+    return (replace(head, query_projection=values[0], definition_projection=values[1]),
+            replace(operation_head, heads=tuple(replace(part,
+                weight=values[2 + 2 * index], bias=values[3 + 2 * index])
+                for index, part in enumerate(operation_head.heads))))
+
+
+def fit_graph_constraints(head, operation_head, contrasts, **options):
+    values, receipt = _fit_graph_parameters(_model_parameters(head, operation_head), contrasts, **options)
+    return (*_fitted_heads(head, operation_head, values), receipt)
+
+
+def fit_complete_graph_constraints(model, contrasts, **options):
+    from core.learning.semantic_argument_graph_learning import argument_parameters
+
+    base = _model_parameters(model.definition_relation_head, model.operation_head)
+    values, receipt = _fit_graph_parameters((*base, *argument_parameters(model)), contrasts, **options)
+    relation, operation = _fitted_heads(model.definition_relation_head, model.operation_head, values)
+    offset = len(base)
+    roles = tuple(replace(head, weight=values[offset + 4 * index],
+                          bias=float(values[offset + 4 * index + 1]))
+                  for index, head in enumerate(model.argument_role_heads))
+    proposals = tuple(replace(head, weight=values[offset + 4 * index + 2],
+                              bias=float(values[offset + 4 * index + 3]))
+                      for index, head in enumerate(model.argument_proposal_heads))
+    return model._with_coefficients(definition_relation_head=relation, operation_head=operation,
+        argument_role_heads=roles, argument_proposal_heads=proposals), receipt
 
 
 @invariant("learning.graph_constraint_direction_respects_protected_halfspaces", scope="learning",

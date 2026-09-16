@@ -51,6 +51,7 @@ class RelationGraphContrast:
     weight: float = 1.
     positive_operations: tuple = ()
     negative_operations: tuple = ()
+    argument_terms: tuple = ()
 
 
 def contrast_from_search(result, head, *, scale, weight=1.):
@@ -79,10 +80,15 @@ def graph_margin_gradient(parameters, row, *, scale=1.):
             gradients[1] += sign * scale * dgrad
     for sign, choices in ((1., row.positive_operations), (-1., row.negative_operations)):
         for bank, index in choices:
-            value, derivatives = bank.score_gradient(index, operations)
+            value, derivatives = bank.score_gradient(index, operations[:2 * len(bank.features)])
             margin += sign * value
-            for gradient, derivative in zip(gradients[2:], derivatives, strict=True):
+            for gradient, derivative in zip(gradients[2:2 + len(derivatives)], derivatives, strict=True):
                 gradient += sign * derivative
+    for sign, term in row.argument_terms:
+        value, weight, bias = term.score_gradient(parameters)
+        margin += sign * value
+        gradients[term.parameter_index] += sign * weight
+        gradients[term.parameter_index + 1] += sign * bias
     return float(margin), tuple(gradients)
 
 
@@ -91,9 +97,10 @@ def graph_margin(parameters, row, *, scale=1.):
     query, definition, *operations = parameters
     return float(row.fixed_margin + sum(sign * (
         scale * sum(bank.score(index, query, definition) for bank, index in relations)
-        + sum(bank.score(index, operations) for bank, index in op_choices))
+        + sum(bank.score(index, operations[:2 * len(bank.features)]) for bank, index in op_choices))
         for sign, relations, op_choices in (
-            (1., row.positive, row.positive_operations), (-1., row.negative, row.negative_operations))))
+            (1., row.positive, row.positive_operations), (-1., row.negative, row.negative_operations)))
+        + sum(sign * term.score_gradient(parameters)[0] for sign, term in row.argument_terms))
 
 
 def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,

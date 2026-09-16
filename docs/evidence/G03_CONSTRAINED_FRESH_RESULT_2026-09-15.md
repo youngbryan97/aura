@@ -6,6 +6,10 @@ the constrained refit scored 458. There were seven gains and 21 regressions.
 The existing zero-regression selection rule retained the incumbent. No serving
 configuration changed and G03 remains open.
 
+The candidate also enabled joint operation/argument decoding before fitting.
+This paired result measures that combined change. A policy-only comparison is
+needed to attribute regressions separately to decoding and learned coefficients.
+
 ## Constraint boundary
 
 The fit retained 9,337 witnessed training inequalities. None of the initially
@@ -31,3 +35,25 @@ an achieved score. Improving selection alone cannot close this run's gap.
 - Incumbent receipt: `c3817f75a0b9e8b72c601fbbd97c0494dca423bcb30eac9683b871831701d15a`
 - `validation.json` contains the complete paired result and selection.
 - `candidate.json` retains the constraints, witnesses, and optimization trace.
+
+## Source-only gradient replay
+
+The worst retained training witness is
+`a766ccdc0d8918d0e21c21403e999ffd0b0ed6563896b8d085072bc93cb7f731`.
+Replaying it gave margin -19.361361622810364, zero relation gradients,
+operation gradient norms below 2.5e-8, and fixed margin
+-19.361361622810367. The adjustable heads could not meaningfully change its
+argument-mention preference.
+
+The opt-in `--learn-argument-heads` extension differentiates the existing role
+and proposal heads using exactly the chart's conditional-log-odds or sigmoid
+score. The same witness retains its original total score, but its fixed
+component becomes -2.0064874455272275e-6, with argument weight gradient norms
+0.62442058548023 and 0.5463680122952014. This is a repaired training connection,
+not a new validation result. Pointer and other fixed terms are still fixed.
+
+Forty-nine focused tests passed, including finite differences, runtime score
+replay, retained constraints, source-only fitting, and exported-model reload.
+The mode remains opt-in and has no serving authority.
+Smoke passed 164 tests with one skipped. Lint, compile, layering, governance,
+writing and documentation-drift checks passed.

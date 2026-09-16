@@ -15,7 +15,7 @@ from core.learning.semantic_operation_graph_learning import (
 from core.learning.semantic_relation_graph_learning import RelationGraphContrast, fit_joint_graph_contrasts
 
 
-def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20.):
+def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_limit_s=20., learn_arguments=False):
     """Score a supplied graph with the runtime's latent mention and definition choices."""
     from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
 
@@ -47,7 +47,9 @@ def score_annotated_graph(model, item, instructions, input_spans, *, solve_time_
     if result is None:
         return None
     score = result[0][0] + sum(node.score for node in nodes) - model.operation_length_penalty * len(nodes)
-    return {"score": score, "argument_score": result[0][0], "relations": evidence[0],
+    from core.learning.semantic_argument_graph_learning import argument_graph_evidence
+    terms = argument_graph_evidence(model, item.hidden_states, nodes, result[0][2]) if learn_arguments else ()
+    return {"score": score, "argument_score": result[0][0], "relations": evidence[0], "argument_terms": terms,
             "operations": operations, "program": argument_graph_program(nodes, arguments, n_inputs=count)}
 
 
@@ -58,16 +60,21 @@ def joint_graph_contrast(model, positive, negative, *, weight=1.):
     operations = tuple(value.astype(np.float64) for head in model.operation_head.heads
                        for value in (head.weight, head.bias))
     variable = 0.
+    from core.learning.semantic_argument_graph_learning import argument_parameters
+    parameters = (*projections, *operations, *argument_parameters(model))
+    terms = tuple((sign, term) for sign, graph in ((1., positive), (-1., negative))
+                  for term in graph.get("argument_terms", ()))
+    variable += sum(sign * term.score_gradient(parameters)[0] for sign, term in terms)
     for sign, graph in ((1., positive), (-1., negative)):
         variable += sign * (model.definition_relation_scale * sum(
             bank.score_gradient(index, *projections)[0] for bank, index in graph["relations"])
             + sum(bank.score_gradient(index, operations)[0] for bank, index in graph["operations"]))
     return RelationGraphContrast(positive["relations"], negative["relations"],
         positive["score"] - negative["score"] - variable, weight,
-        positive["operations"], negative["operations"])
+        positive["operations"], negative["operations"], terms)
 
 
-def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20.):
+def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20., learn_arguments=False):
     """Interpret without annotations, then independently compare to the source target."""
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
 
@@ -91,9 +98,9 @@ def mine_runtime_graph_contrast(model, item, *, weight=1., solve_time_limit_s=20
         return None, {**record, "status": comparison["status"]}
     try:
         negative = score_annotated_graph(model, item, outcome.ir.instructions, outcome.ir.input_spans,
-                                        solve_time_limit_s=solve_time_limit_s)
+                                        solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
         positive = score_annotated_graph(model, item, item.ir.instructions, outcome.ir.input_spans,
-                                        solve_time_limit_s=solve_time_limit_s)
+                                        solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
     except ArgumentOptimizationIncompleteError as exc:
         return None, {**record, "status": "graph_score_incomplete", "reason": str(exc)}
     if positive is None or negative is None:
@@ -126,7 +133,7 @@ def source_operation_supervision(model, training):
         np.array([label for _, label in evidence]), np.array(weights))
 
 
-def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, solve_time_limit_s=20.):
+def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, solve_time_limit_s=20., learn_arguments=False):
     """Keep a witnessed binding competitor even when the source already decodes correctly."""
     from core.learning.semantic_graph_counterexamples import find_graph_counterexample
     from core.learning.semantic_relation_graph_learning import contrast_from_search
@@ -152,6 +159,16 @@ def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, sol
         return None, record
     contrast = contrast_from_search(result, model.definition_relation_head,
                                    scale=model.definition_relation_scale, weight=weight)
+    if learn_arguments:
+        from core.learning.semantic_argument_graph_learning import argument_graph_evidence, argument_parameters
+        parameters = (model.definition_relation_head.query_projection,
+                      model.definition_relation_head.definition_projection,
+                      *(v for h in model.operation_head.heads for v in (h.weight, h.bias)),
+                      *argument_parameters(model))
+        terms = tuple((sign, term) for sign, graph in ((1., result.positive), (-1., result.negative))
+                      for term in argument_graph_evidence(model, item.hidden_states, nodes, graph[0][2]))
+        contrast = replace(contrast, argument_terms=terms, fixed_margin=contrast.fixed_margin
+                           - sum(sign * term.score_gradient(parameters)[0] for sign, term in terms))
     record["initial_margin"] = result.positive[0][0] - result.negative[0][0]
     return contrast, record
 
@@ -170,7 +187,7 @@ def source_operation_constraints(model, supervision, *, weight=1.):
 
 def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     solve_time_limit_s=20., progress=None, source_weight=1.,
-                                    constraint_learning=False):
+                                    constraint_learning=False, learn_arguments=False):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -178,6 +195,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
 
     if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
+    if type(learn_arguments) is not bool or (learn_arguments and not constraint_learning):
+        raise ValueError("argument graph learning requires retained constraints")
     training, validation = graph_refit_source_splits(model, examples)
     if not np.isfinite(source_weight) or source_weight < 0:
         raise ValueError('invalid source operation retention weight')
@@ -194,14 +213,14 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         records, new_pairs = [], 0
         for index, item in enumerate(training):
             contrast, record = mine_runtime_graph_contrast(candidate, item,
-                weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s)
+                weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
             if contrast is not None:
                 record["retained_pair"] = len(retained)
                 retained.append(contrast)
                 new_pairs += 1
             if constraint_learning:
                 binding, binding_record = mine_source_binding_constraint(candidate, item,
-                    weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s)
+                    weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s, learn_arguments=learn_arguments)
                 record["binding_constraint"] = binding_record
                 if binding is not None:
                     binding_record["retained_pair"] = len(retained)
@@ -216,7 +235,11 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                             "pairs": len(retained), "coverage_complete": all(
                                 row["status"] == "equivalent" for row in records)}})
             break
-        if constraint_learning:
+        if learn_arguments:
+            from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
+            candidate, fit = fit_complete_graph_constraints(candidate, tuple(retained),
+                scale=candidate.definition_relation_scale, steps=steps)
+        elif constraint_learning:
             from core.learning.semantic_graph_constraints import fit_graph_constraints
             relation, operation, fit = fit_graph_constraints(candidate.definition_relation_head,
                 candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps)
@@ -224,7 +247,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
             relation, operation, fit = fit_joint_graph_contrasts(candidate.definition_relation_head,
                 candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps,
                 source_supervision=supervision, source_weight=source_weight)
-        candidate = candidate._with_coefficients(definition_relation_head=relation, operation_head=operation)
+        if not learn_arguments:
+            candidate = candidate._with_coefficients(definition_relation_head=relation, operation_head=operation)
         history.append({"records": records, "fit": fit})
         if progress:
             progress({"stage": "joint_graph_fit", "round": round_index + 1, "fit": fit})
@@ -240,6 +264,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "source_operation_weight": source_weight,
         "source_operations": len(supervision.labels) if supervision is not None else 0,
         "constraint_learning": constraint_learning,
+        "argument_heads_trainable": learn_arguments,
         "already_correct_binding_competitors_retained": constraint_learning,
     }
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})
