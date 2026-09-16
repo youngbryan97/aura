@@ -95,6 +95,52 @@ SUFFICIENCY_TOLERANCE: float = 0.05
 INVARIANCE_TOLERANCE: float = 0.25
 
 
+#: The stages a v25 run can be resumed from, in the order they happen. The
+#: carrier launch of 2026-09-15 spent three and a half hours on the baseline and
+#: the grain and was killed before it wrote anything.
+RESUMABLE_V25: tuple[str, ...] = ("baseline", "grain", "spectrum", "nulls")
+
+
+class _RecalledPeriphery:
+    """The periphery reading a resumed run reads back instead of retaking.
+
+    Closure is a gate: a run that cannot read the periphery refuses itself, so
+    a resume that skipped the recording would refuse a run whose recording was
+    taken perfectly well by the process before it.
+    """
+
+    def __init__(self, matrix: Any, names: tuple[str, ...]) -> None:
+        self._matrix = matrix
+        self._names = names
+
+    def matrix(self) -> tuple[Any, tuple[str, ...]]:
+        return self._matrix, self._names
+
+
+def _checkpoint_v25(run_dir: Path, stage: str, evidence: dict[str, Any]) -> None:
+    """Everything measured so far, named by the last stage that finished."""
+    (run_dir / "checkpoint.json").write_text(
+        json.dumps({"stage": stage, "evidence": evidence}, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _resume_v25(args: Any) -> dict[str, Any] | None:
+    """The checkpoint a resumed v25 run carries forward, or None."""
+    if not getattr(args, "resume", None):
+        return None
+    path = args.resume / "checkpoint.json"
+    if not path.exists():
+        raise SystemExit(f"refusing: {path} does not exist, so there is nothing to resume")
+    saved = json.loads(path.read_text())
+    stage = str(saved.get("stage", ""))
+    if stage not in RESUMABLE_V25:
+        raise SystemExit(
+            f"refusing: {path} names stage {stage!r}, which is not one of {RESUMABLE_V25}"
+        )
+    return saved
+
+
 def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
@@ -519,6 +565,13 @@ async def main() -> int:
     parser.add_argument("--turns", type=int, default=1, help="turns each arm runs past the fork")
     parser.add_argument("--cut-rounds", type=int, default=2, help="sequential allocation rounds over the cuts")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        help="a v25 run directory holding checkpoint.json. The stages it "
+        "already finished are read back rather than run again, and the "
+        "campaign fingerprint has to match",
+    )
     parser.add_argument("--quick", action="store_true", help="smallest run that exercises every stage")
     parser.add_argument(
         "--screen", type=int, default=0,
@@ -600,8 +653,12 @@ async def main() -> int:
 
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
-    run_dir = next_run_directory(args.out)
+    resumed = _resume_v25(args)
+    run_dir = args.resume if resumed is not None else next_run_directory(args.out)
     run_dir.mkdir(parents=True, exist_ok=True)
+    done_v25: tuple[str, ...] = (
+        RESUMABLE_V25[: RESUMABLE_V25.index(str(resumed["stage"])) + 1] if resumed else ()
+    )
     # Its own state root, before the organism is built. Sharing one with other
     # runs made every run start from what the ones before it had trained; see
     # core.subject.isolation.
@@ -619,6 +676,15 @@ async def main() -> int:
         support=support,
     )
     _log(f"v25 run {run_dir.name} on {fingerprint.get('commit', '?')[:12]}")
+    if resumed is not None:
+        earlier = dict(resumed["evidence"])
+        if earlier.get("campaign", {}).get("fingerprint") != fingerprint.get("fingerprint"):
+            raise SystemExit(
+                "refusing: the checkpoint was written by campaign "
+                f"{earlier.get('campaign', {}).get('fingerprint')} and this one is "
+                f"{fingerprint.get('fingerprint')} — two settings are two experiments"
+            )
+        _log(f"resuming after {resumed['stage']}: {', '.join(done_v25)} already measured")
     _log(f"building the offline organism in {run_dir}")
 
     runtime = build_runtime(run_dir, seed=args.seed)
@@ -640,65 +706,107 @@ async def main() -> int:
         "conditions_used": len(conditions),
         "conditions_available": len(CONDITIONS),
     }
+    if resumed is not None:
+        # The earlier process's evidence is the run. The clock, the scope and
+        # the campaign are taken again here because this process has its own;
+        # the measurements are not.
+        carried = dict(resumed["evidence"])
+        carried["campaign"] = fingerprint
+        carried["environment"] = evidence["environment"]
+        carried["clock_on_resume"] = clock
+        carried.setdefault("resumes", []).append(
+            {"from_stage": resumed["stage"], "at": time.time(), "commit": fingerprint.get("commit")}
+        )
+        evidence = carried
 
     try:
         failures_before = dict(getattr(runtime, "failures", {}) or {})
         # ── the baseline, which every scale is read against ────────────
-        _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
-        frames = []
-        # Straight into an array: a list of the dicts `read_periphery` returns
-        # costs 284 KB a frame, which is 21.5 GB at three hundred rounds.
-        periphery = PeripheryAccumulator()
-        for _ in range(args.rounds):
-            for condition in conditions:
-                for reading in await runtime.turn_once(condition):
-                    frames.append(reading)
-                    # Read once per frame, beside the frame. Closure compares
-                    # what the machine was carrying against what K did next, so
-                    # a single reading taken at the end would be one row against
-                    # a whole recording.
-                    periphery.note(read_periphery(runtime.kernel))
-        recording = build_recording(frames)
-        recording.save(run_dir)
-        scale = _pooled_scale(recording)
-        live_mask = scale > 1e-9
-        baseline_mean = recording.x.mean(axis=0)
-        slices = domain_slices()
-        evidence["recording"] = {
-            "frames": recording.frames,
-            "width": recording.width,
-            "live_columns": int(live_mask.sum()),
-            # A source that failed to read on every frame was never running,
-            # and its columns read 0.0 exactly as a quiet source would.
-            "never_read": sorted(
-                source
-                for source, row in (recording.misses or {}).items()
-                if row.get("share", 0.0) >= 1.0
-            ),
-        }
-        _log(f"  {recording.frames} frames, {int(live_mask.sum())} of {recording.width} columns move")
+        if "baseline" not in done_v25:
+            _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
+            frames = []
+            # Straight into an array: a list of the dicts `read_periphery` returns
+            # costs 284 KB a frame, which is 21.5 GB at three hundred rounds.
+            periphery = PeripheryAccumulator()
+            for _ in range(args.rounds):
+                for condition in conditions:
+                    for reading in await runtime.turn_once(condition):
+                        frames.append(reading)
+                        # Read once per frame, beside the frame. Closure compares
+                        # what the machine was carrying against what K did next, so
+                        # a single reading taken at the end would be one row against
+                        # a whole recording.
+                        periphery.note(read_periphery(runtime.kernel))
+            recording = build_recording(frames)
+            recording.save(run_dir)
+            scale = _pooled_scale(recording)
+            live_mask = scale > 1e-9
+            baseline_mean = recording.x.mean(axis=0)
+            slices = domain_slices()
+            evidence["recording"] = {
+                "frames": recording.frames,
+                "width": recording.width,
+                "live_columns": int(live_mask.sum()),
+                # A source that failed to read on every frame was never running,
+                # and its columns read 0.0 exactly as a quiet source would.
+                "never_read": sorted(
+                    source
+                    for source, row in (recording.misses or {}).items()
+                    if row.get("share", 0.0) >= 1.0
+                ),
+            }
+            _log(f"  {recording.frames} frames, {int(live_mask.sum())} of {recording.width} columns move")
 
-        # ── doses, so a displacement means the same thing everywhere ───
-        _log("dose matching each domain to one of its own standard deviations")
-        doses = await _dose_matched(
-            runtime, conditions, scale, slices,
-            domains=support, rounds=2 if args.quick else 4, seed=args.seed,
-        )
-        evidence["doses"] = {k: round(v, 5) for k, v in doses.items()}
-        _log("  " + ", ".join(f"{k}:{v:.3g}" for k, v in doses.items()))
+            # ── doses, so a displacement means the same thing everywhere ───
+            _log("dose matching each domain to one of its own standard deviations")
+            doses = await _dose_matched(
+                runtime, conditions, scale, slices,
+                domains=support, rounds=2 if args.quick else 4, seed=args.seed,
+            )
+            evidence["doses"] = {k: round(v, 5) for k, v in doses.items()}
+            _log("  " + ", ".join(f"{k}:{v:.3g}" for k, v in doses.items()))
+            # The periphery reading goes with the recording: closure is a gate,
+            # and a resumed run that could not read it would refuse itself.
+            _matrix, _names = periphery.matrix()
+            np.savez_compressed(
+                run_dir / "periphery.npz", matrix=_matrix, names=np.asarray(_names, dtype=object)
+            )
+            evidence["doses_for_resume"] = dict(doses)
+            _checkpoint_v25(run_dir, "baseline", evidence)
+        else:
+            from core.subject.recording import load_recording
+
+            recording = load_recording(run_dir)
+            scale = _pooled_scale(recording)
+            live_mask = scale > 1e-9
+            baseline_mean = recording.x.mean(axis=0)
+            slices = domain_slices()
+            doses = {k: float(v) for k, v in (evidence.get("doses_for_resume") or {}).items()}
+            _blob = np.load(run_dir / "periphery.npz", allow_pickle=True)
+            periphery = _RecalledPeriphery(_blob["matrix"], tuple(_blob["names"].tolist()))
+            _log(
+                f"recalled {recording.frames} frames, {int(live_mask.sum())} live columns "
+                f"and {len(doses)} doses"
+            )
 
         # ── the anchor bank ────────────────────────────────────────────
-        _log(f"collecting {args.anchors} anchors")
-        anchors = await collect_anchor_bank(
-            runtime, conditions,
-            rounds=max(1, math.ceil(args.anchors / max(1, len(conditions)))),
-            history_turns=args.history_turns,
-            every=1,
-        )
-        anchors = anchors[: args.anchors]
-        _log(f"  {len(anchors)} anchors, history {args.history_turns} turns")
-        if len(anchors) < 2:
-            raise RuntimeError("fewer than two anchors; nothing can be forked")
+        # The anchors are live forkable states, so they are collected by
+        # whichever process needs them rather than read off disk. Nothing after
+        # the nulls forks anything, so a run resumed past them does not pay for
+        # a bank it will not use.
+        anchors: list[Any] = []
+        if "nulls" not in done_v25:
+            _log(f"collecting {args.anchors} anchors")
+            anchors = await collect_anchor_bank(
+                runtime, conditions,
+                rounds=max(1, math.ceil(args.anchors / max(1, len(conditions)))),
+                history_turns=args.history_turns,
+                every=1,
+            )
+            anchors = anchors[: args.anchors]
+            _log(f"  {len(anchors)} anchors, history {args.history_turns} turns")
+            if len(anchors) < 2:
+                raise RuntimeError("fewer than two anchors; nothing can be forked")
 
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
@@ -730,125 +838,149 @@ async def main() -> int:
             return 0
 
         # ── the grain ──────────────────────────────────────────────────
-        if args.skip_grain:
-            evidence["canonical_grain"] = {"skipped": True}
-        else:
-            _log("learning the grain, then attacking it")
-            grain_lags = (1, 8) if args.quick else (1, 8, 33)
-            grain = await _learn_grain(
-                runtime, anchors, conditions, doses,
-                baseline_mean=baseline_mean, baseline_scale=scale,
-                live_mask=live_mask, frame_seconds=frame_seconds,
-                lags=grain_lags, seed=args.seed,
-                history_turns=args.history_turns,
-            )
-            grain.pop("_grain", None)
-            evidence["canonical_grain"] = grain
-            _log(
-                f"  rank {grain['predictive_rank']}, held-out sufficient: "
-                f"{grain['heldout_intervention_sufficient']}"
-            )
+        if "grain" not in done_v25:
+            if args.skip_grain:
+                evidence["canonical_grain"] = {"skipped": True}
+            else:
+                _log("learning the grain, then attacking it")
+                grain_lags = (1, 8) if args.quick else (1, 8, 33)
+                grain = await _learn_grain(
+                    runtime, anchors, conditions, doses,
+                    baseline_mean=baseline_mean, baseline_scale=scale,
+                    live_mask=live_mask, frame_seconds=frame_seconds,
+                    lags=grain_lags, seed=args.seed,
+                    history_turns=args.history_turns,
+                )
+                grain.pop("_grain", None)
+                evidence["canonical_grain"] = grain
+                _log(
+                    f"  rank {grain['predictive_rank']}, held-out sufficient: "
+                    f"{grain['heldout_intervention_sufficient']}"
+                )
+            _checkpoint_v25(run_dir, "grain", evidence)
 
         # ── the spectrum over horizons ─────────────────────────────────
-        lags = (1, 8) if args.quick else LAGS
-        if args.from_shards:
-            from core.subject.v25_cut import merge_shard_payloads
+        if "spectrum" not in done_v25:
+            lags = (1, 8) if args.quick else LAGS
+            if args.from_shards:
+                from core.subject.v25_cut import merge_shard_payloads
 
-            _log(f"reading the cut sweep from shard files in {args.from_shards}")
-            payloads = await _await_shards(args.from_shards, args.shard_wait_seconds)
-            reports, gate = merge_shard_payloads(
-                payloads,
-                reference_anchors=np.asarray([a.current for a in anchors], dtype=np.float64),
-                cuts_in_full=len(bipartitions(tuple(support))),
-                lags=lags,
-                frame_seconds=frame_seconds,
-                support=support,
-                conditions=[getattr(c, "name", str(c)) for c in conditions],
-                seed=args.seed,
-            )
-            evidence["shards"] = gate
-            _log(f"  {gate['shards']} shards merged; anchors exchangeable: {gate['exchangeable']}")
-            spectrum, cut_detail = {}, {}
-            for lag in sorted(reports):
-                report = reports[lag]
-                tau = float(lag) * float(frame_seconds)
-                weakest = report.weakest
-                spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
-                cut_detail[f"lag_{lag}"] = report.as_dict()
-                _log(
-                    f"  lag {lag:>3} ({tau:.4f}s): weakest {report.as_dict()['weakest_cut']} "
-                    f"lower bound {spectrum[tau]:.5f}, {report.as_dict()['cuts_decided']}"
-                    f"/{report.as_dict()['cuts_tested']} decided"
+                _log(f"reading the cut sweep from shard files in {args.from_shards}")
+                payloads = await _await_shards(args.from_shards, args.shard_wait_seconds)
+                reports, gate = merge_shard_payloads(
+                    payloads,
+                    reference_anchors=np.asarray([a.current for a in anchors], dtype=np.float64),
+                    cuts_in_full=len(bipartitions(tuple(support))),
+                    lags=lags,
+                    frame_seconds=frame_seconds,
+                    support=support,
+                    conditions=[getattr(c, "name", str(c)) for c in conditions],
+                    seed=args.seed,
                 )
+                evidence["shards"] = gate
+                _log(f"  {gate['shards']} shards merged; anchors exchangeable: {gate['exchangeable']}")
+                spectrum, cut_detail = {}, {}
+                for lag in sorted(reports):
+                    report = reports[lag]
+                    tau = float(lag) * float(frame_seconds)
+                    weakest = report.weakest
+                    spectrum[tau] = 0.0 if weakest is None else max(0.0, weakest.lower_bound)
+                    cut_detail[f"lag_{lag}"] = report.as_dict()
+                    _log(
+                        f"  lag {lag:>3} ({tau:.4f}s): weakest {report.as_dict()['weakest_cut']} "
+                        f"lower bound {spectrum[tau]:.5f}, {report.as_dict()['cuts_decided']}"
+                        f"/{report.as_dict()['cuts_tested']} decided"
+                    )
+            else:
+                _log(f"scoring every bipartition at {len(lags)} horizons")
+                spectrum, cut_detail = await _spectrum(
+                    runtime, anchors, conditions,
+                    lags=lags, frame_seconds=frame_seconds, turns=args.turns,
+                    rounds=args.cut_rounds, seed=args.seed, domains=support,
+                    screen=args.screen,
+                )
+            binding = _horizon_is_binding(spectrum, lags)
+            tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
+            evidence["spectrum"] = {
+                "by_tau_seconds": {str(round(k, 6)): round(v, 6) for k, v in sorted(spectrum.items())},
+                "tau_star_seconds": tau_star,
+                "peak_rate": round(max(spectrum.values(), default=0.0), 6),
+                "horizon_is_binding": binding,
+                "tau_status": "TAU_UNRESOLVED" if binding and max(lags) >= LAG_CEILING else (
+                    "BINDING" if binding else "INTERIOR"
+                ),
+                "lag_ceiling": LAG_CEILING,
+            }
+            evidence["cuts"] = cut_detail
+            _checkpoint_v25(run_dir, "spectrum", evidence)
         else:
-            _log(f"scoring every bipartition at {len(lags)} horizons")
-            spectrum, cut_detail = await _spectrum(
-                runtime, anchors, conditions,
-                lags=lags, frame_seconds=frame_seconds, turns=args.turns,
-                rounds=args.cut_rounds, seed=args.seed, domains=support,
-                screen=args.screen,
+            lags = (1, 8) if args.quick else LAGS
+            cut_detail = evidence.get("cuts", {}) or {}
+            spectrum = {
+                float(tau): float(rate)
+                for tau, rate in (evidence["spectrum"]["by_tau_seconds"] or {}).items()
+            }
+            tau_star = evidence["spectrum"].get("tau_star_seconds")
+            _log(
+                f"recalled the sweep: peak {evidence['spectrum']['peak_rate']} "
+                f"at tau {tau_star}"
             )
-        binding = _horizon_is_binding(spectrum, lags)
-        tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
-        evidence["spectrum"] = {
-            "by_tau_seconds": {str(round(k, 6)): round(v, 6) for k, v in sorted(spectrum.items())},
-            "tau_star_seconds": tau_star,
-            "peak_rate": round(max(spectrum.values(), default=0.0), 6),
-            "horizon_is_binding": binding,
-            "tau_status": "TAU_UNRESOLVED" if binding and max(lags) >= LAG_CEILING else (
-                "BINDING" if binding else "INTERIOR"
-            ),
-            "lag_ceiling": LAG_CEILING,
-        }
-        evidence["cuts"] = cut_detail
         _log(f"  peak rate {max(spectrum.values(), default=0.0):.5f} at tau {tau_star}")
 
-        # ── one cut's samples, kept for the invariance and null checks ─
-        best_lag = int(round((tau_star or frame_seconds) / max(frame_seconds, 1e-9)))
-        best_lag = min(lags, key=lambda lag: abs(lag - best_lag))
-        weakest_name = cut_detail.get(f"lag_{best_lag}", {}).get("weakest_cut") or ""
-        left_name, _, right_name = weakest_name.partition("|")
-        left = tuple(left_name) or (support[0],)
-        right = tuple(right_name) or tuple(support[1:])
-        _log(f"representation invariance and v25 nulls at the weakest cut {weakest_name or '?'}")
-        held = await collect_partition_samples(
-            runtime, anchors, conditions,
-            left=left, right=right, turns=args.turns, lags=(best_lag,),
-        )
-        samples = held[best_lag]
-        tau_best = float(best_lag) * frame_seconds
-        try:
-            evidence["representation_invariance"] = _invariance(
-                samples, tau_seconds=tau_best, seed=args.seed
+        if "nulls" not in done_v25:
+            # ── one cut's samples, kept for the invariance and null checks ─
+            best_lag = int(round((tau_star or frame_seconds) / max(frame_seconds, 1e-9)))
+            best_lag = min(lags, key=lambda lag: abs(lag - best_lag))
+            weakest_name = cut_detail.get(f"lag_{best_lag}", {}).get("weakest_cut") or ""
+            left_name, _, right_name = weakest_name.partition("|")
+            left = tuple(left_name) or (support[0],)
+            right = tuple(right_name) or tuple(support[1:])
+            _log(f"representation invariance and v25 nulls at the weakest cut {weakest_name or '?'}")
+            held = await collect_partition_samples(
+                runtime, anchors, conditions,
+                left=left, right=right, turns=args.turns, lags=(best_lag,),
             )
-            evidence["v25_nulls"] = _v25_nulls(
-                samples, tau_seconds=tau_best, seed=args.seed
+            samples = held[best_lag]
+            tau_best = float(best_lag) * frame_seconds
+            try:
+                evidence["representation_invariance"] = _invariance(
+                    samples, tau_seconds=tau_best, seed=args.seed
+                )
+                evidence["v25_nulls"] = _v25_nulls(
+                    samples, tau_seconds=tau_best, seed=args.seed
+                )
+            except (ValueError, KeyError, IndexError) as exc:
+                # Same reason as inside them: what is already measured is worth
+                # writing down, and a stage that could not run is a blocker rather
+                # than a lost run.
+                reason = f"{type(exc).__name__}: {exc}"
+                evidence["representation_invariance"] = {"measured": False, "why": reason}
+                evidence["v25_nulls"] = {"measured": False, "why": reason}
+                _log(f"  neither could be measured: {reason}")
+            _log(
+                f"  invariant: {evidence['representation_invariance']['representation_invariant']}, "
+                f"playback zero: {evidence['v25_nulls']['playback_is_zero']}"
             )
-        except (ValueError, KeyError, IndexError) as exc:
-            # Same reason as inside them: what is already measured is worth
-            # writing down, and a stage that could not run is a blocker rather
-            # than a lost run.
-            reason = f"{type(exc).__name__}: {exc}"
-            evidence["representation_invariance"] = {"measured": False, "why": reason}
-            evidence["v25_nulls"] = {"measured": False, "why": reason}
-            _log(f"  neither could be measured: {reason}")
-        _log(
-            f"  invariant: {evidence['representation_invariance']['representation_invariant']}, "
-            f"playback zero: {evidence['v25_nulls']['playback_is_zero']}"
-        )
 
-        # ── closure, which is a gate ───────────────────────────────────
-        _log("closure against the measured periphery")
-        periphery_read, names = periphery.matrix()
-        closed, leak = False, float("nan")
-        if periphery_read.size:
-            report = closure_gain(recording, periphery_read, names, seed=args.seed)
-            closed, leak = bool(report.closed), float(report.leak)
-            evidence["closure"] = report.as_dict()
+            # ── closure, which is a gate ───────────────────────────────────
+            _log("closure against the measured periphery")
+            periphery_read, names = periphery.matrix()
+            closed, leak = False, float("nan")
+            if periphery_read.size:
+                report = closure_gain(recording, periphery_read, names, seed=args.seed)
+                closed, leak = bool(report.closed), float(report.leak)
+                evidence["closure"] = report.as_dict()
+            else:
+                evidence["closure"] = {"note": "no periphery could be read"}
+            evidence["closure"]["coverage"] = periphery_coverage()
+            _log(f"  closed: {closed}, leak {leak:.5f}")
+            _checkpoint_v25(run_dir, "nulls", evidence)
         else:
-            evidence["closure"] = {"note": "no periphery could be read"}
-        evidence["closure"]["coverage"] = periphery_coverage()
-        _log(f"  closed: {closed}, leak {leak:.5f}")
+            best_lag = int(round((tau_star or frame_seconds) / max(frame_seconds, 1e-9)))
+            best_lag = min(lags, key=lambda lag: abs(lag - best_lag))
+            closed = bool((evidence.get("closure") or {}).get("closed"))
+            leak = float((evidence.get("closure") or {}).get("leak") or 0.0)
+            _log(f"recalled closure: closed {closed}, leak {leak:.5f}")
 
         # ── the graph, and which process the carrier is ────────────────
         # The graph comes from which cuts were decided, which is the same
