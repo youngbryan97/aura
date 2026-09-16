@@ -16,6 +16,9 @@ from core.runtime.governance_coverage import note_ungoverned_turn
 
 logger = logging.getLogger(__name__)
 
+#: The Will admitted the message; processing continues.
+_ADMITTED = object()
+
 _MESSAGE_HANDLING_RECOVERABLE_ERRORS = (
     AttributeError,
     ImportError,
@@ -726,6 +729,69 @@ class MessageHandlingMixin:
                 return None
         return await self._process_user_input_core(message, origin)
 
+    async def _refusal_from_the_will(self, message: str, origin: str) -> str | None | object:
+        """The Will's verdict on this message: a refusal to say, None to drop, or _ADMITTED.
+
+        A message the Will refuses answers with the refusal when a person sent
+        it and vanishes when a subsystem did. One the Will admits, or cannot
+        judge (not started, or the gate raised), goes on to cognition, and
+        the ungoverned cases are counted on the health surface.
+        """
+        try:
+            from core.will import ActionDomain, get_will
+
+            will = get_will()
+            if not will._started:
+                note_ungoverned_turn(origin, "will_not_started")
+            if will._started:
+                domain = (
+                    ActionDomain.RESPONSE
+                    if self._is_user_facing_origin(origin)
+                    else ActionDomain.REFLECTION
+                )
+                will_decision = will.decide(
+                    content=message[:200],
+                    source=f"message_handler:{origin}",
+                    domain=domain,
+                    priority=0.8 if self._is_user_facing_origin(origin) else 0.3,
+                    context={"origin": origin, "message_length": len(message)},
+                )
+                if not will_decision.is_approved():
+                    logger.info(
+                        "🛡️ Unified Will %s message from %s: %s",
+                        will_decision.outcome.value,
+                        origin,
+                        will_decision.reason,
+                    )
+                    if self._is_user_facing_origin(origin):
+                        response = _user_visible_will_refusal(
+                            str(will_decision.reason),
+                            list(getattr(will_decision, "constraints", []) or []),
+                        )
+                        async with self._lock:
+                            self._record_message_in_history(message, origin)
+                            self._record_message_in_history(response, "assistant")
+                        self._publish_telemetry(
+                            {
+                                "event": "will_refusal_response",
+                                "origin": origin,
+                                "receipt_id": getattr(will_decision, "receipt_id", ""),
+                                "reason": str(will_decision.reason),
+                            }
+                        )
+                        return response
+                    else:
+                        return None  # Internal messages can be refused
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _will_err:
+            note_ungoverned_turn(origin, f"gate_error:{type(_will_err).__name__}")
+            _record_message_degradation(
+                _will_err,
+                action="continued user-input processing with degraded Will gate",
+                severity="error",
+            )
+            logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
+        return _ADMITTED
+
     async def _process_user_input_core(self, message: str, origin: str = "user") -> str | None:
         """Actual processing logic — never calls itself, never recurses."""
         logger.debug("Orchestrator input origin=%s len=%d", origin, len(message or ""))
@@ -807,59 +873,9 @@ class MessageHandlingMixin:
         # are distinguishable afterwards. The count is on the health
         # surface; a runtime quietly serving ungoverned turns is a fact the
         # verdict must be able to express.
-        try:
-            from core.will import ActionDomain, get_will
-
-            will = get_will()
-            if not will._started:
-                note_ungoverned_turn(origin, "will_not_started")
-            if will._started:
-                domain = (
-                    ActionDomain.RESPONSE
-                    if self._is_user_facing_origin(origin)
-                    else ActionDomain.REFLECTION
-                )
-                will_decision = will.decide(
-                    content=message[:200],
-                    source=f"message_handler:{origin}",
-                    domain=domain,
-                    priority=0.8 if self._is_user_facing_origin(origin) else 0.3,
-                    context={"origin": origin, "message_length": len(message)},
-                )
-                if not will_decision.is_approved():
-                    logger.info(
-                        "🛡️ Unified Will %s message from %s: %s",
-                        will_decision.outcome.value,
-                        origin,
-                        will_decision.reason,
-                    )
-                    if self._is_user_facing_origin(origin):
-                        response = _user_visible_will_refusal(
-                            str(will_decision.reason),
-                            list(getattr(will_decision, "constraints", []) or []),
-                        )
-                        async with self._lock:
-                            self._record_message_in_history(message, origin)
-                            self._record_message_in_history(response, "assistant")
-                        self._publish_telemetry(
-                            {
-                                "event": "will_refusal_response",
-                                "origin": origin,
-                                "receipt_id": getattr(will_decision, "receipt_id", ""),
-                                "reason": str(will_decision.reason),
-                            }
-                        )
-                        return response
-                    else:
-                        return None  # Internal messages can be refused
-        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _will_err:
-            note_ungoverned_turn(origin, f"gate_error:{type(_will_err).__name__}")
-            _record_message_degradation(
-                _will_err,
-                action="continued user-input processing with degraded Will gate",
-                severity="error",
-            )
-            logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
+        verdict = await self._refusal_from_the_will(message, origin)
+        if verdict is not _ADMITTED:
+            return verdict
 
         # ZENITH BYPASS: ALL user-origin messages go through InferenceGate. NO EXCEPTIONS.
         # This completely decouples user requests from the Legacy Pipeline (CognitiveEngine →
