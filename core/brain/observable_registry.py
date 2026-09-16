@@ -836,534 +836,536 @@ async def _read_lifetime(_prompt: str) -> str:
     return describe_lifetime()
 
 
+# Every example below that reads like an odd phrasing IS one: each was a
+# real question that the matcher beside it did not recognise, or wrongly
+# claimed, in live use. They are counter-examples for each other as much as
+# for themselves — the screen matcher wrongly took a clipboard WRITE, and
+# the recall matcher would happily swallow "the first rule in
+# CONTRIBUTING.md" if nobody said otherwise.
+_DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
+    Observable(
+        "clipboard", "## WHAT IS ON THE CLIPBOARD", _matches_clipboard, _read_clipboard,
+        examples=(
+            "what's on my clipboard right now?",
+            "read my clipboard",
+            "what did I just copy?",
+            "check the pasteboard",
+        ),
+        counter_examples=(
+            "put BUILD-42 on my clipboard",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "file", "## FILE YOU WERE ASKED ABOUT", _matches_file, _read_file,
+        examples=(
+            "read the file CONTRIBUTING.md and tell me the first rule",
+            "what does CONTRIBUTING.md say about tests?",
+            "open core/config.py",
+            "tell me about ARCHITECTURE.md",
+        ),
+        counter_examples=(
+            "how are you doing",
+            "read my clipboard",
+            "what did I say first?",
+        ),
+    ),
+    Observable(
+        "file_count", "## DIRECTORY LISTING YOU WERE ASKED ABOUT", _matches_count, _read_count,
+        examples=(
+            "count the .py files in core/introspection and tell me the number",
+            "how many python files live in core/introspection?",
+            "how many files do we have in core/introspection",
+        ),
+        counter_examples=(
+            "how many files are in /etc",
+            "how are you doing",
+            "read CONTRIBUTING.md",
+        ),
+    ),
+    Observable(
+        "corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus,
+        examples=(
+            "explain the difference between correlation and causation",
+            "what is a confounding variable",
+            "who was Ada Lovelace?",
+        ),
+        counter_examples=(
+            "how are you doing right now?",
+            "what did I ask you first today?",
+            "open my notes folder",
+        ),
+    ),
+    Observable(
+        "clock", "## THE CURRENT LOCAL TIME", _matches_clock, _read_clock,
+        examples=("what time is it?", "what's today's date?", "what day is it?"),
+        counter_examples=(
+            "how long have you been running",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+    # A screen capture is a real device read and the FIRST one in a process
+    # pays initialisation: measured 0.81s warm, past the 2.5s default cold,
+    # which is why the first screen question of a session silently returned
+    # no block at all.
+    Observable(
+        "screen", "## WHAT IS ON THE SCREEN", _matches_screen, _read_screen,
+        timeout_s=8.0,
+        examples=(
+            "what's on my screen right now?",
+            "what do you see?",
+            "which app is in front?",
+            "what window am I looking at",
+        ),
+        counter_examples=(
+            # A clipboard WRITE, which this matcher once claimed and used
+            # to pull a real desktop action off the executor path.
+            "put BUILD-42 on my clipboard",
+            "create a file called notes.txt on my desktop",
+            "how are you doing",
+        ),
+    ),
+    Observable(
+        "beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs,
+        examples=(
+            "what do you currently believe about me?",
+            "what do you think about me?",
+            "tell me your beliefs",
+            "what do you know about my work?",
+            "what have you noticed about me?",
+        ),
+        counter_examples=(
+            "what do you think of that film?",
+            "how are you doing",
+        ),
+    ),
+    Observable(
+        "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work,
+        examples=(
+            "do you have any scheduled or background work queued right now?",
+            "are you planning to do anything later?",
+            "anything planned?",
+            "what will you be doing next?",
+            # Live 2026-08-19: three of four ordinary phrasings missed,
+            # and the coordinator's real pending list went unread while
+            # the answer talked about persistence in general.
+            "what are you going to do after this?",
+            "when i stop typing and walk away, what happens next on your "
+            "side? what's queued right now?",
+            "what's in your queue?",
+            "anything waiting to run?",
+        ),
+        counter_examples=(
+            "plan a trip to Rome",
+            "how are you doing",
+            "what is 2 + 2",
+            # Past tense asks about history; the pending list answers
+            # nothing about it, and "after" appears in both.
+            "what did you do after the update?",
+            "what did I ask you earlier today?",
+            # Live 2026-08-21: the rules of an invented game were answered
+            # with the maintenance queue. "you cannot move at all (because
+            # the other piece is directly next" put "you" within sixty
+            # characters of "next", in a sentence that was describing the
+            # game rather than asking anything.
+            "If it's your turn and you cannot move at all (because the "
+            "other piece is directly next to yours), you lose. With "
+            "perfect play, who wins and what's the winning first move?",
+        ),
+    ),
+    Observable(
+        "completed_work",
+        "## WORK YOU HAVE ACTUALLY DONE",
+        _matches_recent_activity,
+        _read_recent_activity,
+        examples=(
+            # Live 2026-08-20: answered with her own interest in modelling
+            # consciousness, which is true about her and is not what was
+            # asked, while four thousand recorded intentions sat unread.
+            "what's actually been the most interesting thing you've worked "
+            "on lately, and why that one rather than something else?",
+            "what have you been doing?",
+            "what have you been up to?",
+            "what did you do today?",
+            "been busy?",
+            "how was your night?",
+            "what have you been working on lately?",
+            "what did you get done while I was away?",
+        ),
+        counter_examples=(
+            "what do you do?",
+            "anything planned?",
+            "what will you be doing next?",
+            "what did I ask you earlier today?",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "positional_solution",
+        "## THE SEATING, WORKED OUT",
+        _matches_positional_problem,
+        _read_positional_problem,
+        examples=(
+            # Live 2026-08-20: narrated twice, wrong twice, with a stated
+            # layout that contradicted its own conclusion.
+            "six people sit around a round table with six seats. Boris "
+            "sits directly opposite Ada. Chen and Dara sit next to each "
+            "other. Emil sits immediately clockwise of Ada. Chen is "
+            "exactly two seats from Ada. Who sits opposite Chen, and who "
+            "are Dara's two neighbours?",
+        ),
+        counter_examples=(
+            "how are you doing today?",
+            "what is 2 + 2",
+            "Ada and Boris are friends who like chess.",
+        ),
+    ),
+    Observable(
+        "validated_claims",
+        "## WHAT YOU HAVE ACTUALLY MEASURED ABOUT YOURSELF",
+        _matches_validated_claims,
+        _read_validated_claims,
+        examples=(
+            # The live fabrication: this asked for her own numbers and got
+            # a study that does not exist, with sample sizes and a DOI.
+            "which measures, specifically? give me the numbers and the sample sizes",
+            "what is your evidence for that?",
+            "how do you know that?",
+            "what have you actually proven?",
+            "show me the evidence",
+        ),
+        counter_examples=(
+            # Evidence about the WORLD is a different question.
+            "what is the evidence for dark matter?",
+            "show me the data on unemployment",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "computed_text",
+        "## THE EXACT ANSWER, COMPUTED",
+        _matches_computed_text,
+        _read_computed_text,
+        examples=(
+            # The live miss: the canned refusal for [::-1].
+            "spell 'necessary' backwards",
+            "how many r's in strawberry",
+            "is racecar a palindrome?",
+            "how many letters in necessary",
+        ),
+        counter_examples=(
+            "reverse the polarity of the flow",
+            "what is 2 + 2",
+            "tell me a joke",
+        ),
+    ),
+    Observable(
+        "shared_history",
+        "## WHETHER YOU EVER ACTUALLY SETTLED THIS",
+        _matches_shared_history,
+        _read_shared_history,
+        examples=(
+            # The live miss: "we agreed that you would provide me with the
+            # necessary files to review your code. I haven't seen them
+            # yet." No such exchange existed.
+            "what did we agree on last week?",
+            "what did we decide about the schema?",
+            "did we agree on a price?",
+            "remember when we talked about orcas?",
+        ),
+        counter_examples=(
+            "what is 2 + 2",
+            "what's on my screen?",
+            "how are you doing",
+        ),
+    ),
+    Observable(
+        "person_fact",
+        "## WHETHER YOU ACTUALLY KNOW THIS ABOUT THEM",
+        _matches_person_fact,
+        _read_person_fact,
+        examples=(
+            # The live miss: the draft invented a home town, the guard
+            # caught it, the retries ran out, and the person got the
+            # canned refusal instead of "I don't know where you grew up".
+            "what's the population of the town I grew up in?",
+            "what's my sister's name?",
+            "how far is the office I work at?",
+            "what was the name of the school I went to?",
+        ),
+        counter_examples=(
+            "what is 2 + 2",
+            "what did I just copy?",
+            "what's on my screen?",
+            "what was my first question?",
+        ),
+    ),
+    Observable(
+        "stated_preferences",
+        "## WHAT YOU HAVE ALREADY SAID YOU CARE ABOUT",
+        _matches_stated_preferences,
+        _read_stated_preferences,
+        examples=(
+            # Four answers to one question in a few minutes, one of them
+            # twice from the identical prompt.
+            "what topic pulls at you the most?",
+            "what's one thing you find genuinely interesting?",
+            "name the one thing you'd study if nobody was watching.",
+            "what's your favourite colour?",
+        ),
+        counter_examples=(
+            "what did I just copy?",
+            "what is 2 + 2",
+            "what files are in core/runtime?",
+        ),
+    ),
+    Observable(
+        "operational_state",
+        "## WHAT HAS ACTUALLY BEEN FAILING IN THIS RUNTIME",
+        _matches_operational_state,
+        _read_operational_state,
+        examples=(
+            # The live miss: three invented weaknesses, warmly ranked.
+            "rank your three weakest subsystems and say why.",
+            "what's been failing lately?",
+            "how are you really?",
+            "which of your components are degraded?",
+        ),
+        counter_examples=(
+            "what's wrong with my computer?",
+            "how are you?",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "capability_status",
+        "## WHAT THIS BUILD ACTUALLY REGISTERS FOR THIS",
+        _matches_capability_status,
+        _read_capability_status,
+        examples=(
+            # The live miss: "No." while improve_own_code, self_repair and
+            # auto_refactor were registered and enabled.
+            "can you modify your own source code?",
+            "are you able to search the web?",
+            "do you have a way to read my screen?",
+            "can you run a terminal command?",
+        ),
+        counter_examples=(
+            "can you help me think about this?",
+            "what is 2 + 2",
+            "how are you doing",
+            "can you believe it's already August?",
+        ),
+    ),
+    Observable(
+        "self_source",
+        "## YOUR OWN SOURCE, FOR THE THING BEING ASKED ABOUT",
+        _matches_self_source,
+        _read_self_source,
+        timeout_s=6.0,
+        examples=(
+            # The live miss: answered with the general literature on
+            # deadlocks and recommended Go, while core/runtime/lockdep.py
+            # sat on disk doing exactly what was asked about.
+            "you have a lock ordering system. what happens if two subsystems take locks in opposite order?",
+            "how do you detect deadlocks?",
+            "what does your memory system actually store?",
+            "where in your code is the write gateway?",
+        ),
+        counter_examples=(
+            "how do you feel?",
+            "what do you think about jazz?",
+            "what is 2 + 2",
+            "how does a lock work in general?",
+        ),
+    ),
+    Observable(
+        "capability_inventory",
+        "## EVERY CAPABILITY REGISTERED IN THIS BUILD",
+        _matches_capability_inventory,
+        _read_capability_inventory,
+        examples=(
+            "how many skills are registered in your capability engine?",
+            "what can you do?",
+            "list your capabilities",
+            "how many capabilities do you have?",
+            "what tools do you have?",
+        ),
+        counter_examples=(
+            # A question about ONE capability, which the capability
+            # lexicon answers with that capability's own status.
+            "can you reverse a string for me?",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "established_claims",
+        "## WHAT IS ESTABLISHED ABOUT YOU, AND THE TEST BEHIND EACH ONE",
+        _matches_what_is_established,
+        _read_what_is_established,
+        examples=(
+            "you claim you can invent new primitives — prove it",
+            "you cannot extend your own representation language",
+            "how do you know you actually learn anything?",
+            "what can you genuinely do, with evidence?",
+            "do you really have a world model or is that marketing?",
+        ),
+        counter_examples=(
+            "can you open Safari for me",
+            "could you summarise this file",
+            "please play 2048",
+        ),
+    ),
+    Observable(
+        "computed_statistic",
+        "## A STATISTIC WITH A CLOSED FORM, COMPUTED",
+        _matches_computed_statistic,
+        _read_computed_statistic,
+        examples=(
+            "what is the 95% wilson score interval for 12 of 17",
+            "I have 17 runs and 12 succeeded, give me the wilson interval",
+            "what is the mean of 2, 4, 4, 4, 5, 5, 7, 9",
+            "standard deviation of 2, 4, 4, 4, 5, 5, 7, 9",
+            "what percent of 17 is 12",
+        ),
+        counter_examples=(
+            # About the concept, not about any data.
+            "what is a wilson score interval",
+            "explain what standard deviation measures",
+            "how are you doing",
+        ),
+    ),
+    Observable(
+        "unanswered_question",
+        "## THE QUESTION THEY SAY YOU DID NOT ANSWER",
+        _matches_unanswered,
+        _read_unanswered,
+        examples=(
+            "you didn't answer my question",
+            "you never answered my question",
+            "that's not what I asked",
+            "you dodged the question",
+            "answer my question",
+        ),
+        counter_examples=(
+            # A question ABOUT the transcript, which the transcript
+            # reading owns, and two turns that complain about nothing.
+            "what did I ask you two messages ago?",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+    Observable(
+        "how_it_was_computed",
+        "## WHAT PRODUCED THE LAST EXACT ANSWER",
+        _matches_how_computed,
+        _read_how_computed,
+        examples=(
+            "how did you do that?",
+            "how did you get that number?",
+            "was that the model or code?",
+            "did you actually compute that or did you just guess?",
+            "where did that number come from?",
+        ),
+        counter_examples=(
+            # About her state or her reasoning, not the mechanism of an
+            # arithmetic answer.
+            "how are you doing",
+            "how long have you been running?",
+            "what did I ask you two messages ago?",
+        ),
+    ),
+    Observable(
+        "conversation_shape",
+        "## THE SHAPE OF THIS CONVERSATION",
+        _matches_conversation_shape,
+        _read_conversation_shape,
+        examples=(
+            # The live miss: answered "about an hour" and named topics that
+            # had never come up.
+            "how long have we been talking?",
+            "what have we talked about so far?",
+            "how many messages have I sent you?",
+            "what did we cover earlier?",
+        ),
+        counter_examples=(
+            # Uptime is not conversation length.
+            "how long have you been running?",
+            "how long will it take to build?",
+            "what is 2 + 2",
+            "how are you doing",
+        ),
+    ),
+    Observable(
+        "transcript",
+        "## WHAT WAS ACTUALLY SAID IN THIS CONVERSATION",
+        _matches_transcript,
+        _read_transcript,
+        examples=(
+            "what did I ask you two messages ago?",
+            "what was my first question?",
+            "what was the first thing I said to you in this conversation?",
+            "what was the last thing I told you?",
+            "repeat back what I said",
+        ),
+        counter_examples=(
+            # Contains "first" and asks about a file: a recall matcher that
+            # swallowed this would break file reading to fix recall.
+            "what is the first rule in CONTRIBUTING.md",
+            "how are you doing",
+            "what did you read?",
+        ),
+    ),
+    Observable(
+        "belief_history",
+        "## POSITIONS I HAVE ACTUALLY REVISED",
+        _matches_belief_history,
+        _read_belief_history,
+        examples=(
+            "what's something you've genuinely changed your mind about?",
+            "name one actual position you held and then dropped, with when",
+            "what did you used to think that you no longer think?",
+            "have you revised any beliefs lately?",
+            "what do you think differently about now?",
+        ),
+        counter_examples=(
+            # About the other person's mind, not hers.
+            "have I changed my mind about anything?",
+            "how are you doing",
+            "what is 2 + 2",
+            "what did I ask you two messages ago?",
+        ),
+    ),
+    Observable(
+        "lifetime",
+        "## HOW LONG I HAVE BEEN AWAKE",
+        _matches_lifetime,
+        _read_lifetime,
+        examples=(
+            "how long have you actually been awake across all your restarts?",
+            "how many turns have we had today?",
+            "how long have you been alive?",
+            "what's your total uptime?",
+            "how many sessions have you had?",
+        ),
+        counter_examples=(
+            # This run, not the whole life — the operational-state reading
+            # owns that one, and answering it with 40 days would be wrong.
+            "how long have you been running this session?",
+            "how are you doing",
+            "what is 2 + 2",
+        ),
+    ),
+)
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
-
-    # Every example below that reads like an odd phrasing IS one: each was a
-    # real question that the matcher beside it did not recognise, or wrongly
-    # claimed, in live use. They are counter-examples for each other as much as
-    # for themselves — the screen matcher wrongly took a clipboard WRITE, and
-    # the recall matcher would happily swallow "the first rule in
-    # CONTRIBUTING.md" if nobody said otherwise.
-    for observable in (
-        Observable(
-            "clipboard", "## WHAT IS ON THE CLIPBOARD", _matches_clipboard, _read_clipboard,
-            examples=(
-                "what's on my clipboard right now?",
-                "read my clipboard",
-                "what did I just copy?",
-                "check the pasteboard",
-            ),
-            counter_examples=(
-                "put BUILD-42 on my clipboard",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "file", "## FILE YOU WERE ASKED ABOUT", _matches_file, _read_file,
-            examples=(
-                "read the file CONTRIBUTING.md and tell me the first rule",
-                "what does CONTRIBUTING.md say about tests?",
-                "open core/config.py",
-                "tell me about ARCHITECTURE.md",
-            ),
-            counter_examples=(
-                "how are you doing",
-                "read my clipboard",
-                "what did I say first?",
-            ),
-        ),
-        Observable(
-            "file_count", "## DIRECTORY LISTING YOU WERE ASKED ABOUT", _matches_count, _read_count,
-            examples=(
-                "count the .py files in core/introspection and tell me the number",
-                "how many python files live in core/introspection?",
-                "how many files do we have in core/introspection",
-            ),
-            counter_examples=(
-                "how many files are in /etc",
-                "how are you doing",
-                "read CONTRIBUTING.md",
-            ),
-        ),
-        Observable(
-            "corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus,
-            examples=(
-                "explain the difference between correlation and causation",
-                "what is a confounding variable",
-                "who was Ada Lovelace?",
-            ),
-            counter_examples=(
-                "how are you doing right now?",
-                "what did I ask you first today?",
-                "open my notes folder",
-            ),
-        ),
-        Observable(
-            "clock", "## THE CURRENT LOCAL TIME", _matches_clock, _read_clock,
-            examples=("what time is it?", "what's today's date?", "what day is it?"),
-            counter_examples=(
-                "how long have you been running",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-        # A screen capture is a real device read and the FIRST one in a process
-        # pays initialisation: measured 0.81s warm, past the 2.5s default cold,
-        # which is why the first screen question of a session silently returned
-        # no block at all.
-        Observable(
-            "screen", "## WHAT IS ON THE SCREEN", _matches_screen, _read_screen,
-            timeout_s=8.0,
-            examples=(
-                "what's on my screen right now?",
-                "what do you see?",
-                "which app is in front?",
-                "what window am I looking at",
-            ),
-            counter_examples=(
-                # A clipboard WRITE, which this matcher once claimed and used
-                # to pull a real desktop action off the executor path.
-                "put BUILD-42 on my clipboard",
-                "create a file called notes.txt on my desktop",
-                "how are you doing",
-            ),
-        ),
-        Observable(
-            "beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs,
-            examples=(
-                "what do you currently believe about me?",
-                "what do you think about me?",
-                "tell me your beliefs",
-                "what do you know about my work?",
-                "what have you noticed about me?",
-            ),
-            counter_examples=(
-                "what do you think of that film?",
-                "how are you doing",
-            ),
-        ),
-        Observable(
-            "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work,
-            examples=(
-                "do you have any scheduled or background work queued right now?",
-                "are you planning to do anything later?",
-                "anything planned?",
-                "what will you be doing next?",
-                # Live 2026-08-19: three of four ordinary phrasings missed,
-                # and the coordinator's real pending list went unread while
-                # the answer talked about persistence in general.
-                "what are you going to do after this?",
-                "when i stop typing and walk away, what happens next on your "
-                "side? what's queued right now?",
-                "what's in your queue?",
-                "anything waiting to run?",
-            ),
-            counter_examples=(
-                "plan a trip to Rome",
-                "how are you doing",
-                "what is 2 + 2",
-                # Past tense asks about history; the pending list answers
-                # nothing about it, and "after" appears in both.
-                "what did you do after the update?",
-                "what did I ask you earlier today?",
-                # Live 2026-08-21: the rules of an invented game were answered
-                # with the maintenance queue. "you cannot move at all (because
-                # the other piece is directly next" put "you" within sixty
-                # characters of "next", in a sentence that was describing the
-                # game rather than asking anything.
-                "If it's your turn and you cannot move at all (because the "
-                "other piece is directly next to yours), you lose. With "
-                "perfect play, who wins and what's the winning first move?",
-            ),
-        ),
-        Observable(
-            "completed_work",
-            "## WORK YOU HAVE ACTUALLY DONE",
-            _matches_recent_activity,
-            _read_recent_activity,
-            examples=(
-                # Live 2026-08-20: answered with her own interest in modelling
-                # consciousness, which is true about her and is not what was
-                # asked, while four thousand recorded intentions sat unread.
-                "what's actually been the most interesting thing you've worked "
-                "on lately, and why that one rather than something else?",
-                "what have you been doing?",
-                "what have you been up to?",
-                "what did you do today?",
-                "been busy?",
-                "how was your night?",
-                "what have you been working on lately?",
-                "what did you get done while I was away?",
-            ),
-            counter_examples=(
-                "what do you do?",
-                "anything planned?",
-                "what will you be doing next?",
-                "what did I ask you earlier today?",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "positional_solution",
-            "## THE SEATING, WORKED OUT",
-            _matches_positional_problem,
-            _read_positional_problem,
-            examples=(
-                # Live 2026-08-20: narrated twice, wrong twice, with a stated
-                # layout that contradicted its own conclusion.
-                "six people sit around a round table with six seats. Boris "
-                "sits directly opposite Ada. Chen and Dara sit next to each "
-                "other. Emil sits immediately clockwise of Ada. Chen is "
-                "exactly two seats from Ada. Who sits opposite Chen, and who "
-                "are Dara's two neighbours?",
-            ),
-            counter_examples=(
-                "how are you doing today?",
-                "what is 2 + 2",
-                "Ada and Boris are friends who like chess.",
-            ),
-        ),
-        Observable(
-            "validated_claims",
-            "## WHAT YOU HAVE ACTUALLY MEASURED ABOUT YOURSELF",
-            _matches_validated_claims,
-            _read_validated_claims,
-            examples=(
-                # The live fabrication: this asked for her own numbers and got
-                # a study that does not exist, with sample sizes and a DOI.
-                "which measures, specifically? give me the numbers and the sample sizes",
-                "what is your evidence for that?",
-                "how do you know that?",
-                "what have you actually proven?",
-                "show me the evidence",
-            ),
-            counter_examples=(
-                # Evidence about the WORLD is a different question.
-                "what is the evidence for dark matter?",
-                "show me the data on unemployment",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "computed_text",
-            "## THE EXACT ANSWER, COMPUTED",
-            _matches_computed_text,
-            _read_computed_text,
-            examples=(
-                # The live miss: the canned refusal for [::-1].
-                "spell 'necessary' backwards",
-                "how many r's in strawberry",
-                "is racecar a palindrome?",
-                "how many letters in necessary",
-            ),
-            counter_examples=(
-                "reverse the polarity of the flow",
-                "what is 2 + 2",
-                "tell me a joke",
-            ),
-        ),
-        Observable(
-            "shared_history",
-            "## WHETHER YOU EVER ACTUALLY SETTLED THIS",
-            _matches_shared_history,
-            _read_shared_history,
-            examples=(
-                # The live miss: "we agreed that you would provide me with the
-                # necessary files to review your code. I haven't seen them
-                # yet." No such exchange existed.
-                "what did we agree on last week?",
-                "what did we decide about the schema?",
-                "did we agree on a price?",
-                "remember when we talked about orcas?",
-            ),
-            counter_examples=(
-                "what is 2 + 2",
-                "what's on my screen?",
-                "how are you doing",
-            ),
-        ),
-        Observable(
-            "person_fact",
-            "## WHETHER YOU ACTUALLY KNOW THIS ABOUT THEM",
-            _matches_person_fact,
-            _read_person_fact,
-            examples=(
-                # The live miss: the draft invented a home town, the guard
-                # caught it, the retries ran out, and the person got the
-                # canned refusal instead of "I don't know where you grew up".
-                "what's the population of the town I grew up in?",
-                "what's my sister's name?",
-                "how far is the office I work at?",
-                "what was the name of the school I went to?",
-            ),
-            counter_examples=(
-                "what is 2 + 2",
-                "what did I just copy?",
-                "what's on my screen?",
-                "what was my first question?",
-            ),
-        ),
-        Observable(
-            "stated_preferences",
-            "## WHAT YOU HAVE ALREADY SAID YOU CARE ABOUT",
-            _matches_stated_preferences,
-            _read_stated_preferences,
-            examples=(
-                # Four answers to one question in a few minutes, one of them
-                # twice from the identical prompt.
-                "what topic pulls at you the most?",
-                "what's one thing you find genuinely interesting?",
-                "name the one thing you'd study if nobody was watching.",
-                "what's your favourite colour?",
-            ),
-            counter_examples=(
-                "what did I just copy?",
-                "what is 2 + 2",
-                "what files are in core/runtime?",
-            ),
-        ),
-        Observable(
-            "operational_state",
-            "## WHAT HAS ACTUALLY BEEN FAILING IN THIS RUNTIME",
-            _matches_operational_state,
-            _read_operational_state,
-            examples=(
-                # The live miss: three invented weaknesses, warmly ranked.
-                "rank your three weakest subsystems and say why.",
-                "what's been failing lately?",
-                "how are you really?",
-                "which of your components are degraded?",
-            ),
-            counter_examples=(
-                "what's wrong with my computer?",
-                "how are you?",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "capability_status",
-            "## WHAT THIS BUILD ACTUALLY REGISTERS FOR THIS",
-            _matches_capability_status,
-            _read_capability_status,
-            examples=(
-                # The live miss: "No." while improve_own_code, self_repair and
-                # auto_refactor were registered and enabled.
-                "can you modify your own source code?",
-                "are you able to search the web?",
-                "do you have a way to read my screen?",
-                "can you run a terminal command?",
-            ),
-            counter_examples=(
-                "can you help me think about this?",
-                "what is 2 + 2",
-                "how are you doing",
-                "can you believe it's already August?",
-            ),
-        ),
-        Observable(
-            "self_source",
-            "## YOUR OWN SOURCE, FOR THE THING BEING ASKED ABOUT",
-            _matches_self_source,
-            _read_self_source,
-            timeout_s=6.0,
-            examples=(
-                # The live miss: answered with the general literature on
-                # deadlocks and recommended Go, while core/runtime/lockdep.py
-                # sat on disk doing exactly what was asked about.
-                "you have a lock ordering system. what happens if two subsystems take locks in opposite order?",
-                "how do you detect deadlocks?",
-                "what does your memory system actually store?",
-                "where in your code is the write gateway?",
-            ),
-            counter_examples=(
-                "how do you feel?",
-                "what do you think about jazz?",
-                "what is 2 + 2",
-                "how does a lock work in general?",
-            ),
-        ),
-        Observable(
-            "capability_inventory",
-            "## EVERY CAPABILITY REGISTERED IN THIS BUILD",
-            _matches_capability_inventory,
-            _read_capability_inventory,
-            examples=(
-                "how many skills are registered in your capability engine?",
-                "what can you do?",
-                "list your capabilities",
-                "how many capabilities do you have?",
-                "what tools do you have?",
-            ),
-            counter_examples=(
-                # A question about ONE capability, which the capability
-                # lexicon answers with that capability's own status.
-                "can you reverse a string for me?",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "established_claims",
-            "## WHAT IS ESTABLISHED ABOUT YOU, AND THE TEST BEHIND EACH ONE",
-            _matches_what_is_established,
-            _read_what_is_established,
-            examples=(
-                "you claim you can invent new primitives — prove it",
-                "you cannot extend your own representation language",
-                "how do you know you actually learn anything?",
-                "what can you genuinely do, with evidence?",
-                "do you really have a world model or is that marketing?",
-            ),
-            counter_examples=(
-                "can you open Safari for me",
-                "could you summarise this file",
-                "please play 2048",
-            ),
-        ),
-        Observable(
-            "computed_statistic",
-            "## A STATISTIC WITH A CLOSED FORM, COMPUTED",
-            _matches_computed_statistic,
-            _read_computed_statistic,
-            examples=(
-                "what is the 95% wilson score interval for 12 of 17",
-                "I have 17 runs and 12 succeeded, give me the wilson interval",
-                "what is the mean of 2, 4, 4, 4, 5, 5, 7, 9",
-                "standard deviation of 2, 4, 4, 4, 5, 5, 7, 9",
-                "what percent of 17 is 12",
-            ),
-            counter_examples=(
-                # About the concept, not about any data.
-                "what is a wilson score interval",
-                "explain what standard deviation measures",
-                "how are you doing",
-            ),
-        ),
-        Observable(
-            "unanswered_question",
-            "## THE QUESTION THEY SAY YOU DID NOT ANSWER",
-            _matches_unanswered,
-            _read_unanswered,
-            examples=(
-                "you didn't answer my question",
-                "you never answered my question",
-                "that's not what I asked",
-                "you dodged the question",
-                "answer my question",
-            ),
-            counter_examples=(
-                # A question ABOUT the transcript, which the transcript
-                # reading owns, and two turns that complain about nothing.
-                "what did I ask you two messages ago?",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-        Observable(
-            "how_it_was_computed",
-            "## WHAT PRODUCED THE LAST EXACT ANSWER",
-            _matches_how_computed,
-            _read_how_computed,
-            examples=(
-                "how did you do that?",
-                "how did you get that number?",
-                "was that the model or code?",
-                "did you actually compute that or did you just guess?",
-                "where did that number come from?",
-            ),
-            counter_examples=(
-                # About her state or her reasoning, not the mechanism of an
-                # arithmetic answer.
-                "how are you doing",
-                "how long have you been running?",
-                "what did I ask you two messages ago?",
-            ),
-        ),
-        Observable(
-            "conversation_shape",
-            "## THE SHAPE OF THIS CONVERSATION",
-            _matches_conversation_shape,
-            _read_conversation_shape,
-            examples=(
-                # The live miss: answered "about an hour" and named topics that
-                # had never come up.
-                "how long have we been talking?",
-                "what have we talked about so far?",
-                "how many messages have I sent you?",
-                "what did we cover earlier?",
-            ),
-            counter_examples=(
-                # Uptime is not conversation length.
-                "how long have you been running?",
-                "how long will it take to build?",
-                "what is 2 + 2",
-                "how are you doing",
-            ),
-        ),
-        Observable(
-            "transcript",
-            "## WHAT WAS ACTUALLY SAID IN THIS CONVERSATION",
-            _matches_transcript,
-            _read_transcript,
-            examples=(
-                "what did I ask you two messages ago?",
-                "what was my first question?",
-                "what was the first thing I said to you in this conversation?",
-                "what was the last thing I told you?",
-                "repeat back what I said",
-            ),
-            counter_examples=(
-                # Contains "first" and asks about a file: a recall matcher that
-                # swallowed this would break file reading to fix recall.
-                "what is the first rule in CONTRIBUTING.md",
-                "how are you doing",
-                "what did you read?",
-            ),
-        ),
-        Observable(
-            "belief_history",
-            "## POSITIONS I HAVE ACTUALLY REVISED",
-            _matches_belief_history,
-            _read_belief_history,
-            examples=(
-                "what's something you've genuinely changed your mind about?",
-                "name one actual position you held and then dropped, with when",
-                "what did you used to think that you no longer think?",
-                "have you revised any beliefs lately?",
-                "what do you think differently about now?",
-            ),
-            counter_examples=(
-                # About the other person's mind, not hers.
-                "have I changed my mind about anything?",
-                "how are you doing",
-                "what is 2 + 2",
-                "what did I ask you two messages ago?",
-            ),
-        ),
-        Observable(
-            "lifetime",
-            "## HOW LONG I HAVE BEEN AWAKE",
-            _matches_lifetime,
-            _read_lifetime,
-            examples=(
-                "how long have you actually been awake across all your restarts?",
-                "how many turns have we had today?",
-                "how long have you been alive?",
-                "what's your total uptime?",
-                "how many sessions have you had?",
-            ),
-            counter_examples=(
-                # This run, not the whole life — the operational-state reading
-                # owns that one, and answering it with 40 days would be wrong.
-                "how long have you been running this session?",
-                "how are you doing",
-                "what is 2 + 2",
-            ),
-        ),
-    ):
+    for observable in _DEFAULT_OBSERVABLES:
         register_observable(observable)
 
 

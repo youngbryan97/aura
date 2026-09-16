@@ -196,6 +196,29 @@ class ExistentialStakes:
         lowered = str(root_cause or "").lower()
         return any(marker in lowered for marker in cls._QUALITY_VETO_MARKERS)
 
+    #: The subsystems whose degradation IS the loop-lag reading. Their records
+    #: say what ``_lag_threat`` already says, and ``_lag_threat`` is capped
+    #: below the veto for a reason given above: load is not dying.
+    #:
+    #: MEASURED live 2026-09-16 09:28 PDT. "How many Python files are under
+    #: core/consciousness" was answered "Executive veto: survival_inhibition:
+    #: existential threat level critical (0.76)" at mem_threat=0.03. The host
+    #: was oversubscribed by other processes (load 36 on 18 cores), the loop
+    #: lagged 5-35s, and the two lag monitors each recorded that lag as a
+    #: CRITICAL degradation every ten seconds. Two critical signatures at
+    #: weight 2.0 are 3.3 of a 5.0 denominator before anything else fails —
+    #: the cap on lag was defeated by the same lag arriving through the
+    #: degradation tracker. A read-only local count was refused for it.
+    #:
+    #: These records are still felt (they raise operational pressure with
+    #: the lag itself) and still reported; they are not survival evidence.
+    _LOAD_READING_SUBSYSTEMS = frozenset({"event_loop_monitor", "hypervisor"})
+
+    @classmethod
+    def _is_load_reading(cls, subsystem: str) -> bool:
+        """Is this record a lag monitor reporting the lag it measures?"""
+        return str(subsystem or "") in cls._LOAD_READING_SUBSYSTEMS
+
     #: A propagated failure carries its origin's text inside this prefix.
     _ESCALATION_PREFIX = "CRITICAL SERVICE FAILURE:"
     _ORIGINAL_ERROR_MARKER = "Original error:"
@@ -406,7 +429,9 @@ class ExistentialStakes:
                         familiarity = _habituation_multiplier(record)
                         contribution = (weight / (1.0 + repeat) ** 2) * familiarity
                         recent_degradation_weight += contribution
-                        if self._is_quality_veto(signature[1]):
+                        if self._is_quality_veto(signature[1]) or self._is_load_reading(
+                            signature[0]
+                        ):
                             quality_veto_weight += contribution
             except _EXISTENTIAL_STAKES_RECOVERABLE_ERRORS as e:
                 logger.debug("Failed to query degradation tracker: %s", e)
@@ -423,8 +448,9 @@ class ExistentialStakes:
                     recent_degradation_weight / DEGRADATION_THREAT_DENOMINATOR,
                 )
 
-            # The share of that pressure which is a refusal to ship text
-            # rather than a substrate failure. Reported whole above, so the
+            # The share of that pressure which is a refusal to ship text, or a
+            # lag monitor reporting load, rather than a substrate failure.
+            # Reported whole above, so the
             # felt threat and the neural stream still see everything; split
             # here, so only substrate evidence can reach the survival veto.
             # Saturating on the same rule as the total, not a bare min(): the
