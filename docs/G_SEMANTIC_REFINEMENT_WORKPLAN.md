@@ -68,6 +68,10 @@ It does not replace or close the master G03-G12 obligations.
   now connects decoded programs to the existing registry and measures new-value
   execution separately from interpretation correctness. Full-cohort and
   new-wording transfer remain unmeasured.
+  [Full-cohort domain diagnosis](evidence/G03_PROCEDURE_DOMAIN_CONTRACT_2026-09-15.md)
+  completes 500 interpretations and exposes an evaluator domain-accounting
+  defect plus three empty-sequence lowering mismatches. Those are repaired;
+  the corrected full measurement and new-wording transfer remain required.
 - [ ] S07 Integrated measurement. Run the unchanged 500-row development
   comparison, freeze a selected candidate, publish prospective fresh transfer
   and matched-arm plans, then perform G04-G08 measurement and verification.

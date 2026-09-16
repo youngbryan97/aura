@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 
 import pytest
 
@@ -165,6 +166,9 @@ def test_an_ill_typed_intermediate_is_rejected_before_floor_execution() -> None:
         ("last", ((),)),
         ("largest", ((),)),
         ("smallest", ((),)),
+        ("total", ((),)),
+        ("sorted_up", ((),)),
+        ("unique", ((),)),
         ("at", ((1, 2), 5)),
         ("at", ((1, 2), -3)),
     ],
@@ -176,6 +180,30 @@ def test_undefined_programs_refuse_in_both_engines(op, inputs) -> None:
         execute_semantic_program(ir, inputs)
     with pytest.raises((Stuck, ArithmeticError, ValueError)):
         execute_semantic_floor_program(compile_semantic_program_to_floor(ir, inputs))
+
+
+def test_all_primitive_domains_match_on_empty_zero_and_signed_inputs() -> None:
+    from core.learning.procedure_induction import _UNDEFINED
+
+    checked = 0
+    for op in PRIMITIVES_BY_NAME:
+        signature = semantic_primitive_type_signature(op)
+        choices = [
+            ((), (0,), (1, -1)) if kind == "integer_sequence" else (-1, 0, 1)
+            for kind in signature[0]
+        ]
+        for inputs in itertools.product(*choices):
+            ir = _ir(len(inputs), ((op, tuple(range(len(inputs)))),))
+            expected = ir.to_program().run(inputs)
+            try:
+                actual = execute_semantic_floor_program(
+                    compile_semantic_program_to_floor(ir, inputs)
+                ).result
+            except Stuck:
+                actual = _UNDEFINED
+            assert actual == expected, (op, inputs, actual, expected)
+            checked += 1
+    assert checked == 102
 
 
 def test_a_new_primitive_cannot_silently_bypass_the_floor(monkeypatch) -> None:

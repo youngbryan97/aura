@@ -56,6 +56,48 @@ def test_refused_parse_remains_in_the_denominator():
     assert receipt["fresh_probes"] == 0 and receipt["proved_equivalent"] == 0
 
 
+def test_matching_partial_domain_is_not_a_lowering_failure_or_successful_answer(monkeypatch):
+    item = example()
+    ir = replace(item.ir, instructions=(replace(item.ir.instructions[0], op="idiv"),
+                                        *item.ir.instructions[1:]))
+    item = replace(item, ir=ir)
+    monkeypatch.setattr("core.learning.semantic_procedure_reuse_evaluation.counterfactual_inputs",
+        lambda *_a, **_k: ((1, 0, 2), (8, 2, 3)))
+    receipt = evaluate_learned_procedure_reuse(Decoder(ir), (item,), split="validation")
+    assert receipt["lowering_failures"] == receipt["task_failures"] == 0
+    assert receipt["fresh_probes"] == 2
+    assert receipt["matched_domain_rejections"] == 1
+    assert receipt["defined_task_probes"] == receipt["correct_task_answers"] == 1
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError])
+def test_infrastructure_error_never_counts_as_matching_undefined(error_type, monkeypatch):
+    item = example()
+    ir = replace(item.ir, instructions=(replace(item.ir.instructions[0], op="idiv"),
+                                        *item.ir.instructions[1:]))
+    item = replace(item, ir=ir)
+    monkeypatch.setattr("core.learning.semantic_procedure_reuse_evaluation.counterfactual_inputs",
+        lambda *_a, **_k: ((1, 0, 2),))
+    def fail(*_a, **_k):
+        raise error_type("not a domain rejection")
+    monkeypatch.setattr("core.learning.semantic_procedure_reuse_evaluation.execute_semantic_procedure", fail)
+    receipt = evaluate_learned_procedure_reuse(Decoder(ir), (item,), split="validation")
+    assert receipt["lowering_failures"] == receipt["task_failures"] == receipt["execution_errors"] == 1
+    assert receipt["matched_domain_rejections"] == 0
+
+
+def test_undefined_prediction_is_wrong_when_target_has_an_answer(monkeypatch):
+    item = example()
+    wrong = replace(item.ir, instructions=(replace(item.ir.instructions[0], op="idiv"),
+                                           *item.ir.instructions[1:]))
+    monkeypatch.setattr("core.learning.semantic_procedure_reuse_evaluation.counterfactual_inputs",
+        lambda *_a, **_k: ((1, 0, 2),))
+    receipt = evaluate_learned_procedure_reuse(Decoder(wrong), (item,), split="validation")
+    assert receipt["lowering_failures"] == 0
+    assert receipt["task_failures"] == receipt["defined_task_probes"] == 1
+    assert receipt["matched_domain_rejections"] == receipt["correct_task_answers"] == 0
+
+
 def test_actual_learned_decoder_enters_existing_registry_and_executes_new_values():
     from tests.test_semantic_relation_graph_learning import model_examples
 
