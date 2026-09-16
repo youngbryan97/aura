@@ -409,3 +409,28 @@ def test_the_fitter_honours_the_clients_character_ceiling(monkeypatch):
     receipt = gate.prompt_fit_receipt()
     assert receipt["fits"] and receipt["char_ceiling"] == 6_000
     assert receipt["omitted_exchanges"]
+
+
+def test_once_the_window_moves_it_moves_far_enough_for_the_next_turn(monkeypatch):
+    """LIVE 2026-09-16: turn two matched 146 of 11,226 tokens — the head
+    alone — because the window had slid one exchange. Dropping reserves the
+    largest held exchange's room, so the next turn keeps the prefix."""
+    from core.brain import inference_gate_prompt as igp
+
+    gate = _gate()
+    monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 1_000_000)
+    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda: 3_000)
+    exchange = [("user", "q " * 100), ("assistant", "a " * 100)]  # 400 chars
+    history = [*exchange] * 10 + [("user", "now?")]
+    _, first = gate._fit_prompt_to_window("", _turn("", history), answer_tokens=1, origin="user")
+    first_dialogue = [row["content"] for row in first if row["role"] in {"user", "assistant"}]
+    chars = sum(len(c) for c in first_dialogue)
+    assert chars <= 3_000 - 400, "room for one more exchange was reserved"
+
+    # The next turn adds one exchange of the same size: nothing is dropped,
+    # so the oldest retained message — the cache prefix — is unchanged.
+    history_next = [*exchange] * 10 + [("user", "now?"), ("assistant", "yes."), ("user", "and then?")]
+    _, second = gate._fit_prompt_to_window("", _turn("", history_next), answer_tokens=1, origin="user")
+    second_dialogue = [row["content"] for row in second if row["role"] in {"user", "assistant"}]
+    assert second_dialogue[0] == first_dialogue[0]
+    assert len(second_dialogue) == len(first_dialogue) + 2

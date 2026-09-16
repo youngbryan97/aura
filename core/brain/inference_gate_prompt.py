@@ -1169,28 +1169,64 @@ class _BuildsAndFitsThePrompt:
             message.get("role") in {"user", "assistant"} for message in messages
         )
         receipt["omitted_exchanges"] = []
-        # A complete contiguous suffix preserves dialogue references. Apply
-        # this once, at serving capacity, rather than at each profile's soft
-        # latency budget. Keep the latest exchange for scaffold fitting below.
-        while _over():
+
+        def _exchanges() -> list[list[int]]:
             user_indices = [
                 index for index, message in enumerate(messages)
                 if message.get("role") == "user"
             ]
-            if len(user_indices) < 3:
+            groups: list[list[int]] = []
+            for start, end in zip(user_indices, user_indices[1:]):
+                groups.append([
+                    index for index in range(start, end)
+                    if messages[index].get("role") in {"user", "assistant"}
+                ])
+            return groups
+
+        def _room_for_one_more() -> tuple[int, int]:
+            # The largest exchange still held, in both units: the room the
+            # next turn will need if it is like the ones before it.
+            largest_tokens = 0
+            largest_chars = 0
+            for group in _exchanges():
+                largest_tokens = max(largest_tokens, sum(_cost(messages[i].get("content")) for i in group))
+                largest_chars = max(largest_chars, sum(len(str(messages[i].get("content") or "")) for i in group))
+            return largest_tokens, largest_chars
+
+        # A complete contiguous suffix preserves dialogue references. Apply
+        # this once, at serving capacity, rather than at each profile's soft
+        # latency budget. Keep the latest exchange for scaffold fitting below.
+        #
+        # And once dropping starts, drop far enough that the next turn fits
+        # without dropping again. The resident cache reuses only a strict
+        # prefix, and the prefix is the system head plus the oldest retained
+        # exchange; a window that slides by one exchange every turn changes
+        # that prefix every turn. LIVE 2026-09-16: turn two of a conversation
+        # matched 146 of 11,226 tokens (1.3%), the head alone, because the
+        # window had moved. The room reserved is the largest exchange held —
+        # the conversation's own measure of what a turn costs.
+        dropped_any = False
+        while True:
+            if not _over():
+                if not dropped_any:
+                    break
+                spare_tokens, spare_chars = _room_for_one_more()
+                if (allowed <= 0 or total + spare_tokens <= allowed) and (
+                    char_ceiling <= 0 or _chars() + spare_chars <= char_ceiling
+                ):
+                    break
+            groups = _exchanges()
+            if len(groups) < 2:
                 break
-            start, end = user_indices[:2]
-            indices = [
-                index for index in range(start, end)
-                if messages[index].get("role") in {"user", "assistant"}
-            ]
+            indices = groups[0]
             receipt["omitted_exchanges"].append({
                 "messages": len(indices),
                 "estimated_tokens": sum(_cost(messages[index].get("content")) for index in indices),
-                "reason": "serving_context_capacity",
+                "reason": "serving_context_capacity" if _over() else "room_for_the_next_turn",
             })
             messages = [message for index, message in enumerate(messages) if index not in indices]
             total = _total()
+            dropped_any = True
         receipt["history_messages_after"] = sum(
             message.get("role") in {"user", "assistant"} for message in messages
         )
