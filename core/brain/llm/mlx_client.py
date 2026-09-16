@@ -9144,7 +9144,16 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
                 "🛑 [MLX] No soft-cancel acknowledgement after %s — worker presumed wedged; rebooting.",
                 reason,
             )
-        await self.reboot_worker(reason=reason, mark_failed=not recoverable)
+        # The reboot IS the remedy for a wedged or dead worker: the process
+        # is replaced and the lane goes cold, to spawn on the next demand,
+        # with the lane breaker counting the death. A "failed" mark after it
+        # said the opposite — that the lane could not be spawned — and only a
+        # runtime probe clears that mark, which never fires for a cancel.
+        # LIVE, 2026-09-15 23:55Z: the reflex worker missed one soft-cancel
+        # acknowledgement on a host at load 30, was rebooted as failed, and
+        # every route to it for the next four hours was refused with that
+        # reason — 359 "Circuit OPEN for Reflex" lines and no reflex lane.
+        await self.reboot_worker(reason=reason, mark_failed=False)
 
     def force_abort_active_generation(
         self,
