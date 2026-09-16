@@ -1328,6 +1328,71 @@ def _runtime_integrity_block() -> dict[str, Any]:
     """
     block: dict[str, Any] = {}
 
+    _integrity_of_her_shape_and_boundaries(block)
+    _integrity_of_control_and_measured_effect(block)
+    _integrity_of_taint_locks_and_custody(block)
+    _integrity_of_orchestration_verifier_and_learning(block)
+
+    # What the maturity pass built, and whether any of it decides anything.
+    #
+    # An external source-level review made the point this answers: a
+    # 150-line module reads as though a system-wide invariant now exists, and
+    # it does not. So the report says which primitives have a production
+    # caller, which are only reachable, and which are still proposals — rather
+    # than listing them and letting the list imply the rest.
+    # Three of these walk the whole tree — the clock scan 19s, the settings
+    # scan 9s, the deprecation scan 7s. They belong to a gate and to
+    # tools/inspect_runtime.py, not to a route somebody refreshes: a health
+    # report that takes half a minute is a health report nobody asks for.
+    # What is left here is what a live runtime can answer about itself.
+    for name, read in (
+        ("trace_boundaries",
+         "core.observability.does_one_trace_reach_the_end:how_far_a_trace_reaches"),
+        ("call_policies", "core.runtime.how_a_call_is_made:how_the_calls_are_made"),
+        ("task_endings",
+         "core.runtime.how_a_task_should_end:how_the_endings_are_declared"),
+        ("prompt_room", "core.brain.llm.who_got_the_room:how_the_room_was_shared"),
+        ("memory_kinds",
+         "core.memory.what_kind_of_memory_is_this:how_the_kinds_stand"),
+        ("write_drains",
+         "core.state.nothing_lands_before_its_writes:how_the_drains_have_gone"),
+        ("abandoned_calls",
+         "core.runtime.cancelling_the_call_and_not_just_the_wait:how_the_calls_ended"),
+        ("checkable_promises",
+         "core.verify.a_promise_with_a_test:how_the_promises_stand"),
+        # What a self-authored change had to show before it was kept, and who
+        # took the opt-out and showed nothing.
+        ("change_evidence",
+         "core.cognition.what_she_could_do_next:how_changes_were_judged"),
+        ("self_judged",
+         "core.cognition.what_a_change_measured_about_itself"
+         ":how_the_self_judged_stand"),
+        # Why an hourly job that measures whether faculties matter has
+        # produced no verdicts. Cheap: it reads counters, not the tree.
+        ("campaign_admission",
+         "core.verify.why_the_campaign_did_not_run:how_the_campaign_has_gone"),
+        # Which link in the loop that widens her language is binding, and
+        # whether the gate that judges a change has enough to say yes with.
+        ("language_growth",
+         "core.cognition.where_the_growing_is_starved:how_the_growing_stands"),
+    ):
+        module_name, _, func_name = read.partition(":")
+        try:
+            import importlib
+
+            said = getattr(importlib.import_module(module_name), func_name)()
+            # The each/policies lists are long and this is served on a route.
+            block[name] = {
+                key: value
+                for key, value in said.items()
+                if key not in ("each", "policies", "the_disagreements", "recent")
+            }
+        except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
+            block[f"{name}_error"] = repr(exc)
+    return block
+
+
+def _integrity_of_her_shape_and_boundaries(block: dict[str, Any]) -> None:
     # The order in which she thinks, compiled and sealed.
     #
     # Three peer architectures make the same complaint from three directions:
@@ -1352,7 +1417,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_shape_of_one_turn"] = {"error": repr(exc)}
-
     # Decision points that have only ever answered one way.
     #
     # A gate nobody can pass takes a working system and gates it into a coma;
@@ -1381,7 +1445,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_way_decisions"] = {"error": repr(exc)}
-
     # One working memory, and whether anything still normalises it against a
     # number of its own. Three readers did, and each was pinned at its own
     # ceiling for most of a conversation — a constant that looked like a
@@ -1405,7 +1468,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_working_memory"] = {"error": repr(exc)}
-
     # The runtime boundary, and how much of the declared service spine the
     # runtime that is actually up can resolve. A name it cannot resolve is a
     # service somebody else owns — a module singleton, a boot-local — which
@@ -1436,7 +1498,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["the_runtime_boundary"] = boundary
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_runtime_boundary"] = {"error": repr(exc)}
-
     # Who holds the scarce things, who is queued for them, and how the waiting
     # has gone. A lock answers none of those: it is a boolean with a queue
     # nobody can see, and whose order is whatever the loop decided.
@@ -1454,7 +1515,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["who_holds_what"] = {"error": repr(exc)}
-
     # Which durable fields have an authority. Counts only — the lists are long
     # and the file that carries them is the baseline. A field that loses its
     # owner between two builds is what this is for.
@@ -1464,7 +1524,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["who_owns_each_field"] = what_it_stood_at_last_time()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["who_owns_each_field"] = {"error": repr(exc)}
-
     # The graph stores under one shape, and whether a reference from one into
     # another still lands. Over the LIVE instances: the same check over fresh
     # graphs measures nothing, which is how a check like this usually fails.
@@ -1492,7 +1551,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["one_graph"] = {"error": repr(exc)}
-
     # Which answer route actually answered. A route offered every turn that
     # has never answered one is either unable to fire or gated wrong, and
     # neither is visible from the source: declining and being unable to
@@ -1509,7 +1567,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_answered_this_turn"] = {"error": repr(exc)}
-
     # Who owns the runtime right now, and what a cancelled turn is still
     # waiting on. A runtime that reports idle while it is still tearing a turn
     # down will start the next one on top of it.
@@ -1519,7 +1576,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["whose_turn_it_is"] = the_turn().report()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["whose_turn_it_is"] = {"error": repr(exc)}
-
     # Who is listening, in a form a restart can put back. AutoGen saves agent
     # state and says it does not save this; a subscription that does not
     # survive a restart is a listener that silently stops.
@@ -1533,7 +1589,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_a_message_carries"] = {"error": repr(exc)}
-
     # What each phase committed at its boundary, and what is held by more than
     # one. A stuck refcount has to be answerable rather than a mystery.
     try:
@@ -1542,7 +1597,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["what_a_phase_changed"] = how_the_boundaries_have_gone()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_a_phase_changed"] = {"error": repr(exc)}
-
     # What ran on the loop's thread that must not. An on-loop fsync once froze
     # this loop for twenty minutes, and the fix was a rule in a guide; this is
     # the part that can tell you the rule was broken.
@@ -1552,7 +1606,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["which_thread_may_do_this"] = how_it_has_gone()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["which_thread_may_do_this"] = {"error": repr(exc)}
-
     # Every state holder, and whether it decides a fact, shows one, or is
     # scratch. Counts here; the table itself is in the module.
     try:
@@ -1564,7 +1617,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_kind_of_state_is_this"] = {"error": repr(exc)}
-
     # What a skill gave back that it did not declare. Every one of the 82
     # declares now; a declaration nothing checks is a comment.
     try:
@@ -1578,6 +1630,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_every_skill_gives_back"] = {"error": repr(exc)}
 
+
+def _integrity_of_control_and_measured_effect(block: dict[str, Any]) -> None:
     # What the uncalibrated decoding policy actually does. Counts only: the
     # full sweep is 5,760 states and belongs in a test, not on a route.
     try:
@@ -1599,7 +1653,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["the_control_policy"] = {"error": repr(exc)}
-
     # How many named faculties have a measured downstream effect. A channel
     # wired to a consumer is not one; only `measured` is evidence.
     try:
@@ -1608,7 +1661,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["what_has_a_measured_effect"] = what_it_stood_at_last_time()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_has_a_measured_effect"] = {"error": repr(exc)}
-
     # Whether each organ knows what it owns, consumes, promises, and does when
     # it fails. Counts from the committed baseline: asking every package walks
     # the whole tree, and health is served on a route.
@@ -1624,7 +1676,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_each_organ_says"] = {"error": repr(exc)}
-
     # The benchmarks somebody else designed: what ran, what could not, and
     # whether anything is claimed without its limit.
     try:
@@ -1633,7 +1684,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["what_was_measured_outside"] = how_it_stands()
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["what_was_measured_outside"] = {"error": repr(exc)}
-
     # Which semantic routes decide an answer and which only watch one. A
     # shadow route contributes no answers however good it gets.
     try:
@@ -1648,7 +1698,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         )
     except Exception as exc:  # noqa: BLE001 — health must never raise at its caller
         block["which_routes_are_authoritative"] = {"error": repr(exc)}
-
     # Whether Aura's own cognitive state reached the words she produced. Read
     # through the registry rather than imported: this package may not reach
     # core.brain, and a health block that needed that edge would be a layering
@@ -1668,7 +1717,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
             block["endogenous_language"] = provider()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["endogenous_language_error"] = repr(exc)
-
     # Who this runtime is, and where its state lives. Every persistent record
     # is stamped with this, so a store found in the wrong place can be traced
     # to the process that wrote it.
@@ -1678,7 +1726,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["runtime_identity"] = runtime_identity()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["runtime_identity_error"] = repr(exc)
-
     # Whether the copy that makes deletion survivable actually exists, and
     # whether it is somewhere a wipe would not reach.
     #
@@ -1700,7 +1747,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["existence_guard_error"] = repr(exc)
-
     # Whether the compiled launcher is the launcher its source describes.
     #
     # LIVE DEFECT, 2026-08-10. Bryan reported companion mode did not work: he
@@ -1729,7 +1775,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["launcher_currency"] = launcher_currency()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["launcher_currency_error"] = repr(exc)
-
     # What Aura has been ALLOWED to learn permanently, and on whose evidence.
     # Without this the durable-learning gate could be doing anything and the
     # health surface would look identical — the gate's own report existed and
@@ -1740,7 +1785,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["durable_learning"] = get_durable_learning_gate().report()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["durable_learning_error"] = repr(exc)
-
     # Turns that reached cognition without a Will decision.
     #
     # The message handler's comment claimed ALL processing passes the Unified
@@ -1755,7 +1799,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["ungoverned_turns"] = ungoverned_turn_report()
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["ungoverned_turns_error"] = repr(exc)
-
     # Whether the activation-grounded Φ complex is being fed at all.
     #
     # The residual channel carries 8-bit Grassmann states out of the MLX
@@ -1791,7 +1834,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
             block["phi_residual_history"] = history
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["phi_residual_history_error"] = repr(exc)
-
     # Whether admission is predicting from measurement or still guessing.
     #
     # Read through the runtime service registry rather than by importing the
@@ -1812,6 +1854,8 @@ def _runtime_integrity_block() -> dict[str, Any]:
         block["admission_throughput_error"] = repr(exc)
     _attach_causal_evidence(block)
 
+
+def _integrity_of_taint_locks_and_custody(block: dict[str, Any]) -> None:
     # Which path actually produced the recent replies. A demo showing a fluent
     # answer establishes nothing about the pipeline until this says the pipeline
     # ran.
@@ -1831,7 +1875,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
         block["turn_paths_error"] = repr(exc)
-
     try:
         from core.runtime.taint import credibility_caveat, taint_compact, taint_report
 
@@ -2040,6 +2083,9 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["middleware_error"] = repr(exc)
+
+
+def _integrity_of_orchestration_verifier_and_learning(block: dict[str, Any]) -> None:
     try:
         from core.runtime.admission import admission_report
         from core.runtime.eviction import eviction_report
@@ -2103,7 +2149,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["oom_error"] = repr(exc)
-
     # Grounding: does what she persisted match what actually ran?
     #
     # The work ledger and the canary counters are detectors, and a detector
@@ -2128,7 +2173,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["grounding_error"] = repr(exc)
-
     # What keeps failing, as opposed to what failed. The degradation log
     # answers the second; only the scar record answers the first.
     try:
@@ -2144,7 +2188,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
         }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["chronic_faults_error"] = repr(exc)
-
     # Memories that have done more harm than good, and how much the ambient
     # mind declined to say. Both are numbers nothing else in the runtime
     # produces.
@@ -2187,64 +2230,6 @@ def _runtime_integrity_block() -> dict[str, Any]:
             }
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["judgement_error"] = repr(exc)
-
-    # What the maturity pass built, and whether any of it decides anything.
-    #
-    # An external source-level review made the point this answers: a
-    # 150-line module reads as though a system-wide invariant now exists, and
-    # it does not. So the report says which primitives have a production
-    # caller, which are only reachable, and which are still proposals — rather
-    # than listing them and letting the list imply the rest.
-    # Three of these walk the whole tree — the clock scan 19s, the settings
-    # scan 9s, the deprecation scan 7s. They belong to a gate and to
-    # tools/inspect_runtime.py, not to a route somebody refreshes: a health
-    # report that takes half a minute is a health report nobody asks for.
-    # What is left here is what a live runtime can answer about itself.
-    for name, read in (
-        ("trace_boundaries",
-         "core.observability.does_one_trace_reach_the_end:how_far_a_trace_reaches"),
-        ("call_policies", "core.runtime.how_a_call_is_made:how_the_calls_are_made"),
-        ("task_endings",
-         "core.runtime.how_a_task_should_end:how_the_endings_are_declared"),
-        ("prompt_room", "core.brain.llm.who_got_the_room:how_the_room_was_shared"),
-        ("memory_kinds",
-         "core.memory.what_kind_of_memory_is_this:how_the_kinds_stand"),
-        ("write_drains",
-         "core.state.nothing_lands_before_its_writes:how_the_drains_have_gone"),
-        ("abandoned_calls",
-         "core.runtime.cancelling_the_call_and_not_just_the_wait:how_the_calls_ended"),
-        ("checkable_promises",
-         "core.verify.a_promise_with_a_test:how_the_promises_stand"),
-        # What a self-authored change had to show before it was kept, and who
-        # took the opt-out and showed nothing.
-        ("change_evidence",
-         "core.cognition.what_she_could_do_next:how_changes_were_judged"),
-        ("self_judged",
-         "core.cognition.what_a_change_measured_about_itself"
-         ":how_the_self_judged_stand"),
-        # Why an hourly job that measures whether faculties matter has
-        # produced no verdicts. Cheap: it reads counters, not the tree.
-        ("campaign_admission",
-         "core.verify.why_the_campaign_did_not_run:how_the_campaign_has_gone"),
-        # Which link in the loop that widens her language is binding, and
-        # whether the gate that judges a change has enough to say yes with.
-        ("language_growth",
-         "core.cognition.where_the_growing_is_starved:how_the_growing_stands"),
-    ):
-        module_name, _, func_name = read.partition(":")
-        try:
-            import importlib
-
-            said = getattr(importlib.import_module(module_name), func_name)()
-            # The each/policies lists are long and this is served on a route.
-            block[name] = {
-                key: value
-                for key, value in said.items()
-                if key not in ("each", "policies", "the_disagreements", "recent")
-            }
-        except Exception as exc:  # noqa: BLE001 — integrity reporting is additive
-            block[f"{name}_error"] = repr(exc)
-    return block
 
 
 # ═══════════════════════════════════════════════════════════════════════
