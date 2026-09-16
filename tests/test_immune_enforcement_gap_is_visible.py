@@ -105,7 +105,7 @@ class TestTheFactoryUsesIt:
     def test_the_registered_factory_delegates_here(self):
         import inspect
 
-        source = inspect.getsource(reg._register_all_services_body)
+        source = inspect.getsource(reg._register_critique_closure_and_runtime_organs)
         factory = source.split("def _create_immune_system():", 1)[1][:400]
         assert "install_immune_enforcement" in factory
 
