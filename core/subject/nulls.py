@@ -194,6 +194,303 @@ def _rank_one(rng: np.random.Generator, rows: int, cols: int, strength: float) -
     return (left @ right) * (strength / max(1.0, np.sqrt(cols)))
 
 
+#: What the reference's wiring is scaled to: the middle of the decay the
+#: family draws for every architecture, so the reference remembers its own past
+#: no longer than its siblings do.
+REFERENCE_RADIUS: float = 0.5
+
+#: How hard each triple's product drives its target. A product of two
+#: unit-spread readings is bilinear, so this is what it adds to the Jacobian
+#: along either source; the product is bounded four spreads out, so the linear
+#: part keeps the system stationary whatever this is, and what sets it is the
+#: two lines it has to satisfy at once. At 0.25 — half the room the wiring
+#: leaves at a radius of a half — so much of a target's change is the product
+#: that its own way back round the wiring leaves the two sources reading as
+#: one, and the fraction the line reads was predicted at 0.50 and measured
+#: 0.04 on eleven triples over twelve seeds. At this, twelve seeds of twelve
+#: pass all four triples: the fraction reads a fifth to a half against a floor
+#: of a tenth, and the interaction two to ten times its own bound. With the
+#: product taken out, none of the twelve passes a single triple.
+REFERENCE_DOSE: float = 0.0625
+
+#: How many rounds the reference's two sources are brought level over. Each
+#: round is a Lyapunov solve and moves a path a quarter of the way, and the
+#: loop converges because the system is a contraction.
+REFERENCE_ROUNDS: int = 12
+
+#: How many shocks a reference domain's columns are driven by. Four columns
+#: taking four independent shocks make a system whose variance is spread over
+#: its whole width — an effective dimension of nine tenths of it, where the
+#: differentiation line wants under four tenths, and it wants that because a
+#: system whose variance is spread over everything is what ten independent
+#: noise sources look like. A domain's columns are views of fewer quantities
+#: than there are columns, here as in her: this shares nothing between
+#: domains, which is what the common-driver null is for.
+REFERENCE_CHANNELS: int = 1
+
+#: Which neighbours a reference domain reads, by their distance around the
+#: declared order. Irreducibility asks what the cheapest cut costs, and the
+#: cheapest cut is one domain against the other nine: what it costs is how much
+#: of that domain's change the others account for. Three neighbours left the
+#: reference under the bar it exists to clear. Six is still sparse — every
+#: domain reads six of nine and there is no broker anywhere — and it is the
+#: same six for every domain, so no domain is a hub.
+REFERENCE_NEIGHBOURS: tuple[int, ...] = (1, 2, 3, -1, -2, -3)
+
+
+@dataclass
+class LinearReference(ToySystem):
+    """The reference: the recurrent wiring without the squash, and one product per triple.
+
+    The battery needs a system it must say yes to. The recurrent wiring alone
+    is not that system: it has no designed interaction, so whether the synergy
+    lines pass on it is a matter of the seed, and on the tanh family nothing
+    about it can be dosed — cutting one path moves the whole system, and the
+    same rule read a path's share as 0.87 on one seed and 0.00 on the next.
+
+    Without the squash every quantity the lines read can be solved instead of
+    searched. The stationary covariance is one Lyapunov solve; the information
+    each source carries about the target's change is a determinant of it; and
+    the two things the lines ask for are then constructions rather than hopes:
+
+      * the fraction is a ratio, so what it needs is that the two sources
+        carry the SAME information about the target's change. Two level
+        sources read near a half whatever the size; a tenfold imbalance
+        reads 0.03.
+      * the interaction gain is a held-out ridge score against its own fold
+        noise, so what it needs is a bilinear product large enough to clear
+        that noise and small enough to leave the system a contraction.
+
+    So each named triple has both sources as parents, level in information and
+    together carrying as much of the target as everything else into it; one
+    bilinear product of the two on the target's leading direction, bounded far
+    out in the tail so a run of large readings cannot drive the state away; and
+    no path from the target back to either source, which is what stopped the
+    two of them from reading as one.
+    """
+
+    directions: dict[str, np.ndarray] = field(default_factory=dict)
+    spreads: dict[str, float] = field(default_factory=dict)
+    gains: dict[tuple[str, str, str], float] = field(default_factory=dict)
+    clip: float = 4.0
+    #: Each domain's own shocks, as a width-by-channels matrix of unit columns.
+    channels: dict[str, np.ndarray] = field(default_factory=dict)
+
+    def reading(self, state: dict[str, np.ndarray], key: str) -> float:
+        """Where a domain sits along its own leading direction, in its own spreads."""
+        return float(self.directions[key] @ state[key]) / self.spreads.get(key, 1.0)
+
+    def step(
+        self, state: dict[str, np.ndarray], rng: np.random.Generator
+    ) -> dict[str, np.ndarray]:
+        nxt: dict[str, np.ndarray] = {}
+        for key, width in self.widths.items():
+            drive = self.decay[key] * state[key]
+            for other, matrix in self.coupling.get(key, {}).items():
+                drive = drive + matrix @ state[other]
+            shocks = self.channels.get(key)
+            if shocks is None:
+                nxt[key] = drive + self.noise * rng.normal(size=width)
+            else:
+                nxt[key] = drive + self.noise * (shocks @ rng.normal(size=shocks.shape[1]))
+        for sources_and_target, gain in self.gains.items():
+            if not gain:
+                continue
+            source_a, source_b, target = sources_and_target
+            product = self.reading(state, source_a) * self.reading(state, source_b)
+            bounded = float(np.clip(product, -self.clip, self.clip))
+            nxt[target] = nxt[target] + gain * bounded * self.directions[target]
+        return nxt
+
+
+def _domain_slices(widths: dict[str, int]) -> dict[str, slice]:
+    out: dict[str, slice] = {}
+    start = 0
+    for key in DOMAINS:
+        out[key] = slice(start, start + widths[key])
+        start += widths[key]
+    return out
+
+
+def _as_matrix(system: ToySystem, where: dict[str, slice]) -> np.ndarray:
+    size = sum(system.widths[key] for key in DOMAINS)
+    matrix = np.zeros((size, size))
+    for key in DOMAINS:
+        matrix[where[key], where[key]] = np.diag(system.decay[key])
+        for other, block in system.coupling.get(key, {}).items():
+            matrix[where[key], where[other]] = block
+    return matrix
+
+
+def _hold_radius(system: ToySystem, where: dict[str, slice], radius: float) -> None:
+    """Hold the whole wiring at one spectral radius, decay and couplings together."""
+    current = float(np.max(np.abs(np.linalg.eigvals(_as_matrix(system, where)))))
+    if current <= 1e-12:
+        return
+    factor = radius / current
+    for key in DOMAINS:
+        system.decay[key] = system.decay[key] * factor
+        for other in system.coupling.get(key, {}):
+            system.coupling[key][other] = system.coupling[key][other] * factor
+
+
+def _stationary_covariance(system: ToySystem, where: dict[str, slice]) -> tuple[np.ndarray, np.ndarray]:
+    from scipy.linalg import solve_discrete_lyapunov
+
+    matrix = _as_matrix(system, where)
+    size = matrix.shape[0]
+    innovation = np.zeros((size, size))
+    for key in DOMAINS:
+        shocks = getattr(system, "channels", {}).get(key)
+        block = np.eye(system.widths[key]) if shocks is None else shocks @ shocks.T
+        innovation[where[key], where[key]] = (system.noise ** 2) * block
+    return matrix, solve_discrete_lyapunov(matrix, innovation)
+
+
+def _leading_direction(block: np.ndarray) -> np.ndarray:
+    values, vectors = np.linalg.eigh(block)
+    return vectors[:, int(np.argmax(values))]
+
+
+def _top_directions(block: np.ndarray, keep: int = 3) -> np.ndarray:
+    values, vectors = np.linalg.eigh(block)
+    order = np.argsort(values)[::-1][:keep]
+    return vectors[:, order]
+
+
+def _gaussian_information(joint: np.ndarray, split: int) -> float:
+    sign_x, log_x = np.linalg.slogdet(joint[:split, :split])
+    sign_y, log_y = np.linalg.slogdet(joint[split:, split:])
+    sign_j, log_j = np.linalg.slogdet(joint)
+    if min(sign_x, sign_y, sign_j) <= 0:
+        return 0.0
+    return max(0.0, 0.5 * float(log_x + log_y - log_j))
+
+
+def predicted_synergy(system: ToySystem, *, of: str = "change") -> dict[tuple[str, str, str], dict[str, float]]:
+    """What the synergy lines will read on a linear system, solved rather than run.
+
+    The instrument keeps three components a side and reads a Gaussian
+    information; on a linear system both are functions of one stationary
+    covariance, so this says what a recording will show before it is recorded.
+    It leaves out the products, which is why the reference is measured as well
+    as solved: a product reaches its own sources the long way round, and what
+    that does to the two of them is not in this.
+    """
+    from core.subject.synergy import TRIPLES
+
+    where = _domain_slices(system.widths)
+    matrix, covariance = _stationary_covariance(system, where)
+    size = covariance.shape[0]
+    out: dict[tuple[str, str, str], dict[str, float]] = {}
+    for triple in TRIPLES:
+        source_a, source_b, target = triple
+        select = np.zeros((system.widths[target], size))
+        select[:, where[target]] = np.eye(system.widths[target])
+        # ISC-v1 reads the target's next level and v2 and v3 read its change.
+        # Both are judged, so the reference is built to be seen by both.
+        change = matrix[where[target]] - select if of == "change" else matrix[where[target]]
+        cov_change = change @ covariance @ change.T + (system.noise ** 2) * np.eye(system.widths[target])
+        basis_y = _top_directions(cov_change)
+        bases, crosses, blocks = {}, {}, {}
+        for key in (source_a, source_b):
+            basis = _top_directions(covariance[where[key], where[key]])
+            bases[key] = basis
+            crosses[key] = basis_y.T @ change @ covariance[:, where[key]] @ basis
+            blocks[key] = basis.T @ covariance[where[key], where[key]] @ basis
+        across = bases[source_a].T @ covariance[where[source_a], where[source_b]] @ bases[source_b]
+        sources = np.block([[blocks[source_a], across], [across.T, blocks[source_b]]])
+        target_block = basis_y.T @ cov_change @ basis_y
+        both = np.hstack([crosses[source_a], crosses[source_b]])
+        joint = np.block([[sources, both.T], [both, target_block]])
+        singles = {
+            key: _gaussian_information(
+                np.block([[blocks[key], crosses[key].T], [crosses[key], target_block]]),
+                blocks[key].shape[0],
+            )
+            for key in (source_a, source_b)
+        }
+        together = _gaussian_information(joint, sources.shape[0])
+        value = together - max(singles.values())
+        out[triple] = {
+            "mi_a": singles[source_a],
+            "mi_b": singles[source_b],
+            "joint": together,
+            "synergy": value,
+            "fraction": value / together if together > 1e-12 else 0.0,
+        }
+    return out
+
+
+def _reference(
+    widths: dict[str, int], rng: np.random.Generator, strength: float, noise: float, seed: int
+) -> LinearReference:
+    """The reference wiring, solved into the shape the lines are built to read."""
+    from core.subject.synergy import TRIPLES
+
+    decay = {key: rng.uniform(0.3, 0.7, size=width) for key, width in widths.items()}
+    coupling: dict[str, dict[str, np.ndarray]] = {key: {} for key in widths}
+    order = list(widths)
+    for index, key in enumerate(order):
+        for offset in REFERENCE_NEIGHBOURS:
+            other = order[(index + offset) % len(order)]
+            coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+    for source_a, source_b, target in TRIPLES:
+        for source in (source_a, source_b):
+            if source not in coupling[target]:
+                coupling[target][source] = _matrix(rng, widths[target], widths[source], strength)
+            # And no path from a target back to its own sources: it carries
+            # their product, and a way back puts that product into both of them.
+            coupling[source].pop(target, None)
+    channels = {}
+    for key, width in widths.items():
+        drawn = rng.normal(size=(width, min(REFERENCE_CHANNELS, width)))
+        channels[key] = drawn / np.linalg.norm(drawn, axis=0, keepdims=True)
+    system = LinearReference(
+        name="recurrent", widths=dict(widths), coupling=coupling, decay=decay, noise=noise,
+        gains={triple: 0.0 for triple in TRIPLES}, channels=channels,
+    )
+    where = _domain_slices(widths)
+    _hold_radius(system, where, REFERENCE_RADIUS)
+    for _ in range(REFERENCE_ROUNDS):
+        readings = [predicted_synergy(system, of="change"), predicted_synergy(system, of="level")]
+        for source_a, source_b, target in TRIPLES:
+            ratios = []
+            for lines in readings:
+                mi_a, mi_b = lines[(source_a, source_b, target)]["mi_a"], lines[(source_a, source_b, target)]["mi_b"]
+                if min(mi_a, mi_b) > 1e-9:
+                    ratios.append(mi_b / mi_a)
+            if not ratios:
+                continue
+            tilt = float(np.clip(float(np.exp(np.mean(np.log(ratios)))) ** 0.25, 0.5, 2.0))
+            coupling[target][source_a] = coupling[target][source_a] * tilt
+            coupling[target][source_b] = coupling[target][source_b] / tilt
+        _, covariance = _stationary_covariance(system, where)
+        for source_a, source_b, target in TRIPLES:
+            carried = {
+                other: float(np.trace(block @ covariance[where[other], where[other]] @ block.T))
+                for other, block in coupling[target].items()
+            }
+            own = np.diag(system.decay[target])
+            carried["itself"] = float(np.trace(own @ covariance[where[target], where[target]] @ own.T))
+            elsewhere = sum(value for key, value in carried.items() if key not in (source_a, source_b))
+            for source in (source_a, source_b):
+                if carried[source] > 1e-15 and elsewhere > 0.0:
+                    lift = float(np.clip((elsewhere / carried[source]) ** 0.25, 0.5, 2.0))
+                    coupling[target][source] = coupling[target][source] * lift
+        _hold_radius(system, where, REFERENCE_RADIUS)
+    _, covariance = _stationary_covariance(system, where)
+    for key in DOMAINS:
+        block = covariance[where[key], where[key]]
+        system.directions[key] = _leading_direction(block)
+        system.spreads[key] = float(
+            np.sqrt(system.directions[key] @ block @ system.directions[key])
+        )
+    for triple in TRIPLES:
+        system.gains[triple] = REFERENCE_DOSE
+    return system
+
+
 def architecture(
     name: str,
     *,
@@ -214,11 +511,10 @@ def architecture(
     order = list(widths)
 
     if name == "recurrent":
-        # The comparison case: sparse, reciprocal, no broker.
-        for index, key in enumerate(order):
-            for offset in (1, 2, -1):
-                other = order[(index + offset) % len(order)]
-                coupling[key][other] = _matrix(rng, widths[key], widths[other], strength)
+        # The comparison case: sparse, reciprocal, no broker — and the one the
+        # battery has to be able to say yes to, so it is built to carry what
+        # every line measures rather than left to the seed.
+        return _reference(widths, rng, strength, noise, seed)
     elif name in {"star", "hub"}:
         hub_width = 4
         for key in order:
