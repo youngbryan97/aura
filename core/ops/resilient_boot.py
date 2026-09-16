@@ -320,11 +320,23 @@ class ResilientBoot:
                     logger.info("📡 StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
-                _record_boot_degradation(e, action=f"state vault actor handshake attempt {attempt + 1} failed")
-                logger.debug("Handshake attempt %d failed: %s", attempt + 1, e)
+                # A fresh child answering late on a loaded host is the wait
+                # this loop exists for, not a degradation: three of these per
+                # boot were being filed as faults while the vault came up on
+                # attempt four (2026-09-16, load 34).
+                logger.info(
+                    "StateVaultActor handshake attempt %d of 20 not answered yet: %s",
+                    attempt + 1,
+                    type(e).__name__,
+                )
             await asyncio.sleep(0.5)
         
         if not ready:
+            _record_boot_degradation(
+                RuntimeError("state vault actor answered none of 20 handshakes"),
+                action="aborted boot; the state vault never answered",
+                severity="critical",
+            )
             logger.critical("🛑 StateVaultActor failed to initialize or respond. Aborting boot.")
             raise RuntimeError("StateVaultActor is fundamentally broken or unresponsive.")
 
