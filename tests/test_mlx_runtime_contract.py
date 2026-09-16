@@ -881,9 +881,12 @@ def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
     # "mlx_runtime_unavailable:exit_124" on a perfectly healthy machine. What
     # this contract requires is that the call stays BOUNDED, and that the
     # bound has a floor so it cannot be configured away.
-    assert "timeout=_MLX_RUNTIME_PROBE_TIMEOUT_S" in source
+    # And the bound scales with the host's oversubscription: at load 28 the
+    # idle-host budget aborted four spawns of a healthy MLX (2026-09-16).
+    assert "timeout=_mlx_runtime_probe_budget_s()" in source
     probe_timeout = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
     assert 5.0 <= probe_timeout <= 600.0
+    assert mlx_client._mlx_runtime_probe_budget_s() >= probe_timeout
     assert "source=\"runtime_probe:mlx_runtime_probe\"" in source
     assert "read_only=True" in source
     assert "AURA_TEST_MODE" not in source
@@ -1557,3 +1560,23 @@ async def test_model_load_admission_denial_backoff_suppresses_background_retry_s
 
     assert foreground is False
     assert attempts == [False, True]
+
+
+def test_the_probe_budget_reads_the_hosts_oversubscription(monkeypatch):
+    from types import SimpleNamespace
+
+    from core.brain.llm import mlx_client
+    from core.runtime import resource_observation
+
+    class _Observer:
+        def __init__(self, load, cores):
+            self._c = SimpleNamespace(load_1m=load, cpu_count=cores)
+
+        def compute(self):
+            return self._c
+
+    base = float(mlx_client._MLX_RUNTIME_PROBE_TIMEOUT_S)
+    monkeypatch.setattr(resource_observation, "get_resource_observer", lambda: _Observer(2.0, 10))
+    assert mlx_client._mlx_runtime_probe_budget_s() == base  # under-subscribed: never below one
+    monkeypatch.setattr(resource_observation, "get_resource_observer", lambda: _Observer(28.0, 10))
+    assert mlx_client._mlx_runtime_probe_budget_s() == base * 2.8

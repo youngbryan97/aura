@@ -4501,6 +4501,30 @@ _LKG_PROBE_WINDOW_S = _env_duration_s("AURA_MLX_LKG_PROBE_WINDOW_S", 300.0)
 _MLX_RUNTIME_PROBE_TIMEOUT_S = _finite_env_float(
     "AURA_MLX_RUNTIME_PROBE_TIMEOUT_S", 25.0, minimum=5.0
 )
+
+
+def _mlx_runtime_probe_budget_s() -> float:
+    """The probe's budget, scaled by how oversubscribed the host is now.
+
+    The budget above is what the probe takes on an idle host. It starts an
+    interpreter and imports MLX, which is CPU and page-cache work, so on a
+    host running N times more runnable threads than it has cores it takes
+    about N times longer. LIVE, 2026-09-16 at load 28: four spawn attempts
+    aborted with exit_124 and the backoff reached 80s while MLX was healthy
+    and merely queued behind two other agents' jobs. The scale is the host's
+    own reading — load average over cores — and never below one.
+    """
+    base = float(_MLX_RUNTIME_PROBE_TIMEOUT_S)
+    try:
+        from core.runtime.resource_observation import get_resource_observer
+
+        compute = get_resource_observer().compute()
+        cores = max(1, int(getattr(compute, "cpu_count", 0) or 0))
+        load = max(0.0, float(getattr(compute, "load_1m", 0.0) or 0.0))
+        oversubscription = max(1.0, load / cores)
+    except (ImportError, AttributeError, TypeError, ValueError, OSError):
+        return base
+    return base * oversubscription
 _LKG_PROBE_MAX_CONSECUTIVE = 2
 
 
@@ -4552,7 +4576,7 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
                 # way for an operator to raise it. Live 2026-07-26, repeatedly:
                 # `mlx_runtime_unavailable:exit_124`, on a machine where MLX was
                 # perfectly healthy and merely slow to load.
-                timeout=_MLX_RUNTIME_PROBE_TIMEOUT_S,
+                timeout=_mlx_runtime_probe_budget_s(),
                 read_only=True,
                 source="runtime_probe:mlx_runtime_probe",
                 accelerator_capability="auto",
