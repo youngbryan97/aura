@@ -340,6 +340,28 @@ class OrchestratorBootMixin(
     personhood: Any
     voice: Any
 
+    async def wait_for_deferred_boot(self, timeout_s: float) -> list[str]:
+        """Wait for the deferred initialisers, up to ``timeout_s``.
+
+        They register services, and ``ServiceContainer.lock_registration``
+        refuses everything after it. On a loaded host (2026-09-15, load
+        average 33) they landed 34s after the lock, so interiority, the
+        reliability engine and the state authority were never registered.
+        Returns the names still running at the deadline.
+        """
+        tasks = [t for t in getattr(self, "_deferred_boot_inits", []) if not t.done()]
+        if not tasks:
+            return []
+        _done, pending = await asyncio.wait(tasks, timeout=max(0.0, float(timeout_s)))
+        names = sorted(str(t.get_name()) for t in pending)
+        if names:
+            logger.warning(
+                "Deferred boot still running at the registration lock (%.0fs allowed): %s",
+                float(timeout_s),
+                ", ".join(names),
+            )
+        return names
+
     async def emit_spontaneous_message(
         self,
         message: str,
@@ -919,15 +941,23 @@ class OrchestratorBootMixin(
                 self.belief_sync = BeliefSync(self)
                 ServiceContainer.register_instance("belief_sync", self.belief_sync)
 
-                _spawn_boot_task(self._init_sensory_systems(), "orchestrator.init_sensory_systems")
-                _spawn_boot_task(
-                    self._init_autonomous_evolution(), "orchestrator.init_autonomous_evolution"
-                )
+                # These register services. They are boot, deferred so the
+                # answer path comes up first — and registration must not be
+                # locked underneath them: see wait_for_deferred_boot.
+                self._deferred_boot_inits = [
+                    _spawn_boot_task(
+                        self._init_sensory_systems(), "orchestrator.init_sensory_systems"
+                    ),
+                    _spawn_boot_task(
+                        self._init_autonomous_evolution(),
+                        "orchestrator.init_autonomous_evolution",
+                    ),
+                    _spawn_boot_task(self._init_metabolism(), "orchestrator.init_metabolism"),
+                    _spawn_boot_task(
+                        self._init_proactive_systems(), "orchestrator.init_proactive_systems"
+                    ),
+                ]
                 _spawn_boot_task(self._init_react_loop(), "orchestrator.init_react_loop")
-                _spawn_boot_task(self._init_metabolism(), "orchestrator.init_metabolism")
-                _spawn_boot_task(
-                    self._init_proactive_systems(), "orchestrator.init_proactive_systems"
-                )
                 # Phase 32: Lazarus Protocol Heartbeat
                 _spawn_boot_task(
                     self._cognitive_heartbeat_task(), "orchestrator.cognitive_heartbeat"
@@ -1231,7 +1261,9 @@ class OrchestratorBootMixin(
 
                 # Swarm Protocol start moved to proactive systems (v26.3 Unified)
 
-                _spawn_boot_task(_final_steps(), "orchestrator.final_steps")
+                self._deferred_boot_inits.append(
+                    _spawn_boot_task(_final_steps(), "orchestrator.final_steps")
+                )
 
                 # ── Canonical Scheduler Heartbeat ───────────────────────
                 # The health contract treats scheduler liveness as a critical

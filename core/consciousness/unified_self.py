@@ -179,7 +179,7 @@ class UnifiedSelf:
             logger.debug("Failed to load unified self: %s", e)
 
     def _save_to_disk(self):
-        """Persist identity state to disk."""
+        """Persist identity state to disk (sync; for bare-thread callers)."""
         try:
             self._storage_path.parent.mkdir(parents=True, exist_ok=True)
             from core.runtime.file_write_gateway import get_file_write_gateway
@@ -192,6 +192,30 @@ class UnifiedSelf:
                     self._storage_path,
                     json.dumps(self._state.to_dict(), indent=2),
                     source="unified_self.save_to_disk",
+                )
+        except _UNIFIED_SELF_RECOVERABLE_ERRORS as e:
+            record_degradation("unified_self", e)
+
+    async def _save_to_disk_async(self):
+        """The same write from a coroutine, off the loop thread.
+
+        Every caller in this class is a coroutine; the sync write ran on
+        the loop thread twice per boot (2026-09-15 census).
+        """
+        try:
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            gateway = get_file_write_gateway()
+            payload = json.dumps(self._state.to_dict(), indent=2)
+            with local_internal_governed_scope(
+                "unified_self.save_to_disk",
+                receipt_prefix="unified-self-save",
+            ):
+                await gateway.ensure_directory_async(
+                    self._storage_path.parent, source="unified_self.save_to_disk"
+                )
+                await gateway.write_text_async(
+                    self._storage_path, payload, source="unified_self.save_to_disk"
                 )
         except _UNIFIED_SELF_RECOVERABLE_ERRORS as e:
             record_degradation("unified_self", e)
@@ -218,7 +242,7 @@ class UnifiedSelf:
         )
 
         self._state.identity_memories.append(memory)
-        self._save_to_disk()
+        await self._save_to_disk_async()
 
         logger.info(f"📖 Identity memory recorded: {description[:60]}... (significance={significance:.0%})")
         return memory
@@ -243,14 +267,14 @@ class UnifiedSelf:
         if embodied_feeling is not None:
             self._state.embodied_feeling = min(1.0, max(0.0, embodied_feeling))
 
-        self._save_to_disk()
+        await self._save_to_disk_async()
 
     async def interact(self):
         """Register that the unified self is actively engaging with the world."""
         self._state.last_interaction_time = time.time()
         self._state.interaction_count += 1
         self._state.current_state = SelfState.ACTIVE
-        self._save_to_disk()
+        await self._save_to_disk_async()
 
     async def reflect(self):
         """Enter reflective state - examining self."""

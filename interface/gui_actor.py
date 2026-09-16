@@ -12,6 +12,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.runtime.boot_profile import DESKTOP_BOOT_WINDOW_S  # noqa: E402
 from core.runtime.errors import record_degradation  # noqa: E402
 from core.runtime.health_contract import REQUIRED_HEALTH_PROBE_GROUPS  # noqa: E402
 from core.runtime.network_gateway import get_network_gateway  # noqa: E402
@@ -435,9 +436,12 @@ def gui_actor_entry(port: int, token: str = None):
                 if (
                     not _boot_completed
                     and consecutive_failures > 0
-                    and (time.monotonic() - start_time) > 90
+                    and (time.monotonic() - start_time) > DESKTOP_BOOT_WINDOW_S
                 ):
-                    logger.warning("🚨 [GUI WATCHDOG] Boot not completed after 90s. Forcing reload.")
+                    logger.warning(
+                        "🚨 [GUI WATCHDOG] Boot not completed after %.0fs. Forcing reload.",
+                        DESKTOP_BOOT_WINDOW_S,
+                    )
                     try:
                         window.load_url(app_url)
                     except _GUI_RECOVERABLE_ERRORS as _exc:

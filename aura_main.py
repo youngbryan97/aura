@@ -1123,6 +1123,12 @@ async def _boot_runtime_orchestrator(
     # Done before lock_registration so they show up to the manifest check.
     _register_runtime_singletons(orchestrator)
 
+    # The deferred initialisers register services too. Lock only once they
+    # have landed, or at the desktop boot window, whichever is first.
+    if hasattr(orchestrator, "wait_for_deferred_boot"):
+        await orchestrator.wait_for_deferred_boot(_remaining_desktop_boot_window_s())
+    _mark_runtime_boot_phase("deferred_boot_settled")
+
     ServiceContainer.lock_registration()
     _enforce_service_manifest(ready_label)
     _mark_runtime_boot_phase("registry_and_service_manifest")
@@ -2182,6 +2188,17 @@ async def boot_aura_runtime(
         profile=profile,
         artifact_root=artifact_root,
         )
+
+
+def _remaining_desktop_boot_window_s() -> float:
+    """What is left of the window the desktop shell gives a boot."""
+
+    try:
+        from core.runtime.boot_profile import DESKTOP_BOOT_WINDOW_S, get_boot_profiler
+
+        return max(0.0, DESKTOP_BOOT_WINDOW_S - get_boot_profiler().elapsed_s())
+    except _AURA_MAIN_BOUNDARY_ERRORS:
+        return 0.0
 
 
 def _mark_runtime_boot_phase(name: str) -> float:
@@ -4243,6 +4260,14 @@ def stop_aura():
 
 def main():
     _ensure_bootstrap_logging()
+    # The boot clock starts here, so the desktop boot window is measured
+    # from the same moment the shell measures it.
+    try:
+        from core.runtime.boot_profile import get_boot_profiler
+
+        get_boot_profiler()
+    except _AURA_MAIN_BOUNDARY_ERRORS:
+        pass
     operator_commands = {
         "doctor", "conformance", "backup", "restore", "migrate",
         "verify-state", "verify-memory", "rebuild-index", "chaos", "plugin",

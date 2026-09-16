@@ -26,7 +26,7 @@ logger = logging.getLogger("Aura.BootProfile")
 
 SLOW_PHASE_WARN_S = 2.0
 PHASE_WARN_S = {
-    # This phase starts the full orchestrator and resident 32B worker. A
+    # This phase starts the full orchestrator and resident 27B worker. A
     # healthy measured desktop boot is about 9-13 seconds here; retain a real
     # alert at 15 seconds rather than labelling every normal launch slow.
     "orchestrator_runtime_start": 15.0,
@@ -36,6 +36,13 @@ PHASE_WARN_S = {
     # as a slow boot.
     "readiness_health_snapshot": 13.0,
 }
+
+
+#: How long the desktop shell waits for the runtime to finish booting before
+#: it reloads the window (interface/gui_actor.py reads this). Everything that
+#: is part of boot, including the deferred initialisers, has to land inside
+#: it — and registration is locked only once they have, or at this line.
+DESKTOP_BOOT_WINDOW_S = 90.0
 
 
 class BootProfiler:
@@ -63,6 +70,10 @@ class BootProfiler:
                 duration_s,
                 offset_s,
             )
+
+    def elapsed_s(self) -> float:
+        """Seconds since the profiler was created, which is process boot."""
+        return max(0.0, time.perf_counter() - self._started_monotonic)
 
     def mark(self, name: str) -> float:
         """Attribute the time since the previous mark to ``name``."""

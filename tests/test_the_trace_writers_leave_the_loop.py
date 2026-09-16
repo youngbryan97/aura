@@ -112,3 +112,30 @@ def test_every_coroutine_caller_awaits_the_async_twin(path, sync_call, async_cal
     assert not re.search(r"(?<!await )" + re.escape(sync_call).replace(r"\(", r"\(") + r"(?!_async)", source.replace(async_call, "")), (
         f"{path} still makes the sync trace write from a coroutine"
     )
+
+
+@pytest.mark.asyncio
+async def test_the_unified_self_saves_off_the_loop(monkeypatch, tmp_path):
+    """write_text:unified_self.save_to_disk ran on the loop thread twice per
+    boot (2026-09-15). Every caller is a coroutine."""
+    from core.consciousness import unified_self as us
+
+    gateway = _Gateway()
+
+    async def ensure_directory_async(path, *, source):
+        gateway.async_.append(f"mkdir:{source}")
+        return str(path)
+
+    gateway.ensure_directory_async = ensure_directory_async
+    monkeypatch.setattr(
+        "core.runtime.file_write_gateway.get_file_write_gateway", lambda: gateway
+    )
+    self_ = us.UnifiedSelf.__new__(us.UnifiedSelf)
+    self_._storage_path = tmp_path / "self" / "unified_self.json"
+    self_._state = us.UnifiedSelfState()
+
+    await self_.interact()
+
+    assert gateway.sync == []
+    assert gateway.async_ == ["mkdir:unified_self.save_to_disk", "unified_self.save_to_disk"]
+    assert json.loads(gateway.written[str(self_._storage_path)])["interaction_count"] == 1
