@@ -78,6 +78,25 @@ def _pipe_recv(pipe: Any) -> Any:
     return pipe.recv()
 
 
+def _state_vault_actor_spec(actor_spec: Any, entry: Any, db_path: str) -> Any:
+    """The supervisor spec for the state vault: always restarted.
+
+    This was ``restart_policy="permanent"`` from April, and the supervisor
+    has accepted only always/transient/never since July. Nothing noticed,
+    because every boot found the vault already usable and returned before
+    building the spec. LIVE 2026-09-16, load 34: the vault's handshake timed
+    out in the State Repository stage, the boot reached this line for the
+    first time in two months, and the desktop process died on the
+    ValueError. A path a boot can take is a path a test has to take.
+    """
+    return actor_spec(
+        name="state_vault",
+        target=entry,
+        args=(db_path,),  # Pipe is added by supervisor.start_actor
+        restart_policy="always",  # State Vault must always be up
+    )
+
+
 class BootResilienceMixin:
     """Provides initialization for state, resilience, threading, and recovery systems."""
 
@@ -498,13 +517,8 @@ class BootResilienceMixin:
                 return
 
             # 1. Register with Supervisor
-            spec = ActorSpec(
-                name="state_vault",
-                target=vault_process_entry,
-                args=(
-                    str(config.paths.data_dir / "aura_state.db"),
-                ),  # Pipe is added by supervisor.start_actor
-                restart_policy="permanent",  # State Vault must always be up
+            spec = _state_vault_actor_spec(
+                ActorSpec, vault_process_entry, str(config.paths.data_dir / "aura_state.db")
             )
 
             if not sup:
