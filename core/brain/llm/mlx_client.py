@@ -11329,6 +11329,29 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
             except (_queue_mod.Empty, OSError, ValueError):
                 break
 
+    def worker_load_progress(self) -> tuple[float, float] | None:
+        """What the worker has done so far: its (rss_bytes, cpu_seconds).
+
+        A worker that is loading a 20GB checkpoint on a starved host fails
+        ``is_alive`` for as long as the load takes, and a watchdog with a wall
+        clock cannot tell that from a worker that is stuck. This reading can:
+        a loading worker's memory and CPU advance between looks; a wedged one's
+        do not. None when there is no worker process to read.
+        """
+        process = self._process
+        pid = getattr(process, "pid", None)
+        if process is None or not pid:
+            return None
+        try:
+            handle = psutil.Process(int(pid))
+            rss = float(handle.memory_info().rss)
+            times = handle.cpu_times()
+            return rss, float(times.user) + float(times.system)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
+            return None
+        except (AttributeError, TypeError, ValueError):
+            return None
+
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""
         process = self._process
