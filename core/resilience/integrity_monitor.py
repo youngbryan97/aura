@@ -71,6 +71,7 @@ class SystemIntegrityMonitor:
         self._task: asyncio.Task | None = None
         self._last_report: IntegrityReport | None = None
         self._check_count = 0
+        self._last_findings: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
         self._last_db_checks: dict[str, str] = {}
         self._last_db_errors: list[str] = []
         self._proc = None
@@ -116,12 +117,7 @@ class SystemIntegrityMonitor:
                 self._last_report = report
                 self._check_count += 1
 
-                if report.errors:
-                    logger.error("🔍 INTEGRITY ERRORS: %s", report.errors)
-                elif report.warnings:
-                    logger.warning("🔍 Integrity warnings: %s", report.warnings)
-                else:
-                    logger.info("🔍 Integrity check #%d passed", self._check_count)
+                self._report_findings(report)
 
             except asyncio.CancelledError:
                 break
@@ -130,6 +126,35 @@ class SystemIntegrityMonitor:
                 logger.error("Integrity monitor error: %s", e)
 
             await asyncio.sleep(self._interval)
+
+    def _report_findings(self, report: IntegrityReport) -> None:
+        """Say a finding once when it appears and once when it clears.
+
+        "Thermal pressure is fair" was logged at warning every five minutes
+        for a whole session — 230 lines for one standing condition. A
+        condition that has not changed since the last check is not an event.
+        """
+        errors = tuple(str(e) for e in report.errors)
+        warnings = tuple(str(w) for w in report.warnings)
+        previous_errors, previous_warnings = self._last_findings
+        self._last_findings = (errors, warnings)
+        if errors:
+            if errors != previous_errors:
+                logger.error("🔍 INTEGRITY ERRORS: %s", list(errors))
+            else:
+                logger.info("🔍 Integrity errors unchanged (%d): %s", len(errors), list(errors))
+            return
+        if previous_errors:
+            logger.info("🔍 Integrity errors cleared: %s", list(previous_errors))
+        if warnings:
+            if warnings != previous_warnings:
+                logger.warning("🔍 Integrity warnings: %s", list(warnings))
+            else:
+                logger.info("🔍 Integrity warnings unchanged (%d): %s", len(warnings), list(warnings))
+            return
+        if previous_warnings:
+            logger.info("🔍 Integrity warnings cleared: %s", list(previous_warnings))
+        logger.info("🔍 Integrity check #%d passed", self._check_count)
 
     async def run_check(self, include_databases: bool | None = None) -> IntegrityReport:
         """Run a full integrity check.
