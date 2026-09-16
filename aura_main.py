@@ -4580,10 +4580,13 @@ def main():
                         signal_owner.finish_async_ownership()
             asyncio.run(_run_server_with_bootstrap())
         elif args.desktop:
-            # For desktop, we'll need a way to bootstrap the loop if uvicorn starts it
-            # But Desktop mode in aura_main runs uvicorn in a thread.
-            # We should probably bootstrap the main thread for the GUI if it needs it.
-            asyncio.run(
+            # Not asyncio.run: its close waits forever for a task that does
+            # not end on cancellation, and one did (2026-09-16, fifteen
+            # minutes with the port closed). This close is bounded by the
+            # shutdown budget and names what outlived it.
+            from core.runtime.bounded_run import run as _bounded_run
+
+            _bounded_run(
                 run_desktop(
                     args.port,
                     launch_gui=None,
