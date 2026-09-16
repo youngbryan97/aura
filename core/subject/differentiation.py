@@ -27,7 +27,12 @@ import numpy as np
 
 from core.subject.recording import Recording
 
-__all__ = ["DifferentiationReport", "effective_dimension"]
+__all__ = [
+    "DifferentiationReport",
+    "DistinguishableStates",
+    "distinguishable_states",
+    "effective_dimension",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,4 +77,114 @@ def effective_dimension(recording: Recording, rows: np.ndarray | None = None) ->
         width=width,
         top_share=float(values[0] / total),
         spectrum=tuple(float(v / total) for v in values),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DistinguishableStates:
+    """How many configurations she actually occupied, at her own resolution."""
+
+    states: int
+    effective: float
+    frames: int
+    normalised: float
+    width: int
+    #: The share of frames spent in the most occupied configuration.
+    top_share: float
+    why: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "states": self.states,
+            "effective_states": round(self.effective, 4),
+            "frames": self.frames,
+            "normalised": round(self.normalised, 4),
+            "live_width": self.width,
+            "largest_state_share": round(self.top_share, 4),
+            "why": self.why,
+        }
+
+
+def distinguishable_states(recording: Recording) -> DistinguishableStates:
+    """Differentiation as configurations occupied rather than as spread shared.
+
+    The participation ratio above counts directions of comparable variance, and
+    integration reduces it by construction: variables that constrain each other
+    share variance, so the better integrated the system the fewer independent
+    directions its covariance has. The project has already measured that the
+    D_eff/D >= 0.40 bar can be cleared by a degenerate control and missed by a
+    healthy recurrent reference, which is a property of the measure rather than
+    of the systems.
+
+    This is the other honest reading of the same word. Differentiation is the
+    number of states the system can be distinguished as being in, so it is
+    counted directly: each live column is quantised at its own within-condition
+    spread — the resolution at which two readings of that column are
+    distinguishable given how much it varies when nothing is happening — and
+    the configurations that result are counted with their occupancy entropy.
+
+        step_i          pooled within-condition standard deviation of column i
+        configuration   the vector of round(x_i / step_i)
+        effective       exp(H) over the occupancy of those configurations
+        normalised      effective / frames, so one means never twice the same
+
+    Nothing here is chosen: the resolution comes from her own variation and the
+    ceiling from how many frames were recorded.
+
+    A noise process scores high on this, and that is correct. Differentiation
+    alone has never separated a subject from noise and is not asked to; the
+    conjunction it sits in does that with integration and closure. What this
+    measure does not do is fall as integration rises, which is the failure the
+    participation ratio has.
+    """
+    live = recording.live_columns()
+    block = recording.x[:, live]
+    frames = int(block.shape[0])
+    if frames < 2 or block.shape[1] < 1:
+        return DistinguishableStates(
+            states=max(1, frames), effective=1.0, frames=frames, normalised=0.0,
+            width=int(block.shape[1]), top_share=1.0,
+            why="too few frames or columns to distinguish anything",
+        )
+
+    # The resolution is what a column does inside a condition, pooled. Measured
+    # across conditions it would be inflated by the environment changing, which
+    # is exactly the variation an experiment holds fixed.
+    groups, weights = [], []
+    for name in sorted(set(recording.conditions)):
+        rows = recording.condition_rows(name)
+        if rows.size < 8:
+            continue
+        groups.append(block[rows].var(axis=0))
+        weights.append(rows.size - 1)
+    if groups:
+        step = np.sqrt(np.average(np.vstack(groups), axis=0, weights=weights))
+    else:
+        step = block.std(axis=0)
+
+    keep = step > 1e-9
+    if not bool(keep.any()):
+        return DistinguishableStates(
+            states=1, effective=1.0, frames=frames, normalised=0.0,
+            width=int(block.shape[1]), top_share=1.0,
+            why="no column varies inside a condition, so nothing is distinguishable",
+        )
+
+    quantised = np.rint(block[:, keep] / step[keep]).astype(np.int64)
+    _rows, counts = np.unique(quantised, axis=0, return_counts=True)
+    share = counts / float(frames)
+    entropy = float(-(share * np.log(share)).sum())
+    effective = float(np.exp(entropy))
+    width = int(keep.sum())
+    return DistinguishableStates(
+        states=int(counts.size),
+        effective=effective,
+        frames=frames,
+        normalised=effective / float(frames),
+        width=width,
+        top_share=float(share.max()),
+        why=(
+            f"{counts.size} configurations over {frames} frames of {width} columns, "
+            f"{effective:.1f} of them effectively"
+        ),
     )

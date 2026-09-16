@@ -254,7 +254,7 @@ async def main() -> int:
     from core.subject.causal import build_edges, power_note, run_interventions
     from core.subject.clamp import clamped
     from core.subject.closure import closure_gain
-    from core.subject.differentiation import effective_dimension
+    from core.subject.differentiation import distinguishable_states, effective_dimension
     from core.subject.driver import (
         CONDITIONS,
         build_runtime,
@@ -451,6 +451,14 @@ async def main() -> int:
         phi = phi_do(turns)
         evidence["phi"] = phi.as_dict()
         evidence["differentiation"] = effective_dimension(recording).as_dict()
+        # And the other honest reading of the word, beside it rather than
+        # instead of it. The participation ratio falls as integration rises,
+        # and on this recording a column-shuffled surrogate with no coupling at
+        # all scores 0.998 of the maximum against the real run's 0.077. See
+        # core/subject/differentiation.py.
+        evidence["differentiation"]["distinguishable"] = distinguishable_states(
+            recording
+        ).as_dict()
         evidence["intrinsic"] = intrinsic_gain(turns, seed=args.seed).as_dict()
         # ISC-v2's persistence line reads the next level, not the next change, and
         # the same reading again with memory left out (P35.7). See
