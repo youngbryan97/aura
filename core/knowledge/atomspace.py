@@ -400,7 +400,14 @@ class AtomSpace:
                or not isinstance(tv, TruthValue) for a, tv in claims.items()):
             raise ValueError("observation claims must map ground atoms to truth values")
         with self._lock:
-            old_revision, old_claims = self._observations.get(source, (-1, {}))
+            previous = self._observations.get(source)
+            if previous is None:
+                # Adoption replaces all still-attributed legacy claims once.
+                old_revision = -1
+                old_claims = {a: rec.sources[source] for a, rec in self._records.items()
+                              if source in rec.sources}
+            else:
+                old_revision, old_claims = previous
             if revision < old_revision:
                 return False
             if revision == old_revision:

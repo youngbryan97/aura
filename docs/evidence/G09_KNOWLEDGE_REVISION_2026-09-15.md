@@ -50,6 +50,12 @@ unversioned sources retain their existing compaction policy; versioned
 observation identities are preserved for subsequent withdrawal. Cross-store
 adoption beyond the canonical belief/AtomSpace path remains work to measure.
 
+The first versioned update also replaces still-attributed legacy claims from
+that source. A regression reproduced retained old claims and conclusions before
+this adoption repair; 79 focused tests passed afterward. Smoke passed 164 tests
+with one skipped; lint and compile passed. Previously compacted, unattributed
+evidence remains outside this recoverable provenance boundary.
+
 These tests establish the correction mechanism on constructed graph workloads.
 They do not close G09, establish 500/500 semantic binding, or demonstrate
 frontier reasoning. Source-matched live deployment remains a separate check.

@@ -11,6 +11,17 @@ def copying(name, premise, conclusion):
                          lambda _space, _binding, tvs: TruthValue(tvs[0].strength, tvs[0].count * .9))
 
 
+def test_first_versioned_revision_replaces_legacy_claims_from_same_source():
+    space = AtomSpace()
+    old, new, derived = map(concept, ("old-claim", "new-claim", "legacy-conclusion"))
+    space.add(old, TruthValue(.9, 10), source="observation")
+    space.apply_rules((copying("legacy", old, derived),), focus_only=False)
+    space.revise_observation("observation", 0, {new: TruthValue(.8, 10)})
+    assert space.get_tv(old).count == 0
+    assert space.get_tv(derived).count == 0
+    assert space.get_tv(new) == TruthValue(.8, 10)
+
+
 def test_grounded_filter_truth_reads_invalidate_derived_support():
     from core.knowledge.atomspace import Node, GROUNDED_PREDICATE, evaluation
     space = AtomSpace()
