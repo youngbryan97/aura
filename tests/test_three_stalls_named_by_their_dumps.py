@@ -13,6 +13,7 @@ moment of each stall:
 from __future__ import annotations
 
 import asyncio
+import functools
 import threading
 import re
 from pathlib import Path
@@ -189,3 +190,29 @@ def test_the_listener_pulses_the_mycelium_from_a_thread():
     source = (ROOT / "core/brain/llm/mlx_client.py").read_text(encoding="utf-8")
     assert "await run_io_bound(self._pulse_mycelial_worker, res)" in source
     assert "\n                        self._pulse_mycelial_worker(res)\n" not in source
+
+
+def test_the_actionable_goal_verdict_is_remembered_by_text(monkeypatch):
+    """5.2s stall, 2026-09-16 03:23: every read of the active goals ran a
+    full turn analysis on every goal text, on the loop, during boot."""
+    from core.goals import goal_text
+
+    calls = {"n": 0}
+    real = goal_text._actionable_by_raw_text.__wrapped__
+
+    def counting(raw, text):
+        calls["n"] += 1
+        return real(raw, text)
+
+    goal_text._actionable_by_raw_text.cache_clear()
+    monkeypatch.setattr(goal_text, "_actionable_by_raw_text", functools.lru_cache(maxsize=64)(counting))
+    for _ in range(5):
+        goal_text.is_actionable_goal_text("Finish the retrieval benchmark write-up for the paper")
+        goal_text.is_actionable_goal_text({"goal": "Finish the retrieval benchmark write-up for the paper"})
+    assert calls["n"] == 1
+
+    # Whitespace geometry survives into the key: a framebuffer's column
+    # padding is the signal, and normalising the text erases it.
+    frame = "\n".join(["|    @    .....    #    |"] * 6)
+    assert goal_text.is_actionable_goal_text(frame) is False
+    assert goal_text.is_actionable_goal_text({"goal": frame}) is False

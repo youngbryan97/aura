@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import re
 from typing import Any, Iterable
 
@@ -126,7 +127,34 @@ def is_intrinsic_goal_text(value: Any) -> bool:
 
 def is_actionable_goal_text(value: Any) -> bool:
     text = normalize_goal_text(value)
-    if not text or is_intrinsic_goal_text(text) or is_stale_or_prompt_scaffold_goal(text):
+    if not text:
+        return False
+    # The raw string is the key: whitespace geometry is how a framebuffer
+    # is told from a sentence, and normalising would erase it.
+    return _actionable_by_raw_text(_raw_goal_text(value), text)
+
+
+def _raw_goal_text(value: Any) -> str:
+    if isinstance(value, dict):
+        for key in _GOAL_TEXT_KEYS:
+            candidate = value.get(key)
+            if candidate:
+                return str(candidate)
+        return ""
+    return str(value or "")
+
+
+@functools.lru_cache(maxsize=4096)
+def _actionable_by_raw_text(raw: str, text: str) -> bool:
+    """The verdict for one goal text, remembered.
+
+    Every reader of the active goals asked this for every goal on every
+    call, and the standing-objective check runs a full turn analysis on
+    the text. A stall dump on 2026-09-16 (5.2s, loop thread) caught the
+    executive's sync approval path inside it, during boot, on a loaded
+    host. The verdict is a property of the text.
+    """
+    if is_intrinsic_goal_text(text) or is_stale_or_prompt_scaffold_goal(text):
         return False
     # Standing-objective validity is the durable-goal ingress authority:
     # ephemeral chat turns, control-contract scaffolds, and non-linguistic
@@ -136,7 +164,7 @@ def is_actionable_goal_text(value: Any) -> bool:
     # imports this module at module scope.
     from core.goals.standing_objective import is_valid_standing_objective
 
-    return is_valid_standing_objective(value)
+    return is_valid_standing_objective(raw)
 
 
 def first_actionable_goal_text(values: Iterable[Any]) -> str:
