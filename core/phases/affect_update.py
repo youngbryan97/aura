@@ -170,6 +170,14 @@ def _record_affect_degradation(
             logger.debug("AffectUpdate degradation could not be recorded: %s", signature_exc)
 
 
+#: How far a mood baseline moves toward the feeling it tracks each update.
+_BASELINE_RATE = 0.001
+
+#: Where each baseline rests when nothing is pressing on it: the baselines a
+#: new affect vector declares.
+_MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
+
+
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:
     """Move a feeling by a share of the room it has left, in place.
 
@@ -865,8 +873,23 @@ class AffectUpdatePhase(Phase):
             baseline = affect.mood_baselines.get(emotion, 0.05)
             current_val = affect.emotions[emotion]
             
-            # Slow baseline learning
-            affect.mood_baselines[emotion] = (baseline * 0.999) + (current_val * 0.001)
+            # Slow baseline learning, and a return to rest at the same rate.
+            #
+            # Learning alone made a feeling and its baseline one integrator:
+            # the feeling decays toward the baseline and the baseline moves
+            # toward the feeling, so the pair has an eigenvalue of exactly one
+            # and any steady input climbs for the life of the process. On the
+            # seed-7 recording fear and frustration rose and valence fell for
+            # 1,200 turns without levelling. A pull toward the declared rest at
+            # the learning rate removes the unit root: the baseline settles
+            # halfway between rest and what she has lived, within a few hundred
+            # turns.
+            rest = _MOOD_REST.get(emotion, baseline)
+            affect.mood_baselines[emotion] = (
+                baseline
+                + _BASELINE_RATE * (current_val - baseline)
+                - _BASELINE_RATE * (baseline - rest)
+            )
             
             # Momentum-weighted decay (Issue 83)
             decayed = (current_val * affect.momentum) + (baseline * (1 - affect.momentum))

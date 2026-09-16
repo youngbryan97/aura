@@ -662,6 +662,18 @@ class MemoryFacade:
         return "", None, raw
 
     @staticmethod
+    @staticmethod
+    def candidate_pool(limit: int) -> int:
+        """How many candidates to fetch when something downstream will choose among them.
+
+        A scoped search discards other principals' records after the backend has
+        ranked, and recall reweights by feeling after the search has ranked; in
+        both, a pool the size of the final cut leaves the second choice nothing
+        to choose. Within the same cap as every search.
+        """
+        return min(100, max(limit, limit * 6, 32))
+
+    @staticmethod
     def _normalize_search_limit(
         limit: int | None = None,
         *,
@@ -1223,7 +1235,7 @@ class MemoryFacade:
         # personal records. Overfetch within a fixed cap so another principal's
         # high-scoring history cannot starve the caller's own lower-ranked
         # memories after authorization.
-        backend_limit = min(100, max(limit, limit * 6, 32)) if scoped else limit
+        backend_limit = self.candidate_pool(limit) if scoped else limit
         results: list[dict[str, Any]] = []
         seen: set[str] = set()
 

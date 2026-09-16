@@ -254,26 +254,32 @@ def restore(space: "AtomSpace", payload: Mapping[str, Any]) -> int:
                 queued.add(child)
     if visited != len(rebuilt):
         raise ValueError("snapshot contains circular derivation support")
+    invalidated = int(payload.get("invalidated_derivations", 0))
+    sti_fund = float(payload.get("sti_fund", space._sti_fund_capacity))
+    forgotten = int(payload.get("forgotten_total", 0))
+    derived = int(payload.get("derived_total", 0))
+    duplicates = int(payload.get("duplicate_assertions", 0))
+    unattributed_count = int(payload.get("unattributed_assertions", 0))
+    by_type: dict[str, set[Atom]] = {}
+    incoming: dict[Atom, set[Atom]] = {}
+    for atom in rebuilt:
+        if isinstance(atom, (Node, Link)):
+            by_type.setdefault(atom.atype, set()).add(atom)
+        if isinstance(atom, Link):
+            for child in atom.outgoing:
+                incoming.setdefault(child, set()).add(atom)
     with space._lock:
         space._records = rebuilt
-        space._by_type = {}
-        space._incoming = {}
+        space._by_type = by_type
+        space._incoming = incoming
         space._dependents = dependents
         space._observations = observations
-        space._invalidated_derivations = int(payload.get("invalidated_derivations", 0))
-        for atom in rebuilt:
-            if isinstance(atom, (Node, Link)):
-                space._by_type.setdefault(atom.atype, set()).add(atom)
-            if isinstance(atom, Link):
-                for child in atom.outgoing:
-                    space._incoming.setdefault(child, set()).add(atom)
-        space._sti_fund = float(payload.get("sti_fund", space._sti_fund_capacity))
-        space._forgotten_total = int(payload.get("forgotten_total", 0))
-        space._derived_total = int(payload.get("derived_total", 0))
-        space._duplicate_assertions = int(payload.get("duplicate_assertions", 0))
-        space._unattributed_assertions = int(
-            payload.get("unattributed_assertions", 0)
-        )
+        space._invalidated_derivations = invalidated
+        space._sti_fund = sti_fund
+        space._forgotten_total = forgotten
+        space._derived_total = derived
+        space._duplicate_assertions = duplicates
+        space._unattributed_assertions = unattributed_count
         return len(rebuilt)
 
 def load(space: "AtomSpace", path: "os.PathLike[str] | str") -> int:

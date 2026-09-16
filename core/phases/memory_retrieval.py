@@ -162,6 +162,23 @@ def _percept_cue(state: Any) -> str:
     return _percept_reading(state)[0]
 
 
+def _candidate_pool(limit: int) -> int:
+    """How many memories to search for, so feeling can choose which of them come back.
+
+    Retrieval weighs every candidate by importance, how its feeling matches hers
+    and how salient memory is now, then keeps `limit`. Searching for only
+    `limit` left that weighing a pool the size of the answer: when stored texts
+    are alike the search's cut decided recall and her state reordered five
+    memories it never chose. The facade's own pool rule, where it is available.
+    """
+    try:
+        from core.memory.memory_facade import MemoryFacade
+
+        return int(MemoryFacade.candidate_pool(int(limit)))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return int(limit)
+
+
 def _percept_reading(state: Any) -> tuple[str, float]:
     """The content and salience of the most salient percept memory has not taken yet.
 
@@ -563,7 +580,7 @@ class MemoryRetrievalPhase(BasePhase):
                     async with asyncio.timeout(15.0):
                         recalled.extend(
                             list(
-                                await _maybe_await(memory.search(query, limit=retrieval_limit))
+                                await _maybe_await(memory.search(query, limit=_candidate_pool(retrieval_limit)))
                                 or []
                             )
                         )
@@ -703,9 +720,9 @@ class MemoryRetrievalPhase(BasePhase):
             partner_id = ""
 
         # ── Gap 3 Fix: Memory Affect → Steering ──
-        total_valence_hit = 0.0
-        total_arousal_hit = 0.0
-        memory_hits = 0
+        # Each candidate's feeling, kept beside it so the nudge below is taken
+        # from the memories that came back rather than from everything searched.
+        affect_sources: list[tuple[str, float, float]] = []
 
         if dual_res:
             memory_candidates.append(
@@ -736,10 +753,7 @@ class MemoryRetrievalPhase(BasePhase):
                             (weighted_score, f"[{km.get('type', 'fact')}] {content}")
                         )
 
-                    if abs(emotional_valence) > 0.3:
-                        total_valence_hit += emotional_valence * importance
-                        total_arousal_hit += importance * 0.5
-                        memory_hits += 1
+                    affect_sources.append((content, emotional_valence, importance))
 
         if facade_res:
             for item in _iter_retrieval_items(facade_res):
@@ -775,10 +789,7 @@ class MemoryRetrievalPhase(BasePhase):
                         if _shared_with(metadata, partner_id):
                             shared_texts.add(f"[memory score={weighted_score:.3f}] {content}")
 
-                        if abs(emotional_valence) > 0.3:
-                            total_valence_hit += emotional_valence * importance
-                            total_arousal_hit += importance * 0.5
-                            memory_hits += 1
+                        affect_sources.append((content, emotional_valence, importance))
                 elif item:
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
@@ -797,11 +808,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if content and len(content) > 10:
                     score = 0.5 + importance * 0.3 + abs(valence) * 0.2
                     memory_candidates.append((score, f"[episodic] {content}"))
-
-                    if abs(valence) > 0.3:
-                        total_valence_hit += valence * importance
-                        total_arousal_hit += importance * 0.5
-                        memory_hits += 1
+                    affect_sources.append((content, valence, importance))
 
         for hit in intentional_res or []:
             content = _safe_text(getattr(hit, "content", ""), max_chars=2_000)
@@ -811,42 +818,58 @@ class MemoryRetrievalPhase(BasePhase):
             score = max(0.0, min(1.0, _safe_float(getattr(hit, "score", 0.0))))
             memory_candidates.append((score, f"[{getattr(hit, 'store_type', 'memory')}] {content}"))
 
-        # Push accumulated affect from memory retrieval
-        if memory_hits > 0:
-            try:
-                from core.container import ServiceContainer
+        # The nudge is pushed after the cut, below, from what came back.
+        def _push_affect_of_recalled(recalled_texts: list[str]) -> tuple[float, int]:
+            total_valence_hit = 0.0
+            total_arousal_hit = 0.0
+            memory_hits = 0
+            remaining: dict[str, int] = {}
+            for text in recalled_texts:
+                body = text.split("] ", 1)[1] if text.startswith("[") and "] " in text else text
+                remaining[body] = remaining.get(body, 0) + 1
+            for content, valence, importance in affect_sources:
+                if remaining.get(content, 0) <= 0 or abs(valence) <= 0.3:
+                    continue
+                remaining[content] -= 1
+                total_valence_hit += valence * importance
+                total_arousal_hit += importance * 0.5
+                memory_hits += 1
+            if memory_hits > 0:
+                try:
+                    from core.container import ServiceContainer
 
-                affect_engine = ServiceContainer.get("affect_engine", default=None)
-                if affect_engine and hasattr(affect_engine, "modify"):
-                    val_shift = (total_valence_hit / memory_hits) * 0.4
-                    arousal_shift = (total_arousal_hit / memory_hits) * 0.3
+                    affect_engine = ServiceContainer.get("affect_engine", default=None)
+                    if affect_engine and hasattr(affect_engine, "modify"):
+                        val_shift = (total_valence_hit / memory_hits) * 0.4
+                        arousal_shift = (total_arousal_hit / memory_hits) * 0.3
 
-                    logger.debug(
-                        "💥 Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
-                        val_shift,
-                        arousal_shift,
-                    )
+                        logger.debug(
+                            "💥 Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
+                            val_shift,
+                            arousal_shift,
+                        )
 
-                    modification = affect_engine.modify(
-                        dv=val_shift,
-                        da=arousal_shift,
-                        de=0.0,
-                        source="memory_retrieval",
+                        modification = affect_engine.modify(
+                            dv=val_shift,
+                            da=arousal_shift,
+                            de=0.0,
+                            source="memory_retrieval",
+                        )
+                        get_task_tracker().create_task(
+                            modification,
+                            name="memory_retrieval.affective_hit",
+                        )
+                except _MEMORY_RECOVERABLE_ERRORS as exc:
+                    close = getattr(locals().get("modification", None), "close", None)
+                    if callable(close):
+                        close()
+                    _record_memory_degradation(
+                        exc,
+                        action="kept retrieved memories after affect scheduling failed",
+                        stage="affective_memory_hit",
                     )
-                    get_task_tracker().create_task(
-                        modification,
-                        name="memory_retrieval.affective_hit",
-                    )
-            except _MEMORY_RECOVERABLE_ERRORS as exc:
-                close = getattr(locals().get("modification", None), "close", None)
-                if callable(close):
-                    close()
-                _record_memory_degradation(
-                    exc,
-                    action="kept retrieved memories after affect scheduling failed",
-                    stage="affective_memory_hit",
-                )
-                logger.debug("Failed to push memory affect: %s", exc)
+                    logger.debug("Failed to push memory affect: %s", exc)
+            return total_valence_hit, memory_hits
 
         # Recall costs the search, not the finding. Reported after the early
         # return below, a recall that came back empty cost nothing — so the
@@ -874,6 +897,8 @@ class MemoryRetrievalPhase(BasePhase):
             memory_candidates = reread
 
         scores: list[float] = []
+        # The feeling stored with what came back, and how many carried one.
+        recalled_valence_total, recalled_with_feeling = 0.0, 0
         if memory_candidates:
             memory_candidates.sort(key=lambda item: item[0], reverse=True)
             kept = memory_candidates[:retrieval_limit]
@@ -883,6 +908,7 @@ class MemoryRetrievalPhase(BasePhase):
             # list of strings and had to treat a recollection that answered the
             # question exactly the same as one that scraped in last.
             scores = [round(float(score), 4) for score, _ in kept]
+            recalled_valence_total, recalled_with_feeling = _push_affect_of_recalled(memories)
 
         if not memories:
             return state
@@ -918,7 +944,9 @@ class MemoryRetrievalPhase(BasePhase):
         # it, and the feeling is the one stored with what came back — the same
         # quantity the affective hit above is computed from.
         # See core/memory/reliving.py.
-        recalled_feeling = (total_valence_hit / memory_hits) if memory_hits else 0.0
+        recalled_feeling = (
+            recalled_valence_total / recalled_with_feeling if recalled_with_feeling else 0.0
+        )
         reliving = get_match_ledger().reading(
             float(scores[0]) if scores else 0.0,
             recalled_feeling,

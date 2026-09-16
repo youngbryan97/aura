@@ -783,6 +783,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Fresh constrained result](evidence/G03_CONSTRAINED_FRESH_RESULT_2026-09-15.md):
+  458/500 versus 472/500, seven gains and 21 regressions; incumbent retained.
   [Graph relation learning](evidence/G03_GRAPH_RELATION_RESULT_2026-09-15.md)
   completes all 500 paired rows: 465 exact / 471 equivalent versus 436 / 456.
   Thirty exact gains and one regression; the incumbent remains selected.

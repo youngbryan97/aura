@@ -508,9 +508,15 @@ async def test_the_same_question_at_a_greater_depth_is_asked_again():
 
     Asking again now looks one deeper on its own, so the second asking is a
     different recall. The third sits at the same depth as the second — the
-    ladder doubles — and the skip still saves that search.
+    ladder doubles — and the skip still saves that search. The store is asked
+    for the candidate pool of each depth, and the depth decides what is kept.
     """
+    from core.memory.memory_facade import MemoryFacade
+
     limits: list[int] = []
+
+    def _depth(recalled) -> int:
+        return int(recalled.response_modifiers["memory_retrieval_signature"]["retrieval_limit"])
 
     async def _search(query, limit=5):
         limits.append(limit)
@@ -534,7 +540,9 @@ async def test_the_same_question_at_a_greater_depth_is_asked_again():
 
     again = await phase.execute(first)
     assert again is not first, "asking again looks deeper rather than returning early"
-    assert limits[-1] == limits[0] + 1
+    assert _depth(again) == _depth(first) + 1
+    assert limits == [MemoryFacade.candidate_pool(_depth(first)), MemoryFacade.candidate_pool(_depth(again))]
+    assert limits[-1] > limits[0]
 
     third = await phase.execute(again)
     assert third is again, "a third asking at the same depth is not searched again"
@@ -542,6 +550,8 @@ async def test_the_same_question_at_a_greater_depth_is_asked_again():
     again.response_modifiers["imagination_memory_pressure"] = 0.74
     pressed = await phase.execute(again)
     assert pressed is not again
+    assert _depth(pressed) > _depth(first)
+    assert limits[-1] == MemoryFacade.candidate_pool(_depth(pressed))
     assert limits[-1] > limits[0]
     assert len(pressed.cognition.long_term_memory) > len(first.cognition.long_term_memory)
 

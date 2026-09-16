@@ -33,19 +33,18 @@ def _project_direction(direction, normals):
     return direction + a.T @ result.x
 
 
-def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=100,
-                          required_margin=.1, learning_rate=.001, max_active=32):
+def _fit_graph_parameters(initial, contrasts, *, scale=1., steps=100,
+                          required_margin=.1, learning_rate=.001, max_active=32,
+                          adaptive_step=False):
     """Search for all retained inequalities; retain every already-positive margin."""
-    if (not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
+    if (type(adaptive_step) is not bool or not contrasts or type(steps) is not int or steps < 1 or type(max_active) is not int
             or max_active < 1 or not np.isfinite(required_margin) or required_margin <= 0
             or not np.isfinite(learning_rate) or learning_rate <= 0
             or not np.isfinite(scale) or scale <= 0
             or any(not np.isfinite(row.weight) or row.weight <= 0
                    or not np.isfinite(row.fixed_margin) for row in contrasts)):
         raise ValueError("invalid semantic graph constraint fit")
-    initial = tuple(np.asarray(value, dtype=np.float64) for value in (
-        head.query_projection, head.definition_projection,
-        *(value for part in operation_head.heads for value in (part.weight, part.bias))))
+    initial = tuple(np.asarray(value, dtype=np.float64) for value in initial)
     shapes = tuple(value.shape for value in initial)
     ends = np.cumsum([value.size for value in initial])
 
@@ -92,7 +91,20 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
         if largest == 0 or not np.isfinite(largest):
             status = "no_feasible_direction_found"
             break
-        direction *= learning_rate / largest
+        direction /= largest
+        step_size = learning_rate
+        if adaptive_step:
+            # Minimize the linearized squared deficit along the feasible direction.
+            slopes = np.zeros_like(margins)
+            for index in np.flatnonzero(deficits):
+                _margin, gradient = graph_margin_gradient(parameters, contrasts[index], scale=scale)
+                slopes[index] = sum(float(np.sum(value * part)) for value, part in
+                                    zip(gradient, unpack(direction), strict=True))
+            denominator = float(weights @ (slopes ** 2))
+            numerator = float(weights @ (deficits * slopes))
+            if denominator > 0 and numerator > 0:
+                step_size = numerator / denominator
+        direction *= step_size
         loss = float(weights @ (deficits ** 2))
         accepted = False
         for backtrack in range(24):
@@ -108,7 +120,8 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
                 accepted = True
                 trace.append({"step": step + 1, "loss": trial_loss,
                               "wrong_or_tied": int(np.count_nonzero(margins <= 0)),
-                              "minimum_margin": float(margins.min()), "backtracks": backtrack})
+                              "minimum_margin": float(margins.min()), "backtracks": backtrack,
+                              "step_size": step_size * 2. ** -backtrack})
                 break
         if not accepted:
             status = "no_retention_preserving_step_found"
@@ -116,11 +129,7 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
     if np.all(margins >= required_margin):
         status = "retained_constraints_satisfied"
     values = unpack(flat)
-    fitted = replace(head, query_projection=values[0], definition_projection=values[1])
-    operations = replace(operation_head, heads=tuple(replace(part,
-        weight=values[2 + 2 * index], bias=values[3 + 2 * index])
-        for index, part in enumerate(operation_head.heads)))
-    return fitted, operations, {
+    return values, {
         "objective": "retained_semantic_inequalities_v1", "status": status,
         "pairs": len(contrasts), "required_margin": required_margin,
         "initial_margins": before.tolist(), "stored_margins": margins.tolist(),
@@ -128,10 +137,45 @@ def fit_graph_constraints(head, operation_head, contrasts, *, scale=1., steps=10
         "stored_wrong_or_tied": int(np.count_nonzero(margins <= 0)),
         "retained_positive_regressions": int(np.count_nonzero((before > 0) & (margins <= 0))),
         "accepted_steps": trace, "max_projected_constraints": max_active,
+        "step_policy": "linearized_deficit_backtracking_v1" if adaptive_step else "fixed_max_parameter_step_v1",
         "all_constraints_checked_at_acceptance": True,
         "infeasibility_proven": False, "latent_choices_frozen_for_update": True,
         "serving_authority": False,
     }
+
+
+def _model_parameters(head, operation_head):
+    return (head.query_projection, head.definition_projection,
+            *(value for part in operation_head.heads for value in (part.weight, part.bias)))
+
+
+def _fitted_heads(head, operation_head, values):
+    return (replace(head, query_projection=values[0], definition_projection=values[1]),
+            replace(operation_head, heads=tuple(replace(part,
+                weight=values[2 + 2 * index], bias=values[3 + 2 * index])
+                for index, part in enumerate(operation_head.heads))))
+
+
+def fit_graph_constraints(head, operation_head, contrasts, **options):
+    values, receipt = _fit_graph_parameters(_model_parameters(head, operation_head), contrasts, **options)
+    return (*_fitted_heads(head, operation_head, values), receipt)
+
+
+def fit_complete_graph_constraints(model, contrasts, **options):
+    from core.learning.semantic_argument_graph_learning import argument_parameters
+
+    base = _model_parameters(model.definition_relation_head, model.operation_head)
+    values, receipt = _fit_graph_parameters((*base, *argument_parameters(model)), contrasts, **options)
+    relation, operation = _fitted_heads(model.definition_relation_head, model.operation_head, values)
+    offset = len(base)
+    roles = tuple(replace(head, weight=values[offset + 4 * index],
+                          bias=float(values[offset + 4 * index + 1]))
+                  for index, head in enumerate(model.argument_role_heads))
+    proposals = tuple(replace(head, weight=values[offset + 4 * index + 2],
+                              bias=float(values[offset + 4 * index + 3]))
+                      for index, head in enumerate(model.argument_proposal_heads))
+    return model._with_coefficients(definition_relation_head=relation, operation_head=operation,
+        argument_role_heads=roles, argument_proposal_heads=proposals), receipt
 
 
 @invariant("learning.graph_constraint_direction_respects_protected_halfspaces", scope="learning",
