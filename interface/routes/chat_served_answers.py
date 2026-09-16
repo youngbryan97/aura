@@ -560,6 +560,38 @@ def _serve_queued_work(user_message: object, reply: object) -> object:
     return reply
 
 
+#: The ask names the person as the one who spoke: "what did I ask", "what
+#: were we talking about", "remind me what I said". A premise that mentions
+#: an earlier question — "Earlier today I asked you about X; what was the
+#: reason you gave?" — is not this: the thing asked for is HER answer, and
+#: the list of his questions is not it. LIVE 2026-09-16: a correct 349-char
+#: reply about linear attention was replaced by a list of the day's
+#: questions because the message contained "what was".
+_PERSON_SAID_RE = re.compile(
+    r"\bwhat\s+(?:did|was|were|have|had)\s+(?:i|we)\b"
+    r"|\bwhat\s+(?:was|were)\s+(?:my|our)\s+(?:question|message|request|first|last)\b"
+    r"|\b(?:remember|recall|remind\s+me)\b.{0,40}\bwhat\s+(?:i|we)\b"
+    r"|\bwhat\s+(?:did|were|have)\s+we\s+(?:talk|discuss)"
+    r"|\bwhat\s+(?:topics?|things?|questions?)\s+(?:did|have)\s+(?:i|we)\b",
+    re.IGNORECASE,
+)
+_HER_WORDS_RE = re.compile(
+    r"\b(?:you|aura)\s+(?:gave|said|told|explained|answered|recommended|suggested|"
+    r"wrote|replied|concluded|argued|claimed)\b"
+    r"|\byour\s+(?:answer|reply|reason|reasoning|explanation|recommendation|point|argument)\b",
+    re.IGNORECASE,
+)
+
+
+def _asks_what_the_person_said(question: str) -> bool:
+    text = str(question or "")
+    if not _PERSON_SAID_RE.search(text):
+        return False
+    # "what did I ask ... and what did you say" asks for both; the list of
+    # his questions is not an answer to a question about her words.
+    return not _HER_WORDS_RE.search(text)
+
+
 def _serve_earlier_conversation(user_message: object, reply: object) -> object:
     """Answer "what did I ask you earlier" from the record, not from memory.
 
@@ -578,11 +610,7 @@ def _serve_earlier_conversation(user_message: object, reply: object) -> object:
         question = str(user_message or "")
         if not _reaches_past_this_session(question):
             return reply
-        if not re.search(
-            r"\bwhat\s+(?:did|was|were|have)\b|\bremember\b|\brecall\b|\btalk(?:ed|ing)?\s+about\b",
-            question,
-            re.IGNORECASE,
-        ):
+        if not _asks_what_the_person_said(question):
             return reply
         composed = earlier_conversation_answer(exclude=question)
         if composed:

@@ -199,3 +199,29 @@ def test_only_a_question_that_asks_for_it_is_served():
 
     for unrelated in ("what is 2 + 2", "run some python", "how are you"):
         assert _serve_earlier_conversation(unrelated, "the model's reply") == "the model's reply"
+
+
+def test_a_question_about_her_answer_is_not_a_list_of_his_questions():
+    """LIVE 2026-09-16: "Earlier today I asked you about a hybrid
+    linear-attention model and its KV cache. In one sentence, what was the
+    key reason you gave?" — a correct 349-char reply was replaced by a list
+    of the day's questions, because the message contained "what was"."""
+    from interface.routes.chat_served_answers import _asks_what_the_person_said
+
+    asks_for_her_words = (
+        "Earlier today I asked you about a hybrid linear-attention model and its KV cache. "
+        "In one sentence, what was the key reason you gave?",
+        "Earlier today, what did you tell me about symlinks?",
+        "Before you restarted, what was your recommendation on the config file?",
+    )
+    for question in asks_for_her_words:
+        assert not _asks_what_the_person_said(question), question
+
+    asks_for_his = (
+        "What did I ask you about earlier today, before you restarted?",
+        "Earlier today — remind me what I said about the laptop.",
+        "What were we talking about yesterday?",
+        "What was my first question earlier this morning?",
+    )
+    for question in asks_for_his:
+        assert _asks_what_the_person_said(question), question

@@ -152,3 +152,25 @@ async def test_content_recall_prefers_the_fact_over_a_prior_probe_turn():
     assert reply is not None and "7213" in reply, (
         f"recall must prefer the fact plant over a prior probe turn: {reply!r}"
     )
+
+
+def test_a_question_about_her_answer_is_not_classified_as_his_content():
+    """LIVE 2026-09-16: "Earlier today I asked you about a hybrid
+    linear-attention model and its KV cache. In one sentence, what was the
+    key reason you gave?" was a "content" recall — of HIS message — and the
+    composed quote of his own question displaced her answer."""
+    from interface.routes.chat_memory_state import _classify_conversation_recall_request
+
+    assert _classify_conversation_recall_request(
+        "Earlier today I asked you about a hybrid linear-attention model and its KV cache. "
+        "In one sentence, what was the key reason you gave?"
+    ) == ""
+    assert _classify_conversation_recall_request(
+        "What was your recommendation on the shared config file, earlier?"
+    ) == ""
+    # His own words are still his.
+    assert _classify_conversation_recall_request(
+        "Earlier I told you my project codename; what was it?"
+    ) == "content"
+    # And her last reply is still hers.
+    assert _classify_conversation_recall_request("what did you just say") == "last_aura"

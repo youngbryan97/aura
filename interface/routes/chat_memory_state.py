@@ -1541,12 +1541,27 @@ _CONVERSATION_RECALL_CONTENT_RE = re.compile(
 )
 
 
+#: The ask is about HER words — "what was the reason you gave", "what did
+#: you tell me". The transcript composer quotes his messages; a question
+#: about her answer has no composed form and goes to the model with the
+#: history. LIVE 2026-09-16: "Earlier today I asked you about ... what was
+#: the key reason you gave?" classified as a content recall of his message.
+_CONVERSATION_RECALL_HER_WORDS_RE = re.compile(
+    r"\b(?:you|aura)\s+(?:gave|said|told|explained|answered|recommended|suggested|"
+    r"wrote|replied|concluded|argued|claimed)\b"
+    r"|\byour\s+(?:answer|reply|reason|reasoning|explanation|recommendation|point|argument)\b",
+    re.IGNORECASE,
+)
+
+
 def _classify_conversation_recall_request(user_message: str) -> str:
     text = normalize_memory_intent_text(_normalize_user_message(user_message)).rstrip(" ?!.")
     if not text:
         return ""
     if any(marker in text for marker in _CONVERSATION_RECALL_LAST_AURA_MARKERS):
         return "last_aura"
+    if _CONVERSATION_RECALL_HER_WORDS_RE.search(text):
+        return ""
     if _CONVERSATION_RECALL_CONTENT_RE.search(text):
         return "content"
     if any(marker in text for marker in _CONVERSATION_RECALL_RECENT_PAIR_MARKERS):
