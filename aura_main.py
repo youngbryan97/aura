@@ -1076,11 +1076,22 @@ async def _boot_runtime_orchestrator(
     # non-instantiating registry bridge. Materialize and behaviorally probe its
     # required organs here, under the root lifecycle owner, before background
     # work and registry lock can race the first user turn.
-    from core.runtime.live_mind_runtime import activate_live_mind_runtime
+    from core.runtime.live_mind_runtime import (
+        activate_live_mind_runtime,
+        get_live_mind_runtime,
+    )
+    from core.runtime.progress_bound import await_while_it_progresses
 
-    live_mind_report = await asyncio.wait_for(
+    # Bounded by its progress, not by the wall clock: on a host three times
+    # oversubscribed the eight organs took 17s against a 15s wall budget and
+    # the boot died with the last organ materialized (2026-09-16). An organ
+    # that takes 15s of wall to materialize with nothing completing is the
+    # wedge the old budget was written for; eight that each take two is not.
+    live_mind_report = await await_while_it_progresses(
         asyncio.to_thread(activate_live_mind_runtime),
-        timeout=15.0,
+        progress=get_live_mind_runtime().materialized,
+        stall_s=15.0,
+        name="live-mind activation",
     )
     if not bool(live_mind_report.get("ready")):
         raise RuntimeError(

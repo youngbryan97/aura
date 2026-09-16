@@ -41,6 +41,13 @@ class LiveMindRuntime:
         self._activated_at = 0.0
         self._activation_errors: dict[str, str] = {}
         self._last_probe: dict[str, Any] = {}
+        #: What materialize has completed so far, for a waiter that bounds
+        #: the activation by its progress rather than by the wall clock.
+        self._materialized = ""
+
+    def materialized(self) -> str:
+        """The last organ (or the snapshot) that materialize completed."""
+        return self._materialized
 
     def materialize(self, container: Any | None = None) -> dict[str, Any]:
         if container is None:
@@ -56,8 +63,10 @@ class LiveMindRuntime:
                     errors[name] = "registered service resolved to None"
             except _ACTIVATION_ERRORS as exc:
                 errors[name] = f"{type(exc).__name__}: {exc}"
+            self._materialized = name
 
         snapshot = collect_live_mind_snapshot(lane={"origin": "boot_activation"})
+        self._materialized = "snapshot"
         quality = assess_live_mind_snapshot(snapshot)
         with self._lock:
             self._activated_at = time.time()
