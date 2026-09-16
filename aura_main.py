@@ -4498,6 +4498,7 @@ def main():
             logger.error("⚠️ Reaper initialization skipped or failed: %s", e)
 
     # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
+    exit_code = 0
     try:
         if args.philosophy:
             asyncio.run(run_philosophy_stream(args.port))
@@ -4638,12 +4639,21 @@ def main():
     except _AURA_MAIN_BOUNDARY_ERRORS as e:
         record_degradation('aura_main', e)
         logger.critical("FATAL BOOT ERROR: %s", e, exc_info=True)
-        sys.exit(1)
+        # The root exits through its finalizer on this path too. A bare
+        # sys.exit(1) here let the interpreter's own shutdown join every
+        # executor thread, and one was three hours into an embedding forward
+        # pass on a loaded host: the process sat in threading._shutdown for
+        # forty minutes after "Finished server process" (2026-09-16, pid
+        # 29434). The finalizer ends in os._exit, which does not wait for
+        # anyone.
+        exit_code = 1
     _finalize_root_runtime_process_exit(
         args,
-        exit_code=0,
+        exit_code=exit_code,
         signal_owner=root_signal_owner,
     )
+    if exit_code:
+        sys.exit(exit_code)
 
 if __name__ == "__main__":
     import multiprocessing

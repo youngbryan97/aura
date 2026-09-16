@@ -68,3 +68,18 @@ def test_the_desktop_entry_uses_the_bounded_runner():
     desktop = source[start : source.index("        elif args.", start + 10)]
     assert "_bounded_run(" in desktop
     assert "asyncio.run(" not in desktop
+
+
+def test_the_fatal_path_exits_through_the_finalizer_too():
+    """2026-09-16, pid 29434: a bare sys.exit(1) after FATAL BOOT ERROR handed
+    the exit to the interpreter, whose shutdown joins every executor thread.
+    One was hours into an embedding forward pass on a loaded host; the
+    process sat in threading._shutdown for forty minutes after the server
+    had finished. The finalizer ends in os._exit and waits for no one."""
+    source = (ROOT / "aura_main.py").read_text(encoding="utf-8")
+    tail = source[source.index("    except _AURA_MAIN_BOUNDARY_ERRORS as e:\n        record_degradation('aura_main', e)\n        logger.critical(\"FATAL BOOT ERROR") :]
+    tail = tail[: tail.index("if __name__ ==")]
+    assert "sys.exit(1)" not in tail.split("_finalize_root_runtime_process_exit(")[0]
+    assert "exit_code = 1" in tail
+    assert "exit_code=exit_code," in tail
+    assert tail.rstrip().endswith("sys.exit(exit_code)")
