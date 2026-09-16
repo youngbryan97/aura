@@ -9,7 +9,9 @@ import numpy as np
 from core.learning.semantic_graph_counterexamples import (
     argument_graph_program, compare_program_meanings, counterfactual_inputs,
 )
-from core.learning.semantic_operation_graph_learning import operation_graph_evidence, OperationSourceSupervision
+from core.learning.semantic_operation_graph_learning import (
+    operation_graph_evidence, OperationEvidenceBank, OperationSourceSupervision,
+)
 from core.learning.semantic_relation_graph_learning import RelationGraphContrast, fit_joint_graph_contrasts
 
 
@@ -124,14 +126,57 @@ def source_operation_supervision(model, training):
         np.array([label for _, label in evidence]), np.array(weights))
 
 
+def mine_source_binding_constraint(model, item, *, weight=1., max_graphs=32, solve_time_limit_s=20.):
+    """Keep a witnessed binding competitor even when the source already decodes correctly."""
+    from core.learning.semantic_graph_counterexamples import find_graph_counterexample
+    from core.learning.semantic_relation_graph_learning import contrast_from_search
+    from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments, _OperationNode
+
+    if item.split != "train":
+        raise ValueError("semantic constraint mining requires source training examples")
+    nodes = tuple(_OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions)
+    charts = []
+    _assign_typed_arguments(model=model, hidden=item.hidden_states, inputs=item.public_inputs,
+        input_spans=item.ir.input_spans, operation_nodes=nodes,
+        argument_pointer_scores=model.argument_pointer.score_sequence(item.hidden_states),
+        chart_observer=charts.append, retain_score_factors=True, retain_relation_evidence=True, build_only=True)
+    record = {"source_text_sha256": item.ir.source_text_sha256, "status": "chart_unavailable",
+              "source_operations_supplied": True, "serving_authority": False}
+    if not charts:
+        return None, record
+    result = find_graph_counterexample(charts[0], nodes, tuple(ins.args for ins in item.ir.instructions),
+        probes=counterfactual_inputs(item.public_inputs), max_graphs=max_graphs,
+        solve_time_limit_s=solve_time_limit_s)
+    record.update(result.receipt)
+    if result.negative is None:
+        return None, record
+    contrast = contrast_from_search(result, model.definition_relation_head,
+                                   scale=model.definition_relation_scale, weight=weight)
+    record["initial_margin"] = result.positive[0][0] - result.negative[0][0]
+    return contrast, record
+
+
+def source_operation_constraints(model, supervision, *, weight=1.):
+    """Retain every competing label, not just the currently second-ranked label."""
+    constraints = []
+    for row, label in enumerate(supervision.labels):
+        bank = OperationEvidenceBank(tuple(view[row] for view in supervision.features))
+        for alternative in range(len(model.operation_head.labels)):
+            if alternative != label:
+                constraints.append(RelationGraphContrast((), (), 0., weight * supervision.weights[row],
+                    ((bank, int(label)),), ((bank, alternative),)))
+    return constraints
+
+
 def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
-                                    solve_time_limit_s=20., progress=None, source_weight=1.):
+                                    solve_time_limit_s=20., progress=None, source_weight=1.,
+                                    constraint_learning=False):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
     from core.learning.semantic_program_shared_transducer import _geometry
 
-    if type(rounds) is not int or rounds < 1:
+    if type(rounds) is not int or rounds < 1 or type(constraint_learning) is not bool:
         raise ValueError("joint graph learning rounds must be positive")
     training, validation = graph_refit_source_splits(model, examples)
     if not np.isfinite(source_weight) or source_weight < 0:
@@ -143,6 +188,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
     weights = Counter(_geometry(item) for item in training)
     supervision = source_operation_supervision(model, training) if source_weight else None
     candidate, retained, history = model, [], []
+    if constraint_learning and supervision is not None:
+        retained.extend(source_operation_constraints(model, supervision, weight=source_weight))
     for round_index in range(rounds):
         records, new_pairs = [], 0
         for index, item in enumerate(training):
@@ -152,18 +199,31 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                 record["retained_pair"] = len(retained)
                 retained.append(contrast)
                 new_pairs += 1
+            if constraint_learning:
+                binding, binding_record = mine_source_binding_constraint(candidate, item,
+                    weight=1. / weights[_geometry(item)], solve_time_limit_s=solve_time_limit_s)
+                record["binding_constraint"] = binding_record
+                if binding is not None:
+                    binding_record["retained_pair"] = len(retained)
+                    retained.append(binding)
+                    new_pairs += 1
             records.append(record)
             if progress:
                 progress({"stage": "joint_graph_mining", "round": round_index + 1,
                           "completed": index + 1, "total": len(training), "row": record})
-        if not new_pairs:
+        if not new_pairs and not (constraint_learning and retained):
             history.append({"records": records, "fit": {"status": "no_new_witnessed_errors",
                             "pairs": len(retained), "coverage_complete": all(
                                 row["status"] == "equivalent" for row in records)}})
             break
-        relation, operation, fit = fit_joint_graph_contrasts(candidate.definition_relation_head,
-            candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps,
-            source_supervision=supervision, source_weight=source_weight)
+        if constraint_learning:
+            from core.learning.semantic_graph_constraints import fit_graph_constraints
+            relation, operation, fit = fit_graph_constraints(candidate.definition_relation_head,
+                candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps)
+        else:
+            relation, operation, fit = fit_joint_graph_contrasts(candidate.definition_relation_head,
+                candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps,
+                source_supervision=supervision, source_weight=source_weight)
         candidate = candidate._with_coefficients(definition_relation_head=relation, operation_head=operation)
         history.append({"records": records, "fit": fit})
         if progress:
@@ -179,5 +239,7 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         "validation_used_for_fit": False, "serving_authority": False,
         "source_operation_weight": source_weight,
         "source_operations": len(supervision.labels) if supervision is not None else 0,
+        "constraint_learning": constraint_learning,
+        "already_correct_binding_competitors_retained": constraint_learning,
     }
     return replace(candidate, training_receipt={**body, "receipt_sha256": _sha(body)})

@@ -24,6 +24,12 @@ class RelationEvidenceBank:
         object.__setattr__(self, "definitions", definitions)
         object.__setattr__(self, "base_logits", base)
 
+    def score(self, selected, query, definition):
+        if type(selected) is not int or not 0 <= selected < len(self.base_logits):
+            raise ValueError("selected relation hypothesis is invalid")
+        logits = self.base_logits + (self.definitions @ definition) @ (self.reference @ query)
+        return float(np.max(-np.logaddexp(0., -self.base_logits)) + logits[selected] - logits.max())
+
     def score_gradient(self, selected, query, definition):
         """Use the runtime categorical margin, including its moving maximum."""
         if type(selected) is not int or not 0 <= selected < len(self.base_logits):
@@ -60,6 +66,36 @@ def contrast_from_search(result, head, *, scale, weight=1.):
                                  margin - scale * relation_margin, weight)
 
 
+def graph_margin_gradient(parameters, row, *, scale=1.):
+    """Replay one complete-interpretation margin independently of an aggregate loss."""
+    query, definition, *operations = parameters
+    margin = row.fixed_margin
+    gradients = [np.zeros_like(value) for value in parameters]
+    for sign, choices in ((1., row.positive), (-1., row.negative)):
+        for bank, index in choices:
+            value, qgrad, dgrad = bank.score_gradient(index, query, definition)
+            margin += sign * scale * value
+            gradients[0] += sign * scale * qgrad
+            gradients[1] += sign * scale * dgrad
+    for sign, choices in ((1., row.positive_operations), (-1., row.negative_operations)):
+        for bank, index in choices:
+            value, derivatives = bank.score_gradient(index, operations)
+            margin += sign * value
+            for gradient, derivative in zip(gradients[2:], derivatives, strict=True):
+                gradient += sign * derivative
+    return float(margin), tuple(gradients)
+
+
+def graph_margin(parameters, row, *, scale=1.):
+    """Value-only replay avoids allocating one parameter gradient per witness."""
+    query, definition, *operations = parameters
+    return float(row.fixed_margin + sum(sign * (
+        scale * sum(bank.score(index, query, definition) for bank, index in relations)
+        + sum(bank.score(index, operations) for bank, index in op_choices))
+        for sign, relations, op_choices in (
+            (1., row.positive, row.positive_operations), (-1., row.negative, row.negative_operations))))
+
+
 def relation_graph_loss(query, definition, contrasts, *, scale, initial, regularization,
                         operation_parameters=(), source_supervision=None, source_weight=0.):
     """Pairwise logistic loss on graph margins, with latent choices held fixed."""
@@ -79,23 +115,10 @@ def relation_graph_loss(query, definition, contrasts, *, scale, initial, regular
         raise ValueError("graph optimizer anchor geometry differs")
     loss, gradients = 0., [np.zeros_like(value) for value in parameters]
     for row in contrasts:
-        margin, gq, gd = row.fixed_margin, np.zeros_like(query), np.zeros_like(definition)
-        operation_gradients = [np.zeros_like(value) for value in operation_parameters]
-        for sign, choices in ((1., row.positive), (-1., row.negative)):
-            for bank, index in choices:
-                value, qgrad, dgrad = bank.score_gradient(index, query, definition)
-                margin += sign * scale * value
-                gq += sign * scale * qgrad
-                gd += sign * scale * dgrad
-        for sign, choices in ((1., row.positive_operations), (-1., row.negative_operations)):
-            for bank, index in choices:
-                value, derivatives = bank.score_gradient(index, operation_parameters)
-                margin += sign * value
-                for gradient, derivative in zip(operation_gradients, derivatives, strict=True):
-                    gradient += sign * derivative
+        margin, derivatives = graph_margin_gradient(parameters, row, scale=scale)
         weight = row.weight / total
         loss += weight * np.logaddexp(0., -margin)
-        for gradient, derivative in zip(gradients, (gq, gd, *operation_gradients), strict=True):
+        for gradient, derivative in zip(gradients, derivatives, strict=True):
             gradient -= weight * expit(-margin) * derivative
     if source_weight:
         source_loss, source_gradients = source_supervision.loss_gradient(operation_parameters)

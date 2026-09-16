@@ -4,6 +4,10 @@ This work implements the six mechanisms requested on 2026-09-15. It extends
 the existing semantic program substrate, procedure registry and proof kernel.
 It does not replace or close the master G03-G12 obligations.
 
+The [retained-constraint design](G_SEMANTIC_CONSTRAINT_DESIGN.md) derives the
+bounded correctness conditions and separates numerical fitting, capacity
+expansion and fresh transfer. It adds no new master-ledger identifiers.
+
 ## Implementation and acceptance
 
 - [x] S01 Capacity certificates. Convert frozen score comparisons into linear
@@ -43,6 +47,11 @@ It does not replace or close the master G03-G12 obligations.
   [Completed retention comparison](evidence/G03_SOURCE_RETENTION_RESULT_2026-09-15.md)
   measured all 500 validation rows: 451 exact with 31 regressions and 454
   equivalent with 30 regressions. The incumbent remains selected.
+  Retained-constraint fitting is now implemented as an opt-in path, including
+  wrong binding competitors from already-correct source cases and every source
+  operation-label competitor. Unit checks cover retention under conflicting
+  gradients and exported-dtype margin replay. Full-source fitting and the
+  unchanged development comparison remain required before any promotion.
 - [ ] S04 Counterexample refinement. Repeatedly find new wrong complete
   programs, retain their distinguishing evidence and refit against the whole
   retained set. Detect unsupported or inseparable distinctions and request
@@ -64,6 +73,13 @@ It does not replace or close the master G03-G12 obligations.
   [One-load reacquisition](evidence/G03_SINGLE_LOAD_REACQUISITION_2026-09-15.md)
   now rebuilds the exact cohorts from their manifests and uses one existing
   worker lifecycle. CPU checks pass; the new feature bank is not yet acquired.
+  Update: reacquisition completed all 1,764 examples in eight cohorts under
+  `~/.aura/rlc-evidence/semantic-source-reacquisition-20260915/features`.
+  Standard bundle reconstruction and representation admission pass: 764 train,
+  500 validation, 500 test. Validation identity is unchanged
+  (`0b7112a312440fbfc5dcad54be3fecb3a13f89058fc0a3d78907eee889caf259`).
+  The new source-fit path excludes test rows and allows training-only cohorts.
+  Acquisition and admission are not training or transfer success.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.

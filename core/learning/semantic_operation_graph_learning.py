@@ -18,6 +18,15 @@ class OperationEvidenceBank:
             raise ValueError("operation graph features are invalid")
         object.__setattr__(self, "features", features)
 
+    def score(self, selected, parameters):
+        if len(parameters) != 2 * len(self.features):
+            raise ValueError("operation graph views differ from parameters")
+        if type(selected) is not int or not 0 <= selected < len(parameters[0]):
+            raise ValueError("selected operation hypothesis is invalid")
+        probabilities = [softmax(parameters[2 * index] @ feature + parameters[2 * index + 1])[selected]
+                         for index, feature in enumerate(self.features)]
+        return float(np.log(max(sum(probabilities) / len(probabilities), 1e-12)))
+
     def score_gradient(self, selected, parameters):
         """Use log(mean(softmax(view))) rather than softmax(mean(view))."""
         if len(parameters) != 2 * len(self.features):
