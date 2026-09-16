@@ -80,6 +80,9 @@ expansion and fresh transfer. It adds no new master-ledger identifiers.
   (`0b7112a312440fbfc5dcad54be3fecb3a13f89058fc0a3d78907eee889caf259`).
   The new source-fit path excludes test rows and allows training-only cohorts.
   Acquisition and admission are not training or transfer success.
+  [Fresh source fit](evidence/G03_FRESH_SOURCE_FIT_2026-09-15.md) subsequently
+  completed training and all 500 validation cases: 472 exact and 472 equivalent.
+  No held-out test examples were used and no serving promotion was granted.
 - [ ] S06 Reusable verified abstractions. Store parameterized procedures with
   scope, dependencies and evidence in the existing registry. Demonstrate
   reuse under new names and values without answer lookup or task-label access.

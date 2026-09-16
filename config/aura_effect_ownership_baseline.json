@@ -7025,12 +7025,20 @@
       "scope": "<module>._write"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
       "path": "core/world_model/acg.py",
-      "scope": "<module>.ActionConsequenceGraph._save"
+      "scope": "<module>.ActionConsequenceGraph._write_payload"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/world_model/acg.py",
+      "scope": "<module>.ActionConsequenceGraph._write_payload"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -14301,14 +14309,6 @@
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
-      "path": "core/world_model/acg.py",
-      "scope": "<module>.ActionConsequenceGraph._save"
-    },
-    {
-      "callee": "os.makedirs",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
       "path": "core/world_model/belief_graph.py",
       "scope": "<module>.BeliefGraph._save_causal"
     },
@@ -16522,6 +16522,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2f2b3066b6fad67f859d5c6648a53fc71ae10a19fc7a0bb50f5d63eadf5558e5",
+  "inventory_sha256": "27f7afb460ef0ce33b80b057e850836d519bb975180f381ba6da23d89afc5b55",
   "schema_version": 1
 }
