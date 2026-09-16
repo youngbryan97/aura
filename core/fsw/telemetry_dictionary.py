@@ -369,8 +369,19 @@ class TelemetryDictionary:
         with self._lock:
             self._transition_listeners.append(listener)
 
-    def emit(self, name: str, *, severity: EventSeverity | None = None, **args: Any) -> Event:
-        """Emit an event report. Undeclared events still record, at DIAGNOSTIC."""
+    def emit(
+        self,
+        name: str,
+        *,
+        severity: EventSeverity | None = None,
+        quiet: bool = False,
+        **args: Any,
+    ) -> Event:
+        """Emit an event report. Undeclared events still record, at DIAGNOSTIC.
+
+        ``quiet`` keeps the record and drops the feed line to debug: for the
+        repeats of a standing condition the caller has already said once.
+        """
         with self._lock:
             spec = self._events.get(name)
         if spec is None:
@@ -405,6 +416,8 @@ class TelemetryDictionary:
             EventSeverity.WARNING_HI: logging.WARNING,
             EventSeverity.FATAL: logging.CRITICAL,
         }[event.severity]
+        if quiet:
+            level = logging.DEBUG
         logger.log(level, "📡 EVR[%s] %s", event.severity.label, event.text)
         return event
 
@@ -667,8 +680,10 @@ def write(name: str, value: Any) -> LimitState:
     return _DICTIONARY.write(name, value)
 
 
-def emit_event(name: str, *, severity: EventSeverity | None = None, **args: Any) -> Event:
-    return _DICTIONARY.emit(name, severity=severity, **args)
+def emit_event(
+    name: str, *, severity: EventSeverity | None = None, quiet: bool = False, **args: Any
+) -> Event:
+    return _DICTIONARY.emit(name, severity=severity, quiet=quiet, **args)
 
 
 def telemetry_report() -> dict[str, Any]:

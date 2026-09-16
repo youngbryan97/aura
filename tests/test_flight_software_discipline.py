@@ -389,6 +389,32 @@ def test_consecutive_slips_reset_when_a_cycle_makes_its_period():
     assert group.consecutive_slips == 0
 
 
+def test_a_slip_streak_is_said_when_it_starts_periodically_and_when_it_ends(caplog):
+    """99 warning lines in half an hour for one loaded host (2026-09-16)."""
+    import logging
+
+    from core.fsw import rate_groups
+
+    group = RateGroup("streaky", 0.02)
+    slow = group.add("member", lambda: time.sleep(0.05))
+    with caplog.at_level(logging.INFO, logger=rate_groups.logger.name):
+        for _ in range(rate_groups._SAY_STREAK_EVERY + 2):
+            asyncio.run(group.run_cycle())
+        slow.fn = lambda: None
+        asyncio.run(group.run_cycle())
+    slips = [
+        r for r in caplog.records
+        if r.name == rate_groups.logger.name and "slipped:" in r.getMessage()
+    ]
+    warned = [r for r in slips if r.levelno == logging.WARNING]
+    # The first, and the thirtieth; the rest at info.
+    assert len(warned) == 2
+    assert f"{rate_groups._SAY_STREAK_EVERY} in a row" in warned[1].getMessage()
+    assert len(slips) == rate_groups._SAY_STREAK_EVERY + 2
+    ended = [r for r in caplog.records if "back on period" in r.getMessage()]
+    assert len(ended) == 1 and f"{rate_groups._SAY_STREAK_EVERY + 2} slipped" in ended[0].getMessage()
+
+
 def test_sustained_slipping_escalates_to_the_overload_response():
     restart_mod.install_standard_groups()
     group = RateGroup("overloaded", 0.001)

@@ -47,6 +47,8 @@ logger = logging.getLogger("Aura.RateGroups")
 
 #: A cycle that runs this far past its period is a slip, not jitter.
 SLIP_TOLERANCE = 0.10
+#: While a group keeps slipping, one line per this many cycles.
+_SAY_STREAK_EVERY = 30
 
 
 @dataclass
@@ -190,10 +192,12 @@ class RateGroup:
         slipped = duration > self.period_s * (1.0 + SLIP_TOLERANCE)
 
         self.cycles += 1
+        streak_ended = 0
         if slipped:
             self.slips += 1
             self.consecutive_slips += 1
         else:
+            streak_ended = self.consecutive_slips
             self.consecutive_slips = 0
 
         record = CycleRecord(
@@ -210,16 +214,29 @@ class RateGroup:
                 del self._history[:-128]
 
         if slipped:
-            logger.warning(
+            # A slip is said when it begins and while it lasts it is said
+            # every _SAY_STREAK_EVERY cycles, not every cycle: on a loaded
+            # host the 1Hz group slipped 99 cycles in half an hour and each
+            # was a warning line (2026-09-16). The streak's end is said too.
+            first = self.consecutive_slips == 1
+            say = logger.warning if first or self.consecutive_slips % _SAY_STREAK_EVERY == 0 else logger.info
+            say(
                 "⏱️ rate group %s slipped: cycle took %.0fms of a %.0fms period "
-                "(slowest member: %s at %.0fms)",
+                "(slowest member: %s at %.0fms)%s",
                 self.name,
                 duration * 1000,
                 self.period_s * 1000,
                 slowest or "unknown",
                 slowest_s * 1000,
+                "" if first else f"; {self.consecutive_slips} in a row",
             )
             self._announce_slip(record, slowest_s)
+        elif streak_ended:
+            logger.info(
+                "⏱️ rate group %s back on period after %d slipped cycle(s)",
+                self.name,
+                streak_ended,
+            )
         return record
 
     def _announce_slip(self, record: CycleRecord, slowest_s: float) -> None:
@@ -233,6 +250,8 @@ class RateGroup:
                     if self.consecutive_slips >= 3
                     else EventSeverity.WARNING_LO
                 ),
+                # The event record carries every slip; the feed line does not.
+                quiet=self.consecutive_slips != 1 and self.consecutive_slips % _SAY_STREAK_EVERY != 0,
                 group=self.name,
                 period_ms=round(self.period_s * 1000, 1),
                 duration_ms=round(record.duration_s * 1000, 1),
