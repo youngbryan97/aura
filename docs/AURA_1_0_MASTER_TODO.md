@@ -835,6 +835,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Durable batched fit](evidence/G03_DURABLE_BATCHED_FIT_2026-09-17.md) saves
+  accepted optimizer steps and resumes only identical evidence. Shared-bank
+  derivatives pass 70 focused checks; full campaign speed and accuracy remain
+  separate measurements.
   [Input-coordinate repair](evidence/G03_INPUT_COORDINATE_REPAIR_2026-09-16.md)
   removes contradictory training labels caused by exchanged equal-valued input
   anchors. The real source replay and 47 focused tests pass; fresh fitting and

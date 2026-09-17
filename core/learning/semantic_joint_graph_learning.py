@@ -3,6 +3,7 @@
 from collections import Counter
 from dataclasses import replace
 import math
+from pathlib import Path
 
 import numpy as np
 
@@ -216,7 +217,8 @@ def source_operation_constraints(model, supervision, *, weight=1.):
 
 def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                                     solve_time_limit_s=20., progress=None, source_weight=1.,
-                                    constraint_learning=False, learn_arguments=False):
+                                    constraint_learning=False, learn_arguments=False,
+                                    checkpoint_dir=None):
     """Remine source-training predictions after each joint operation/relation update."""
     from core.learning.semantic_graph_margin import graph_refit_source_splits
     from core.learning.semantic_program_campaign import _sha
@@ -226,6 +228,8 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
         raise ValueError("joint graph learning rounds must be positive")
     if type(learn_arguments) is not bool or (learn_arguments and not constraint_learning):
         raise ValueError("argument graph learning requires retained constraints")
+    if checkpoint_dir is not None and not constraint_learning:
+        raise ValueError("fit checkpoints require retained semantic constraints")
     training, validation = graph_refit_source_splits(model, examples)
     if not np.isfinite(source_weight) or source_weight < 0:
         raise ValueError('invalid source operation retention weight')
@@ -264,14 +268,24 @@ def refit_compositional_joint_graphs(model, examples, *, rounds=3, steps=100,
                             "pairs": len(retained), "coverage_complete": all(
                                 row["status"] == "equivalent" for row in records)}})
             break
+        fit_options = {}
+        if constraint_learning:
+            fit_options["progress"] = (lambda row: progress({**row, "round": round_index + 1})) if progress else None
+            if checkpoint_dir is not None:
+                fit_options.update(
+                    checkpoint_path=Path(checkpoint_dir) / f"round-{round_index + 1}.npz",
+                    checkpoint_identity={"parent": model.receipt_sha256, "round": round_index + 1,
+                                         "training": _sha(sorted(item.ir.source_text_sha256 for item in training))},
+                )
         if learn_arguments:
             from core.learning.semantic_graph_constraints import fit_complete_graph_constraints
             candidate, fit = fit_complete_graph_constraints(candidate, tuple(retained),
-                scale=candidate.definition_relation_scale, steps=steps, adaptive_step=True)
+                scale=candidate.definition_relation_scale, steps=steps, adaptive_step=True, **fit_options)
         elif constraint_learning:
             from core.learning.semantic_graph_constraints import fit_graph_constraints
             relation, operation, fit = fit_graph_constraints(candidate.definition_relation_head,
-                candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps)
+                candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale,
+                steps=steps, **fit_options)
         else:
             relation, operation, fit = fit_joint_graph_contrasts(candidate.definition_relation_head,
                 candidate.operation_head, tuple(retained), scale=candidate.definition_relation_scale, steps=steps,

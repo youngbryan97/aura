@@ -78,6 +78,8 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validation-output", type=Path)
     parser.add_argument("--validation-checkpoint", type=Path)
+    parser.add_argument("--fit-checkpoint-dir", type=Path,
+                        help="retained-constraint optimizer state; defaults beside the output candidate")
     parser.add_argument("--evaluate-existing", action="store_true",
                         help="evaluate the saved output candidate without fitting again")
     parser.add_argument("--runtime-operation-views", action="store_true")
@@ -116,6 +118,8 @@ def main() -> int:
         parser.error("semantic constraints require a fresh joint_graphs fit")
     if args.learn_argument_heads and not args.retain_semantic_constraints:
         parser.error("argument-head learning requires retained semantic constraints")
+    if args.fit_checkpoint_dir is not None and not args.retain_semantic_constraints:
+        parser.error("fit checkpoints require a retained-constraint training run")
     if args.evaluate_existing and not args.compare_fit_start and (
         args.starting_candidate or args.joint_operation_argument_scores
     ):
@@ -185,6 +189,8 @@ def main() -> int:
         options["source_weight"] = args.source_operation_weight
         options["constraint_learning"] = args.retain_semantic_constraints
         options["learn_arguments"] = args.learn_argument_heads
+        if args.retain_semantic_constraints:
+            options["checkpoint_dir"] = args.fit_checkpoint_dir or args.output.with_suffix(".fit-checkpoints")
     if args.runtime_mention_margin:
         options["runtime_mention_margin"] = True
     if args.runtime_operation_views:

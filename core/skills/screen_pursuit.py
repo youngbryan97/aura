@@ -1294,7 +1294,8 @@ async def pursue_on_screen(
             inside = [
                 (x, y)
                 for x, y in places
-                if any(l <= x <= r and t <= y <= b for l, t, r, b in outlines)
+                if any(left <= x <= right and top <= y <= bottom
+                       for left, top, right, bottom in outlines)
             ]
             if not inside and not furniture_said["value"]:
                 furniture_said["value"] = True
