@@ -6698,7 +6698,17 @@ class MLXLocalClient(_KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _
         self._lane_state = state
         if error:
             self._lane_error = str(error)
-        elif state == "ready":
+        elif state != "failed":
+            # A state given with no error is the lane saying nothing is wrong
+            # with it now. Only "ready" used to say so, and a lane goes back
+            # to cold after a reboot, carrying the reason it was rebooted as
+            # its current error — which the health router reads as a live
+            # failure every time it considers the endpoint. LIVE 2026-09-17:
+            # one unacknowledged soft-cancel, then 74 "Circuit OPEN for
+            # Reflex after N failures. Reason: cancelled_worker_not_
+            # acknowledged" on a worker that was never asked to do anything
+            # again, and 120 background plans that found no endpoint in the
+            # tier Reflex serves.
             self._lane_error = ""
 
     def _classify_failure(

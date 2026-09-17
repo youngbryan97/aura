@@ -807,7 +807,19 @@ def _expected_of(chosen: Any) -> str:
 #: The longest a change has taken to appear, and how long a poll takes, both
 #: measured rather than chosen. Waiting is bounded by what this world has
 #: actually done, so a slow surface is waited for and a fast one is not.
-_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0}
+_ANSWERING_TOOK: dict[str, float] = {"longest": 0.0, "quickest": 0.0}
+
+
+def _before_looking_again() -> float:
+    """How long to leave the world alone between looks.
+
+    Half the quickest answer she has ever seen from it: sleeping less than
+    that cannot step over an answer, and a reading of a window costs less
+    than a tenth of a second, so waiting longer than the world needs is the
+    expensive half of a move. Before she has seen one answer there is no
+    measurement and she looks at once, because the look is the measurement.
+    """
+    return max(0.0, _ANSWERING_TOOK["quickest"] * 0.5)
 
 
 def _how_long_to_wait() -> float:
@@ -820,6 +832,14 @@ def _how_long_to_wait() -> float:
     """
     longest = _ANSWERING_TOOK["longest"]
     return max(1.0, longest * 2) if longest else 4.0
+
+
+def _answering_took(seconds: float) -> None:
+    """Remember how long the world took to answer this time."""
+    took = max(0.0, float(seconds))
+    _ANSWERING_TOOK["longest"] = max(_ANSWERING_TOOK["longest"], took)
+    quickest = _ANSWERING_TOOK["quickest"]
+    _ANSWERING_TOOK["quickest"] = took if not quickest else min(quickest, took)
 
 
 async def _settled_after(
@@ -881,7 +901,7 @@ async def _settled_after(
     seen = before
     moved = False
     while time.monotonic() - started < (patience or _how_long_to_wait()):
-        await asyncio.sleep(0.3 if before.get("settled") is None else 0.1)
+        await asyncio.sleep(0.3 if before.get("settled") is None else _before_looking_again())
         try:
             now = await asyncio.wait_for(read_screen(app), timeout=OBSERVE_TIMEOUT_S)
         except TimeoutError:
@@ -891,15 +911,11 @@ async def _settled_after(
         # is already the second look. Changed and still is finished, and the
         # extra reading used to confirm it cost most of a move.
         if said != was and now.get("settled") is True:
-            _ANSWERING_TOOK["longest"] = max(
-                _ANSWERING_TOOK["longest"], time.monotonic() - started
-            )
+            _answering_took(time.monotonic() - started)
             return now, True
         if not moved and said != was:
             moved = True
-            _ANSWERING_TOOK["longest"] = max(
-                _ANSWERING_TOOK["longest"], time.monotonic() - started
-            )
+            _answering_took(time.monotonic() - started)
             # Where she foretold the result, recognising it is knowing it has
             # landed.
             #
