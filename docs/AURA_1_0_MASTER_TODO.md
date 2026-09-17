@@ -783,6 +783,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
   tasks using the existing language and computational substrates.
+  [Input-coordinate repair](evidence/G03_INPUT_COORDINATE_REPAIR_2026-09-16.md)
+  removes contradictory training labels caused by exchanged equal-valued input
+  anchors. The real source replay and 47 focused tests pass; fresh fitting and
+  paired development measurement remain required.
   [Fresh constrained result](evidence/G03_CONSTRAINED_FRESH_RESULT_2026-09-15.md):
   458/500 versus 472/500, seven gains and 21 regressions; incumbent retained.
   [Graph relation learning](evidence/G03_GRAPH_RELATION_RESULT_2026-09-15.md)
