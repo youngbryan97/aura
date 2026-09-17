@@ -237,7 +237,7 @@ def _continuation(text: str) -> str:
 
 #: Where one clause of a request ends and the next begins: the end of a
 #: sentence, or a comma or semicolon before the next thing being asked.
-_CLAUSE_ENDS = re.compile(r"[.?!;]\s|[.?!;]$|,\s*(?:and|then|but|so|while)\b", re.IGNORECASE)
+_CLAUSE_ENDS = re.compile(r"[.?!;]\s|[.?!;]$|,\s", re.IGNORECASE)
 
 #: Words for the task's own end, which name no thing on screen to wait for.
 #: "Until you win" and "beat it" ask for whatever finishing is in the place
@@ -303,6 +303,12 @@ def _finishing_test(clause: str) -> str:
     number = re.search(r"\b(\d[\d,]{0,9})\b", clause)
     if number:
         return number.group(1).replace(",", "")
+    # "Until you win" names no thing on the screen, and the last plain word of
+    # whatever follows it is not one either: "play until you win, narrate
+    # every move" was a run waiting for the word "move". What finishing looks
+    # like here is for the place to say.
+    if asks_for_its_own_end(clause):
+        return ""
     words = re.findall(r"[A-Za-z][A-Za-z\-]{2,}", clause)
     skip = {
         "the", "a", "an", "you", "it", "its", "get", "gets", "got", "reach", "reaches",

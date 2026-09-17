@@ -1645,10 +1645,10 @@ async def pursue_on_screen(
         if first.get("ok") and not success_when:
             from core.cognition.what_the_place_says import what_this_place_tells_her
 
-            lines = "\n".join(
+            written = "\n".join(
                 str(region.get("text") or "") for region in first.get("layout") or []
             ) or str(first.get("text") or "")
-            told = what_this_place_tells_her(lines, asked=goal, success_when=success_when)
+            told = what_this_place_tells_her(written, asked=goal, success_when=success_when)
             if told.states:
                 success_when = told.aim or told.states
                 logger.info("finishing here is %r, as the place says", success_when)
