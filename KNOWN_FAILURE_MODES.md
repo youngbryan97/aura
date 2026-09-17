@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Nineteen ways this runtime fails, what each one looks like, and what to do
-about it. Every one has a runbook.
+Nineteen core failure modes this runtime addresses, what each one looks like, and what to do
+about it. Every one has a dedicated runbook (among 41 incident runbooks maintained in `docs/runbooks/`).
 
 Read the split before you read the list. **F01–F14 are failure classes we
 plan for.** F15–F19 are different: they actually happened, on the live

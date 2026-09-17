@@ -530,7 +530,7 @@ treated as live only after re-running the relevant suite.
 
 The foundational suites:
 
-1. **Null hypothesis defeat** (168) — tries to prove the consciousness
+1. **Null hypothesis defeat** (169) — tries to prove the consciousness
    features are just text decoration. Adversarial baselines, shuffle
    decoupling, ablations, identity swap, multi-metric degradation,
    cross-seed reproducibility.
@@ -542,7 +542,7 @@ The foundational suites:
 3. **Grounding** (8) — the stack-to-output coupling is specific and
    multi-dimensional. Valence predicts token budget, arousal predicts
    temperature, STDP learning moves the trajectory.
-4. **Functional phenomenology** (13) — behavioral signatures predicted
+4. **Functional phenomenology** (16) — behavioral signatures predicted
    by GWT (global broadcast), IIT (perturbation propagation), HOT
    (accurate metacognition that doesn't confabulate).
 5. **Embodied dynamics** (13) — free energy drives action, homeostasis
@@ -820,7 +820,7 @@ Each is independently publishable. Together they're a research program.
   check are refused. User messages always proceed but can carry
   constraints.
 - **Orchestrator decomposition.** The `RobustOrchestrator` currently
-  composes 12 mixins (down from 15) across ~2,200 lines in
+  composes 15 mixins across ~3,335 lines in
   `core/orchestrator/main.py`. Mixins physically separate the code but
   share `self`. Handlers under `core/orchestrator/handlers/` dispatch
   specific message types. The planned Actor Model transition
