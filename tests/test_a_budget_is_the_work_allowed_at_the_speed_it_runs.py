@@ -58,11 +58,25 @@ def test_a_reading_of_nothing_is_not_a_reading():
     assert seconds_a_cycle() == 0.0
 
 
-def test_the_goal_a_person_asked_for_carries_the_sized_budget():
+def test_a_goal_with_no_end_carries_the_sized_budget():
     watched_goal.a_cycle_took(14.0)
-    watched = read_watched_goal("play 2048 until you get a 256 tile")
+    watched = read_watched_goal("keep playing 2048 and work out how it moves")
     assert watched is not None
+    assert not watched.success_when
     assert watched.max_seconds == pytest.approx(PURSUIT_CYCLES * 14.0)
+    assert watched.max_cycles == PURSUIT_CYCLES
+
+
+def test_a_goal_that_names_its_end_is_kept_at_until_the_end():
+    """"Until a 2048 tile" is about a thousand moves; two hundred stopped every
+    such run a fifth of the way there."""
+    watched_goal.a_cycle_took(1.0)
+    watched = read_watched_goal("play 2048 until you get a 2048 tile")
+    assert watched is not None
+    assert watched.success_when
+    assert watched.max_seconds == PURSUIT_CEILING_S
+    assert watched.max_cycles == watched_goal.UNTIL_IT_IS_MET_CYCLES
+    assert watched.as_target()["max_cycles"] == watched_goal.UNTIL_IT_IS_MET_CYCLES
 
 
 def test_the_task_still_allows_more_than_the_pursuit_it_wraps():

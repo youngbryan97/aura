@@ -446,14 +446,21 @@ async def _ensure_page(expect_page: str) -> bool:
 
 async def _ensure_frontmost(app_name: str) -> bool:
     """Bring `app_name` forward if it is not already. True when it is."""
+    from core.capabilities import window_server
     from core.capabilities.host_automation import get_host_automation
 
-    host = get_host_automation()
-    context = await host.get_frontmost_window_context()
-    observed = str(getattr(context, "result", "") or "").split("|", 1)[0].strip().lower()
     wanted = app_name.strip().lower()
-    if observed and (wanted in observed or observed in wanted):
+    # The window server answers in milliseconds; System Events answers in a
+    # subprocess, and this is asked on every cycle.
+    in_front = window_server.front_owner().strip().lower()
+    if in_front and (wanted in in_front or in_front in wanted):
         return True
+    host = get_host_automation()
+    if not in_front:
+        context = await host.get_frontmost_window_context()
+        observed = str(getattr(context, "result", "") or "").split("|", 1)[0].strip().lower()
+        if observed and (wanted in observed or observed in wanted):
+            return True
     receipt = await host.launch_app(app_name)
     return bool(getattr(receipt, "success", False))
 

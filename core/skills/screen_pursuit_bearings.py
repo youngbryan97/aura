@@ -225,7 +225,11 @@ def ways_out(observation: dict[str, Any], *, ended: bool = False) -> list[Any]:
     """
     from core.agency.deliberate_action import ActionOption, Expectation
 
-    options: list[Any] = [
+    # Seeing it through is a way of carrying on with something still going. A
+    # thing that has ended has nothing left to see through, and offering it
+    # beside starting again made a finished game a choice between two ways of
+    # doing nothing about it.
+    options: list[Any] = [] if ended else [
         ActionOption(
             name=SEE_IT_THROUGH,
             detail="keep playing this out and learn from how it ends",
@@ -1055,6 +1059,12 @@ def _the_biggest_thing_on_it(reading: Any, reporting: Sequence[tuple[int, int]] 
     return max(found, default=0.0)
 
 
+def _a(said: str) -> str:
+    from core.agency.saying_what_a_move_does import _a as article  # noqa: PLC0415
+
+    return article(said)
+
+
 def _she_got_further(made: float, furthest: float) -> str:
     """What to say when she has just built the biggest thing she has here.
 
@@ -1065,8 +1075,9 @@ def _she_got_further(made: float, furthest: float) -> str:
     if made <= furthest:
         return ""
     if furthest <= 0.0:
-        return f"I have a {made:g} on the board."
-    return f"A {made:g} — the biggest I have made here. The best before was {furthest:g}."
+        return f"I have {_a(f'{made:g}')} on the board."
+    said = _a(f"{made:g}")
+    return f"{said[:1].upper()}{said[1:]} — the biggest I have made here. The best before was {furthest:g}."
 
 
 def _what_there_is_to_aim_at(reading: Any) -> str:

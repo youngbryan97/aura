@@ -547,6 +547,14 @@ WORTH_TRYING_AT = 0.4
 async def _frontmost() -> str:
     """The application in front, for a run that was never told which one."""
     try:
+        from core.capabilities import window_server
+
+        owner = window_server.front_owner()
+        if owner:
+            return owner
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as why:
+        logger.debug("the window server could not say what is in front: %s", why)
+    try:
         from core.capabilities.host_automation import get_host_automation
 
         receipt = await get_host_automation().get_frontmost_app()
@@ -1037,6 +1045,10 @@ async def pursue_on_screen(
     # 2026-08-26: sixty-five narrated moves, nine approaches held, cancelled
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
+    # How far she could see is a fact about this run, not the last one.
+    from core.agency.looking_ahead import forget_how_far_she_saw
+
+    forget_how_far_she_saw()
     ends_at = began + float(max_seconds)
     if deadline_at > 0.0:
         ends_at = min(ends_at, float(deadline_at))

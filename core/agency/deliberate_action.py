@@ -145,8 +145,20 @@ class Expectation:
                 foretold_ok = bool(self.becomes_holds(after))
             except (AttributeError, TypeError, ValueError):
                 foretold_ok = True
-            if not foretold_ok and not (missing or lingering or elsewhere):
-                elsewhere = ("what she foretold is not what turned up",)
+            # The foretold arrangement is the claim, and the verdict rests on
+            # it alone. The smaller claims beside it were read out of the
+            # reason she gave — "the largest is 64, 7 place(s) left" — and a
+            # count of free places is falsified by the world putting a tile
+            # down, which the foretold arrangement already allows for. LIVE
+            # 2026-09-17: a correct rule, every move "held=False", so she
+            # read herself as stuck and was offered starting over mid-game.
+            return Verdict(
+                held=foretold_ok and not stuck,
+                observed_change=moved,
+                missing=() if foretold_ok else ("what she foretold is not what turned up",),
+                lingering=(),
+                stalled=stuck,
+            )
         return Verdict(
             held=ok and not stuck and foretold_ok,
             observed_change=moved,

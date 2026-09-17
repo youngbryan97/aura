@@ -12,7 +12,7 @@ is a decision and not a rule.
 """
 from __future__ import annotations
 
-from screen_pursuit_support import patch_pursuit, pursuit_loop_source
+from screen_pursuit_support import pursuit_function_source, patch_pursuit, pursuit_loop_source
 
 import pytest
 
@@ -55,14 +55,40 @@ def test_the_presence_reports_its_own_backlog():
 
     import core.perception.ambient_presence as ap
 
+    import time
+
     presence = ap.AmbientPresence.__new__(ap.AmbientPresence)
     presence._lock = threading.Lock()
+    presence._mode = ap.PresenceMode.BUBBLE
+    presence._last_surface_poll_at = time.time()
     presence._pending_utterance = "Board: Up"
     presence._narration = deque(["Board: Left", "Board: Down"], maxlen=12)
     backlog = presence.narration_backlog()
     assert backlog["waiting"] == 2
     assert backlog["showing"] == 1
     assert backlog["capacity"] == 12
+
+
+def test_with_the_window_open_nothing_is_behind():
+    """The conversation receives every line at once; only the bubble queues.
+
+    Measured 2026-09-17 with the full window open: the bubble queue was always
+    behind at a move a second, and every move was offered as a choice about
+    pacing for a surface nobody was looking at.
+    """
+    import threading
+    import time
+    from collections import deque
+
+    import core.perception.ambient_presence as ap
+
+    presence = ap.AmbientPresence.__new__(ap.AmbientPresence)
+    presence._lock = threading.Lock()
+    presence._mode = ap.PresenceMode.WINDOW
+    presence._last_surface_poll_at = time.time()
+    presence._pending_utterance = "Board: Up"
+    presence._narration = deque(["Board: Left", "Board: Down"], maxlen=12)
+    assert presence.narration_backlog()["waiting"] == 0
 
 
 @pytest.fixture
@@ -315,31 +341,23 @@ def test_an_unprompted_thought_still_waits_to_be_dismissed(monkeypatch):
 
 
 def test_language_is_asked_where_it_changes_the_answer():
-    """A board changes a little each move, so re-reasoning every one buys
-    little and costs the whole cycle — measured live, a language pass took
-    about eight seconds and a decision from evidence takes none, on a loop
-    that needs hundreds of moves.
-    """
-    import inspect
+    """Words are for when acting and looking have stopped carrying her.
 
+    A board changes a little each move, so re-reasoning every one buys little
+    and costs the whole cycle — measured live, a language pass took about
+    eight seconds and a decision from evidence takes none. And in real time
+    the world does not wait: LIVE 2026-09-17, a lookup, an interpretation and
+    a plan before the first key, and a plan asked for again every few moves.
+    """
     from core.skills import screen_pursuit
 
     source = pursuit_loop_source()
-    # Asserted as the property. This read the inline condition by the name
-    # "asking = (" and looked for LANGUAGE_EVERY inside it; the condition was
-    # renamed and its cadence moved into a helper, and the test failed for a
-    # rename while the behaviour was untouched.
-    where = source.index("time_to_ask = (")
-    condition = source[where : where + 400]
-    # Periodically, and sooner once she has asked once.
-    assert "_ask_again_after(" in condition
+    assert "lost = not sees and (stuck(history) or (tried_everything and no_model))" in source
+    assert "if asking and not (lost or offered_pacing):" in source
+    assert "time_to_ask = lost and" in source
+    assert "if lost and (knowledge[" in source
     assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
     assert screen_pursuit._ask_again_after(-1) > screen_pursuit.LANGUAGE_EVERY
-    # The first move, a run that has stopped getting anywhere, one weighing
-    # whether to start over, a fresh board.
-    assert "unusual = stuck(history) or ended or offered_pacing" in source
-    assert "not moves" in source
-    assert "restarts[" in source
 
 
 @pytest.mark.asyncio
@@ -432,20 +450,15 @@ def test_a_pivot_is_immediate_and_a_first_attempt_is_not_retried_every_move():
 
     Having no stated approach yet is not news. A loop that asks for one every
     cycle pays a full language pass per move for an answer that was not there
-    last time either.
+    last time either, and the same answer coming back again is not news
+    either: each repeat doubles the wait before asking again.
     """
-    import inspect
-
     from core.skills import screen_pursuit
 
-    source = pursuit_loop_source()
-    where = source.index("time_to_ask = (")
-    condition = source[where : where + 300]
-    assert 'plan["held"] is not None' in condition, "a real pivot is answered at once"
-    # The rhythm moved into a helper when the condition was rewritten. Asked of
-    # the helper, because that is where it lives now and a rename is not a
-    # regression.
-    assert "_ask_again_after(" in condition, "a first attempt waits for the rhythm"
+    source = pursuit_function_source("_decide_the_next_move_part_14")
+    assert 'plan["held"] is not None' in source, "a real pivot is answered at once"
+    assert "_ask_again_after(" in source, "a first attempt waits for the rhythm"
+    assert 'plan.get("same_again", 0)' in source, "the same line again waits longer"
     assert screen_pursuit._ask_again_after(0) == screen_pursuit.LANGUAGE_EVERY
 
 

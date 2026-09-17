@@ -165,11 +165,18 @@ async def carry_out_the_move(
     # the same decision continuing, and repeating its reason under
     # each of them says something false: live, she committed to
     # left-then-right and narrated "Going right — left has worked."
+    move_said = str(getattr(run, "move_said", "") or "")
     for position, step in enumerate(sequence):
         reason = (None if pacing["brief"] else made) if position == 0 else None
         # Under a quiet pace only the first of a sequence is spoken.
         # The moves still happen; what she asked for is fewer words.
         aloud = narrate and (position == 0 or not pacing["brief"])
+        if position == 0 and move_said:
+            # The move and what it does, from her own model of this world.
+            _say_intent(step, reason, out_loud=False)
+            if aloud:
+                _tell(move_said)
+            continue
         _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
     if len(sequence) > 1:
         # Only the keys that really landed are spoken for. Focus can

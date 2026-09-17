@@ -33,6 +33,7 @@ and looking.
 
 from __future__ import annotations
 
+import functools
 import logging
 import math
 import re
@@ -415,25 +416,49 @@ def _nearness(state: Any, toward: str) -> float:
 
 def _holds_her_line(state: Any, approach: str) -> float:
     """Whether the line she said she was taking is still true of this."""
-    said = str(approach or "").strip()
+    return a_line_judge(approach)(state)
+
+
+def a_line_judge(approach: str) -> Any:
+    """Her stated line, read once, as a test any situation can be put to.
+
+    Reading a sentence for what it claims is the slow part, and a search puts
+    thousands of situations to the same sentence. Read once per line, it
+    costs nothing per situation but the check itself.
+    """
+    return _judge_for(" ".join(str(approach or "").split()))
+
+
+@functools.lru_cache(maxsize=64)
+def _judge_for(said: str) -> Any:
     if not said:
-        return 0.0
+        return lambda _state: 0.0
     try:
         from core.agency.standing_strategy import claim_in  # noqa: PLC0415
         from core.perception.what_is_there import holds_in  # noqa: PLC0415
 
         claim = claim_in(said)
-        superlative = _A_SUPERLATIVE.search(said)
-        if not claim.says_something() and claim.at_place and superlative:
-            # A line about whichever thing is the extreme one, bound to
-            # whatever that turns out to be. Both ends, because "keep the
-            # smallest out of the middle" is as ordinary a plan as its
-            # opposite, and reading only one of them makes a whole class of
-            # stated line unusable.
-            wanted = _least(state) if superlative.group("least") else _biggest(state)
-            if wanted > 0:
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return lambda _state: 0.0
+    superlative = _A_SUPERLATIVE.search(said)
+    floats = not claim.says_something() and claim.at_place and superlative
+    if not floats and not claim.says_something():
+        return lambda _state: 0.0
+
+    def judge(state: Any) -> float:
+        try:
+            held = claim
+            if floats:
+                # A line about whichever thing is the extreme one, bound to
+                # whatever that turns out to be. Both ends, because "keep the
+                # smallest out of the middle" is as ordinary a plan as its
+                # opposite, and reading only one of them makes a whole class
+                # of stated line unusable.
+                wanted = _least(state) if superlative.group("least") else _biggest(state)
+                if wanted <= 0:
+                    return 0.0
                 named = f"{wanted:g}"
-                claim = claim.__class__(
+                held = claim.__class__(
                     changed=claim.changed,
                     contains=(named,),
                     absent=claim.absent,
@@ -441,22 +466,23 @@ def _holds_her_line(state: Any, approach: str) -> float:
                     at_place=claim.at_place,
                     keeping=(named,),
                 )
-        if not claim.says_something():
+            # The content of the claim only. Whether the situation CHANGED is
+            # a question about a move, and this is a question about a
+            # situation — asked of a state against itself, a claim that
+            # something will differ is false of every state including the
+            # good ones.
+            ok, _why = holds_in(
+                state,
+                contains=held.contains,
+                absent=held.absent,
+                at_place=held.at_place,
+                keeping=held.keeping,
+            )
+            return 1.0 if ok else 0.0
+        except (AttributeError, TypeError, ValueError):
             return 0.0
-        # The content of the claim only. Whether the situation CHANGED is a
-        # question about a move, and this is a question about a situation —
-        # asked of a state against itself, a claim that something will differ
-        # is false of every state including the good ones.
-        ok, _why = holds_in(
-            state,
-            contains=claim.contains,
-            absent=claim.absent,
-            at_place=claim.at_place,
-            keeping=claim.keeping,
-        )
-        return 1.0 if ok else 0.0
-    except (ImportError, AttributeError, TypeError, ValueError):
-        return 0.0
+
+    return judge
 
 
 def _order(state: Any) -> float:

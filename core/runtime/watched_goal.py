@@ -89,6 +89,10 @@ PURSUIT_CEILING_S = 3600.0
 #: work: seconds are only how long that many cycles take.
 PURSUIT_CYCLES = 200
 
+#: The most cycles a goal with a named end is given: the most a pursuit
+#: accepts. What stops it sooner is the end being met, or no progress.
+UNTIL_IT_IS_MET_CYCLES = 2000
+
 #: What one cycle of a pursuit has been measured taking on this machine.
 _A_CYCLE: dict[str, float] = {"seconds": 0.0}
 
@@ -200,6 +204,7 @@ class WatchedGoal:
     #: whatever is already in front of her.
     where: str = ""
     max_seconds: float = field(default_factory=time_for)
+    max_cycles: int = PURSUIT_CYCLES
     detail: dict[str, Any] = field(default_factory=dict)
 
     def as_target(self) -> dict[str, Any]:
@@ -211,6 +216,7 @@ class WatchedGoal:
             "region_top": self.region_top,
             "region_bottom": self.region_bottom,
             "max_seconds": self.max_seconds,
+            "max_cycles": self.max_cycles,
         }
         if self.target_app:
             payload["target_app"] = self.target_app
@@ -939,6 +945,13 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     if not app and not where and "://" not in text and not _they_said_on_the_web(text):
         app = named_game or _an_application_here(text, only_chosen=True)
     in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
+    # How much work the goal allows is set by the goal. "Until you get a 2048
+    # tile" names its own end, and a game that reaches one takes about a
+    # thousand moves: two hundred cycles stopped every such run a fifth of the
+    # way there. With an end named, she keeps at it until it is met, until she
+    # stops getting anywhere, or until the most anyone is asked to wait. With
+    # none, the sized budget stands, because then the budget is the end.
+    open_ended = not condition
     return WatchedGoal(
         where=where,
         goal=text[:400],
@@ -949,5 +962,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         # the condition before a single move is made.
         region_top=CHROME_BAND_TOP if in_browser else 0.0,
         region_bottom=1.0,
+        max_seconds=time_for() if open_ended else PURSUIT_CEILING_S,
+        max_cycles=PURSUIT_CYCLES if open_ended else UNTIL_IT_IS_MET_CYCLES,
         detail={"continuation": cue},
     )

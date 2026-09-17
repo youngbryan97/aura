@@ -157,3 +157,54 @@ def test_the_goal_in_the_heading_is_not_the_goal_met(monkeypatch):
 def test_the_goal_in_the_places_she_acts_in_is_the_goal_met(monkeypatch):
     result = _run_against(monkeypatch, _with_a_grid(title_only=False))
     assert result["outcome"] in {"already_true", "goal_reached"}
+
+
+def test_a_finished_thing_offers_starting_again_and_not_seeing_it_through():
+    from core.skills.screen_pursuit_bearings import SEE_IT_THROUGH, START_OVER, ways_out
+
+    reading = {"layout": [{"text": "Try again", "center_x": 0.5, "center_y": 0.6}]}
+    ended = [option.name for option in ways_out(reading, ended=True)]
+    going = [option.name for option in ways_out(reading, ended=False)]
+    assert ended == [START_OVER]
+    assert SEE_IT_THROUGH in going and START_OVER in going
+
+
+def test_her_own_model_saying_no_act_changes_anything_is_an_ending():
+    """Pressing every key to find out asks a question she has the answer to."""
+    from types import SimpleNamespace
+
+    from core.perception.how_it_moves import HowItMoves, shifted_and_combined
+    from core.perception.what_is_there import Arrangement, Cell
+    from core.perception.where_it_responds import Responsive
+    from core.skills.screen_pursuit_decision import _decide_the_next_move_nothing_task_working
+
+    def board(values):
+        return Arrangement(
+            4, 4, tuple(Cell(i // 4, i % 4, str(v), (0.0, 0.0)) for i, v in enumerate(values) if v)
+        )
+
+    rules = HowItMoves()
+    state = board([2, 4, 0, 8, 0, 2, 4, 0, 4, 0, 0, 2, 64, 2, 0, 4])
+    for move in ("left", "up", "right", "down", "left", "up"):
+        after = shifted_and_combined(state, move)
+        rules.watched(state, move, after)
+        state = after
+    assert rules.rule() is not None
+    locked = board([2, 4, 8, 16, 32, 64, 128, 256, 2, 4, 8, 16, 32, 64, 128, 256])
+
+    class _CanDo:
+        def available(self):
+            return ["up", "down", "left", "right"]
+
+    _options, ended = _decide_the_next_move_nothing_task_working(
+        _CanDo(), ("up", "down", "left", "right"), {"layout": []},
+        {"was_there": None, "said": False}, {"state": Responsive()},
+        knows=SimpleNamespace(rules=rules), laid_out=locked,
+    )
+    assert ended is True
+    _options, still_going = _decide_the_next_move_nothing_task_working(
+        _CanDo(), ("up", "down", "left", "right"), {"layout": []},
+        {"was_there": None, "said": False}, {"state": Responsive()},
+        knows=SimpleNamespace(rules=rules), laid_out=state,
+    )
+    assert still_going is False

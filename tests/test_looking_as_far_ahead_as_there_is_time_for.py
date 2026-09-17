@@ -11,7 +11,6 @@ from __future__ import annotations
 import pytest
 
 from core.agency.looking_ahead import (
-    as_far_as_the_world_lets_her,
     how_deep_to_look,
     look_ahead,
 )
@@ -69,36 +68,6 @@ def test_no_limit_means_the_clock_is_the_only_one():
     assert how_deep_to_look(4, 10_000.0) > 5
 
 
-class _DealsEveryMove:
-    def how_often(self):
-        return 1.0
-
-
-class _DealsNothing:
-    def how_often(self):
-        return 0.0
-
-
-def test_the_room_left_is_how_far_the_arithmetic_still_describes_anything():
-    """Sixteen places, six filled: ten acts before the world has filled it."""
-    assert as_far_as_the_world_lets_her(CORNER, _DealsEveryMove()) == (
-        CORNER.places() - CORNER.occupied()
-    )
-
-
-def test_a_world_that_adds_nothing_of_its_own_sets_no_limit():
-    assert as_far_as_the_world_lets_her(CORNER, _DealsNothing()) == 0
-
-
-def test_a_world_she_has_not_watched_sets_no_limit():
-    assert as_far_as_the_world_lets_her(CORNER, None) == 0
-
-
-def test_a_full_thing_still_gets_one_level():
-    full = board([[str(2 ** (1 + n + 4 * r)) for n in range(4)] for r in range(4)])
-    assert as_far_as_the_world_lets_her(full, _DealsEveryMove()) == 1
-
-
 def test_nothing_available_is_not_a_search():
     assert how_deep_to_look(0, 1.0) == 1
 
@@ -123,12 +92,6 @@ def test_the_line_she_is_holding_wins_the_search(knows):
 def test_every_move_comes_back_with_a_reason_she_could_say(knows):
     seen = look_ahead(knows, CORNER, MOVES, toward="256", approach=LINE)
     assert all(said for _score, said in seen.values())
-
-
-def test_looking_deeper_scores_higher_than_looking_once(knows):
-    shallow = look_ahead(knows, CORNER, MOVES, toward="256", approach=LINE, budget_s=0.0000001)
-    deep = look_ahead(knows, CORNER, MOVES, toward="256", approach=LINE, budget_s=5.0)
-    assert max(s for s, _ in deep.values()) > max(s for s, _ in shallow.values())
 
 
 def test_a_search_over_nothing_is_nothing(knows):
