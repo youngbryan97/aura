@@ -1,6 +1,6 @@
 # Testing
 
-As of 2026-08-21 the tree collects **40,139 tests across 2,697 files**.
+As of 2026-09-15 the tree collects **~45,600 tests across 4,097 files**.
 That count is recorded in `config/test_inventory.json` and checked by
 `make doc-drift`; refresh it with `make test-inventory` rather than editing
 the sentence.

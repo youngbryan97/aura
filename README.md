@@ -430,7 +430,7 @@ invents nothing). Works across words, colours, records, and grids. Composition
 without it. Transfer across worlds and representations measured with a
 cost-of-wrong-prior null.
 
-**Endogenous language pathway** — 12 modules in `core/brain/llm/endogenous_*.py`.
+**Endogenous language pathway** — 18 modules in `core/brain/llm/endogenous_*.py`.
 A trained, causal path from Aura's 74-dimension cognitive state into the
 transformer's output distribution: `z_Aura → Δlogits → language`. First fit
 on 1,629 live turns (9B lane): held-out gain 0.0208 nats, paired recovery
@@ -488,6 +488,9 @@ It's a research project. It's also one you can talk to while it's running.
 - [IIT 4.0 computation](#iit-40-computation)
 - [Consciousness modules](#consciousness-modules)
 - [Reality Reach and physical claim honesty](docs/REALITY_REACH.md)
+- [Memory architecture](docs/MEMORY_ARCHITECTURE.md) — the 116-module memory subsystem
+- [RSI architecture](docs/RSI_ARCHITECTURE.md) — recursive self-improvement pipeline and safety boundaries
+- [Reasoning engines](docs/REASONING_ENGINES.md) — deterministic reasoning, sandboxed execution, and what's out of the model's hands
 - [Documentation status map](docs/DOC_STATUS.md) — which docs are current, historical, or generated
 - [Docs index](docs/README.md) · [Changelog](CHANGELOG.md) · [Agent guide](AGENTS.md)
 - [Benchmarks](#benchmarks)
@@ -709,7 +712,7 @@ decision the agent can make. Volition levels 0–3 gate progressively autonomous
 behavior up to and including self-modification.
 
 ### Skills (`core/skills/`, legacy wrappers in `skills/`)
-103 modules: shell with sandboxing, web search and browse, coding, sleep and
+115 modules: shell with sandboxing, web search and browse, coding, sleep and
 dream consolidation, local media generation, social media (Twitter, Reddit),
 screen capture, filesystem, browser automation, network recon, malware
 analysis, self-evolution and self-repair, inter-agent messaging, knowledge
@@ -719,7 +722,8 @@ legacy compatibility layer for older imports. Every skill call carries a
 capability token and has to pass the Will gate.
 
 ### Orchestrator (`core/orchestrator/`)
-About 3,300 lines in `main.py` split across 11 mixins: message handling,
+About 3,335 lines in `main.py` split across 11 mixins (6,300 lines total
+across all orchestrator modules): message handling,
 message pipeline, incoming logic, response processing, tool execution,
 autonomy, cognitive background, context streaming, learning and evolution,
 personality bridge, output formatting. Handlers under `orchestrator/handlers/`
@@ -745,7 +749,7 @@ that tests modifications without actually restarting, a shadow AST healer, and
 code repair. Nothing modifies itself without Will sign-off.
 
 ### Resilience (`core/resilience/`)
-60+ modules for not crashing: a stability guardian, circuit breakers with
+63 modules for not crashing: a stability guardian, circuit breakers with
 persistent state, a cognitive write-ahead log, graceful degradation that
 sheds capability under pressure, a healing swarm, a sovereign watchdog, a
 resource arbitrator, a lock watchdog that hunts deadlocks, a memory governor,
@@ -759,6 +763,43 @@ substrate visualization. The memory dashboard is React + Vite + Tailwind
 (`interface/static/memory/`). Routes cover chat, inner-state inspection,
 memory browsing, system management, and privacy. Parakeet TDT for STT.
 Hot-reload button in the UI for code changes.
+
+
+### Memory (`core/memory/`)
+116 modules across four stratified tiers: working (in-process), episodic
+(SQLite with emotional tags and recency ranking), semantic (vector search via
+`Qwen3-Embedding-0.6B` at 384 dimensions), and strategic (long-horizon goal
+state). Key subsystems include a hippocampal indexer, reconsolidation engine,
+associative entity graph, knowledge graph (39K bytes), black-hole quarantine
+vault for poisoned memories, scar formation for catastrophic failures, and a
+memory write gateway enforcing privacy, rate-limiting, deduplication, and
+retention policies. The full memory architecture is documented in
+[docs/MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md).
+
+### Reasoning (`core/reasoning/`, `core/brain/reasoning_amplifier*.py`)
+Native deterministic reasoning engines that take hard problems out of the
+model's hands: a System-2 engine (`native_system2.py`, 80K bytes), a proof
+kernel, natural deduction, linear arithmetic, and a proof-answer solver. The
+Reasoning Amplifier v2 (`core/brain/reasoning_amplifier_v2.py`, 86K bytes)
+runs five execution modes — FAST (1 candidate), NORMAL (3), DEEP (9 +
+Courtroom Judge), EXTREME (Courtroom + sandbox repair + memory), and PROOF
+(refuses to answer unless verifier-clean). An adversarial Courtroom
+(`core/brain/courtroom.py`) runs Solver/Skeptic/Judge roles on complex
+assertions. See [docs/REASONING_ENGINES.md](docs/REASONING_ENGINES.md).
+
+### Verification (`core/verify/`)
+37 modules implementing an LLVM `-verify-each` structural validation
+discipline. 52 standing runtime invariants enforce service container acyclicity,
+lock ordering (lockdep with zero inversion errors), OOM spine immunity,
+and epistemic consistency. Any check that raises an unhandled exception is
+treated as a violation rather than a pass — there is no "unknown means okay."
+
+### Hardware acceleration (`rust_extensions/aura_m1_ext`)
+A Rust PyO3 crate linking macOS `pthread_set_qos_class_self_np` to schedule
+foreground reasoning on Performance cores (QOS_CLASS_USER_INITIATED) and
+background sensing/IO on Efficiency cores (QOS_CLASS_UTILITY). Also provides
+high-performance AST parsing with `rustpython_parser` and zero-copy SHA-256
+caching.
 
 ---
 
@@ -1102,9 +1143,9 @@ make smoke     # ~100 contract tests, under 10s — the after-every-change gate
 make test      # full offline suite in 6 bounded process chunks
 ```
 
-As of 2026-08-21 the tree collects **40,139 tests across 2,697 test files**
-(`pytest tests/ --collect-only -q`); `make test` runs the 40,123 that need
-neither hardware nor a network. The count lives in
+As of 2026-09-15 the tree collects **~45,600 tests across 4,097 test files**
+(`pytest tests/ --collect-only -q`); `make test` runs the offline subset that
+needs neither hardware nor a network. The count lives in
 `config/test_inventory.json`, `make doc-drift` fails any document that
 disagrees with it, and `make test-inventory` refreshes it.
 

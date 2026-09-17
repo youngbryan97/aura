@@ -228,7 +228,7 @@ resolves. The baseline is zero and only shrinks.
 | `AURA_TOOLS_ENABLED`, `AURA_TOOLS_ALLOWLIST`, `AURA_TOOLS_BLOCKLIST`, `AURA_WORKSPACE_ROOT`, `AURA_ROLE`, `AURA_CONFIRM_HIGH_RISK`, `AURA_TOOL_CONFIRM_HIGH_RISK`, `AURA_SELF_REPAIR`, `AURA_CLOUD_FALLBACK_POLICY` (5 documents) | None is read anywhere in the tree. Prohibitions are standing directives; posture is `AURA_MODE` / `AURA_AUTONOMY_LEVEL` / `AURA_FOREGROUND_ONLY` / `AURA_FLAG_<NAME>` |
 | `tests/test_steering_injection.py` cited as the prompt-injection control | That file tests activation steering. The control is `ContextGuard`, held by `tests/test_prompt_sanitizer_cp126.py` and `tests/test_injection_canary.py` |
 | "Checksum verification" for model loading | Identity is measured from the safetensors index, explicitly not a weight hash |
-| "34,382 tests across 2,373 files" (8 documents) | **40,139 across 2,697**; `make test` runs 40,123. Now recorded in `config/test_inventory.json` and gated |
+| "34,382 tests across 2,373 files" (8 documents) | **~45,600 across 4,097** (2026-09-15); `make test` runs the offline subset. Recorded in `config/test_inventory.json` and gated |
 | 153 subsystems / 2,741 files / 1,190,736 lines (arch map) | **155 / 2,871 / 1,264,625**; edges 1,198 → 1,237 |
 | Machine-certified completion 7.33% (AURA_PROGRESS) | **0.33%** — 59 of 64 ledger entries are stale-evidence after 981 commits. The control plane working, not failing |
 | `export AURA_SELF_REPAIR=false` and `download_model` (disaster-recovery runbook) | Neither exists. Mode decides `allows_self_modification`; the entry point is `get_model_lifecycle_manager().ensure_present()` |
