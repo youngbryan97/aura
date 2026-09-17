@@ -296,6 +296,7 @@ async def read_screen(
         seen = await look_at_window(app_name, over)
         if seen is not None:
             return seen
+        logger.info("reading %r from a picture of its rectangle, not from its own pixels", app_name)
     window = await window_bounds(app_name) if app_name else None
     # Read the thing at the size the thing is.
     #
@@ -1529,6 +1530,7 @@ async def pursue_on_screen(
                 stakes=stakes,
                 stretch=stretch,
                 success_when=success_when,
+                reading_took=reading_took,
                 target_app=target_app,
                 think=think,
                 trying=trying,

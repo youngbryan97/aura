@@ -1749,13 +1749,21 @@ async def decide_the_next_move(
         if worth_comparing(aiming_at, held_line):
             # As far ahead as there is time to look, which is decided from
             # what a level of looking has been measured costing.
+            # About as long to think as it takes to look. Looking is the pace
+            # the world already sets on every move; thinking far past it makes
+            # a move stand still on screen for what a further level mostly
+            # confirms. Measured 2026-09-17 on eight simulated games: at 0.3s
+            # a move all eight reached 2048, and a two-second allowance won the
+            # same eight with pauses of nearly three seconds.
+            looks = list(getattr(run, "reading_took", None) or [])
+            a_look = (sum(looks) / len(looks)) if looks else 0.3
             ahead = look_ahead(
                 knows.rules,
                 laid_out,
                 [option.name for option in available],
                 toward=aiming_at,
                 approach=held_line,
-                budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02)),
+                budget_s=max(0.05, min(2.0, (ends_at - time.monotonic()) * 0.02, max(0.3, a_look))),
                 world=world,
                 # What matters HERE, once she has watched enough to say.
                 weights=matters.weights(),
