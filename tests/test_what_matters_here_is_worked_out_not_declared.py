@@ -50,7 +50,10 @@ def watch(matters: WhatMakesItGoodHere, *, moves: int, room_decides: bool) -> No
 def test_a_situation_can_be_asked_what_there_is_to_like_about_it():
     board = arranged([(0.2, 0.2, "128"), (0.2, 0.35, "64"), (0.35, 0.2, "4")])
     each = terms(board, toward="2048")
-    assert set(each) == set(AS_GOOD_A_GUESS_AS_ANY)
+    # Every standing term, and possibly more: a property she invented and kept
+    # joins them, so a run where one had been promoted made this exact-set
+    # assertion fail for the reason the invention mechanism exists.
+    assert set(each) >= set(AS_GOOD_A_GUESS_AS_ANY)
     assert each["nearness"] > 0.0
 
 

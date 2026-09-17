@@ -34,7 +34,16 @@ SOMETHING = Measure("neighbours", "the gap between them", "on average", True)
 
 @pytest.fixture(autouse=True)
 def _nothing_left_behind():
+    """Including the weights: promoting a property writes one of those too.
+
+    Put back without them, a property invented here left its weight in what
+    every later test in the process judges a situation by, with no measure
+    behind it to produce the term.
+    """
+    from core.agency.how_good_is_this import AS_GOOD_A_GUESS_AS_ANY
+
     held, trials = dict(INVENTED), dict(ON_TRIAL)
+    weighed = dict(AS_GOOD_A_GUESS_AS_ANY)
     INVENTED.clear()
     ON_TRIAL.clear()
     yield
@@ -42,6 +51,8 @@ def _nothing_left_behind():
     INVENTED.update(held)
     ON_TRIAL.clear()
     ON_TRIAL.update(trials)
+    AS_GOOD_A_GUESS_AS_ANY.clear()
+    AS_GOOD_A_GUESS_AS_ANY.update(weighed)
 
 
 def a_trial(*, was, moving_at):
