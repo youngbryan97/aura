@@ -178,3 +178,17 @@ def test_the_frame_held_between_glances_survives_an_edge_found_a_pixel_over():
     )
     assert second.down_at == first.down_at
     assert second.across_at == first.across_at
+
+
+def test_places_seen_in_the_picture_are_a_thing_laid_out_however_few_are_filled():
+    from core.skills.screen_pursuit_bearings import _is_a_thing_laid_out
+
+    says = ["2"] + [""] * 14 + ["2"]
+    seen = what_is_there(_observation((0.3, 0.42, 0.54, 0.66), (0.2, 0.35, 0.5, 0.65), says), None)
+    assert seen.places_seen is True
+    assert _is_a_thing_laid_out(seen)
+    # Being seen is how it was read, not what it is.
+    from dataclasses import replace
+
+    assert replace(seen, places_seen=False) == seen
+    assert not _is_a_thing_laid_out(replace(seen, places_seen=False))

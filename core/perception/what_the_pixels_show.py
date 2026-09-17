@@ -149,32 +149,17 @@ class Grid:
 
 
 def _smaller(image: Any, wide: int, tall: int) -> Any:
-    """``image`` averaged down to ``wide`` by ``tall``, each pixel the mean of what it covers.
+    """An 8-bit blue-green-red ``image`` averaged down to ``wide`` by ``tall``.
 
-    The sum along a row between two fractional positions is read off the
-    running total, which is linear between whole pixels, so it is exact. Rows
-    are done first and columns after, which is the same as doing both at once.
+    Each pixel is the mean of the area it covers, so a thin line between two
+    surfaces fades rather than vanishing between samples. Pillow's box filter
+    does it in C, five times faster than the same sums in numpy.
     """
     import numpy as np  # noqa: PLC0415
+    from PIL import Image  # noqa: PLC0415
 
-    def along(values: Any, axis: int, count: int) -> Any:
-        length = values.shape[axis]
-        shape = list(values.shape)
-        shape[axis] = 1
-        total = np.concatenate([np.zeros(shape, np.float32), values.cumsum(axis=axis, dtype=np.float32)], axis=axis)
-        positions = np.linspace(0.0, length, count + 1, dtype=np.float32)
-        low = np.minimum(positions.astype(np.int64), length - 1)
-        part = positions - low
-        reshape = [1] * values.ndim
-        reshape[axis] = count + 1
-        part = part.reshape(reshape)
-        at = np.take(total, low, axis=axis) * (1.0 - part) + np.take(total, low + 1, axis=axis) * part
-        return np.diff(at, axis=axis) / np.diff(positions).reshape([count if i == axis else 1 for i in range(values.ndim)])
-
-    averaged = along(along(image.astype(np.float32), 1, wide), 0, tall)
-    if image.dtype == np.uint8:
-        averaged = np.clip(np.rint(averaged), 0, 255).astype(np.uint8)
-    return averaged
+    picture = Image.fromarray(np.ascontiguousarray(image[:, :, ::-1]))
+    return np.asarray(picture.resize((max(1, wide), max(1, tall)), Image.Resampling.BOX))[:, :, ::-1]
 
 
 _TO_LINEAR: Any = None

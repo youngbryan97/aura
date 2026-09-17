@@ -645,7 +645,7 @@ def _the_grid_in_the_pixels(
         if row * columns + column < len(says) and str(says[row * columns + column]).strip()
     )
     return Arrangement(
-        rows=rows, columns=columns, cells=cells, down_at=down_at, across_at=across_at
+        rows=rows, columns=columns, cells=cells, down_at=down_at, across_at=across_at, places_seen=True
     )
 
 

@@ -434,12 +434,21 @@ ENOUGH_TO_BE_A_THING = 4
 
 
 def _is_a_thing_laid_out(reading: Any) -> bool:
-    """Whether this reading holds something arranged in rows and columns."""
+    """Whether this reading holds something arranged in rows and columns.
+
+    Places seen in the picture are the arrangement whether or not anything is
+    in them. Counting occupants is for places inferred from text, where prose
+    with a few numbers in it would otherwise pass: on a fresh board of two
+    tiles she scrolled six screenfuls looking for the board she was reading
+    (offline, drawn as pixels, 2026-09-17).
+    """
     rows = int(getattr(reading, "rows", 0) or 0)
     columns = int(getattr(reading, "columns", 0) or 0)
     occupied = getattr(reading, "occupied", None)
     if rows < 2 or columns < 2 or not callable(occupied):
         return False
+    if getattr(reading, "places_seen", False) is True:
+        return True
     return occupied() >= ENOUGH_TO_BE_A_THING
 
 

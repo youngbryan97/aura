@@ -19,7 +19,7 @@ module assumes is that the thing is laid out.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
 __all__ = ["Arrangement", "Cell", "arranged", "holds_in", "EMPTY_CELL"]
@@ -76,6 +76,12 @@ class Arrangement:
     #: same thing can be placed in the same grid rather than inferring its own.
     down_at: tuple[float, ...] = ()
     across_at: tuple[float, ...] = ()
+    #: Whether every place was seen, empty ones included, rather than
+    #: inferred from where things happened to be. Two things on a board of
+    #: sixteen are still a board when its sixteen places are in the picture.
+    #: Not part of what the arrangement is, so it never makes two readings of
+    #: one state differ.
+    places_seen: bool = field(default=False, compare=False)
 
     # ── what is where ────────────────────────────────────────────────────
 
