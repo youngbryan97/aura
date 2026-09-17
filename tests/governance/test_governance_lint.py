@@ -92,6 +92,25 @@ def test_scanner_resolves_aliases_factories_and_path_mutations() -> None:
     assert all(key[2] == "<module>.perform" for key in buckets)
 
 
+def test_progress_aware_subprocess_calls_remain_in_effect_and_declaration_inventory() -> None:
+    for declaration in ("", ', accelerator_capability="none"'):
+        tree = ast.parse(textwrap.dedent(f'''
+            from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+            def query():
+                get_subprocess_gateway().run_until_its_work_is_done(
+                    ["git", "status"], cpu_budget_s=3, read_only=True,
+                    source="test"{declaration})
+        '''))
+        buckets = _scan_tree_scoped(tree, "core/synthetic.py")
+        assert {key[0] for key in buckets} == {"subprocess_gateway"}
+        visitor = _SubprocessDeclarationVisitor(relative_path="core/synthetic.py")
+        visitor.visit(tree)
+        assert len(visitor.violations) == (0 if declaration else 1)
+        if not declaration:
+            assert "accelerator_capability_undeclared" in visitor.violations[0].problem
+
+
 def test_subprocess_gateway_requires_accelerator_declaration() -> None:
     tree = ast.parse(
         textwrap.dedent(

@@ -489,7 +489,7 @@ def test_a_lag_monitor_reporting_load_cannot_trigger_the_survival_veto():
     "How many Python files are under core/consciousness" was answered
     "Executive veto: survival_inhibition: existential threat level critical
     (0.76)" at mem_threat=0.03. The host was oversubscribed by other processes
-    and the loop lagged 5-35s. ``_lag_threat`` is capped below the veto for
+    and the loop reached 35s of lag. ``_lag_threat`` is capped below the veto for
     exactly this case, but the two lag monitors record the same lag as a
     CRITICAL degradation every ten seconds, and those records reached the
     uncapped substrate side. Two critical signatures at weight 2.0 are 3.3 of

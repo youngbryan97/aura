@@ -481,6 +481,7 @@ _GATEWAY_METHODS = {
         {
             "run",
             "run_async",
+            "run_until_its_work_is_done",
             "run_model_blocking",
             "spawn",
             "spawn_async",
@@ -1091,6 +1092,7 @@ class _SubprocessDeclarationVisitor(EffectVisitor):
         if subprocess_gateway_call and method in {
             "run",
             "run_async",
+            "run_until_its_work_is_done",
             "spawn",
             "spawn_async",
             "spawn_shell_async",

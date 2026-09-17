@@ -7,12 +7,16 @@ and its frame, and closes the loop underneath it.
 """
 from __future__ import annotations
 
+import ast
 import asyncio
 import logging
+from pathlib import Path
 
 import pytest
 
 from core.runtime import bounded_run
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_a_task_that_ignores_cancellation_is_named_and_the_process_exits(monkeypatch, caplog):
@@ -54,16 +58,18 @@ def test_a_clean_run_closes_quietly(caplog):
 
 def test_the_runner_refuses_to_nest():
     async def outer():
-        with pytest.raises(RuntimeError):
-            bounded_run.run(asyncio.sleep(0))
+        rejected = asyncio.sleep(0)
+        try:
+            with pytest.raises(RuntimeError, match="running event loop"):
+                bounded_run.run(rejected)
+        finally:
+            rejected.close()
 
     bounded_run.run(outer())
 
 
 def test_the_desktop_entry_uses_the_bounded_runner():
-    from pathlib import Path
-
-    source = (Path(__file__).resolve().parent.parent / "aura_main.py").read_text(encoding="utf-8")
+    source = (ROOT / "aura_main.py").read_text(encoding="utf-8")
     start = source.index("        elif args.desktop:\n")
     desktop = source[start : source.index("        elif args.", start + 10)]
     assert "_bounded_run(" in desktop
@@ -77,9 +83,21 @@ def test_the_fatal_path_exits_through_the_finalizer_too():
     process sat in threading._shutdown for forty minutes after the server
     had finished. The finalizer ends in os._exit and waits for no one."""
     source = (ROOT / "aura_main.py").read_text(encoding="utf-8")
-    tail = source[source.index("    except _AURA_MAIN_BOUNDARY_ERRORS as e:\n        record_degradation('aura_main', e)\n        logger.critical(\"FATAL BOOT ERROR") :]
-    tail = tail[: tail.index("if __name__ ==")]
-    assert "sys.exit(1)" not in tail.split("_finalize_root_runtime_process_exit(")[0]
-    assert "exit_code = 1" in tail
-    assert "exit_code=exit_code," in tail
-    assert tail.rstrip().endswith("sys.exit(exit_code)")
+    main = next(node for node in ast.parse(source).body
+                if isinstance(node, ast.FunctionDef) and node.name == "main")
+    boundary = next(node for node in reversed(main.body) if isinstance(node, ast.Try) and any(
+        isinstance(handler.type, ast.Name) and handler.type.id == "_AURA_MAIN_BOUNDARY_ERRORS"
+        for handler in node.handlers))
+    handler = next(handler for handler in boundary.handlers
+                   if isinstance(handler.type, ast.Name)
+                   and handler.type.id == "_AURA_MAIN_BOUNDARY_ERRORS")
+    assert not any(isinstance(node, ast.Call) and ast.unparse(node.func) == "sys.exit"
+                   for node in ast.walk(handler))
+    assert any(isinstance(node, ast.Assign) and ast.unparse(node) == "exit_code = 1"
+               for node in handler.body)
+    finalizer = main.body[main.body.index(boundary) + 1]
+    assert isinstance(finalizer, ast.Expr) and isinstance(finalizer.value, ast.Call)
+    assert ast.unparse(finalizer.value.func) == "_finalize_root_runtime_process_exit"
+    assert any(keyword.arg == "exit_code" and ast.unparse(keyword.value) == "exit_code"
+               for keyword in finalizer.value.keywords)
+    assert ast.unparse(main.body[-1]) == "if exit_code:\n    sys.exit(exit_code)"

@@ -13822,7 +13822,7 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/service_registration.py",
-      "scope": "<module>._register_all_services_body.create_state_repo"
+      "scope": "<module>._register_workspaces_routing_and_state.create_state_repo"
     },
     {
       "callee": "os.makedirs",
@@ -14809,12 +14809,12 @@
       "scope": "<module>.MLXLocalClient._spawn_worker_blocking"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
       "path": "core/brain/llm/mlx_client.py",
-      "scope": "<module>._probe_mlx_runtime"
+      "scope": "<module>._run_probe_until_its_work_is_done"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().spawn_python_process",
@@ -15473,7 +15473,7 @@
       "scope": "<module>._spawn_assertion_process"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -15481,7 +15481,7 @@
       "scope": "<module>._git_identity"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_until_its_work_is_done",
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
@@ -15671,14 +15671,6 @@
       "count": 1,
       "path": "core/security/native_desktop_bridge.py",
       "scope": "<module>._invoke_one_shot_bridge"
-    },
-    {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/self/source_excerpt.py",
-      "scope": "<module>.snippet_verdict"
     },
     {
       "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
@@ -16406,7 +16398,7 @@
       "category": "will_decision",
       "count": 1,
       "path": "core/orchestrator/mixins/message_handling.py",
-      "scope": "<module>.MessageHandlingMixin._process_user_input_core"
+      "scope": "<module>.MessageHandlingMixin._refusal_from_the_will"
     },
     {
       "callee": "<will_decision>.decide",
@@ -16522,6 +16514,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "27f7afb460ef0ce33b80b057e850836d519bb975180f381ba6da23d89afc5b55",
+  "inventory_sha256": "fdc7bfaa67d2647556fc5705bff1afd4e2910103a824da3dd2d9fbe36b115d45",
   "schema_version": 1
 }
