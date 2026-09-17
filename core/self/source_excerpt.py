@@ -37,7 +37,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 logger = logging.getLogger("Aura.Self.SourceExcerpt")
 
 #: Bounds. An excerpt is for reading in a chat window, not for dumping a file.

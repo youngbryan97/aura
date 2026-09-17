@@ -396,12 +396,25 @@ async def main() -> int:
             if earlier_pin
             else ["the earlier process recorded no pin, so there is nothing to compare"]
         )
-        if moved:
+        evidence["campaign"]["arm_identity_on_resume"] = opening_identity.as_dict()
+        evidence["campaign"]["resume_drift"] = moved
+        if moved and not args.allow_degraded:
+            for line in moved:
+                _log(f"  REFUSED: {line}")
             raise SystemExit(
                 "refusing: the resumed run is not the system that recorded: "
                 + "; ".join(moved)
+                + " — rerun with --allow-degraded to record it anyway"
             )
-        evidence["campaign"]["arm_identity_on_resume"] = opening_identity.as_dict()
+        if moved:
+            # Deliberate, and it costs the run its authority rather than
+            # passing quietly. A stage measured under one commit and a stage
+            # measured under another is a fact about the report, not a detail.
+            blockers = list(evidence["campaign"].get("authority_blockers", []))
+            blockers.append(f"the stages were measured on two systems: {moved}")
+            evidence["campaign"]["authority_blockers"] = blockers
+            evidence["campaign"]["authoritative"] = False
+            _log(f"  resumed on a different system on purpose: {'; '.join(moved)}")
     else:
         evidence["campaign"]["arm_identity"] = opening_identity.as_dict()
     _log(f"organism up: {len(organism['up'])} layers, {len(organism['down'])} down")

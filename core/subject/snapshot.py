@@ -25,6 +25,7 @@ import logging
 import os
 import sqlite3
 import sys
+import time
 import types
 from collections import deque
 from collections.abc import Iterable, Mapping
@@ -568,6 +569,63 @@ def _world_state(root: Path | None) -> dict[str, Any] | None:
     return {"files": files, "directories": directories}
 
 
+class _ForkLease:
+    """A governed scope the fork renews while it works.
+
+    A governance lease lasts thirty seconds — short on purpose, so an async task
+    that went to sleep inside one cannot wake up still holding authority.
+    Putting a filesystem back is not that kind of work: it is one operation
+    whose length is set by how much state there is, and a campaign's state root
+    grows as the run proceeds. The thirteenth hour of a 2,400-turn recording
+    died on "file_write_gateway.ensure_directory:subject_core.fork called
+    outside governed context" — the lease had run out halfway down a restore,
+    with nothing wrong except that there was more to put back than at the start.
+
+    Guessing a length in advance would be guessing how long a filesystem takes.
+    This renews at half the lease instead: every batch is a governed write and
+    the ledger sees all of them, and no step can straddle an expiry unless one
+    step alone outlasts half a lease.
+    """
+
+    def __init__(self, source: str) -> None:
+        self._source = source
+        self._stack: contextlib.ExitStack | None = None
+        self._token: Any = None
+
+    def _open(self) -> None:
+        from core.governance_context import local_internal_governed_scope
+
+        stack = contextlib.ExitStack()
+        self._token = stack.enter_context(local_internal_governed_scope(self._source))
+        self._stack = stack
+
+    def _close(self) -> None:
+        stack, self._stack, self._token = self._stack, None, None
+        if stack is not None:
+            stack.close()
+
+    def __enter__(self) -> "_ForkLease":
+        self._open()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self._close()
+
+    def keep(self) -> None:
+        """Renew when the lease is halfway through, before a sink refuses."""
+        token = self._token
+        if token is None:
+            self._open()
+            return
+        started = float(getattr(token, "mono_timestamp", 0.0))
+        length = float(getattr(token, "ttl", 0.0))
+        if length <= 0.0:
+            return
+        if (time.monotonic() - started) >= length / 2.0:
+            self._close()
+            self._open()
+
+
 def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
     """Put the scratch root back to the bytes it held, and nothing else.
 
@@ -579,17 +637,17 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
     """
     if root is None or saved is None:
         return
-    from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     root = Path(root)
     gateway = get_file_write_gateway()
     keep = set(saved["files"]) | set(saved["directories"])
-    with local_internal_governed_scope("subject_core.fork"):
+    with _ForkLease("subject_core.fork") as lease:
         for item in sorted(root.rglob("*"), key=lambda path: len(str(path)), reverse=True):
             name = str(item.relative_to(root))
             if name in keep:
                 continue
+            lease.keep()
             try:
                 gateway.delete_path(
                     item, recursive=item.is_dir(), source="subject_core.fork"
@@ -597,9 +655,11 @@ def _restore_world(root: Path | None, saved: dict[str, Any] | None) -> None:
             except OSError:
                 continue
         for name in saved["directories"]:
+            lease.keep()
             gateway.ensure_directory(root / name, source="subject_core.fork")
         for name, payload in saved["files"].items():
             target = root / name
+            lease.keep()
             gateway.ensure_directory(target.parent, source="subject_core.fork")
             try:
                 if not target.exists() or target.read_bytes() != payload:
@@ -912,13 +972,12 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
         # The root moved since the snapshot. Writing old bytes into a new root
         # would be writing one run's state into another's.
         return
-    from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     gateway = get_file_write_gateway()
     entries: dict[str, tuple[str, tuple[int, int], bytes]] = saved["entries"]
     keep = set(entries) | set(saved["directories"])
-    with local_internal_governed_scope("subject_core.fork"):
+    with _ForkLease("subject_core.fork") as lease:
         for place_name, directory, existed in saved["places"]:
             place = Path(place_name)
             if directory:
@@ -934,6 +993,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
                     continue
                 if name in keep or name.endswith(_STORE_SKIP_SUFFIXES):
                     continue
+                lease.keep()
                 try:
                     gateway.delete_path(item, recursive=item.is_dir(), source="subject_core.fork")
                 except OSError:
@@ -951,10 +1011,12 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
         )
         wanted.update(Path(name).parent for name in entries)
         for directory_path in sorted(wanted, key=lambda path: len(str(path))):
+            lease.keep()
             gateway.ensure_directory(directory_path, source="subject_core.fork")
         failures: list[str] = []
         for name, (kind, stamp, payload) in entries.items():
             target = Path(name)
+            lease.keep()
             try:
                 if kind.startswith("database"):
                     # Compared with the stamp that counts the write-ahead log,
